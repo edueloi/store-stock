@@ -26,6 +26,9 @@ export default function PublicStore() {
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<number | null>(null);
+  
+  const [configProduct, setConfigProduct] = useState<Product | null>(null);
+  const [selectedOptions, setSelectedOptions] = useState<Record<string, string>>({});
 
   useEffect(() => {
     fetch(`/api/public/store/${slug}`)
@@ -44,18 +47,39 @@ export default function PublicStore() {
       });
   }, [slug]);
 
-  const addToCart = (product: Product) => {
-    const existing = cart.find(item => item.id === product.id);
-    if (existing) {
-      setCart(cart.map(item => item.id === product.id ? { ...item, quantity: item.quantity + 1 } : item));
-    } else {
-      setCart([...cart, { ...product, quantity: 1 }]);
+  const addToCart = (product: Product, options?: Record<string, string>) => {
+    const hasVariations = Array.isArray(product.variations) && product.variations.length > 0;
+    
+    // If it has variations and none are selected yet, open config
+    if (hasVariations && !options) {
+      setConfigProduct(product);
+      const initialOptions: Record<string, string> = {};
+      product.variations!.forEach(v => {
+        initialOptions[v.name] = v.options[0];
+      });
+      setSelectedOptions(initialOptions);
+      return;
     }
+
+    const variationLabel = options ? Object.entries(options).map(([k, v]) => `${k}: ${v}`).join(', ') : '';
+    const cartItemId = options ? `${product.id}-${variationLabel}` : `${product.id}`;
+
+    const existing = cart.find(item => item.cartItemId === cartItemId);
+    if (existing) {
+      setCart(cart.map(item => item.cartItemId === cartItemId ? { ...item, quantity: item.quantity + 1 } : item));
+    } else {
+      setCart([...cart, { ...product, quantity: 1, cartItemId, selectedOptions: options, variationLabel }]);
+    }
+    
+    // Close config if open
+    setConfigProduct(null);
+    setSelectedOptions({});
+    setIsCartOpen(true); // Open cart to show user it was added
   };
 
-  const updateQuantity = (id: number, delta: number) => {
+  const updateQuantity = (cartItemId: string, delta: number) => {
     setCart(cart.map(item => {
-      if (item.id === id) {
+      if (item.cartItemId === cartItemId) {
         const newQty = Math.max(1, item.quantity + delta);
         return { ...item, quantity: newQty };
       }
@@ -63,8 +87,8 @@ export default function PublicStore() {
     }));
   };
 
-  const removeFromCart = (id: number) => {
-    setCart(cart.filter(item => item.id !== id));
+  const removeFromCart = (cartItemId: string) => {
+    setCart(cart.filter(item => item.cartItemId !== cartItemId));
   };
 
   const total = cart.reduce((acc, item) => acc + (item.price * item.quantity), 0);
@@ -316,6 +340,9 @@ export default function PublicStore() {
               <div className="p-5 flex flex-col flex-1">
                 <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">{product.category_name || "Nexus Select"}</p>
                 <h3 className="text-xs font-bold group-hover:text-blue-600 transition-colors leading-relaxed h-9 line-clamp-2 uppercase tracking-tight">{product.name}</h3>
+                {Array.isArray(product.variations) && product.variations.length > 0 && (
+                   <p style={{ color: style.accent }} className="text-[8px] font-black uppercase tracking-widest mt-1">Disponível em Grades</p>
+                )}
                 <div className="mt-6 flex items-end justify-between">
                   <div className="flex flex-col">
                     {product.discount_price ? (
@@ -349,6 +376,66 @@ export default function PublicStore() {
            </div>
         )}
       </div>
+
+      {/* Variation Selection Modal */}
+      <AnimatePresence>
+        {configProduct && (
+          <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+            <motion.div
+              initial={{ opacity: 0, y: 40 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 40 }}
+              className={cn("bg-white w-full max-w-sm overflow-hidden shadow-2xl space-y-0", style.radius)}
+            >
+              <div className="p-8 border-b border-slate-100 flex items-center justify-between">
+                <div>
+                   <p style={{ color: style.accent }} className="text-[9px] font-black uppercase tracking-[0.2em] mb-1">Personalizar Item</p>
+                   <h3 className="text-md font-black uppercase tracking-tighter text-slate-900 leading-none">{configProduct.name}</h3>
+                </div>
+                <button onClick={() => setConfigProduct(null)} className="p-2 hover:bg-slate-50 rounded-full text-slate-400 transition-colors">
+                  <X size={20} />
+                </button>
+              </div>
+
+              <div className="p-8 space-y-8">
+                {configProduct.variations?.map((variation, vIdx) => (
+                  <div key={vIdx} className="space-y-4">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">{variation.name}</label>
+                    <div className="flex flex-wrap gap-2">
+                       {variation.options.map((opt, oIdx) => (
+                         <button
+                           key={oIdx}
+                           onClick={() => setSelectedOptions({...selectedOptions, [variation.name]: opt})}
+                           style={selectedOptions[variation.name] === opt ? { backgroundColor: style.accent, borderColor: style.accent } : {}}
+                           className={cn(
+                             "px-4 h-12 min-w-[3rem] font-bold text-[10px] uppercase tracking-widest transition-all border",
+                             style.radius,
+                             selectedOptions[variation.name] === opt
+                               ? "text-white shadow-xl"
+                               : "bg-white text-slate-500 border-slate-200 hover:border-slate-400"
+                           )}
+                         >
+                           {opt}
+                         </button>
+                       ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <div className="p-8 bg-slate-50 border-t border-slate-100 italic">
+                <button
+                  onClick={() => addToCart(configProduct!, selectedOptions)}
+                  style={{ backgroundColor: style.accent }}
+                  className={cn("w-full h-14 text-white font-black text-[10px] uppercase tracking-[0.2em] shadow-2xl transition-all flex items-center justify-center gap-3 active:scale-95", style.radius)}
+                >
+                   Finalizar Escolha <Plus size={16} strokeWidth={3} />
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
       {/* Quem Somos / About Section */}
       <section id="sobre" className="max-w-7xl mx-auto px-6 mt-32 py-20 border-t border-slate-100 grid md:grid-cols-2 gap-16 items-center">
@@ -472,7 +559,7 @@ export default function PublicStore() {
 
               <div className="flex-1 overflow-y-auto p-8 space-y-6">
                 {cart.map(item => (
-                  <div key={item.id} className="flex gap-5 p-4 rounded-3xl border border-slate-100 bg-slate-50/50 hover:bg-white transition-all shadow-sm">
+                  <div key={item.cartItemId} className="flex gap-5 p-4 rounded-3xl border border-slate-100 bg-slate-50/50 hover:bg-white transition-all shadow-sm">
                     <div className="w-16 h-20 bg-white rounded-2xl border border-slate-100 overflow-hidden shrink-0 flex items-center justify-center shadow-sm">
                         {item.image_url ? (
                           <img src={item.image_url} className="w-full h-full object-cover" alt={item.name} />
@@ -483,15 +570,18 @@ export default function PublicStore() {
                     <div className="flex-1 flex flex-col justify-between">
                       <div>
                         <h4 className="text-[10px] font-black uppercase text-slate-900 leading-tight">{item.name}</h4>
+                        {item.variationLabel && (
+                          <p className="text-[8px] font-bold text-slate-400 uppercase tracking-widest mt-1">{item.variationLabel}</p>
+                        )}
                         <p className="text-xs font-mono font-black mt-2 text-emerald-600">R$ {(item.price * item.quantity).toFixed(2)}</p>
                       </div>
                       <div className="flex items-center gap-3 bg-white border border-slate-200 w-fit px-2 py-1 rounded-xl shadow-sm mt-3">
-                        <button onClick={() => updateQuantity(item.id, -1)} className="p-1 hover:bg-slate-50 rounded text-slate-400 transition-colors"><Minus size={12}/></button>
+                        <button onClick={() => updateQuantity(item.cartItemId, -1)} className="p-1 hover:bg-slate-50 rounded text-slate-400 transition-colors"><Minus size={12}/></button>
                         <span className="font-black text-xs w-5 text-center">{item.quantity}</span>
-                        <button onClick={() => updateQuantity(item.id, 1)} className="p-1 hover:bg-slate-50 rounded text-slate-400 transition-colors"><Plus size={12}/></button>
+                        <button onClick={() => updateQuantity(item.cartItemId, 1)} className="p-1 hover:bg-slate-50 rounded text-slate-400 transition-colors"><Plus size={12}/></button>
                       </div>
                     </div>
-                    <button onClick={() => removeFromCart(item.id)} className="text-slate-300 hover:text-rose-500 transition-colors p-1">
+                    <button onClick={() => removeFromCart(item.cartItemId)} className="text-slate-300 hover:text-rose-500 transition-colors p-1">
                       <X size={16} />
                     </button>
                   </div>

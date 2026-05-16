@@ -25,6 +25,8 @@ export default function PDV() {
   const [loading, setLoading] = useState(true);
   const [success, setSuccess] = useState(false);
   const [showCartMobile, setShowCartMobile] = useState(false);
+  const [configProduct, setConfigProduct] = useState<Product | null>(null);
+  const [selectedOptions, setSelectedOptions] = useState<Record<string, string>>({});
 
   useEffect(() => {
     fetch("/api/products", {
@@ -37,18 +39,38 @@ export default function PDV() {
     });
   }, []);
 
-  const addToCart = (product: Product) => {
-    const existing = cart.find(item => item.id === product.id);
-    if (existing) {
-      setCart(cart.map(item => item.id === product.id ? { ...item, quantity: item.quantity + 1 } : item));
-    } else {
-      setCart([...cart, { ...product, quantity: 1 }]);
+  const addToCart = (product: Product, options?: Record<string, string>) => {
+    const hasVariations = Array.isArray(product.variations) && product.variations.length > 0;
+    
+    // If it has variations and none are selected yet, open config
+    if (hasVariations && !options) {
+      setConfigProduct(product);
+      const initialOptions: Record<string, string> = {};
+      product.variations!.forEach(v => {
+        initialOptions[v.name] = v.options[0];
+      });
+      setSelectedOptions(initialOptions);
+      return;
     }
+
+    const variationLabel = options ? Object.entries(options).map(([k, v]) => `${k}: ${v}`).join(', ') : '';
+    const cartItemId = options ? `${product.id}-${variationLabel}` : `${product.id}`;
+
+    const existing = cart.find(item => item.cartItemId === cartItemId);
+    if (existing) {
+      setCart(cart.map(item => item.cartItemId === cartItemId ? { ...item, quantity: item.quantity + 1 } : item));
+    } else {
+      setCart([...cart, { ...product, quantity: 1, cartItemId, selectedOptions: options, variationLabel }]);
+    }
+    
+    // Close config if open
+    setConfigProduct(null);
+    setSelectedOptions({});
   };
 
-  const updateQuantity = (id: number, delta: number) => {
+  const updateQuantity = (cartItemId: string, delta: number) => {
     setCart(cart.map(item => {
-      if (item.id === id) {
+      if (item.cartItemId === cartItemId) {
         const newQty = Math.max(1, item.quantity + delta);
         return { ...item, quantity: newQty };
       }
@@ -56,8 +78,8 @@ export default function PDV() {
     }));
   };
 
-  const removeFromCart = (id: number) => {
-    setCart(cart.filter(item => item.id !== id));
+  const removeFromCart = (cartItemId: string) => {
+    setCart(cart.filter(item => item.cartItemId !== cartItemId));
   };
 
   const total = cart.reduce((acc, item) => acc + (item.price * item.quantity), 0);
@@ -140,6 +162,9 @@ export default function PDV() {
                 </div>
               </div>
               <p className="text-[10px] font-bold text-slate-900 uppercase truncate w-full mb-1">{product.name}</p>
+              {Array.isArray(product.variations) && product.variations.length > 0 && (
+                <p className="text-[8px] font-black text-blue-500 uppercase tracking-widest mb-1">C/ Variações</p>
+              )}
               <p className="text-xs font-mono font-bold text-blue-600">R$ {Number(product.price).toFixed(2)}</p>
               
               <div className="absolute inset-0 bg-blue-600/0 group-hover:bg-blue-600/5 transition-colors pointer-events-none rounded-2xl"></div>
@@ -147,6 +172,63 @@ export default function PDV() {
           ))}
         </div>
       </div>
+
+      {/* Variation Selection Modal */}
+      <AnimatePresence>
+        {configProduct && (
+          <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-white w-full max-w-sm rounded-[32px] overflow-hidden shadow-2xl border border-slate-200"
+            >
+              <div className="p-6 border-b border-slate-100 flex items-center justify-between">
+                <div>
+                   <p className="text-[9px] font-black text-blue-600 uppercase tracking-[0.2em] mb-1">Configurar Produto</p>
+                   <h3 className="text-xs font-black uppercase text-slate-900">{configProduct.name}</h3>
+                </div>
+                <button onClick={() => setConfigProduct(null)} className="p-2 hover:bg-slate-50 rounded-full text-slate-400">
+                  <X size={20} />
+                </button>
+              </div>
+
+              <div className="p-6 space-y-6">
+                {configProduct.variations?.map((variation, vIdx) => (
+                  <div key={vIdx} className="space-y-3">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">{variation.name}</label>
+                    <div className="flex flex-wrap gap-2">
+                       {variation.options.map((opt, oIdx) => (
+                         <button
+                           key={oIdx}
+                           onClick={() => setSelectedOptions({...selectedOptions, [variation.name]: opt})}
+                           className={cn(
+                             "px-4 h-10 rounded-xl text-[10px] font-bold uppercase tracking-widest transition-all border",
+                             selectedOptions[variation.name] === opt
+                               ? "bg-blue-600 text-white border-blue-600 shadow-lg shadow-blue-500/20"
+                               : "bg-slate-50 text-slate-500 border-slate-200 hover:border-slate-400"
+                           )}
+                         >
+                           {opt}
+                         </button>
+                       ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <div className="p-6 bg-slate-50 border-t border-slate-100">
+                <button
+                  onClick={() => addToCart(configProduct, selectedOptions)}
+                  className="w-full h-14 bg-slate-900 text-white rounded-2xl text-[10px] font-black uppercase tracking-[0.2em] shadow-xl hover:bg-black transition-all flex items-center justify-center gap-3"
+                >
+                  Confirmar Escolha <Plus size={16} strokeWidth={3} />
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
       {/* CHECKOUT CART PANEL - Desktop */}
       <div className="hidden lg:flex w-[380px] bg-white rounded-2xl border border-slate-200 shadow-xl flex-col overflow-hidden shrink-0">
@@ -238,22 +320,25 @@ function CartContent({
           <motion.div 
             initial={{ opacity: 0, x: 10 }}
             animate={{ opacity: 1, x: 0 }}
-            key={item.id} 
+            key={item.cartItemId} 
             className="flex items-center gap-4 p-3 rounded-2xl border border-slate-100 bg-white shadow-sm group"
           >
             <div className="flex-1 min-w-0">
               <p className="text-[11px] font-black text-slate-800 uppercase truncate">{item.name}</p>
+              {item.variationLabel && (
+                <p className="text-[8px] font-bold text-slate-400 uppercase tracking-widest">{item.variationLabel}</p>
+              )}
               <p className="text-[10px] font-mono font-bold text-blue-600 flex items-center gap-2 mt-1">
                  R$ {item.price.toFixed(2)} <span className="text-slate-300 font-normal">x{item.quantity}</span>
               </p>
             </div>
             <div className="flex items-center gap-1 bg-slate-50 border border-slate-100 rounded-xl p-1 shrink-0">
-              <button onClick={() => updateQuantity(item.id, -1)} className="p-1.5 hover:bg-white hover:shadow-sm rounded-lg text-slate-500 transition-all"><Minus size={12}/></button>
+              <button onClick={() => updateQuantity(item.cartItemId, -1)} className="p-1.5 hover:bg-white hover:shadow-sm rounded-lg text-slate-500 transition-all"><Minus size={12}/></button>
               <span className="w-8 text-center font-mono font-black text-xs">{item.quantity}</span>
-              <button onClick={() => updateQuantity(item.id, 1)} className="p-1.5 hover:bg-white hover:shadow-sm rounded-lg text-slate-500 transition-all"><Plus size={12}/></button>
+              <button onClick={() => updateQuantity(item.cartItemId, 1)} className="p-1.5 hover:bg-white hover:shadow-sm rounded-lg text-slate-500 transition-all"><Plus size={12}/></button>
             </div>
             <button 
-              onClick={() => removeFromCart(item.id)}
+              onClick={() => removeFromCart(item.cartItemId)}
               className="p-2 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"
             >
               <Trash2 size={16} />

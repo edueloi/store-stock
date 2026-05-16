@@ -100,11 +100,20 @@ export default function Inventory() {
 
   const handleAddVariation = () => {
     if (!variationName || !variationOptions) return;
-    const newVariation = {
-      name: variationName.trim(),
-      options: variationOptions.split(',').map(o => o.trim()).filter(o => o)
-    };
+    const name = variationName.trim();
+    const options = variationOptions.split(',').map(o => o.trim()).filter(o => o);
+    
+    if (!name || options.length === 0) return;
+
     const currentVariations = Array.isArray(editingProduct?.variations) ? editingProduct.variations : [];
+    
+    // Prevent duplicate variation names
+    if (currentVariations.some(v => v.name.toLowerCase() === name.toLowerCase())) {
+       alert("Já existe uma variação com este nome.");
+       return;
+    }
+
+    const newVariation = { name, options };
     setEditingProduct({
       ...editingProduct!,
       variations: [...currentVariations, newVariation]
@@ -490,42 +499,80 @@ export default function Inventory() {
                   </div>
                 </div>
 
-                <div className="space-y-4 pt-4 border-t border-slate-100">
-                    <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-900 px-1 border-l-4 border-blue-600 pl-3">Atributos e Variações</h4>
-                    <div className="flex gap-2">
-                       <input 
-                         type="text" 
-                         placeholder="Ex: Tamanho" 
-                         className="flex-1 bg-slate-100 border-none rounded-lg px-3 text-[10px] uppercase font-bold outline-none h-9"
-                         value={variationName}
-                         onChange={(e) => setVariationName(e.target.value)}
-                       />
-                       <input 
-                         type="text" 
-                         placeholder="Opções (P, M, G)" 
-                         className="flex-2 bg-slate-100 border-none rounded-lg px-3 text-[10px] uppercase font-bold outline-none h-9"
-                         value={variationOptions}
-                         onChange={(e) => setVariationOptions(e.target.value)}
-                       />
+                <div className="space-y-4 pt-6 mt-4 border-t border-slate-100">
+                    <div className="flex items-center justify-between px-1">
+                       <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-900 border-l-4 border-blue-600 pl-3">Grades e Variações</h4>
+                       <p className="text-[9px] font-bold text-slate-400 uppercase">Ex: Cor, Tamanho, Voltagem</p>
+                    </div>
+
+                    <div className="bg-slate-50 p-4 rounded-xl border border-slate-100 space-y-3">
+                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          <div className="space-y-1">
+                             <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest px-1">Nome do Atributo</label>
+                             <input 
+                               type="text" 
+                               placeholder="Ex: Cor" 
+                               className="w-full bg-white border border-slate-200 rounded-lg px-3 text-[11px] font-bold uppercase outline-none h-10 focus:ring-4 focus:ring-blue-500/5 focus:border-blue-500 transition-all"
+                               value={variationName}
+                               onChange={(e) => setVariationName(e.target.value)}
+                             />
+                          </div>
+                          <div className="space-y-1">
+                             <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest px-1">Opções (Separadas por vírgula)</label>
+                             <input 
+                               type="text" 
+                               placeholder="Ex: Azul, Vermelho, Preto" 
+                               className="w-full bg-white border border-slate-200 rounded-lg px-3 text-[11px] font-bold uppercase outline-none h-10 focus:ring-4 focus:ring-blue-500/5 focus:border-blue-500 transition-all"
+                               value={variationOptions}
+                               onChange={(e) => setVariationOptions(e.target.value)}
+                               onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), handleAddVariation())}
+                             />
+                          </div>
+                       </div>
                        <button 
                          type="button"
                          onClick={handleAddVariation}
-                         className="bg-blue-600 text-white px-3 rounded-lg text-[9px] font-black uppercase"
-                       >Vincular</button>
+                         disabled={!variationName || !variationOptions}
+                         className="w-full bg-slate-900 text-white h-10 rounded-lg text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 hover:bg-black transition-all disabled:opacity-50"
+                       >
+                          <Plus size={14} strokeWidth={3} /> Anexar Variação
+                       </button>
                     </div>
                     
-                    <div className="flex flex-wrap gap-2">
-                       {Array.isArray(editingProduct?.variations) && editingProduct.variations.map((v: any, idx: number) => (
-                         <div key={idx} className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 flex items-center gap-3">
-                            <div className="leading-none">
-                               <p className="text-[9px] font-black text-slate-900 uppercase tracking-widest">{v.name}</p>
-                               <p className="text-[8px] font-bold text-slate-400 uppercase mt-0.5">{v.options.join(', ')}</p>
-                            </div>
-                            <button type="button" onClick={() => removeVariation(idx)} className="text-slate-300 hover:text-red-500 transition-colors">
-                               <X size={12} />
-                            </button>
+                    <div className="space-y-2">
+                       {Array.isArray(editingProduct?.variations) && editingProduct.variations.length > 0 ? (
+                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                            {editingProduct.variations.map((v: any, idx: number) => (
+                              <motion.div 
+                                initial={{ opacity: 0, x: -10 }}
+                                animate={{ opacity: 1, x: 0 }}
+                                key={idx} 
+                                className="bg-white border border-slate-200 rounded-xl p-3 flex items-center justify-between group hover:border-blue-200 transition-colors"
+                              >
+                                 <div className="leading-tight">
+                                    <p className="text-[10px] font-black text-slate-900 uppercase tracking-widest">{v.name}</p>
+                                    <div className="flex flex-wrap gap-1 mt-1">
+                                       {v.options.map((opt: string, oIdx: number) => (
+                                          <span key={oIdx} className="text-[8px] font-bold text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded uppercase">{opt}</span>
+                                       ))}
+                                    </div>
+                                 </div>
+                                 <button 
+                                   type="button" 
+                                   onClick={() => removeVariation(idx)} 
+                                   className="w-7 h-7 flex items-center justify-center text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"
+                                 >
+                                    <Trash2 size={12} />
+                                 </button>
+                              </motion.div>
+                            ))}
                          </div>
-                       ))}
+                       ) : (
+                          <div className="py-8 border-2 border-dashed border-slate-100 rounded-2xl flex flex-col items-center justify-center text-slate-400">
+                             <p className="text-[9px] font-black uppercase tracking-[0.2em]">Nenhuma variação definida</p>
+                             <p className="text-[8px] font-medium mt-1">Adicione atributos para gerenciar estoque por grade.</p>
+                          </div>
+                       )}
                     </div>
                 </div>
 
