@@ -1,0 +1,6 @@
+{
+  "name": "Nexus Stock & Store",
+  "description": "Sistema de gerenciamento de estoque multi-tenant com PDV, financeiro e storefront externo integrado via WhatsApp.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
