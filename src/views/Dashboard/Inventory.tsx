@@ -1,24 +1,16 @@
 import React, { useState, useEffect } from "react";
-import { 
-  Search, 
-  Plus, 
-  Filter, 
-  MoreVertical, 
-  Edit2, 
-  Trash2, 
-  AlertTriangle,
-  ChevronLeft,
-  ChevronRight,
-  Image as ImageIcon,
-  Save,
-  X,
-  Calendar,
-  Package,
-  TrendingUp
-} from "lucide-react";
+import { Plus, Edit2, Trash2, Image as ImageIcon, Save, X, Package, TrendingUp } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { cn } from "../../lib/utils";
 import { Product, Category } from "../../types";
+import Button from "../../components/ui/Button";
+import { Input, Select, Textarea } from "../../components/ui/Input";
+import Modal from "../../components/ui/Modal";
+import PageHeader from "../../components/layout/PageHeader";
+import SearchBar from "../../components/layout/SearchBar";
+import { EmptyState, LoadingState } from "../../components/layout/EmptyState";
+import { StatCard } from "../../components/ui/Card";
+import { ActiveBadge } from "../../components/ui/Badge";
 
 export default function Inventory() {
   const [products, setProducts] = useState<Product[]>([]);
@@ -30,7 +22,10 @@ export default function Inventory() {
   const [activeTab, setActiveTab] = useState<'sale' | 'internal'>('sale');
   
   const [variationName, setVariationName] = useState("");
-  const [variationOptions, setVariationOptions] = useState("");
+  // newOptionInput: controle de adicionar opção individual com estoque
+  const [newOptValue, setNewOptValue] = useState("");
+  const [newOptStock, setNewOptStock] = useState<number>(0);
+  const [pendingOptions, setPendingOptions] = useState<{ value: string; stock: number }[]>([]);
 
   const fetchInventory = async () => {
     try {
@@ -98,34 +93,52 @@ export default function Inventory() {
     }
   };
 
+  const handleAddPendingOption = () => {
+    const v = newOptValue.trim();
+    if (!v) return;
+    if (pendingOptions.some(o => o.value.toLowerCase() === v.toLowerCase())) return;
+    setPendingOptions(prev => [...prev, { value: v, stock: newOptStock }]);
+    setNewOptValue("");
+    setNewOptStock(0);
+  };
+
+  const removePendingOption = (idx: number) => {
+    setPendingOptions(prev => prev.filter((_, i) => i !== idx));
+  };
+
   const handleAddVariation = () => {
-    if (!variationName || !variationOptions) return;
     const name = variationName.trim();
-    const options = variationOptions.split(',').map(o => o.trim()).filter(o => o);
-    
-    if (!name || options.length === 0) return;
+    if (!name || pendingOptions.length === 0) return;
 
     const currentVariations = Array.isArray(editingProduct?.variations) ? editingProduct.variations : [];
-    
-    // Prevent duplicate variation names
     if (currentVariations.some(v => v.name.toLowerCase() === name.toLowerCase())) {
-       alert("Já existe uma variação com este nome.");
-       return;
+      alert("Já existe uma variação com este nome.");
+      return;
     }
 
-    const newVariation = { name, options };
     setEditingProduct({
       ...editingProduct!,
-      variations: [...currentVariations, newVariation]
+      variations: [...currentVariations, { name, options: pendingOptions }],
     });
     setVariationName("");
-    setVariationOptions("");
+    setPendingOptions([]);
+    setNewOptValue("");
+    setNewOptStock(0);
   };
 
   const removeVariation = (index: number) => {
     const next = [...(editingProduct?.variations || [])];
     next.splice(index, 1);
     setEditingProduct({ ...editingProduct!, variations: next });
+  };
+
+  const updateOptionStock = (varIdx: number, optIdx: number, stock: number) => {
+    const vars = [...(editingProduct?.variations || [])];
+    vars[varIdx] = {
+      ...vars[varIdx],
+      options: vars[varIdx].options.map((o, i) => i === optIdx ? { ...o, stock } : o),
+    };
+    setEditingProduct({ ...editingProduct!, variations: vars });
   };
 
   const filteredProducts = products.filter(p => 
@@ -138,79 +151,55 @@ export default function Inventory() {
 
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <div>
-          <h2 className="text-xl font-bold text-slate-900 uppercase tracking-tight">Gestão de Inventário</h2>
-          <p className="text-slate-500 text-[10px] font-bold uppercase tracking-widest leading-none">Controle de Ativos e Mercadorias</p>
-        </div>
-        <button 
-          onClick={() => { setEditingProduct({ type: activeTab }); setIsModalOpen(true); }}
-          className="bg-blue-600 text-white px-4 py-2 rounded-lg text-[10px] font-bold uppercase tracking-widest flex items-center gap-2 hover:bg-blue-700 transition-all shadow-lg shadow-blue-200"
-        >
-          <Plus size={14} />
-          {activeTab === 'sale' ? 'Cadastrar para Venda' : 'Lançar Uso Interno'}
-        </button>
-      </div>
+      <PageHeader
+        title="Catálogo / Inventário"
+        subtitle="Controle de ativos e mercadorias"
+        action={
+          <Button icon={<Plus size={14} />} onClick={() => { setEditingProduct({ type: activeTab }); setIsModalOpen(true); }}>
+            {activeTab === "sale" ? "Cadastrar Produto" : "Lançar Interno"}
+          </Button>
+        }
+      />
 
       {/* Tabs */}
-      <div className="flex gap-2 p-1 bg-slate-100 rounded-lg w-fit">
-         <button 
-           onClick={() => setActiveTab('sale')}
-           className={cn(
-             "px-4 py-1.5 rounded-md text-[10px] font-bold uppercase tracking-widest transition-all",
-             activeTab === 'sale' ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:bg-slate-50"
-           )}
-         >
-            Catálogo de Venda
-         </button>
-         <button 
-           onClick={() => setActiveTab('internal')}
-           className={cn(
-             "px-4 py-1.5 rounded-md text-[10px] font-bold uppercase tracking-widest transition-all",
-             activeTab === 'internal' ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:bg-slate-50"
-           )}
-         >
-            Consumo/Uso Interno
-         </button>
+      <div className="flex gap-2 p-1 bg-slate-100 rounded-xl w-fit">
+        {(["sale", "internal"] as const).map((tab) => (
+          <button
+            key={tab}
+            onClick={() => setActiveTab(tab)}
+            className={cn(
+              "px-4 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-widest transition-all",
+              activeTab === tab ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:bg-slate-50"
+            )}
+          >
+            {tab === "sale" ? "Catálogo de Venda" : "Uso Interno"}
+          </button>
+        ))}
       </div>
 
       {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 lg:gap-4">
-         <div className="bg-white p-4 lg:p-5 rounded-2xl border border-slate-200 shadow-sm transition-all hover:shadow-md">
-            <div className="flex items-center gap-3 mb-3">
-               <div className="p-2 bg-blue-50 rounded-lg text-blue-600">
-                  <Package size={16} />
-               </div>
-               <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Capital Imobilizado</p>
-            </div>
-            <h3 className="text-2xl lg:text-3xl font-mono font-black text-slate-900 tracking-tighter">R$ {totalCost.toLocaleString(undefined, { minimumFractionDigits: 2 })}</h3>
-            <p className="text-[9px] text-slate-400 mt-1 uppercase font-bold">Investido em {filteredProducts.length} itens ativos</p>
-         </div>
-         {activeTab === 'sale' && (
-            <div className="bg-white p-4 lg:p-5 rounded-2xl border-2 border-emerald-500/10 shadow-sm border-l-emerald-500 border-l-4 transition-all hover:shadow-md">
-               <div className="flex items-center gap-3 mb-3">
-                  <div className="p-2 bg-emerald-50 rounded-lg text-emerald-600">
-                     <TrendingUp size={16} />
-                  </div>
-                  <p className="text-[10px] font-black text-emerald-600 uppercase tracking-[0.2em]">Potencial de Faturamento</p>
-               </div>
-               <h3 className="text-2xl lg:text-3xl font-mono font-black text-emerald-600 tracking-tighter">R$ {totalValue.toLocaleString(undefined, { minimumFractionDigits: 2 })}</h3>
-               <p className="text-[9px] text-emerald-400 mt-1 uppercase font-bold">Expectativa Bruta de Liquidação</p>
-            </div>
-         )}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 lg:gap-4">
+        <StatCard
+          label="Capital Imobilizado"
+          value={`R$ ${totalCost.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`}
+          icon={<Package />}
+          accent="blue"
+        />
+        {activeTab === "sale" && (
+          <StatCard
+            label="Potencial de Faturamento"
+            value={`R$ ${totalValue.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`}
+            icon={<TrendingUp />}
+            accent="emerald"
+          />
+        )}
       </div>
 
-      {/* SEARCH Area */}
-      <div className="relative">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
-        <input 
-          type="text" 
-          placeholder="FILTRAR POR NOME OU SKU..." 
-          className="w-full pl-10 pr-4 h-10 bg-white border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none text-[10px] font-bold uppercase tracking-widest placeholder:text-slate-300"
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-        />
-      </div>
+      <SearchBar
+        value={searchTerm}
+        onChange={setSearchTerm}
+        placeholder="Filtrar por nome ou SKU..."
+      />
 
       {/* Desktop TABLE Area */}
       <div className="hidden lg:block bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
@@ -345,7 +334,7 @@ export default function Inventory() {
                <div className="space-y-0.5 text-right">
                   <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Preço Venda</p>
                   <p className="text-sm font-mono font-black text-blue-600">
-                    R$ {(p.discount_price || p.price || 0).toFixed(2)}
+                    R$ {Number(p.discount_price || p.price || 0).toFixed(2)}
                   </p>
                </div>
             </div>
@@ -365,31 +354,25 @@ export default function Inventory() {
         ))}
       </div>
 
-      {/* MODAL Area */}
-      <AnimatePresence>
-        {isModalOpen && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
-            <motion.div 
-              initial={{ opacity: 0, scale: 0.98, y: 10 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.98, y: 10 }}
-              className="bg-white w-full max-w-lg rounded-xl shadow-2xl overflow-hidden border border-slate-200"
-            >
-              <div className="px-6 py-4 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
-                <div>
-                  <h3 className="text-xs font-bold uppercase tracking-widest text-slate-900">
-                    {editingProduct?.id ? "Ficha de Edição" : "Novo Cadastro"}
-                  </h3>
-                  <p className="text-[9px] text-slate-500 font-bold uppercase tracking-tighter">
-                     Fluxo de {activeTab === 'sale' ? 'Vendas' : 'Consumo'}
-                  </p>
-                </div>
-                <button onClick={() => setIsModalOpen(false)} className="p-1.5 hover:bg-slate-200 rounded text-slate-400 hover:text-slate-600">
-                  <X size={16} />
-                </button>
-              </div>
+      {/* MODAL */}
+      <Modal
+        open={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        title={editingProduct?.id ? "Editar Produto" : "Novo Produto"}
+        subtitle={`Fluxo de ${activeTab === "sale" ? "Vendas" : "Consumo Interno"}`}
+        size="lg"
+        footer={
+          <>
+            <Button variant="secondary" onClick={() => setIsModalOpen(false)}>Descartar</Button>
+            <Button form="product-form" type="submit" icon={<Save size={13} />}>
+              {editingProduct?.id ? "Salvar Alterações" : "Efetivar Cadastro"}
+            </Button>
+          </>
+        }
+      >
+        {true && (
               
-              <form onSubmit={handleSave} className="p-6 space-y-4 max-h-[70vh] overflow-y-auto custom-scrollbar">
+        <form id="product-form" onSubmit={handleSave} className="space-y-4">
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-1">
                     <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest px-1">SKU / Identificador</label>
@@ -499,81 +482,131 @@ export default function Inventory() {
                   </div>
                 </div>
 
+                {/* ── GRADES E VARIAÇÕES ── */}
                 <div className="space-y-4 pt-6 mt-4 border-t border-slate-100">
-                    <div className="flex items-center justify-between px-1">
-                       <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-900 border-l-4 border-blue-600 pl-3">Grades e Variações</h4>
-                       <p className="text-[9px] font-bold text-slate-400 uppercase">Ex: Cor, Tamanho, Voltagem</p>
+                  <div className="flex items-center justify-between px-1">
+                    <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-900 border-l-4 border-blue-600 pl-3">Grades e Variações</h4>
+                    <p className="text-[9px] font-bold text-slate-400 uppercase">Ex: Tamanho, Cor</p>
+                  </div>
+
+                  {/* Bloco para criar nova variação */}
+                  <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-3">
+                    {/* Nome do atributo */}
+                    <div className="space-y-1">
+                      <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest px-1">Nome do Atributo</label>
+                      <input
+                        type="text"
+                        placeholder="Ex: Tamanho, Cor, Voltagem..."
+                        className="w-full bg-white border border-slate-200 rounded-lg px-3 text-[11px] font-bold uppercase outline-none h-10 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/10 transition-all"
+                        value={variationName}
+                        onChange={(e) => setVariationName(e.target.value)}
+                      />
                     </div>
 
-                    <div className="bg-slate-50 p-4 rounded-xl border border-slate-100 space-y-3">
-                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                          <div className="space-y-1">
-                             <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest px-1">Nome do Atributo</label>
-                             <input 
-                               type="text" 
-                               placeholder="Ex: Cor" 
-                               className="w-full bg-white border border-slate-200 rounded-lg px-3 text-[11px] font-bold uppercase outline-none h-10 focus:ring-4 focus:ring-blue-500/5 focus:border-blue-500 transition-all"
-                               value={variationName}
-                               onChange={(e) => setVariationName(e.target.value)}
-                             />
-                          </div>
-                          <div className="space-y-1">
-                             <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest px-1">Opções (Separadas por vírgula)</label>
-                             <input 
-                               type="text" 
-                               placeholder="Ex: Azul, Vermelho, Preto" 
-                               className="w-full bg-white border border-slate-200 rounded-lg px-3 text-[11px] font-bold uppercase outline-none h-10 focus:ring-4 focus:ring-blue-500/5 focus:border-blue-500 transition-all"
-                               value={variationOptions}
-                               onChange={(e) => setVariationOptions(e.target.value)}
-                               onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), handleAddVariation())}
-                             />
-                          </div>
-                       </div>
-                       <button 
-                         type="button"
-                         onClick={handleAddVariation}
-                         disabled={!variationName || !variationOptions}
-                         className="w-full bg-slate-900 text-white h-10 rounded-lg text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 hover:bg-black transition-all disabled:opacity-50"
-                       >
-                          <Plus size={14} strokeWidth={3} /> Anexar Variação
-                       </button>
-                    </div>
-                    
+                    {/* Adicionar opções com estoque individual */}
                     <div className="space-y-2">
-                       {Array.isArray(editingProduct?.variations) && editingProduct.variations.length > 0 ? (
-                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                            {editingProduct.variations.map((v: any, idx: number) => (
-                              <motion.div 
-                                initial={{ opacity: 0, x: -10 }}
-                                animate={{ opacity: 1, x: 0 }}
-                                key={idx} 
-                                className="bg-white border border-slate-200 rounded-xl p-3 flex items-center justify-between group hover:border-blue-200 transition-colors"
-                              >
-                                 <div className="leading-tight">
-                                    <p className="text-[10px] font-black text-slate-900 uppercase tracking-widest">{v.name}</p>
-                                    <div className="flex flex-wrap gap-1 mt-1">
-                                       {v.options.map((opt: string, oIdx: number) => (
-                                          <span key={oIdx} className="text-[8px] font-bold text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded uppercase">{opt}</span>
-                                       ))}
-                                    </div>
-                                 </div>
-                                 <button 
-                                   type="button" 
-                                   onClick={() => removeVariation(idx)} 
-                                   className="w-7 h-7 flex items-center justify-center text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"
-                                 >
-                                    <Trash2 size={12} />
-                                 </button>
-                              </motion.div>
-                            ))}
-                         </div>
-                       ) : (
-                          <div className="py-8 border-2 border-dashed border-slate-100 rounded-2xl flex flex-col items-center justify-center text-slate-400">
-                             <p className="text-[9px] font-black uppercase tracking-[0.2em]">Nenhuma variação definida</p>
-                             <p className="text-[8px] font-medium mt-1">Adicione atributos para gerenciar estoque por grade.</p>
-                          </div>
-                       )}
+                      <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest px-1">Opções da Grade</label>
+                      <div className="flex gap-2">
+                        <input
+                          type="text"
+                          placeholder="Valor (ex: P, M, G)"
+                          className="flex-1 bg-white border border-slate-200 rounded-lg px-3 text-[11px] font-bold uppercase outline-none h-10 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/10 transition-all"
+                          value={newOptValue}
+                          onChange={(e) => setNewOptValue(e.target.value)}
+                          onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), handleAddPendingOption())}
+                        />
+                        <input
+                          type="number"
+                          min="0"
+                          placeholder="Qtd"
+                          className="w-20 bg-white border border-slate-200 rounded-lg px-3 text-[11px] font-mono font-bold outline-none h-10 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/10 transition-all text-center"
+                          value={newOptStock === 0 ? "" : newOptStock}
+                          onChange={(e) => setNewOptStock(Number(e.target.value))}
+                          onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), handleAddPendingOption())}
+                        />
+                        <button
+                          type="button"
+                          onClick={handleAddPendingOption}
+                          disabled={!newOptValue.trim()}
+                          className="w-10 h-10 flex items-center justify-center bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-all disabled:opacity-40 shrink-0"
+                        >
+                          <Plus size={16} strokeWidth={3} />
+                        </button>
+                      </div>
+
+                      {/* Lista de opções pendentes */}
+                      {pendingOptions.length > 0 && (
+                        <div className="flex flex-wrap gap-2 pt-1">
+                          {pendingOptions.map((opt, i) => (
+                            <div key={i} className="flex items-center gap-1.5 bg-blue-50 border border-blue-200 rounded-lg px-2.5 py-1.5 text-[10px] font-black text-blue-700 uppercase">
+                              <span>{opt.value}</span>
+                              <span className="text-blue-400">·</span>
+                              <span className="font-mono">{opt.stock} un</span>
+                              <button type="button" onClick={() => removePendingOption(i)} className="ml-1 text-blue-400 hover:text-red-500 transition-colors">
+                                <X size={10} strokeWidth={3} />
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
+
+                    <button
+                      type="button"
+                      onClick={handleAddVariation}
+                      disabled={!variationName.trim() || pendingOptions.length === 0}
+                      className="w-full bg-slate-900 text-white h-10 rounded-lg text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 hover:bg-black transition-all disabled:opacity-40"
+                    >
+                      <Plus size={14} strokeWidth={3} /> Confirmar Variação
+                    </button>
+                  </div>
+
+                  {/* Variações já salvas no produto */}
+                  <div className="space-y-3">
+                    {Array.isArray(editingProduct?.variations) && editingProduct.variations.length > 0 ? (
+                      editingProduct.variations.map((v, varIdx) => (
+                        <motion.div
+                          key={varIdx}
+                          initial={{ opacity: 0, x: -10 }}
+                          animate={{ opacity: 1, x: 0 }}
+                          className="bg-white border border-slate-200 rounded-xl p-4 space-y-3"
+                        >
+                          <div className="flex items-center justify-between">
+                            <p className="text-[10px] font-black text-slate-900 uppercase tracking-widest">{v.name}</p>
+                            <button
+                              type="button"
+                              onClick={() => removeVariation(varIdx)}
+                              className="w-7 h-7 flex items-center justify-center text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"
+                            >
+                              <Trash2 size={12} />
+                            </button>
+                          </div>
+                          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                            {v.options.map((opt, optIdx) => (
+                              <div key={optIdx} className="flex flex-col gap-1 bg-slate-50 rounded-lg p-2 border border-slate-100">
+                                <span className="text-[9px] font-black uppercase tracking-widest text-slate-700">{opt.value}</span>
+                                <div className="flex items-center gap-1">
+                                  <input
+                                    type="number"
+                                    min="0"
+                                    className="w-full bg-white border border-slate-200 rounded px-2 text-[11px] font-mono font-black outline-none h-8 text-center focus:border-blue-500 transition-all"
+                                    value={opt.stock}
+                                    onChange={(e) => updateOptionStock(varIdx, optIdx, Number(e.target.value))}
+                                  />
+                                  <span className="text-[9px] font-bold text-slate-400 shrink-0">un</span>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </motion.div>
+                      ))
+                    ) : (
+                      <div className="py-8 border-2 border-dashed border-slate-100 rounded-2xl flex flex-col items-center justify-center text-slate-400">
+                        <p className="text-[9px] font-black uppercase tracking-[0.2em]">Nenhuma variação definida</p>
+                        <p className="text-[8px] font-medium mt-1">Adicione atributos para gerenciar estoque por grade.</p>
+                      </div>
+                    )}
+                  </div>
                 </div>
 
                 <div className="flex gap-4 pt-2">
@@ -599,27 +632,9 @@ export default function Inventory() {
                    )}
                 </div>
 
-                <div className="pt-4 flex gap-3">
-                  <button 
-                    type="button"
-                    onClick={() => setIsModalOpen(false)}
-                    className="flex-1 h-10 border border-slate-200 text-[10px] font-bold uppercase tracking-widest rounded-lg hover:bg-slate-50 transition-colors"
-                  >
-                    Descartar
-                  </button>
-                  <button 
-                    type="submit"
-                    className="flex-1 h-10 bg-slate-900 text-white text-[10px] font-bold uppercase tracking-widest rounded-lg hover:bg-slate-800 transition-all flex items-center justify-center gap-2 shadow-lg shadow-slate-200"
-                  >
-                    <Save size={14} />
-                    Efetivar Cadastro
-                  </button>
-                </div>
-              </form>
-            </motion.div>
-          </div>
+        </form>
         )}
-      </AnimatePresence>
+      </Modal>
     </div>
   );
 }

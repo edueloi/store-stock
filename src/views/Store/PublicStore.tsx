@@ -55,7 +55,7 @@ export default function PublicStore() {
       setConfigProduct(product);
       const initialOptions: Record<string, string> = {};
       product.variations!.forEach(v => {
-        initialOptions[v.name] = v.options[0];
+        initialOptions[v.name] = v.options[0]?.value ?? "";
       });
       setSelectedOptions(initialOptions);
       return;
@@ -405,17 +405,20 @@ export default function PublicStore() {
                        {variation.options.map((opt, oIdx) => (
                          <button
                            key={oIdx}
-                           onClick={() => setSelectedOptions({...selectedOptions, [variation.name]: opt})}
-                           style={selectedOptions[variation.name] === opt ? { backgroundColor: style.accent, borderColor: style.accent } : {}}
+                           onClick={() => setSelectedOptions({...selectedOptions, [variation.name]: opt.value})}
+                           style={selectedOptions[variation.name] === opt.value ? { backgroundColor: style.accent, borderColor: style.accent } : {}}
                            className={cn(
                              "px-4 h-12 min-w-[3rem] font-bold text-[10px] uppercase tracking-widest transition-all border",
                              style.radius,
-                             selectedOptions[variation.name] === opt
+                             selectedOptions[variation.name] === opt.value
                                ? "text-white shadow-xl"
                                : "bg-white text-slate-500 border-slate-200 hover:border-slate-400"
                            )}
                          >
-                           {opt}
+                           {opt.value}
+                           {opt.stock > 0 && (
+                             <span className="block text-[8px] opacity-60 font-mono">{opt.stock} un</span>
+                           )}
                          </button>
                        ))}
                     </div>

@@ -46,7 +46,7 @@ export interface Product {
   type: 'sale' | 'internal';
   is_active: boolean;
   is_featured: boolean;
-  variations?: { name: string; options: string[] }[];
+  variations?: { name: string; options: { value: string; stock: number }[] }[];
 }
 
 export interface Supplier {

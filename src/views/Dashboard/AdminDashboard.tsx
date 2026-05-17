@@ -19,6 +19,7 @@ import {
   Trash2,
   UserCheck,
   Truck,
+  FolderOpen,
   Settings as SettingsIcon
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
@@ -34,6 +35,7 @@ import Finance from "./Finance";
 import Settings from "./Settings";
 import Customers from "./Customers";
 import Suppliers from "./Suppliers";
+import Categories from "./Categories";
 
 export default function AdminDashboard() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(window.innerWidth > 1024);
@@ -57,6 +59,7 @@ export default function AdminDashboard() {
     { icon: LayoutDashboard, label: "Dashboard", path: "/admin" },
     { icon: Box, label: "Estoque", path: "/admin/stock" },
     { icon: Tags, label: "Catálogo", path: "/admin/catalog" },
+    { icon: FolderOpen, label: "Categorias", path: "/admin/categories" },
     { icon: Users, label: "Clientes", path: "/admin/customers" },
     { icon: Truck, label: "Fornecedores", path: "/admin/suppliers" },
     { icon: ShoppingCart, label: "PDV (Vendas)", path: "/admin/pdv" },
@@ -273,6 +276,7 @@ export default function AdminDashboard() {
            <Routes>
              <Route index element={<Home />} />
              <Route path="catalog" element={<Inventory />} />
+             <Route path="categories" element={<Categories />} />
              <Route path="stock" element={<Stock />} />
              <Route path="pdv" element={<PDV />} />
              <Route path="customers" element={<Customers />} />

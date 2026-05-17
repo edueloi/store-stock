@@ -47,7 +47,7 @@ export default function PDV() {
       setConfigProduct(product);
       const initialOptions: Record<string, string> = {};
       product.variations!.forEach(v => {
-        initialOptions[v.name] = v.options[0];
+        initialOptions[v.name] = v.options[0]?.value ?? "";
       });
       setSelectedOptions(initialOptions);
       return;
@@ -201,15 +201,15 @@ export default function PDV() {
                        {variation.options.map((opt, oIdx) => (
                          <button
                            key={oIdx}
-                           onClick={() => setSelectedOptions({...selectedOptions, [variation.name]: opt})}
+                           onClick={() => setSelectedOptions({...selectedOptions, [variation.name]: opt.value})}
                            className={cn(
                              "px-4 h-10 rounded-xl text-[10px] font-bold uppercase tracking-widest transition-all border",
-                             selectedOptions[variation.name] === opt
+                             selectedOptions[variation.name] === opt.value
                                ? "bg-blue-600 text-white border-blue-600 shadow-lg shadow-blue-500/20"
                                : "bg-slate-50 text-slate-500 border-slate-200 hover:border-slate-400"
                            )}
                          >
-                           {opt}
+                           {opt.value}
                          </button>
                        ))}
                     </div>

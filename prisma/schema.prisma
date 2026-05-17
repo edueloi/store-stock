@@ -1,0 +1,191 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model Tenant {
+  id           Int      @id @default(autoincrement())
+  name         String
+  slug         String   @unique
+  whatsapp     String
+  logo_url     String?
+  banner_url   String?
+  instagram_url String?
+  facebook_url String?
+  address      String?
+  show_address Boolean  @default(true)
+  template_id  String   @default("minimal")
+  about_text   String?  @db.Text
+  footer_text  String?  @db.Text
+  primary_color String  @default("#000000")
+  created_at   DateTime @default(now())
+  updated_at   DateTime @updatedAt
+
+  users           User[]
+  categories      Category[]
+  products        Product[]
+  orders          Order[]
+  stock_movements StockMovement[]
+  finance         Finance[]
+  customers       Customer[]
+  suppliers       Supplier[]
+
+  @@map("tenants")
+}
+
+model User {
+  id         Int      @id @default(autoincrement())
+  tenant_id  Int
+  name       String
+  email      String   @unique
+  password   String
+  role       String   @default("admin")
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  tenant Tenant @relation(fields: [tenant_id], references: [id])
+
+  @@map("users")
+}
+
+model Category {
+  id         Int      @id @default(autoincrement())
+  tenant_id  Int
+  name       String
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  tenant   Tenant    @relation(fields: [tenant_id], references: [id])
+  products Product[]
+
+  @@map("categories")
+}
+
+model Product {
+  id             Int       @id @default(autoincrement())
+  tenant_id      Int
+  category_id    Int?
+  name           String
+  sku            String?
+  description    String?   @db.Text
+  price          Decimal   @db.Decimal(10, 2)
+  cost_price     Decimal   @default(0) @db.Decimal(10, 2)
+  discount_price Decimal?  @db.Decimal(10, 2)
+  stock_quantity Int       @default(0)
+  image_url      String?
+  expiry_date    DateTime? @db.Date
+  type           String    @default("sale")
+  is_active      Boolean   @default(true)
+  is_featured    Boolean   @default(false)
+  variations     Json?
+  created_at     DateTime  @default(now())
+  updated_at     DateTime  @updatedAt
+
+  tenant          Tenant          @relation(fields: [tenant_id], references: [id])
+  category        Category?       @relation(fields: [category_id], references: [id])
+  order_items     OrderItem[]
+  stock_movements StockMovement[]
+
+  @@map("products")
+}
+
+model Order {
+  id               Int      @id @default(autoincrement())
+  tenant_id        Int
+  customer_name    String?
+  customer_phone   String?
+  customer_address String?
+  total_amount     Decimal  @db.Decimal(10, 2)
+  status           String   @default("pending")
+  payment_method   String?
+  created_at       DateTime @default(now())
+  updated_at       DateTime @updatedAt
+
+  tenant Tenant      @relation(fields: [tenant_id], references: [id])
+  items  OrderItem[]
+
+  @@map("orders")
+}
+
+model OrderItem {
+  id         Int     @id @default(autoincrement())
+  order_id   Int
+  product_id Int
+  quantity   Int
+  unit_price Decimal @db.Decimal(10, 2)
+
+  order   Order   @relation(fields: [order_id], references: [id])
+  product Product @relation(fields: [product_id], references: [id])
+
+  @@map("order_items")
+}
+
+model StockMovement {
+  id         Int      @id @default(autoincrement())
+  tenant_id  Int
+  product_id Int
+  quantity   Int
+  type       String
+  reason     String?
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  tenant  Tenant  @relation(fields: [tenant_id], references: [id])
+  product Product @relation(fields: [product_id], references: [id])
+
+  @@map("stock_movements")
+}
+
+model Finance {
+  id          Int      @id @default(autoincrement())
+  tenant_id   Int
+  type        String
+  description String
+  amount      Decimal  @db.Decimal(10, 2)
+  date        DateTime @db.Date
+  category    String?
+  created_at  DateTime @default(now())
+  updated_at  DateTime @updatedAt
+
+  tenant Tenant @relation(fields: [tenant_id], references: [id])
+
+  @@map("finance")
+}
+
+model Customer {
+  id         Int      @id @default(autoincrement())
+  tenant_id  Int
+  name       String
+  email      String?
+  phone      String?
+  document   String?
+  address    String?
+  notes      String?  @db.Text
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  tenant Tenant @relation(fields: [tenant_id], references: [id])
+
+  @@map("customers")
+}
+
+model Supplier {
+  id             Int      @id @default(autoincrement())
+  tenant_id      Int
+  name           String
+  category       String
+  contact_person String?
+  phone          String?
+  address        String?
+  notes          String?  @db.Text
+  created_at     DateTime @default(now())
+  updated_at     DateTime @updatedAt
+
+  tenant Tenant @relation(fields: [tenant_id], references: [id])
+
+  @@map("suppliers")
+}
