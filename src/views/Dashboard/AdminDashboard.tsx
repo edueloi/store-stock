@@ -39,6 +39,9 @@ import Categories from "./Categories";
 
 export default function AdminDashboard() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(window.innerWidth > 1024);
+  const [tenantSlug, setTenantSlug] = useState<string>("");
+  const [tenantName, setTenantName] = useState<string>("Nexus ERP");
+  const [userName, setUserName] = useState<string>("Admin");
   const location = useLocation();
   const navigate = useNavigate();
 
@@ -69,8 +72,7 @@ export default function AdminDashboard() {
   ];
 
   const viewPublicStore = () => {
-    // In a real app, this comes from the authenticated user's tenant object
-    window.open('/s/loja-nexus', '_blank');
+    window.open(`/s/${tenantSlug}`, '_blank');
   };
 
   const handleLogout = () => {
@@ -81,7 +83,27 @@ export default function AdminDashboard() {
 
   useEffect(() => {
     const token = localStorage.getItem("token");
-    if (!token) navigate("/login");
+    if (!token) { navigate("/login"); return; }
+
+    // Fetch tenant info to get the real slug
+    fetch("/api/tenant", {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then((r) => r.json())
+      .then((data) => {
+        if (data?.slug) setTenantSlug(data.slug);
+        if (data?.name) setTenantName(data.name);
+      })
+      .catch(() => {});
+
+    // Read user name from stored user object
+    try {
+      const stored = localStorage.getItem("user");
+      if (stored) {
+        const u = JSON.parse(stored);
+        if (u?.name) setUserName(u.name);
+      }
+    } catch {}
   }, [navigate]);
 
   return (
@@ -131,8 +153,8 @@ export default function AdminDashboard() {
             </div>
             {isSidebarOpen && (
               <div className="overflow-hidden text-left">
-                <div className="text-xs font-bold text-white truncate">Nexus Admin</div>
-                <div className="text-[10px] text-slate-400 uppercase">Main Tenant</div>
+                <div className="text-xs font-bold text-white truncate">{userName}</div>
+                <div className="text-[10px] text-slate-400 uppercase truncate">{tenantName}</div>
               </div>
             )}
             {!isSidebarOpen && (
@@ -211,8 +233,8 @@ export default function AdminDashboard() {
                   <img src="https://ui-avatars.com/api/?name=Admin&bg=1e293b&color=fff" alt="User" />
                 </div>
                 <div className="overflow-hidden text-left">
-                  <div className="text-sm font-bold text-white truncate">Nexus Admin</div>
-                  <div className="text-[10px] text-slate-400 uppercase">Main Tenant</div>
+                  <div className="text-sm font-bold text-white truncate">{userName}</div>
+                  <div className="text-[10px] text-slate-400 uppercase truncate">{tenantName}</div>
                 </div>
               </div>
               <button 

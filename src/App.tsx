@@ -18,7 +18,7 @@ import { cn } from "./lib/utils";
 
 // Views (Implementing inline for speed and coherence in this turn)
 import AdminDashboard from "./views/Dashboard/AdminDashboard";
-import PublicStore from "./views/Store/PublicStore";
+import StoreLayout from "./views/Store/StoreLayout";
 import Login from "./views/Auth/Login";
 
 export default function App() {
@@ -27,7 +27,7 @@ export default function App() {
       <Routes>
         <Route path="/login" element={<Login />} />
         <Route path="/admin/*" element={<AdminDashboard />} />
-        <Route path="/s/:slug" element={<PublicStore />} />
+        <Route path="/s/:slug/*" element={<StoreLayout />} />
         <Route path="/" element={<Navigate to="/login" replace />} />
       </Routes>
     </BrowserRouter>

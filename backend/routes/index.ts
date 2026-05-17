@@ -1,4 +1,7 @@
+import path from "path";
+
 import type { Express } from "express";
+import express from "express";
 
 import authRoutes from "./auth.routes";
 import categoriesRoutes from "./categories.routes";
@@ -11,8 +14,12 @@ import salesRoutes from "./sales.routes";
 import statsRoutes from "./stats.routes";
 import suppliersRoutes from "./suppliers.routes";
 import tenantRoutes from "./tenant.routes";
+import uploadRoutes from "./upload.routes";
 
 export function registerRoutes(app: Express) {
+  // Serve uploaded images
+  app.use("/uploads", express.static(path.join(process.cwd(), "public", "uploads")));
+
   app.use("/api/public", publicRoutes);
   app.use("/api/auth", authRoutes);
   app.use("/api/products", productsRoutes);
@@ -24,4 +31,5 @@ export function registerRoutes(app: Express) {
   app.use("/api/suppliers", suppliersRoutes);
   app.use("/api/finance", financeRoutes);
   app.use("/api/tenant", tenantRoutes);
+  app.use("/api/upload", uploadRoutes);
 }

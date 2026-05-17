@@ -1,6 +1,7 @@
 import type { Request, Response } from "express";
 
 import { prisma } from "../config/prisma";
+import { deleteProductImage } from "./upload.controller";
 import type { AuthenticatedRequest } from "../types/auth";
 
 function getTenantId(req: Request) {
@@ -46,11 +47,19 @@ export async function createProduct(req: Request, res: Response) {
 
 export async function updateProduct(req: Request, res: Response) {
   try {
+    const id = Number(req.params.id);
+    const tenantId = getTenantId(req);
+
+    // If a new image is being set, delete the old one
+    if (req.body.image_url !== undefined) {
+      const existing = await prisma.product.findFirst({ where: { id, tenant_id: tenantId }, select: { image_url: true } });
+      if (existing?.image_url && existing.image_url !== req.body.image_url) {
+        deleteProductImage(existing.image_url);
+      }
+    }
+
     await prisma.product.updateMany({
-      where: {
-        id: Number(req.params.id),
-        tenant_id: getTenantId(req),
-      },
+      where: { id, tenant_id: tenantId },
       data: req.body,
     });
 
@@ -62,12 +71,13 @@ export async function updateProduct(req: Request, res: Response) {
 
 export async function deleteProduct(req: Request, res: Response) {
   try {
-    await prisma.product.deleteMany({
-      where: {
-        id: Number(req.params.id),
-        tenant_id: getTenantId(req),
-      },
-    });
+    const id = Number(req.params.id);
+    const tenantId = getTenantId(req);
+
+    const existing = await prisma.product.findFirst({ where: { id, tenant_id: tenantId }, select: { image_url: true } });
+    if (existing?.image_url) deleteProductImage(existing.image_url);
+
+    await prisma.product.deleteMany({ where: { id, tenant_id: tenantId } });
 
     res.json({ success: true });
   } catch {
