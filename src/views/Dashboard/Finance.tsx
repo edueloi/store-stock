@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef } from "react";
 import ExcelJS from "exceljs";
+import PageHeader from "../../components/layout/PageHeader";
 import {
   Wallet,
   TrendingUp,
@@ -564,32 +565,27 @@ export default function Finance() {
   ];
 
   return (
-    <div className="space-y-5">
-      {/* ── PAGE HEADER ─────────────────────────────────────────────────── */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
-        <div>
-          <h2 className="text-xl font-black text-slate-900 uppercase tracking-tight">
-            Fluxo Financeiro
-          </h2>
-          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">
-            Controle de Tesouraria & Lançamentos
-          </p>
-        </div>
-        <div className="flex gap-2 w-full sm:w-auto">
-          <button
-            onClick={() => openModal("income")}
-            className="flex-1 sm:flex-none h-10 px-4 bg-emerald-600 text-white rounded-xl flex items-center justify-center gap-2 text-[10px] font-black uppercase tracking-widest shadow-lg shadow-emerald-200 hover:bg-emerald-500 transition-all active:scale-95"
-          >
-            <Plus size={13} strokeWidth={3} /> Receita
-          </button>
-          <button
-            onClick={() => openModal("expense")}
-            className="flex-1 sm:flex-none h-10 px-4 bg-rose-600 text-white rounded-xl flex items-center justify-center gap-2 text-[10px] font-black uppercase tracking-widest shadow-lg shadow-rose-200 hover:bg-rose-500 transition-all active:scale-95"
-          >
-            <Minus size={13} strokeWidth={3} /> Despesa
-          </button>
-        </div>
-      </div>
+    <div className="space-y-6">
+      <PageHeader
+        title="Fluxo de Caixa"
+        subtitle="Controle de tesouraria & lançamentos"
+        action={
+          <div className="flex gap-2">
+            <button
+              onClick={() => openModal("income")}
+              className="h-9 px-4 bg-emerald-600 text-white rounded-xl flex items-center gap-2 text-[10px] font-black uppercase tracking-widest hover:bg-emerald-500 transition-all active:scale-95"
+            >
+              <Plus size={13} strokeWidth={3} /> Receita
+            </button>
+            <button
+              onClick={() => openModal("expense")}
+              className="h-9 px-4 bg-rose-600 text-white rounded-xl flex items-center gap-2 text-[10px] font-black uppercase tracking-widest hover:bg-rose-500 transition-all active:scale-95"
+            >
+              <Minus size={13} strokeWidth={3} /> Despesa
+            </button>
+          </div>
+        }
+      />
 
       {/* ── SUMMARY CARDS ──────────────────────────────────────────────── */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">

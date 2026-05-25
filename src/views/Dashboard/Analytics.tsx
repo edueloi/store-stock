@@ -5,6 +5,7 @@ import {
   Save, Check, Copy, ExternalLink, AlertCircle, ChevronRight,
   Activity, Target, ToggleLeft, ToggleRight, Info,
 } from "lucide-react";
+import PageHeader from "../../components/layout/PageHeader";
 import { cn } from "../../lib/utils";
 
 // ─── types ───────────────────────────────────────────────────────────────────
@@ -251,21 +252,16 @@ export default function Analytics() {
   const totalOrders  = (stats?.salesOverTime ?? []).length; // proxy: days with sales
 
   return (
-    <div className="space-y-5">
-      {/* page header */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
-        <div>
-          <h2 className="text-lg font-black text-slate-900 uppercase tracking-tight">Métricas & Analytics</h2>
-          <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mt-0.5">
-            Desempenho da loja, rastreamento e integrações de marketing
-          </p>
-        </div>
-        {pixelSaved && (
+    <div className="space-y-6">
+      <PageHeader
+        title="Relatórios"
+        subtitle="Desempenho da loja, rastreamento e integrações de marketing"
+        action={pixelSaved ? (
           <div className="flex items-center gap-2 bg-emerald-50 border border-emerald-200 text-emerald-700 px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest">
             <Check size={13} strokeWidth={3} /> Configuração salva
           </div>
-        )}
-      </div>
+        ) : undefined}
+      />
 
       {/* tab nav */}
       <div className="flex gap-1 bg-slate-100 p-1 rounded-2xl w-full overflow-x-auto no-scrollbar">

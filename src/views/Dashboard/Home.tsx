@@ -1,13 +1,14 @@
 import React, { useState, useEffect } from "react";
 import {
-  TrendingUp, TrendingDown, Package, DollarSign, Activity,
-  ShoppingCart, Users, AlertTriangle, Trophy, ArrowRight,
+  TrendingUp, TrendingDown, Package, DollarSign,
+  ShoppingCart, Users, AlertTriangle, Trophy,
   Plus, X, Edit2, Trash2, Globe, Instagram, Facebook,
   Twitter, Youtube, Linkedin, Mail, Phone, MessageCircle,
   Calendar, Music, Bookmark, Star, Shield, Coffee, Heart,
-  Link2, CheckCircle2, Circle, Check, ExternalLink,
-  ChevronRight, BarChart3, Clock, Zap
+  Link2, CheckCircle2, Check,
+  BarChart3, Zap
 } from "lucide-react";
+import PageHeader from "../../components/layout/PageHeader";
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid,
   Tooltip, ResponsiveContainer
@@ -226,13 +227,7 @@ export default function Home() {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
-        <div>
-          <h2 className="text-xl font-bold text-slate-900 uppercase tracking-tight">Dashboard</h2>
-          <p className="text-slate-400 text-[11px] font-medium capitalize">{today}</p>
-        </div>
-      </div>
+      <PageHeader title="Visão Geral" subtitle={today} />
 
       {/* KPI Cards */}
       {loadingStats ? (

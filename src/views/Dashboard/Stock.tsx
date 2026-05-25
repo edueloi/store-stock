@@ -5,7 +5,6 @@ import {
   Search,
   History,
   TrendingUp,
-  TrendingDown,
   AlertTriangle,
   ArrowRightLeft,
   Check,
@@ -14,6 +13,7 @@ import {
   Layers,
   ClipboardList
 } from "lucide-react";
+import PageHeader from "../../components/layout/PageHeader";
 import { Product } from "../../types";
 import { cn } from "../../lib/utils";
 import Modal from "../../components/ui/Modal";
@@ -110,33 +110,32 @@ export default function Stock() {
 
   return (
     <div className="space-y-6 ">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <div>
-          <h2 className="text-xl font-bold text-slate-900 uppercase tracking-tight">Controle de Estoque</h2>
-          <p className="text-slate-500 text-[10px] font-bold uppercase tracking-widest leading-none">Gestão de Ativos, Insumos e Movimentações</p>
-        </div>
-        <div className="flex gap-2 w-full sm:w-auto">
-          <button
-            onClick={() => setActiveView('inventory')}
-            className={cn(
-              "flex-1 sm:flex-none h-10 px-4 rounded-lg text-[10px] font-bold uppercase tracking-widest transition-all flex items-center justify-center gap-2",
-              activeView === 'inventory' ? "bg-slate-900 text-white shadow-lg shadow-slate-200" : "bg-white border border-slate-200 text-slate-500 hover:bg-slate-50"
-            )}
-          >
-            <Package size={14} /> Posição
-          </button>
-          <button
-            onClick={() => setActiveView('history')}
-            className={cn(
-              "flex-1 sm:flex-none h-10 px-4 rounded-lg text-[10px] font-bold uppercase tracking-widest transition-all flex items-center justify-center gap-2",
-              activeView === 'history' ? "bg-slate-900 text-white shadow-lg shadow-slate-200" : "bg-white border border-slate-200 text-slate-500 hover:bg-slate-50"
-            )}
-          >
-            <History size={14} /> Auditoria
-          </button>
-        </div>
-      </div>
+      <PageHeader
+        title="Estoque"
+        subtitle="Gestão de ativos, insumos e movimentações"
+        action={
+          <div className="flex gap-2">
+            <button
+              onClick={() => setActiveView('inventory')}
+              className={cn(
+                "h-9 px-4 rounded-xl text-[10px] font-bold uppercase tracking-widest transition-all flex items-center gap-2",
+                activeView === 'inventory' ? "bg-slate-900 text-white shadow-sm" : "bg-white border border-slate-200 text-slate-500 hover:bg-slate-50"
+              )}
+            >
+              <Package size={13} /> Posição
+            </button>
+            <button
+              onClick={() => setActiveView('history')}
+              className={cn(
+                "h-9 px-4 rounded-xl text-[10px] font-bold uppercase tracking-widest transition-all flex items-center gap-2",
+                activeView === 'history' ? "bg-slate-900 text-white shadow-sm" : "bg-white border border-slate-200 text-slate-500 hover:bg-slate-50"
+              )}
+            >
+              <History size={13} /> Auditoria
+            </button>
+          </div>
+        }
+      />
 
       {/* KPI Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">

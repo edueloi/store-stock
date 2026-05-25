@@ -1,16 +1,13 @@
 import { useState, useEffect } from "react";
-import { 
-  Receipt, 
-  Search, 
-  Filter, 
-  Download, 
-  ChevronRight, 
-  Clock, 
-  CheckCircle2, 
+import {
+  Receipt,
+  Search,
+  Download,
+  ChevronRight,
+  Clock,
+  CheckCircle2,
   XCircle,
-  MoreVertical,
   Eye,
-  ArrowRight,
   TrendingUp,
   Package,
   ShoppingCart as CartIcon,
@@ -18,6 +15,7 @@ import {
   CreditCard,
   Truck
 } from "lucide-react";
+import PageHeader from "../../components/layout/PageHeader";
 import { Order, Product } from "../../types";
 import { cn } from "../../lib/utils";
 import { motion, AnimatePresence } from "motion/react";
@@ -207,19 +205,16 @@ ${order.items.map(item => `
   if (loading) return <div className="p-8 text-center text-xs font-bold uppercase tracking-widest text-slate-400">Puxando Fluxo de Pedidos...</div>;
 
   return (
-    <div className="space-y-6 ">
-      {/* Header section */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <div>
-          <h2 className="text-xl font-bold text-slate-900 uppercase tracking-tight font-sans">Pedidos</h2>
-          <p className="text-slate-500 text-[10px] font-bold uppercase tracking-widest leading-none">Gestão e acompanhamento de vendas</p>
-        </div>
-        <div className="flex gap-2">
-            <button className="h-10 bg-white border border-slate-200 px-4 rounded-lg flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest hover:bg-slate-50 transition-all text-slate-600 shadow-sm">
-              <Download size={14} /> Exportar
-            </button>
-        </div>
-      </div>
+    <div className="space-y-6">
+      <PageHeader
+        title="Pedidos"
+        subtitle="Gestão e acompanhamento de vendas"
+        action={
+          <button className="h-9 bg-white border border-slate-200 px-4 rounded-xl flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest hover:bg-slate-50 transition-all text-slate-600 shadow-sm">
+            <Download size={13} /> Exportar
+          </button>
+        }
+      />
 
       {/* Analytics Summary */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 lg:gap-6">

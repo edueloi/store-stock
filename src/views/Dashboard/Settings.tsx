@@ -4,6 +4,7 @@ import {
   Users, Save, Loader2, Search, Check, ChevronRight, Globe,
   Bell, Sun, Moon, Package, AlertTriangle, Lock,
 } from "lucide-react";
+import PageHeader from "../../components/layout/PageHeader";
 import { cn } from "../../lib/utils";
 import type { Tenant, BusinessHours, PaymentMethods, StorePolicies } from "../../types";
 
@@ -287,21 +288,16 @@ export default function Settings() {
   const activeItem = allItems.find((i) => i.id === active);
 
   return (
-    <div className="space-y-4">
-      {/* Page header */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
-        <div>
-          <h2 className="text-lg font-black text-slate-900 uppercase tracking-tight">Configurações</h2>
-          <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mt-0.5">
-            Loja pública e sistema interno
-          </p>
-        </div>
-        {saved && (
+    <div className="space-y-6">
+      <PageHeader
+        title="Configurações"
+        subtitle="Loja pública e sistema interno"
+        action={saved ? (
           <div className="flex items-center gap-2 bg-emerald-50 border border-emerald-200 text-emerald-700 px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest">
             <Check size={13} strokeWidth={3} /> Salvo com sucesso
           </div>
-        )}
-      </div>
+        ) : undefined}
+      />
 
       <div className="flex flex-col lg:flex-row gap-5">
         {/* ── Sidebar ──────────────────────────────────────────────────── */}
