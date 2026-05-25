@@ -1,30 +1,10 @@
 import React, { useState, useEffect, useMemo } from "react";
 import {
-  Search,
-  ShoppingCart,
-  Plus,
-  Minus,
-  Trash2,
-  User,
-  CreditCard,
-  Banknote,
-  Percent,
-  CheckCircle2,
-  Package,
-  X,
-  QrCode,
-  Tag,
-  Loader2,
-  Lock,
-  Mail,
-  LogOut,
-  Store,
-  Printer,
-  FileText,
-  MessageCircle,
-  Phone,
-  ChevronRight,
-  ChevronDown,
+  Search, ShoppingCart, Plus, Minus, Trash2, User, CreditCard,
+  Banknote, Percent, CheckCircle2, Package, X, QrCode, Tag,
+  Loader2, Lock, Mail, LogOut, Store,
+  Printer, FileText, MessageCircle, Phone, ChevronRight, ChevronDown,
+  PlusCircle,
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { Product, Category } from "../types";
@@ -33,8 +13,7 @@ import { cn } from "../lib/utils";
 type PaymentMethod = "money" | "debit" | "credit" | "pix";
 type CardBrand = "visa" | "master" | "elo" | "amex" | "hiper" | "other";
 
-interface CardBrandInfo { key: CardBrand; label: string; color: string; }
-const CARD_BRANDS: CardBrandInfo[] = [
+const CARD_BRANDS: { key: CardBrand; label: string; color: string }[] = [
   { key: "visa",   label: "Visa",       color: "#1A1F71" },
   { key: "master", label: "Mastercard", color: "#EB001B" },
   { key: "elo",    label: "Elo",        color: "#00A4E0" },
@@ -42,6 +21,10 @@ const CARD_BRANDS: CardBrandInfo[] = [
   { key: "hiper",  label: "Hipercard",  color: "#B22222" },
   { key: "other",  label: "Outra",      color: "#64748b" },
 ];
+
+const PM_LABEL: Record<PaymentMethod, string> = {
+  money: "Dinheiro", debit: "Débito", credit: "Crédito", pix: "PIX",
+};
 
 interface CartItem extends Product {
   price: number;
@@ -51,21 +34,31 @@ interface CartItem extends Product {
   selectedOptions?: Record<string, string>;
 }
 
+interface PaymentEntry {
+  id: string;
+  method: PaymentMethod;
+  cardBrand: CardBrand;
+  installments: number;
+  amount: string;
+}
+
 interface CompletedSale {
   orderId: number;
   customerName: string;
-  paymentMethod: string;
+  payments: PaymentEntry[];
   items: { name: string; quantity: number; price: number; image_url?: string }[];
   subtotal: number;
   discountValue: number;
   feeAmount: number;
-  creditFeeRate: number;
   total: number;
   change: number;
-  installments: number;
-  cardBrand: string;
   tenantName: string;
   tenantAddress: string;
+  cardFees: Record<string, number[]>;
+}
+
+function newPayment(): PaymentEntry {
+  return { id: Math.random().toString(36).slice(2), method: "money", cardBrand: "visa", installments: 1, amount: "" };
 }
 
 // ─── LOGIN ────────────────────────────────────────────────────────────────────
@@ -142,25 +135,22 @@ function PDVLogin({ onLogin }: { onLogin: (token: string) => void }) {
 
 // ─── MAIN ─────────────────────────────────────────────────────────────────────
 export default function PDVStandalone() {
-  const [token, setToken]                 = useState<string | null>(() => localStorage.getItem("token"));
-  const [products, setProducts]           = useState<Product[]>([]);
-  const [categories, setCategories]       = useState<Category[]>([]);
-  const [searchTerm, setSearchTerm]       = useState("");
+  const [token, setToken]           = useState<string | null>(() => localStorage.getItem("token"));
+  const [products, setProducts]     = useState<Product[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [searchTerm, setSearchTerm] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<number | null>(null);
-  const [cart, setCart]                   = useState<CartItem[]>([]);
-  const [customerName, setCustomerName]   = useState("");
-  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("money");
-  const [cardBrand, setCardBrand]         = useState<CardBrand>("visa");
-  const [installments, setInstallments]   = useState(1);
-  const [cardFees, setCardFees]           = useState<Record<string, number[]>>({});
-  const [discount, setDiscount]           = useState("");
-  const [amountReceived, setAmountReceived] = useState("");
-  const [loading, setLoading]             = useState(false);
-  const [finishing, setFinishing]         = useState(false);
+  const [cart, setCart]             = useState<CartItem[]>([]);
+  const [customerName, setCustomerName] = useState("");
+  const [cardFees, setCardFees]     = useState<Record<string, number[]>>({});
+  const [discount, setDiscount]     = useState("");
+  const [payments, setPayments]     = useState<PaymentEntry[]>([newPayment()]);
+  const [loading, setLoading]       = useState(false);
+  const [finishing, setFinishing]   = useState(false);
   const [showCartMobile, setShowCartMobile] = useState(false);
   const [configProduct, setConfigProduct] = useState<Product | null>(null);
   const [selectedOptions, setSelectedOptions] = useState<Record<string, string>>({});
-  const [tenantName, setTenantName]       = useState("PDV");
+  const [tenantName, setTenantName]   = useState("PDV");
   const [tenantAddress, setTenantAddress] = useState("");
 
   // receipt modal
@@ -169,14 +159,8 @@ export default function PDVStandalone() {
   const [whatsappPhone, setWhatsappPhone]   = useState("");
   const [showPhoneInput, setShowPhoneInput] = useState(false);
 
-  const handleLogin = (newToken: string) => setToken(newToken);
-
-  const handleLogout = () => {
-    localStorage.removeItem("token");
-    localStorage.removeItem("user");
-    setToken(null);
-    setCart([]);
-  };
+  const handleLogin  = (t: string) => setToken(t);
+  const handleLogout = () => { localStorage.removeItem("token"); localStorage.removeItem("user"); setToken(null); setCart([]); };
 
   useEffect(() => {
     if (!token) return;
@@ -198,13 +182,14 @@ export default function PDVStandalone() {
       .finally(() => setLoading(false));
   }, [token]);
 
+  // cart
   const addToCart = (product: Product, options?: Record<string, string>) => {
-    const hasAttributes     = Array.isArray(product.attributes) && product.attributes.length > 0;
-    const hasLegacyVariations = !hasAttributes && Array.isArray(product.variations) && product.variations.length > 0;
-    if ((hasAttributes || hasLegacyVariations) && !options) {
+    const hasAttr = Array.isArray(product.attributes) && product.attributes.length > 0;
+    const hasLeg  = !hasAttr && Array.isArray(product.variations) && product.variations.length > 0;
+    if ((hasAttr || hasLeg) && !options) {
       setConfigProduct(product);
       const init: Record<string, string> = {};
-      if (hasAttributes) product.attributes!.forEach((a) => (init[a.name] = a.values[0] ?? ""));
+      if (hasAttr) product.attributes!.forEach((a) => (init[a.name] = a.values[0] ?? ""));
       else product.variations!.forEach((v) => (init[v.name] = v.options[0]?.value ?? ""));
       setSelectedOptions(init);
       return;
@@ -218,45 +203,227 @@ export default function PDVStandalone() {
     } else {
       setCart([...cart, { ...product, price: Number(product.price), quantity: 1, cartItemId, selectedOptions: options, variationLabel }]);
     }
-    setConfigProduct(null);
-    setSelectedOptions({});
+    setConfigProduct(null); setSelectedOptions({});
   };
 
   const updateQuantity = (cartItemId: string, delta: number) => {
-    setCart(
-      cart.map((item) => {
-        if (item.cartItemId !== cartItemId) return item;
-        const nq = item.quantity + delta;
-        if (nq <= 0) return null as unknown as CartItem;
-        if (nq > item.stock_quantity) return item;
-        return { ...item, quantity: nq };
-      }).filter(Boolean)
-    );
+    setCart(cart.map((item) => {
+      if (item.cartItemId !== cartItemId) return item;
+      const nq = item.quantity + delta;
+      if (nq <= 0) return null as unknown as CartItem;
+      if (nq > item.stock_quantity) return item;
+      return { ...item, quantity: nq };
+    }).filter(Boolean));
+  };
+  const removeFromCart = (id: string) => setCart(cart.filter((i) => i.cartItemId !== id));
+
+  // totals
+  const subtotal      = cart.reduce((a, b) => a + b.price * b.quantity, 0);
+  const discountValue = Math.min(Number(discount) || 0, subtotal);
+  const baseTotal     = subtotal - discountValue;
+  const feeAmount     = payments.reduce((sum, p) => {
+    if (p.method !== "credit") return sum;
+    const rate = cardFees[p.cardBrand]?.[p.installments - 1] ?? 0;
+    const pAmt = Number(p.amount) || 0;
+    return sum + (pAmt > 0 ? pAmt * (rate / 100) : 0);
+  }, 0);
+  const total       = baseTotal + feeAmount;
+  const paidAmount  = payments.reduce((s, p) => s + (Number(p.amount) || 0), 0);
+  const remaining   = Math.max(0, total - paidAmount);
+  const moneyPmt    = payments.find((p) => p.method === "money");
+  const moneyAmt    = Number(moneyPmt?.amount) || 0;
+  const change      = moneyAmt > 0 && paidAmount >= total ? moneyAmt - (total - (paidAmount - moneyAmt)) : 0;
+  const cartQty     = cart.reduce((a, b) => a + b.quantity, 0);
+  const canFinish   = cart.length > 0 && paidAmount >= total && total > 0;
+
+  // payment helpers
+  const updatePayment = (id: string, patch: Partial<PaymentEntry>) =>
+    setPayments((ps) => ps.map((p) => p.id === id ? { ...p, ...patch } : p));
+  const removePayment = (id: string) =>
+    setPayments((ps) => ps.length > 1 ? ps.filter((p) => p.id !== id) : ps);
+  const addPayment = () => setPayments((ps) => [...ps, newPayment()]);
+
+  // receipt helpers
+  const buildThermalHtml = (sale: CompletedSale) => {
+    const now = new Date().toLocaleString("pt-BR");
+    const orderId = String(sale.orderId).padStart(6, "0");
+    return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Cupom #${orderId}</title>
+<style>
+  * { box-sizing:border-box; margin:0; padding:0; }
+  body { font-family:'Courier New',Courier,monospace; font-size:12px; width:302px; margin:0 auto; padding:12px 10px; background:#fff; color:#000; }
+  .center { text-align:center; }
+  .bold { font-weight:bold; }
+  .divider { border:none; border-top:1px dashed #000; margin:6px 0; }
+  .divider-solid { border:none; border-top:2px solid #000; margin:6px 0; }
+  .row { display:flex; justify-content:space-between; margin:2px 0; font-size:11px; }
+  .row-total { display:flex; justify-content:space-between; font-size:14px; font-weight:bold; margin:4px 0; }
+  .item-sub { font-size:11px; color:#333; margin-top:1px; }
+  .small { font-size:10px; color:#555; margin-top:12px; line-height:1.6; text-align:center; }
+  @media print { @page { margin:0; size:80mm auto; } body { padding:8px 6px; } }
+</style></head><body>
+<div class="center bold" style="font-size:13px;letter-spacing:1px;text-transform:uppercase">${sale.tenantName}</div>
+${sale.tenantAddress ? `<div class="center" style="font-size:10px;color:#555;margin-top:2px">${sale.tenantAddress}</div>` : ""}
+<hr class="divider" style="margin-top:8px"/>
+<div class="center bold" style="font-size:11px;letter-spacing:2px">CUPOM NÃO FISCAL</div>
+<div class="center" style="font-size:11px">NF-${orderId}</div>
+<hr class="divider"/>
+<div class="center" style="font-size:11px">${now}</div>
+<hr class="divider"/>
+<div class="bold" style="font-size:11px">CLIENTE</div>
+<div style="font-size:11px;margin:2px 0">${sale.customerName || "CONSUMIDOR FINAL"}</div>
+<hr class="divider"/>
+<div class="center bold" style="font-size:11px;letter-spacing:2px;margin-bottom:4px">ITENS</div>
+${sale.items.map((item) => `
+<div style="margin:4px 0">
+  <div class="bold" style="font-size:11px;text-transform:uppercase">${item.name}</div>
+  <div class="row item-sub"><span>${item.quantity},00 x R$ ${item.price.toFixed(2)}</span><span class="bold">R$ ${(item.price * item.quantity).toFixed(2)}</span></div>
+</div>`).join("")}
+<hr class="divider"/>
+<div class="row"><span class="bold">QTD DE ITENS:</span><span>${sale.items.reduce((a, b) => a + b.quantity, 0)}</span></div>
+${sale.discountValue > 0 ? `<div class="row"><span>SUBTOTAL</span><span>R$ ${sale.subtotal.toFixed(2)}</span></div><div class="row"><span>DESCONTO</span><span>- R$ ${sale.discountValue.toFixed(2)}</span></div>` : ""}
+${sale.feeAmount > 0 ? `<div class="row"><span>JUROS</span><span>+ R$ ${sale.feeAmount.toFixed(2)}</span></div>` : ""}
+<hr class="divider-solid"/>
+<div class="row-total"><span>TOTAL R$:</span><span>R$ ${sale.total.toFixed(2)}</span></div>
+<hr class="divider-solid"/>
+${sale.payments.map((p) => {
+  const rate  = p.method === "credit" ? (sale.cardFees[p.cardBrand]?.[p.installments - 1] ?? 0) : 0;
+  const brand = (p.method === "debit" || p.method === "credit") && p.cardBrand !== "other" ? `/${p.cardBrand.toUpperCase()}` : "";
+  const inst  = p.method === "credit" && p.installments > 1 ? ` ${p.installments}X` : "";
+  const fee   = rate > 0 ? ` (+${rate}%)` : "";
+  const label = `${PM_LABEL[p.method]}${brand}${inst}${fee}`.toUpperCase();
+  return `<div class="row"><span class="bold">PAGAMENTO:</span><span>${label}</span></div><div class="row"><span></span><span class="bold">R$ ${Number(p.amount).toFixed(2)}</span></div>`;
+}).join('<hr class="divider"/>')}
+${sale.change > 0 ? `<hr class="divider"/><div class="row bold"><span>TROCO:</span><span>R$ ${sale.change.toFixed(2)}</span></div>` : ""}
+<hr class="divider"/>
+<div class="center bold" style="font-size:11px;letter-spacing:1px;margin:6px 0">OBRIGADO PELA PREFERÊNCIA!</div>
+<div class="center" style="font-size:11px">VOLTE SEMPRE</div>
+<p class="small">Este não é um documento fiscal<br/>Emitido em ${now}</p>
+</body></html>`;
   };
 
-  const removeFromCart = (cartItemId: string) => setCart(cart.filter((i) => i.cartItemId !== cartItemId));
+  const buildPDFHtml = (sale: CompletedSale) => {
+    const now = new Date().toLocaleString("pt-BR");
+    const orderId = String(sale.orderId).padStart(5, "0");
+    const payLines = sale.payments.map((p) => {
+      const rate  = p.method === "credit" ? (sale.cardFees[p.cardBrand]?.[p.installments - 1] ?? 0) : 0;
+      const brand = (p.method === "debit" || p.method === "credit") && p.cardBrand !== "other" ? ` · ${p.cardBrand.toUpperCase()}` : "";
+      const inst  = p.method === "credit" && p.installments > 1 ? ` ${p.installments}×` : "";
+      const fee   = rate > 0 ? ` (+${rate}%)` : "";
+      return `<div style="display:flex;justify-content:space-between;font-size:13px;color:#93c5fd;padding:3px 0"><span>${PM_LABEL[p.method]}${brand}${inst}${fee}</span><span>R$ ${Number(p.amount).toFixed(2)}</span></div>`;
+    }).join("");
+    return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Nota PDV #${orderId}</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
+  * { box-sizing:border-box; margin:0; padding:0; }
+  body { font-family:'Inter',sans-serif; background:#fff; color:#0f172a; padding:40px; max-width:700px; margin:0 auto; }
+  .header { display:flex; align-items:flex-start; justify-content:space-between; margin-bottom:32px; padding-bottom:24px; border-bottom:3px solid #0f172a; }
+  .store-name { font-size:22px; font-weight:900; text-transform:uppercase; letter-spacing:1px; }
+  .store-addr { font-size:12px; color:#64748b; margin-top:4px; }
+  .header-right { text-align:right; }
+  .receipt-num { font-size:28px; font-weight:900; }
+  .section { margin-bottom:24px; }
+  .section-title { font-size:10px; font-weight:800; color:#94a3b8; text-transform:uppercase; letter-spacing:3px; margin-bottom:10px; }
+  .customer-box { background:#f8fafc; border:1px solid #e2e8f0; border-radius:12px; padding:14px 18px; }
+  table { width:100%; border-collapse:collapse; }
+  thead tr th { font-size:10px; font-weight:800; text-transform:uppercase; letter-spacing:2px; color:#94a3b8; padding:8px 0; border-bottom:1px solid #e2e8f0; text-align:left; }
+  thead tr th:last-child { text-align:right; }
+  tbody tr td { padding:10px 0; border-bottom:1px solid #f1f5f9; vertical-align:middle; }
+  .totals-box { background:#0f172a; border-radius:16px; padding:20px 24px; color:#fff; margin-top:24px; }
+  .totals-row { display:flex; justify-content:space-between; font-size:13px; padding:4px 0; color:#94a3b8; }
+  .totals-row.main { font-size:24px; font-weight:900; color:#fff; padding-top:12px; border-top:1px solid #334155; margin-top:8px; }
+  .footer { margin-top:40px; padding-top:20px; border-top:1px solid #e2e8f0; text-align:center; font-size:11px; color:#94a3b8; }
+  @media print { @page { size:A4; margin:20mm 15mm; } body { padding:0; } }
+</style></head><body>
+<div class="header">
+  <div>
+    <div class="store-name">${sale.tenantName}</div>
+    ${sale.tenantAddress ? `<div class="store-addr">${sale.tenantAddress}</div>` : ""}
+  </div>
+  <div class="header-right">
+    <div style="font-size:10px;font-weight:800;color:#94a3b8;text-transform:uppercase;letter-spacing:3px">Comprovante PDV</div>
+    <div class="receipt-num">#${orderId}</div>
+    <div style="font-size:12px;color:#64748b;margin-top:4px">${now}</div>
+  </div>
+</div>
+<div class="section">
+  <div class="section-title">Cliente</div>
+  <div class="customer-box"><div style="font-size:16px;font-weight:700">${sale.customerName || "Consumidor Final"}</div></div>
+</div>
+<div class="section">
+  <div class="section-title">Itens da Venda</div>
+  <table>
+    <thead><tr><th>Produto</th><th>Qtd</th><th>Unit.</th><th>Total</th></tr></thead>
+    <tbody>${sale.items.map((item) => `
+      <tr>
+        <td style="font-weight:700;font-size:13px">${item.name}</td>
+        <td><span style="font-size:12px;color:#64748b;background:#f1f5f9;border-radius:6px;padding:2px 8px">${item.quantity}</span></td>
+        <td style="font-size:13px;color:#64748b">R$ ${item.price.toFixed(2)}</td>
+        <td style="text-align:right;font-weight:700;font-size:13px">R$ ${(item.price * item.quantity).toFixed(2)}</td>
+      </tr>`).join("")}
+    </tbody>
+  </table>
+</div>
+<div class="totals-box">
+  ${sale.discountValue > 0 ? `<div class="totals-row"><span>Subtotal</span><span>R$ ${sale.subtotal.toFixed(2)}</span></div><div class="totals-row" style="color:#34d399"><span>Desconto</span><span>− R$ ${sale.discountValue.toFixed(2)}</span></div>` : ""}
+  ${sale.feeAmount > 0 ? `<div class="totals-row" style="color:#fbbf24"><span>Juros</span><span>+ R$ ${sale.feeAmount.toFixed(2)}</span></div>` : ""}
+  <div class="totals-row main"><span>TOTAL</span><span>R$ ${sale.total.toFixed(2)}</span></div>
+  ${sale.change > 0 ? `<div class="totals-row" style="color:#34d399;font-weight:700"><span>Troco devolvido</span><span>R$ ${sale.change.toFixed(2)}</span></div>` : ""}
+  <div style="margin-top:16px;padding-top:12px;border-top:1px solid #1e293b">${payLines}</div>
+</div>
+<div class="footer">Documento gerado pelo BoxSys PDV · ${now}</div>
+</body></html>`;
+  };
 
-  const subtotal       = cart.reduce((a, b) => a + b.price * b.quantity, 0);
-  const discountValue  = Math.min(Number(discount) || 0, subtotal);
-  const baseTotal      = subtotal - discountValue;
+  const buildWhatsAppText = (sale: CompletedSale) => {
+    const now = new Date().toLocaleString("pt-BR");
+    const payLines = sale.payments.map((p) => {
+      const brand = (p.method==="debit"||p.method==="credit") && p.cardBrand!=="other" ? `/${p.cardBrand.toUpperCase()}` : "";
+      const inst  = p.method==="credit" && p.installments>1 ? ` ${p.installments}x` : "";
+      return `${PM_LABEL[p.method]}${brand}${inst}: R$ ${Number(p.amount).toFixed(2)}`;
+    }).join(" | ");
+    return [
+      `*${sale.tenantName}*`,
+      `Comprovante #${String(sale.orderId).padStart(5,"0")} — ${now}`,
+      ``,
+      `*Cliente:* ${sale.customerName || "Consumidor Final"}`,
+      ``,
+      `*Itens:*`,
+      ...sale.items.map((i) => `• ${i.name} × ${i.quantity}  →  R$ ${(i.price * i.quantity).toFixed(2)}`),
+      ``,
+      sale.discountValue > 0 ? `Desconto: − R$ ${sale.discountValue.toFixed(2)}` : null,
+      sale.feeAmount > 0 ? `Juros: + R$ ${sale.feeAmount.toFixed(2)}` : null,
+      `*TOTAL: R$ ${sale.total.toFixed(2)}*`,
+      `Pagamento: ${payLines}`,
+      sale.change > 0 ? `Troco: R$ ${sale.change.toFixed(2)}` : null,
+      ``,
+      `Obrigado pela preferência! 🙏`,
+    ].filter((l) => l !== null).join("\n");
+  };
 
-  const creditFeeRate  = paymentMethod === "credit" && cardFees[cardBrand]
-    ? (cardFees[cardBrand][installments - 1] ?? 0) : 0;
-  const feeAmount      = paymentMethod === "credit" ? baseTotal * (creditFeeRate / 100) : 0;
-  const total          = baseTotal + feeAmount;
-  const installmentValue = paymentMethod === "credit" && installments > 1 ? total / installments : 0;
-
-  const amountReceivedNum = Number(amountReceived) || 0;
-  const change         = paymentMethod === "money" && amountReceivedNum > 0 ? amountReceivedNum - total : 0;
+  const printViaIframe = (html: string, delay = 400) => {
+    const iframe = document.createElement("iframe");
+    Object.assign(iframe.style, { position:"fixed", right:"0", bottom:"0", width:"0", height:"0", border:"none" });
+    document.body.appendChild(iframe);
+    const doc = iframe.contentDocument || iframe.contentWindow?.document;
+    if (!doc) return;
+    doc.open(); doc.write(html); doc.close();
+    setTimeout(() => {
+      iframe.contentWindow?.focus();
+      iframe.contentWindow?.print();
+      setTimeout(() => document.body.removeChild(iframe), 1500);
+    }, delay);
+  };
 
   const handleFinishSale = async () => {
-    if (cart.length === 0 || finishing) return;
-    if (paymentMethod === "money" && (!amountReceived || amountReceivedNum < total)) return;
+    if (!canFinish || finishing) return;
     setFinishing(true);
     try {
-      const pmString = paymentMethod === "credit"
-        ? `crédito-${cardBrand}${installments > 1 ? `-${installments}x` : ""}`
-        : paymentMethod === "debit" ? `débito-${cardBrand}` : paymentMethod;
+      const pmString = payments.map((p) => {
+        const brand = (p.method === "debit" || p.method === "credit") ? `-${p.cardBrand}` : "";
+        const inst  = p.method === "credit" && p.installments > 1 ? `-${p.installments}x` : "";
+        return `${p.method}${brand}${inst}:${Number(p.amount).toFixed(2)}`;
+      }).join("|");
+
       const res = await fetch("/api/sales", {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
@@ -271,248 +438,45 @@ export default function PDVStandalone() {
       if (res.ok) {
         const data = await res.json();
         const sale: CompletedSale = {
-          orderId:      data.orderId,
+          orderId: data.orderId,
           customerName,
-          paymentMethod: pmString,
+          payments: payments.map((p) => ({ ...p })),
           items: cart.map((i) => ({ name: i.name, quantity: i.quantity, price: i.price, image_url: i.image_url })),
-          subtotal, discountValue, feeAmount, creditFeeRate, total,
-          change: paymentMethod === "money" ? Math.max(0, change) : 0,
-          installments: paymentMethod === "credit" ? installments : 1,
-          cardBrand: (paymentMethod === "credit" || paymentMethod === "debit") ? cardBrand : "",
-          tenantName,
-          tenantAddress,
+          subtotal, discountValue, feeAmount, total,
+          change: change > 0 ? change : 0,
+          tenantName, tenantAddress,
+          cardFees,
         };
         setCompletedSale(sale);
-        setCart([]);
-        setCustomerName("");
-        setDiscount("");
-        setAmountReceived("");
-        setPaymentMethod("money");
-        setCardBrand("visa");
-        setInstallments(1);
+        setCart([]); setCustomerName(""); setDiscount("");
+        setPayments([newPayment()]);
         setShowCartMobile(false);
         setShowReceipt(true);
-        setWhatsappPhone("");
-        setShowPhoneInput(false);
+        setWhatsappPhone(""); setShowPhoneInput(false);
         fetch("/api/products", { headers: { Authorization: `Bearer ${token}` } })
-          .then((r) => r.json())
-          .then((d) => setProducts(Array.isArray(d) ? d : []));
+          .then((r) => r.json()).then((d) => setProducts(Array.isArray(d) ? d : []));
       }
-    } catch {
-      console.error("Sale failed");
-    } finally {
-      setFinishing(false);
-    }
+    } catch { console.error("Sale failed"); }
+    finally { setFinishing(false); }
   };
 
   const filteredProducts = useMemo(() => products.filter((p) => {
-    if (!p.is_active) return false;
-    if (p.stock_quantity <= 0) return false;
+    if (!p.is_active || p.stock_quantity <= 0) return false;
     if (selectedCategory && p.category_id !== selectedCategory) return false;
     if (searchTerm && !p.name.toLowerCase().includes(searchTerm.toLowerCase())) return false;
     return true;
   }), [products, searchTerm, selectedCategory]);
 
-  const cartQty = cart.reduce((a, b) => a + b.quantity, 0);
-
   if (!token) return <PDVLogin onLogin={handleLogin} />;
 
-  // ── receipt helpers ──────────────────────────────────────────────────────────
-  const buildThermalHtml = (sale: CompletedSale) => {
-    const paymentLabel: Record<string, string> = { money: "Dinheiro", pix: "PIX", debit: "Débito", credit: "Crédito" };
-    const pmKey = sale.paymentMethod.split("-")[0];
-    const pmLabel = paymentLabel[pmKey] ?? sale.paymentMethod;
-    const now = new Date().toLocaleString("pt-BR");
-    return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Comprovante #${String(sale.orderId).padStart(5, "0")}</title>
-<style>
-  * { box-sizing: border-box; }
-  body { font-family: 'Courier New', monospace; font-size: 13px; max-width: 320px; margin: 0 auto; padding: 20px 16px; color: #000; background: #fff; }
-  h1 { font-size: 14px; text-align: center; margin: 0 0 2px; text-transform: uppercase; letter-spacing: 2px; }
-  .sub { text-align: center; font-size: 11px; color: #555; margin: 0 0 3px; }
-  hr { border: none; border-top: 1px dashed #000; margin: 8px 0; }
-  .row { display: flex; justify-content: space-between; font-size: 12px; margin: 3px 0; }
-  .row .lbl { color: #555; }
-  .item-name { font-weight: bold; font-size: 12px; }
-  .item-sub { font-size: 11px; color: #555; }
-  .item-price { font-weight: bold; text-align: right; white-space: nowrap; }
-  .total-row { display: flex; justify-content: space-between; font-size: 16px; font-weight: bold; margin: 6px 0; }
-  .troco { display: flex; justify-content: space-between; font-size: 13px; font-weight: bold; color: #166534; margin: 3px 0; }
-  .footer { text-align: center; font-size: 10px; color: #777; margin-top: 16px; line-height: 1.6; }
-  @media print { @page { margin: 0; size: 80mm auto; } body { padding: 10px 8px; } }
-</style></head><body>
-<h1>${sale.tenantName}</h1>
-${sale.tenantAddress ? `<p class="sub">${sale.tenantAddress}</p>` : ""}
-<p class="sub">Comprovante #${String(sale.orderId).padStart(5, "0")}</p>
-<p class="sub">${now}</p>
-<hr/>
-<div class="row"><span class="lbl">Cliente:</span><strong>${sale.customerName || "Consumidor Final"}</strong></div>
-<hr/>
-<p style="font-weight:bold;font-size:11px;text-transform:uppercase;letter-spacing:1px;margin:4px 0">Itens</p>
-${sale.items.map((item) => `
-<div style="margin:5px 0">
-  <div class="row"><span class="item-name">${item.name}</span><span class="item-price">R$ ${(item.price * item.quantity).toFixed(2)}</span></div>
-  <div class="item-sub">${item.quantity} un × R$ ${item.price.toFixed(2)}</div>
-</div>`).join("")}
-<hr/>
-${sale.discountValue > 0 ? `<div class="row"><span class="lbl">Subtotal</span><span>R$ ${sale.subtotal.toFixed(2)}</span></div><div class="row"><span class="lbl">Desconto</span><span>− R$ ${sale.discountValue.toFixed(2)}</span></div>` : ""}
-${sale.feeAmount > 0 ? `<div class="row"><span class="lbl">Juros (${sale.creditFeeRate}%)</span><span>+ R$ ${sale.feeAmount.toFixed(2)}</span></div>` : ""}
-<div class="total-row"><span>TOTAL</span><span>R$ ${sale.total.toFixed(2)}</span></div>
-${sale.installments > 1 ? `<div class="row"><span class="lbl">${sale.installments}× de</span><span>R$ ${(sale.total / sale.installments).toFixed(2)}</span></div>` : ""}
-<hr/>
-<div class="row"><span class="lbl">Pagamento:</span><strong>${pmLabel}${sale.cardBrand && sale.cardBrand !== "other" ? ` · ${sale.cardBrand.toUpperCase()}` : ""}</strong></div>
-${sale.change > 0 ? `<div class="troco"><span>Troco</span><span>R$ ${sale.change.toFixed(2)}</span></div>` : ""}
-<p class="footer">Obrigado pela preferência!<br/>Gerado em ${now}</p>
-</body></html>`;
-  };
-
-  const buildWhatsAppText = (sale: CompletedSale) => {
-    const now = new Date().toLocaleString("pt-BR");
-    const lines = [
-      `*${sale.tenantName}*`,
-      `Comprovante #${String(sale.orderId).padStart(5, "0")}`,
-      `Data: ${now}`,
-      ``,
-      `*Cliente:* ${sale.customerName || "Consumidor Final"}`,
-      ``,
-      `*Itens:*`,
-      ...sale.items.map((i) => `• ${i.name} × ${i.quantity}  →  R$ ${(i.price * i.quantity).toFixed(2)}`),
-      ``,
-      sale.discountValue > 0 ? `Desconto: − R$ ${sale.discountValue.toFixed(2)}` : null,
-      sale.feeAmount > 0 ? `Juros (${sale.creditFeeRate}%): + R$ ${sale.feeAmount.toFixed(2)}` : null,
-      `*TOTAL: R$ ${sale.total.toFixed(2)}*`,
-      sale.change > 0 ? `Troco: R$ ${sale.change.toFixed(2)}` : null,
-      ``,
-      `Obrigado pela preferência! 🙏`,
-    ].filter((l) => l !== null) as string[];
-    return lines.join("\n");
-  };
-
-  const printThermal = (sale: CompletedSale) => {
-    const html  = buildThermalHtml(sale);
-    const iframe = document.createElement("iframe");
-    Object.assign(iframe.style, { position: "fixed", right: "0", bottom: "0", width: "0", height: "0", border: "none" });
-    document.body.appendChild(iframe);
-    const doc = iframe.contentDocument || iframe.contentWindow?.document;
-    if (!doc) return;
-    doc.open(); doc.write(html); doc.close();
-    setTimeout(() => {
-      iframe.contentWindow?.focus();
-      iframe.contentWindow?.print();
-      setTimeout(() => document.body.removeChild(iframe), 1000);
-    }, 400);
-  };
-
-  const printPDF = (sale: CompletedSale) => {
-    const now = new Date().toLocaleString("pt-BR");
-    const paymentLabel: Record<string, string> = { money: "Dinheiro", pix: "PIX", debit: "Débito", credit: "Crédito" };
-    const pmKey = sale.paymentMethod.split("-")[0];
-    const pmLabel = paymentLabel[pmKey] ?? sale.paymentMethod;
-    const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Nota PDV #${String(sale.orderId).padStart(5, "0")}</title>
-<style>
-  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { font-family: 'Inter', sans-serif; background: #fff; color: #0f172a; padding: 40px; max-width: 700px; margin: 0 auto; }
-  .header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 32px; padding-bottom: 24px; border-bottom: 3px solid #0f172a; }
-  .store-name { font-size: 22px; font-weight: 900; text-transform: uppercase; letter-spacing: 1px; }
-  .store-addr { font-size: 12px; color: #64748b; margin-top: 4px; }
-  .header-right { text-align: right; }
-  .receipt-title { font-size: 11px; font-weight: 800; color: #64748b; text-transform: uppercase; letter-spacing: 3px; }
-  .receipt-num { font-size: 28px; font-weight: 900; }
-  .receipt-date { font-size: 12px; color: #64748b; margin-top: 4px; }
-  .section { margin-bottom: 24px; }
-  .section-title { font-size: 10px; font-weight: 800; color: #94a3b8; text-transform: uppercase; letter-spacing: 3px; margin-bottom: 10px; }
-  .customer-box { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 14px 18px; }
-  .customer-name { font-size: 16px; font-weight: 700; }
-  table { width: 100%; border-collapse: collapse; }
-  thead tr th { font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 2px; color: #94a3b8; padding: 8px 0; border-bottom: 1px solid #e2e8f0; text-align: left; }
-  thead tr th:last-child { text-align: right; }
-  tbody tr td { padding: 10px 0; border-bottom: 1px solid #f1f5f9; vertical-align: middle; }
-  .product-name { font-weight: 700; font-size: 13px; }
-  .product-qty { font-size: 12px; color: #64748b; background: #f1f5f9; border-radius: 6px; padding: 2px 8px; display: inline-block; }
-  .price-cell { text-align: right; font-weight: 700; font-size: 13px; }
-  .totals-box { background: #0f172a; border-radius: 16px; padding: 20px 24px; color: #fff; margin-top: 24px; }
-  .totals-row { display: flex; justify-content: space-between; font-size: 13px; padding: 4px 0; color: #94a3b8; }
-  .totals-row.discount { color: #34d399; }
-  .totals-row.fee { color: #fbbf24; }
-  .totals-row.main { font-size: 24px; font-weight: 900; color: #fff; padding-top: 12px; border-top: 1px solid #334155; margin-top: 8px; }
-  .totals-row.install { color: #93c5fd; }
-  .totals-row.change { color: #34d399; font-weight: 700; }
-  .payment-badge { display: inline-flex; align-items: center; gap: 6px; background: #1e293b; border-radius: 8px; padding: 6px 12px; font-size: 12px; font-weight: 700; color: #cbd5e1; margin-top: 12px; }
-  .footer { margin-top: 40px; padding-top: 20px; border-top: 1px solid #e2e8f0; text-align: center; font-size: 11px; color: #94a3b8; }
-  @media print { @page { size: A4; margin: 20mm 15mm; } body { padding: 0; } }
-</style></head><body>
-<div class="header">
-  <div>
-    <div class="store-name">${sale.tenantName}</div>
-    ${sale.tenantAddress ? `<div class="store-addr">${sale.tenantAddress}</div>` : ""}
-  </div>
-  <div class="header-right">
-    <div class="receipt-title">Comprovante PDV</div>
-    <div class="receipt-num">#${String(sale.orderId).padStart(5, "0")}</div>
-    <div class="receipt-date">${now}</div>
-  </div>
-</div>
-<div class="section">
-  <div class="section-title">Cliente</div>
-  <div class="customer-box"><div class="customer-name">${sale.customerName || "Consumidor Final"}</div></div>
-</div>
-<div class="section">
-  <div class="section-title">Itens da Venda</div>
-  <table>
-    <thead><tr><th>Produto</th><th>Qtd</th><th>Unit.</th><th>Total</th></tr></thead>
-    <tbody>${sale.items.map((item) => `
-      <tr>
-        <td><div class="product-name">${item.name}</div></td>
-        <td><span class="product-qty">${item.quantity}</span></td>
-        <td style="font-size:13px;color:#64748b">R$ ${item.price.toFixed(2)}</td>
-        <td class="price-cell">R$ ${(item.price * item.quantity).toFixed(2)}</td>
-      </tr>`).join("")}
-    </tbody>
-  </table>
-</div>
-<div class="totals-box">
-  ${sale.discountValue > 0 ? `<div class="totals-row"><span>Subtotal</span><span>R$ ${sale.subtotal.toFixed(2)}</span></div><div class="totals-row discount"><span>Desconto</span><span>− R$ ${sale.discountValue.toFixed(2)}</span></div>` : ""}
-  ${sale.feeAmount > 0 ? `<div class="totals-row fee"><span>Juros (${sale.creditFeeRate}%)</span><span>+ R$ ${sale.feeAmount.toFixed(2)}</span></div>` : ""}
-  <div class="totals-row main"><span>TOTAL</span><span>R$ ${sale.total.toFixed(2)}</span></div>
-  ${sale.installments > 1 ? `<div class="totals-row install"><span>${sale.installments}× de</span><span>R$ ${(sale.total / sale.installments).toFixed(2)}</span></div>` : ""}
-  ${sale.change > 0 ? `<div class="totals-row change"><span>Troco devolvido</span><span>R$ ${sale.change.toFixed(2)}</span></div>` : ""}
-  <div class="payment-badge">💳 ${pmLabel}${sale.cardBrand && sale.cardBrand !== "other" ? ` · ${sale.cardBrand.toUpperCase()}` : ""}</div>
-</div>
-<div class="footer">Documento gerado pelo BoxSys PDV · ${now}</div>
-</body></html>`;
-    const iframe = document.createElement("iframe");
-    Object.assign(iframe.style, { position: "fixed", right: "0", bottom: "0", width: "0", height: "0", border: "none" });
-    document.body.appendChild(iframe);
-    const doc = iframe.contentDocument || iframe.contentWindow?.document;
-    if (!doc) return;
-    doc.open(); doc.write(html); doc.close();
-    setTimeout(() => {
-      iframe.contentWindow?.focus();
-      iframe.contentWindow?.print();
-      setTimeout(() => document.body.removeChild(iframe), 1500);
-    }, 600);
-  };
-
-  const sendWhatsApp = (sale: CompletedSale, phone: string) => {
-    const cleaned = phone.replace(/\D/g, "");
-    const full    = cleaned.startsWith("55") ? cleaned : `55${cleaned}`;
-    const text    = buildWhatsAppText(sale);
-    window.open(`https://wa.me/${full}?text=${encodeURIComponent(text)}`, "_blank", "noopener,noreferrer");
-  };
-
-  const cartProps = {
+  // shared cart panel props
+  const cartPanelProps = {
     cart, updateQuantity, removeFromCart,
     customerName, setCustomerName,
-    paymentMethod, setPaymentMethod,
-    cardBrand, setCardBrand,
-    installments, setInstallments,
-    cardFees,
+    cardFees, payments, setPayments, updatePayment, removePayment, addPayment,
     discount, setDiscount,
-    amountReceived, setAmountReceived,
-    change,
-    subtotal, discountValue, feeAmount, creditFeeRate,
-    total, installmentValue,
-    finishing, handleFinishSale,
+    subtotal, discountValue, feeAmount, total, paidAmount, remaining, change,
+    finishing, canFinish, handleFinishSale,
   };
 
   return (
@@ -548,11 +512,7 @@ ${sale.change > 0 ? `<div class="troco"><span>Troco</span><span>R$ ${sale.change
             <button onClick={() => setShowCartMobile(true)}
               className="lg:hidden relative h-10 px-4 bg-blue-600 text-white rounded-xl flex items-center gap-2 text-[10px] font-black uppercase tracking-widest">
               <ShoppingCart size={14} />
-              {cartQty > 0 && (
-                <span className="absolute -top-1 -right-1 w-4 h-4 bg-white text-blue-600 rounded-full text-[9px] font-black flex items-center justify-center">
-                  {cartQty}
-                </span>
-              )}
+              {cartQty > 0 && <span className="absolute -top-1 -right-1 w-4 h-4 bg-white text-blue-600 rounded-full text-[9px] font-black flex items-center justify-center">{cartQty}</span>}
             </button>
           </div>
 
@@ -587,28 +547,18 @@ ${sale.change > 0 ? `<div class="troco"><span>Troco</span><span>R$ ${sale.change
                   const qtyInCart = cart.filter((i) => i.id === product.id).reduce((a, b) => a + b.quantity, 0);
                   const atLimit   = qtyInCart >= product.stock_quantity;
                   return (
-                    <motion.button layout key={product.id}
-                      onClick={() => !atLimit && addToCart(product)}
-                      className={cn(
-                        "bg-slate-900 p-3 rounded-2xl border transition-all flex flex-col items-start group relative text-left",
-                        atLimit ? "border-slate-800 opacity-40 cursor-not-allowed" : "border-slate-800 hover:border-blue-500 hover:bg-slate-800/80 cursor-pointer"
-                      )}>
+                    <motion.button layout key={product.id} onClick={() => !atLimit && addToCart(product)}
+                      className={cn("bg-slate-900 p-3 rounded-2xl border transition-all flex flex-col items-start group relative text-left",
+                        atLimit ? "border-slate-800 opacity-40 cursor-not-allowed" : "border-slate-800 hover:border-blue-500 hover:bg-slate-800/80 cursor-pointer")}>
                       <div className="w-full aspect-square bg-slate-800 rounded-xl border border-slate-700 mb-3 overflow-hidden flex items-center justify-center relative">
                         {product.image_url
                           ? <img src={product.image_url} alt={product.name} className="object-cover w-full h-full group-hover:scale-105 transition-transform" />
                           : <Package size={22} className="text-slate-700" />}
-                        <div className="absolute top-1.5 right-1.5 bg-slate-950/80 border border-slate-700 text-slate-400 px-1.5 py-0.5 rounded text-[8px] font-mono font-bold">
-                          {product.stock_quantity}
-                        </div>
-                        {qtyInCart > 0 && (
-                          <div className="absolute top-1.5 left-1.5 bg-blue-600 text-white w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-black">
-                            {qtyInCart}
-                          </div>
-                        )}
+                        <div className="absolute top-1.5 right-1.5 bg-slate-950/80 border border-slate-700 text-slate-400 px-1.5 py-0.5 rounded text-[8px] font-mono font-bold">{product.stock_quantity}</div>
+                        {qtyInCart > 0 && <div className="absolute top-1.5 left-1.5 bg-blue-600 text-white w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-black">{qtyInCart}</div>}
                       </div>
                       <p className="text-[10px] font-bold text-slate-300 uppercase truncate w-full mb-1">{product.name}</p>
-                      {((Array.isArray(product.attributes) && product.attributes.length > 0) ||
-                        (Array.isArray(product.variations) && product.variations.length > 0)) && (
+                      {((Array.isArray(product.attributes) && product.attributes.length > 0) || (Array.isArray(product.variations) && product.variations.length > 0)) && (
                         <p className="text-[8px] font-black text-blue-500 uppercase tracking-widest mb-1">C/ Variações</p>
                       )}
                       <p className="text-xs font-mono font-black text-blue-400">R$ {Number(product.price).toFixed(2)}</p>
@@ -621,8 +571,8 @@ ${sale.change > 0 ? `<div class="troco"><span>Troco</span><span>R$ ${sale.change
         </div>
 
         {/* Cart — Desktop */}
-        <div className="hidden lg:flex w-[380px] bg-slate-900 border-l border-slate-800 flex-col overflow-hidden shrink-0">
-          <StandaloneCart {...cartProps} />
+        <div className="hidden lg:flex w-[400px] bg-slate-900 border-l border-slate-800 flex-col overflow-hidden shrink-0">
+          <StandaloneCart {...cartPanelProps} />
         </div>
       </div>
 
@@ -650,8 +600,7 @@ ${sale.change > 0 ? `<div class="troco"><span>Troco</span><span>R$ ${sale.change
                             const sku = configProduct.skus?.find((s) => Object.entries(s.combo).every(([k, v]) => currentOptions[k] === v));
                             const hasStock = !sku || sku.stock > 0;
                             return (
-                              <button key={vIdx} disabled={!hasStock}
-                                onClick={() => setSelectedOptions({ ...selectedOptions, [attr.name]: val })}
+                              <button key={vIdx} disabled={!hasStock} onClick={() => setSelectedOptions({ ...selectedOptions, [attr.name]: val })}
                                 className={cn("px-4 h-9 rounded-xl text-[10px] font-bold uppercase tracking-widest transition-all border",
                                   !hasStock ? "opacity-30 cursor-not-allowed line-through bg-slate-800 border-slate-700 text-slate-600"
                                     : selectedOptions[attr.name] === val ? "bg-blue-600 text-white border-blue-600"
@@ -668,8 +617,7 @@ ${sale.change > 0 ? `<div class="troco"><span>Troco</span><span>R$ ${sale.change
                         <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">{variation.name}</label>
                         <div className="flex flex-wrap gap-2">
                           {variation.options.map((opt, oIdx) => (
-                            <button key={oIdx} disabled={opt.stock === 0}
-                              onClick={() => setSelectedOptions({ ...selectedOptions, [variation.name]: opt.value })}
+                            <button key={oIdx} disabled={opt.stock === 0} onClick={() => setSelectedOptions({ ...selectedOptions, [variation.name]: opt.value })}
                               className={cn("px-4 h-9 rounded-xl text-[10px] font-bold uppercase tracking-widest transition-all border",
                                 opt.stock === 0 ? "opacity-30 cursor-not-allowed line-through bg-slate-800 border-slate-700 text-slate-600"
                                   : selectedOptions[variation.name] === opt.value ? "bg-blue-600 text-white border-blue-600"
@@ -699,33 +647,29 @@ ${sale.change > 0 ? `<div class="troco"><span>Troco</span><span>R$ ${sale.change
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
               onClick={() => setShowCartMobile(false)}
               className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-[150] lg:hidden" />
-            <motion.div
-              initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }}
+            <motion.div initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }}
               transition={{ type: "spring", damping: 25, stiffness: 200 }}
               className="fixed inset-x-0 bottom-0 h-[90vh] bg-slate-900 rounded-t-[28px] shadow-2xl z-[151] lg:hidden flex flex-col overflow-hidden border-t border-slate-800">
               <div className="w-10 h-1 bg-slate-700 rounded-full mx-auto my-4 shrink-0" />
               <div className="flex-1 overflow-hidden flex flex-col">
-                <StandaloneCart {...cartProps} onClose={() => setShowCartMobile(false)} />
+                <StandaloneCart {...cartPanelProps} onClose={() => setShowCartMobile(false)} />
               </div>
             </motion.div>
           </>
         )}
       </AnimatePresence>
 
-      {/* ── RECEIPT MODAL ──────────────────────────────────────────────────── */}
+      {/* Receipt Modal */}
       <AnimatePresence>
         {showReceipt && completedSale && (
           <>
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
               className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-[300]" />
             <motion.div
-              initial={{ opacity: 0, scale: 0.92, y: 32 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.92, y: 32 }}
+              initial={{ opacity: 0, scale: 0.92, y: 32 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.92, y: 32 }}
               transition={{ type: "spring", damping: 28, stiffness: 260 }}
-              className="fixed inset-x-0 bottom-0 sm:inset-auto sm:top-1/2 sm:left-1/2 sm:-translate-x-1/2 sm:-translate-y-1/2 z-[301] w-full sm:w-[440px] bg-slate-900 border border-slate-700 sm:rounded-3xl rounded-t-3xl shadow-2xl flex flex-col overflow-hidden max-h-[90vh]"
-            >
-              {/* success header */}
+              className="fixed inset-x-0 bottom-0 sm:inset-auto sm:top-1/2 sm:left-1/2 sm:-translate-x-1/2 sm:-translate-y-1/2 z-[301] w-full sm:w-[440px] bg-slate-900 border border-slate-700 sm:rounded-3xl rounded-t-3xl shadow-2xl flex flex-col overflow-hidden max-h-[90vh]">
+
               <div className="shrink-0 bg-gradient-to-br from-emerald-600 to-emerald-800 px-6 pt-6 pb-5 text-white relative overflow-hidden">
                 <div className="absolute inset-0 opacity-10">
                   <div className="absolute -top-4 -right-4 w-32 h-32 bg-white rounded-full" />
@@ -739,7 +683,7 @@ ${sale.change > 0 ? `<div class="troco"><span>Troco</span><span>R$ ${sale.change
                     </div>
                     <p className="text-2xl font-mono font-black">R$ {completedSale.total.toFixed(2)}</p>
                     <p className="text-[11px] text-emerald-200 font-bold mt-1">
-                      #{String(completedSale.orderId).padStart(5, "0")} · {completedSale.customerName || "Consumidor Final"}
+                      #{String(completedSale.orderId).padStart(5,"0")} · {completedSale.customerName || "Consumidor Final"}
                     </p>
                     {completedSale.change > 0 && (
                       <div className="mt-2 inline-flex items-center gap-1.5 bg-white/20 rounded-lg px-3 py-1.5">
@@ -747,17 +691,25 @@ ${sale.change > 0 ? `<div class="troco"><span>Troco</span><span>R$ ${sale.change
                         <span className="text-[11px] font-black text-white">Troco: R$ {completedSale.change.toFixed(2)}</span>
                       </div>
                     )}
+                    <div className="mt-3 flex flex-wrap gap-1.5">
+                      {completedSale.payments.map((p, i) => {
+                        const brand = (p.method==="debit"||p.method==="credit") && p.cardBrand!=="other" ? ` ${p.cardBrand.toUpperCase()}` : "";
+                        const inst  = p.method==="credit" && p.installments>1 ? ` ${p.installments}×` : "";
+                        return (
+                          <div key={i} className="inline-flex items-center gap-1 bg-white/15 rounded-lg px-2 py-1">
+                            <span className="text-[9px] font-black text-emerald-100">{PM_LABEL[p.method]}{brand}{inst}</span>
+                            <span className="text-[9px] font-mono font-black text-white">R$ {Number(p.amount).toFixed(2)}</span>
+                          </div>
+                        );
+                      })}
+                    </div>
                   </div>
-                  <button onClick={() => setShowReceipt(false)} className="p-1.5 hover:bg-white/20 rounded-xl transition-all text-emerald-200">
-                    <X size={18} />
-                  </button>
+                  <button onClick={() => setShowReceipt(false)} className="p-1.5 hover:bg-white/20 rounded-xl transition-all text-emerald-200"><X size={18} /></button>
                 </div>
-                <div className="relative mt-4 flex gap-2 overflow-x-auto scrollbar-none pb-0.5">
+                <div className="relative mt-3 flex gap-2 overflow-x-auto scrollbar-none pb-0.5">
                   {completedSale.items.map((item, idx) => (
                     <div key={idx} className="shrink-0 flex items-center gap-1.5 bg-white/15 rounded-xl px-2.5 py-1.5">
-                      {item.image_url
-                        ? <img src={item.image_url} className="w-5 h-5 rounded object-cover shrink-0" alt={item.name} />
-                        : <Package size={14} className="text-emerald-200 shrink-0" />}
+                      {item.image_url ? <img src={item.image_url} className="w-5 h-5 rounded object-cover shrink-0" alt={item.name} /> : <Package size={14} className="text-emerald-200 shrink-0" />}
                       <span className="text-[10px] font-bold text-white truncate max-w-[80px]">{item.name}</span>
                       <span className="text-[10px] font-black text-emerald-200">×{item.quantity}</span>
                     </div>
@@ -765,47 +717,36 @@ ${sale.change > 0 ? `<div class="troco"><span>Troco</span><span>R$ ${sale.change
                 </div>
               </div>
 
-              {/* actions */}
               <div className="shrink-0 p-5 space-y-2.5">
                 <p className="text-[9px] font-black text-slate-500 uppercase tracking-[0.2em] mb-3">Emitir Comprovante</p>
-
-                <button onClick={() => printThermal(completedSale)}
-                  className="w-full flex items-center gap-4 h-14 bg-slate-800 hover:bg-slate-700 border border-slate-700 hover:border-slate-600 rounded-2xl px-5 transition-all group">
-                  <div className="w-9 h-9 bg-white rounded-xl flex items-center justify-center shrink-0">
-                    <Printer size={16} className="text-slate-900" />
-                  </div>
+                <button onClick={() => printViaIframe(buildThermalHtml(completedSale))}
+                  className="w-full flex items-center gap-4 h-14 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-2xl px-5 transition-all group">
+                  <div className="w-9 h-9 bg-white rounded-xl flex items-center justify-center shrink-0"><Printer size={16} className="text-slate-900" /></div>
                   <div className="text-left">
                     <p className="text-[11px] font-black text-white uppercase tracking-widest">Nota Térmica</p>
                     <p className="text-[9px] text-slate-500 font-medium">Impressão 80mm para bobina</p>
                   </div>
-                  <ChevronRight size={14} className="ml-auto text-slate-600 group-hover:text-slate-400 transition-colors" />
+                  <ChevronRight size={14} className="ml-auto text-slate-600 group-hover:text-slate-400" />
                 </button>
-
-                <button onClick={() => printPDF(completedSale)}
-                  className="w-full flex items-center gap-4 h-14 bg-slate-800 hover:bg-slate-700 border border-slate-700 hover:border-slate-600 rounded-2xl px-5 transition-all group">
-                  <div className="w-9 h-9 bg-blue-600 rounded-xl flex items-center justify-center shrink-0">
-                    <FileText size={16} className="text-white" />
-                  </div>
+                <button onClick={() => printViaIframe(buildPDFHtml(completedSale), 600)}
+                  className="w-full flex items-center gap-4 h-14 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-2xl px-5 transition-all group">
+                  <div className="w-9 h-9 bg-blue-600 rounded-xl flex items-center justify-center shrink-0"><FileText size={16} className="text-white" /></div>
                   <div className="text-left">
                     <p className="text-[11px] font-black text-white uppercase tracking-widest">PDF Completo</p>
                     <p className="text-[9px] text-slate-500 font-medium">Nota detalhada em A4</p>
                   </div>
-                  <ChevronRight size={14} className="ml-auto text-slate-600 group-hover:text-slate-400 transition-colors" />
+                  <ChevronRight size={14} className="ml-auto text-slate-600 group-hover:text-slate-400" />
                 </button>
-
                 <button onClick={() => setShowPhoneInput(!showPhoneInput)}
                   className={cn("w-full flex items-center gap-4 h-14 border rounded-2xl px-5 transition-all group",
-                    showPhoneInput ? "bg-emerald-900/30 border-emerald-600" : "bg-slate-800 hover:bg-slate-700 border-slate-700 hover:border-slate-600")}>
-                  <div className={cn("w-9 h-9 rounded-xl flex items-center justify-center shrink-0", showPhoneInput ? "bg-emerald-600" : "bg-emerald-700")}>
-                    <MessageCircle size={16} className="text-white" />
-                  </div>
+                    showPhoneInput ? "bg-emerald-900/30 border-emerald-600" : "bg-slate-800 hover:bg-slate-700 border-slate-700")}>
+                  <div className={cn("w-9 h-9 rounded-xl flex items-center justify-center shrink-0", showPhoneInput ? "bg-emerald-600" : "bg-emerald-700")}><MessageCircle size={16} className="text-white" /></div>
                   <div className="text-left">
                     <p className="text-[11px] font-black text-white uppercase tracking-widest">Enviar WhatsApp</p>
                     <p className="text-[9px] text-slate-500 font-medium">Abre WhatsApp Web com comprovante</p>
                   </div>
                   <ChevronDown size={14} className={cn("ml-auto transition-transform text-slate-600", showPhoneInput ? "rotate-180 text-emerald-400" : "")} />
                 </button>
-
                 <AnimatePresence>
                   {showPhoneInput && (
                     <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }} className="overflow-hidden">
@@ -816,13 +757,11 @@ ${sale.change > 0 ? `<div class="troco"><span>Troco</span><span>R$ ${sale.change
                             className="w-full pl-9 pr-4 h-11 bg-slate-800 border border-emerald-600 rounded-xl focus:outline-none text-[12px] font-medium text-white placeholder:text-slate-600 transition-all"
                             value={whatsappPhone} onChange={(e) => setWhatsappPhone(e.target.value)} />
                         </div>
-                        <button
-                          onClick={() => {
-                            const cleaned = whatsappPhone.replace(/\D/g, "");
-                            const full = cleaned.startsWith("55") ? cleaned : `55${cleaned}`;
-                            const text = buildWhatsAppText(completedSale);
-                            window.open(`https://wa.me/${full}?text=${encodeURIComponent(text)}`, "_blank", "noopener,noreferrer");
-                          }}
+                        <button onClick={() => {
+                          const cleaned = whatsappPhone.replace(/\D/g, "");
+                          const full = cleaned.startsWith("55") ? cleaned : `55${cleaned}`;
+                          window.open(`https://wa.me/${full}?text=${encodeURIComponent(buildWhatsAppText(completedSale))}`, "_blank", "noopener,noreferrer");
+                        }}
                           disabled={whatsappPhone.replace(/\D/g, "").length < 10}
                           className="h-11 px-4 bg-emerald-600 disabled:bg-slate-700 disabled:text-slate-500 text-white rounded-xl font-black text-[11px] uppercase tracking-widest flex items-center gap-2 transition-all hover:bg-emerald-500 disabled:cursor-not-allowed shrink-0">
                           <MessageCircle size={14} /> Enviar
@@ -851,16 +790,10 @@ ${sale.change > 0 ? `<div class="troco"><span>Troco</span><span>R$ ${sale.change
 function StandaloneCart({
   cart, updateQuantity, removeFromCart,
   customerName, setCustomerName,
-  paymentMethod, setPaymentMethod,
-  cardBrand, setCardBrand,
-  installments, setInstallments,
-  cardFees,
+  cardFees, payments, updatePayment, removePayment, addPayment,
   discount, setDiscount,
-  amountReceived, setAmountReceived,
-  change,
-  subtotal, discountValue, feeAmount, creditFeeRate,
-  total, installmentValue,
-  finishing, handleFinishSale,
+  subtotal, discountValue, feeAmount, total, paidAmount, remaining, change,
+  finishing, canFinish, handleFinishSale,
   onClose,
 }: {
   cart: CartItem[];
@@ -868,25 +801,23 @@ function StandaloneCart({
   removeFromCart: (id: string) => void;
   customerName: string;
   setCustomerName: (v: string) => void;
-  paymentMethod: PaymentMethod;
-  setPaymentMethod: (v: PaymentMethod) => void;
-  cardBrand: CardBrand;
-  setCardBrand: (v: CardBrand) => void;
-  installments: number;
-  setInstallments: (v: number) => void;
   cardFees: Record<string, number[]>;
+  payments: PaymentEntry[];
+  setPayments: (ps: PaymentEntry[]) => void;
+  updatePayment: (id: string, patch: Partial<PaymentEntry>) => void;
+  removePayment: (id: string) => void;
+  addPayment: () => void;
   discount: string;
   setDiscount: (v: string) => void;
-  amountReceived: string;
-  setAmountReceived: (v: string) => void;
-  change: number;
   subtotal: number;
   discountValue: number;
   feeAmount: number;
-  creditFeeRate: number;
   total: number;
-  installmentValue: number;
+  paidAmount: number;
+  remaining: number;
+  change: number;
   finishing: boolean;
+  canFinish: boolean;
   handleFinishSale: () => void;
   onClose?: () => void;
 }) {
@@ -900,28 +831,20 @@ function StandaloneCart({
           <h3 className="text-[11px] font-black uppercase tracking-widest text-white flex items-center gap-2">
             <ShoppingCart size={13} className="text-blue-500" /> Carrinho
           </h3>
-          <span className="text-[9px] text-slate-600 font-bold uppercase tracking-widest">
-            {totalQty} {totalQty === 1 ? "item" : "itens"}
-          </span>
+          <span className="text-[9px] text-slate-600 font-bold uppercase tracking-widest">{totalQty} {totalQty === 1 ? "item" : "itens"}</span>
         </div>
-        {onClose && (
-          <button onClick={onClose} className="p-1.5 hover:bg-slate-800 rounded-full text-slate-600"><X size={18} /></button>
-        )}
+        {onClose && <button onClick={onClose} className="p-1.5 hover:bg-slate-800 rounded-full text-slate-600"><X size={18} /></button>}
       </div>
 
       {/* Items */}
       <div className="flex-1 overflow-y-auto p-3 space-y-2">
         <AnimatePresence initial={false}>
           {cart.map((item) => (
-            <motion.div key={item.cartItemId}
-              initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }}
-              transition={{ duration: 0.15 }}>
+            <motion.div key={item.cartItemId} initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }} transition={{ duration: 0.15 }}>
               <div className="flex items-center gap-2 p-3 rounded-xl border border-slate-800 bg-slate-800/30">
                 <div className="flex-1 min-w-0">
                   <p className="text-[10px] font-black text-slate-200 uppercase truncate">{item.name}</p>
-                  {item.variationLabel && (
-                    <p className="text-[8px] font-bold text-blue-500 uppercase tracking-widest">{item.variationLabel}</p>
-                  )}
+                  {item.variationLabel && <p className="text-[8px] font-bold text-blue-500 uppercase tracking-widest">{item.variationLabel}</p>}
                   <div className="flex items-center justify-between mt-1">
                     <p className="text-[9px] font-mono text-slate-600">R$ {item.price.toFixed(2)} × {item.quantity}</p>
                     <p className="text-[10px] font-mono font-black text-white">R$ {(item.price * item.quantity).toFixed(2)}</p>
@@ -931,8 +854,7 @@ function StandaloneCart({
                   <div className="flex items-center gap-0.5 bg-slate-900 border border-slate-700 rounded-lg p-0.5">
                     <button onClick={() => updateQuantity(item.cartItemId, -1)} className="p-1 hover:bg-slate-700 rounded text-slate-500 transition-all"><Minus size={10} /></button>
                     <span className="w-5 text-center font-mono font-black text-[11px] text-white">{item.quantity}</span>
-                    <button onClick={() => updateQuantity(item.cartItemId, 1)} disabled={item.quantity >= item.stock_quantity}
-                      className="p-1 hover:bg-slate-700 rounded text-slate-500 transition-all disabled:opacity-20"><Plus size={10} /></button>
+                    <button onClick={() => updateQuantity(item.cartItemId, 1)} disabled={item.quantity >= item.stock_quantity} className="p-1 hover:bg-slate-700 rounded text-slate-500 transition-all disabled:opacity-20"><Plus size={10} /></button>
                   </div>
                   <button onClick={() => removeFromCart(item.cartItemId)} className="p-1 text-slate-700 hover:text-red-500 transition-all"><Trash2 size={11} /></button>
                 </div>
@@ -949,79 +871,13 @@ function StandaloneCart({
       </div>
 
       {/* Checkout */}
-      <div className="shrink-0 border-t border-slate-800 space-y-3 p-4">
+      <div className="shrink-0 border-t border-slate-800 space-y-3 p-4 overflow-y-auto max-h-[55vh]">
         {/* Cliente */}
         <div className="relative">
           <User className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-700" size={13} />
           <input type="text" placeholder="CLIENTE (OPCIONAL)" value={customerName} onChange={(e) => setCustomerName(e.target.value)}
             className="w-full pl-9 pr-3 h-9 bg-slate-800/50 border border-slate-700/50 rounded-lg focus:outline-none focus:border-blue-500 text-[9px] font-bold uppercase tracking-widest text-white placeholder:text-slate-700 transition-all" />
         </div>
-
-        {/* Forma de pagamento — 4 botões */}
-        <div className="grid grid-cols-2 gap-1.5">
-          {([
-            { key: "money",  label: "Dinheiro", Icon: Banknote  },
-            { key: "debit",  label: "Débito",   Icon: CreditCard },
-            { key: "credit", label: "Crédito",  Icon: CreditCard },
-            { key: "pix",    label: "PIX",      Icon: QrCode    },
-          ] as { key: PaymentMethod; label: string; Icon: React.ElementType }[]).map(({ key, label, Icon }) => (
-            <button key={key}
-              onClick={() => { setPaymentMethod(key); setInstallments(1); }}
-              className={cn(
-                "flex flex-col items-center justify-center gap-1 h-12 rounded-xl border text-[8px] font-black uppercase tracking-widest transition-all",
-                paymentMethod === key
-                  ? key === "credit"
-                    ? "bg-emerald-600 border-emerald-500 text-white shadow-lg shadow-emerald-500/20"
-                    : "bg-blue-600 border-blue-600 text-white shadow-lg shadow-blue-500/20"
-                  : "bg-slate-800/50 border-slate-700/50 text-slate-600 hover:border-slate-500 hover:text-slate-400"
-              )}>
-              <Icon size={14} />
-              {label}
-            </button>
-          ))}
-        </div>
-
-        {/* Bandeira (débito ou crédito) */}
-        {(paymentMethod === "debit" || paymentMethod === "credit") && (
-          <div className="space-y-1.5">
-            <p className="text-[8px] font-black text-slate-600 uppercase tracking-[0.2em]">Bandeira</p>
-            <div className="grid grid-cols-3 gap-1">
-              {CARD_BRANDS.map(({ key, label, color }) => (
-                <button key={key} onClick={() => setCardBrand(key)}
-                  className={cn("h-8 rounded-lg border text-[8px] font-black uppercase tracking-widest transition-all",
-                    cardBrand === key ? "text-white shadow-md border-transparent" : "bg-slate-800/40 border-slate-700/50 text-slate-500 hover:border-slate-500")}
-                  style={cardBrand === key ? { backgroundColor: color } : {}}>
-                  {label}
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Parcelamento (crédito) */}
-        {paymentMethod === "credit" && (
-          <div className="space-y-1.5">
-            <p className="text-[8px] font-black text-slate-600 uppercase tracking-[0.2em]">Parcelamento</p>
-            <div className="grid grid-cols-4 gap-1">
-              {[1, 2, 3, 4, 5, 6, 10, 12].map((n) => {
-                const rate = cardFees[cardBrand]?.[n - 1] ?? 0;
-                return (
-                  <button key={n} onClick={() => setInstallments(n)}
-                    className={cn("h-9 rounded-lg border text-[8px] font-black uppercase tracking-widest transition-all flex flex-col items-center justify-center",
-                      installments === n ? "bg-emerald-600 border-emerald-500 text-white shadow-md"
-                        : "bg-slate-800/40 border-slate-700/50 text-slate-500 hover:border-slate-500")}>
-                    <span>{n === 1 ? "À vista" : `${n}×`}</span>
-                    {rate > 0 && (
-                      <span className={cn("text-[7px] font-bold", installments === n ? "text-emerald-200" : "text-slate-600")}>
-                        +{rate}%
-                      </span>
-                    )}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        )}
 
         {/* Desconto */}
         <div className="relative">
@@ -1030,63 +886,126 @@ function StandaloneCart({
             className="w-full pl-9 pr-3 h-9 bg-slate-800/50 border border-slate-700/50 rounded-lg focus:outline-none focus:border-blue-500 text-[9px] font-bold uppercase tracking-widest text-white placeholder:text-slate-700 transition-all [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none" />
         </div>
 
-        {/* Valor recebido (dinheiro) */}
-        {paymentMethod === "money" && (
-          <div className="relative">
-            <Banknote className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-700" size={13} />
-            <input type="number" min="0" placeholder="VALOR RECEBIDO (R$)" value={amountReceived} onChange={(e) => setAmountReceived(e.target.value)}
-              className={cn(
-                "w-full pl-9 pr-3 h-9 bg-slate-800/50 border rounded-lg focus:outline-none text-[9px] font-bold uppercase tracking-widest text-white placeholder:text-slate-700 transition-all [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none",
-                amountReceived && Number(amountReceived) < total ? "border-red-500 focus:border-red-500" : "border-slate-700/50 focus:border-blue-500"
-              )} />
+        {/* Payments */}
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <p className="text-[8px] font-black text-slate-600 uppercase tracking-[0.2em]">Pagamentos</p>
+            <button onClick={addPayment}
+              className="flex items-center gap-1 h-6 px-2 bg-blue-600/20 border border-blue-500/30 rounded-lg text-[8px] font-black text-blue-400 uppercase tracking-widest hover:bg-blue-600/30 transition-all">
+              <PlusCircle size={10} /> Adicionar
+            </button>
           </div>
-        )}
+
+          {payments.map((p, idx) => {
+            const feeRate = p.method === "credit" ? (cardFees[p.cardBrand]?.[p.installments - 1] ?? 0) : 0;
+            const pAmt = Number(p.amount) || 0;
+            const pFee = pAmt > 0 && feeRate > 0 ? pAmt * (feeRate / 100) : 0;
+            return (
+              <div key={p.id} className="bg-slate-800/40 rounded-xl border border-slate-700/50 p-2.5 space-y-2">
+                {/* method */}
+                <div className="flex items-center gap-1.5">
+                  {payments.length > 1 && <span className="w-4 h-4 bg-slate-700 rounded-full flex items-center justify-center text-[8px] font-black text-slate-400 shrink-0">{idx+1}</span>}
+                  <div className="grid grid-cols-4 gap-1 flex-1">
+                    {(["money","debit","credit","pix"] as PaymentMethod[]).map((key) => (
+                      <button key={key} onClick={() => updatePayment(p.id, { method: key, installments: 1 })}
+                        className={cn("h-8 rounded-lg border text-[8px] font-black uppercase tracking-widest transition-all flex flex-col items-center justify-center gap-0.5",
+                          p.method === key
+                            ? key === "credit" ? "bg-emerald-600 border-emerald-500 text-white" : "bg-blue-600 border-blue-600 text-white"
+                            : "bg-slate-800/50 border-slate-700/50 text-slate-600 hover:border-slate-500 hover:text-slate-400")}>
+                        {key === "money" && <Banknote size={10} />}
+                        {key === "debit" && <CreditCard size={10} />}
+                        {key === "credit" && <CreditCard size={10} />}
+                        {key === "pix" && <QrCode size={10} />}
+                        {PM_LABEL[key]}
+                      </button>
+                    ))}
+                  </div>
+                  {payments.length > 1 && <button onClick={() => removePayment(p.id)} className="text-slate-700 hover:text-red-500 transition-colors shrink-0"><X size={12} /></button>}
+                </div>
+
+                {/* bandeira */}
+                {(p.method === "debit" || p.method === "credit") && (
+                  <div className="grid grid-cols-3 gap-1">
+                    {CARD_BRANDS.map(({ key, label, color }) => (
+                      <button key={key} onClick={() => updatePayment(p.id, { cardBrand: key })}
+                        className={cn("h-6 rounded-md border text-[7px] font-black uppercase tracking-widest transition-all",
+                          p.cardBrand === key ? "text-white border-transparent" : "bg-slate-800/40 border-slate-700/50 text-slate-500 hover:border-slate-500")}
+                        style={p.cardBrand === key ? { backgroundColor: color } : {}}>
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                )}
+
+                {/* parcelamento */}
+                {p.method === "credit" && (
+                  <div className="grid grid-cols-4 gap-1">
+                    {[1,2,3,4,5,6,10,12].map((n) => {
+                      const rate = cardFees[p.cardBrand]?.[n-1] ?? 0;
+                      return (
+                        <button key={n} onClick={() => updatePayment(p.id, { installments: n })}
+                          className={cn("h-8 rounded-lg border text-[7px] font-black uppercase tracking-widest transition-all flex flex-col items-center justify-center",
+                            p.installments === n ? "bg-emerald-600 border-emerald-500 text-white" : "bg-slate-800/40 border-slate-700/50 text-slate-500 hover:border-slate-500")}>
+                          <span>{n === 1 ? "À vista" : `${n}×`}</span>
+                          {rate > 0 && <span className={cn("text-[6px] font-bold", p.installments === n ? "text-emerald-200" : "text-slate-600")}>+{rate}%</span>}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {/* valor */}
+                <div className="flex gap-1.5">
+                  <div className="relative flex-1">
+                    <Banknote className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-700" size={11} />
+                    <input type="number" min="0" step="0.01"
+                      placeholder={idx === 0 ? `R$ ${total > 0 ? total.toFixed(2) : "0,00"}` : "Valor (R$)"}
+                      className={cn("w-full pl-7 pr-2 h-8 bg-slate-800 border rounded-lg focus:outline-none text-[10px] font-medium text-white placeholder:text-slate-700 transition-all [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none",
+                        p.method === "money" && pAmt > 0 && pAmt < (total - (paidAmount - pAmt)) ? "border-red-500" : "border-slate-700 focus:border-blue-500")}
+                      value={p.amount} onChange={(e) => updatePayment(p.id, { amount: e.target.value })} />
+                  </div>
+                  {p.method === "money" && pAmt > 0 && pAmt >= (total - (paidAmount - pAmt)) && (
+                    <div className="flex items-center gap-1 bg-emerald-900/30 border border-emerald-700/40 rounded-lg px-2 shrink-0">
+                      <span className="text-[8px] font-black text-emerald-400">Troco</span>
+                      <span className="text-[9px] font-mono font-black text-emerald-400">R$ {Math.max(0, pAmt - (total - (paidAmount - pAmt))).toFixed(2)}</span>
+                    </div>
+                  )}
+                  {pFee > 0 && (
+                    <div className="flex items-center gap-1 bg-amber-900/20 border border-amber-700/30 rounded-lg px-2 shrink-0">
+                      <span className="text-[8px] font-black text-amber-400">+{feeRate}%</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
 
         {/* Totais */}
         <div className="space-y-1 pt-1">
           {discountValue > 0 && (
             <>
-              <div className="flex justify-between text-[9px] font-bold uppercase tracking-widest text-slate-600">
-                <span>Subtotal</span><span className="font-mono">R$ {subtotal.toFixed(2)}</span>
-              </div>
-              <div className="flex justify-between text-[9px] font-bold uppercase tracking-widest text-emerald-500">
-                <span>Desconto</span><span className="font-mono">− R$ {discountValue.toFixed(2)}</span>
-              </div>
+              <div className="flex justify-between text-[9px] font-bold uppercase tracking-widest text-slate-600"><span>Subtotal</span><span className="font-mono">R$ {subtotal.toFixed(2)}</span></div>
+              <div className="flex justify-between text-[9px] font-bold uppercase tracking-widest text-emerald-500"><span>Desconto</span><span className="font-mono">− R$ {discountValue.toFixed(2)}</span></div>
             </>
           )}
           {feeAmount > 0 && (
-            <div className="flex justify-between text-[9px] font-bold uppercase tracking-widest text-amber-400">
-              <span>Taxa ({creditFeeRate}%)</span><span className="font-mono">+ R$ {feeAmount.toFixed(2)}</span>
-            </div>
+            <div className="flex justify-between text-[9px] font-bold uppercase tracking-widest text-amber-400"><span>Juros</span><span className="font-mono">+ R$ {feeAmount.toFixed(2)}</span></div>
           )}
           <div className="flex justify-between items-center">
             <span className="text-[9px] font-black uppercase tracking-widest text-slate-500">Total</span>
             <span className="text-2xl font-mono font-black text-white tracking-tight">R$ {total.toFixed(2)}</span>
           </div>
-          {installmentValue > 0 && (
-            <div className="flex justify-between text-[9px] font-bold uppercase tracking-widest text-emerald-400">
-              <span>{installments}× de</span><span className="font-mono">R$ {installmentValue.toFixed(2)}</span>
-            </div>
+          {remaining > 0 && paidAmount > 0 && (
+            <div className="flex justify-between text-[9px] font-bold uppercase tracking-widest text-red-400"><span>Faltam</span><span className="font-mono">R$ {remaining.toFixed(2)}</span></div>
           )}
-          {paymentMethod === "money" && amountReceived && Number(amountReceived) > 0 && (
-            <div className={cn(
-              "flex justify-between text-[9px] font-black uppercase tracking-widest pt-1.5 border-t border-slate-800",
-              change >= 0 ? "text-emerald-400" : "text-red-400"
-            )}>
-              <span>{change >= 0 ? "Troco" : "Faltam"}</span>
-              <span className="font-mono">{change >= 0 ? `R$ ${change.toFixed(2)}` : `R$ ${Math.abs(change).toFixed(2)}`}</span>
-            </div>
+          {change > 0 && (
+            <div className="flex justify-between text-[9px] font-black uppercase tracking-widest text-emerald-400 pt-1.5 border-t border-slate-800"><span>Troco</span><span className="font-mono">R$ {change.toFixed(2)}</span></div>
           )}
         </div>
 
-        {/* Finalizar */}
-        <button
-          onClick={handleFinishSale}
-          disabled={
-            cart.length === 0 ||
-            finishing ||
-            (paymentMethod === "money" && (!amountReceived || Number(amountReceived) < total))
-          }
+        {/* Botão */}
+        <button onClick={handleFinishSale} disabled={!canFinish || finishing}
           className="w-full h-12 bg-blue-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-blue-500 transition-all disabled:opacity-20 shadow-xl shadow-blue-500/20 active:scale-[0.98] flex items-center justify-center gap-2">
           {finishing ? <Loader2 size={16} className="animate-spin" /> : <><CreditCard size={16} /> Finalizar Venda</>}
         </button>
