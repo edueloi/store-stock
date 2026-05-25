@@ -54,7 +54,8 @@ echo ""
 if [ -d "$APP_DIR/.git" ]; then
   echo "▶ Atualizando código existente..."
   cd "$APP_DIR"
-  git pull origin main
+  git fetch origin main
+  git reset --hard origin/main
 else
   echo "▶ Clonando repositório..."
   mkdir -p /var/www
