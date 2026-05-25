@@ -22,7 +22,24 @@ import { motion, AnimatePresence } from "motion/react";
 import { Product, Category } from "../../types";
 import { cn } from "../../lib/utils";
 
-type PaymentMethod = "money" | "card" | "pix";
+type PaymentMethod = "money" | "debit" | "credit" | "pix";
+
+type CardBrand = "visa" | "master" | "elo" | "amex" | "hiper" | "other";
+
+interface CardBrandInfo {
+  key: CardBrand;
+  label: string;
+  color: string;
+}
+
+const CARD_BRANDS: CardBrandInfo[] = [
+  { key: "visa",   label: "Visa",       color: "#1A1F71" },
+  { key: "master", label: "Mastercard", color: "#EB001B" },
+  { key: "elo",    label: "Elo",        color: "#00A4E0" },
+  { key: "amex",   label: "Amex",       color: "#2E77BC" },
+  { key: "hiper",  label: "Hipercard",  color: "#B22222" },
+  { key: "other",  label: "Outra",      color: "#64748b" },
+];
 
 interface CartItem extends Product {
   price: number;
@@ -47,6 +64,10 @@ export default function PDV() {
   const [showCartMobile, setShowCartMobile] = useState(false);
   const [configProduct, setConfigProduct] = useState<Product | null>(null);
   const [selectedOptions, setSelectedOptions] = useState<Record<string, string>>({});
+  const [cardBrand, setCardBrand] = useState<CardBrand>("visa");
+  const [installments, setInstallments] = useState(1);
+  // card fee rates loaded from tenant settings
+  const [cardFees, setCardFees] = useState<Record<string, number[]>>({});
 
   const token = localStorage.getItem("token");
 
@@ -60,6 +81,13 @@ export default function PDV() {
       setCategories(Array.isArray(cats) ? cats : []);
       setLoading(false);
     });
+    // load card fee settings
+    fetch("/api/tenant", { headers })
+      .then((r) => r.json())
+      .then((d) => {
+        if (d?.card_fees) setCardFees(d.card_fees);
+      })
+      .catch(() => {});
   }, []);
 
   const addToCart = (product: Product, options?: Record<string, string>) => {
@@ -135,7 +163,15 @@ export default function PDV() {
 
   const subtotal = cart.reduce((acc, item) => acc + item.price * item.quantity, 0);
   const discountValue = Math.min(Number(discount) || 0, subtotal);
-  const total = subtotal - discountValue;
+  const baseTotal = subtotal - discountValue;
+
+  // credit card fee from settings (installment index)
+  const creditFeeRate = paymentMethod === "credit" && cardFees[cardBrand]
+    ? (cardFees[cardBrand][installments - 1] ?? 0)
+    : 0;
+  const feeAmount = paymentMethod === "credit" ? baseTotal * (creditFeeRate / 100) : 0;
+  const total = baseTotal + feeAmount;
+  const installmentValue = paymentMethod === "credit" && installments > 1 ? total / installments : 0;
 
   const handleFinishSale = async () => {
     if (cart.length === 0 || finishing) return;
@@ -151,7 +187,11 @@ export default function PDV() {
           items: cart.map((i) => ({ id: i.id, quantity: i.quantity, price: i.price })),
           customerName,
           totalAmount: total,
-          paymentMethod,
+          paymentMethod: paymentMethod === "credit"
+            ? `crédito-${cardBrand}${installments > 1 ? `-${installments}x` : ""}`
+            : paymentMethod === "debit"
+            ? `débito-${cardBrand}`
+            : paymentMethod,
           discount: discountValue,
         }),
       });
@@ -160,6 +200,8 @@ export default function PDV() {
         setCustomerName("");
         setDiscount("");
         setPaymentMethod("money");
+        setCardBrand("visa");
+        setInstallments(1);
         setSuccess(true);
         setShowCartMobile(false);
         setTimeout(() => setSuccess(false), 3000);
@@ -487,11 +529,19 @@ export default function PDV() {
           setCustomerName={setCustomerName}
           paymentMethod={paymentMethod}
           setPaymentMethod={setPaymentMethod}
+          cardBrand={cardBrand}
+          setCardBrand={setCardBrand}
+          installments={installments}
+          setInstallments={setInstallments}
+          cardFees={cardFees}
           discount={discount}
           setDiscount={setDiscount}
           subtotal={subtotal}
           discountValue={discountValue}
+          feeAmount={feeAmount}
+          creditFeeRate={creditFeeRate}
           total={total}
+          installmentValue={installmentValue}
           success={success}
           finishing={finishing}
           handleFinishSale={handleFinishSale}
@@ -526,11 +576,19 @@ export default function PDV() {
                   setCustomerName={setCustomerName}
                   paymentMethod={paymentMethod}
                   setPaymentMethod={setPaymentMethod}
+                  cardBrand={cardBrand}
+                  setCardBrand={setCardBrand}
+                  installments={installments}
+                  setInstallments={setInstallments}
+                  cardFees={cardFees}
                   discount={discount}
                   setDiscount={setDiscount}
                   subtotal={subtotal}
                   discountValue={discountValue}
+                  feeAmount={feeAmount}
+                  creditFeeRate={creditFeeRate}
                   total={total}
+                  installmentValue={installmentValue}
                   success={success}
                   finishing={finishing}
                   handleFinishSale={handleFinishSale}
@@ -553,11 +611,19 @@ function CartContent({
   setCustomerName,
   paymentMethod,
   setPaymentMethod,
+  cardBrand,
+  setCardBrand,
+  installments,
+  setInstallments,
+  cardFees,
   discount,
   setDiscount,
   subtotal,
   discountValue,
+  feeAmount,
+  creditFeeRate,
   total,
+  installmentValue,
   success,
   finishing,
   handleFinishSale,
@@ -570,11 +636,19 @@ function CartContent({
   setCustomerName: (v: string) => void;
   paymentMethod: PaymentMethod;
   setPaymentMethod: (v: PaymentMethod) => void;
+  cardBrand: CardBrand;
+  setCardBrand: (v: CardBrand) => void;
+  installments: number;
+  setInstallments: (v: number) => void;
+  cardFees: Record<string, number[]>;
   discount: string;
   setDiscount: (v: string) => void;
   subtotal: number;
   discountValue: number;
+  feeAmount: number;
+  creditFeeRate: number;
   total: number;
+  installmentValue: number;
   success: boolean;
   finishing: boolean;
   handleFinishSale: () => void;
@@ -699,30 +773,88 @@ function CartContent({
           />
         </div>
 
-        {/* Payment method */}
-        <div className="grid grid-cols-3 gap-2">
+        {/* Payment method — 4 buttons */}
+        <div className="grid grid-cols-2 gap-2">
           {(
             [
-              { key: "money", label: "Dinheiro", Icon: Banknote },
-              { key: "card", label: "Cartão", Icon: CreditCard },
-              { key: "pix", label: "PIX", Icon: QrCode },
+              { key: "money",  label: "Dinheiro", Icon: Banknote },
+              { key: "debit",  label: "Débito",   Icon: CreditCard },
+              { key: "credit", label: "Crédito",  Icon: CreditCard },
+              { key: "pix",    label: "PIX",      Icon: QrCode },
             ] as { key: PaymentMethod; label: string; Icon: React.ElementType }[]
           ).map(({ key, label, Icon }) => (
             <button
               key={key}
-              onClick={() => setPaymentMethod(key)}
+              onClick={() => { setPaymentMethod(key); setInstallments(1); }}
               className={cn(
                 "flex flex-col items-center justify-center gap-1.5 h-14 rounded-xl border text-[9px] font-black uppercase tracking-widest transition-all",
                 paymentMethod === key
-                  ? "bg-blue-600 border-blue-600 text-white shadow-lg shadow-blue-500/20"
+                  ? key === "credit"
+                    ? "bg-emerald-600 border-emerald-500 text-white shadow-lg shadow-emerald-500/20"
+                    : "bg-blue-600 border-blue-600 text-white shadow-lg shadow-blue-500/20"
                   : "bg-slate-800/50 border-slate-700/50 text-slate-500 hover:border-slate-500"
               )}
             >
-              <Icon size={16} />
+              <Icon size={15} />
               {label}
             </button>
           ))}
         </div>
+
+        {/* Card brand selector (debit or credit) */}
+        {(paymentMethod === "debit" || paymentMethod === "credit") && (
+          <div className="space-y-2">
+            <p className="text-[8px] font-black text-slate-500 uppercase tracking-[0.2em] px-0.5">Bandeira</p>
+            <div className="grid grid-cols-3 gap-1.5">
+              {CARD_BRANDS.map(({ key, label, color }) => (
+                <button
+                  key={key}
+                  onClick={() => setCardBrand(key)}
+                  className={cn(
+                    "h-9 rounded-lg border text-[8px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-1",
+                    cardBrand === key
+                      ? "border-transparent text-white shadow-md"
+                      : "bg-slate-800/40 border-slate-700/50 text-slate-500 hover:border-slate-500"
+                  )}
+                  style={cardBrand === key ? { backgroundColor: color, borderColor: color } : {}}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Installments (credit only) */}
+        {paymentMethod === "credit" && (
+          <div className="space-y-2">
+            <p className="text-[8px] font-black text-slate-500 uppercase tracking-[0.2em] px-0.5">Parcelamento</p>
+            <div className="grid grid-cols-4 gap-1.5">
+              {[1, 2, 3, 4, 5, 6, 10, 12].map((n) => {
+                const rate = cardFees[cardBrand]?.[n - 1] ?? 0;
+                return (
+                  <button
+                    key={n}
+                    onClick={() => setInstallments(n)}
+                    className={cn(
+                      "h-10 rounded-lg border text-[8px] font-black uppercase tracking-widest transition-all flex flex-col items-center justify-center",
+                      installments === n
+                        ? "bg-emerald-600 border-emerald-500 text-white shadow-md"
+                        : "bg-slate-800/40 border-slate-700/50 text-slate-500 hover:border-slate-500"
+                    )}
+                  >
+                    <span>{n === 1 ? "À vista" : `${n}×`}</span>
+                    {rate > 0 && (
+                      <span className={cn("text-[7px] font-bold", installments === n ? "text-emerald-200" : "text-slate-600")}>
+                        +{rate}%
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
 
         {/* Discount */}
         <div className="relative">
@@ -751,6 +883,12 @@ function CartContent({
               </div>
             </>
           )}
+          {feeAmount > 0 && (
+            <div className="flex justify-between text-amber-400 text-[10px] font-bold uppercase tracking-widest">
+              <span>Taxa ({creditFeeRate}%)</span>
+              <span className="font-mono">+ R$ {feeAmount.toFixed(2)}</span>
+            </div>
+          )}
           <div className="flex justify-between items-center text-white">
             <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">
               Total
@@ -759,6 +897,12 @@ function CartContent({
               R$ {total.toFixed(2)}
             </span>
           </div>
+          {installmentValue > 0 && (
+            <div className="flex justify-between text-emerald-400 text-[10px] font-bold uppercase tracking-widest">
+              <span>{installments}× de</span>
+              <span className="font-mono">R$ {installmentValue.toFixed(2)}</span>
+            </div>
+          )}
         </div>
 
         {/* Finish button */}

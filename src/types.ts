@@ -10,6 +10,10 @@ export interface PaymentMethods {
   boleto: boolean;
 }
 
+// card_fees[brand][installmentIndex] = rate%
+// ex: { visa: [2.5, 3.0, 3.5, ...12 slots] }
+export type CardFees = Record<string, number[]>;
+
 export interface StorePolicies {
   returns: string;
   shipping: string;
@@ -37,6 +41,7 @@ export interface Tenant {
   business_hours?: BusinessHours;
   payment_methods?: PaymentMethods;
   policies?: StorePolicies;
+  card_fees?: Record<string, number[]>;
   status?: 'pending_setup' | 'trial' | 'active' | 'suspended';
   trial_days?: number;
   trial_starts_at?: string;

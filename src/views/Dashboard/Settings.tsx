@@ -6,7 +6,7 @@ import {
 } from "lucide-react";
 import PageHeader from "../../components/layout/PageHeader";
 import { cn } from "../../lib/utils";
-import type { Tenant, BusinessHours, PaymentMethods, StorePolicies } from "../../types";
+import type { Tenant, BusinessHours, PaymentMethods, StorePolicies, CardFees } from "../../types";
 
 // ─── helpers ────────────────────────────────────────────────────────────────
 
@@ -132,6 +132,7 @@ const NAV = [
       { id: "social", icon: Share2, label: "Canais Sociais" },
       { id: "hours", icon: Clock, label: "Horário de Funcionamento" },
       { id: "payments", icon: CreditCard, label: "Pagamentos & Políticas" },
+      { id: "card_fees", icon: CreditCard, label: "Maquininha & Taxas" },
     ],
   },
   {
@@ -165,10 +166,25 @@ export default function Settings() {
   const [newPass, setNewPass] = useState("");
   const [confirmPass, setConfirmPass] = useState("");
 
+  // card fees state
+  const DEFAULT_CARD_FEES: CardFees = {
+    visa:   [2.5, 3.0, 3.5, 4.0, 4.5, 5.0, 0, 0, 0, 0, 0, 0],
+    master: [2.5, 3.0, 3.5, 4.0, 4.5, 5.0, 0, 0, 0, 0, 0, 0],
+    elo:    [2.8, 3.3, 3.8, 4.3, 4.8, 5.3, 0, 0, 0, 0, 0, 0],
+    amex:   [3.0, 3.5, 4.0, 4.5, 5.0, 5.5, 0, 0, 0, 0, 0, 0],
+    hiper:  [2.7, 3.2, 3.7, 4.2, 4.7, 5.2, 0, 0, 0, 0, 0, 0],
+    other:  [2.5, 3.0, 3.5, 4.0, 4.5, 5.0, 0, 0, 0, 0, 0, 0],
+  };
+  const [cardFees, setCardFees] = useState<CardFees>(DEFAULT_CARD_FEES);
+
   useEffect(() => {
     fetch("/api/tenant", { headers: API_HEADERS() })
       .then((r) => r.json())
-      .then((d) => { setTenant(d); setLoading(false); });
+      .then((d) => {
+        setTenant(d);
+        if (d?.card_fees) setCardFees(d.card_fees);
+        setLoading(false);
+      });
 
     // load panel prefs
     Promise.all([
@@ -264,6 +280,28 @@ export default function Settings() {
     } finally {
       setCepLoading(false);
     }
+  };
+
+  const handleSaveCardFees = async () => {
+    setSaving(true);
+    try {
+      const res = await fetch("/api/tenant", {
+        method: "PUT",
+        headers: API_HEADERS(),
+        body: JSON.stringify({ ...tenant, card_fees: cardFees }),
+      });
+      if (res.ok) showSaved();
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const setFeeRate = (brand: string, installmentIdx: number, value: number) => {
+    setCardFees((prev) => {
+      const arr = [...(prev[brand] ?? Array(12).fill(0))];
+      arr[installmentIdx] = value;
+      return { ...prev, [brand]: arr };
+    });
   };
 
   const setHours = (day: string, patch: Partial<{ open: string; close: string; closed: boolean }>) =>
@@ -747,6 +785,75 @@ export default function Settings() {
                 </div>
 
                 <SaveButton onClick={handleSaveTenant} label="Salvar Políticas" />
+              </div>
+            )}
+
+            {/* ── Maquininha & Taxas ──────────────────────────────────── */}
+            {active === "card_fees" && (
+              <div className="space-y-8">
+                <SectionHeader
+                  title="Maquininha & Taxas"
+                  subtitle="Configure as taxas por bandeira e parcelamento. Estes valores são aplicados automaticamente no PDV ao calcular o total."
+                />
+
+                {/* info box */}
+                <div className="flex gap-3 p-4 bg-amber-50 border border-amber-100 rounded-xl">
+                  <CreditCard size={16} className="text-amber-600 shrink-0 mt-0.5" />
+                  <p className="text-[10px] text-amber-800 font-medium leading-relaxed">
+                    Informe a taxa (%) que sua maquininha cobra por parcela. Deixe <strong>0</strong> para parcelas não disponíveis. O PDV calculará e exibirá o acréscimo automaticamente ao selecionar crédito parcelado.
+                  </p>
+                </div>
+
+                {/* table per brand */}
+                {([
+                  { key: "visa",   label: "Visa",       color: "#1A1F71" },
+                  { key: "master", label: "Mastercard", color: "#EB001B" },
+                  { key: "elo",    label: "Elo",        color: "#00A4E0" },
+                  { key: "amex",   label: "American Express", color: "#2E77BC" },
+                  { key: "hiper",  label: "Hipercard",  color: "#B22222" },
+                  { key: "other",  label: "Outras Bandeiras", color: "#64748b" },
+                ] as { key: string; label: string; color: string }[]).map(({ key, label, color }) => {
+                  const fees = cardFees[key] ?? Array(12).fill(0);
+                  return (
+                    <div key={key} className="border border-slate-100 rounded-2xl overflow-hidden">
+                      {/* brand header */}
+                      <div
+                        className="flex items-center gap-3 px-5 py-3"
+                        style={{ backgroundColor: color + "15", borderBottom: `2px solid ${color}30` }}
+                      >
+                        <div className="w-3 h-3 rounded-full" style={{ backgroundColor: color }} />
+                        <span className="text-[10px] font-black uppercase tracking-widest" style={{ color }}>
+                          {label}
+                        </span>
+                      </div>
+
+                      {/* installment grid */}
+                      <div className="p-4 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+                        {[1,2,3,4,5,6,7,8,9,10,11,12].map((n, idx) => (
+                          <div key={n} className="space-y-1">
+                            <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest px-1 block">
+                              {n === 1 ? "À Vista" : `${n}× parcelas`}
+                            </label>
+                            <div className="flex items-center border border-slate-200 rounded-xl overflow-hidden focus-within:ring-2 focus-within:ring-blue-500/10 focus-within:border-blue-500 bg-slate-50 transition-all">
+                              <input
+                                type="number"
+                                min="0"
+                                max="30"
+                                step="0.1"
+                                value={fees[idx] ?? 0}
+                                onChange={(e) => setFeeRate(key, idx, parseFloat(e.target.value) || 0)}
+                                className="flex-1 bg-transparent px-2 h-9 text-xs font-mono font-bold outline-none w-0 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none"
+                              />
+                              <span className="bg-slate-100 border-l border-slate-200 px-2 h-9 flex items-center text-[10px] font-black text-slate-400 shrink-0">%</span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })}
+
+                <SaveButton onClick={handleSaveCardFees} label="Salvar Taxas" />
               </div>
             )}
 
