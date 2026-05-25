@@ -69,6 +69,13 @@ interface RecentOrder {
 interface TenantInfo {
   name: string;
   address?: string;
+  address_street?: string;
+  address_number?: string;
+  address_complement?: string;
+  address_district?: string;
+  address_city?: string;
+  address_state?: string;
+  address_zip?: string;
   whatsapp?: string;
   logo_url?: string;
   primary_color?: string;
@@ -193,22 +200,26 @@ export default function PDV() {
   const discountValue = Math.min(Number(discount) || 0, subtotal);
   const baseTotal     = subtotal - discountValue;
 
-  // fee total: soma de juros de cada parcela de crédito
-  const feeAmount = payments.reduce((sum, p) => {
-    if (p.method !== "credit") return sum;
+  // juros calculados sobre baseTotal proporcional à parcela de crédito
+  const creditPayments = payments.filter((p) => p.method === "credit");
+  const creditTotal    = creditPayments.reduce((s, p) => s + (Number(p.amount) || 0), 0);
+  const feeAmount      = creditPayments.reduce((sum, p) => {
     const rate = cardFees[p.cardBrand]?.[p.installments - 1] ?? 0;
+    if (!rate) return sum;
+    // aplica juros sobre a proporção do baseTotal que esse pagamento representa
     const pAmt = Number(p.amount) || 0;
-    return sum + (pAmt > 0 ? pAmt * (rate / 100) : 0);
+    const base = creditTotal > 0 ? baseTotal * (pAmt / creditTotal) : 0;
+    return sum + base * (rate / 100);
   }, 0);
 
   const total = baseTotal + feeAmount;
 
   // quanto já foi preenchido nos pagamentos
-  const paidAmount    = payments.reduce((s, p) => s + (Number(p.amount) || 0), 0);
-  const remaining     = Math.max(0, total - paidAmount);
-  const moneyPayment  = payments.find((p) => p.method === "money");
-  const moneyAmt      = Number(moneyPayment?.amount) || 0;
-  const change        = moneyAmt > 0 && paidAmount >= total ? moneyAmt - (total - (paidAmount - moneyAmt)) : 0;
+  const paidAmount   = payments.reduce((s, p) => s + (Number(p.amount) || 0), 0);
+  const remaining    = Math.max(0, total - paidAmount);
+  const moneyPayment = payments.find((p) => p.method === "money");
+  const moneyAmt     = Number(moneyPayment?.amount) || 0;
+  const change       = moneyAmt > 0 && paidAmount >= total ? moneyAmt - (total - (paidAmount - moneyAmt)) : 0;
 
   const cartQty = cart.reduce((a, b) => a + b.quantity, 0);
 
@@ -219,16 +230,24 @@ export default function PDV() {
   const removePayment = (id: string) =>
     setPayments((ps) => ps.length > 1 ? ps.filter((p) => p.id !== id) : ps);
 
-  const addPayment = () => setPayments((ps) => [...ps, newPayment()]);
-
-  // auto-fill amount on first payment if only one
-  const autoFillFirst = () => {
-    if (payments.length === 1 && !payments[0].amount) {
-      setPayments([{ ...payments[0], amount: total.toFixed(2) }]);
-    }
+  // ao adicionar, preenche automaticamente o restante no novo campo
+  const addPayment = () => {
+    const rem = Math.max(0, total - paidAmount);
+    setPayments((ps) => [...ps, { ...newPayment(), amount: rem > 0 ? rem.toFixed(2) : "" }]);
   };
 
-  const canFinish = cart.length > 0 && paidAmount >= total && total > 0;
+  // ao abrir checkout, preenche automaticamente o valor se só tiver 1 pagamento
+  const autoFillFirst = () => {
+    setPayments((ps) => {
+      if (ps.length === 1 && !ps[0].amount && total > 0) {
+        return [{ ...ps[0], amount: total.toFixed(2) }];
+      }
+      return ps;
+    });
+  };
+
+  // permite confirmar mesmo com valor menor (saldo devedor aceito)
+  const canFinish = cart.length > 0 && total > 0;
 
   // ── receipt helpers ───────────────────────────────────────────────────────────
   const buildPaymentLines = (sale: CompletedSale) =>
@@ -459,7 +478,17 @@ ${change > 0 ? `<hr class="divider"/><div class="row bold"><span>TROCO:</span><s
           subtotal, discountValue, feeAmount, total,
           change: change > 0 ? change : 0,
           tenantName:     tenant.name,
-          tenantAddress:  tenant.address  ?? "",
+          tenantAddress:  tenant.address_street
+            ? [
+                `${tenant.address_street}${tenant.address_number ? ", " + tenant.address_number : ""}`,
+                tenant.address_complement,
+                tenant.address_district,
+                tenant.address_city && tenant.address_state
+                  ? `${tenant.address_city} - ${tenant.address_state}`
+                  : (tenant.address_city ?? tenant.address_state ?? ""),
+                tenant.address_zip,
+              ].filter(Boolean).join(" | ")
+            : (tenant.address ?? ""),
           tenantWhatsapp: tenant.whatsapp ?? "",
           tenantLogo:     tenant.logo_url ?? "",
           tenantColor:    tenant.primary_color ?? "#2563eb",
@@ -834,7 +863,12 @@ ${change > 0 ? `<hr class="divider"/><div class="row bold"><span>TROCO:</span><s
                   {payments.map((p, idx) => {
                     const feeRate = p.method === "credit" ? (cardFees[p.cardBrand]?.[p.installments - 1] ?? 0) : 0;
                     const pAmt    = Number(p.amount) || 0;
-                    const pFee    = pAmt > 0 && feeRate > 0 ? pAmt * (feeRate / 100) : 0;
+                    // juros sobre proporção do baseTotal
+                    const otherPaidCredit = creditTotal > 0 ? baseTotal * (pAmt / creditTotal) : 0;
+                    const pFee    = p.method === "credit" && feeRate > 0 && pAmt > 0 ? otherPaidCredit * (feeRate / 100) : 0;
+                    // troco desse pagamento específico: quanto dinheiro sobra apenas desse item
+                    const otherPayments = paidAmount - pAmt;
+                    const thisMoneyChange = p.method === "money" && pAmt > 0 ? Math.max(0, pAmt - Math.max(0, total - otherPayments)) : 0;
                     return (
                       <div key={p.id} className="bg-slate-50 rounded-2xl border border-slate-200 p-3 space-y-2.5">
                         {/* method row */}
@@ -905,15 +939,13 @@ ${change > 0 ? `<hr class="divider"/><div class="row bold"><span>TROCO:</span><s
                               value={p.amount}
                               onChange={(e) => updatePayment(p.id, { amount: e.target.value })} />
                           </div>
-                          {p.method === "money" && pAmt > 0 && pAmt >= (total - (paidAmount - pAmt)) && (
+                          {thisMoneyChange > 0.005 && (
                             <div className="flex items-center gap-1.5 bg-emerald-50 border border-emerald-200 rounded-xl px-3 shrink-0">
                               <span className="text-[9px] font-black text-emerald-700 uppercase tracking-widest">Troco</span>
-                              <span className="text-[11px] font-mono font-black text-emerald-700">
-                                R$ {Math.max(0, pAmt - (total - (paidAmount - pAmt))).toFixed(2)}
-                              </span>
+                              <span className="text-[11px] font-mono font-black text-emerald-700">R$ {thisMoneyChange.toFixed(2)}</span>
                             </div>
                           )}
-                          {pFee > 0 && (
+                          {pFee > 0.005 && (
                             <div className="flex items-center gap-1.5 bg-amber-50 border border-amber-200 rounded-xl px-3 shrink-0">
                               <span className="text-[9px] font-black text-amber-700 uppercase tracking-widest">+{feeRate}%</span>
                               <span className="text-[10px] font-mono font-black text-amber-700">R$ {pFee.toFixed(2)}</span>
@@ -939,35 +971,40 @@ ${change > 0 ? `<hr class="divider"/><div class="row bold"><span>TROCO:</span><s
                   )}
                   {feeAmount > 0 && (
                     <div className="flex justify-between text-[10px] font-bold uppercase tracking-widest text-amber-400">
-                      <span>Juros</span><span className="font-mono">+ R$ {feeAmount.toFixed(2)}</span>
+                      <span>Juros (crédito)</span><span className="font-mono">+ R$ {feeAmount.toFixed(2)}</span>
                     </div>
                   )}
                   <div className="flex justify-between items-center pt-1 border-t border-slate-700">
                     <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Total</span>
                     <span className="text-2xl font-mono font-black text-white">R$ {total.toFixed(2)}</span>
                   </div>
-                  {/* remaining */}
-                  {remaining > 0 && paidAmount > 0 && (
-                    <div className="flex justify-between text-[10px] font-bold uppercase tracking-widest text-red-400">
-                      <span>Faltam</span><span className="font-mono">R$ {remaining.toFixed(2)}</span>
-                    </div>
-                  )}
-                  {remaining > 0 && paidAmount === 0 && (
-                    <div className="flex justify-between text-[10px] font-bold uppercase tracking-widest text-slate-500">
-                      <span>Preencha o valor</span><span className="font-mono">R$ {total.toFixed(2)}</span>
-                    </div>
-                  )}
                   {change > 0 && (
                     <div className="flex justify-between text-[10px] font-black uppercase tracking-widest text-emerald-400 pt-1 border-t border-slate-700">
                       <span>Troco</span><span className="font-mono">R$ {change.toFixed(2)}</span>
                     </div>
                   )}
+                  {/* saldo devedor — avisa mas não bloqueia */}
+                  {remaining > 0.009 && (
+                    <div className="flex justify-between text-[10px] font-black uppercase tracking-widest text-red-400 pt-1 border-t border-slate-700">
+                      <span>Saldo devedor</span><span className="font-mono">R$ {remaining.toFixed(2)}</span>
+                    </div>
+                  )}
                 </div>
               </div>
 
-              <div className="shrink-0 px-5 pb-5 pt-3 border-t border-slate-100">
+              <div className="shrink-0 px-5 pb-5 pt-3 border-t border-slate-100 space-y-2">
+                {remaining > 0.009 && (
+                  <p className="text-[9px] text-center text-amber-600 font-bold uppercase tracking-widest">
+                    ⚠ Venda com saldo devedor de R$ {remaining.toFixed(2)}
+                  </p>
+                )}
                 <button onClick={handleFinishSale} disabled={!canFinish || finishing}
-                  className="w-full h-14 bg-blue-600 text-white rounded-2xl text-[12px] font-black uppercase tracking-widest hover:bg-blue-700 transition-all disabled:opacity-30 disabled:cursor-not-allowed shadow-2xl shadow-blue-500/30 active:scale-[0.98] flex items-center justify-center gap-3">
+                  className={cn(
+                    "w-full h-14 text-white rounded-2xl text-[12px] font-black uppercase tracking-widest transition-all disabled:opacity-30 disabled:cursor-not-allowed shadow-2xl active:scale-[0.98] flex items-center justify-center gap-3",
+                    remaining > 0.009
+                      ? "bg-amber-500 hover:bg-amber-600 shadow-amber-500/30"
+                      : "bg-blue-600 hover:bg-blue-700 shadow-blue-500/30"
+                  )}>
                   {finishing ? <Loader2 size={20} className="animate-spin" /> : <><CreditCard size={20} /> Confirmar Venda</>}
                 </button>
               </div>

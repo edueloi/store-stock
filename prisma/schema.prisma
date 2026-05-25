@@ -13,11 +13,19 @@ model Tenant {
   slug         String   @unique
   subdomain    String   @unique
   whatsapp     String
+  document     String?
   logo_url     String?
   banner_url   String?
   instagram_url String?
   facebook_url String?
   address      String?
+  address_street   String?
+  address_number   String?
+  address_complement String?
+  address_district String?
+  address_city     String?
+  address_state    String?  @db.Char(2)
+  address_zip      String?
   show_address Boolean  @default(true)
   template_id  String   @default("minimal")
   about_text   String?  @db.Text

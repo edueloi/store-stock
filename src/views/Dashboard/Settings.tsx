@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from "react";
 import {
   Store, Palette, Share2, Clock, CreditCard, Shield, Settings2,
   Users, Save, Loader2, Search, Check, ChevronRight, Globe,
-  Bell, Sun, Moon, Package, AlertTriangle, Lock,
+  Bell, Sun, Moon, Package, AlertTriangle, Lock, Image, Upload,
 } from "lucide-react";
 import PageHeader from "../../components/layout/PageHeader";
 import { cn } from "../../lib/utils";
@@ -268,13 +268,21 @@ export default function Settings() {
   };
 
   const handleLookupCEP = async () => {
-    const cep = tenant?.address?.match(/\d{5}-?\d{3}/)?.[0];
-    if (!cep) return;
+    const raw = (tenant?.address_zip ?? "").replace(/\D/g, "");
+    if (raw.length !== 8) return;
     setCepLoading(true);
     try {
-      const res = await fetch(`https://viacep.com.br/ws/${cep.replace("-", "")}/json/`);
+      const res = await fetch(`https://viacep.com.br/ws/${raw}/json/`);
       const d = await res.json();
-      if (!d.erro) setT({ address: `${d.logradouro}, ${d.bairro}, ${d.localidade} - ${d.uf}` });
+      if (!d.erro) {
+        setT({
+          address_street:   d.logradouro ?? "",
+          address_district: d.bairro ?? "",
+          address_city:     d.localidade ?? "",
+          address_state:    d.uf ?? "",
+          address_zip:      raw,
+        });
+      }
     } catch {
       // silent
     } finally {
@@ -413,54 +421,112 @@ export default function Settings() {
           <div className="p-6 sm:p-8">
             {/* ── Identidade & Dados ──────────────────────────────────── */}
             {active === "identity" && (
-              <div className="space-y-6">
+              <div className="space-y-8">
                 <SectionHeader
                   title="Identidade & Dados"
-                  subtitle="Informações básicas da sua loja exibidas para os clientes"
+                  subtitle="Informações básicas da sua loja exibidas para os clientes e usadas nas notas"
                 />
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                  <Field label="Nome da Organização">
-                    <TextInput value={tenant?.name ?? ""} onChange={(v) => setT({ name: v })} />
-                  </Field>
-                  <Field label="WhatsApp de Vendas" hint="Formato: 5511999999999">
-                    <TextInput
-                      value={tenant?.whatsapp ?? ""}
-                      onChange={(v) => setT({ whatsapp: v })}
-                      placeholder="5511999999999"
-                      mono
-                    />
-                  </Field>
-                  <Field label="Identificador Público (Slug)">
-                    <div className="flex items-center border border-slate-200 rounded-xl overflow-hidden focus-within:ring-4 focus-within:ring-blue-500/8 focus-within:border-blue-500 transition-all bg-slate-50">
-                      <span className="bg-slate-100 border-r border-slate-200 px-3 h-11 flex items-center text-[10px] font-mono text-slate-400 shrink-0">/s/</span>
-                      <input
-                        type="text"
-                        className="flex-1 bg-transparent px-4 h-11 text-xs font-bold uppercase outline-none font-mono"
-                        value={tenant?.slug ?? ""}
-                        onChange={(e) => setT({ slug: e.target.value })}
-                      />
+
+                {/* Logo */}
+                <div className="space-y-3">
+                  <p className="text-[10px] font-black uppercase tracking-widest text-slate-700 border-l-4 border-blue-500 pl-3">
+                    Logo do Estabelecimento
+                  </p>
+                  <div className="flex items-start gap-5">
+                    <div className="w-24 h-24 rounded-2xl border-2 border-dashed border-slate-200 bg-slate-50 flex items-center justify-center shrink-0 overflow-hidden">
+                      {tenant?.logo_url ? (
+                        <img src={tenant.logo_url} alt="Logo" className="w-full h-full object-contain p-1" />
+                      ) : (
+                        <Image size={28} className="text-slate-300" />
+                      )}
                     </div>
-                  </Field>
-                  <div className="md:col-span-2 space-y-1.5">
-                    <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 px-1">
-                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.18em]">
-                        Endereço / Sede
-                      </label>
-                      <div className="flex items-center gap-3 bg-slate-50 px-3 py-1.5 rounded-full border border-slate-100">
-                        <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Exibir no Site</span>
-                        <Toggle
-                          checked={tenant?.show_address ?? true}
-                          onChange={(v) => setT({ show_address: v })}
+                    <div className="flex-1 space-y-2">
+                      <Field label="URL da Logo" hint="Recomendado: PNG transparente, mínimo 200×200 px">
+                        <TextInput
+                          value={tenant?.logo_url ?? ""}
+                          onChange={(v) => setT({ logo_url: v })}
+                          placeholder="https://..."
+                        />
+                      </Field>
+                      {tenant?.logo_url && (
+                        <button
+                          onClick={() => setT({ logo_url: "" })}
+                          className="text-[9px] font-black uppercase tracking-widest text-rose-400 hover:text-rose-600 transition-colors"
+                        >
+                          Remover logo
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Dados básicos */}
+                <div className="space-y-3">
+                  <p className="text-[10px] font-black uppercase tracking-widest text-slate-700 border-l-4 border-blue-500 pl-3">
+                    Dados da Empresa
+                  </p>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                    <Field label="Nome da Organização">
+                      <TextInput value={tenant?.name ?? ""} onChange={(v) => setT({ name: v })} />
+                    </Field>
+                    <Field label="CPF / CNPJ" hint="Será exibido nas notas fiscais">
+                      <TextInput
+                        value={tenant?.document ?? ""}
+                        onChange={(v) => setT({ document: v })}
+                        placeholder="00.000.000/0001-00"
+                        mono
+                      />
+                    </Field>
+                    <Field label="WhatsApp de Vendas" hint="Formato: 5511999999999">
+                      <TextInput
+                        value={tenant?.whatsapp ?? ""}
+                        onChange={(v) => setT({ whatsapp: v })}
+                        placeholder="5511999999999"
+                        mono
+                      />
+                    </Field>
+                    <Field label="Identificador Público (Slug)">
+                      <div className="flex items-center border border-slate-200 rounded-xl overflow-hidden focus-within:ring-4 focus-within:ring-blue-500/8 focus-within:border-blue-500 transition-all bg-slate-50">
+                        <span className="bg-slate-100 border-r border-slate-200 px-3 h-11 flex items-center text-[10px] font-mono text-slate-400 shrink-0">/s/</span>
+                        <input
+                          type="text"
+                          className="flex-1 bg-transparent px-4 h-11 text-xs font-bold uppercase outline-none font-mono"
+                          value={tenant?.slug ?? ""}
+                          onChange={(e) => setT({ slug: e.target.value })}
                         />
                       </div>
-                    </div>
-                    <div className="flex flex-col sm:flex-row gap-2">
-                      <TextInput
-                        value={tenant?.address ?? ""}
-                        onChange={(v) => setT({ address: v })}
-                        placeholder="CEP ou Rua, Número..."
-                        className="flex-1"
+                    </Field>
+                  </div>
+                </div>
+
+                {/* Endereço estruturado */}
+                <div className="space-y-3">
+                  <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
+                    <p className="text-[10px] font-black uppercase tracking-widest text-slate-700 border-l-4 border-blue-500 pl-3">
+                      Endereço / Sede
+                    </p>
+                    <div className="flex items-center gap-3 bg-slate-50 px-3 py-1.5 rounded-full border border-slate-100">
+                      <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Exibir no Site</span>
+                      <Toggle
+                        checked={tenant?.show_address ?? true}
+                        onChange={(v) => setT({ show_address: v })}
                       />
+                    </div>
+                  </div>
+
+                  {/* CEP lookup */}
+                  <div className="flex gap-2">
+                    <div className="flex-1">
+                      <Field label="CEP" hint="Digite o CEP para preencher o endereço automaticamente">
+                        <TextInput
+                          value={tenant?.address_zip ?? ""}
+                          onChange={(v) => setT({ address_zip: v })}
+                          placeholder="00000-000"
+                          mono
+                        />
+                      </Field>
+                    </div>
+                    <div className="flex items-end pb-0.5">
                       <button
                         onClick={handleLookupCEP}
                         disabled={cepLoading}
@@ -471,17 +537,72 @@ export default function Settings() {
                       </button>
                     </div>
                   </div>
-                  <div className="md:col-span-2">
-                    <Field label="Manifesto da Marca (About)" hint="Texto exibido na página Sobre da loja pública">
-                      <textarea
-                        className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-5 py-4 text-xs font-medium outline-none h-36 resize-none focus:ring-4 focus:ring-blue-500/8 focus:border-blue-500 transition-all"
-                        value={tenant?.about_text ?? ""}
-                        onChange={(e) => setT({ about_text: e.target.value })}
-                        placeholder="Descreva a essência do seu negócio..."
+
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+                    <div className="md:col-span-2">
+                      <Field label="Logradouro (Rua / Av.)">
+                        <TextInput
+                          value={tenant?.address_street ?? ""}
+                          onChange={(v) => setT({ address_street: v })}
+                          placeholder="Rua das Flores"
+                        />
+                      </Field>
+                    </div>
+                    <Field label="Número">
+                      <TextInput
+                        value={tenant?.address_number ?? ""}
+                        onChange={(v) => setT({ address_number: v })}
+                        placeholder="123"
                       />
+                    </Field>
+                    <Field label="Complemento">
+                      <TextInput
+                        value={tenant?.address_complement ?? ""}
+                        onChange={(v) => setT({ address_complement: v })}
+                        placeholder="Sala 4, Bloco B..."
+                      />
+                    </Field>
+                    <Field label="Bairro">
+                      <TextInput
+                        value={tenant?.address_district ?? ""}
+                        onChange={(v) => setT({ address_district: v })}
+                        placeholder="Centro"
+                      />
+                    </Field>
+                    <Field label="Cidade">
+                      <TextInput
+                        value={tenant?.address_city ?? ""}
+                        onChange={(v) => setT({ address_city: v })}
+                        placeholder="São Paulo"
+                      />
+                    </Field>
+                    <Field label="Estado (UF)">
+                      <select
+                        value={tenant?.address_state ?? ""}
+                        onChange={(e) => setT({ address_state: e.target.value })}
+                        className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 h-11 text-xs font-bold outline-none focus:ring-4 focus:ring-blue-500/8 focus:border-blue-500 transition-all appearance-none"
+                      >
+                        <option value="">UF</option>
+                        {["AC","AL","AP","AM","BA","CE","DF","ES","GO","MA","MT","MS","MG","PA","PB","PR","PE","PI","RJ","RN","RS","RO","RR","SC","SP","SE","TO"].map((uf) => (
+                          <option key={uf} value={uf}>{uf}</option>
+                        ))}
+                      </select>
                     </Field>
                   </div>
                 </div>
+
+                {/* About */}
+                <div>
+                  <Field label="Manifesto da Marca (About)" hint="Texto exibido na página Sobre da loja pública">
+                    <textarea
+                      className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-5 py-4 text-xs font-medium outline-none h-36 resize-none focus:ring-4 focus:ring-blue-500/8 focus:border-blue-500 transition-all"
+                      value={tenant?.about_text ?? ""}
+                      onChange={(e) => setT({ about_text: e.target.value })}
+                      placeholder="Descreva a essência do seu negócio..."
+                    />
+                  </Field>
+                </div>
+
                 <SaveButton onClick={handleSaveTenant} />
               </div>
             )}

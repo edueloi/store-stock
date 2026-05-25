@@ -174,8 +174,21 @@ export default function PDVStandalone() {
       .then(([prods, cats, tenant]) => {
         setProducts(Array.isArray(prods) ? prods : []);
         setCategories(Array.isArray(cats) ? cats : []);
-        if (tenant?.name)      setTenantName(tenant.name);
-        if (tenant?.address)   setTenantAddress(tenant.address);
+        if (tenant?.name) setTenantName(tenant.name);
+        if (tenant?.address_street) {
+          const parts = [
+            `${tenant.address_street}${tenant.address_number ? ", " + tenant.address_number : ""}`,
+            tenant.address_complement,
+            tenant.address_district,
+            tenant.address_city && tenant.address_state
+              ? `${tenant.address_city} - ${tenant.address_state}`
+              : (tenant.address_city ?? tenant.address_state ?? ""),
+            tenant.address_zip,
+          ].filter(Boolean);
+          setTenantAddress(parts.join(" | "));
+        } else if (tenant?.address) {
+          setTenantAddress(tenant.address);
+        }
         if (tenant?.card_fees) setCardFees(tenant.card_fees);
       })
       .catch(() => {})
@@ -221,11 +234,14 @@ export default function PDVStandalone() {
   const subtotal      = cart.reduce((a, b) => a + b.price * b.quantity, 0);
   const discountValue = Math.min(Number(discount) || 0, subtotal);
   const baseTotal     = subtotal - discountValue;
-  const feeAmount     = payments.reduce((sum, p) => {
-    if (p.method !== "credit") return sum;
+  const creditPayments = payments.filter((p) => p.method === "credit");
+  const creditTotal    = creditPayments.reduce((s, p) => s + (Number(p.amount) || 0), 0);
+  const feeAmount      = creditPayments.reduce((sum, p) => {
     const rate = cardFees[p.cardBrand]?.[p.installments - 1] ?? 0;
+    if (!rate) return sum;
     const pAmt = Number(p.amount) || 0;
-    return sum + (pAmt > 0 ? pAmt * (rate / 100) : 0);
+    const base = creditTotal > 0 ? baseTotal * (pAmt / creditTotal) : 0;
+    return sum + base * (rate / 100);
   }, 0);
   const total       = baseTotal + feeAmount;
   const paidAmount  = payments.reduce((s, p) => s + (Number(p.amount) || 0), 0);
@@ -234,14 +250,18 @@ export default function PDVStandalone() {
   const moneyAmt    = Number(moneyPmt?.amount) || 0;
   const change      = moneyAmt > 0 && paidAmount >= total ? moneyAmt - (total - (paidAmount - moneyAmt)) : 0;
   const cartQty     = cart.reduce((a, b) => a + b.quantity, 0);
-  const canFinish   = cart.length > 0 && paidAmount >= total && total > 0;
+  // permite confirmar com saldo devedor (apenas avisa)
+  const canFinish   = cart.length > 0 && total > 0;
 
   // payment helpers
   const updatePayment = (id: string, patch: Partial<PaymentEntry>) =>
     setPayments((ps) => ps.map((p) => p.id === id ? { ...p, ...patch } : p));
   const removePayment = (id: string) =>
     setPayments((ps) => ps.length > 1 ? ps.filter((p) => p.id !== id) : ps);
-  const addPayment = () => setPayments((ps) => [...ps, newPayment()]);
+  const addPayment = () => {
+    const rem = Math.max(0, total - paidAmount);
+    setPayments((ps) => [...ps, { ...newPayment(), amount: rem > 0 ? rem.toFixed(2) : "" }]);
+  };
 
   // receipt helpers
   const buildThermalHtml = (sale: CompletedSale) => {
@@ -996,8 +1016,8 @@ function StandaloneCart({
             <span className="text-[9px] font-black uppercase tracking-widest text-slate-500">Total</span>
             <span className="text-2xl font-mono font-black text-white tracking-tight">R$ {total.toFixed(2)}</span>
           </div>
-          {remaining > 0 && paidAmount > 0 && (
-            <div className="flex justify-between text-[9px] font-bold uppercase tracking-widest text-red-400"><span>Faltam</span><span className="font-mono">R$ {remaining.toFixed(2)}</span></div>
+          {remaining > 0.009 && (
+            <div className="flex justify-between text-[9px] font-black uppercase tracking-widest text-red-400 pt-1 border-t border-slate-800"><span>Saldo devedor</span><span className="font-mono">R$ {remaining.toFixed(2)}</span></div>
           )}
           {change > 0 && (
             <div className="flex justify-between text-[9px] font-black uppercase tracking-widest text-emerald-400 pt-1.5 border-t border-slate-800"><span>Troco</span><span className="font-mono">R$ {change.toFixed(2)}</span></div>
@@ -1005,8 +1025,13 @@ function StandaloneCart({
         </div>
 
         {/* Botão */}
+        {remaining > 0.009 && (
+          <p className="text-[8px] text-center text-amber-500 font-bold uppercase tracking-widest pb-1">
+            ⚠ Saldo devedor de R$ {remaining.toFixed(2)}
+          </p>
+        )}
         <button onClick={handleFinishSale} disabled={!canFinish || finishing}
-          className="w-full h-12 bg-blue-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-blue-500 transition-all disabled:opacity-20 shadow-xl shadow-blue-500/20 active:scale-[0.98] flex items-center justify-center gap-2">
+          className={`w-full h-12 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all disabled:opacity-20 active:scale-[0.98] flex items-center justify-center gap-2 ${remaining > 0.009 ? "bg-amber-500 hover:bg-amber-400 shadow-xl shadow-amber-500/20" : "bg-blue-600 hover:bg-blue-500 shadow-xl shadow-blue-500/20"}`}>
           {finishing ? <Loader2 size={16} className="animate-spin" /> : <><CreditCard size={16} /> Finalizar Venda</>}
         </button>
       </div>
