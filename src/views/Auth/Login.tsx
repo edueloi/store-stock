@@ -225,7 +225,7 @@ export default function Login() {
                   type="text"
                   autoComplete="username"
                   className="h-full w-full bg-transparent text-sm text-slate-900 placeholder-slate-400 outline-none"
-                  placeholder="admin ou loja@empresa.com.br"
+                  placeholder="seu@email.com.br"
                   value={identifier}
                   onChange={(e) => setIdentifier(e.target.value)}
                   required
