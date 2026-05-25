@@ -29,13 +29,26 @@ export const upload = multer({ storage, fileFilter, limits: { fileSize: 5 * 1024
 
 export async function uploadProductImage(req: Request, res: Response) {
   try {
-    const tenantId = (req as AuthenticatedRequest).user.tenantId;
     if (!req.file) {
       res.status(400).json({ error: "Nenhum arquivo enviado" });
       return;
     }
     const url = `/uploads/products/${req.file.filename}`;
-    res.json({ url, tenantId });
+    res.json({ url });
+  } catch {
+    res.status(500).json({ error: "Upload falhou" });
+  }
+}
+
+export async function uploadProductImages(req: Request, res: Response) {
+  try {
+    const files = req.files as Express.Multer.File[];
+    if (!files || files.length === 0) {
+      res.status(400).json({ error: "Nenhum arquivo enviado" });
+      return;
+    }
+    const urls = files.map(f => `/uploads/products/${f.filename}`);
+    res.json({ urls });
   } catch {
     res.status(500).json({ error: "Upload falhou" });
   }

@@ -127,7 +127,7 @@ export default function Orders() {
   if (loading) return <div className="p-8 text-center text-xs font-bold uppercase tracking-widest text-slate-400">Puxando Fluxo de Pedidos...</div>;
 
   return (
-    <div className="space-y-6 animate-in fade-in duration-500">
+    <div className="space-y-6 ">
       {/* Header section */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
@@ -321,12 +321,12 @@ export default function Orders() {
       {/* Details Modal */}
       <AnimatePresence>
          {isDetailModalOpen && selectedOrder && (
-            <div className="fixed inset-0 z-50 flex items-center justify-end bg-slate-900/40 backdrop-blur-xs">
-               <motion.div 
-                 initial={{ x: "100%" }}
-                 animate={{ x: 0 }}
-                 exit={{ x: "100%" }}
-                 className="bg-white h-full w-full max-w-lg shadow-2xl flex flex-col border-l border-slate-200"
+            <div className="fixed inset-0 z-50 flex items-end sm:items-center sm:justify-end bg-slate-900/40 backdrop-blur-xs">
+               <motion.div
+                 initial={{ y: "100%", x: 0 }}
+                 animate={{ y: 0, x: 0 }}
+                 exit={{ y: "100%", x: 0 }}
+                 className="bg-white w-full max-h-[92dvh] sm:max-h-full sm:h-full sm:max-w-lg shadow-2xl flex flex-col rounded-t-2xl sm:rounded-none sm:border-l border-slate-200 overflow-hidden"
                >
                   <div className="px-8 py-6 bg-slate-50 border-b border-slate-200 flex justify-between items-center">
                      <div>

@@ -1,19 +1,32 @@
 import { useState } from "react";
 import { useParams, Link } from "react-router-dom";
 import { motion } from "motion/react";
-import { ShoppingCart, Heart, Share2, ChevronLeft, Package, Plus, Minus, Check, Flame, Tag } from "lucide-react";
+import { ShoppingCart, Heart, Share2, ChevronLeft, ChevronRight, Package, Plus, Minus, Check, Flame, Tag, AlertCircle } from "lucide-react";
 import { cn } from "../../../lib/utils";
 import { useStore } from "../StoreLayout";
+import StoreSEO from "../../../components/store/StoreSEO";
 
 export default function StoreProduct() {
   const { slug, productId } = useParams();
-  const { products, categories, addToCart, style, openCart } = useStore();
+  const { products, categories, addToCart, style, openCart, tenant } = useStore();
 
   const product = products.find(p => p.id === Number(productId));
+  const allImages = Array.isArray(product?.images) && product.images.length > 0 ? product.images : product?.image_url ? [product.image_url] : [];
+  const [activeImg, setActiveImg] = useState(0);
+
+  const hasVariations = Array.isArray(product?.variations) && product.variations.length > 0;
+
+  // null = não escolheu ainda; só auto-seleciona se houver 1 única opção disponível
   const [selectedOptions, setSelectedOptions] = useState<Record<string, string>>(() => {
     if (!product?.variations) return {};
-    return Object.fromEntries(product.variations.map(v => [v.name, v.options[0]?.value ?? ""]));
+    return Object.fromEntries(
+      product.variations.map(v => {
+        const available = v.options.filter(o => o.stock > 0);
+        return [v.name, available.length === 1 ? available[0].value : ""];
+      })
+    );
   });
+  const [showVariationError, setShowVariationError] = useState(false);
   const [qty, setQty] = useState(1);
   const [inWishlist, setInWishlist] = useState(false);
   const [justAdded, setJustAdded] = useState(false);
@@ -36,8 +49,18 @@ export default function StoreProduct() {
     : 0;
   const related = products.filter(p => p.is_active && p.category_id === product.category_id && p.id !== product.id).slice(0, 4);
 
+  // Verifica se todas as variações foram selecionadas
+  const allVariationsSelected = !hasVariations || (
+    Array.isArray(product.variations) &&
+    product.variations.every(v => !!selectedOptions[v.name])
+  );
+
   const handleAddToCart = () => {
-    const hasVariations = Array.isArray(product.variations) && product.variations.length > 0;
+    if (!allVariationsSelected) {
+      setShowVariationError(true);
+      setTimeout(() => setShowVariationError(false), 3000);
+      return;
+    }
     for (let i = 0; i < qty; i++) {
       addToCart(product, hasVariations ? selectedOptions : undefined);
     }
@@ -46,16 +69,60 @@ export default function StoreProduct() {
     openCart();
   };
 
+  const handleSelectOption = (variationName: string, value: string) => {
+    setSelectedOptions(prev => ({ ...prev, [variationName]: value }));
+    setShowVariationError(false);
+  };
+
   const selectedStocks = Array.isArray(product.variations)
     ? product.variations.map(v => {
         const opt = v.options.find(o => o.value === selectedOptions[v.name]);
         return opt?.stock ?? 0;
       })
     : [];
-  const minStock = selectedStocks.length > 0 ? Math.min(...selectedStocks) : (product.stock_quantity ?? 99);
+  const minStock = selectedStocks.length > 0
+    ? (allVariationsSelected ? Math.min(...selectedStocks) : 99)
+    : (product.stock_quantity ?? 99);
+
+  const handleShare = async () => {
+    const url = window.location.href;
+    const title = product.name;
+    const text = `${product.name}${product.description ? ` — ${product.description.slice(0, 100)}` : ""}\nR$ ${Number(product.discount_price || product.price).toFixed(2)}`;
+
+    if (navigator.share) {
+      try {
+        await navigator.share({ title, text, url });
+        return;
+      } catch {
+        // user cancelled or not supported, fall through
+      }
+    }
+    await navigator.clipboard.writeText(url);
+    alert("Link copiado!");
+  };
+
+  // Compartilhar via WhatsApp diretamente
+  const handleShareWhatsApp = () => {
+    const url = window.location.href;
+    const price = Number(product.discount_price || product.price).toFixed(2);
+    const text = `*${product.name}*\nR$ ${price}\n${product.description ? `${product.description.slice(0, 120)}\n` : ""}Ver produto: ${url}`;
+    window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, "_blank");
+  };
+
+  const productUrl = typeof window !== "undefined" ? window.location.href : "";
+  const productPrice = Number(product.discount_price || product.price).toFixed(2);
 
   return (
     <div className="max-w-7xl mx-auto px-4 md:px-6 py-8 space-y-12">
+      <StoreSEO
+        title={`${product.name} — ${tenant.name}`}
+        description={product.description || `Compre ${product.name} na loja ${tenant.name}. R$ ${productPrice}.`}
+        image={allImages[0]}
+        url={productUrl}
+        type="product"
+        price={productPrice}
+        siteName={tenant.name}
+      />
 
       {/* Breadcrumb */}
       <nav className="flex items-center gap-2 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
@@ -75,15 +142,11 @@ export default function StoreProduct() {
       {/* Main product block */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-10 lg:gap-16">
 
-        {/* Image */}
-        <motion.div
-          initial={{ opacity: 0, x: -20 }}
-          animate={{ opacity: 1, x: 0 }}
-          className="space-y-3"
-        >
-          <div className={cn("aspect-square bg-slate-100 overflow-hidden relative", style.radius)}>
-            {product.image_url ? (
-              <img src={product.image_url} alt={product.name} className="w-full h-full object-cover" />
+        {/* Image gallery */}
+        <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} className="space-y-3">
+          <div className={cn("aspect-square bg-slate-100 overflow-hidden relative group", style.radius)}>
+            {allImages.length > 0 ? (
+              <img src={allImages[activeImg]} alt={product.name} className="w-full h-full object-cover transition-all duration-300" />
             ) : (
               <div className="w-full h-full flex items-center justify-center text-slate-200">
                 <Package size={80} strokeWidth={1} />
@@ -99,7 +162,36 @@ export default function StoreProduct() {
                 <Flame size={11} /> Destaque
               </span>
             )}
+            {allImages.length > 1 && (
+              <>
+                <button onClick={() => setActiveImg(i => (i - 1 + allImages.length) % allImages.length)}
+                  className="absolute left-3 top-1/2 -translate-y-1/2 w-9 h-9 bg-white/90 rounded-full flex items-center justify-center shadow-md opacity-0 group-hover:opacity-100 transition-opacity hover:bg-white">
+                  <ChevronLeft size={16} />
+                </button>
+                <button onClick={() => setActiveImg(i => (i + 1) % allImages.length)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 w-9 h-9 bg-white/90 rounded-full flex items-center justify-center shadow-md opacity-0 group-hover:opacity-100 transition-opacity hover:bg-white">
+                  <ChevronRight size={16} />
+                </button>
+                <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex gap-1.5">
+                  {allImages.map((_, i) => (
+                    <button key={i} onClick={() => setActiveImg(i)} className={cn("w-1.5 h-1.5 rounded-full transition-all", i === activeImg ? "bg-white w-4" : "bg-white/50")} />
+                  ))}
+                </div>
+              </>
+            )}
           </div>
+          {allImages.length > 1 && (
+            <div className="flex gap-2 overflow-x-auto pb-1">
+              {allImages.map((img, i) => (
+                <button key={i} onClick={() => setActiveImg(i)}
+                  className={cn("w-16 h-16 shrink-0 rounded-xl overflow-hidden border-2 transition-all",
+                    i === activeImg ? "border-current shadow-md scale-105" : "border-slate-200 hover:border-slate-300")}
+                  style={i === activeImg ? { borderColor: style.accent } : {}}>
+                  <img src={img} alt="" className="w-full h-full object-cover" />
+                </button>
+              ))}
+            </div>
+          )}
         </motion.div>
 
         {/* Details */}
@@ -120,6 +212,12 @@ export default function StoreProduct() {
             <h1 className="text-2xl md:text-3xl font-black uppercase tracking-tight leading-tight text-slate-900">
               {product.name}
             </h1>
+            {/* SKU */}
+            {product.sku && (
+              <p className="text-[10px] font-mono text-slate-400 mt-1 uppercase tracking-widest">
+                Cód: <span className="text-slate-600 font-bold">{product.sku}</span>
+              </p>
+            )}
           </div>
 
           {/* Price */}
@@ -156,11 +254,22 @@ export default function StoreProduct() {
           {Array.isArray(product.variations) && product.variations.map((v, vi) => (
             <div key={vi} className="space-y-2">
               <div className="flex items-center justify-between">
-                <p className="text-[11px] font-black text-slate-500 uppercase tracking-widest">{v.name}</p>
+                <p className={cn(
+                  "text-[11px] font-black uppercase tracking-widest flex items-center gap-1.5",
+                  showVariationError && !selectedOptions[v.name] ? "text-red-500" : "text-slate-500"
+                )}>
+                  {v.name}
+                  {showVariationError && !selectedOptions[v.name] && (
+                    <AlertCircle size={11} className="text-red-500" />
+                  )}
+                </p>
                 {selectedOptions[v.name] && (
                   <span className="text-[11px] font-bold text-slate-700">{selectedOptions[v.name]}</span>
                 )}
               </div>
+              {showVariationError && !selectedOptions[v.name] && (
+                <p className="text-[10px] text-red-500 font-bold -mt-1">Selecione {v.name.toLowerCase()} antes de adicionar</p>
+              )}
               <div className="flex flex-wrap gap-2">
                 {v.options.map((opt, oi) => {
                   const isSelected = selectedOptions[v.name] === opt.value;
@@ -169,7 +278,7 @@ export default function StoreProduct() {
                     <button
                       key={oi}
                       disabled={outOfStock}
-                      onClick={() => setSelectedOptions(prev => ({ ...prev, [v.name]: opt.value }))}
+                      onClick={() => handleSelectOption(v.name, opt.value)}
                       className={cn(
                         "relative px-4 py-2.5 rounded-xl border-2 text-xs font-bold transition-all",
                         isSelected ? "text-white shadow-md" : outOfStock
@@ -194,7 +303,6 @@ export default function StoreProduct() {
 
           {/* Quantity + Add to cart */}
           <div className="flex items-center gap-3 pt-2">
-            {/* Qty */}
             <div className="flex items-center h-12 bg-slate-100 rounded-xl overflow-hidden border border-slate-200">
               <button
                 onClick={() => setQty(q => Math.max(1, q - 1))}
@@ -211,7 +319,6 @@ export default function StoreProduct() {
               </button>
             </div>
 
-            {/* Add to cart */}
             <button
               onClick={handleAddToCart}
               disabled={minStock === 0}
@@ -230,7 +337,6 @@ export default function StoreProduct() {
               )}
             </button>
 
-            {/* Wishlist */}
             <button
               onClick={() => setInWishlist(v => !v)}
               className={cn("w-12 h-12 rounded-xl border-2 flex items-center justify-center transition-all",
@@ -241,7 +347,7 @@ export default function StoreProduct() {
           </div>
 
           {/* Stock indicator */}
-          {minStock > 0 && minStock <= 10 && (
+          {minStock > 0 && minStock <= 10 && allVariationsSelected && (
             <p className="text-[11px] font-bold text-amber-600 flex items-center gap-1.5">
               <span className="w-2 h-2 bg-amber-400 rounded-full" />
               Restam apenas {minStock} unidade{minStock !== 1 ? "s" : ""}!
@@ -249,12 +355,21 @@ export default function StoreProduct() {
           )}
 
           {/* Share */}
-          <div className="flex items-center gap-2 pt-2 border-t border-slate-100">
+          <div className="flex items-center gap-3 pt-2 border-t border-slate-100">
             <button
-              onClick={() => navigator.clipboard.writeText(window.location.href)}
+              onClick={handleShare}
               className="flex items-center gap-2 text-[11px] font-bold text-slate-400 hover:text-slate-700 transition-colors"
             >
-              <Share2 size={13} /> Compartilhar produto
+              <Share2 size={13} /> Compartilhar
+            </button>
+            <button
+              onClick={handleShareWhatsApp}
+              className="flex items-center gap-2 text-[11px] font-bold text-slate-400 hover:text-[#25D366] transition-colors"
+            >
+              <svg viewBox="0 0 24 24" fill="currentColor" className="w-3.5 h-3.5">
+                <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/>
+              </svg>
+              Enviar no WhatsApp
             </button>
           </div>
         </motion.div>

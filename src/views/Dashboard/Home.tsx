@@ -60,7 +60,7 @@ export default function Home() {
   ];
 
   return (
-    <div className="space-y-6 animate-in fade-in duration-500">
+    <div className="space-y-6 ">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
           <h2 className="text-xl font-bold text-slate-900 uppercase tracking-tight">Cockpit de Gestão Nexus</h2>

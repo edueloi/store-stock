@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from "react";
 import { useParams, useSearchParams, Link } from "react-router-dom";
+import StoreSEO from "../../../components/store/StoreSEO";
 import { motion, AnimatePresence } from "motion/react";
 import {
   Search, X, LayoutGrid, List, ArrowUpDown, Check,
@@ -15,7 +16,7 @@ type ViewMode = "grid" | "list";
 export default function StoreCatalog() {
   const { slug } = useParams();
   const [searchParams, setSearchParams] = useSearchParams();
-  const { categories, products, addToCart, style } = useStore();
+  const { categories, products, addToCart, style, tenant } = useStore();
 
   const [searchTerm, setSearchTerm] = useState(searchParams.get("q") || "");
   const [selectedCategory, setSelectedCategory] = useState<number | null>(
@@ -78,8 +79,16 @@ export default function StoreCatalog() {
     ? categories.find(c => c.id === selectedCategory)?.name
     : null;
 
+  const pageTitle = catName ? `${catName} — ${tenant.name}` : `Catálogo — ${tenant.name}`;
+
   return (
     <div className="max-w-7xl mx-auto px-4 md:px-6 py-8">
+      <StoreSEO
+        title={pageTitle}
+        description={`Confira ${catName ? `produtos de ${catName}` : "todo o catálogo"} da loja ${tenant.name}.`}
+        url={typeof window !== "undefined" ? window.location.href : ""}
+        siteName={tenant.name}
+      />
 
       {/* Breadcrumb */}
       <nav className="flex items-center gap-2 text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-6">
@@ -348,6 +357,10 @@ function ProductCard({ product, index, slug, style, wishlist, onWishlist, onAddT
     ? Math.round((1 - Number(product.discount_price) / Number(product.price)) * 100)
     : 0;
   const inWishlist = wishlist.includes(product.id);
+  const allImages = Array.isArray(product.images) && product.images.length > 0
+    ? product.images as string[]
+    : product.image_url ? [product.image_url] : [];
+  const primaryImage = allImages[0] ?? null;
 
   return (
     <motion.div
@@ -357,9 +370,14 @@ function ProductCard({ product, index, slug, style, wishlist, onWishlist, onAddT
       className={cn("group relative flex flex-col overflow-hidden border hover:shadow-xl transition-all duration-300", style.card, style.radius)}
     >
       <Link to={`/s/${slug}/produto/${product.id}`} className="relative aspect-square bg-slate-50 overflow-hidden block">
-        {product.image_url
-          ? <img src={product.image_url} alt={product.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+        {primaryImage
+          ? <img src={primaryImage} alt={product.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
           : <div className="w-full h-full flex items-center justify-center text-slate-200"><Package size={48} strokeWidth={1} /></div>}
+        {allImages.length > 1 && (
+          <div className="absolute bottom-2 left-2 bg-black/60 text-white text-[8px] font-black px-2 py-0.5 rounded-full backdrop-blur-sm flex items-center gap-1">
+            <span>+{allImages.length - 1}</span> fotos
+          </div>
+        )}
 
         {/* Badges */}
         <div className="absolute top-2 left-2 flex flex-col gap-1">
@@ -444,6 +462,10 @@ function ProductRow({ product, index, slug, style, wishlist, onWishlist, onAddTo
     ? Math.round((1 - Number(product.discount_price) / Number(product.price)) * 100)
     : 0;
   const inWishlist = wishlist.includes(product.id);
+  const allImages = Array.isArray(product.images) && product.images.length > 0
+    ? product.images as string[]
+    : product.image_url ? [product.image_url] : [];
+  const primaryImage = allImages[0] ?? null;
 
   return (
     <motion.div
@@ -453,10 +475,13 @@ function ProductRow({ product, index, slug, style, wishlist, onWishlist, onAddTo
       className={cn("flex gap-4 p-3 border hover:shadow-md transition-all group", style.card, style.radius)}
     >
       <Link to={`/s/${slug}/produto/${product.id}`} className="w-24 h-24 shrink-0 rounded-xl overflow-hidden bg-slate-50 relative">
-        {product.image_url
-          ? <img src={product.image_url} alt={product.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+        {primaryImage
+          ? <img src={primaryImage} alt={product.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
           : <div className="w-full h-full flex items-center justify-center text-slate-200"><Package size={28} strokeWidth={1} /></div>}
         {discountPct > 0 && <span className="absolute top-1 left-1 bg-red-500 text-white text-[8px] font-black px-1.5 py-0.5 rounded-full">-{discountPct}%</span>}
+        {allImages.length > 1 && (
+          <span className="absolute bottom-1 right-1 bg-black/60 text-white text-[7px] font-black px-1.5 py-0.5 rounded-full">+{allImages.length - 1}</span>
+        )}
       </Link>
 
       <div className="flex-1 min-w-0 flex flex-col justify-between">

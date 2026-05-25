@@ -1,7 +1,9 @@
-import React, { useState, useRef, ReactNode, useEffect, useCallback, useLayoutEffect } from "react";
+import React, { useState, useRef, ReactNode, useEffect, useCallback, useLayoutEffect, createContext, useContext } from "react";
 import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "motion/react";
 import { cn } from "../../lib/utils";
+
+const PopoverCloseContext = createContext<(() => void) | null>(null);
 
 type PopoverPlacement = "bottom-start" | "bottom-end" | "top-start" | "top-end" | "bottom" | "top";
 
@@ -143,7 +145,9 @@ export default function Popover({
             className
           )}
         >
-          {children}
+          <PopoverCloseContext.Provider value={() => setOpen(false)}>
+            {children}
+          </PopoverCloseContext.Provider>
         </motion.div>
       )}
     </AnimatePresence>
@@ -171,9 +175,10 @@ interface PopoverItemProps {
 }
 
 export function PopoverItem({ icon, children, onClick, variant = "default", disabled = false }: PopoverItemProps) {
+  const close = useContext(PopoverCloseContext);
   return (
     <button
-      onClick={onClick}
+      onClick={() => { close?.(); onClick?.(); }}
       disabled={disabled}
       className={cn(
         "w-full flex items-center gap-3 px-4 py-2.5 text-xs font-semibold transition-colors",

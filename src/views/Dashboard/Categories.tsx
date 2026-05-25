@@ -64,7 +64,7 @@ export default function Categories() {
   );
 
   return (
-    <div className="space-y-6 animate-in fade-in duration-500">
+    <div className="space-y-6 ">
       <PageHeader
         title="Categorias"
         subtitle="Organização do catálogo de produtos"

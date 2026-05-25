@@ -21,8 +21,10 @@ model Tenant {
   template_id  String   @default("minimal")
   about_text   String?  @db.Text
   footer_text  String?  @db.Text
-  primary_color String  @default("#000000")
-  created_at   DateTime @default(now())
+  primary_color    String  @default("#000000")
+  featured_limit   Int     @default(4)
+  bestseller_limit Int     @default(8)
+  created_at       DateTime @default(now())
   updated_at   DateTime @updatedAt
 
   users           User[]
@@ -77,11 +79,14 @@ model Product {
   discount_price Decimal?  @db.Decimal(10, 2)
   stock_quantity Int       @default(0)
   image_url      String?
+  images         Json?
   expiry_date    DateTime? @db.Date
   type           String    @default("sale")
   is_active      Boolean   @default(true)
   is_featured    Boolean   @default(false)
   variations     Json?
+  attributes     Json?
+  skus           Json?
   created_at     DateTime  @default(now())
   updated_at     DateTime  @updatedAt
 

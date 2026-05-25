@@ -37,6 +37,8 @@ export async function updateTenant(req: Request, res: Response) {
         show_address: req.body.show_address,
         template_id: req.body.template_id,
         primary_color: req.body.primary_color,
+        featured_limit: req.body.featured_limit !== undefined ? Number(req.body.featured_limit) : undefined,
+        bestseller_limit: req.body.bestseller_limit !== undefined ? Number(req.body.bestseller_limit) : undefined,
       },
     });
 

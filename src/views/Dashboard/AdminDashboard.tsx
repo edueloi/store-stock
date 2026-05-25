@@ -253,9 +253,9 @@ export default function AdminDashboard() {
         {/* Header */}
         <header className="h-16 lg:h-14 bg-white border-b border-slate-200 flex items-center justify-between px-4 lg:px-6 shrink-0 shadow-sm z-10 transition-all">
           <div className="flex items-center gap-3 lg:gap-4">
-            <button 
+            <button
               onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-              className="p-2 hover:bg-slate-50 rounded-lg text-slate-500 focus:outline-none bg-slate-50 border border-slate-200"
+              className="hidden lg:flex p-2 hover:bg-slate-50 rounded-lg text-slate-500 focus:outline-none bg-slate-50 border border-slate-200"
             >
               <Menu size={20} />
             </button>
@@ -310,16 +310,49 @@ export default function AdminDashboard() {
            </Routes>
         </div>
 
-        {/* Bottom Bar - Stats Indicator (hidden on small mobile) */}
-        <footer className="h-10 lg:h-8 bg-slate-900 border-t border-slate-800 px-4 lg:px-6 flex items-center justify-between shrink-0 overflow-hidden">
-          <div className="text-[9px] lg:text-[10px] text-slate-400 font-bold uppercase tracking-widest truncate">
+        {/* Bottom Bar - Desktop status bar */}
+        <footer className="hidden lg:flex h-8 bg-slate-900 border-t border-slate-800 px-6 items-center justify-between shrink-0 overflow-hidden">
+          <div className="text-[10px] text-slate-400 font-bold uppercase tracking-widest truncate">
             Nexus Cloud Sync · Instância: AWS-SA-EAST-1
           </div>
-          <div className="hidden sm:flex gap-4">
-            <span className="text-[9px] lg:text-[10px] text-emerald-400 font-bold uppercase">DB Healthy</span>
-            <span className="text-[9px] lg:text-[10px] text-slate-500 font-bold uppercase">v.Nexus-1.0.9</span>
+          <div className="flex gap-4">
+            <span className="text-[10px] text-emerald-400 font-bold uppercase">DB Healthy</span>
+            <span className="text-[10px] text-slate-500 font-bold uppercase">v.Nexus-1.0.9</span>
           </div>
         </footer>
+
+        {/* Mobile Bottom Navigation */}
+        <nav className="lg:hidden shrink-0 bg-white border-t border-slate-200 flex items-stretch" style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
+          {[
+            { icon: LayoutDashboard, label: "Home", path: "/admin" },
+            { icon: Box, label: "Estoque", path: "/admin/stock" },
+            { icon: Tags, label: "Catálogo", path: "/admin/catalog" },
+            { icon: ShoppingCart, label: "PDV", path: "/admin/pdv" },
+            { icon: Receipt, label: "Pedidos", path: "/admin/orders" },
+          ].map((item) => {
+            const isActive = location.pathname === item.path || (item.path === "/admin" && location.pathname === "/admin/");
+            return (
+              <Link
+                key={item.path}
+                to={item.path}
+                className={cn(
+                  "flex-1 flex flex-col items-center justify-center gap-1 py-2 transition-colors",
+                  isActive ? "text-blue-600" : "text-slate-400"
+                )}
+              >
+                <item.icon size={20} strokeWidth={isActive ? 2.5 : 1.5} />
+                <span className="text-[9px] font-bold uppercase tracking-wide leading-none">{item.label}</span>
+              </Link>
+            );
+          })}
+          <button
+            onClick={() => setIsSidebarOpen(true)}
+            className="flex-1 flex flex-col items-center justify-center gap-1 py-2 text-slate-400"
+          >
+            <Menu size={20} strokeWidth={1.5} />
+            <span className="text-[9px] font-bold uppercase tracking-wide leading-none">Mais</span>
+          </button>
+        </nav>
       </main>
     </div>
   );

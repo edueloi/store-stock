@@ -52,10 +52,11 @@ export const useStore = () => {
 // ── Style presets ──────────────────────────────────────────────────────────
 
 const templates: Record<string, StoreStyle> = {
-  minimal: { bg: "bg-[#f8fafc]", card: "bg-white border-slate-100", accent: "#2563eb", text: "text-slate-900", font: "font-sans", radius: "rounded-2xl" },
-  cyber:   { bg: "bg-black",     card: "bg-slate-900 border-slate-800", accent: "#00ff7f", text: "text-white", font: "font-mono", radius: "rounded-none" },
-  organic: { bg: "bg-[#fefaf6]", card: "bg-white border-orange-100", accent: "#d97706", text: "text-stone-800", font: "font-sans", radius: "rounded-[2rem]" },
-  luxury:  { bg: "bg-[#0a0a0a]", card: "bg-[#111] border-yellow-500/10", accent: "#c5a059", text: "text-stone-200", font: "font-serif", radius: "rounded-lg" },
+  minimal:  { bg: "bg-[#f8fafc]",   card: "bg-white border-slate-100",        accent: "#2563eb", text: "text-slate-900",  font: "font-sans",  radius: "rounded-2xl" },
+  cyber:    { bg: "bg-black",        card: "bg-slate-900 border-slate-800",    accent: "#00ff7f", text: "text-white",      font: "font-mono",  radius: "rounded-none" },
+  organic:  { bg: "bg-[#fefaf6]",   card: "bg-white border-orange-100",       accent: "#d97706", text: "text-stone-800",  font: "font-sans",  radius: "rounded-[2rem]" },
+  luxury:   { bg: "bg-[#0a0a0a]",   card: "bg-[#111] border-yellow-500/10",  accent: "#c5a059", text: "text-stone-200",  font: "font-serif", radius: "rounded-lg" },
+  tech:     { bg: "bg-[#f4f6fb]",   card: "bg-white border-slate-200",       accent: "#0ea5e9", text: "text-slate-900",  font: "font-sans",  radius: "rounded-2xl" },
 };
 
 // ── Main Layout ────────────────────────────────────────────────────────────
@@ -110,8 +111,14 @@ function StoreLayoutInner() {
   const cartCount = cart.reduce((acc, i) => acc + i.quantity, 0);
 
   const handleWhatsAppCheckout = () => {
-    const items = cart.map(i => `*${i.quantity}x* ${i.name} — R$ ${(Number(i.price) * i.quantity).toFixed(2)}`).join("%0A");
-    const msg = `Olá! Gostaria de fazer um pedido:%0A%0A${items}%0A%0A*Total: R$ ${total.toFixed(2)}*%0A%0AFavor confirmar disponibilidade.`;
+    const lines = cart.map(i => {
+      const skuPart = i.sku ? ` [Cód: ${i.sku}]` : "";
+      const varPart = i.variationLabel ? ` (${i.variationLabel})` : "";
+      const unitPrice = Number(i.price).toFixed(2);
+      const lineTotal = (Number(i.price) * i.quantity).toFixed(2);
+      return `*${i.quantity}x* ${i.name}${skuPart}${varPart}%0A   Unitário: R$ ${unitPrice} · Total: R$ ${lineTotal}`;
+    });
+    const msg = `Olá! Gostaria de fazer um pedido:%0A%0A${lines.join("%0A%0A")}%0A%0A*Total do pedido: R$ ${total.toFixed(2)}*%0A%0AFavor confirmar disponibilidade.`;
     window.open(`https://wa.me/${storeData?.tenant.whatsapp?.replace(/\D/g, "")}?text=${msg}`, "_blank");
   };
 
@@ -463,12 +470,19 @@ function StoreLayoutInner() {
                       </div>
                       <div className="flex-1 min-w-0">
                         <h4 className="text-[11px] font-black uppercase text-slate-800 leading-tight line-clamp-2">{item.name}</h4>
-                        {item.variationLabel && (
-                          <p className="text-[9px] text-slate-400 mt-0.5 uppercase font-bold">{item.variationLabel}</p>
+                        {item.sku && (
+                          <p className="text-[9px] text-slate-400 mt-0.5 font-mono uppercase tracking-widest">Cód: {item.sku}</p>
                         )}
-                        <p className="text-xs font-black text-emerald-600 font-mono mt-1">
-                          R$ {(Number(item.price) * item.quantity).toFixed(2)}
-                        </p>
+                        {item.variationLabel && (
+                          <p className="text-[9px] text-slate-500 mt-0.5 font-bold uppercase">{item.variationLabel}</p>
+                        )}
+                        <div className="flex items-center gap-2 mt-1">
+                          <p className="text-[10px] text-slate-400 font-mono">R$ {Number(item.price).toFixed(2)} un.</p>
+                          <span className="text-slate-200">·</span>
+                          <p className="text-xs font-black text-emerald-600 font-mono">
+                            R$ {(Number(item.price) * item.quantity).toFixed(2)}
+                          </p>
+                        </div>
                         <div className="flex items-center gap-2 mt-2">
                           <div className="flex items-center gap-2 bg-white border border-slate-200 rounded-lg px-2 py-1">
                             <button onClick={() => updateQuantity(item.cartItemId, -1)} className="text-slate-400 hover:text-slate-700">

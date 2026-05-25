@@ -37,7 +37,7 @@ export default function Modal({
   return (
     <AnimatePresence>
       {open && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-0 sm:p-4">
           {/* Overlay */}
           <motion.div
             initial={{ opacity: 0 }}
@@ -54,8 +54,9 @@ export default function Modal({
             exit={{ opacity: 0, scale: 0.97, y: 12 }}
             transition={{ type: "spring", damping: 28, stiffness: 350 }}
             className={cn(
-              "relative bg-white w-full rounded-2xl shadow-2xl border border-slate-200 overflow-hidden flex flex-col",
-              "max-h-[92vh]",
+              "relative bg-white w-full shadow-2xl border border-slate-200 overflow-hidden flex flex-col",
+              "rounded-t-2xl sm:rounded-2xl",
+              "max-h-[92dvh] sm:max-h-[90vh]",
               sizeClasses[size]
             )}
           >

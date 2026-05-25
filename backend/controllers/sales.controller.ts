@@ -14,10 +14,12 @@ interface SaleItemInput {
 }
 
 export async function createSale(req: Request, res: Response) {
-  const { items, customerName, totalAmount } = req.body as {
+  const { items, customerName, totalAmount, paymentMethod, discount } = req.body as {
     items: SaleItemInput[];
     customerName?: string;
     totalAmount: number;
+    paymentMethod?: string;
+    discount?: number;
   };
 
   try {
@@ -28,7 +30,7 @@ export async function createSale(req: Request, res: Response) {
         customer_name: customerName || "Balcão",
         total_amount: totalAmount,
         status: "completed",
-        payment_method: "money",
+        payment_method: paymentMethod || "money",
         items: {
           create: items.map((item) => ({
             product_id: item.id,
@@ -50,11 +52,13 @@ export async function createSale(req: Request, res: Response) {
       });
     }
 
+    const methodLabel: Record<string, string> = { money: "Dinheiro", card: "Cartão", pix: "PIX" };
+    const discountNote = discount && discount > 0 ? ` (desc. R$ ${Number(discount).toFixed(2)})` : "";
     await prisma.finance.create({
       data: {
         tenant_id: tenantId,
         type: "income",
-        description: `Venda PDV #${order.id}`,
+        description: `Venda PDV #${order.id} — ${methodLabel[paymentMethod || "money"] ?? paymentMethod}${discountNote}`,
         amount: totalAmount,
         date: new Date(),
       },

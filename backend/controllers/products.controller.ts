@@ -30,12 +30,40 @@ export async function listProducts(req: Request, res: Response) {
   }
 }
 
+export async function getProduct(req: Request, res: Response) {
+  try {
+    const id = Number(req.params.id);
+    const tenantId = getTenantId(req);
+    const product = await prisma.product.findFirst({
+      where: { id, tenant_id: tenantId },
+      include: { category: { select: { name: true } } },
+    });
+    if (!product) {
+      res.status(404).json({ error: "Product not found" });
+      return;
+    }
+    res.json({ ...product, category_name: product.category?.name ?? null });
+  } catch {
+    res.status(500).json({ error: "Failed to fetch product" });
+  }
+}
+
 export async function createProduct(req: Request, res: Response) {
   try {
+    const {
+      images, variations, attributes, skus,
+      tenant_id: _tid, id: _id, category, category_name,
+      created_at, updated_at,
+      ...rest
+    } = req.body;
     const product = await prisma.product.create({
       data: {
-        ...req.body,
+        ...rest,
         tenant_id: getTenantId(req),
+        images: Array.isArray(images) ? images : undefined,
+        variations: Array.isArray(variations) ? variations : undefined,
+        attributes: Array.isArray(attributes) ? attributes : undefined,
+        skus: Array.isArray(skus) ? skus : undefined,
       },
     });
 
@@ -50,17 +78,36 @@ export async function updateProduct(req: Request, res: Response) {
     const id = Number(req.params.id);
     const tenantId = getTenantId(req);
 
-    // If a new image is being set, delete the old one
-    if (req.body.image_url !== undefined) {
-      const existing = await prisma.product.findFirst({ where: { id, tenant_id: tenantId }, select: { image_url: true } });
-      if (existing?.image_url && existing.image_url !== req.body.image_url) {
+    // Delete removed images from disk
+    const existing = await prisma.product.findFirst({ where: { id, tenant_id: tenantId }, select: { image_url: true, images: true } });
+    if (existing) {
+      if (req.body.image_url !== undefined && existing.image_url && existing.image_url !== req.body.image_url) {
         deleteProductImage(existing.image_url);
+      }
+      if (req.body.images !== undefined) {
+        const oldImages = Array.isArray(existing.images) ? (existing.images as string[]) : [];
+        const newImages: string[] = Array.isArray(req.body.images) ? req.body.images : [];
+        oldImages.filter(u => !newImages.includes(u)).forEach(u => deleteProductImage(u));
       }
     }
 
+    const {
+      images, variations, attributes, skus,
+      // strip non-column fields
+      tenant_id: _tid, id: _id, category, category_name,
+      created_at, updated_at,
+      ...rest
+    } = req.body;
+
     await prisma.product.updateMany({
       where: { id, tenant_id: tenantId },
-      data: req.body,
+      data: {
+        ...rest,
+        images: Array.isArray(images) ? images : undefined,
+        variations: Array.isArray(variations) ? variations : undefined,
+        attributes: Array.isArray(attributes) ? attributes : undefined,
+        skus: Array.isArray(skus) ? skus : undefined,
+      },
     });
 
     res.json({ success: true });
@@ -74,8 +121,10 @@ export async function deleteProduct(req: Request, res: Response) {
     const id = Number(req.params.id);
     const tenantId = getTenantId(req);
 
-    const existing = await prisma.product.findFirst({ where: { id, tenant_id: tenantId }, select: { image_url: true } });
+    const existing = await prisma.product.findFirst({ where: { id, tenant_id: tenantId }, select: { image_url: true, images: true } });
     if (existing?.image_url) deleteProductImage(existing.image_url);
+    const extraImages = Array.isArray(existing?.images) ? (existing.images as string[]) : [];
+    extraImages.forEach(url => deleteProductImage(url));
 
     await prisma.product.deleteMany({ where: { id, tenant_id: tenantId } });
 

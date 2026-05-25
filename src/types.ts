@@ -13,6 +13,8 @@ export interface Tenant {
   about_text?: string;
   footer_text?: string;
   primary_color: string;
+  featured_limit?: number;
+  bestseller_limit?: number;
 }
 
 export interface User {
@@ -42,10 +44,16 @@ export interface Product {
   discount_price?: number;
   stock_quantity: number;
   image_url?: string;
+  images?: string[];
   expiry_date?: string;
   type: 'sale' | 'internal';
   is_active: boolean;
   is_featured: boolean;
+  // attribute groups (ex: [{name:"Tamanho", values:["P","M","G"]}, {name:"Cor", values:["Preto","Branco"]}])
+  attributes?: { name: string; values: string[] }[];
+  // SKU combinations (ex: [{combo:{"Tamanho":"G","Cor":"Preto"}, stock:3}])
+  skus?: { combo: Record<string, string>; stock: number }[];
+  /** @deprecated use attributes+skus */
   variations?: { name: string; options: { value: string; stock: number }[] }[];
 }
 

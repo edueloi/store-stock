@@ -177,7 +177,7 @@ export default function WhatsAppWidget({
   return (
     <>
       {/* Floating Button */}
-      <div className="fixed bottom-6 right-6 z-[300] flex flex-col items-end gap-3">
+      <div className="fixed bottom-6 right-6 z-[90] flex flex-col items-end gap-3">
         {/* Greeting bubble */}
         <AnimatePresence>
           {!open && pulse && (
@@ -239,7 +239,7 @@ export default function WhatsAppWidget({
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.9, y: 20 }}
             transition={{ type: "spring", damping: 28, stiffness: 340 }}
-            className="fixed bottom-24 right-6 z-[299] w-[340px] max-w-[calc(100vw-24px)] bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden flex flex-col"
+            className="fixed bottom-24 right-6 z-[89] w-[340px] max-w-[calc(100vw-24px)] bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden flex flex-col"
             style={{ maxHeight: "min(520px, calc(100vh - 120px))" }}
           >
             {/* Header */}

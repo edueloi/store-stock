@@ -69,7 +69,7 @@ export default function Settings() {
   if (loading) return <div className="p-8 text-center text-xs font-bold uppercase tracking-widest text-slate-400">Carregando painel...</div>;
 
   return (
-    <div className="space-y-6 animate-in fade-in duration-500">
+    <div className="space-y-6 ">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <h2 className="text-xl font-bold text-slate-900 uppercase tracking-tight">Painel de Configuração Nexus</h2>
@@ -199,14 +199,15 @@ export default function Settings() {
                 <div className="p-8 space-y-10">
                    <div className="space-y-4">
                       <h3 className="text-xs font-bold uppercase tracking-widest text-slate-900 border-l-4 border-blue-600 pl-3">Presets de Arquitetura (Templates)</h3>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
                          {[
-                           { id: 'minimal', name: 'Minimalist White', desc: 'Foco total no produto' },
-                           { id: 'cyber', name: 'Cyber Dark', desc: 'Estética Tech / High-Contrast' },
-                           { id: 'organic', name: 'Organic Soft', desc: 'Tons pasteis e bordas suaves' },
-                           { id: 'luxury', name: 'Luxury Gold', desc: 'Aura premium e tipografia serif' }
+                           { id: 'minimal', name: 'Minimalist White', desc: 'Foco total no produto', color: '#2563eb', bg: '#f8fafc' },
+                           { id: 'cyber',   name: 'Cyber Dark',       desc: 'Estética neon / High-Contrast', color: '#00ff7f', bg: '#000' },
+                           { id: 'organic', name: 'Organic Soft',     desc: 'Tons pasteis e bordas suaves', color: '#d97706', bg: '#fefaf6' },
+                           { id: 'luxury',  name: 'Luxury Gold',      desc: 'Aura premium e tipografia serif', color: '#c5a059', bg: '#0a0a0a' },
+                           { id: 'tech',    name: 'Tech Pro',         desc: 'Clean premium para tecnologia', color: '#0ea5e9', bg: '#f4f6fb' },
                          ].map(temp => (
-                           <button 
+                           <button
                              key={temp.id}
                              onClick={() => setTenant({...tenant!, template_id: temp.id})}
                              className={cn(
@@ -219,6 +220,9 @@ export default function Settings() {
                                    <Check size={16} strokeWidth={3} />
                                 </div>
                               )}
+                              <div className="w-full h-10 rounded-lg mb-3 flex items-center justify-center overflow-hidden" style={{ backgroundColor: temp.bg, border: `1px solid ${temp.color}30` }}>
+                                 <div className="w-3 h-3 rounded-full" style={{ backgroundColor: temp.color, boxShadow: `0 0 8px ${temp.color}` }} />
+                              </div>
                               <p className="text-[10px] font-black uppercase tracking-widest mb-1 group-hover:text-blue-600">{temp.name}</p>
                               <p className="text-[9px] text-slate-400 font-bold leading-tight uppercase tracking-tighter">{temp.desc}</p>
                            </button>
@@ -266,8 +270,8 @@ export default function Settings() {
                       </div>
                       <div className="space-y-1 col-span-2">
                          <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-1">Assinatura de Rodapé (Copyright)</label>
-                         <input 
-                           type="text" 
+                         <input
+                           type="text"
                            className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 h-11 text-xs font-medium outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 transition-all"
                            value={tenant?.footer_text || ""}
                            onChange={(e) => setTenant({...tenant, footer_text: e.target.value})}
@@ -275,6 +279,49 @@ export default function Settings() {
                          />
                       </div>
                    </div>
+
+                   {/* ── Vitrine Controls ─────────────────────────────── */}
+                   <div className="space-y-4">
+                      <h3 className="text-xs font-bold uppercase tracking-widest text-slate-900 border-l-4 border-blue-600 pl-3">Controles da Vitrine</h3>
+                      <p className="text-[10px] text-slate-400 font-medium">Configure quantos produtos aparecem em cada seção da página inicial da loja.</p>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                         <div className="bg-slate-50 border border-slate-200 rounded-2xl p-5 space-y-3">
+                            <div>
+                               <p className="text-[10px] font-black uppercase tracking-widest text-slate-700">Seção Destaques</p>
+                               <p className="text-[9px] text-slate-400 mt-0.5">Produtos marcados como destaque na vitrine. Controle manual via flag "Destaque" no produto.</p>
+                            </div>
+                            <div className="flex items-center gap-4">
+                               <input
+                                 type="range"
+                                 min={1} max={12}
+                                 value={tenant?.featured_limit ?? 4}
+                                 onChange={(e) => setTenant({...tenant!, featured_limit: Number(e.target.value)})}
+                                 className="flex-1 accent-blue-600"
+                               />
+                               <span className="text-lg font-black text-slate-900 w-8 text-center">{tenant?.featured_limit ?? 4}</span>
+                            </div>
+                            <p className="text-[9px] text-slate-400 font-medium">Exibir até <strong>{tenant?.featured_limit ?? 4}</strong> produtos em destaque</p>
+                         </div>
+                         <div className="bg-slate-50 border border-slate-200 rounded-2xl p-5 space-y-3">
+                            <div>
+                               <p className="text-[10px] font-black uppercase tracking-widest text-slate-700">Seção Mais Vendidos</p>
+                               <p className="text-[9px] text-slate-400 mt-0.5">Gerado automaticamente: produtos com destaque primeiro, depois os demais por popularidade.</p>
+                            </div>
+                            <div className="flex items-center gap-4">
+                               <input
+                                 type="range"
+                                 min={2} max={20}
+                                 value={tenant?.bestseller_limit ?? 8}
+                                 onChange={(e) => setTenant({...tenant!, bestseller_limit: Number(e.target.value)})}
+                                 className="flex-1 accent-blue-600"
+                               />
+                               <span className="text-lg font-black text-slate-900 w-8 text-center">{tenant?.bestseller_limit ?? 8}</span>
+                            </div>
+                            <p className="text-[9px] text-slate-400 font-medium">Exibir até <strong>{tenant?.bestseller_limit ?? 8}</strong> produtos mais vendidos</p>
+                         </div>
+                      </div>
+                   </div>
+
                    <div className="pt-4 border-t border-slate-100 flex justify-end">
                       <button 
                         onClick={handleSave}
