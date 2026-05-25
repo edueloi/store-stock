@@ -2,6 +2,7 @@ import { Link, useParams } from "react-router-dom";
 import { MapPin, Phone, Instagram, Facebook, ArrowRight, Package } from "lucide-react";
 import { cn } from "../../../lib/utils";
 import { useStore } from "../StoreLayout";
+import StoreSEO from "../../../components/store/StoreSEO";
 import { buildStorePath, resolveStoreSlug } from "../store-routing";
 
 export default function StoreAbout() {
@@ -13,6 +14,27 @@ export default function StoreAbout() {
 
   return (
     <div className={cn("max-w-7xl mx-auto px-4 md:px-6 py-12 space-y-16", (isFashion || isTechNova) && "space-y-12")}>
+      <StoreSEO
+        title={`Sobre — ${tenant.name}`}
+        description={tenant.about_text || `Conheça a ${tenant.name}: quem somos, onde estamos e como comprar. Atendimento via WhatsApp.`}
+        url={typeof window !== "undefined" ? window.location.href : ""}
+        siteName={tenant.name}
+        image={tenant.banner_url || tenant.logo_url}
+        keywords={`${tenant.name}, sobre, quem somos, contato, ${tenant.address || "loja online"}`}
+        jsonLd={{
+          "@context": "https://schema.org",
+          "@type": "AboutPage",
+          "name": `Sobre — ${tenant.name}`,
+          "description": tenant.about_text || `Sobre a loja ${tenant.name}`,
+          "url": typeof window !== "undefined" ? window.location.href : "",
+          "mainEntity": {
+            "@type": "Store",
+            "name": tenant.name,
+            "telephone": tenant.whatsapp ? `+${tenant.whatsapp.replace(/\D/g, "")}` : undefined,
+            "address": tenant.address ? { "@type": "PostalAddress", "streetAddress": tenant.address } : undefined,
+          },
+        }}
+      />
 
       {/* Breadcrumb */}
       <nav className={cn("flex items-center gap-2 text-[10px] font-bold uppercase", isFashion ? "tracking-[0.24em] text-[#9c7b72]" : isTechNova ? "tracking-[0.22em] text-[#7c96b8]" : "text-slate-400 tracking-wider")}>

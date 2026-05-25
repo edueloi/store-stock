@@ -226,11 +226,28 @@ export default function StoreFront() {
   return (
     <div className="space-y-0">
       <StoreSEO
-        title={tenant.name}
-        description={tenant.about_text || `Bem-vindo à loja ${tenant.name}. Confira nossos produtos e promoções.`}
+        title={`${tenant.name} — Loja Online`}
+        description={tenant.about_text || `Bem-vindo à ${tenant.name}. Confira nossos produtos, promoções e novidades. Atendimento via WhatsApp.`}
         image={tenant.banner_url || tenant.logo_url}
         url={typeof window !== "undefined" ? window.location.href : ""}
         siteName={tenant.name}
+        keywords={`${tenant.name}, loja online, ${categories.map(c => c.name).join(", ")}, comprar, promoções`}
+        jsonLd={{
+          "@context": "https://schema.org",
+          "@type": "Store",
+          "name": tenant.name,
+          "description": tenant.about_text || `Loja online ${tenant.name}`,
+          "url": typeof window !== "undefined" ? window.location.href : "",
+          "image": tenant.logo_url || tenant.banner_url || "",
+          "telephone": tenant.whatsapp ? `+${tenant.whatsapp.replace(/\D/g, "")}` : undefined,
+          "address": tenant.address ? { "@type": "PostalAddress", "streetAddress": tenant.address } : undefined,
+          "priceRange": "$$",
+          "openingHours": "Mo-Su 00:00-23:59",
+          "sameAs": [
+            tenant.instagram_url ? `https://instagram.com/${tenant.instagram_url.replace("@", "")}` : undefined,
+            tenant.facebook_url ? `https://facebook.com/${tenant.facebook_url}` : undefined,
+          ].filter(Boolean),
+        }}
       />
 
       {/* ── HERO ──────────────────────────────────────────────── */}

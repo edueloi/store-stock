@@ -90,9 +90,18 @@ export default function StoreCatalog() {
     <div className={cn("max-w-7xl mx-auto px-4 md:px-6 py-8", (isFashion || isTechNova) && "space-y-6")}>
       <StoreSEO
         title={pageTitle}
-        description={`Confira ${catName ? `produtos de ${catName}` : "todo o catálogo"} da loja ${tenant.name}.`}
+        description={`Confira ${catName ? `os melhores produtos de ${catName}` : "todo o catálogo"} da ${tenant.name}. Preços e promoções atualizados, atendimento via WhatsApp.`}
         url={typeof window !== "undefined" ? window.location.href : ""}
         siteName={tenant.name}
+        keywords={`${catName ? `${catName}, ` : ""}${tenant.name}, catálogo, produtos, comprar online, promoções${categories.map(c => `, ${c.name}`).join("")}`}
+        jsonLd={{
+          "@context": "https://schema.org",
+          "@type": "CollectionPage",
+          "name": pageTitle,
+          "description": `Catálogo de produtos da ${tenant.name}`,
+          "url": typeof window !== "undefined" ? window.location.href : "",
+          "numberOfItems": filtered.length,
+        }}
       />
 
       {isTechNova ? (

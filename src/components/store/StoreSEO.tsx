@@ -8,6 +8,8 @@ interface StoreSEOProps {
   type?: "website" | "product";
   price?: string;
   siteName?: string;
+  jsonLd?: object;
+  keywords?: string;
 }
 
 function setMeta(property: string, content: string, useProperty = false) {
@@ -21,6 +23,21 @@ function setMeta(property: string, content: string, useProperty = false) {
   el.setAttribute("content", content);
 }
 
+function setJsonLd(id: string, data: object) {
+  let el = document.querySelector<HTMLScriptElement>(`script[data-seo-id="${id}"]`);
+  if (!el) {
+    el = document.createElement("script");
+    el.setAttribute("type", "application/ld+json");
+    el.setAttribute("data-seo-id", id);
+    document.head.appendChild(el);
+  }
+  el.textContent = JSON.stringify(data);
+}
+
+function removeJsonLd(id: string) {
+  document.querySelector(`script[data-seo-id="${id}"]`)?.remove();
+}
+
 export default function StoreSEO({
   title,
   description,
@@ -29,6 +46,8 @@ export default function StoreSEO({
   type = "website",
   price,
   siteName,
+  jsonLd,
+  keywords,
 }: StoreSEOProps) {
   useEffect(() => {
     const prevTitle = document.title;
@@ -40,10 +59,13 @@ export default function StoreSEO({
       setMeta("twitter:description", description);
     }
 
+    if (keywords) setMeta("keywords", keywords);
+
     setMeta("og:title", title, true);
-    setMeta("og:type", type, true);
+    setMeta("og:type", type === "product" ? "og:product" : "website", true);
     setMeta("twitter:title", title);
     setMeta("twitter:card", image ? "summary_large_image" : "summary");
+    setMeta("robots", "index, follow");
 
     if (url) {
       setMeta("og:url", url, true);
@@ -63,7 +85,10 @@ export default function StoreSEO({
       setMeta("twitter:image", image);
     }
 
-    if (siteName) setMeta("og:site_name", siteName, true);
+    if (siteName) {
+      setMeta("og:site_name", siteName, true);
+      setMeta("twitter:site", siteName);
+    }
 
     if (type === "product" && price) {
       setMeta("og:price:amount", price, true);
@@ -72,10 +97,15 @@ export default function StoreSEO({
       setMeta("product:price:currency", "BRL", true);
     }
 
+    if (jsonLd) {
+      setJsonLd("store-page", jsonLd);
+    }
+
     return () => {
       document.title = prevTitle;
+      if (jsonLd) removeJsonLd("store-page");
     };
-  }, [title, description, image, url, type, price, siteName]);
+  }, [title, description, image, url, type, price, siteName, jsonLd, keywords]);
 
   return null;
 }

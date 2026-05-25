@@ -120,12 +120,34 @@ export default function StoreProduct() {
     <div className={cn("max-w-7xl mx-auto px-4 md:px-6 py-8 space-y-12", (isFashion || isTechNova) && "space-y-10")}>
       <StoreSEO
         title={`${product.name} — ${tenant.name}`}
-        description={product.description || `Compre ${product.name} na loja ${tenant.name}. R$ ${productPrice}.`}
+        description={product.description || `Compre ${product.name} na ${tenant.name}. R$ ${productPrice}. ${product.discount_price ? `De R$ ${Number(product.price).toFixed(2)} por R$ ${productPrice}. ` : ""}Atendimento via WhatsApp.`}
         image={allImages[0]}
         url={productUrl}
         type="product"
         price={productPrice}
         siteName={tenant.name}
+        keywords={`${product.name}, ${category?.name || ""}, ${tenant.name}, comprar, preço, R$ ${productPrice}`}
+        jsonLd={{
+          "@context": "https://schema.org",
+          "@type": "Product",
+          "name": product.name,
+          "description": product.description || product.name,
+          "image": allImages,
+          "sku": product.sku || String(product.id),
+          "brand": { "@type": "Brand", "name": tenant.name },
+          "offers": {
+            "@type": "Offer",
+            "url": productUrl,
+            "priceCurrency": "BRL",
+            "price": productPrice,
+            "itemCondition": "https://schema.org/NewCondition",
+            "availability": (product.stock_quantity ?? 1) > 0
+              ? "https://schema.org/InStock"
+              : "https://schema.org/OutOfStock",
+            "seller": { "@type": "Organization", "name": tenant.name },
+          },
+          ...(category ? { "category": category.name } : {}),
+        }}
       />
 
       {/* Breadcrumb */}
