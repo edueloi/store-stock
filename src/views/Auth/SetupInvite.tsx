@@ -1,9 +1,10 @@
-import { type FormEvent, type ReactNode, useEffect, useState } from "react";
+import { type FormEvent, type ReactNode, useCallback, useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { motion } from "motion/react";
+import { motion, AnimatePresence } from "motion/react";
 import { CalendarClock, CreditCard, Lock, Mail, UserRound } from "lucide-react";
 
 import { saveSession } from "../../lib/session";
+import WelcomeScreen from "./WelcomeScreen";
 
 type InvitePayload = {
   store_name: string;
@@ -28,6 +29,8 @@ export default function SetupInvite() {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
+  const [showWelcome, setShowWelcome] = useState(false);
+  const [redirectUrl, setRedirectUrl] = useState("");
 
   useEffect(() => {
     fetch(`/api/auth/setup/${token}`)
@@ -76,18 +79,26 @@ export default function SetupInvite() {
 
       saveSession(data.token, data.user);
 
-      if (data.tenant?.public_url && !String(data.tenant.public_url).includes("/s/")) {
-        window.location.href = `${String(data.tenant.public_url).replace(/\/+$/, "")}/admin`;
-        return;
-      }
+      const url = data.tenant?.public_url && !String(data.tenant.public_url).includes("/s/")
+        ? `${String(data.tenant.public_url).replace(/\/+$/, "")}/admin`
+        : "/admin";
 
-      navigate("/admin", { replace: true });
+      setRedirectUrl(url);
+      setShowWelcome(true);
     } catch {
       setError("Erro ao ativar a conta.");
     } finally {
       setSubmitting(false);
     }
   };
+
+  const handleWelcomeDone = useCallback(() => {
+    if (redirectUrl.startsWith("http")) {
+      window.location.href = redirectUrl;
+    } else {
+      navigate(redirectUrl, { replace: true });
+    }
+  }, [navigate, redirectUrl]);
 
   if (loading) {
     return (
@@ -114,6 +125,17 @@ export default function SetupInvite() {
   }
 
   return (
+    <>
+      <AnimatePresence>
+        {showWelcome && (
+          <WelcomeScreen
+            storeName={invite?.store_name ?? ""}
+            ownerName={ownerName}
+            onDone={handleWelcomeDone}
+          />
+        )}
+      </AnimatePresence>
+
     <div className="min-h-screen bg-[linear-gradient(145deg,_#020617_0%,_#0f172a_40%,_#111827_100%)] px-5 py-8 text-white md:px-8">
       <div className="mx-auto grid max-w-6xl gap-6 xl:grid-cols-[1.02fr_0.98fr]">
         <section className="rounded-[2rem] border border-white/10 bg-white/5 p-6 sm:p-8 md:p-10">
@@ -210,6 +232,7 @@ export default function SetupInvite() {
         </section>
       </div>
     </div>
+    </>
   );
 }
 
