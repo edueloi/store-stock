@@ -7,13 +7,12 @@ import {
   Clock,
   CheckCircle2,
   XCircle,
-  Eye,
   TrendingUp,
   Package,
   ShoppingCart as CartIcon,
   X,
   CreditCard,
-  Truck
+  ShieldCheck,
 } from "lucide-react";
 import PageHeader from "../../components/layout/PageHeader";
 import { Order, Product } from "../../types";
@@ -29,9 +28,25 @@ interface OrderDetail extends Order {
   }>;
 }
 
+interface TenantBasic {
+  name: string;
+  document?: string;
+  logo_url?: string;
+  whatsapp?: string;
+  address_street?: string;
+  address_number?: string;
+  address_complement?: string;
+  address_district?: string;
+  address_city?: string;
+  address_state?: string;
+  address_zip?: string;
+  address?: string;
+}
+
 export default function Orders() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [topProducts, setTopProducts] = useState<any[]>([]);
+  const [tenant, setTenant] = useState<TenantBasic | null>(null);
   const [loading, setLoading] = useState(true);
   const [selectedStatus, setSelectedStatus] = useState<string>("all");
   const [searchTerm, setSearchTerm] = useState("");
@@ -65,6 +80,10 @@ export default function Orders() {
   useEffect(() => {
     fetchOrders();
     fetchTopSelling();
+    fetch("/api/tenant", { headers: { Authorization: `Bearer ${localStorage.getItem("token")}` } })
+      .then((r) => r.json())
+      .then((d) => setTenant(d))
+      .catch(() => {});
   }, []);
 
   const fetchOrderDetails = async (id: number) => {
@@ -78,6 +97,161 @@ export default function Orders() {
     } catch (err) {
       console.error(err);
     }
+  };
+
+  const buildWarrantyHtml = (order: OrderDetail) => {
+    const storeName   = tenant?.name ?? "Estabelecimento";
+    const storeDoc    = tenant?.document ? `CPF/CNPJ: ${tenant.document}` : "";
+    const storeAddr   = (() => {
+      if (tenant?.address_street) {
+        const parts = [
+          `${tenant.address_street}${tenant.address_number ? ", " + tenant.address_number : ""}`,
+          tenant.address_complement,
+          tenant.address_district,
+          tenant.address_city && tenant.address_state
+            ? `${tenant.address_city} - ${tenant.address_state}`
+            : (tenant?.address_city ?? tenant?.address_state ?? ""),
+          tenant?.address_zip,
+        ].filter(Boolean);
+        return parts.join(", ");
+      }
+      return tenant?.address ?? "";
+    })();
+    const storePhone  = tenant?.whatsapp ? `WhatsApp: ${tenant.whatsapp}` : "";
+    const storeLogo   = tenant?.logo_url ?? "";
+
+    const orderNum    = String(order.id).padStart(6, "0");
+    const orderDate   = new Date(order.created_at).toLocaleDateString("pt-BR");
+    const clientName  = order.customer_name || "Consumidor Final";
+    const clientPhone = order.customer_phone || "";
+
+    const itemsHtml = order.items.map(item => `
+      <tr>
+        <td style="padding:8px 10px;border-bottom:1px solid #f0f0f0">${item.product_name}</td>
+        <td style="padding:8px 10px;border-bottom:1px solid #f0f0f0;text-align:center">${item.quantity}</td>
+        <td style="padding:8px 10px;border-bottom:1px solid #f0f0f0;text-align:right">R$ ${Number(item.unit_price).toFixed(2)}</td>
+      </tr>`).join("");
+
+    return `<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8"/>
+<title>Termo de Garantia — Pedido #${orderNum}</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: Arial, sans-serif; font-size: 12px; color: #1a1a1a; background: #fff; padding: 40px 48px; max-width: 794px; margin: 0 auto; }
+  .header { display: flex; align-items: center; justify-content: space-between; border-bottom: 3px solid #1a1a1a; padding-bottom: 18px; margin-bottom: 24px; }
+  .logo { width: 80px; height: 80px; object-fit: contain; }
+  .logo-placeholder { width: 80px; height: 80px; background: #f5f5f5; border: 1px solid #ddd; border-radius: 4px; display: flex; align-items: center; justify-content: center; font-size: 9px; color: #aaa; text-align: center; }
+  .store-info { text-align: right; }
+  .store-name { font-size: 18px; font-weight: 900; text-transform: uppercase; letter-spacing: 1px; }
+  .store-meta { font-size: 10px; color: #555; margin-top: 3px; line-height: 1.7; }
+  .title-block { text-align: center; margin: 20px 0 28px; }
+  .title-block h1 { font-size: 20px; font-weight: 900; text-transform: uppercase; letter-spacing: 3px; border: 3px solid #1a1a1a; display: inline-block; padding: 8px 28px; }
+  .section { margin-bottom: 22px; }
+  .section-label { font-size: 9px; font-weight: 900; text-transform: uppercase; letter-spacing: 2px; color: #555; margin-bottom: 8px; border-left: 3px solid #1a1a1a; padding-left: 8px; }
+  .info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 20px; }
+  .info-row { font-size: 11px; }
+  .info-row span { font-weight: 700; }
+  table { width: 100%; border-collapse: collapse; font-size: 11px; }
+  thead tr { background: #1a1a1a; color: #fff; }
+  thead th { padding: 8px 10px; text-align: left; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; }
+  thead th:last-child { text-align: right; }
+  thead th:nth-child(2) { text-align: center; }
+  .total-row td { padding: 10px; font-weight: 900; font-size: 13px; border-top: 2px solid #1a1a1a; }
+  .warranty-box { border: 2px solid #1a1a1a; border-radius: 4px; padding: 16px 18px; margin: 20px 0; font-size: 11px; line-height: 1.8; background: #fafafa; }
+  .warranty-box strong { font-size: 12px; display: block; margin-bottom: 8px; text-transform: uppercase; letter-spacing: 1px; }
+  .warranty-item { margin-bottom: 6px; padding-left: 14px; position: relative; }
+  .warranty-item::before { content: "✓"; position: absolute; left: 0; font-weight: 900; }
+  .signatures { display: grid; grid-template-columns: 1fr 1fr; gap: 40px; margin-top: 48px; }
+  .sig-block { border-top: 1px solid #1a1a1a; padding-top: 8px; text-align: center; font-size: 10px; color: #555; }
+  .footer { text-align: center; font-size: 9px; color: #aaa; margin-top: 36px; border-top: 1px dashed #ddd; padding-top: 14px; line-height: 1.8; }
+  @media print { @page { margin: 20mm; size: A4; } body { padding: 0; } }
+</style>
+</head>
+<body>
+
+<div class="header">
+  ${storeLogo
+    ? `<img src="${storeLogo}" class="logo" alt="Logo"/>`
+    : `<div class="logo-placeholder">LOGO</div>`}
+  <div class="store-info">
+    <div class="store-name">${storeName}</div>
+    <div class="store-meta">
+      ${storeDoc ? storeDoc + "<br/>" : ""}
+      ${storeAddr ? storeAddr + "<br/>" : ""}
+      ${storePhone ? storePhone : ""}
+    </div>
+  </div>
+</div>
+
+<div class="title-block">
+  <h1>Termo de Garantia</h1>
+</div>
+
+<div class="section">
+  <div class="section-label">Dados do Pedido</div>
+  <div class="info-grid">
+    <div class="info-row">Nº do Pedido: <span>#${orderNum}</span></div>
+    <div class="info-row">Data de Emissão: <span>${orderDate}</span></div>
+    <div class="info-row">Cliente: <span>${clientName}</span></div>
+    ${clientPhone ? `<div class="info-row">Contato: <span>${clientPhone}</span></div>` : ""}
+    <div class="info-row">Pagamento: <span>${order.payment_method || "—"}</span></div>
+    <div class="info-row">Valor Total: <span>R$ ${Number(order.total_amount).toFixed(2)}</span></div>
+  </div>
+</div>
+
+<div class="section">
+  <div class="section-label">Produtos Cobertos</div>
+  <table>
+    <thead>
+      <tr>
+        <th>Produto</th>
+        <th style="text-align:center">Qtd</th>
+        <th style="text-align:right">Valor Unit.</th>
+      </tr>
+    </thead>
+    <tbody>
+      ${itemsHtml}
+    </tbody>
+    <tfoot>
+      <tr class="total-row">
+        <td colspan="2">TOTAL</td>
+        <td style="text-align:right">R$ ${Number(order.total_amount).toFixed(2)}</td>
+      </tr>
+    </tfoot>
+  </table>
+</div>
+
+<div class="warranty-box">
+  <strong>Termos e Condições de Garantia</strong>
+  <div class="warranty-item">A garantia cobre defeitos de fabricação pelo período de <strong>90 (noventa) dias</strong> a partir da data de emissão deste termo, conforme art. 26 do Código de Defesa do Consumidor (Lei 8.078/90).</div>
+  <div class="warranty-item">Para acionar a garantia, o cliente deverá apresentar este documento juntamente com comprovante de compra e identificação pessoal.</div>
+  <div class="warranty-item">A garantia não cobre danos causados por uso inadequado, queda, umidade, mau uso, tentativa de conserto por terceiros não autorizados ou desgaste natural do produto.</div>
+  <div class="warranty-item">O produto defeituoso será reparado, substituído por outro de mesma espécie, ou o valor será devolvido, a critério do fornecedor e conforme disponibilidade de estoque.</div>
+  <div class="warranty-item">O prazo para atendimento e resolução é de até <strong>30 (trinta) dias corridos</strong> após o acionamento da garantia.</div>
+  <div class="warranty-item">Esta garantia é intransferível e válida somente para o comprador original identificado neste documento.</div>
+</div>
+
+<div class="signatures">
+  <div class="sig-block">
+    <br/><br/>
+    ${storeName}<br/>Vendedor / Estabelecimento
+  </div>
+  <div class="sig-block">
+    <br/><br/>
+    ${clientName}<br/>Cliente / Comprador
+  </div>
+</div>
+
+<div class="footer">
+  Documento emitido em ${new Date().toLocaleString("pt-BR")} &nbsp;|&nbsp; ${storeName}
+  ${storeDoc ? "&nbsp;|&nbsp; " + storeDoc : ""}
+  <br/>Este termo é válido como comprovante de garantia nos termos da Lei Federal 8.078/1990 (Código de Defesa do Consumidor).
+</div>
+
+</body>
+</html>`;
   };
 
   const buildReceiptHtml = (order: OrderDetail) => {
@@ -155,9 +329,32 @@ ${order.items.map(item => `
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `comprovante-pedido-${String(selectedOrder.id).padStart(5,'0')}.html`;
+    a.download = `comprovante-pedido-${String(selectedOrder.id).padStart(6,'0')}.html`;
     a.click();
     URL.revokeObjectURL(url);
+  };
+
+  const handleDownloadWarranty = () => {
+    if (!selectedOrder) return;
+    const html = buildWarrantyHtml(selectedOrder);
+    const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `garantia-pedido-${String(selectedOrder.id).padStart(6,'0')}.html`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const handlePrintWarranty = () => {
+    if (!selectedOrder) return;
+    const html = buildWarrantyHtml(selectedOrder);
+    const win = window.open('', '_blank', 'width=850,height=1100');
+    if (!win) return;
+    win.document.open();
+    win.document.write(html);
+    win.document.close();
+    win.onload = () => { win.focus(); win.print(); };
   };
 
   const handleUpdateStatus = async (id: number, status: string) => {
@@ -179,10 +376,18 @@ ${order.items.map(item => `
     }
   };
 
-  const filteredOrders = orders.filter(o => 
-    (selectedStatus === "all" || o.status === selectedStatus) &&
-    (searchTerm === "" || (o.customer_name?.toLowerCase().includes(searchTerm.toLowerCase()) || String(o.id).includes(searchTerm)))
-  );
+  const filteredOrders = orders.filter(o => {
+    if (selectedStatus !== "all" && o.status !== selectedStatus) return false;
+    if (searchTerm === "") return true;
+    const q = searchTerm.replace(/^#/, "").toLowerCase().trim();
+    return (
+      String(o.id).padStart(6, "0").includes(q) ||
+      String(o.id).includes(q) ||
+      (o.customer_name?.toLowerCase().includes(q) ?? false) ||
+      (o.customer_phone?.toLowerCase().includes(q) ?? false) ||
+      (o.payment_method?.toLowerCase().includes(q) ?? false)
+    );
+  });
 
   const getStatusStyle = (status: string) => {
     switch(status) {
@@ -481,19 +686,37 @@ ${order.items.map(item => `
                      </div>
                   </div>
 
-                  <div className="p-6 border-t border-slate-100 bg-slate-50 flex gap-2">
-                     <button
-                       onClick={handleDownloadReceipt}
-                       className="flex-1 h-11 bg-white border border-slate-200 rounded-xl text-[10px] font-bold uppercase tracking-widest flex items-center justify-center gap-2 hover:bg-slate-50 transition-all text-slate-600 shadow-sm"
-                     >
-                        <Download size={14} /> Baixar
-                     </button>
-                     <button
-                       onClick={handlePrintReceipt}
-                       className="flex-1 h-11 bg-slate-900 text-white rounded-xl text-[10px] font-bold uppercase tracking-widest flex items-center justify-center gap-2 hover:bg-slate-800 transition-all shadow-lg"
-                     >
-                        <Receipt size={14} /> Imprimir
-                     </button>
+                  <div className="p-6 border-t border-slate-100 bg-slate-50 space-y-2">
+                     {/* Comprovante row */}
+                     <div className="flex gap-2">
+                       <button
+                         onClick={handleDownloadReceipt}
+                         className="flex-1 h-10 bg-white border border-slate-200 rounded-xl text-[9px] font-bold uppercase tracking-widest flex items-center justify-center gap-2 hover:bg-slate-50 transition-all text-slate-600 shadow-sm"
+                       >
+                         <Download size={13} /> Comprovante
+                       </button>
+                       <button
+                         onClick={handlePrintReceipt}
+                         className="flex-1 h-10 bg-slate-900 text-white rounded-xl text-[9px] font-bold uppercase tracking-widest flex items-center justify-center gap-2 hover:bg-slate-800 transition-all shadow-lg"
+                       >
+                         <Receipt size={13} /> Imprimir
+                       </button>
+                     </div>
+                     {/* Garantia row */}
+                     <div className="flex gap-2">
+                       <button
+                         onClick={handleDownloadWarranty}
+                         className="flex-1 h-10 bg-emerald-50 border border-emerald-200 rounded-xl text-[9px] font-bold uppercase tracking-widest flex items-center justify-center gap-2 hover:bg-emerald-100 transition-all text-emerald-700 shadow-sm"
+                       >
+                         <Download size={13} /> Baixar Garantia
+                       </button>
+                       <button
+                         onClick={handlePrintWarranty}
+                         className="flex-1 h-10 bg-emerald-600 text-white rounded-xl text-[9px] font-bold uppercase tracking-widest flex items-center justify-center gap-2 hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-200"
+                       >
+                         <ShieldCheck size={13} /> Imprimir Garantia
+                       </button>
+                     </div>
                   </div>
                </motion.div>
             </div>

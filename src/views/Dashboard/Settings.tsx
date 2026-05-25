@@ -1,8 +1,8 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import {
   Store, Palette, Share2, Clock, CreditCard, Shield, Settings2,
   Users, Save, Loader2, Search, Check, ChevronRight, Globe,
-  Bell, Sun, Moon, Package, AlertTriangle, Lock, Image, Upload,
+  Bell, Sun, Moon, Package, AlertTriangle, Lock, Image, Upload, X,
 } from "lucide-react";
 import PageHeader from "../../components/layout/PageHeader";
 import { cn } from "../../lib/utils";
@@ -156,6 +156,8 @@ export default function Settings() {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [cepLoading, setCepLoading] = useState(false);
+  const [logoUploading, setLogoUploading] = useState(false);
+  const logoInputRef = useRef<HTMLInputElement>(null);
 
   // system prefs (stored in UserPreference)
   const [panelTheme, setPanelTheme] = useState<"light" | "dark">("light");
@@ -264,6 +266,42 @@ export default function Settings() {
       else alert("Erro ao alterar senha.");
     } finally {
       setSaving(false);
+    }
+  };
+
+  const maskDocument = (raw: string) => {
+    const d = raw.replace(/\D/g, "").slice(0, 14);
+    if (d.length <= 11) {
+      // CPF: 000.000.000-00
+      return d
+        .replace(/(\d{3})(\d)/, "$1.$2")
+        .replace(/(\d{3})(\d)/, "$1.$2")
+        .replace(/(\d{3})(\d{1,2})$/, "$1-$2");
+    }
+    // CNPJ: 00.000.000/0001-00
+    return d
+      .replace(/(\d{2})(\d)/, "$1.$2")
+      .replace(/(\d{3})(\d)/, "$1.$2")
+      .replace(/(\d{3})(\d)/, "$1/$2")
+      .replace(/(\d{4})(\d{1,2})$/, "$1-$2");
+  };
+
+  const handleLogoUpload = async (file: File) => {
+    setLogoUploading(true);
+    try {
+      const form = new FormData();
+      form.append("image", file);
+      const res = await fetch("/api/upload/logo", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
+        body: form,
+      });
+      if (res.ok) {
+        const { url } = await res.json();
+        setT({ logo_url: url });
+      }
+    } finally {
+      setLogoUploading(false);
     }
   };
 
@@ -433,30 +471,70 @@ export default function Settings() {
                     Logo do Estabelecimento
                   </p>
                   <div className="flex items-start gap-5">
-                    <div className="w-24 h-24 rounded-2xl border-2 border-dashed border-slate-200 bg-slate-50 flex items-center justify-center shrink-0 overflow-hidden">
+                    {/* preview */}
+                    <div
+                      className="w-24 h-24 rounded-2xl border-2 border-dashed border-slate-200 bg-slate-50 flex items-center justify-center shrink-0 overflow-hidden cursor-pointer hover:border-blue-400 transition-colors relative group"
+                      onClick={() => logoInputRef.current?.click()}
+                    >
                       {tenant?.logo_url ? (
-                        <img src={tenant.logo_url} alt="Logo" className="w-full h-full object-contain p-1" />
+                        <>
+                          <img src={tenant.logo_url} alt="Logo" className="w-full h-full object-contain p-1" />
+                          <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center rounded-2xl">
+                            <Upload size={20} className="text-white" />
+                          </div>
+                        </>
                       ) : (
-                        <Image size={28} className="text-slate-300" />
+                        <div className="flex flex-col items-center gap-1 text-slate-300">
+                          {logoUploading
+                            ? <Loader2 size={24} className="animate-spin" />
+                            : <><Image size={24} /><span className="text-[8px] font-black uppercase tracking-widest">Clique</span></>
+                          }
+                        </div>
                       )}
                     </div>
-                    <div className="flex-1 space-y-2">
-                      <Field label="URL da Logo" hint="Recomendado: PNG transparente, mínimo 200×200 px">
-                        <TextInput
-                          value={tenant?.logo_url ?? ""}
-                          onChange={(v) => setT({ logo_url: v })}
-                          placeholder="https://..."
-                        />
-                      </Field>
+
+                    {/* ações */}
+                    <div className="flex-1 space-y-3">
+                      <div>
+                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.18em] px-1 mb-2">
+                          Arquivo de Imagem
+                        </p>
+                        <button
+                          onClick={() => logoInputRef.current?.click()}
+                          disabled={logoUploading}
+                          className="h-11 px-5 bg-slate-900 text-white rounded-xl text-[9px] font-black uppercase tracking-[0.2em] hover:bg-slate-800 transition-all flex items-center gap-2 disabled:opacity-50"
+                        >
+                          {logoUploading
+                            ? <><Loader2 size={13} className="animate-spin" /> Enviando...</>
+                            : <><Upload size={13} strokeWidth={2.5} /> Selecionar arquivo</>
+                          }
+                        </button>
+                        <p className="text-[9px] text-slate-400 font-medium px-1 mt-1.5">
+                          PNG transparente recomendado · máx. 2 MB
+                        </p>
+                      </div>
                       {tenant?.logo_url && (
                         <button
                           onClick={() => setT({ logo_url: "" })}
-                          className="text-[9px] font-black uppercase tracking-widest text-rose-400 hover:text-rose-600 transition-colors"
+                          className="flex items-center gap-1.5 text-[9px] font-black uppercase tracking-widest text-rose-400 hover:text-rose-600 transition-colors"
                         >
-                          Remover logo
+                          <X size={11} /> Remover logo
                         </button>
                       )}
                     </div>
+
+                    {/* input oculto */}
+                    <input
+                      ref={logoInputRef}
+                      type="file"
+                      accept="image/png,image/jpeg,image/webp"
+                      className="hidden"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) handleLogoUpload(file);
+                        e.target.value = "";
+                      }}
+                    />
                   </div>
                 </div>
 
@@ -472,7 +550,7 @@ export default function Settings() {
                     <Field label="CPF / CNPJ" hint="Será exibido nas notas fiscais">
                       <TextInput
                         value={tenant?.document ?? ""}
-                        onChange={(v) => setT({ document: v })}
+                        onChange={(v) => setT({ document: maskDocument(v) })}
                         placeholder="00.000.000/0001-00"
                         mono
                       />
