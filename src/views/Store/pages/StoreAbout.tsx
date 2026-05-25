@@ -6,12 +6,13 @@ import { useStore } from "../StoreLayout";
 export default function StoreAbout() {
   const { slug } = useParams();
   const { tenant, products, style } = useStore();
+  const isFashion = style.font === "font-editorial";
 
   return (
-    <div className="max-w-7xl mx-auto px-4 md:px-6 py-12 space-y-16">
+    <div className={cn("max-w-7xl mx-auto px-4 md:px-6 py-12 space-y-16", isFashion && "space-y-12")}>
 
       {/* Breadcrumb */}
-      <nav className="flex items-center gap-2 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+      <nav className={cn("flex items-center gap-2 text-[10px] font-bold text-slate-400 uppercase tracking-wider", isFashion && "tracking-[0.24em] text-[#9c7b72]")}>
         <Link to={`/s/${slug}`} className="hover:text-slate-700">Início</Link>
         <span>/</span>
         <span className="text-slate-700">Sobre</span>
@@ -19,21 +20,21 @@ export default function StoreAbout() {
 
       {/* Hero */}
       <div className="grid md:grid-cols-2 gap-12 items-center">
-        <div>
-          <p style={{ color: style.accent }} className="text-[11px] font-black uppercase tracking-[0.4em] mb-3">
+        <div className={cn(isFashion && "fashion-panel rounded-[2rem] border border-[#ead9ce] bg-white/78 p-6 md:p-8")}>
+          <p style={{ color: style.accent }} className={cn(isFashion ? "store-kicker text-[10px] font-semibold mb-3" : "text-[11px] font-black uppercase tracking-[0.4em] mb-3")}>
             Quem somos
           </p>
-          <h1 className="text-4xl md:text-5xl font-black uppercase tracking-tighter leading-none text-slate-900 mb-6">
+          <h1 className={cn(isFashion ? "store-display text-5xl md:text-6xl leading-[0.9] text-[#2d221f] mb-6" : "text-4xl md:text-5xl font-black uppercase tracking-tighter leading-none text-slate-900 mb-6")}>
             {tenant.name}
           </h1>
-          <p className="text-slate-500 leading-relaxed text-sm font-medium">
+          <p className={cn(isFashion ? "text-[#6b5149] leading-relaxed text-base" : "text-slate-500 leading-relaxed text-sm font-medium")}>
             {tenant.about_text || "Nossa loja oferece produtos selecionados com qualidade e dedicação. Priorizamos a satisfação de cada cliente, garantindo uma experiência de compra segura, ágil e prazerosa."}
           </p>
           <div className="flex flex-wrap gap-3 mt-8">
             <Link
               to={`/s/${slug}/catalogo`}
               style={{ backgroundColor: style.accent }}
-              className="flex items-center gap-2 px-6 h-11 rounded-2xl text-white text-xs font-black uppercase tracking-widest shadow-lg hover:opacity-90 transition-all"
+              className={cn(isFashion ? "flex items-center gap-2 px-6 h-11 rounded-full text-white text-xs font-semibold uppercase tracking-[0.24em] shadow-lg hover:opacity-90 transition-all" : "flex items-center gap-2 px-6 h-11 rounded-2xl text-white text-xs font-black uppercase tracking-widest shadow-lg hover:opacity-90 transition-all")}
             >
               Ver produtos <ArrowRight size={13} />
             </Link>
@@ -42,7 +43,7 @@ export default function StoreAbout() {
                 href={`https://wa.me/${tenant.whatsapp.replace(/\D/g, "")}`}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="flex items-center gap-2 px-6 h-11 rounded-2xl border border-slate-200 text-slate-700 text-xs font-black uppercase tracking-widest hover:bg-slate-50 transition-all"
+                className={cn(isFashion ? "flex items-center gap-2 px-6 h-11 rounded-full border border-[#ead9ce] text-[#6b5149] text-xs font-semibold uppercase tracking-[0.24em] hover:bg-[#fff7f1] transition-all" : "flex items-center gap-2 px-6 h-11 rounded-2xl border border-slate-200 text-slate-700 text-xs font-black uppercase tracking-widest hover:bg-slate-50 transition-all")}
               >
                 Falar conosco
               </a>
@@ -50,7 +51,7 @@ export default function StoreAbout() {
           </div>
         </div>
 
-        <div className={cn("aspect-square bg-slate-900 relative overflow-hidden", style.radius)}>
+        <div className={cn(isFashion ? "aspect-[4/5] bg-[#f1e3d8] relative overflow-hidden fashion-panel border border-[#ead9ce]" : "aspect-square bg-slate-900 relative overflow-hidden", style.radius)}>
           {tenant.banner_url ? (
             <img src={tenant.banner_url} className="w-full h-full object-cover opacity-80" alt="Sobre" />
           ) : (
@@ -62,7 +63,7 @@ export default function StoreAbout() {
           )}
           <div className="absolute inset-0 bg-gradient-to-t from-slate-900/60 to-transparent" />
           <div className="absolute bottom-6 left-6">
-            <p className="text-white font-black text-2xl uppercase tracking-tighter">{tenant.name}</p>
+            <p className={cn(isFashion ? "store-display text-4xl font-semibold text-white" : "text-white font-black text-2xl uppercase tracking-tighter")}>{tenant.name}</p>
             <div className="flex items-center gap-1.5 mt-1">
               <span className="w-2 h-2 bg-emerald-400 rounded-full" />
               <span className="text-[11px] text-white/60 font-bold uppercase tracking-wider">Loja ativa</span>
@@ -79,17 +80,17 @@ export default function StoreAbout() {
           { value: products.filter(p => p.discount_price).length, label: "Em promoção" },
           { value: "100%", label: "Atendimento via WA" },
         ].map((s, i) => (
-          <div key={i} className={cn("p-5 border text-center", style.card, style.radius)}>
-            <p className="text-3xl font-black" style={{ color: style.accent }}>{s.value}</p>
-            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">{s.label}</p>
+          <div key={i} className={cn(isFashion ? "fashion-panel p-5 border text-center" : "p-5 border text-center", style.card, style.radius)}>
+            <p className={cn(isFashion ? "store-display text-5xl leading-none" : "text-3xl font-black")} style={{ color: style.accent }}>{s.value}</p>
+            <p className={cn(isFashion ? "text-[10px] font-semibold text-[#8c6c63] uppercase tracking-[0.24em] mt-2" : "text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1")}>{s.label}</p>
           </div>
         ))}
       </div>
 
       {/* Contact & Info */}
       <div className="grid md:grid-cols-2 gap-8">
-        <div className={cn("p-6 border space-y-5", style.card, style.radius)}>
-          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Contato & Localização</p>
+        <div className={cn(isFashion ? "fashion-panel p-6 border space-y-5" : "p-6 border space-y-5", style.card, style.radius)}>
+          <p className={cn(isFashion ? "text-[10px] font-semibold text-[#8c6c63] uppercase tracking-[0.24em]" : "text-[10px] font-black text-slate-400 uppercase tracking-widest")}>Contato & Localização</p>
 
           {tenant.whatsapp && (
             <a
@@ -148,8 +149,8 @@ export default function StoreAbout() {
           )}
         </div>
 
-        <div className={cn("p-6 border space-y-4 flex flex-col", style.card, style.radius)}>
-          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Por que comprar conosco?</p>
+        <div className={cn(isFashion ? "fashion-panel p-6 border space-y-4 flex flex-col" : "p-6 border space-y-4 flex flex-col", style.card, style.radius)}>
+          <p className={cn(isFashion ? "text-[10px] font-semibold text-[#8c6c63] uppercase tracking-[0.24em]" : "text-[10px] font-black text-slate-400 uppercase tracking-widest")}>Por que comprar conosco?</p>
           {[
             "Produtos com qualidade verificada",
             "Atendimento rápido via WhatsApp",
@@ -160,14 +161,14 @@ export default function StoreAbout() {
               <div style={{ backgroundColor: style.accent + "20" }} className="w-7 h-7 rounded-full flex items-center justify-center shrink-0">
                 <span style={{ color: style.accent }} className="text-[10px] font-black">✓</span>
               </div>
-              <p className="text-sm font-medium text-slate-700">{item}</p>
+              <p className={cn(isFashion ? "text-sm font-medium text-[#6b5149]" : "text-sm font-medium text-slate-700")}>{item}</p>
             </div>
           ))}
           <div className="mt-auto pt-4">
             <Link
               to={`/s/${slug}/catalogo`}
               style={{ backgroundColor: style.accent }}
-              className="w-full h-10 flex items-center justify-center gap-2 text-white text-[11px] font-black uppercase tracking-widest rounded-xl transition-all hover:opacity-90"
+              className={cn(isFashion ? "w-full h-11 flex items-center justify-center gap-2 text-white text-[11px] font-semibold uppercase tracking-[0.24em] rounded-full transition-all hover:opacity-90" : "w-full h-10 flex items-center justify-center gap-2 text-white text-[11px] font-black uppercase tracking-widest rounded-xl transition-all hover:opacity-90")}
             >
               <Package size={14} /> Explorar catálogo
             </Link>

@@ -56,19 +56,28 @@ function TechCategoryCard({ cat, slug, count, accent }: { cat: Category; slug: s
   );
 }
 
-function SectionHeader({ title, icon, link, linkLabel, accent, isDark }: {
-  title: string; icon?: ReactNode; link: string; linkLabel?: string; accent: string; isDark: boolean;
+function SectionHeader({ title, icon, link, linkLabel, accent, isDark, isFashion = false }: {
+  title: string; icon?: ReactNode; link: string; linkLabel?: string; accent: string; isDark: boolean; isFashion?: boolean;
 }) {
   return (
     <div className="flex items-center justify-between mb-8">
       <div className="flex items-center gap-3">
         <div className="w-1 h-6 rounded-full" style={{ backgroundColor: accent }} />
         {icon && <span style={{ color: accent }}>{icon}</span>}
-        <h2 className={cn("text-2xl font-bold tracking-tight", isDark ? "text-white" : "text-slate-900")}>{title}</h2>
+        <h2 className={cn(
+          isFashion ? "store-display text-[2.35rem] md:text-5xl font-semibold tracking-[-0.04em]" : "text-2xl font-bold tracking-tight",
+          isDark ? "text-white" : isFashion ? "text-[#2d221f]" : "text-slate-900"
+        )}>{title}</h2>
       </div>
       <Link
         to={link}
-        className={cn("flex items-center gap-1 text-[11px] font-semibold uppercase tracking-wider transition-colors", isDark ? "text-slate-400 hover:text-white" : "text-slate-400 hover:text-slate-700")}
+        className={cn(
+          "flex items-center gap-1 transition-colors",
+          isFashion
+            ? "text-[11px] font-semibold tracking-[0.22em] uppercase text-[#8c6c63] hover:text-[#2d221f]"
+            : "text-[11px] font-semibold uppercase tracking-wider",
+          isDark ? "text-slate-400 hover:text-white" : !isFashion && "text-slate-400 hover:text-slate-700"
+        )}
       >
         {linkLabel || "Ver todos"} <ChevronRight size={13} />
       </Link>
@@ -87,14 +96,20 @@ function ProductCard({ product, index, slug, style, onAddToCart }: {
   const img = (Array.isArray(product.images) && (product.images as string[])[0]) || product.image_url || null;
   const hasDiscount = !!product.discount_price;
   const pct = hasDiscount ? Math.round((1 - Number(product.discount_price) / Number(product.price)) * 100) : 0;
+  const isFashion = style.font === "font-editorial";
 
   return (
     <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: index * 0.04 }}>
       <Link
         to={`/s/${slug}/produto/${product.id}`}
-        className={cn("group flex flex-col border overflow-hidden transition-all hover:shadow-xl", style.card, style.radius)}
+        className={cn(
+          "group flex flex-col border overflow-hidden transition-all",
+          isFashion ? "fashion-soft-shadow hover:-translate-y-1 hover:shadow-[0_26px_70px_rgba(108,64,55,0.12)]" : "hover:shadow-xl",
+          style.card,
+          style.radius
+        )}
       >
-        <div className="aspect-square bg-slate-50 overflow-hidden relative">
+        <div className={cn("overflow-hidden relative", isFashion ? "aspect-[4/5] bg-[#f8efe8]" : "aspect-square bg-slate-50")}>
           {img
             ? <img src={img} alt={product.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
             : <div className="w-full h-full flex items-center justify-center text-slate-200"><Package size={36} strokeWidth={1} /></div>}
@@ -112,24 +127,38 @@ function ProductCard({ product, index, slug, style, onAddToCart }: {
             </span>
           )}
         </div>
-        <div className="p-4 flex flex-col gap-1">
-          <p className="text-[10px] text-slate-400 font-semibold uppercase tracking-widest">{product.category_name || "Geral"}</p>
-          <p className="text-sm font-semibold text-slate-800 line-clamp-2 leading-snug group-hover:text-slate-900 transition-colors">{product.name}</p>
-          <div className="flex items-center justify-between mt-2">
+        <div className={cn("flex flex-col", isFashion ? "p-5 gap-2" : "p-4 gap-1")}>
+          <p className={cn("font-semibold", isFashion ? "store-kicker text-[9px] text-[#9c7b72]" : "text-[10px] text-slate-400 uppercase tracking-widest")}>{product.category_name || "Geral"}</p>
+          <p className={cn(
+            "line-clamp-2 transition-colors",
+            isFashion
+              ? "store-display text-[1.55rem] font-semibold text-[#2d221f] leading-[0.95]"
+              : "text-sm font-semibold text-slate-800 leading-snug group-hover:text-slate-900"
+          )}>{product.name}</p>
+          {isFashion && product.description && (
+            <p className="text-[12px] leading-relaxed text-[#8c6c63] line-clamp-2">{product.description}</p>
+          )}
+          <div className={cn("flex items-center justify-between mt-2", isFashion && "pt-3 border-t border-[#eee2d6]")}>
             {hasDiscount ? (
               <div>
                 <span className="text-[10px] line-through text-slate-400 font-mono">R$ {Number(product.price).toFixed(2)}</span>
-                <p className="text-base font-bold text-emerald-600 font-mono leading-tight">R$ {Number(product.discount_price).toFixed(2)}</p>
+                <p className={cn(isFashion ? "store-display text-[1.8rem] font-semibold text-[#2d221f] leading-none" : "text-base font-bold text-emerald-600 font-mono leading-tight")}>R$ {Number(product.discount_price).toFixed(2)}</p>
               </div>
             ) : (
-              <p className="text-base font-bold font-mono" style={{ color: style.accent }}>R$ {Number(product.price).toFixed(2)}</p>
+              <p className={cn(isFashion ? "store-display text-[1.8rem] font-semibold leading-none" : "text-base font-bold font-mono")} style={{ color: style.accent }}>R$ {Number(product.price).toFixed(2)}</p>
             )}
             <button
               onClick={e => { e.preventDefault(); onAddToCart(product); }}
               style={{ backgroundColor: style.accent }}
-              className={cn("w-9 h-9 flex items-center justify-center shrink-0 text-white transition-all active:scale-90 shadow-sm hover:shadow-md", style.radius)}
+              className={cn(
+                "shrink-0 text-white transition-all active:scale-90",
+                isFashion
+                  ? "h-10 px-4 rounded-full shadow-sm hover:shadow-md text-[10px] font-semibold uppercase tracking-[0.24em] flex items-center gap-2"
+                  : "w-9 h-9 flex items-center justify-center shadow-sm hover:shadow-md",
+                style.radius
+              )}
             >
-              <span className="text-lg font-bold leading-none">+</span>
+              {isFashion ? <><ShoppingBag size={13} /> Adicionar</> : <span className="text-lg font-bold leading-none">+</span>}
             </button>
           </div>
         </div>
@@ -158,10 +187,12 @@ export default function StoreFront() {
     .slice(0, bestsellerLimit);
 
   const isTech = tenant.template_id === "tech";
+  const isFashion = tenant.template_id === "atelier";
   const isDark = ["cyber", "luxury"].includes(tenant.template_id || "");
 
   const getImg = (p: Product) =>
     (Array.isArray(p.images) && (p.images as string[])[0]) || p.image_url || null;
+  const heroImage = tenant.banner_url || getImg(featured[0]) || getImg(bestSellers[0]) || getImg(allActive[0]);
 
   return (
     <div className="space-y-0">
@@ -174,7 +205,102 @@ export default function StoreFront() {
       />
 
       {/* ── HERO ──────────────────────────────────────────────── */}
-      {tenant.banner_url ? (
+      {isFashion ? (
+        <section className="relative overflow-hidden">
+          <div className="max-w-7xl mx-auto px-4 md:px-8 pt-8 md:pt-12 pb-6 md:pb-10">
+            <div className="grid lg:grid-cols-[1.05fr_0.95fr] gap-5 items-stretch">
+              <motion.div
+                initial={{ opacity: 0, y: 16 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.55 }}
+                className="fashion-panel relative overflow-hidden rounded-[2rem] border border-[#ead9ce] bg-[linear-gradient(135deg,#fff8f3_0%,#f7ece4_55%,#fffdfb_100%)] p-8 md:p-12"
+              >
+                <div className="absolute top-0 right-0 h-36 w-36 rounded-full bg-[#f1ddd3]/80 blur-3xl" />
+                <div className="absolute bottom-0 left-0 h-24 w-24 rounded-full bg-white/70 blur-2xl" />
+                <p className="store-kicker text-[10px] font-semibold text-[#9d6d63]">Nova coleção</p>
+                <h1 className="store-display mt-5 text-5xl md:text-7xl lg:text-[5.6rem] leading-[0.88] text-[#2d221f]">
+                  {tenant.name}
+                </h1>
+                <p className="mt-6 max-w-xl text-base md:text-lg leading-relaxed text-[#6b5149]">
+                  {tenant.about_text || "Roupas e acessórios com curadoria leve, elegante e pensada para uma vitrine que vende com presença."}
+                </p>
+                <div className="mt-8 flex flex-wrap gap-3">
+                  <Link
+                    to={`/s/${slug}/catalogo`}
+                    style={{ backgroundColor: style.accent }}
+                    className="inline-flex h-12 items-center gap-2 rounded-full px-7 text-[11px] font-semibold uppercase tracking-[0.28em] text-white shadow-lg shadow-[#c99f94]/30 transition-all hover:-translate-y-0.5"
+                  >
+                    <ShoppingBag size={15} /> Ver coleção
+                  </Link>
+                  <a
+                    href="#categorias"
+                    className="inline-flex h-12 items-center gap-2 rounded-full border border-[#e7d6ca] bg-white/75 px-7 text-[11px] font-semibold uppercase tracking-[0.24em] text-[#6b5149] transition-all hover:bg-white"
+                  >
+                    Estilos <ArrowRight size={13} />
+                  </a>
+                </div>
+                <div className="mt-10 flex flex-wrap gap-2">
+                  {(categories.slice(0, 4).map(cat => cat.name).length > 0
+                    ? categories.slice(0, 4).map(cat => cat.name)
+                    : ["Moda feminina", "Acessórios", "Novidades", "Favoritos"]).map((label) => (
+                    <span key={label} className="rounded-full border border-[#ead7cc] bg-white/70 px-4 py-2 text-[10px] font-semibold uppercase tracking-[0.2em] text-[#8c6c63]">
+                      {label}
+                    </span>
+                  ))}
+                </div>
+              </motion.div>
+
+              <div className="grid gap-5">
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.98 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  transition={{ duration: 0.6, delay: 0.08 }}
+                  className="fashion-panel relative min-h-[420px] overflow-hidden rounded-[2rem] border border-[#ead9ce] bg-[#f3e7dd]"
+                >
+                  {heroImage ? (
+                    <img src={heroImage} alt={tenant.name} className="h-full w-full object-cover" />
+                  ) : (
+                    <div className="absolute inset-0 bg-[linear-gradient(145deg,#f5e6dc_0%,#fffaf5_100%)]" />
+                  )}
+                  <div className="absolute inset-0 bg-gradient-to-t from-[#2d221f]/62 via-[#2d221f]/18 to-transparent" />
+                  <div className="absolute bottom-0 left-0 right-0 p-6 md:p-8 text-white">
+                    <p className="store-kicker text-[10px] font-semibold text-white/72">Editorial claro</p>
+                    <p className="store-display mt-3 text-3xl md:text-4xl leading-none">Peças para montar um look memorável.</p>
+                    <div className="mt-5 flex flex-wrap gap-3 text-[11px] font-medium text-white/82">
+                      <span>{allActive.length} produtos ativos</span>
+                      <span>{featured.length} destaques</span>
+                      <span>{onSale.length} promoções</span>
+                    </div>
+                  </div>
+                </motion.div>
+
+                <div className="grid sm:grid-cols-2 gap-5">
+                  <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.12 }} className="fashion-panel rounded-[2rem] border border-[#ead9ce] bg-white/85 p-6">
+                    <p className="store-kicker text-[10px] font-semibold text-[#9d6d63]">Essência</p>
+                    <p className="store-display mt-4 text-3xl leading-none text-[#2d221f]">Vitrine leve, elegante e feita para moda.</p>
+                    <p className="mt-3 text-sm leading-relaxed text-[#7d6259]">Tipografia editorial, blocos claros e proporções melhores para destacar roupas e acessórios.</p>
+                  </motion.div>
+                  <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.18 }} className="fashion-panel rounded-[2rem] border border-[#ead9ce] bg-[#fff4ec] p-6">
+                    <p className="store-kicker text-[10px] font-semibold text-[#9d6d63]">Curadoria</p>
+                    <div className="mt-4 space-y-3">
+                      {[
+                        `${categories.length} categorias organizadas`,
+                        `${bestSellers.length} peças em evidência`,
+                        "Experiência clara para vender mais",
+                      ].map((item) => (
+                        <div key={item} className="flex items-center gap-3 text-sm text-[#6b5149]">
+                          <span className="h-2 w-2 rounded-full" style={{ backgroundColor: style.accent }} />
+                          <span>{item}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </motion.div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+      ) : tenant.banner_url ? (
         <div className="relative h-[50vh] md:h-[65vh] w-full overflow-hidden">
           <img src={tenant.banner_url} className="w-full h-full object-cover" alt="Banner" />
           <div className="absolute inset-0 bg-gradient-to-r from-black/80 via-black/50 to-transparent flex items-center">
@@ -264,17 +390,23 @@ export default function StoreFront() {
       )}
 
       {/* ── STATS BAR ─────────────────────────────────────────── */}
-      <div className={cn("border-b", isDark ? "bg-slate-950 border-slate-800" : "bg-white border-slate-100")}>
-        <div className="max-w-7xl mx-auto px-8 py-4 flex flex-wrap items-center gap-8 md:gap-14">
+      <div className={cn(
+        isFashion ? "max-w-7xl mx-auto px-4 md:px-8" : "border-b",
+        isDark ? "bg-slate-950 border-slate-800" : !isFashion && "bg-white border-slate-100"
+      )}>
+        <div className={cn(
+          "max-w-7xl mx-auto",
+          isFashion ? "grid grid-cols-2 md:grid-cols-4 gap-4" : "px-8 py-4 flex flex-wrap items-center gap-8 md:gap-14"
+        )}>
           {[
             { value: allActive.length, label: "Produtos" },
             { value: categories.length, label: "Categorias" },
             { value: featured.length, label: "Destaques" },
             { value: onSale.length, label: "Promoções" },
           ].map((s, i) => (
-            <div key={i} className="flex items-baseline gap-2">
-              <span className="text-2xl font-extrabold tabular-nums" style={{ color: style.accent }}>{s.value}</span>
-              <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-widest">{s.label}</span>
+            <div key={i} className={cn(isFashion ? "fashion-panel rounded-[1.75rem] border border-[#ead9ce] bg-white/80 px-5 py-4" : "flex items-baseline gap-2")}>
+              <span className={cn(isFashion ? "store-display text-4xl leading-none" : "text-2xl font-extrabold tabular-nums")} style={{ color: style.accent }}>{s.value}</span>
+              <span className={cn(isFashion ? "mt-2 block text-[10px] font-semibold uppercase tracking-[0.26em] text-[#8c6c63]" : "text-[10px] font-semibold text-slate-400 uppercase tracking-widest")}>{s.label}</span>
             </div>
           ))}
         </div>
@@ -282,14 +414,15 @@ export default function StoreFront() {
 
       {/* ── CATEGORIES ────────────────────────────────────────── */}
       {categories.length > 0 && (
-        <section id="categorias" className="max-w-7xl mx-auto px-8 py-16">
+        <section id="categorias" className="max-w-7xl mx-auto px-4 md:px-8 py-16">
           <SectionHeader
-            title="Categorias"
+            title={isFashion ? "Estilos & Categorias" : "Categorias"}
             icon={<Tag size={17} />}
             link={`/s/${slug}/catalogo`}
-            linkLabel="Ver catálogo"
+            linkLabel={isFashion ? "Ver coleção completa" : "Ver catálogo"}
             accent={style.accent}
             isDark={isDark}
+            isFashion={isFashion}
           />
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
             {categories.slice(0, CATEGORY_DISPLAY_LIMIT).map((cat, i) => {
@@ -301,13 +434,20 @@ export default function StoreFront() {
                 <motion.div key={cat.id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.04 }}>
                   <Link
                     to={`/s/${slug}/catalogo?cat=${cat.id}`}
-                    className={cn("group flex flex-col items-center gap-2 p-4 border hover:shadow-md transition-all text-center", style.card, style.radius)}
+                    className={cn(
+                      "group flex flex-col items-center text-center",
+                      isFashion
+                        ? "fashion-panel gap-3 p-5 border hover:-translate-y-1 hover:shadow-[0_24px_60px_rgba(109,65,56,0.12)]"
+                        : "gap-2 p-4 border hover:shadow-md",
+                      style.card,
+                      style.radius
+                    )}
                   >
-                    <div style={{ backgroundColor: style.accent + "18" }} className={cn("w-11 h-11 flex items-center justify-center group-hover:scale-110 transition-transform duration-300", style.radius)}>
+                    <div style={{ backgroundColor: style.accent + "18" }} className={cn(isFashion ? "w-14 h-14 rounded-full flex items-center justify-center group-hover:scale-110 transition-transform duration-300" : "w-11 h-11 flex items-center justify-center group-hover:scale-110 transition-transform duration-300", style.radius)}>
                       <Tag size={18} style={{ color: style.accent }} />
                     </div>
-                    <p className="text-[11px] font-semibold text-slate-700 leading-tight tracking-tight">{cat.name}</p>
-                    <span className="text-[9px] text-slate-400 font-medium">{count} {count === 1 ? "produto" : "produtos"}</span>
+                    <p className={cn(isFashion ? "store-display text-[1.6rem] font-semibold leading-none text-[#2d221f]" : "text-[11px] font-semibold text-slate-700 leading-tight tracking-tight")}>{cat.name}</p>
+                    <span className={cn(isFashion ? "text-[10px] font-semibold uppercase tracking-[0.24em] text-[#8c6c63]" : "text-[9px] text-slate-400 font-medium")}>{count} {count === 1 ? "produto" : "produtos"}</span>
                   </Link>
                 </motion.div>
               );
@@ -317,7 +457,12 @@ export default function StoreFront() {
             <div className="mt-5 text-center">
               <Link
                 to={`/s/${slug}/catalogo`}
-                className={cn("inline-flex items-center gap-2 px-6 h-10 border border-slate-200 bg-white text-slate-600 text-[11px] font-semibold uppercase tracking-wider hover:border-slate-300 hover:shadow-sm transition-all", style.radius)}
+                className={cn(
+                  isFashion
+                    ? "inline-flex items-center gap-2 px-6 h-11 rounded-full border border-[#ead9ce] bg-white text-[#6b5149] text-[11px] font-semibold uppercase tracking-[0.24em] hover:bg-[#fff7f1] transition-all"
+                    : "inline-flex items-center gap-2 px-6 h-10 border border-slate-200 bg-white text-slate-600 text-[11px] font-semibold uppercase tracking-wider hover:border-slate-300 hover:shadow-sm transition-all",
+                  !isFashion && style.radius
+                )}
               >
                 +{categories.length - CATEGORY_DISPLAY_LIMIT} mais categorias <ChevronRight size={13} />
               </Link>
@@ -328,6 +473,53 @@ export default function StoreFront() {
 
       {/* ── FEATURED ──────────────────────────────────────────── */}
       {featured.length > 0 && (
+        isFashion ? (
+          <section className="py-16">
+            <div className="max-w-7xl mx-auto px-4 md:px-8">
+              <SectionHeader
+                title="Seleção em Destaque"
+                icon={<Star size={17} />}
+                link={`/s/${slug}/catalogo`}
+                linkLabel="Ver coleção"
+                accent={style.accent}
+                isDark={false}
+                isFashion
+              />
+              <div className="grid lg:grid-cols-[1.08fr_0.92fr] gap-5">
+                <Link
+                  to={`/s/${slug}/produto/${featured[0].id}`}
+                  className="fashion-panel group relative overflow-hidden rounded-[2rem] border border-[#ead9ce] min-h-[540px] bg-[#f1e3d8]"
+                >
+                  {getImg(featured[0]) ? (
+                    <img src={getImg(featured[0])!} alt={featured[0].name} className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-105" />
+                  ) : (
+                    <div className="absolute inset-0 bg-[linear-gradient(145deg,#f5e6dc_0%,#fffaf5_100%)]" />
+                  )}
+                  <div className="absolute inset-0 bg-gradient-to-t from-[#2d221f]/72 via-[#2d221f]/18 to-transparent" />
+                  <div className="absolute left-0 right-0 bottom-0 p-7 md:p-9 text-white">
+                    <span className="inline-flex rounded-full border border-white/30 bg-white/10 px-4 py-2 text-[10px] font-semibold uppercase tracking-[0.24em] backdrop-blur-sm">
+                      Peça destaque
+                    </span>
+                    <h3 className="store-display mt-5 text-4xl md:text-5xl leading-[0.9]">{featured[0].name}</h3>
+                    <div className="mt-4 flex items-end gap-3">
+                      <p className="store-display text-4xl md:text-5xl leading-none" style={{ color: style.accent }}>
+                        R$ {Number(featured[0].discount_price || featured[0].price).toFixed(2)}
+                      </p>
+                      {featured[0].discount_price && (
+                        <span className="text-sm font-mono text-white/55 line-through">R$ {Number(featured[0].price).toFixed(2)}</span>
+                      )}
+                    </div>
+                  </div>
+                </Link>
+                <div className="grid sm:grid-cols-2 gap-5">
+                  {featured.slice(1, 5).map((product, i) => (
+                    <ProductCard key={product.id} product={product} index={i} slug={slug!} style={style} onAddToCart={addToCart} />
+                  ))}
+                </div>
+              </div>
+            </div>
+          </section>
+        ) : (
         <section className={cn("py-16", isDark ? "bg-slate-950" : "bg-slate-900")}>
           <div className="max-w-7xl mx-auto px-8">
             <div className="flex items-center justify-between mb-8">
@@ -403,18 +595,20 @@ export default function StoreFront() {
             </div>
           </div>
         </section>
+        )
       )}
 
       {/* ── BEST SELLERS ──────────────────────────────────────── */}
-      <section className={cn("py-16", isDark ? "bg-[#080a0e]" : "bg-white")}>
-        <div className="max-w-7xl mx-auto px-8">
+      <section className={cn("py-16", isFashion ? "bg-transparent" : isDark ? "bg-[#080a0e]" : "bg-white")}>
+        <div className="max-w-7xl mx-auto px-4 md:px-8">
           <SectionHeader
             title="Mais Vendidos"
             icon={<TrendingUp size={17} />}
             link={`/s/${slug}/catalogo`}
-            linkLabel="Ver catálogo"
+            linkLabel={isFashion ? "Ver coleção" : "Ver catálogo"}
             accent={style.accent}
             isDark={isDark}
+            isFashion={isFashion}
           />
           {bestSellers.length === 0 ? (
             <div className="py-16 text-center text-slate-400">
@@ -431,22 +625,28 @@ export default function StoreFront() {
 
       {/* ── ON SALE ───────────────────────────────────────────── */}
       {onSale.length > 0 && (
-        <section className={cn("py-16", isDark ? "bg-slate-950" : "bg-slate-50")}>
-          <div className="max-w-7xl mx-auto px-8">
+        <section className={cn("py-16", isFashion ? "bg-[#fff6ef]" : isDark ? "bg-slate-950" : "bg-slate-50")}>
+          <div className="max-w-7xl mx-auto px-4 md:px-8">
             <div className="flex items-center justify-between mb-8">
               <div className="flex items-center gap-3">
                 <div className="w-1 h-6 rounded-full bg-red-500" />
                 <Zap size={16} className="text-red-500" />
-                <h2 className={cn("text-2xl font-bold tracking-tight", isDark ? "text-white" : "text-slate-900")}>Promoções</h2>
+                <h2 className={cn(isFashion ? "store-display text-4xl font-semibold tracking-[-0.04em]" : "text-2xl font-bold tracking-tight", isDark ? "text-white" : isFashion ? "text-[#2d221f]" : "text-slate-900")}>Promoções</h2>
                 <span className="bg-red-50 text-red-500 text-[9px] font-bold px-2 py-0.5 rounded-full border border-red-200">
                   {onSale.length} oferta{onSale.length !== 1 ? "s" : ""}
                 </span>
               </div>
               <Link
                 to={`/s/${slug}/catalogo`}
-                className={cn("flex items-center gap-1 text-[11px] font-semibold uppercase tracking-wider transition-colors", isDark ? "text-slate-500 hover:text-white" : "text-slate-400 hover:text-slate-700")}
+                className={cn(
+                  "flex items-center gap-1 transition-colors",
+                  isFashion
+                    ? "text-[11px] font-semibold uppercase tracking-[0.22em] text-[#8c6c63] hover:text-[#2d221f]"
+                    : "text-[11px] font-semibold uppercase tracking-wider",
+                  isDark ? "text-slate-500 hover:text-white" : !isFashion && "text-slate-400 hover:text-slate-700"
+                )}
               >
-                Ver todas <ChevronRight size={13} />
+                {isFashion ? "Ver coleção" : "Ver todas"} <ChevronRight size={13} />
               </Link>
             </div>
 
@@ -458,18 +658,23 @@ export default function StoreFront() {
                   <motion.div key={product.id} initial={{ opacity: 0, scale: 0.97 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: i * 0.05 }}>
                     <Link
                       to={`/s/${slug}/produto/${product.id}`}
-                      className={cn("group flex flex-col border hover:shadow-xl transition-all overflow-hidden", style.card, style.radius)}
+                      className={cn(
+                        "group flex flex-col border transition-all overflow-hidden",
+                        isFashion ? "fashion-soft-shadow hover:-translate-y-1 hover:shadow-[0_26px_70px_rgba(108,64,55,0.12)]" : "hover:shadow-xl",
+                        style.card,
+                        style.radius
+                      )}
                     >
-                      <div className="aspect-square bg-slate-50 overflow-hidden relative">
+                      <div className={cn(isFashion ? "aspect-[4/5] bg-[#f8efe8] overflow-hidden relative" : "aspect-square bg-slate-50 overflow-hidden relative")}>
                         {img
                           ? <img src={img} alt={product.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
                           : <div className="w-full h-full flex items-center justify-center text-slate-200"><Package size={36} strokeWidth={1} /></div>}
                         <span className="absolute top-2 right-2 bg-red-500 text-white text-[9px] font-bold px-2 py-0.5 rounded-full shadow">-{pct}%</span>
                       </div>
-                      <div className="p-4">
-                        <p className="text-sm font-medium text-slate-800 line-clamp-2 leading-snug">{product.name}</p>
+                      <div className={cn(isFashion ? "p-5" : "p-4")}>
+                        <p className={cn(isFashion ? "store-display text-[1.5rem] font-semibold text-[#2d221f] line-clamp-2 leading-[0.95]" : "text-sm font-medium text-slate-800 line-clamp-2 leading-snug")}>{product.name}</p>
                         <div className="flex items-center gap-2 mt-3">
-                          <span className="text-base font-bold text-emerald-600 font-mono">R$ {Number(product.discount_price).toFixed(2)}</span>
+                          <span className={cn(isFashion ? "store-display text-[1.8rem] font-semibold text-[#2d221f]" : "text-base font-bold text-emerald-600 font-mono")}>R$ {Number(product.discount_price).toFixed(2)}</span>
                           <span className="text-[10px] text-slate-400 line-through font-mono">R$ {Number(product.price).toFixed(2)}</span>
                         </div>
                       </div>

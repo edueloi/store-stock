@@ -1,1 +1,37 @@
+@import url("https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=Manrope:wght@400;500;600;700;800&display=swap");
 @import "tailwindcss";
+
+body {
+  font-family: "Manrope", sans-serif;
+  background: #fffaf5;
+  color: #241815;
+}
+
+.font-editorial {
+  font-family: "Manrope", sans-serif;
+}
+
+.font-editorial .store-display {
+  font-family: "Cormorant Garamond", serif;
+  letter-spacing: -0.04em;
+}
+
+.font-editorial .store-kicker {
+  letter-spacing: 0.34em;
+  text-transform: uppercase;
+}
+
+.fashion-shell {
+  background-image:
+    radial-gradient(circle at top left, rgba(222, 184, 135, 0.18), transparent 34%),
+    radial-gradient(circle at 85% 12%, rgba(184, 107, 95, 0.12), transparent 28%),
+    linear-gradient(180deg, #fffaf5 0%, #fff7f1 42%, #ffffff 100%);
+}
+
+.fashion-panel {
+  box-shadow: 0 28px 80px rgba(80, 43, 35, 0.08);
+}
+
+.fashion-soft-shadow {
+  box-shadow: 0 18px 50px rgba(111, 67, 58, 0.08);
+}

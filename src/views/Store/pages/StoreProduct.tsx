@@ -9,6 +9,7 @@ import StoreSEO from "../../../components/store/StoreSEO";
 export default function StoreProduct() {
   const { slug, productId } = useParams();
   const { products, categories, addToCart, style, openCart, tenant } = useStore();
+  const isFashion = tenant.template_id === "atelier";
 
   const product = products.find(p => p.id === Number(productId));
   const allImages = Array.isArray(product?.images) && product.images.length > 0 ? product.images : product?.image_url ? [product.image_url] : [];
@@ -113,7 +114,7 @@ export default function StoreProduct() {
   const productPrice = Number(product.discount_price || product.price).toFixed(2);
 
   return (
-    <div className="max-w-7xl mx-auto px-4 md:px-6 py-8 space-y-12">
+    <div className={cn("max-w-7xl mx-auto px-4 md:px-6 py-8 space-y-12", isFashion && "space-y-10")}>
       <StoreSEO
         title={`${product.name} — ${tenant.name}`}
         description={product.description || `Compre ${product.name} na loja ${tenant.name}. R$ ${productPrice}.`}
@@ -125,7 +126,7 @@ export default function StoreProduct() {
       />
 
       {/* Breadcrumb */}
-      <nav className="flex items-center gap-2 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+      <nav className={cn("flex items-center gap-2 text-[10px] font-bold text-slate-400 uppercase tracking-wider", isFashion && "tracking-[0.24em] text-[#9c7b72]")}>
         <Link to={`/s/${slug}`} className="hover:text-slate-700">Início</Link>
         <span>/</span>
         <Link to={`/s/${slug}/catalogo`} className="hover:text-slate-700">Catálogo</Link>
@@ -140,11 +141,11 @@ export default function StoreProduct() {
       </nav>
 
       {/* Main product block */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-10 lg:gap-16">
+      <div className={cn("grid grid-cols-1 md:grid-cols-2 gap-10 lg:gap-16", isFashion && "items-start")}>
 
         {/* Image gallery */}
         <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} className="space-y-3">
-          <div className={cn("aspect-square bg-slate-100 overflow-hidden relative group", style.radius)}>
+          <div className={cn("overflow-hidden relative group", isFashion ? "aspect-[4/5] bg-[#f8efe8] fashion-panel border border-[#ead9ce]" : "aspect-square bg-slate-100", style.radius)}>
             {allImages.length > 0 ? (
               <img src={allImages[activeImg]} alt={product.name} className="w-full h-full object-cover transition-all duration-300" />
             ) : (
@@ -165,11 +166,13 @@ export default function StoreProduct() {
             {allImages.length > 1 && (
               <>
                 <button onClick={() => setActiveImg(i => (i - 1 + allImages.length) % allImages.length)}
-                  className="absolute left-3 top-1/2 -translate-y-1/2 w-9 h-9 bg-white/90 rounded-full flex items-center justify-center shadow-md opacity-0 group-hover:opacity-100 transition-opacity hover:bg-white">
+                  className={cn("absolute left-3 top-1/2 -translate-y-1/2 w-9 h-9 bg-white/90 rounded-full flex items-center justify-center shadow-md opacity-0 group-hover:opacity-100 transition-opacity hover:bg-white", isFashion && "border border-[#ead9ce]")}
+                >
                   <ChevronLeft size={16} />
                 </button>
                 <button onClick={() => setActiveImg(i => (i + 1) % allImages.length)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 w-9 h-9 bg-white/90 rounded-full flex items-center justify-center shadow-md opacity-0 group-hover:opacity-100 transition-opacity hover:bg-white">
+                  className={cn("absolute right-3 top-1/2 -translate-y-1/2 w-9 h-9 bg-white/90 rounded-full flex items-center justify-center shadow-md opacity-0 group-hover:opacity-100 transition-opacity hover:bg-white", isFashion && "border border-[#ead9ce]")}
+                >
                   <ChevronRight size={16} />
                 </button>
                 <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex gap-1.5">
@@ -198,18 +201,18 @@ export default function StoreProduct() {
         <motion.div
           initial={{ opacity: 0, x: 20 }}
           animate={{ opacity: 1, x: 0 }}
-          className="flex flex-col gap-5"
+          className={cn("flex flex-col gap-5", isFashion && "fashion-panel rounded-[2rem] border border-[#ead9ce] bg-white/78 p-6 md:p-8")}
         >
           {/* Category + Name */}
           <div>
             {category && (
               <Link to={`/s/${slug}/catalogo?cat=${category.id}`}
-                className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest mb-2 hover:opacity-70 transition-opacity"
+                className={cn("flex items-center gap-1.5 mb-2 hover:opacity-70 transition-opacity", isFashion ? "text-[10px] font-semibold uppercase tracking-[0.24em]" : "text-[10px] font-black uppercase tracking-widest")}
                 style={{ color: style.accent }}>
                 <Tag size={11} /> {category.name}
               </Link>
             )}
-            <h1 className="text-2xl md:text-3xl font-black uppercase tracking-tight leading-tight text-slate-900">
+            <h1 className={cn(isFashion ? "store-display text-4xl md:text-6xl leading-[0.9] text-[#2d221f]" : "text-2xl md:text-3xl font-black uppercase tracking-tight leading-tight text-slate-900")}>
               {product.name}
             </h1>
             {/* SKU */}
@@ -221,10 +224,10 @@ export default function StoreProduct() {
           </div>
 
           {/* Price */}
-          <div className="flex items-end gap-4">
+          <div className={cn("flex items-end gap-4", isFashion && "pb-2 border-b border-[#eee2d6]")}>
             {product.discount_price ? (
               <>
-                <span className="text-3xl font-black text-emerald-600 font-mono">
+                <span className={cn(isFashion ? "store-display text-5xl md:text-6xl leading-none text-[#2d221f]" : "text-3xl font-black text-emerald-600 font-mono")}>
                   R$ {Number(product.discount_price).toFixed(2)}
                 </span>
                 <div className="flex flex-col pb-1">
@@ -237,7 +240,7 @@ export default function StoreProduct() {
                 </div>
               </>
             ) : (
-              <span className="text-3xl font-black font-mono" style={{ color: style.accent }}>
+              <span className={cn(isFashion ? "store-display text-5xl md:text-6xl leading-none" : "text-3xl font-black font-mono")} style={{ color: style.accent }}>
                 R$ {Number(product.price).toFixed(2)}
               </span>
             )}
@@ -245,7 +248,7 @@ export default function StoreProduct() {
 
           {/* Description */}
           {product.description && (
-            <p className="text-sm text-slate-600 leading-relaxed border-t border-slate-100 pt-4">
+            <p className={cn(isFashion ? "text-base text-[#6b5149] leading-relaxed pt-2" : "text-sm text-slate-600 leading-relaxed border-t border-slate-100 pt-4")}>
               {product.description}
             </p>
           )}
@@ -283,7 +286,7 @@ export default function StoreProduct() {
                         "relative px-4 py-2.5 rounded-xl border-2 text-xs font-bold transition-all",
                         isSelected ? "text-white shadow-md" : outOfStock
                           ? "text-slate-300 border-slate-100 bg-slate-50 cursor-not-allowed line-through"
-                          : "text-slate-600 border-slate-200 hover:border-slate-400 bg-white"
+                          : isFashion ? "text-[#6b5149] border-[#ead9ce] hover:border-[#c7978d] bg-white" : "text-slate-600 border-slate-200 hover:border-slate-400 bg-white"
                       )}
                       style={isSelected ? { backgroundColor: style.accent, borderColor: style.accent } : {}}
                     >
@@ -303,7 +306,7 @@ export default function StoreProduct() {
 
           {/* Quantity + Add to cart */}
           <div className="flex items-center gap-3 pt-2">
-            <div className="flex items-center h-12 bg-slate-100 rounded-xl overflow-hidden border border-slate-200">
+            <div className={cn("flex items-center h-12 overflow-hidden border", isFashion ? "bg-[#f8efe8] rounded-full border-[#ead9ce]" : "bg-slate-100 rounded-xl border-slate-200")}>
               <button
                 onClick={() => setQty(q => Math.max(1, q - 1))}
                 className="w-12 h-full flex items-center justify-center text-slate-500 hover:text-slate-900 hover:bg-slate-200 transition-all"
@@ -324,7 +327,9 @@ export default function StoreProduct() {
               disabled={minStock === 0}
               style={minStock > 0 ? { backgroundColor: style.accent } : {}}
               className={cn(
-                "flex-1 h-12 flex items-center justify-center gap-3 text-white font-black text-xs uppercase tracking-widest rounded-xl shadow-lg transition-all active:scale-95",
+                isFashion
+                  ? "flex-1 h-12 flex items-center justify-center gap-3 text-white font-semibold text-xs uppercase tracking-[0.24em] rounded-full shadow-lg transition-all active:scale-95"
+                  : "flex-1 h-12 flex items-center justify-center gap-3 text-white font-black text-xs uppercase tracking-widest rounded-xl shadow-lg transition-all active:scale-95",
                 minStock === 0 && "bg-slate-200 text-slate-400 cursor-not-allowed"
               )}
             >
@@ -339,7 +344,7 @@ export default function StoreProduct() {
 
             <button
               onClick={() => setInWishlist(v => !v)}
-              className={cn("w-12 h-12 rounded-xl border-2 flex items-center justify-center transition-all",
+              className={cn(isFashion ? "w-12 h-12 rounded-full border-2 flex items-center justify-center transition-all" : "w-12 h-12 rounded-xl border-2 flex items-center justify-center transition-all",
                 inWishlist ? "bg-red-50 border-red-300 text-red-500" : "border-slate-200 text-slate-400 hover:border-red-300 hover:text-red-400")}
             >
               <Heart size={16} fill={inWishlist ? "currentColor" : "none"} />
@@ -355,7 +360,7 @@ export default function StoreProduct() {
           )}
 
           {/* Share */}
-          <div className="flex items-center gap-3 pt-2 border-t border-slate-100">
+          <div className={cn("flex items-center gap-3 pt-2", isFashion ? "border-t border-[#eee2d6]" : "border-t border-slate-100")}>
             <button
               onClick={handleShare}
               className="flex items-center gap-2 text-[11px] font-bold text-slate-400 hover:text-slate-700 transition-colors"
@@ -380,23 +385,28 @@ export default function StoreProduct() {
         <section>
           <div className="flex items-center gap-3 mb-6">
             <div style={{ backgroundColor: style.accent }} className="w-1 h-6 rounded-full" />
-            <h2 className="text-lg font-black uppercase tracking-tighter">Produtos Relacionados</h2>
+            <h2 className={cn(isFashion ? "store-display text-4xl font-semibold tracking-[-0.04em] text-[#2d221f]" : "text-lg font-black uppercase tracking-tighter")}>Produtos Relacionados</h2>
           </div>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
             {related.map(p => (
               <Link
                 key={p.id}
                 to={`/s/${slug}/produto/${p.id}`}
-                className={cn("group flex flex-col border hover:shadow-xl transition-all overflow-hidden", style.card, style.radius)}
+                className={cn(
+                  "group flex flex-col border transition-all overflow-hidden",
+                  isFashion ? "fashion-soft-shadow hover:-translate-y-1 hover:shadow-[0_26px_70px_rgba(108,64,55,0.12)]" : "hover:shadow-xl",
+                  style.card,
+                  style.radius
+                )}
               >
-                <div className="aspect-square bg-slate-50 overflow-hidden">
+                <div className={cn(isFashion ? "aspect-[4/5] bg-[#f8efe8] overflow-hidden" : "aspect-square bg-slate-50 overflow-hidden")}>
                   {p.image_url
                     ? <img src={p.image_url} alt={p.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
                     : <div className="w-full h-full flex items-center justify-center text-slate-200"><Package size={32} strokeWidth={1} /></div>}
                 </div>
-                <div className="p-3">
-                  <p className="text-xs font-bold text-slate-800 line-clamp-2 leading-snug">{p.name}</p>
-                  <p className="text-sm font-black font-mono mt-1" style={{ color: style.accent }}>
+                <div className={cn(isFashion ? "p-5" : "p-3")}>
+                  <p className={cn(isFashion ? "store-display text-[1.45rem] font-semibold text-[#2d221f] line-clamp-2 leading-[0.95]" : "text-xs font-bold text-slate-800 line-clamp-2 leading-snug")}>{p.name}</p>
+                  <p className={cn(isFashion ? "store-display text-[1.7rem] font-semibold mt-3" : "text-sm font-black font-mono mt-1")} style={{ color: style.accent }}>
                     R$ {Number(p.discount_price || p.price).toFixed(2)}
                   </p>
                 </div>

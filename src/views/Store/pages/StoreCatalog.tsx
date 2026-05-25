@@ -17,6 +17,7 @@ export default function StoreCatalog() {
   const { slug } = useParams();
   const [searchParams, setSearchParams] = useSearchParams();
   const { categories, products, addToCart, style, tenant } = useStore();
+  const isFashion = tenant.template_id === "atelier";
 
   const [searchTerm, setSearchTerm] = useState(searchParams.get("q") || "");
   const [selectedCategory, setSelectedCategory] = useState<number | null>(
@@ -80,15 +81,44 @@ export default function StoreCatalog() {
     : null;
 
   const pageTitle = catName ? `${catName} — ${tenant.name}` : `Catálogo — ${tenant.name}`;
+  const saleCount = products.filter(p => p.is_active && p.discount_price).length;
 
   return (
-    <div className="max-w-7xl mx-auto px-4 md:px-6 py-8">
+    <div className={cn("max-w-7xl mx-auto px-4 md:px-6 py-8", isFashion && "space-y-6")}>
       <StoreSEO
         title={pageTitle}
         description={`Confira ${catName ? `produtos de ${catName}` : "todo o catálogo"} da loja ${tenant.name}.`}
         url={typeof window !== "undefined" ? window.location.href : ""}
         siteName={tenant.name}
       />
+
+      {isFashion && (
+        <div className="fashion-panel overflow-hidden rounded-[2rem] border border-[#ead9ce] bg-[linear-gradient(135deg,#fff8f3_0%,#f7ece4_55%,#fffdfb_100%)] p-6 md:p-8">
+          <p className="store-kicker text-[10px] font-semibold text-[#9d6d63]">Catálogo editorial</p>
+          <div className="mt-4 flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+            <div>
+              <h1 className="store-display text-4xl md:text-6xl leading-[0.9] text-[#2d221f]">
+                {catName || "Coleção completa"}
+              </h1>
+              <p className="mt-3 max-w-2xl text-sm md:text-base leading-relaxed text-[#6b5149]">
+                Explore peças com uma vitrine pensada para roupas e acessórios, com foco em imagem, leitura clara e navegação leve.
+              </p>
+            </div>
+            <div className="grid grid-cols-3 gap-3 text-center">
+              {[
+                { value: filtered.length, label: "Peças" },
+                { value: categories.length, label: "Linhas" },
+                { value: saleCount, label: "Ofertas" },
+              ].map((item) => (
+                <div key={item.label} className="rounded-[1.4rem] border border-[#ead9ce] bg-white/78 px-4 py-3">
+                  <p className="store-display text-3xl leading-none" style={{ color: style.accent }}>{item.value}</p>
+                  <p className="mt-2 text-[9px] font-semibold uppercase tracking-[0.22em] text-[#8c6c63]">{item.label}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Breadcrumb */}
       <nav className="flex items-center gap-2 text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-6">
@@ -346,7 +376,7 @@ interface CardProps {
   product: Product;
   index: number;
   slug: string;
-  style: { accent: string; card: string; radius: string };
+  style: { accent: string; card: string; radius: string; font?: string };
   wishlist: number[];
   onWishlist: (id: number) => void;
   onAddToCart: (p: Product) => void;
@@ -361,15 +391,21 @@ function ProductCard({ product, index, slug, style, wishlist, onWishlist, onAddT
     ? product.images as string[]
     : product.image_url ? [product.image_url] : [];
   const primaryImage = allImages[0] ?? null;
+  const isFashion = style.font === "font-editorial";
 
   return (
     <motion.div
       initial={{ opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: Math.min(index * 0.04, 0.4) }}
-      className={cn("group relative flex flex-col overflow-hidden border hover:shadow-xl transition-all duration-300", style.card, style.radius)}
+      className={cn(
+        "group relative flex flex-col overflow-hidden border transition-all duration-300",
+        isFashion ? "fashion-soft-shadow hover:-translate-y-1 hover:shadow-[0_26px_70px_rgba(108,64,55,0.12)]" : "hover:shadow-xl",
+        style.card,
+        style.radius
+      )}
     >
-      <Link to={`/s/${slug}/produto/${product.id}`} className="relative aspect-square bg-slate-50 overflow-hidden block">
+      <Link to={`/s/${slug}/produto/${product.id}`} className={cn("relative overflow-hidden block", isFashion ? "aspect-[4/5] bg-[#f8efe8]" : "aspect-square bg-slate-50")}>
         {primaryImage
           ? <img src={primaryImage} alt={product.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
           : <div className="w-full h-full flex items-center justify-center text-slate-200"><Package size={48} strokeWidth={1} /></div>}
@@ -419,35 +455,44 @@ function ProductCard({ product, index, slug, style, wishlist, onWishlist, onAddT
         </div>
       </Link>
 
-      <div className="p-3 flex flex-col gap-1 flex-1">
-        <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">{product.category_name || "Geral"}</p>
-        <Link to={`/s/${slug}/produto/${product.id}`} className="text-xs font-bold text-slate-800 line-clamp-2 leading-snug hover:text-blue-600 transition-colors">
+      <div className={cn("flex flex-col flex-1", isFashion ? "p-5 gap-2" : "p-3 gap-1")}>
+        <p className={cn(isFashion ? "store-kicker text-[9px] font-semibold text-[#9c7b72]" : "text-[9px] font-black text-slate-400 uppercase tracking-widest")}>{product.category_name || "Geral"}</p>
+        <Link to={`/s/${slug}/produto/${product.id}`} className={cn(isFashion ? "store-display text-[1.5rem] font-semibold text-[#2d221f] line-clamp-2 leading-[0.95] hover:text-[#7b4e46] transition-colors" : "text-xs font-bold text-slate-800 line-clamp-2 leading-snug hover:text-blue-600 transition-colors")}>
           {product.name}
         </Link>
+        {isFashion && product.description && (
+          <p className="text-[12px] leading-relaxed text-[#8c6c63] line-clamp-2">{product.description}</p>
+        )}
         {Array.isArray(product.variations) && product.variations.length > 0 && (
           <div className="flex flex-wrap gap-1">
             {product.variations[0]?.options.slice(0, 4).map((opt, i) => (
-              <span key={i} className="text-[9px] border border-slate-200 rounded px-1.5 py-0.5 text-slate-500">{opt.value}</span>
+              <span key={i} className={cn(isFashion ? "text-[9px] border border-[#ead9ce] rounded-full px-2.5 py-1 text-[#8c6c63]" : "text-[9px] border border-slate-200 rounded px-1.5 py-0.5 text-slate-500")}>{opt.value}</span>
             ))}
           </div>
         )}
-        <div className="flex items-center justify-between mt-auto pt-2">
+        <div className={cn("flex items-center justify-between mt-auto", isFashion ? "pt-4 border-t border-[#eee2d6]" : "pt-2")}>
           <div>
             {product.discount_price ? (
               <div className="flex flex-col">
                 <span className="text-[10px] text-slate-400 line-through font-mono">R$ {Number(product.price).toFixed(2)}</span>
-                <span className="text-sm font-black text-emerald-600 font-mono">R$ {Number(product.discount_price).toFixed(2)}</span>
+                <span className={cn(isFashion ? "store-display text-[1.8rem] font-semibold text-[#2d221f]" : "text-sm font-black text-emerald-600 font-mono")}>R$ {Number(product.discount_price).toFixed(2)}</span>
               </div>
             ) : (
-              <span className="text-sm font-black font-mono" style={{ color: style.accent }}>R$ {Number(product.price).toFixed(2)}</span>
+              <span className={cn(isFashion ? "store-display text-[1.8rem] font-semibold" : "text-sm font-black font-mono")} style={{ color: style.accent }}>R$ {Number(product.price).toFixed(2)}</span>
             )}
           </div>
           <button
             onClick={() => onAddToCart(product)}
             style={{ backgroundColor: style.accent }}
-            className={cn("w-8 h-8 flex items-center justify-center text-white transition-all active:scale-90", style.radius)}
+            className={cn(
+              "text-white transition-all active:scale-90",
+              isFashion
+                ? "h-10 px-4 rounded-full text-[10px] font-semibold uppercase tracking-[0.22em] flex items-center gap-2"
+                : "w-8 h-8 flex items-center justify-center",
+              style.radius
+            )}
           >
-            <Plus size={14} strokeWidth={3} />
+            {isFashion ? <><Plus size={12} strokeWidth={3} /> Adicionar</> : <Plus size={14} strokeWidth={3} />}
           </button>
         </div>
       </div>
@@ -466,15 +511,21 @@ function ProductRow({ product, index, slug, style, wishlist, onWishlist, onAddTo
     ? product.images as string[]
     : product.image_url ? [product.image_url] : [];
   const primaryImage = allImages[0] ?? null;
+  const isFashion = style.font === "font-editorial";
 
   return (
     <motion.div
       initial={{ opacity: 0, x: -8 }}
       animate={{ opacity: 1, x: 0 }}
       transition={{ delay: Math.min(index * 0.03, 0.3) }}
-      className={cn("flex gap-4 p-3 border hover:shadow-md transition-all group", style.card, style.radius)}
+      className={cn(
+        "flex gap-4 border transition-all group",
+        isFashion ? "fashion-soft-shadow p-4 hover:-translate-y-1 hover:shadow-[0_26px_70px_rgba(108,64,55,0.12)]" : "p-3 hover:shadow-md",
+        style.card,
+        style.radius
+      )}
     >
-      <Link to={`/s/${slug}/produto/${product.id}`} className="w-24 h-24 shrink-0 rounded-xl overflow-hidden bg-slate-50 relative">
+      <Link to={`/s/${slug}/produto/${product.id}`} className={cn(isFashion ? "w-28 h-36 shrink-0 rounded-[1.4rem] overflow-hidden bg-[#f8efe8] relative" : "w-24 h-24 shrink-0 rounded-xl overflow-hidden bg-slate-50 relative")}>
         {primaryImage
           ? <img src={primaryImage} alt={product.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
           : <div className="w-full h-full flex items-center justify-center text-slate-200"><Package size={28} strokeWidth={1} /></div>}
@@ -489,7 +540,7 @@ function ProductRow({ product, index, slug, style, wishlist, onWishlist, onAddTo
           <div className="flex items-start justify-between gap-2">
             <div>
               <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">{product.category_name || "Geral"}</p>
-              <Link to={`/s/${slug}/produto/${product.id}`} className="text-sm font-bold text-slate-800 hover:text-blue-600 transition-colors leading-snug line-clamp-2 mt-0.5 block">
+              <Link to={`/s/${slug}/produto/${product.id}`} className={cn(isFashion ? "store-display text-[1.8rem] font-semibold text-[#2d221f] hover:text-[#7b4e46] transition-colors leading-[0.95] line-clamp-2 mt-0.5 block" : "text-sm font-bold text-slate-800 hover:text-blue-600 transition-colors leading-snug line-clamp-2 mt-0.5 block")}>
                 {product.name}
               </Link>
             </div>
@@ -516,21 +567,21 @@ function ProductRow({ product, index, slug, style, wishlist, onWishlist, onAddTo
             {product.discount_price ? (
               <div className="flex items-center gap-2">
                 <span className="text-[10px] text-slate-400 line-through font-mono">R$ {Number(product.price).toFixed(2)}</span>
-                <span className="text-base font-black text-emerald-600 font-mono">R$ {Number(product.discount_price).toFixed(2)}</span>
+                <span className={cn(isFashion ? "store-display text-[1.9rem] font-semibold text-[#2d221f]" : "text-base font-black text-emerald-600 font-mono")}>R$ {Number(product.discount_price).toFixed(2)}</span>
               </div>
             ) : (
-              <span className="text-base font-black font-mono" style={{ color: style.accent }}>R$ {Number(product.price).toFixed(2)}</span>
+              <span className={cn(isFashion ? "store-display text-[1.9rem] font-semibold" : "text-base font-black font-mono")} style={{ color: style.accent }}>R$ {Number(product.price).toFixed(2)}</span>
             )}
           </div>
           <div className="flex items-center gap-2">
             <Link to={`/s/${slug}/produto/${product.id}`}
-              className="h-8 px-3 rounded-xl border border-slate-200 text-[10px] font-bold text-slate-500 hover:border-slate-400 flex items-center gap-1.5 transition-all">
+              className={cn(isFashion ? "h-10 px-4 rounded-full border border-[#ead9ce] text-[10px] font-semibold uppercase tracking-[0.22em] text-[#6b5149] hover:bg-[#fff7f1] flex items-center gap-1.5 transition-all" : "h-8 px-3 rounded-xl border border-slate-200 text-[10px] font-bold text-slate-500 hover:border-slate-400 flex items-center gap-1.5 transition-all")}>
               <Eye size={12} /> Ver
             </Link>
             <button
               onClick={() => onAddToCart(product)}
               style={{ backgroundColor: style.accent }}
-              className="h-8 px-4 rounded-xl text-white text-[10px] font-black uppercase tracking-wider flex items-center gap-1.5 active:scale-95 transition-all"
+              className={cn(isFashion ? "h-10 px-5 rounded-full text-white text-[10px] font-semibold uppercase tracking-[0.22em] flex items-center gap-1.5 active:scale-95 transition-all" : "h-8 px-4 rounded-xl text-white text-[10px] font-black uppercase tracking-wider flex items-center gap-1.5 active:scale-95 transition-all")}
             >
               <Plus size={12} strokeWidth={3} /> Adicionar
             </button>

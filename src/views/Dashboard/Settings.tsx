@@ -127,7 +127,7 @@ const NAV = [
     color: "text-blue-600",
     items: [
       { id: "identity", icon: Store, label: "Identidade & Dados" },
-      { id: "design", icon: Palette, label: "Design & Templates" },
+      { id: "design", icon: Palette, label: "Design e Modelos" },
       { id: "social", icon: Share2, label: "Canais Sociais" },
       { id: "hours", icon: Clock, label: "Horário de Funcionamento" },
       { id: "payments", icon: CreditCard, label: "Pagamentos & Políticas" },
@@ -452,26 +452,30 @@ export default function Settings() {
               </div>
             )}
 
-            {/* ── Design & Templates ──────────────────────────────────── */}
+            {/* ── Design e modelos ───────────────────────────────────── */}
             {active === "design" && (
               <div className="space-y-8">
                 <SectionHeader
-                  title="Design & Templates"
-                  subtitle="Aparência visual da sua loja pública"
+                  title="Design e Modelos"
+                  subtitle="Escolha um visual pronto e personalize a aparência da sua loja pública"
                 />
 
                 {/* templates */}
                 <div className="space-y-3">
                   <p className="text-[10px] font-black uppercase tracking-widest text-slate-700 border-l-4 border-blue-500 pl-3">
-                    Presets de Template
+                    Aplicar Modelo Pronto
                   </p>
-                  <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-5 gap-3">
+                  <p className="text-xs text-slate-500">
+                    Selecione um modelo visual para definir o estilo da vitrine, das cores e da sensação da sua loja.
+                  </p>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 gap-3">
                     {[
-                      { id: "minimal", name: "Minimalist", desc: "Foco no produto", color: "#2563eb", bg: "#f8fafc" },
-                      { id: "cyber",   name: "Cyber Dark",  desc: "Neon / high contrast", color: "#00ff7f", bg: "#000" },
-                      { id: "organic", name: "Organic",     desc: "Tons pasteis", color: "#d97706", bg: "#fefaf6" },
-                      { id: "luxury",  name: "Luxury Gold", desc: "Aura premium", color: "#c5a059", bg: "#0a0a0a" },
-                      { id: "tech",    name: "Tech Pro",    desc: "Clean tech", color: "#0ea5e9", bg: "#f4f6fb" },
+                      { id: "minimal", name: "Minimalista", desc: "Visual limpo para destacar seus produtos e imagens.", color: "#2563eb", bg: "#f8fafc" },
+                      { id: "cyber",   name: "Neon Escuro", desc: "Estilo marcante com alto contraste, ideal para tecnologia e games.", color: "#00ff7f", bg: "#000" },
+                      { id: "organic", name: "Orgânico",    desc: "Cores suaves e acolhedoras para marcas naturais, leves e artesanais.", color: "#d97706", bg: "#fefaf6" },
+                      { id: "luxury",  name: "Luxo Dourado", desc: "Aparência sofisticada para catálogos premium e produtos exclusivos.", color: "#c5a059", bg: "#0a0a0a" },
+                      { id: "tech",    name: "Tecnologia Pro", desc: "Layout moderno e profissional para eletrônicos, inovação e desempenho.", color: "#0ea5e9", bg: "#f4f6fb" },
+                      { id: "atelier", name: "Ateliê Chic", desc: "Editorial claro e elegante para lojas de roupas, moda e acessórios.", color: "#a26157", bg: "#fff6ef" },
                     ].map((t) => (
                       <button
                         key={t.id}
@@ -503,7 +507,7 @@ export default function Settings() {
 
                 {/* color + urls */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <Field label="Cor Principal (Brand Color)">
+                  <Field label="Cor Principal da Marca">
                     <div className="flex gap-3">
                       <input
                         type="color"
@@ -518,7 +522,7 @@ export default function Settings() {
                       />
                     </div>
                   </Field>
-                  <Field label="Logo URL (PNG/SVG)">
+                  <Field label="URL do Logo (PNG/SVG)">
                     <TextInput
                       value={tenant?.logo_url ?? ""}
                       onChange={(v) => setT({ logo_url: v })}
@@ -535,7 +539,7 @@ export default function Settings() {
                     </Field>
                   </div>
                   <div className="md:col-span-2">
-                    <Field label="Texto do Rodapé (Copyright)">
+                    <Field label="Texto do Rodapé">
                       <TextInput
                         value={tenant?.footer_text ?? ""}
                         onChange={(v) => setT({ footer_text: v })}

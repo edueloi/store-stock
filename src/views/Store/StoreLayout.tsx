@@ -57,6 +57,7 @@ const templates: Record<string, StoreStyle> = {
   organic:  { bg: "bg-[#fefaf6]",   card: "bg-white border-orange-100",       accent: "#d97706", text: "text-stone-800",  font: "font-sans",  radius: "rounded-[2rem]" },
   luxury:   { bg: "bg-[#0a0a0a]",   card: "bg-[#111] border-yellow-500/10",  accent: "#c5a059", text: "text-stone-200",  font: "font-serif", radius: "rounded-lg" },
   tech:     { bg: "bg-[#f4f6fb]",   card: "bg-white border-slate-200",       accent: "#0ea5e9", text: "text-slate-900",  font: "font-sans",  radius: "rounded-2xl" },
+  atelier:  { bg: "fashion-shell bg-[#fffaf5]", card: "bg-white/90 border-[#eadbd0]", accent: "#a26157", text: "text-[#2d221f]", font: "font-editorial", radius: "rounded-[2rem]" },
 };
 
 // ── Main Layout ────────────────────────────────────────────────────────────
@@ -144,6 +145,8 @@ function StoreLayoutInner() {
     ...(templates[storeData.tenant.template_id || "minimal"] || templates.minimal),
     accent: storeData.tenant.primary_color || templates[storeData.tenant.template_id || "minimal"]?.accent || "#2563eb",
   };
+  const isDark = ["cyber", "luxury"].includes(storeData.tenant.template_id || "");
+  const isFashion = style.font === "font-editorial";
 
   const navLinks = [
     { label: "Início", path: `/s/${slug}`, icon: <Home size={15} /> },
@@ -173,26 +176,38 @@ function StoreLayoutInner() {
 
         {/* ── NAVBAR ─────────────────────────────────────────────── */}
         <header className={cn("sticky top-0 z-50 border-b shadow-sm",
-          style.font === "font-mono" ? "bg-black border-slate-800" : "bg-white/95 backdrop-blur-md border-slate-200")}>
-          <div className="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between gap-4">
+          isDark
+            ? "bg-black border-slate-800"
+            : isFashion
+              ? "bg-[#fffaf5]/92 backdrop-blur-xl border-[#ead7cc]"
+              : "bg-white/95 backdrop-blur-md border-slate-200")}>
+          <div className={cn("max-w-7xl mx-auto px-4 flex items-center justify-between gap-4", isFashion ? "h-20" : "h-16")}>
 
             {/* Logo */}
             <Link to={`/s/${slug}`} className="flex items-center gap-3 shrink-0">
               <div
                 style={{ backgroundColor: style.accent }}
-                className={cn("w-9 h-9 flex items-center justify-center text-white font-black text-base overflow-hidden shrink-0", style.radius)}
+                className={cn("flex items-center justify-center text-white font-black text-base overflow-hidden shrink-0", isFashion ? "w-11 h-11 shadow-md shadow-[#b5877d]/20" : "w-9 h-9", style.radius)}
               >
                 {storeData.tenant.logo_url
                   ? <img src={storeData.tenant.logo_url} className="w-full h-full object-cover" alt="logo" />
                   : storeData.tenant.name.charAt(0)}
               </div>
               <div className="hidden sm:block">
-                <p className="text-sm font-black uppercase tracking-wider leading-none" style={{ color: style.text === "text-white" ? "#fff" : "#0f172a" }}>
+                <p
+                  className={cn(
+                    "leading-none",
+                    isFashion ? "store-display text-2xl font-semibold tracking-[-0.04em]" : "text-sm font-black uppercase tracking-wider"
+                  )}
+                  style={{ color: isDark ? "#fff" : isFashion ? "#2d221f" : "#0f172a" }}
+                >
                   {storeData.tenant.name}
                 </p>
                 <div className="flex items-center gap-1 mt-0.5">
                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-                  <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Online</span>
+                  <span className={cn("text-[9px] font-bold text-slate-400", isFashion ? "store-kicker tracking-[0.28em]" : "uppercase tracking-wider")}>
+                    {isFashion ? "Curadoria ativa" : "Online"}
+                  </span>
                 </div>
               </div>
             </Link>
@@ -204,10 +219,15 @@ function StoreLayoutInner() {
                   key={l.path}
                   to={l.path}
                   className={cn(
-                    "flex items-center gap-2 px-4 py-2 rounded-xl text-[11px] font-black uppercase tracking-wider transition-all",
+                    "flex items-center gap-2 transition-all",
+                    isFashion
+                      ? "px-4 py-2 rounded-full text-[12px] font-semibold tracking-[0.02em]"
+                      : "px-4 py-2 rounded-xl text-[11px] font-black uppercase tracking-wider",
                     isActive(l.path)
                       ? "text-white shadow-sm"
-                      : "text-slate-500 hover:text-slate-900 hover:bg-slate-50"
+                      : isFashion
+                        ? "text-[#6f4b43] hover:text-[#2d221f] hover:bg-white"
+                        : "text-slate-500 hover:text-slate-900 hover:bg-slate-50"
                   )}
                   style={isActive(l.path) ? { backgroundColor: style.accent } : {}}
                 >
@@ -219,7 +239,12 @@ function StoreLayoutInner() {
                 <Link
                   key={cat.id}
                   to={`/s/${slug}/catalogo?cat=${cat.id}`}
-                  className="px-3 py-2 rounded-xl text-[11px] font-bold uppercase tracking-wider text-slate-400 hover:text-slate-700 hover:bg-slate-50 transition-all"
+                  className={cn(
+                    "transition-all",
+                    isFashion
+                      ? "px-3 py-2 rounded-full text-[11px] font-medium tracking-[0.02em] text-[#8c6c63] hover:text-[#2d221f] hover:bg-white"
+                      : "px-3 py-2 rounded-xl text-[11px] font-bold uppercase tracking-wider text-slate-400 hover:text-slate-700 hover:bg-slate-50"
+                  )}
                 >
                   {cat.name}
                 </Link>
@@ -231,7 +256,12 @@ function StoreLayoutInner() {
               {/* Search toggle */}
               <button
                 onClick={() => setSearchOpen(v => !v)}
-                className="w-9 h-9 flex items-center justify-center rounded-xl border border-slate-200 text-slate-500 hover:text-slate-900 hover:bg-slate-50 transition-all"
+                className={cn(
+                  "flex items-center justify-center border transition-all",
+                  isFashion
+                    ? "w-10 h-10 rounded-full border-[#e7d8ce] bg-white/80 text-[#7c5c54] hover:text-[#2d221f]"
+                    : "w-9 h-9 rounded-xl border-slate-200 text-slate-500 hover:text-slate-900 hover:bg-slate-50"
+                )}
               >
                 <Search size={15} />
               </button>
@@ -240,10 +270,14 @@ function StoreLayoutInner() {
               <button
                 onClick={() => setIsCartOpen(true)}
                 style={{ backgroundColor: style.accent }}
-                className={cn("h-9 flex items-center gap-2 px-3 md:px-4 text-white transition-all active:scale-95 relative", style.radius)}
+                className={cn(
+                  "flex items-center gap-2 text-white transition-all active:scale-95 relative",
+                  isFashion ? "h-10 px-4 md:px-5 rounded-full shadow-md shadow-[#b5877d]/25" : "h-9 px-3 md:px-4",
+                  style.radius
+                )}
               >
                 <ShoppingCart size={15} />
-                <span className="hidden sm:inline text-[10px] font-black uppercase tracking-wider">Carrinho</span>
+                <span className={cn("hidden sm:inline", isFashion ? "text-[11px] font-semibold tracking-[0.08em]" : "text-[10px] font-black uppercase tracking-wider")}>Carrinho</span>
                 {cartCount > 0 && (
                   <span className="bg-white text-slate-900 text-[9px] font-black px-1.5 py-0.5 rounded-full">
                     {cartCount}
@@ -254,7 +288,10 @@ function StoreLayoutInner() {
               {/* Mobile menu */}
               <button
                 onClick={() => setMobileMenuOpen(v => !v)}
-                className="md:hidden w-9 h-9 flex items-center justify-center rounded-xl border border-slate-200 text-slate-500"
+                className={cn(
+                  "md:hidden flex items-center justify-center border",
+                  isFashion ? "w-10 h-10 rounded-full border-[#e7d8ce] bg-white/80 text-[#7c5c54]" : "w-9 h-9 rounded-xl border-slate-200 text-slate-500"
+                )}
               >
                 {mobileMenuOpen ? <X size={16} /> : <Menu size={16} />}
               </button>
@@ -268,7 +305,7 @@ function StoreLayoutInner() {
                 initial={{ height: 0, opacity: 0 }}
                 animate={{ height: "auto", opacity: 1 }}
                 exit={{ height: 0, opacity: 0 }}
-                className="overflow-hidden border-t border-slate-100"
+                className={cn("overflow-hidden border-t", isFashion ? "border-[#eeded4]" : "border-slate-100")}
               >
                 <form onSubmit={handleSearch} className="max-w-7xl mx-auto px-4 py-3 flex gap-2">
                   <div className="flex-1 relative">
@@ -279,20 +316,25 @@ function StoreLayoutInner() {
                       value={searchQuery}
                       onChange={e => setSearchQuery(e.target.value)}
                       placeholder="Buscar produtos, categorias..."
-                      className="w-full pl-9 pr-4 h-10 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 transition-all"
+                      className={cn(
+                        "w-full pl-9 pr-4 h-10 text-sm outline-none transition-all",
+                        isFashion
+                          ? "bg-white border border-[#ead7cc] rounded-full focus:border-[#c48a80] focus:ring-2 focus:ring-[#efd7d1]"
+                          : "bg-slate-50 border border-slate-200 rounded-xl focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
+                      )}
                     />
                   </div>
                   <button
                     type="submit"
                     style={{ backgroundColor: style.accent }}
-                    className="h-10 px-5 text-white rounded-xl text-xs font-black uppercase tracking-wider"
+                    className={cn("h-10 px-5 text-white text-xs font-black uppercase tracking-wider", isFashion ? "rounded-full" : "rounded-xl")}
                   >
                     Buscar
                   </button>
                   <button
                     type="button"
                     onClick={() => setSearchOpen(false)}
-                    className="h-10 w-10 flex items-center justify-center border border-slate-200 rounded-xl text-slate-400"
+                    className={cn("h-10 w-10 flex items-center justify-center border text-slate-400", isFashion ? "border-[#ead7cc] rounded-full" : "border-slate-200 rounded-xl")}
                   >
                     <X size={15} />
                   </button>
@@ -308,7 +350,7 @@ function StoreLayoutInner() {
                 initial={{ height: 0, opacity: 0 }}
                 animate={{ height: "auto", opacity: 1 }}
                 exit={{ height: 0, opacity: 0 }}
-                className="md:hidden overflow-hidden border-t border-slate-100 bg-white"
+                className={cn("md:hidden overflow-hidden border-t", isFashion ? "border-[#eeded4] bg-[#fffaf5]" : "border-slate-100 bg-white")}
               >
                 <nav className="px-4 py-3 space-y-1">
                   {navLinks.map(l => (
@@ -355,32 +397,32 @@ function StoreLayoutInner() {
         </main>
 
         {/* ── FOOTER ─────────────────────────────────────────────── */}
-        <footer className="bg-slate-900 text-slate-300 mt-20">
+        <footer className={cn("mt-20 border-t", isFashion ? "bg-[#f7ede5] text-[#5e453d] border-[#e6d5ca]" : "bg-slate-900 text-slate-300 border-transparent")}>
           <div className="max-w-7xl mx-auto px-6 py-12 grid grid-cols-1 sm:grid-cols-3 gap-10">
             <div>
               <div className="flex items-center gap-3 mb-4">
                 <div style={{ backgroundColor: style.accent }} className={cn("w-9 h-9 flex items-center justify-center text-white font-black", style.radius)}>
                   {storeData.tenant.name.charAt(0)}
                 </div>
-                <h4 className="font-black uppercase tracking-wider text-white">{storeData.tenant.name}</h4>
+                <h4 className={cn(isFashion ? "store-display text-3xl font-semibold text-[#2d221f]" : "font-black uppercase tracking-wider text-white")}>{storeData.tenant.name}</h4>
               </div>
-              <p className="text-xs text-slate-500 leading-relaxed">
-                {storeData.tenant.footer_text || "Excelência em catálogo digital."}
+              <p className={cn("text-xs leading-relaxed", isFashion ? "text-[#7d6259]" : "text-slate-500")}>
+                {storeData.tenant.footer_text || (isFashion ? "Moda e acessórios apresentados com uma experiência elegante, leve e atual." : "Excelência em catálogo digital.")}
               </p>
             </div>
             <div>
-              <p className="text-[10px] font-black uppercase tracking-widest mb-4 text-slate-400">Navegação</p>
+              <p className={cn("mb-4", isFashion ? "store-kicker text-[10px] font-semibold text-[#9a7d73]" : "text-[10px] font-black uppercase tracking-widest text-slate-400")}>Navegação</p>
               <ul className="space-y-2">
                 {navLinks.map(l => (
                   <li key={l.path}>
-                    <Link to={l.path} className="text-xs text-slate-500 hover:text-white transition-colors font-medium">
+                    <Link to={l.path} className={cn("text-xs transition-colors font-medium", isFashion ? "text-[#6b5149] hover:text-[#2d221f]" : "text-slate-500 hover:text-white")}>
                       {l.label}
                     </Link>
                   </li>
                 ))}
                 {storeData.categories.map(cat => (
                   <li key={cat.id}>
-                    <Link to={`/s/${slug}/catalogo?cat=${cat.id}`} className="text-xs text-slate-500 hover:text-white transition-colors font-medium">
+                    <Link to={`/s/${slug}/catalogo?cat=${cat.id}`} className={cn("text-xs transition-colors font-medium", isFashion ? "text-[#6b5149] hover:text-[#2d221f]" : "text-slate-500 hover:text-white")}>
                       {cat.name}
                     </Link>
                   </li>
@@ -388,30 +430,30 @@ function StoreLayoutInner() {
               </ul>
             </div>
             <div>
-              <p className="text-[10px] font-black uppercase tracking-widest mb-4 text-slate-400">Contato</p>
+              <p className={cn("mb-4", isFashion ? "store-kicker text-[10px] font-semibold text-[#9a7d73]" : "text-[10px] font-black uppercase tracking-widest text-slate-400")}>Contato</p>
               {storeData.tenant.whatsapp && (
                 <a
                   href={`https://wa.me/${storeData.tenant.whatsapp.replace(/\D/g, "")}`}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="flex items-center gap-3 text-slate-400 hover:text-white transition-colors"
+                  className={cn("flex items-center gap-3 transition-colors", isFashion ? "text-[#6b5149] hover:text-[#2d221f]" : "text-slate-400 hover:text-white")}
                 >
                   <div style={{ backgroundColor: "#25D366" }} className="w-8 h-8 rounded-xl flex items-center justify-center shrink-0">
                     <Phone size={14} className="text-white" />
                   </div>
                   <div>
-                    <p className="text-[9px] text-slate-500 font-bold uppercase tracking-wider">WhatsApp</p>
-                    <p className="text-sm font-mono font-bold text-white">+{storeData.tenant.whatsapp}</p>
+                    <p className={cn("text-[9px] font-bold uppercase tracking-wider", isFashion ? "text-[#8d7068]" : "text-slate-500")}>WhatsApp</p>
+                    <p className={cn("text-sm font-mono font-bold", isFashion ? "text-[#2d221f]" : "text-white")}>+{storeData.tenant.whatsapp}</p>
                   </div>
                 </a>
               )}
               {storeData.tenant.address && (
-                <p className="text-xs text-slate-500 mt-4">{storeData.tenant.address}</p>
+                <p className={cn("text-xs mt-4", isFashion ? "text-[#7d6259]" : "text-slate-500")}>{storeData.tenant.address}</p>
               )}
             </div>
           </div>
-          <div className="border-t border-slate-800 py-5">
-            <p className="text-center text-[10px] text-slate-600 font-bold uppercase tracking-widest">
+          <div className={cn("py-5", isFashion ? "border-t border-[#e4cfc4]" : "border-t border-slate-800")}>
+            <p className={cn("text-center text-[10px] font-bold uppercase tracking-widest", isFashion ? "text-[#9a7d73]" : "text-slate-600")}>
               © {new Date().getFullYear()} {storeData.tenant.name} · Powered by Nexus ERP
             </p>
           </div>
@@ -436,7 +478,7 @@ function StoreLayoutInner() {
               <motion.div
                 initial={{ x: "100%" }} animate={{ x: 0 }} exit={{ x: "100%" }}
                 transition={{ type: "spring", damping: 30, stiffness: 300 }}
-                className="fixed top-0 right-0 h-full w-full max-w-sm bg-white z-[101] shadow-2xl flex flex-col border-l border-slate-200"
+                className={cn("fixed top-0 right-0 h-full w-full max-w-sm z-[101] shadow-2xl flex flex-col border-l", isFashion ? "bg-[#fffaf7] border-[#ead7cc]" : "bg-white border-slate-200")}
               >
                 <div className="px-6 h-16 border-b border-slate-100 flex items-center justify-between shrink-0">
                   <div>
@@ -503,7 +545,7 @@ function StoreLayoutInner() {
                 </div>
 
                 {cart.length > 0 && (
-                  <div className="p-4 bg-slate-950 border-t border-white/5 space-y-3">
+                  <div className={cn("p-4 space-y-3", isFashion ? "bg-[#2d221f] border-t border-[#4f3831]" : "bg-slate-950 border-t border-white/5")}>
                     <div className="flex items-center justify-between">
                       <p className="text-xs text-slate-400 font-bold uppercase tracking-wider">Total</p>
                       <p className="text-2xl font-black text-white font-mono">R$ {total.toFixed(2)}</p>
@@ -530,7 +572,7 @@ function StoreLayoutInner() {
             <button
               onClick={() => setIsCartOpen(true)}
               style={{ backgroundColor: style.accent }}
-              className="h-12 px-5 rounded-2xl text-white shadow-2xl flex items-center gap-3 font-black text-xs uppercase tracking-wider"
+              className={cn("h-12 px-5 text-white shadow-2xl flex items-center gap-3 font-black text-xs uppercase tracking-wider", isFashion ? "rounded-full" : "rounded-2xl")}
             >
               <ShoppingCart size={16} />
               {cartCount} itens · R$ {total.toFixed(2)}
