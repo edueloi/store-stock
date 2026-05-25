@@ -128,22 +128,33 @@ async function generateQuotePDF(quote: Quote, tenant: Tenant) {
   doc.setFillColor(pc.r, pc.g, pc.b);
   doc.rect(0, 0, pageW, 42, "F");
 
-  // ── Logo (if available)
+  // ── Logo (if available) — converte para PNG via canvas para garantir compatibilidade
   let logoLoaded = false;
   if (tenant.logo_url) {
     try {
-      const resp = await fetch(tenant.logo_url);
-      const blob = await resp.blob();
-      const dataUrl = await new Promise<string>((resolve) => {
-        const reader = new FileReader();
-        reader.onload = () => resolve(reader.result as string);
-        reader.readAsDataURL(blob);
+      const absoluteUrl = tenant.logo_url.startsWith("http")
+        ? tenant.logo_url
+        : `${window.location.origin}${tenant.logo_url}`;
+
+      const dataUrl = await new Promise<string>((resolve, reject) => {
+        const img = new Image();
+        img.crossOrigin = "anonymous";
+        img.onload = () => {
+          const canvas = document.createElement("canvas");
+          canvas.width = img.naturalWidth;
+          canvas.height = img.naturalHeight;
+          const ctx = canvas.getContext("2d")!;
+          ctx.drawImage(img, 0, 0);
+          resolve(canvas.toDataURL("image/png"));
+        };
+        img.onerror = reject;
+        img.src = absoluteUrl;
       });
-      const ext = tenant.logo_url.split(".").pop()?.toUpperCase() ?? "PNG";
-      doc.addImage(dataUrl, ext === "JPG" ? "JPEG" : "PNG", margin, 9, 22, 22);
+
+      doc.addImage(dataUrl, "PNG", margin, 9, 22, 22);
       logoLoaded = true;
     } catch {
-      // ignore logo errors
+      // ignora se não conseguir carregar o logo
     }
   }
 

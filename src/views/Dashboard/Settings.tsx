@@ -298,7 +298,16 @@ export default function Settings() {
       });
       if (res.ok) {
         const { url } = await res.json();
-        setT({ logo_url: url });
+        // Atualiza state e persiste imediatamente no banco
+        setTenant((prev) => {
+          const updated = { ...prev, logo_url: url };
+          fetch("/api/tenant", {
+            method: "PUT",
+            headers: API_HEADERS(),
+            body: JSON.stringify(updated),
+          }).then(() => showSaved()).catch(() => {});
+          return updated;
+        });
       }
     } finally {
       setLogoUploading(false);

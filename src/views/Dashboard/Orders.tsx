@@ -118,7 +118,10 @@ export default function Orders() {
       return tenant?.address ?? "";
     })();
     const storePhone  = tenant?.whatsapp ? `WhatsApp: ${tenant.whatsapp}` : "";
-    const storeLogo   = tenant?.logo_url ?? "";
+    const rawLogo     = tenant?.logo_url ?? "";
+    const storeLogo   = rawLogo && !rawLogo.startsWith("http")
+      ? `${window.location.origin}${rawLogo}`
+      : rawLogo;
 
     const orderNum    = String(order.id).padStart(6, "0");
     const orderDate   = new Date(order.created_at).toLocaleDateString("pt-BR");
