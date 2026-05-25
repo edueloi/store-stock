@@ -38,6 +38,7 @@ import Customers from "./Customers";
 import Suppliers from "./Suppliers";
 import Categories from "./Categories";
 import Analytics from "./Analytics";
+import Loyalty from "./Loyalty";
 
 export default function AdminDashboard() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(window.innerWidth > 1024);
@@ -61,19 +62,48 @@ export default function AdminDashboard() {
     return () => window.removeEventListener("resize", handleResize);
   }, []);
 
-  const menuItems = [
-    { icon: LayoutDashboard, label: "Dashboard",      path: "/admin" },
-    { icon: Box,             label: "Estoque",         path: "/admin/stock" },
-    { icon: Tags,            label: "Catálogo",        path: "/admin/catalog" },
-    { icon: FolderOpen,      label: "Categorias",      path: "/admin/categories" },
-    { icon: Users,           label: "Clientes",        path: "/admin/customers" },
-    { icon: Truck,           label: "Fornecedores",    path: "/admin/suppliers" },
-    { icon: ShoppingCart,    label: "PDV (Vendas)",    path: "/admin/pdv" },
-    { icon: Receipt,         label: "Pedidos",         path: "/admin/orders" },
-    { icon: Wallet,          label: "Financeiro",      path: "/admin/finance" },
-    { icon: LineChart,       label: "Métricas",        path: "/admin/analytics" },
-    { icon: SettingsIcon,    label: "Configurações",   path: "/admin/settings" },
+  const menuGroups = [
+    {
+      label: "Operação",
+      items: [
+        { icon: LayoutDashboard, label: "Visão Geral",   path: "/admin" },
+        { icon: ShoppingCart,    label: "PDV — Caixa",   path: "/admin/pdv" },
+        { icon: Receipt,         label: "Pedidos",        path: "/admin/orders" },
+      ],
+    },
+    {
+      label: "Catálogo & Estoque",
+      items: [
+        { icon: Tags,       label: "Catálogo",      path: "/admin/catalog" },
+        { icon: Box,        label: "Estoque",        path: "/admin/stock" },
+        { icon: FolderOpen, label: "Categorias",     path: "/admin/categories" },
+        { icon: Truck,      label: "Fornecedores",   path: "/admin/suppliers" },
+      ],
+    },
+    {
+      label: "Financeiro",
+      items: [
+        { icon: Wallet,    label: "Fluxo de Caixa",  path: "/admin/finance" },
+        { icon: LineChart, label: "Relatórios",       path: "/admin/analytics" },
+      ],
+    },
+    {
+      label: "Clientes & Marketing",
+      items: [
+        { icon: Users,       label: "Clientes — CRM", path: "/admin/customers" },
+        { icon: UserCheck,   label: "Fidelidade",     path: "/admin/loyalty" },
+      ],
+    },
+    {
+      label: "Sistema",
+      items: [
+        { icon: SettingsIcon, label: "Configurações", path: "/admin/settings" },
+      ],
+    },
   ];
+
+  // flat list for header label lookup and mobile nav
+  const menuItems = menuGroups.flatMap((g) => g.items);
 
   const viewPublicStore = () => {
     window.open(tenantPublicUrl || `/s/${tenantSlug}`, "_blank");
@@ -114,68 +144,79 @@ export default function AdminDashboard() {
   return (
     <div className="flex h-screen bg-[#f8fafc] overflow-hidden font-sans text-slate-800 relative">
       {/* Sidebar Navigation - Desktop */}
-      <aside 
+      <aside
         className={cn(
-          "bg-[#1e293b] text-slate-300 hidden lg:flex flex-col border-r border-slate-700 transition-all duration-300",
-          isSidebarOpen ? "w-64" : "w-20"
+          "bg-[#0f172a] text-slate-300 hidden lg:flex flex-col border-r border-white/5 transition-all duration-300 shrink-0",
+          isSidebarOpen ? "w-64" : "w-[72px]"
         )}
       >
-        <div className="p-6 flex items-center gap-3">
-          <div className="w-8 h-8 bg-blue-500 rounded-lg flex items-center justify-center text-white font-bold shrink-0">N</div>
-          {isSidebarOpen && <span className="text-xl font-bold text-white tracking-tight">Nexus ERP</span>}
+        {/* Logo */}
+        <div className={cn("flex items-center gap-3 border-b border-white/5", isSidebarOpen ? "px-5 py-5" : "px-4 py-5 justify-center")}>
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white shadow-md">
+            <img src="/system/logo.png" alt="BoxSys" className="h-6 w-6 object-contain" />
+          </div>
+          {isSidebarOpen && (
+            <div>
+              <p className="text-[11px] font-black uppercase tracking-[0.2em] text-slate-400">Box Sys</p>
+              <p className="text-sm font-bold text-white leading-tight truncate">{tenantName}</p>
+            </div>
+          )}
         </div>
 
-        <nav className="flex-1 px-4 space-y-1">
-          {isSidebarOpen && (
-            <div className="text-[10px] uppercase font-bold text-slate-500 mb-2 px-2 tracking-widest">Management</div>
-          )}
-          {menuItems.map((item) => (
-            <Link
-              key={item.path}
-              to={item.path}
-              className={cn(
-                "flex items-center gap-3 px-3 py-2 rounded-md transition-all group relative text-sm font-medium",
-                location.pathname === item.path || (item.path === "/admin" && location.pathname === "/admin/")
-                  ? "bg-blue-600/10 text-blue-400 border-l-2 border-blue-500"
-                  : "hover:bg-slate-800 hover:text-white"
+        {/* Nav groups */}
+        <nav className="flex-1 overflow-y-auto py-4 space-y-5 px-3">
+          {menuGroups.map((group) => (
+            <div key={group.label}>
+              {isSidebarOpen && (
+                <p className="mb-1.5 px-2 text-[10px] font-bold uppercase tracking-[0.2em] text-slate-600">
+                  {group.label}
+                </p>
               )}
-            >
-              <item.icon size={16} />
-              {isSidebarOpen && <span>{item.label}</span>}
-              {!isSidebarOpen && (
-                <div className="absolute left-16 bg-slate-900 text-white px-2 py-1 rounded text-[10px] opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50 whitespace-nowrap font-bold uppercase tracking-widest">
-                  {item.label}
-                </div>
-              )}
-            </Link>
+              <div className="space-y-0.5">
+                {group.items.map((item) => {
+                  const isActive = location.pathname === item.path || (item.path === "/admin" && location.pathname === "/admin/");
+                  return (
+                    <Link
+                      key={item.path}
+                      to={item.path}
+                      className={cn(
+                        "group flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold transition-all relative",
+                        isActive
+                          ? "bg-[#C9A227] text-white shadow-[0_4px_16px_rgba(201,162,39,0.30)]"
+                          : "text-slate-400 hover:bg-white/5 hover:text-white"
+                      )}
+                    >
+                      <item.icon size={17} className="shrink-0" />
+                      {isSidebarOpen && <span>{item.label}</span>}
+                      {!isSidebarOpen && (
+                        <div className="absolute left-[68px] z-50 whitespace-nowrap rounded-lg bg-slate-800 px-2.5 py-1.5 text-[11px] font-bold text-white opacity-0 shadow-xl transition-opacity group-hover:opacity-100 pointer-events-none">
+                          {item.label}
+                        </div>
+                      )}
+                    </Link>
+                  );
+                })}
+              </div>
+            </div>
           ))}
         </nav>
 
-        <div className="p-4 border-t border-slate-700 bg-slate-900/50 mt-auto">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full bg-slate-500 border-2 border-blue-500 shrink-0 overflow-hidden">
-               <img src="https://ui-avatars.com/api/?name=Admin&bg=1e293b&color=fff" alt="User" />
-            </div>
-            {isSidebarOpen && (
-              <div className="overflow-hidden text-left">
-                <div className="text-xs font-bold text-white truncate">{userName}</div>
-                <div className="text-[10px] text-slate-400 uppercase truncate">{tenantName}</div>
-              </div>
-            )}
-            {!isSidebarOpen && (
-              <button onClick={handleLogout} className="text-slate-400 hover:text-white transition-colors">
-                <LogOut size={16} />
-              </button>
-            )}
-          </div>
-          {isSidebarOpen && (
-            <button 
-              onClick={handleLogout}
-              className="mt-4 flex items-center justify-between w-full px-3 py-2 text-[10px] text-slate-400 uppercase font-bold hover:bg-slate-800 rounded transition-colors text-left"
-            >
-              Encerrar Sessão <span>→</span>
-            </button>
-          )}
+        {/* Footer */}
+        <div className="border-t border-white/5 p-3 space-y-1">
+          <button
+            onClick={viewPublicStore}
+            className="group flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold text-slate-400 transition-all hover:bg-white/5 hover:text-white"
+          >
+            <Package size={17} className="shrink-0" />
+            {isSidebarOpen && <span>Ver Loja</span>}
+          </button>
+          <button
+            onClick={handleLogout}
+            className="group flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold text-slate-400 transition-all hover:bg-red-500/10 hover:text-red-400"
+          >
+            <LogOut size={17} className="shrink-0" />
+            {isSidebarOpen && <span>Sair</span>}
+          </button>
         </div>
       </aside>
 
@@ -200,53 +241,67 @@ export default function AdminDashboard() {
             animate={{ x: 0 }}
             exit={{ x: "-100%" }}
             transition={{ type: "spring", damping: 25, stiffness: 200 }}
-            className="fixed inset-y-0 left-0 w-[280px] bg-[#1e293b] text-slate-300 flex flex-col z-[101] lg:hidden border-r border-slate-700 shadow-2xl"
+            className="fixed inset-y-0 left-0 w-[280px] bg-[#0f172a] text-slate-300 flex flex-col z-[101] lg:hidden border-r border-white/5 shadow-2xl"
           >
-            <div className="p-6 flex items-center justify-between">
+            {/* Logo mobile */}
+            <div className="flex items-center justify-between border-b border-white/5 px-5 py-5">
               <div className="flex items-center gap-3">
-                <div className="w-8 h-8 bg-blue-500 rounded-lg flex items-center justify-center text-white font-bold shrink-0">N</div>
-                <span className="text-xl font-bold text-white tracking-tight">Nexus ERP</span>
+                <img src="/system/logo.png" alt="BoxSys" className="h-8 w-8 object-contain rounded-lg" />
+                <div>
+                  <p className="text-[11px] font-black uppercase tracking-[0.2em] text-slate-400">Box Sys</p>
+                  <p className="text-sm font-bold text-white leading-tight truncate">{tenantName}</p>
+                </div>
               </div>
-              <button onClick={() => setIsSidebarOpen(false)} className="p-2 text-slate-400 hover:text-white">
+              <button onClick={() => setIsSidebarOpen(false)} className="p-2 text-slate-500 hover:text-white">
                 <X size={20} />
               </button>
             </div>
 
-            <nav className="flex-1 px-4 space-y-1">
-              <div className="text-[10px] uppercase font-bold text-slate-500 mb-2 px-2 tracking-widest">Management</div>
-              {menuItems.map((item) => (
-                <Link
-                  key={item.path}
-                  to={item.path}
-                  onClick={() => setIsSidebarOpen(false)}
-                  className={cn(
-                    "flex items-center gap-3 px-3 py-3 rounded-xl transition-all text-sm font-medium",
-                    location.pathname === item.path || (item.path === "/admin" && location.pathname === "/admin/")
-                      ? "bg-blue-600 text-white shadow-xl shadow-blue-500/20"
-                      : "hover:bg-slate-800 hover:text-white text-slate-400"
-                  )}
-                >
-                  <item.icon size={18} />
-                  <span>{item.label}</span>
-                </Link>
+            <nav className="flex-1 overflow-y-auto py-4 space-y-5 px-3">
+              {menuGroups.map((group) => (
+                <div key={group.label}>
+                  <p className="mb-1.5 px-2 text-[10px] font-bold uppercase tracking-[0.2em] text-slate-600">
+                    {group.label}
+                  </p>
+                  <div className="space-y-0.5">
+                    {group.items.map((item) => {
+                      const isActive = location.pathname === item.path || (item.path === "/admin" && location.pathname === "/admin/");
+                      return (
+                        <Link
+                          key={item.path}
+                          to={item.path}
+                          onClick={() => setIsSidebarOpen(false)}
+                          className={cn(
+                            "flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-semibold transition-all",
+                            isActive
+                              ? "bg-[#C9A227] text-white shadow-[0_4px_16px_rgba(201,162,39,0.30)]"
+                              : "text-slate-400 hover:bg-white/5 hover:text-white"
+                          )}
+                        >
+                          <item.icon size={18} />
+                          <span>{item.label}</span>
+                        </Link>
+                      );
+                    })}
+                  </div>
+                </div>
               ))}
             </nav>
 
-            <div className="p-6 border-t border-slate-700 bg-slate-900/50 mt-auto">
-              <div className="flex items-center gap-3 mb-4">
-                <div className="w-10 h-10 rounded-full bg-slate-500 border-2 border-blue-500 shrink-0 overflow-hidden">
-                  <img src="https://ui-avatars.com/api/?name=Admin&bg=1e293b&color=fff" alt="User" />
-                </div>
-                <div className="overflow-hidden text-left">
-                  <div className="text-sm font-bold text-white truncate">{userName}</div>
-                  <div className="text-[10px] text-slate-400 uppercase truncate">{tenantName}</div>
-                </div>
-              </div>
-              <button 
-                onClick={handleLogout}
-                className="flex items-center justify-center w-full px-4 py-3 bg-red-500/10 text-red-500 rounded-xl text-xs font-black uppercase tracking-widest transition-all hover:bg-red-500/20 border border-red-500/20"
+            <div className="border-t border-white/5 p-3 space-y-1">
+              <button
+                onClick={() => { setIsSidebarOpen(false); viewPublicStore(); }}
+                className="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-sm font-semibold text-slate-400 transition-all hover:bg-white/5 hover:text-white"
               >
-                Encerrar Acesso
+                <Package size={18} />
+                <span>Ver Loja</span>
+              </button>
+              <button
+                onClick={handleLogout}
+                className="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-sm font-semibold text-slate-400 transition-all hover:bg-red-500/10 hover:text-red-400"
+              >
+                <LogOut size={18} />
+                <span>Sair</span>
               </button>
             </div>
           </motion.aside>
@@ -312,6 +367,7 @@ export default function AdminDashboard() {
              <Route path="finance" element={<Finance />} />
              <Route path="analytics" element={<Analytics />} />
              <Route path="settings" element={<Settings />} />
+             <Route path="loyalty" element={<Loyalty />} />
              <Route path="inventory" element={<Stock />} />
            </Routes>
         </div>
@@ -319,11 +375,11 @@ export default function AdminDashboard() {
         {/* Bottom Bar - Desktop status bar */}
         <footer className="hidden lg:flex h-8 bg-slate-900 border-t border-slate-800 px-6 items-center justify-between shrink-0 overflow-hidden">
           <div className="text-[10px] text-slate-400 font-bold uppercase tracking-widest truncate">
-            Nexus Cloud Sync · Instância: AWS-SA-EAST-1
+            BoxSys Store · Sistema de Gestão para Lojas
           </div>
           <div className="flex gap-4">
-            <span className="text-[10px] text-emerald-400 font-bold uppercase">DB Healthy</span>
-            <span className="text-[10px] text-slate-500 font-bold uppercase">v.Nexus-1.0.9</span>
+            <span className="text-[10px] text-emerald-400 font-bold uppercase">Online</span>
+            <span className="text-[10px] text-slate-500 font-bold uppercase">v.BoxSys-1.0</span>
           </div>
         </footer>
 

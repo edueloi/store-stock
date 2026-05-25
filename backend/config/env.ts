@@ -12,4 +12,9 @@ export const env = {
   superAdminUser: process.env.SUPER_ADMIN_USER || "Admin",
   superAdminPassword: process.env.SUPER_ADMIN_PASSWORD || "Edu@06051992",
   inviteExpirationDays: Number(process.env.INVITE_EXPIRATION_DAYS || 7),
+  smtpHost: process.env.SMTP_HOST || "smtp.gmail.com",
+  smtpPort: Number(process.env.SMTP_PORT || 465),
+  smtpSecure: process.env.SMTP_SECURE !== "false",
+  smtpUser: process.env.SMTP_USER || "contato@boxsys.com.br",
+  smtpPass: process.env.SMTP_PASS || "",
 };

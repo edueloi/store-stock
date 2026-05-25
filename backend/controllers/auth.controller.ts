@@ -6,6 +6,7 @@ import jwt from "jsonwebtoken";
 
 import { env } from "../config/env";
 import { prisma } from "../config/prisma";
+import { sendPasswordResetEmail, sendWelcomeEmail } from "../services/mailer.service";
 import type { AuthenticatedRequest } from "../types/auth";
 import { getTenantAccessState } from "../utils/tenant-access";
 import {
@@ -335,6 +336,11 @@ export async function claimSetupInvite(req: Request, res: Response) {
       role: result.user.role,
     });
 
+    const accessUrl = buildTenantAccessUrl(result.tenant.subdomain);
+
+    // E-mail de boas-vindas (não bloqueia a resposta)
+    sendWelcomeEmail(result.user.email, result.user.name, result.tenant.name, accessUrl).catch(() => {});
+
     res.json({
       token: authToken,
       user: {
@@ -348,11 +354,82 @@ export async function claimSetupInvite(req: Request, res: Response) {
         name: result.tenant.name,
         slug: result.tenant.slug,
         subdomain: result.tenant.subdomain,
-        public_url: buildTenantAccessUrl(result.tenant.subdomain),
+        public_url: accessUrl,
       },
     });
   } catch {
     res.status(500).json({ error: "Falha ao criar a conta." });
+  }
+}
+
+export async function forgotPassword(req: Request, res: Response) {
+  const email = String(req.body.email || "").trim().toLowerCase();
+
+  // Responde sempre OK para não vazar se e-mail existe
+  res.json({ message: "Se este e-mail estiver cadastrado, você receberá as instruções em breve." });
+
+  try {
+    const user = await prisma.user.findUnique({
+      where: { email },
+      include: { tenant: { select: { name: true } } },
+    });
+
+    if (!user) return;
+
+    // Invalida tokens anteriores
+    await prisma.passwordResetToken.updateMany({
+      where: { user_id: user.id, used_at: null },
+      data: { used_at: new Date() },
+    });
+
+    const token = crypto.randomBytes(32).toString("hex");
+    const expiresAt = new Date(Date.now() + 60 * 60 * 1000); // 1 hora
+
+    await prisma.passwordResetToken.create({
+      data: {
+        user_id: user.id,
+        token,
+        expires_at: expiresAt,
+      },
+    });
+
+    const resetUrl = `${env.appBaseUrl.replace(/\/+$/, "")}/reset-password/${token}`;
+    await sendPasswordResetEmail(user.email, user.name, resetUrl);
+  } catch {
+    // silencioso — resposta já foi enviada
+  }
+}
+
+export async function resetPassword(req: Request, res: Response) {
+  const { token, password } = req.body;
+
+  try {
+    const record = await prisma.passwordResetToken.findUnique({
+      where: { token },
+      include: { user: true },
+    });
+
+    if (!record || record.used_at || record.expires_at.getTime() < Date.now()) {
+      res.status(400).json({ error: "Link inválido ou expirado." });
+      return;
+    }
+
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    await prisma.$transaction([
+      prisma.user.update({
+        where: { id: record.user_id },
+        data: { password: hashedPassword },
+      }),
+      prisma.passwordResetToken.update({
+        where: { id: record.id },
+        data: { used_at: new Date() },
+      }),
+    ]);
+
+    res.json({ message: "Senha redefinida com sucesso." });
+  } catch {
+    res.status(500).json({ error: "Não foi possível redefinir a senha." });
   }
 }
 

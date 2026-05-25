@@ -3,6 +3,8 @@ import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import AdminDashboard from "./views/Dashboard/AdminDashboard";
 import StoreLayout from "./views/Store/StoreLayout";
 import Login from "./views/Auth/Login";
+import ForgotPassword from "./views/Auth/ForgotPassword";
+import ResetPassword from "./views/Auth/ResetPassword";
 import PDVStandalone from "./views/PDVStandalone";
 import SuperAdminDashboard from "./views/SuperAdmin/SuperAdminDashboard";
 import SetupInvite from "./views/Auth/SetupInvite";
@@ -32,6 +34,8 @@ export default function App() {
     <BrowserRouter>
       <Routes>
         <Route path="/login" element={<Login />} />
+        <Route path="/forgot-password" element={<ForgotPassword />} />
+        <Route path="/reset-password/:token" element={<ResetPassword />} />
         <Route path="/setup/:token" element={<SetupInvite />} />
         <Route path="/pdv" element={<PDVStandalone />} />
         <Route path="/admin/*" element={<AdminDashboard />} />

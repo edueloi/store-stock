@@ -1,16 +1,20 @@
-import { type FormEvent, useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
-import { motion } from "motion/react";
+import { type FormEvent, useCallback, useEffect, useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
+import { motion, AnimatePresence } from "motion/react";
 import { Eye, EyeOff, Lock, LogIn, User } from "lucide-react";
 
 import { getStoredUser, saveSession } from "../../lib/session";
+import LoginLoading from "./LoginLoading";
 
 export default function Login() {
   const navigate = useNavigate();
-  const [identifier, setIdentifier] = useState("");
-  const [password, setPassword] = useState("");
+  const [identifier, setIdentifier] = useState(() => localStorage.getItem("remembered_identifier") || "");
+  const [password, setPassword] = useState(() => localStorage.getItem("remembered_password") || "");
+  const [rememberMe, setRememberMe] = useState(() => !!localStorage.getItem("remembered_identifier"));
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [showLoader, setShowLoader] = useState(false);
+  const [redirectTo, setRedirectTo] = useState("");
   const [error, setError] = useState("");
 
   useEffect(() => {
@@ -47,8 +51,16 @@ export default function Login() {
         return;
       }
 
+      if (rememberMe) {
+        localStorage.setItem("remembered_identifier", identifier.trim());
+        localStorage.setItem("remembered_password", password);
+      } else {
+        localStorage.removeItem("remembered_identifier");
+        localStorage.removeItem("remembered_password");
+      }
       saveSession(data.token, data.user);
-      navigate(data.user?.role === "super_admin" ? "/super-admin" : "/admin");
+      setRedirectTo(data.user?.role === "super_admin" ? "/super-admin" : "/admin");
+      setShowLoader(true);
     } catch {
       setError("Erro ao conectar com o servidor.");
     } finally {
@@ -56,7 +68,15 @@ export default function Login() {
     }
   };
 
+  const handleLoadingDone = useCallback(() => {
+    navigate(redirectTo);
+  }, [navigate, redirectTo]);
+
   return (
+    <>
+      <AnimatePresence>
+        {showLoader && <LoginLoading onDone={handleLoadingDone} />}
+      </AnimatePresence>
     <div className="flex min-h-screen">
       {/* ── Painel esquerdo (branding) ── */}
       <div className="relative hidden w-[55%] flex-col justify-between overflow-hidden bg-[#090e1a] p-10 lg:flex xl:p-14">
@@ -68,18 +88,12 @@ export default function Login() {
         </div>
 
         {/* Logo */}
-        <div className="relative space-y-2">
-          <p className="text-[10px] font-bold uppercase tracking-[0.32em] text-slate-500">
-            Desenvolvido por
-          </p>
+        <div className="relative">
           <img
             src="/system/logo-boxsys-vazado.png"
             alt="BoxSys"
             className="h-12 w-auto object-contain"
           />
-          <p className="text-[11px] font-semibold tracking-[0.18em] text-slate-400 uppercase">
-            Store
-          </p>
         </div>
 
         {/* Headline central */}
@@ -191,9 +205,17 @@ export default function Login() {
 
             {/* Password */}
             <div className="space-y-1.5">
-              <label className="block text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500">
-                Senha
-              </label>
+              <div className="flex items-center justify-between">
+                <label className="block text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500">
+                  Senha
+                </label>
+                <Link
+                  to="/forgot-password"
+                  className="text-[11px] font-semibold text-blue-500 hover:text-blue-700 transition-colors"
+                >
+                  Esqueci a senha
+                </Link>
+              </div>
               <div className="flex h-12 items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 px-4 transition-all focus-within:border-blue-500 focus-within:bg-white focus-within:shadow-[0_0_0_3px_rgba(59,130,246,0.12)]">
                 <Lock size={15} className="shrink-0 text-slate-400" />
                 <input
@@ -215,6 +237,26 @@ export default function Login() {
                 </button>
               </div>
             </div>
+
+            {/* Lembrar-me */}
+            <label className="flex cursor-pointer items-center gap-3">
+              <div className="relative">
+                <input
+                  type="checkbox"
+                  className="peer sr-only"
+                  checked={rememberMe}
+                  onChange={(e) => setRememberMe(e.target.checked)}
+                />
+                <div className="h-5 w-5 rounded-md border-2 border-slate-300 bg-white transition-all peer-checked:border-blue-500 peer-checked:bg-blue-500" />
+                <svg
+                  className="pointer-events-none absolute inset-0 m-auto h-3 w-3 text-white opacity-0 transition-opacity peer-checked:opacity-100"
+                  viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
+                >
+                  <polyline points="1.5 6 4.5 9 10.5 3" />
+                </svg>
+              </div>
+              <span className="text-sm font-medium text-slate-600 select-none">Lembrar-me</span>
+            </label>
 
             {/* Error */}
             {error && (
@@ -253,5 +295,6 @@ export default function Login() {
         </motion.div>
       </div>
     </div>
+    </>
   );
 }
