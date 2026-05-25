@@ -468,23 +468,24 @@ export default function Settings() {
                   <p className="text-xs text-slate-500">
                     Selecione um modelo visual para definir o estilo da vitrine, das cores e da sensação da sua loja.
                   </p>
-                  <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 gap-3">
+                  <div className="flex gap-3 overflow-x-auto no-scrollbar pb-2 sm:grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-7 sm:overflow-visible sm:pb-0">
                     {[
                       { id: "minimal", name: "Minimalista", desc: "Visual limpo para destacar seus produtos e imagens.", color: "#2563eb", bg: "#f8fafc" },
                       { id: "cyber",   name: "Neon Escuro", desc: "Estilo marcante com alto contraste, ideal para tecnologia e games.", color: "#00ff7f", bg: "#000" },
                       { id: "organic", name: "Orgânico",    desc: "Cores suaves e acolhedoras para marcas naturais, leves e artesanais.", color: "#d97706", bg: "#fefaf6" },
                       { id: "luxury",  name: "Luxo Dourado", desc: "Aparência sofisticada para catálogos premium e produtos exclusivos.", color: "#c5a059", bg: "#0a0a0a" },
                       { id: "tech",    name: "Tecnologia Pro", desc: "Layout moderno e profissional para eletrônicos, inovação e desempenho.", color: "#0ea5e9", bg: "#f4f6fb" },
+                      { id: "nexus_tech", name: "Nexus Tech", desc: "Tema claro, vibrante e premium para eletrônicos, informática, games e casa inteligente.", color: "#2563eb", bg: "#eef4ff" },
                       { id: "atelier", name: "Ateliê Chic", desc: "Editorial claro e elegante para lojas de roupas, moda e acessórios.", color: "#a26157", bg: "#fff6ef" },
                     ].map((t) => (
                       <button
                         key={t.id}
                         onClick={() => setT({ template_id: t.id })}
                         className={cn(
-                          "p-4 rounded-2xl border-2 text-left transition-all relative overflow-hidden group",
+                          "min-w-[240px] sm:min-w-0 p-4 sm:p-4 rounded-2xl border-2 text-left transition-all relative overflow-hidden group shrink-0",
                           tenant?.template_id === t.id
-                            ? "border-blue-600 bg-blue-50/40"
-                            : "border-slate-100 hover:border-slate-200 bg-white",
+                            ? "border-blue-600 bg-blue-50/40 shadow-lg shadow-blue-500/8"
+                            : "border-slate-100 hover:border-slate-200 bg-white hover:shadow-md",
                         )}
                       >
                         {tenant?.template_id === t.id && (
@@ -493,13 +494,13 @@ export default function Settings() {
                           </div>
                         )}
                         <div
-                          className="w-full h-8 rounded-lg mb-3 flex items-center justify-center"
+                          className="w-full h-9 rounded-xl mb-3 flex items-center justify-center"
                           style={{ backgroundColor: t.bg, border: `1px solid ${t.color}30` }}
                         >
-                          <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: t.color, boxShadow: `0 0 6px ${t.color}` }} />
+                          <div className="w-3 h-3 rounded-full" style={{ backgroundColor: t.color, boxShadow: `0 0 8px ${t.color}` }} />
                         </div>
-                        <p className="text-[10px] font-black uppercase tracking-wider group-hover:text-blue-600 transition-colors">{t.name}</p>
-                        <p className="text-[9px] text-slate-400 mt-0.5 font-medium">{t.desc}</p>
+                        <p className="text-[11px] font-black uppercase tracking-wider text-slate-800 group-hover:text-blue-600 transition-colors">{t.name}</p>
+                        <p className="text-[10px] text-slate-500 mt-1 font-medium leading-relaxed">{t.desc}</p>
                       </button>
                     ))}
                   </div>

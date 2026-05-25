@@ -57,6 +57,7 @@ const templates: Record<string, StoreStyle> = {
   organic:  { bg: "bg-[#fefaf6]",   card: "bg-white border-orange-100",       accent: "#d97706", text: "text-stone-800",  font: "font-sans",  radius: "rounded-[2rem]" },
   luxury:   { bg: "bg-[#0a0a0a]",   card: "bg-[#111] border-yellow-500/10",  accent: "#c5a059", text: "text-stone-200",  font: "font-serif", radius: "rounded-lg" },
   tech:     { bg: "bg-[#f4f6fb]",   card: "bg-white border-slate-200",       accent: "#0ea5e9", text: "text-slate-900",  font: "font-sans",  radius: "rounded-2xl" },
+  nexus_tech: { bg: "tech-shell bg-[#f4f8ff]", card: "bg-white/90 border-[#d7e4ff]", accent: "#2563eb", text: "text-[#071426]", font: "font-tech", radius: "rounded-[2rem]" },
   atelier:  { bg: "fashion-shell bg-[#fffaf5]", card: "bg-white/90 border-[#eadbd0]", accent: "#a26157", text: "text-[#2d221f]", font: "font-editorial", radius: "rounded-[2rem]" },
 };
 
@@ -147,6 +148,7 @@ function StoreLayoutInner() {
   };
   const isDark = ["cyber", "luxury"].includes(storeData.tenant.template_id || "");
   const isFashion = style.font === "font-editorial";
+  const isTechNova = style.font === "font-tech";
 
   const navLinks = [
     { label: "Início", path: `/s/${slug}`, icon: <Home size={15} /> },
@@ -180,14 +182,24 @@ function StoreLayoutInner() {
             ? "bg-black border-slate-800"
             : isFashion
               ? "bg-[#fffaf5]/92 backdrop-blur-xl border-[#ead7cc]"
-              : "bg-white/95 backdrop-blur-md border-slate-200")}>
-          <div className={cn("max-w-7xl mx-auto px-4 flex items-center justify-between gap-4", isFashion ? "h-20" : "h-16")}>
+              : isTechNova
+                ? "bg-[#f7fbff]/88 backdrop-blur-xl border-[#d7e4ff]"
+                : "bg-white/95 backdrop-blur-md border-slate-200")}>
+          <div className={cn("max-w-7xl mx-auto px-4 flex items-center justify-between gap-4", isFashion || isTechNova ? "h-20" : "h-16")}>
 
             {/* Logo */}
             <Link to={`/s/${slug}`} className="flex items-center gap-3 shrink-0">
               <div
                 style={{ backgroundColor: style.accent }}
-                className={cn("flex items-center justify-center text-white font-black text-base overflow-hidden shrink-0", isFashion ? "w-11 h-11 shadow-md shadow-[#b5877d]/20" : "w-9 h-9", style.radius)}
+                className={cn(
+                  "flex items-center justify-center text-white font-black text-base overflow-hidden shrink-0",
+                  isFashion
+                    ? "w-11 h-11 shadow-md shadow-[#b5877d]/20"
+                    : isTechNova
+                      ? "w-11 h-11 tech-pulse shadow-[0_16px_35px_rgba(37,99,235,0.24)]"
+                      : "w-9 h-9",
+                  style.radius
+                )}
               >
                 {storeData.tenant.logo_url
                   ? <img src={storeData.tenant.logo_url} className="w-full h-full object-cover" alt="logo" />
@@ -197,16 +209,18 @@ function StoreLayoutInner() {
                 <p
                   className={cn(
                     "leading-none",
-                    isFashion ? "store-display text-2xl font-semibold tracking-[-0.04em]" : "text-sm font-black uppercase tracking-wider"
+                    isFashion || isTechNova
+                      ? "store-display text-2xl font-semibold tracking-[-0.04em]"
+                      : "text-sm font-black uppercase tracking-wider"
                   )}
-                  style={{ color: isDark ? "#fff" : isFashion ? "#2d221f" : "#0f172a" }}
+                  style={{ color: isDark ? "#fff" : isFashion ? "#2d221f" : isTechNova ? "#071426" : "#0f172a" }}
                 >
                   {storeData.tenant.name}
                 </p>
                 <div className="flex items-center gap-1 mt-0.5">
                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-                  <span className={cn("text-[9px] font-bold text-slate-400", isFashion ? "store-kicker tracking-[0.28em]" : "uppercase tracking-wider")}>
-                    {isFashion ? "Curadoria ativa" : "Online"}
+                  <span className={cn("text-[9px] font-bold text-slate-400", isFashion || isTechNova ? "store-kicker tracking-[0.28em]" : "uppercase tracking-wider")}>
+                    {isFashion ? "Curadoria ativa" : isTechNova ? "Lançamentos ativos" : "Online"}
                   </span>
                 </div>
               </div>
@@ -222,11 +236,15 @@ function StoreLayoutInner() {
                     "flex items-center gap-2 transition-all",
                     isFashion
                       ? "px-4 py-2 rounded-full text-[12px] font-semibold tracking-[0.02em]"
+                      : isTechNova
+                        ? "px-4 py-2 rounded-full border text-[11px] font-semibold tracking-[0.14em] uppercase"
                       : "px-4 py-2 rounded-xl text-[11px] font-black uppercase tracking-wider",
                     isActive(l.path)
                       ? "text-white shadow-sm"
                       : isFashion
                         ? "text-[#6f4b43] hover:text-[#2d221f] hover:bg-white"
+                        : isTechNova
+                          ? "border-[#dbe6ff] bg-white/72 text-[#456186] hover:text-[#071426] hover:border-[#b9cdfd] hover:bg-white"
                         : "text-slate-500 hover:text-slate-900 hover:bg-slate-50"
                   )}
                   style={isActive(l.path) ? { backgroundColor: style.accent } : {}}
@@ -243,6 +261,8 @@ function StoreLayoutInner() {
                     "transition-all",
                     isFashion
                       ? "px-3 py-2 rounded-full text-[11px] font-medium tracking-[0.02em] text-[#8c6c63] hover:text-[#2d221f] hover:bg-white"
+                      : isTechNova
+                        ? "px-3 py-2 rounded-full border border-transparent text-[10px] font-semibold uppercase tracking-[0.16em] text-[#557197] hover:border-[#d8e4ff] hover:bg-white/82 hover:text-[#071426]"
                       : "px-3 py-2 rounded-xl text-[11px] font-bold uppercase tracking-wider text-slate-400 hover:text-slate-700 hover:bg-slate-50"
                   )}
                 >
@@ -260,6 +280,8 @@ function StoreLayoutInner() {
                   "flex items-center justify-center border transition-all",
                   isFashion
                     ? "w-10 h-10 rounded-full border-[#e7d8ce] bg-white/80 text-[#7c5c54] hover:text-[#2d221f]"
+                    : isTechNova
+                      ? "w-10 h-10 rounded-full border-[#d7e4ff] bg-white/80 text-[#567298] hover:text-[#071426] hover:border-[#bfd0fb]"
                     : "w-9 h-9 rounded-xl border-slate-200 text-slate-500 hover:text-slate-900 hover:bg-slate-50"
                 )}
               >
@@ -272,12 +294,16 @@ function StoreLayoutInner() {
                 style={{ backgroundColor: style.accent }}
                 className={cn(
                   "flex items-center gap-2 text-white transition-all active:scale-95 relative",
-                  isFashion ? "h-10 px-4 md:px-5 rounded-full shadow-md shadow-[#b5877d]/25" : "h-9 px-3 md:px-4",
+                  isFashion
+                    ? "h-10 px-4 md:px-5 rounded-full shadow-md shadow-[#b5877d]/25"
+                    : isTechNova
+                      ? "h-10 px-4 md:px-5 rounded-full shadow-[0_18px_40px_rgba(37,99,235,0.26)]"
+                      : "h-9 px-3 md:px-4",
                   style.radius
                 )}
               >
                 <ShoppingCart size={15} />
-                <span className={cn("hidden sm:inline", isFashion ? "text-[11px] font-semibold tracking-[0.08em]" : "text-[10px] font-black uppercase tracking-wider")}>Carrinho</span>
+                <span className={cn("hidden sm:inline", isFashion || isTechNova ? "text-[11px] font-semibold tracking-[0.08em]" : "text-[10px] font-black uppercase tracking-wider")}>Carrinho</span>
                 {cartCount > 0 && (
                   <span className="bg-white text-slate-900 text-[9px] font-black px-1.5 py-0.5 rounded-full">
                     {cartCount}
@@ -290,7 +316,11 @@ function StoreLayoutInner() {
                 onClick={() => setMobileMenuOpen(v => !v)}
                 className={cn(
                   "md:hidden flex items-center justify-center border",
-                  isFashion ? "w-10 h-10 rounded-full border-[#e7d8ce] bg-white/80 text-[#7c5c54]" : "w-9 h-9 rounded-xl border-slate-200 text-slate-500"
+                  isFashion
+                    ? "w-10 h-10 rounded-full border-[#e7d8ce] bg-white/80 text-[#7c5c54]"
+                    : isTechNova
+                      ? "w-10 h-10 rounded-full border-[#d7e4ff] bg-white/80 text-[#567298]"
+                      : "w-9 h-9 rounded-xl border-slate-200 text-slate-500"
                 )}
               >
                 {mobileMenuOpen ? <X size={16} /> : <Menu size={16} />}
@@ -305,7 +335,7 @@ function StoreLayoutInner() {
                 initial={{ height: 0, opacity: 0 }}
                 animate={{ height: "auto", opacity: 1 }}
                 exit={{ height: 0, opacity: 0 }}
-                className={cn("overflow-hidden border-t", isFashion ? "border-[#eeded4]" : "border-slate-100")}
+                className={cn("overflow-hidden border-t", isFashion ? "border-[#eeded4]" : isTechNova ? "border-[#dbe6ff]" : "border-slate-100")}
               >
                 <form onSubmit={handleSearch} className="max-w-7xl mx-auto px-4 py-3 flex gap-2">
                   <div className="flex-1 relative">
@@ -320,6 +350,8 @@ function StoreLayoutInner() {
                         "w-full pl-9 pr-4 h-10 text-sm outline-none transition-all",
                         isFashion
                           ? "bg-white border border-[#ead7cc] rounded-full focus:border-[#c48a80] focus:ring-2 focus:ring-[#efd7d1]"
+                          : isTechNova
+                            ? "bg-white/90 border border-[#d7e4ff] rounded-full focus:border-[#7aa2ff] focus:ring-2 focus:ring-[#dce8ff]"
                           : "bg-slate-50 border border-slate-200 rounded-xl focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
                       )}
                     />
@@ -327,14 +359,14 @@ function StoreLayoutInner() {
                   <button
                     type="submit"
                     style={{ backgroundColor: style.accent }}
-                    className={cn("h-10 px-5 text-white text-xs font-black uppercase tracking-wider", isFashion ? "rounded-full" : "rounded-xl")}
+                    className={cn("h-10 px-5 text-white text-xs font-black uppercase tracking-wider", isFashion || isTechNova ? "rounded-full" : "rounded-xl")}
                   >
                     Buscar
                   </button>
                   <button
                     type="button"
                     onClick={() => setSearchOpen(false)}
-                    className={cn("h-10 w-10 flex items-center justify-center border text-slate-400", isFashion ? "border-[#ead7cc] rounded-full" : "border-slate-200 rounded-xl")}
+                    className={cn("h-10 w-10 flex items-center justify-center border text-slate-400", isFashion ? "border-[#ead7cc] rounded-full" : isTechNova ? "border-[#d7e4ff] rounded-full" : "border-slate-200 rounded-xl")}
                   >
                     <X size={15} />
                   </button>
@@ -350,7 +382,7 @@ function StoreLayoutInner() {
                 initial={{ height: 0, opacity: 0 }}
                 animate={{ height: "auto", opacity: 1 }}
                 exit={{ height: 0, opacity: 0 }}
-                className={cn("md:hidden overflow-hidden border-t", isFashion ? "border-[#eeded4] bg-[#fffaf5]" : "border-slate-100 bg-white")}
+                className={cn("md:hidden overflow-hidden border-t", isFashion ? "border-[#eeded4] bg-[#fffaf5]" : isTechNova ? "border-[#dbe6ff] bg-[#f7fbff]" : "border-slate-100 bg-white")}
               >
                 <nav className="px-4 py-3 space-y-1">
                   {navLinks.map(l => (
@@ -360,7 +392,11 @@ function StoreLayoutInner() {
                       onClick={() => setMobileMenuOpen(false)}
                       className={cn(
                         "flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold transition-all",
-                        isActive(l.path) ? "text-white" : "text-slate-700 hover:bg-slate-50"
+                        isActive(l.path)
+                          ? "text-white"
+                          : isTechNova
+                            ? "text-[#28466b] hover:bg-white"
+                            : "text-slate-700 hover:bg-slate-50"
                       )}
                       style={isActive(l.path) ? { backgroundColor: style.accent } : {}}
                     >
@@ -368,13 +404,13 @@ function StoreLayoutInner() {
                     </Link>
                   ))}
                   <div className="pt-2 border-t border-slate-100">
-                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-4 mb-1">Categorias</p>
+                    <p className={cn("text-[10px] font-black uppercase tracking-widest px-4 mb-1", isTechNova ? "text-[#7690b3]" : "text-slate-400")}>Categorias</p>
                     {storeData.categories.map(cat => (
                       <Link
                         key={cat.id}
                         to={`/s/${slug}/catalogo?cat=${cat.id}`}
                         onClick={() => setMobileMenuOpen(false)}
-                        className="flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm text-slate-600 hover:bg-slate-50 transition-all"
+                        className={cn("flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm transition-all", isTechNova ? "text-[#466485] hover:bg-white" : "text-slate-600 hover:bg-slate-50")}
                       >
                         {cat.name}
                       </Link>
@@ -397,32 +433,39 @@ function StoreLayoutInner() {
         </main>
 
         {/* ── FOOTER ─────────────────────────────────────────────── */}
-        <footer className={cn("mt-20 border-t", isFashion ? "bg-[#f7ede5] text-[#5e453d] border-[#e6d5ca]" : "bg-slate-900 text-slate-300 border-transparent")}>
+        <footer className={cn(
+          "mt-20 border-t",
+          isFashion
+            ? "bg-[#f7ede5] text-[#5e453d] border-[#e6d5ca]"
+            : isTechNova
+              ? "bg-[linear-gradient(180deg,#eef4ff_0%,#f8fbff_100%)] text-[#314b70] border-[#dbe6ff]"
+              : "bg-slate-900 text-slate-300 border-transparent"
+        )}>
           <div className="max-w-7xl mx-auto px-6 py-12 grid grid-cols-1 sm:grid-cols-3 gap-10">
             <div>
               <div className="flex items-center gap-3 mb-4">
                 <div style={{ backgroundColor: style.accent }} className={cn("w-9 h-9 flex items-center justify-center text-white font-black", style.radius)}>
                   {storeData.tenant.name.charAt(0)}
                 </div>
-                <h4 className={cn(isFashion ? "store-display text-3xl font-semibold text-[#2d221f]" : "font-black uppercase tracking-wider text-white")}>{storeData.tenant.name}</h4>
+                <h4 className={cn(isFashion || isTechNova ? "store-display text-3xl font-semibold" : "font-black uppercase tracking-wider text-white", isFashion ? "text-[#2d221f]" : isTechNova ? "text-[#071426]" : "text-white")}>{storeData.tenant.name}</h4>
               </div>
-              <p className={cn("text-xs leading-relaxed", isFashion ? "text-[#7d6259]" : "text-slate-500")}>
-                {storeData.tenant.footer_text || (isFashion ? "Moda e acessórios apresentados com uma experiência elegante, leve e atual." : "Excelência em catálogo digital.")}
+              <p className={cn("text-xs leading-relaxed", isFashion ? "text-[#7d6259]" : isTechNova ? "text-[#5d7698]" : "text-slate-500")}>
+                {storeData.tenant.footer_text || (isFashion ? "Moda e acessórios apresentados com uma experiência elegante, leve e atual." : isTechNova ? "Tecnologia, desempenho e produtos conectados em uma vitrine clara, moderna e pronta para vender mais." : "Excelência em catálogo digital.")}
               </p>
             </div>
             <div>
-              <p className={cn("mb-4", isFashion ? "store-kicker text-[10px] font-semibold text-[#9a7d73]" : "text-[10px] font-black uppercase tracking-widest text-slate-400")}>Navegação</p>
+              <p className={cn("mb-4", isFashion ? "store-kicker text-[10px] font-semibold text-[#9a7d73]" : isTechNova ? "store-kicker text-[10px] font-semibold text-[#6d89b0]" : "text-[10px] font-black uppercase tracking-widest text-slate-400")}>Navegação</p>
               <ul className="space-y-2">
                 {navLinks.map(l => (
                   <li key={l.path}>
-                    <Link to={l.path} className={cn("text-xs transition-colors font-medium", isFashion ? "text-[#6b5149] hover:text-[#2d221f]" : "text-slate-500 hover:text-white")}>
+                    <Link to={l.path} className={cn("text-xs transition-colors font-medium", isFashion ? "text-[#6b5149] hover:text-[#2d221f]" : isTechNova ? "text-[#5d7698] hover:text-[#071426]" : "text-slate-500 hover:text-white")}>
                       {l.label}
                     </Link>
                   </li>
                 ))}
                 {storeData.categories.map(cat => (
                   <li key={cat.id}>
-                    <Link to={`/s/${slug}/catalogo?cat=${cat.id}`} className={cn("text-xs transition-colors font-medium", isFashion ? "text-[#6b5149] hover:text-[#2d221f]" : "text-slate-500 hover:text-white")}>
+                    <Link to={`/s/${slug}/catalogo?cat=${cat.id}`} className={cn("text-xs transition-colors font-medium", isFashion ? "text-[#6b5149] hover:text-[#2d221f]" : isTechNova ? "text-[#5d7698] hover:text-[#071426]" : "text-slate-500 hover:text-white")}>
                       {cat.name}
                     </Link>
                   </li>
@@ -430,30 +473,30 @@ function StoreLayoutInner() {
               </ul>
             </div>
             <div>
-              <p className={cn("mb-4", isFashion ? "store-kicker text-[10px] font-semibold text-[#9a7d73]" : "text-[10px] font-black uppercase tracking-widest text-slate-400")}>Contato</p>
+              <p className={cn("mb-4", isFashion ? "store-kicker text-[10px] font-semibold text-[#9a7d73]" : isTechNova ? "store-kicker text-[10px] font-semibold text-[#6d89b0]" : "text-[10px] font-black uppercase tracking-widest text-slate-400")}>Contato</p>
               {storeData.tenant.whatsapp && (
                 <a
                   href={`https://wa.me/${storeData.tenant.whatsapp.replace(/\D/g, "")}`}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className={cn("flex items-center gap-3 transition-colors", isFashion ? "text-[#6b5149] hover:text-[#2d221f]" : "text-slate-400 hover:text-white")}
+                  className={cn("flex items-center gap-3 transition-colors", isFashion ? "text-[#6b5149] hover:text-[#2d221f]" : isTechNova ? "text-[#4f6c91] hover:text-[#071426]" : "text-slate-400 hover:text-white")}
                 >
                   <div style={{ backgroundColor: "#25D366" }} className="w-8 h-8 rounded-xl flex items-center justify-center shrink-0">
                     <Phone size={14} className="text-white" />
                   </div>
                   <div>
-                    <p className={cn("text-[9px] font-bold uppercase tracking-wider", isFashion ? "text-[#8d7068]" : "text-slate-500")}>WhatsApp</p>
-                    <p className={cn("text-sm font-mono font-bold", isFashion ? "text-[#2d221f]" : "text-white")}>+{storeData.tenant.whatsapp}</p>
+                    <p className={cn("text-[9px] font-bold uppercase tracking-wider", isFashion ? "text-[#8d7068]" : isTechNova ? "text-[#7b95ba]" : "text-slate-500")}>WhatsApp</p>
+                    <p className={cn("text-sm font-mono font-bold", isFashion ? "text-[#2d221f]" : isTechNova ? "text-[#071426]" : "text-white")}>+{storeData.tenant.whatsapp}</p>
                   </div>
                 </a>
               )}
               {storeData.tenant.address && (
-                <p className={cn("text-xs mt-4", isFashion ? "text-[#7d6259]" : "text-slate-500")}>{storeData.tenant.address}</p>
+                <p className={cn("text-xs mt-4", isFashion ? "text-[#7d6259]" : isTechNova ? "text-[#5d7698]" : "text-slate-500")}>{storeData.tenant.address}</p>
               )}
             </div>
           </div>
-          <div className={cn("py-5", isFashion ? "border-t border-[#e4cfc4]" : "border-t border-slate-800")}>
-            <p className={cn("text-center text-[10px] font-bold uppercase tracking-widest", isFashion ? "text-[#9a7d73]" : "text-slate-600")}>
+          <div className={cn("py-5", isFashion ? "border-t border-[#e4cfc4]" : isTechNova ? "border-t border-[#dbe6ff]" : "border-t border-slate-800")}>
+            <p className={cn("text-center text-[10px] font-bold uppercase tracking-widest", isFashion ? "text-[#9a7d73]" : isTechNova ? "text-[#7b95ba]" : "text-slate-600")}>
               © {new Date().getFullYear()} {storeData.tenant.name} · Powered by Nexus ERP
             </p>
           </div>
@@ -478,7 +521,14 @@ function StoreLayoutInner() {
               <motion.div
                 initial={{ x: "100%" }} animate={{ x: 0 }} exit={{ x: "100%" }}
                 transition={{ type: "spring", damping: 30, stiffness: 300 }}
-                className={cn("fixed top-0 right-0 h-full w-full max-w-sm z-[101] shadow-2xl flex flex-col border-l", isFashion ? "bg-[#fffaf7] border-[#ead7cc]" : "bg-white border-slate-200")}
+                className={cn(
+                  "fixed top-0 right-0 h-full w-full max-w-sm z-[101] shadow-2xl flex flex-col border-l",
+                  isFashion
+                    ? "bg-[#fffaf7] border-[#ead7cc]"
+                    : isTechNova
+                      ? "bg-[#f7fbff] border-[#d7e4ff]"
+                      : "bg-white border-slate-200"
+                )}
               >
                 <div className="px-6 h-16 border-b border-slate-100 flex items-center justify-between shrink-0">
                   <div>
@@ -545,10 +595,17 @@ function StoreLayoutInner() {
                 </div>
 
                 {cart.length > 0 && (
-                  <div className={cn("p-4 space-y-3", isFashion ? "bg-[#2d221f] border-t border-[#4f3831]" : "bg-slate-950 border-t border-white/5")}>
+                  <div className={cn(
+                    "p-4 space-y-3",
+                    isFashion
+                      ? "bg-[#2d221f] border-t border-[#4f3831]"
+                      : isTechNova
+                        ? "bg-white border-t border-[#d7e4ff]"
+                        : "bg-slate-950 border-t border-white/5"
+                  )}>
                     <div className="flex items-center justify-between">
-                      <p className="text-xs text-slate-400 font-bold uppercase tracking-wider">Total</p>
-                      <p className="text-2xl font-black text-white font-mono">R$ {total.toFixed(2)}</p>
+                      <p className={cn("text-xs font-bold uppercase tracking-wider", isTechNova ? "text-[#7b95ba]" : "text-slate-400")}>Total</p>
+                      <p className={cn("text-2xl font-black font-mono", isTechNova ? "text-[#071426]" : "text-white")}>R$ {total.toFixed(2)}</p>
                     </div>
                     <button
                       onClick={handleWhatsAppCheckout}
@@ -572,7 +629,7 @@ function StoreLayoutInner() {
             <button
               onClick={() => setIsCartOpen(true)}
               style={{ backgroundColor: style.accent }}
-              className={cn("h-12 px-5 text-white shadow-2xl flex items-center gap-3 font-black text-xs uppercase tracking-wider", isFashion ? "rounded-full" : "rounded-2xl")}
+              className={cn("h-12 px-5 text-white shadow-2xl flex items-center gap-3 font-black text-xs uppercase tracking-wider", isFashion || isTechNova ? "rounded-full" : "rounded-2xl")}
             >
               <ShoppingCart size={16} />
               {cartCount} itens · R$ {total.toFixed(2)}

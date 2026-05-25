@@ -20,6 +20,9 @@ const TECH_ICONS: Record<string, ReactNode> = {
   tv: <Tv size={20} />, televisão: <Tv size={20} />,
   wifi: <Wifi size={20} />, rede: <Wifi size={20} />, roteador: <Wifi size={20} />,
   hd: <HardDrive size={20} />, ssd: <HardDrive size={20} />, armazenamento: <HardDrive size={20} />,
+  notebook: <Monitor size={20} />, laptop: <Monitor size={20} />, computador: <Cpu size={20} />, pc: <Cpu size={20} />,
+  gamer: <Monitor size={20} />, console: <Monitor size={20} />, ps5: <Monitor size={20} />, controle: <Headphones size={20} />,
+  alexa: <Speaker size={20} />, assistente: <Speaker size={20} />, smart: <Wifi size={20} />, tablet: <Smartphone size={20} />,
 };
 
 function getCategoryIcon(name: string) {
@@ -30,43 +33,51 @@ function getCategoryIcon(name: string) {
   return <Cpu size={20} />;
 }
 
-function TechCategoryCard({ cat, slug, count, accent }: { cat: Category; slug: string; count: number; accent: string; key?: React.Key }) {
+function TechCategoryCard({ cat, slug, count, accent, isTechNova = false }: { cat: Category; slug: string; count: number; accent: string; isTechNova?: boolean; key?: React.Key }) {
   return (
-    <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} whileHover={{ y: -3, transition: { duration: 0.15 } }}>
+    <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} whileHover={{ y: -4, transition: { duration: 0.18 } }}>
       <Link
         to={`/s/${slug}/catalogo?cat=${cat.id}`}
-        className="group flex flex-col items-center gap-3 p-5 bg-white border border-slate-200 rounded-2xl text-center shadow-sm hover:shadow-lg transition-all duration-300 relative overflow-hidden"
+        className={cn(
+          "group flex flex-col items-center gap-3 p-5 text-center transition-all duration-300 relative overflow-hidden",
+          isTechNova
+            ? "tech-panel tech-card-sheen rounded-[1.7rem] border border-[#d9e6ff] bg-white/82 hover:-translate-y-1 hover:shadow-[0_26px_70px_rgba(52,102,194,0.18)]"
+            : "bg-white border border-slate-200 rounded-2xl shadow-sm hover:shadow-lg"
+        )}
       >
         <div
-          className="w-13 h-13 w-12 h-12 rounded-xl flex items-center justify-center transition-transform duration-300 group-hover:scale-110"
-          style={{ backgroundColor: accent + "12", color: accent }}
+          className={cn(
+            "w-12 h-12 flex items-center justify-center transition-transform duration-300 group-hover:scale-110",
+            isTechNova ? "rounded-2xl border border-white/80 tech-pulse" : "rounded-xl"
+          )}
+          style={{ backgroundColor: accent + (isTechNova ? "16" : "12"), color: accent }}
         >
           {getCategoryIcon(cat.name)}
         </div>
         <div>
-          <p className="text-[12px] font-bold text-slate-800 leading-tight tracking-tight">{cat.name}</p>
-          <span className="text-[10px] text-slate-400 font-medium mt-0.5 block">{count} {count === 1 ? "produto" : "produtos"}</span>
+          <p className={cn(isTechNova ? "store-display text-[1.15rem] font-semibold text-[#071426] leading-none" : "text-[12px] font-bold text-slate-800 leading-tight tracking-tight")}>{cat.name}</p>
+          <span className={cn("font-medium mt-0.5 block", isTechNova ? "store-kicker text-[9px] text-[#6f89ad]" : "text-[10px] text-slate-400")}>{count} {count === 1 ? "produto" : "produtos"}</span>
         </div>
         <div
-          className="absolute inset-x-0 bottom-0 h-0.5 opacity-0 group-hover:opacity-100 transition-opacity duration-300"
-          style={{ background: `linear-gradient(90deg, transparent, ${accent}, transparent)` }}
+          className={cn("absolute inset-x-0 bottom-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300", isTechNova ? "h-12 blur-2xl" : "h-0.5")}
+          style={{ background: isTechNova ? `radial-gradient(circle, ${accent}55 0%, transparent 70%)` : `linear-gradient(90deg, transparent, ${accent}, transparent)` }}
         />
       </Link>
     </motion.div>
   );
 }
 
-function SectionHeader({ title, icon, link, linkLabel, accent, isDark, isFashion = false }: {
-  title: string; icon?: ReactNode; link: string; linkLabel?: string; accent: string; isDark: boolean; isFashion?: boolean;
+function SectionHeader({ title, icon, link, linkLabel, accent, isDark, isFashion = false, isTechNova = false }: {
+  title: string; icon?: ReactNode; link: string; linkLabel?: string; accent: string; isDark: boolean; isFashion?: boolean; isTechNova?: boolean;
 }) {
   return (
-    <div className="flex items-center justify-between mb-8">
+    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-8">
       <div className="flex items-center gap-3">
         <div className="w-1 h-6 rounded-full" style={{ backgroundColor: accent }} />
         {icon && <span style={{ color: accent }}>{icon}</span>}
         <h2 className={cn(
-          isFashion ? "store-display text-[2.35rem] md:text-5xl font-semibold tracking-[-0.04em]" : "text-2xl font-bold tracking-tight",
-          isDark ? "text-white" : isFashion ? "text-[#2d221f]" : "text-slate-900"
+          isFashion || isTechNova ? "store-display text-[2.35rem] md:text-5xl font-semibold tracking-[-0.04em]" : "text-2xl font-bold tracking-tight",
+          isDark ? "text-white" : isFashion ? "text-[#2d221f]" : isTechNova ? "text-[#071426]" : "text-slate-900"
         )}>{title}</h2>
       </div>
       <Link
@@ -75,8 +86,10 @@ function SectionHeader({ title, icon, link, linkLabel, accent, isDark, isFashion
           "flex items-center gap-1 transition-colors",
           isFashion
             ? "text-[11px] font-semibold tracking-[0.22em] uppercase text-[#8c6c63] hover:text-[#2d221f]"
+            : isTechNova
+              ? "rounded-full border border-[#d7e4ff] bg-white/70 px-4 py-2 text-[10px] font-semibold tracking-[0.18em] uppercase text-[#5b789e] hover:text-[#071426] hover:border-[#bfd2ff]"
             : "text-[11px] font-semibold uppercase tracking-wider",
-          isDark ? "text-slate-400 hover:text-white" : !isFashion && "text-slate-400 hover:text-slate-700"
+          isDark ? "text-slate-400 hover:text-white" : !isFashion && !isTechNova && "text-slate-400 hover:text-slate-700"
         )}
       >
         {linkLabel || "Ver todos"} <ChevronRight size={13} />
@@ -97,6 +110,7 @@ function ProductCard({ product, index, slug, style, onAddToCart }: {
   const hasDiscount = !!product.discount_price;
   const pct = hasDiscount ? Math.round((1 - Number(product.discount_price) / Number(product.price)) * 100) : 0;
   const isFashion = style.font === "font-editorial";
+  const isTechNova = style.font === "font-tech";
 
   return (
     <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: index * 0.04 }}>
@@ -104,48 +118,57 @@ function ProductCard({ product, index, slug, style, onAddToCart }: {
         to={`/s/${slug}/produto/${product.id}`}
         className={cn(
           "group flex flex-col border overflow-hidden transition-all",
-          isFashion ? "fashion-soft-shadow hover:-translate-y-1 hover:shadow-[0_26px_70px_rgba(108,64,55,0.12)]" : "hover:shadow-xl",
+          isFashion
+            ? "fashion-soft-shadow hover:-translate-y-1 hover:shadow-[0_26px_70px_rgba(108,64,55,0.12)]"
+            : isTechNova
+              ? "tech-soft-shadow tech-card-sheen bg-white/84 hover:-translate-y-1 hover:shadow-[0_28px_70px_rgba(42,94,188,0.18)]"
+              : "hover:shadow-xl",
           style.card,
           style.radius
         )}
       >
-        <div className={cn("overflow-hidden relative", isFashion ? "aspect-[4/5] bg-[#f8efe8]" : "aspect-square bg-slate-50")}>
+        <div className={cn("overflow-hidden relative", isFashion ? "aspect-[4/5] bg-[#f8efe8]" : isTechNova ? "aspect-square tech-grid bg-[linear-gradient(180deg,#f8fbff_0%,#edf4ff_100%)]" : "aspect-square bg-slate-50")}>
           {img
             ? <img src={img} alt={product.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
             : <div className="w-full h-full flex items-center justify-center text-slate-200"><Package size={36} strokeWidth={1} /></div>}
           {hasDiscount && (
-            <span className="absolute top-2 right-2 bg-red-500 text-white text-[9px] font-bold px-2 py-0.5 rounded-full shadow">
+            <span className={cn("absolute top-2 right-2 text-white text-[9px] font-bold px-2 py-0.5 shadow rounded-full", isTechNova ? "bg-[#ff5f6d]" : "bg-red-500")}>
               -{pct}%
             </span>
           )}
           {product.is_featured && (
             <span
-              className="absolute top-2 left-2 text-[8px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full"
-              style={{ backgroundColor: style.accent + "20", color: style.accent, border: `1px solid ${style.accent}40` }}
+              className={cn("absolute top-2 left-2 text-[8px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full", isTechNova && "backdrop-blur-sm")}
+              style={{ backgroundColor: style.accent + (isTechNova ? "18" : "20"), color: style.accent, border: `1px solid ${style.accent}40` }}
             >
               <Star size={7} className="inline -mt-0.5 mr-0.5" fill="currentColor" />Top
             </span>
           )}
+          {isTechNova && (
+            <div className="absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-[#071426]/30 to-transparent" />
+          )}
         </div>
-        <div className={cn("flex flex-col", isFashion ? "p-5 gap-2" : "p-4 gap-1")}>
-          <p className={cn("font-semibold", isFashion ? "store-kicker text-[9px] text-[#9c7b72]" : "text-[10px] text-slate-400 uppercase tracking-widest")}>{product.category_name || "Geral"}</p>
+        <div className={cn("flex flex-col", isFashion ? "p-4 sm:p-5 gap-2" : isTechNova ? "p-4 sm:p-5 gap-2" : "p-4 gap-1")}>
+          <p className={cn("font-semibold", isFashion ? "store-kicker text-[9px] text-[#9c7b72]" : isTechNova ? "store-kicker text-[9px] text-[#6684ab]" : "text-[10px] text-slate-400 uppercase tracking-widest")}>{product.category_name || "Geral"}</p>
           <p className={cn(
             "line-clamp-2 transition-colors",
             isFashion
-              ? "store-display text-[1.55rem] font-semibold text-[#2d221f] leading-[0.95]"
+              ? "store-display text-[1.28rem] sm:text-[1.55rem] font-semibold text-[#2d221f] leading-[0.95]"
+              : isTechNova
+                ? "store-display text-[1.15rem] sm:text-[1.4rem] font-semibold text-[#071426] leading-[1.02] group-hover:text-[#1e57b7]"
               : "text-sm font-semibold text-slate-800 leading-snug group-hover:text-slate-900"
           )}>{product.name}</p>
-          {isFashion && product.description && (
-            <p className="text-[12px] leading-relaxed text-[#8c6c63] line-clamp-2">{product.description}</p>
+          {(isFashion || isTechNova) && product.description && (
+            <p className={cn("text-[11px] sm:text-[12px] leading-relaxed line-clamp-2", isFashion ? "text-[#8c6c63]" : "text-[#607b9d]")}>{product.description}</p>
           )}
-          <div className={cn("flex items-center justify-between mt-2", isFashion && "pt-3 border-t border-[#eee2d6]")}>
+          <div className={cn("flex items-center justify-between mt-2", isFashion ? "pt-3 border-t border-[#eee2d6]" : isTechNova ? "pt-3 border-t border-[#dbe6ff]" : "")}>
             {hasDiscount ? (
               <div>
                 <span className="text-[10px] line-through text-slate-400 font-mono">R$ {Number(product.price).toFixed(2)}</span>
-                <p className={cn(isFashion ? "store-display text-[1.8rem] font-semibold text-[#2d221f] leading-none" : "text-base font-bold text-emerald-600 font-mono leading-tight")}>R$ {Number(product.discount_price).toFixed(2)}</p>
+                <p className={cn(isFashion ? "store-display text-[1.45rem] sm:text-[1.8rem] font-semibold text-[#2d221f] leading-none" : isTechNova ? "store-display text-[1.35rem] sm:text-[1.65rem] font-semibold text-[#071426] leading-none" : "text-base font-bold text-emerald-600 font-mono leading-tight")}>R$ {Number(product.discount_price).toFixed(2)}</p>
               </div>
             ) : (
-              <p className={cn(isFashion ? "store-display text-[1.8rem] font-semibold leading-none" : "text-base font-bold font-mono")} style={{ color: style.accent }}>R$ {Number(product.price).toFixed(2)}</p>
+              <p className={cn(isFashion ? "store-display text-[1.45rem] sm:text-[1.8rem] font-semibold leading-none" : isTechNova ? "store-display text-[1.35rem] sm:text-[1.65rem] font-semibold leading-none" : "text-base font-bold font-mono")} style={{ color: style.accent }}>R$ {Number(product.price).toFixed(2)}</p>
             )}
             <button
               onClick={e => { e.preventDefault(); onAddToCart(product); }}
@@ -153,12 +176,14 @@ function ProductCard({ product, index, slug, style, onAddToCart }: {
               className={cn(
                 "shrink-0 text-white transition-all active:scale-90",
                 isFashion
-                  ? "h-10 px-4 rounded-full shadow-sm hover:shadow-md text-[10px] font-semibold uppercase tracking-[0.24em] flex items-center gap-2"
+                  ? "w-10 h-10 sm:w-auto sm:px-4 rounded-full shadow-sm hover:shadow-md text-[10px] font-semibold uppercase tracking-[0.18em] sm:tracking-[0.24em] flex items-center justify-center gap-2"
+                  : isTechNova
+                    ? "min-w-[44px] h-11 px-4 rounded-full shadow-[0_16px_30px_rgba(37,99,235,0.22)] hover:shadow-[0_18px_34px_rgba(37,99,235,0.3)] text-[10px] font-semibold uppercase tracking-[0.16em] flex items-center justify-center gap-2"
                   : "w-9 h-9 flex items-center justify-center shadow-sm hover:shadow-md",
                 style.radius
               )}
             >
-              {isFashion ? <><ShoppingBag size={13} /> Adicionar</> : <span className="text-lg font-bold leading-none">+</span>}
+              {isFashion || isTechNova ? <><ShoppingBag size={13} /><span className={cn(isTechNova && "hidden sm:inline")}>Adicionar</span></> : <span className="text-lg font-bold leading-none">+</span>}
             </button>
           </div>
         </div>
@@ -186,7 +211,8 @@ export default function StoreFront() {
     .filter((p, i, arr) => arr.findIndex(x => x.id === p.id) === i)
     .slice(0, bestsellerLimit);
 
-  const isTech = tenant.template_id === "tech";
+  const isTechNova = tenant.template_id === "nexus_tech";
+  const isTech = tenant.template_id === "tech" || isTechNova;
   const isFashion = tenant.template_id === "atelier";
   const isDark = ["cyber", "luxury"].includes(tenant.template_id || "");
 
@@ -205,41 +231,140 @@ export default function StoreFront() {
       />
 
       {/* ── HERO ──────────────────────────────────────────────── */}
-      {isFashion ? (
+      {isTechNova ? (
         <section className="relative overflow-hidden">
-          <div className="max-w-7xl mx-auto px-4 md:px-8 pt-8 md:pt-12 pb-6 md:pb-10">
+          <div className="absolute inset-0 tech-grid opacity-50 pointer-events-none" />
+          <div className="max-w-7xl mx-auto px-4 md:px-8 pt-6 md:pt-10 pb-6 md:pb-10 relative">
             <div className="grid lg:grid-cols-[1.05fr_0.95fr] gap-5 items-stretch">
               <motion.div
                 initial={{ opacity: 0, y: 16 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.55 }}
-                className="fashion-panel relative overflow-hidden rounded-[2rem] border border-[#ead9ce] bg-[linear-gradient(135deg,#fff8f3_0%,#f7ece4_55%,#fffdfb_100%)] p-8 md:p-12"
+                className="tech-panel relative overflow-hidden rounded-[2rem] border border-[#dbe6ff] bg-[linear-gradient(135deg,#fdfefe_0%,#f3f8ff_42%,#eef4ff_100%)] px-6 py-7 sm:px-8 sm:py-9 md:p-12"
+              >
+                <div className="absolute -top-12 right-10 h-40 w-40 rounded-full bg-[#60a5fa]/18 blur-3xl" />
+                <div className="absolute bottom-0 left-0 h-28 w-28 rounded-full bg-[#38bdf8]/16 blur-3xl" />
+                <p className="store-kicker text-[10px] font-semibold text-[#6180aa]">Tecnologia de alta procura</p>
+                <h1 className="store-display mt-4 text-[3rem] sm:text-6xl md:text-7xl lg:text-[5.3rem] leading-[0.9] text-[#071426]">
+                  {tenant.name}
+                </h1>
+                <p className="mt-5 max-w-2xl text-[15px] sm:text-base md:text-lg leading-relaxed text-[#577395]">
+                  {tenant.about_text || "Eletrônicos, informática, games e casa inteligente apresentados em uma vitrine clara, moderna e preparada para converter."}
+                </p>
+                <div className="mt-7 flex flex-col sm:flex-row gap-3">
+                  <Link
+                    to={`/s/${slug}/catalogo`}
+                    style={{ backgroundColor: style.accent }}
+                    className="inline-flex w-full sm:w-auto justify-center h-12 items-center gap-2 rounded-full px-6 sm:px-7 text-[11px] font-semibold uppercase tracking-[0.2em] text-white shadow-[0_20px_44px_rgba(37,99,235,0.24)] transition-all hover:-translate-y-0.5"
+                  >
+                    <ShoppingBag size={15} /> Explorar catálogo
+                  </Link>
+                  <a
+                    href="#categorias"
+                    className="inline-flex w-full sm:w-auto justify-center h-12 items-center gap-2 rounded-full border border-[#d7e4ff] bg-white/80 px-6 sm:px-7 text-[11px] font-semibold uppercase tracking-[0.18em] text-[#4d6990] transition-all hover:bg-white"
+                  >
+                    Ver linhas <ArrowRight size={13} />
+                  </a>
+                </div>
+                <div className="mt-8 flex flex-wrap gap-2">
+                  {(categories.slice(0, 4).map(cat => cat.name).length > 0
+                    ? categories.slice(0, 4).map(cat => cat.name)
+                    : ["Notebooks", "Celulares", "Games", "Casa inteligente"]).map((label) => (
+                    <span key={label} className="rounded-full border border-[#d7e4ff] bg-white/74 px-4 py-2 text-[10px] font-semibold uppercase tracking-[0.2em] text-[#6883a9]">
+                      {label}
+                    </span>
+                  ))}
+                </div>
+              </motion.div>
+
+              <div className="grid gap-5">
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.98 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  transition={{ duration: 0.6, delay: 0.08 }}
+                  className="tech-panel tech-scan relative min-h-[320px] sm:min-h-[420px] overflow-hidden rounded-[2rem] border border-[#dbe6ff] bg-[linear-gradient(140deg,#edf5ff_0%,#f9fcff_100%)]"
+                >
+                  {heroImage ? (
+                    <img src={heroImage} alt={tenant.name} className="h-full w-full object-cover" />
+                  ) : (
+                    <div className="absolute inset-0 tech-grid bg-[linear-gradient(145deg,#eff6ff_0%,#f8fbff_100%)]" />
+                  )}
+                  <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(3,12,28,0.02)_0%,rgba(3,12,28,0.08)_45%,rgba(3,12,28,0.72)_100%)]" />
+                  <div className="absolute top-4 right-4 rounded-full border border-white/60 bg-white/78 px-4 py-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-[#426285] backdrop-blur-md tech-float">
+                    Setup em destaque
+                  </div>
+                  <div className="absolute bottom-0 left-0 right-0 p-6 md:p-8 text-white">
+                    <p className="store-kicker text-[10px] font-semibold text-white/72">Performance & conectividade</p>
+                    <p className="store-display mt-3 text-3xl md:text-4xl leading-[0.95]">Produtos para vender do celular ao setup completo.</p>
+                    <div className="mt-5 flex flex-wrap gap-3 text-[11px] font-medium text-white/82">
+                      <span>{allActive.length} itens ativos</span>
+                      <span>{featured.length} destaques</span>
+                      <span>{onSale.length} ofertas no ar</span>
+                    </div>
+                  </div>
+                </motion.div>
+
+                <div className="grid sm:grid-cols-2 gap-5">
+                  <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.12 }} className="tech-panel tech-float rounded-[2rem] border border-[#dbe6ff] bg-white/82 p-6">
+                    <p className="store-kicker text-[10px] font-semibold text-[#6f89ad]">Curadoria</p>
+                    <p className="store-display mt-4 text-[2rem] sm:text-[2.2rem] leading-[0.92] text-[#071426]">Linha visual criada para eletrônicos e produtos de alto giro.</p>
+                    <p className="mt-3 text-sm leading-relaxed text-[#6883a8]">Blocos claros, brilho sutil, tipografia forte e foco total em leitura rápida, preço e confiança.</p>
+                  </motion.div>
+                  <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.18 }} className="tech-panel rounded-[2rem] border border-[#dbe6ff] bg-[linear-gradient(160deg,#ffffff_0%,#f3f8ff_100%)] p-6">
+                    <p className="store-kicker text-[10px] font-semibold text-[#6f89ad]">Pronto para venda</p>
+                    <div className="mt-4 space-y-3">
+                      {[
+                        `${categories.length} categorias organizadas`,
+                        `${bestSellers.length} produtos em evidência`,
+                        "Visual ideal para informática, games e smart home",
+                      ].map((item) => (
+                        <div key={item} className="flex items-center gap-3 text-sm text-[#587495]">
+                          <span className="h-2.5 w-2.5 rounded-full shadow-[0_0_0_6px_rgba(37,99,235,0.08)]" style={{ backgroundColor: style.accent }} />
+                          <span>{item}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </motion.div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+      ) : isFashion ? (
+        <section className="relative overflow-hidden">
+          <div className="max-w-7xl mx-auto px-4 md:px-8 pt-6 md:pt-12 pb-6 md:pb-10">
+            <div className="grid lg:grid-cols-[1.05fr_0.95fr] gap-5 items-stretch">
+              <motion.div
+                initial={{ opacity: 0, y: 16 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.55 }}
+                className="fashion-panel relative overflow-hidden rounded-[2rem] border border-[#ead9ce] bg-[linear-gradient(135deg,#fff8f3_0%,#f7ece4_55%,#fffdfb_100%)] p-6 sm:p-8 md:p-12"
               >
                 <div className="absolute top-0 right-0 h-36 w-36 rounded-full bg-[#f1ddd3]/80 blur-3xl" />
                 <div className="absolute bottom-0 left-0 h-24 w-24 rounded-full bg-white/70 blur-2xl" />
                 <p className="store-kicker text-[10px] font-semibold text-[#9d6d63]">Nova coleção</p>
-                <h1 className="store-display mt-5 text-5xl md:text-7xl lg:text-[5.6rem] leading-[0.88] text-[#2d221f]">
+                <h1 className="store-display mt-4 sm:mt-5 text-[3.25rem] sm:text-6xl md:text-7xl lg:text-[5.6rem] leading-[0.88] text-[#2d221f]">
                   {tenant.name}
                 </h1>
-                <p className="mt-6 max-w-xl text-base md:text-lg leading-relaxed text-[#6b5149]">
+                <p className="mt-5 sm:mt-6 max-w-xl text-[15px] sm:text-base md:text-lg leading-relaxed text-[#6b5149]">
                   {tenant.about_text || "Roupas e acessórios com curadoria leve, elegante e pensada para uma vitrine que vende com presença."}
                 </p>
-                <div className="mt-8 flex flex-wrap gap-3">
+                <div className="mt-7 sm:mt-8 flex flex-col sm:flex-row gap-3">
                   <Link
                     to={`/s/${slug}/catalogo`}
                     style={{ backgroundColor: style.accent }}
-                    className="inline-flex h-12 items-center gap-2 rounded-full px-7 text-[11px] font-semibold uppercase tracking-[0.28em] text-white shadow-lg shadow-[#c99f94]/30 transition-all hover:-translate-y-0.5"
+                    className="inline-flex w-full sm:w-auto justify-center h-12 items-center gap-2 rounded-full px-6 sm:px-7 text-[11px] font-semibold uppercase tracking-[0.18em] sm:tracking-[0.28em] text-white shadow-lg shadow-[#c99f94]/30 transition-all hover:-translate-y-0.5"
                   >
                     <ShoppingBag size={15} /> Ver coleção
                   </Link>
                   <a
                     href="#categorias"
-                    className="inline-flex h-12 items-center gap-2 rounded-full border border-[#e7d6ca] bg-white/75 px-7 text-[11px] font-semibold uppercase tracking-[0.24em] text-[#6b5149] transition-all hover:bg-white"
+                    className="inline-flex w-full sm:w-auto justify-center h-12 items-center gap-2 rounded-full border border-[#e7d6ca] bg-white/75 px-6 sm:px-7 text-[11px] font-semibold uppercase tracking-[0.18em] sm:tracking-[0.24em] text-[#6b5149] transition-all hover:bg-white"
                   >
                     Estilos <ArrowRight size={13} />
                   </a>
                 </div>
-                <div className="mt-10 flex flex-wrap gap-2">
+                <div className="mt-8 sm:mt-10 flex flex-wrap gap-2">
                   {(categories.slice(0, 4).map(cat => cat.name).length > 0
                     ? categories.slice(0, 4).map(cat => cat.name)
                     : ["Moda feminina", "Acessórios", "Novidades", "Favoritos"]).map((label) => (
@@ -255,7 +380,7 @@ export default function StoreFront() {
                   initial={{ opacity: 0, scale: 0.98 }}
                   animate={{ opacity: 1, scale: 1 }}
                   transition={{ duration: 0.6, delay: 0.08 }}
-                  className="fashion-panel relative min-h-[420px] overflow-hidden rounded-[2rem] border border-[#ead9ce] bg-[#f3e7dd]"
+                  className="fashion-panel relative min-h-[320px] sm:min-h-[420px] overflow-hidden rounded-[2rem] border border-[#ead9ce] bg-[#f3e7dd]"
                 >
                   {heroImage ? (
                     <img src={heroImage} alt={tenant.name} className="h-full w-full object-cover" />
@@ -392,11 +517,11 @@ export default function StoreFront() {
       {/* ── STATS BAR ─────────────────────────────────────────── */}
       <div className={cn(
         isFashion ? "max-w-7xl mx-auto px-4 md:px-8" : "border-b",
-        isDark ? "bg-slate-950 border-slate-800" : !isFashion && "bg-white border-slate-100"
+        isDark ? "bg-slate-950 border-slate-800" : isTechNova ? "bg-transparent border-transparent" : !isFashion && "bg-white border-slate-100"
       )}>
         <div className={cn(
           "max-w-7xl mx-auto",
-          isFashion ? "grid grid-cols-2 md:grid-cols-4 gap-4" : "px-8 py-4 flex flex-wrap items-center gap-8 md:gap-14"
+          isFashion ? "grid grid-cols-2 md:grid-cols-4 gap-4" : isTechNova ? "grid grid-cols-2 md:grid-cols-4 gap-4 px-4 md:px-8 pb-6" : "px-8 py-4 flex flex-wrap items-center gap-8 md:gap-14"
         )}>
           {[
             { value: allActive.length, label: "Produtos" },
@@ -404,9 +529,15 @@ export default function StoreFront() {
             { value: featured.length, label: "Destaques" },
             { value: onSale.length, label: "Promoções" },
           ].map((s, i) => (
-            <div key={i} className={cn(isFashion ? "fashion-panel rounded-[1.75rem] border border-[#ead9ce] bg-white/80 px-5 py-4" : "flex items-baseline gap-2")}>
-              <span className={cn(isFashion ? "store-display text-4xl leading-none" : "text-2xl font-extrabold tabular-nums")} style={{ color: style.accent }}>{s.value}</span>
-              <span className={cn(isFashion ? "mt-2 block text-[10px] font-semibold uppercase tracking-[0.26em] text-[#8c6c63]" : "text-[10px] font-semibold text-slate-400 uppercase tracking-widest")}>{s.label}</span>
+            <div key={i} className={cn(
+              isFashion
+                ? "fashion-panel rounded-[1.75rem] border border-[#ead9ce] bg-white/80 px-5 py-4"
+                : isTechNova
+                  ? "tech-panel rounded-[1.7rem] border border-[#dbe6ff] bg-white/82 px-5 py-5"
+                  : "flex items-baseline gap-2"
+            )}>
+              <span className={cn(isFashion || isTechNova ? "store-display text-4xl leading-none" : "text-2xl font-extrabold tabular-nums")} style={{ color: style.accent }}>{s.value}</span>
+              <span className={cn(isFashion ? "mt-2 block text-[10px] font-semibold uppercase tracking-[0.26em] text-[#8c6c63]" : isTechNova ? "mt-2 block store-kicker text-[9px] font-semibold text-[#6b87ad]" : "text-[10px] font-semibold text-slate-400 uppercase tracking-widest")}>{s.label}</span>
             </div>
           ))}
         </div>
@@ -423,12 +554,13 @@ export default function StoreFront() {
             accent={style.accent}
             isDark={isDark}
             isFashion={isFashion}
+            isTechNova={isTechNova}
           />
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
             {categories.slice(0, CATEGORY_DISPLAY_LIMIT).map((cat, i) => {
               const count = allActive.filter(p => p.category_id === cat.id).length;
               if (isTech) {
-                return <TechCategoryCard key={cat.id} cat={cat} slug={slug!} count={count} accent={style.accent} />;
+                return <TechCategoryCard key={cat.id} cat={cat} slug={slug!} count={count} accent={style.accent} isTechNova={isTechNova} />;
               }
               return (
                 <motion.div key={cat.id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.04 }}>
@@ -473,7 +605,66 @@ export default function StoreFront() {
 
       {/* ── FEATURED ──────────────────────────────────────────── */}
       {featured.length > 0 && (
-        isFashion ? (
+        isTechNova ? (
+          <section className="py-16">
+            <div className="max-w-7xl mx-auto px-4 md:px-8">
+              <SectionHeader
+                title="Seleção em Destaque"
+                icon={<Star size={17} />}
+                link={`/s/${slug}/catalogo`}
+                linkLabel="Ver vitrine completa"
+                accent={style.accent}
+                isDark={false}
+                isTechNova
+              />
+              <div className="grid lg:grid-cols-[1.08fr_0.92fr] gap-5">
+                <Link
+                  to={`/s/${slug}/produto/${featured[0].id}`}
+                  className="tech-panel tech-card-sheen group relative overflow-hidden rounded-[2rem] border border-[#dbe6ff] min-h-[520px] bg-[linear-gradient(140deg,#f2f7ff_0%,#ffffff_100%)]"
+                >
+                  {getImg(featured[0]) ? (
+                    <img src={getImg(featured[0])!} alt={featured[0].name} className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-105" />
+                  ) : (
+                    <div className="absolute inset-0 tech-grid bg-[linear-gradient(145deg,#edf5ff_0%,#f8fbff_100%)]" />
+                  )}
+                  <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(7,20,38,0.04)_0%,rgba(7,20,38,0.1)_45%,rgba(7,20,38,0.82)_100%)]" />
+                  <div className="absolute top-5 left-5 flex flex-wrap gap-2">
+                    <span className="rounded-full border border-white/35 bg-white/12 px-4 py-2 text-[10px] font-semibold uppercase tracking-[0.2em] text-white/92 backdrop-blur-md">
+                      Produto vitrine
+                    </span>
+                    {featured[0].discount_price && (
+                      <span className="rounded-full bg-[#ff5f6d] px-3 py-2 text-[10px] font-semibold uppercase tracking-[0.16em] text-white shadow-lg">
+                        Oferta especial
+                      </span>
+                    )}
+                  </div>
+                  <div className="absolute left-0 right-0 bottom-0 p-7 md:p-9 text-white">
+                    <p className="store-kicker text-[10px] font-semibold text-white/70">{featured[0].category_name || "Tecnologia"}</p>
+                    <h3 className="store-display mt-5 text-4xl md:text-5xl leading-[0.92]">{featured[0].name}</h3>
+                    {featured[0].description && (
+                      <p className="mt-4 max-w-xl text-sm md:text-base leading-relaxed text-white/76 line-clamp-3">
+                        {featured[0].description}
+                      </p>
+                    )}
+                    <div className="mt-5 flex items-end gap-3">
+                      <p className="store-display text-4xl md:text-5xl leading-none">
+                        R$ {Number(featured[0].discount_price || featured[0].price).toFixed(2)}
+                      </p>
+                      {featured[0].discount_price && (
+                        <span className="text-sm font-mono text-white/55 line-through">R$ {Number(featured[0].price).toFixed(2)}</span>
+                      )}
+                    </div>
+                  </div>
+                </Link>
+                <div className="grid sm:grid-cols-2 gap-5">
+                  {featured.slice(1, 5).map((product, i) => (
+                    <ProductCard key={product.id} product={product} index={i} slug={slug!} style={style} onAddToCart={addToCart} />
+                  ))}
+                </div>
+              </div>
+            </div>
+          </section>
+        ) : isFashion ? (
           <section className="py-16">
             <div className="max-w-7xl mx-auto px-4 md:px-8">
               <SectionHeader
@@ -599,7 +790,7 @@ export default function StoreFront() {
       )}
 
       {/* ── BEST SELLERS ──────────────────────────────────────── */}
-      <section className={cn("py-16", isFashion ? "bg-transparent" : isDark ? "bg-[#080a0e]" : "bg-white")}>
+      <section className={cn("py-16", isFashion ? "bg-transparent" : isTechNova ? "bg-transparent" : isDark ? "bg-[#080a0e]" : "bg-white")}>
         <div className="max-w-7xl mx-auto px-4 md:px-8">
           <SectionHeader
             title="Mais Vendidos"
@@ -609,6 +800,7 @@ export default function StoreFront() {
             accent={style.accent}
             isDark={isDark}
             isFashion={isFashion}
+            isTechNova={isTechNova}
           />
           {bestSellers.length === 0 ? (
             <div className="py-16 text-center text-slate-400">
@@ -625,13 +817,13 @@ export default function StoreFront() {
 
       {/* ── ON SALE ───────────────────────────────────────────── */}
       {onSale.length > 0 && (
-        <section className={cn("py-16", isFashion ? "bg-[#fff6ef]" : isDark ? "bg-slate-950" : "bg-slate-50")}>
+        <section className={cn("py-16", isFashion ? "bg-[#fff6ef]" : isTechNova ? "bg-transparent" : isDark ? "bg-slate-950" : "bg-slate-50")}>
           <div className="max-w-7xl mx-auto px-4 md:px-8">
             <div className="flex items-center justify-between mb-8">
               <div className="flex items-center gap-3">
                 <div className="w-1 h-6 rounded-full bg-red-500" />
                 <Zap size={16} className="text-red-500" />
-                <h2 className={cn(isFashion ? "store-display text-4xl font-semibold tracking-[-0.04em]" : "text-2xl font-bold tracking-tight", isDark ? "text-white" : isFashion ? "text-[#2d221f]" : "text-slate-900")}>Promoções</h2>
+                <h2 className={cn(isFashion || isTechNova ? "store-display text-4xl font-semibold tracking-[-0.04em]" : "text-2xl font-bold tracking-tight", isDark ? "text-white" : isFashion ? "text-[#2d221f]" : isTechNova ? "text-[#071426]" : "text-slate-900")}>Promoções</h2>
                 <span className="bg-red-50 text-red-500 text-[9px] font-bold px-2 py-0.5 rounded-full border border-red-200">
                   {onSale.length} oferta{onSale.length !== 1 ? "s" : ""}
                 </span>
@@ -642,8 +834,10 @@ export default function StoreFront() {
                   "flex items-center gap-1 transition-colors",
                   isFashion
                     ? "text-[11px] font-semibold uppercase tracking-[0.22em] text-[#8c6c63] hover:text-[#2d221f]"
+                    : isTechNova
+                      ? "rounded-full border border-[#d7e4ff] bg-white/70 px-4 py-2 text-[10px] font-semibold tracking-[0.18em] uppercase text-[#5b789e] hover:text-[#071426] hover:border-[#bfd2ff]"
                     : "text-[11px] font-semibold uppercase tracking-wider",
-                  isDark ? "text-slate-500 hover:text-white" : !isFashion && "text-slate-400 hover:text-slate-700"
+                  isDark ? "text-slate-500 hover:text-white" : !isFashion && !isTechNova && "text-slate-400 hover:text-slate-700"
                 )}
               >
                 {isFashion ? "Ver coleção" : "Ver todas"} <ChevronRight size={13} />

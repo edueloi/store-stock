@@ -1,4 +1,4 @@
-@import url("https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=Manrope:wght@400;500;600;700;800&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=Manrope:wght@400;500;600;700;800&family=Sora:wght@500;600;700;800&display=swap");
 @import "tailwindcss";
 
 body {
@@ -21,6 +21,20 @@ body {
   text-transform: uppercase;
 }
 
+.font-tech {
+  font-family: "Manrope", sans-serif;
+}
+
+.font-tech .store-display {
+  font-family: "Sora", sans-serif;
+  letter-spacing: -0.05em;
+}
+
+.font-tech .store-kicker {
+  letter-spacing: 0.28em;
+  text-transform: uppercase;
+}
+
 .fashion-shell {
   background-image:
     radial-gradient(circle at top left, rgba(222, 184, 135, 0.18), transparent 34%),
@@ -34,4 +48,101 @@ body {
 
 .fashion-soft-shadow {
   box-shadow: 0 18px 50px rgba(111, 67, 58, 0.08);
+}
+
+.tech-shell {
+  background-image:
+    radial-gradient(circle at 10% 10%, rgba(37, 99, 235, 0.12), transparent 22%),
+    radial-gradient(circle at 88% 14%, rgba(14, 165, 233, 0.14), transparent 24%),
+    radial-gradient(circle at 70% 78%, rgba(56, 189, 248, 0.12), transparent 20%),
+    linear-gradient(180deg, #f4f8ff 0%, #eef4ff 42%, #ffffff 100%);
+}
+
+.tech-panel {
+  box-shadow: 0 24px 70px rgba(34, 96, 190, 0.12);
+}
+
+.tech-soft-shadow {
+  box-shadow: 0 18px 46px rgba(50, 106, 194, 0.1);
+}
+
+.tech-grid {
+  background-image:
+    linear-gradient(rgba(37, 99, 235, 0.08) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(37, 99, 235, 0.08) 1px, transparent 1px);
+  background-size: 34px 34px;
+}
+
+.tech-card-sheen {
+  position: relative;
+  overflow: hidden;
+}
+
+.tech-card-sheen::after {
+  content: "";
+  position: absolute;
+  inset: -40% auto auto -55%;
+  width: 45%;
+  height: 180%;
+  transform: rotate(24deg);
+  background: linear-gradient(180deg, transparent 0%, rgba(255, 255, 255, 0.55) 50%, transparent 100%);
+  opacity: 0;
+  transition: transform 0.55s ease, opacity 0.55s ease;
+}
+
+.tech-card-sheen:hover::after {
+  opacity: 1;
+  transform: translateX(240%) rotate(24deg);
+}
+
+.tech-float {
+  animation: techFloat 5.6s ease-in-out infinite;
+}
+
+.tech-float-slow {
+  animation: techFloat 8.5s ease-in-out infinite;
+}
+
+.tech-pulse {
+  animation: techPulse 3.6s ease-in-out infinite;
+}
+
+.tech-scan::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, transparent, rgba(255, 255, 255, 0.22), transparent);
+  transform: translateY(-140%);
+  animation: techScan 5s linear infinite;
+  pointer-events: none;
+}
+
+@keyframes techFloat {
+  0%, 100% {
+    transform: translateY(0px);
+  }
+
+  50% {
+    transform: translateY(-10px);
+  }
+}
+
+@keyframes techPulse {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(37, 99, 235, 0.12);
+  }
+
+  50% {
+    box-shadow: 0 0 0 14px rgba(37, 99, 235, 0);
+  }
+}
+
+@keyframes techScan {
+  0% {
+    transform: translateY(-130%);
+  }
+
+  100% {
+    transform: translateY(130%);
+  }
 }

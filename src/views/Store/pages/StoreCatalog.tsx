@@ -18,6 +18,7 @@ export default function StoreCatalog() {
   const [searchParams, setSearchParams] = useSearchParams();
   const { categories, products, addToCart, style, tenant } = useStore();
   const isFashion = tenant.template_id === "atelier";
+  const isTechNova = tenant.template_id === "nexus_tech";
 
   const [searchTerm, setSearchTerm] = useState(searchParams.get("q") || "");
   const [selectedCategory, setSelectedCategory] = useState<number | null>(
@@ -84,7 +85,7 @@ export default function StoreCatalog() {
   const saleCount = products.filter(p => p.is_active && p.discount_price).length;
 
   return (
-    <div className={cn("max-w-7xl mx-auto px-4 md:px-6 py-8", isFashion && "space-y-6")}>
+    <div className={cn("max-w-7xl mx-auto px-4 md:px-6 py-8", (isFashion || isTechNova) && "space-y-6")}>
       <StoreSEO
         title={pageTitle}
         description={`Confira ${catName ? `produtos de ${catName}` : "todo o catálogo"} da loja ${tenant.name}.`}
@@ -92,39 +93,67 @@ export default function StoreCatalog() {
         siteName={tenant.name}
       />
 
-      {isFashion && (
-        <div className="fashion-panel overflow-hidden rounded-[2rem] border border-[#ead9ce] bg-[linear-gradient(135deg,#fff8f3_0%,#f7ece4_55%,#fffdfb_100%)] p-6 md:p-8">
+      {isTechNova ? (
+        <div className="tech-panel overflow-hidden rounded-[2rem] border border-[#dbe6ff] bg-[linear-gradient(135deg,#fbfdff_0%,#f2f7ff_55%,#eef4ff_100%)] p-5 sm:p-6 md:p-8">
+          <div className="tech-grid rounded-[1.6rem] border border-white/70 bg-white/42 p-4 sm:p-5 md:p-6">
+            <p className="store-kicker text-[10px] font-semibold text-[#6f89ad]">Catálogo inteligente</p>
+            <div className="mt-4 flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+              <div>
+                <h1 className="store-display text-[2.8rem] sm:text-5xl md:text-6xl leading-[0.9] text-[#071426]">
+                  {catName || "Linha completa"}
+                </h1>
+                <p className="mt-3 max-w-2xl text-[14px] sm:text-sm md:text-base leading-relaxed text-[#5d789a]">
+                  Explore eletrônicos, informática e acessórios em uma grade clara, rápida de ler e pronta para destacar preço, oferta e variações.
+                </p>
+              </div>
+              <div className="grid grid-cols-2 min-[430px]:grid-cols-3 gap-3 text-center">
+                {[
+                  { value: filtered.length, label: "Itens" },
+                  { value: categories.length, label: "Linhas" },
+                  { value: saleCount, label: "Ofertas" },
+                ].map((item) => (
+                  <div key={item.label} className="rounded-[1.4rem] border border-[#dbe6ff] bg-white/80 px-3 sm:px-4 py-3 tech-soft-shadow">
+                    <p className="store-display text-[2rem] sm:text-3xl leading-none" style={{ color: style.accent }}>{item.value}</p>
+                    <p className="mt-2 text-[9px] font-semibold uppercase tracking-[0.22em] text-[#6f89ad]">{item.label}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : isFashion ? (
+        <div className="fashion-panel overflow-hidden rounded-[2rem] border border-[#ead9ce] bg-[linear-gradient(135deg,#fff8f3_0%,#f7ece4_55%,#fffdfb_100%)] p-5 sm:p-6 md:p-8">
           <p className="store-kicker text-[10px] font-semibold text-[#9d6d63]">Catálogo editorial</p>
           <div className="mt-4 flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
             <div>
-              <h1 className="store-display text-4xl md:text-6xl leading-[0.9] text-[#2d221f]">
+              <h1 className="store-display text-[2.8rem] sm:text-5xl md:text-6xl leading-[0.9] text-[#2d221f]">
                 {catName || "Coleção completa"}
               </h1>
-              <p className="mt-3 max-w-2xl text-sm md:text-base leading-relaxed text-[#6b5149]">
+              <p className="mt-3 max-w-2xl text-[14px] sm:text-sm md:text-base leading-relaxed text-[#6b5149]">
                 Explore peças com uma vitrine pensada para roupas e acessórios, com foco em imagem, leitura clara e navegação leve.
               </p>
             </div>
-            <div className="grid grid-cols-3 gap-3 text-center">
+            <div className="grid grid-cols-2 min-[430px]:grid-cols-3 gap-3 text-center">
               {[
                 { value: filtered.length, label: "Peças" },
                 { value: categories.length, label: "Linhas" },
                 { value: saleCount, label: "Ofertas" },
               ].map((item) => (
-                <div key={item.label} className="rounded-[1.4rem] border border-[#ead9ce] bg-white/78 px-4 py-3">
-                  <p className="store-display text-3xl leading-none" style={{ color: style.accent }}>{item.value}</p>
+                <div key={item.label} className="rounded-[1.4rem] border border-[#ead9ce] bg-white/78 px-3 sm:px-4 py-3">
+                  <p className="store-display text-[2rem] sm:text-3xl leading-none" style={{ color: style.accent }}>{item.value}</p>
                   <p className="mt-2 text-[9px] font-semibold uppercase tracking-[0.22em] text-[#8c6c63]">{item.label}</p>
                 </div>
               ))}
             </div>
           </div>
         </div>
-      )}
+      ) : null}
 
       {/* Breadcrumb */}
-      <nav className="flex items-center gap-2 text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-6">
+      <nav className={cn("flex items-center gap-2 text-[10px] font-bold uppercase mb-6", isFashion ? "text-[#9c7b72] tracking-[0.24em]" : isTechNova ? "text-[#7c96b8] tracking-[0.22em]" : "text-slate-400 tracking-wider")}>
         <Link to={`/s/${slug}`} className="hover:text-slate-700 transition-colors">Início</Link>
         <span>/</span>
-        <span className="text-slate-700">Catálogo</span>
+        <span className={cn(isTechNova ? "text-[#071426]" : "text-slate-700")}>Catálogo</span>
         {catName && <><span>/</span><span style={{ color: style.accent }}>{catName}</span></>}
       </nav>
 
@@ -133,12 +162,13 @@ export default function StoreCatalog() {
         {/* ── SIDEBAR ──────────────────────────────────────────── */}
         {/* Desktop */}
         <aside className="hidden lg:flex flex-col gap-2 w-56 shrink-0">
-          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-3 mb-1">Filtrar por</p>
+          <p className={cn("text-[10px] font-black uppercase tracking-widest px-3 mb-1", isTechNova ? "text-[#7c96b8]" : "text-slate-400")}>Filtrar por</p>
 
           <button
             onClick={() => { setSelectedCategory(null); updateParams("cat", null); }}
-            className={cn("flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-bold transition-all",
-              selectedCategory === null ? "text-white shadow-sm" : "text-slate-600 hover:bg-slate-100")}
+            className={cn("flex items-center justify-between px-3 py-2.5 text-xs font-bold transition-all",
+              isTechNova ? "rounded-[1rem] border border-[#dbe6ff]" : "rounded-xl",
+              selectedCategory === null ? "text-white shadow-sm border-transparent" : isTechNova ? "text-[#476585] bg-white/72 hover:bg-white" : "text-slate-600 hover:bg-slate-100")}
             style={selectedCategory === null ? { backgroundColor: style.accent } : {}}
           >
             <span className="flex items-center gap-2"><LayoutGrid size={13} /> Todos</span>
@@ -155,8 +185,9 @@ export default function StoreCatalog() {
               <button
                 key={cat.id}
                 onClick={() => { setSelectedCategory(cat.id); updateParams("cat", String(cat.id)); }}
-                className={cn("flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-bold transition-all",
-                  active ? "text-white shadow-sm" : "text-slate-600 hover:bg-slate-100")}
+                className={cn("flex items-center justify-between px-3 py-2.5 text-xs font-bold transition-all",
+                  isTechNova ? "rounded-[1rem] border border-[#dbe6ff]" : "rounded-xl",
+                  active ? "text-white shadow-sm border-transparent" : isTechNova ? "text-[#476585] bg-white/72 hover:bg-white" : "text-slate-600 hover:bg-slate-100")}
                 style={active ? { backgroundColor: style.accent } : {}}
               >
                 <span className="flex items-center gap-2 truncate"><Tag size={13} className="shrink-0" /> <span className="truncate">{cat.name}</span></span>
@@ -205,13 +236,18 @@ export default function StoreCatalog() {
 
             {/* Search */}
             <div className="flex-1 relative group w-full">
-              <Search size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-blue-500 transition-colors" />
+              <Search size={15} className={cn("absolute left-3.5 top-1/2 -translate-y-1/2 transition-colors", isTechNova ? "text-[#7d97ba] group-focus-within:text-[#2563eb]" : "text-slate-400 group-focus-within:text-blue-500")} />
               <input
                 type="text"
                 placeholder="Buscar produtos..."
                 value={searchTerm}
                 onChange={e => { setSearchTerm(e.target.value); updateParams("q", e.target.value || null); }}
-                className="w-full pl-10 pr-9 h-10 bg-white border border-slate-200 rounded-xl text-sm font-medium placeholder:text-slate-300 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition-all"
+                className={cn(
+                  "w-full pl-10 pr-9 h-10 text-sm font-medium outline-none transition-all",
+                  isTechNova
+                    ? "bg-white/84 border border-[#dbe6ff] rounded-full placeholder:text-[#9eb1cc] focus:border-[#7aa2ff] focus:ring-2 focus:ring-[#dce8ff]"
+                    : "bg-white border border-slate-200 rounded-xl placeholder:text-slate-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                )}
               />
               {searchTerm && (
                 <button onClick={() => { setSearchTerm(""); updateParams("q", null); }}
@@ -224,7 +260,7 @@ export default function StoreCatalog() {
             {/* Mobile filter button */}
             <button
               onClick={() => setSidebarOpen(v => !v)}
-              className="lg:hidden flex items-center gap-2 h-10 px-3 border border-slate-200 bg-white rounded-xl text-xs font-bold text-slate-600"
+              className={cn("lg:hidden flex items-center gap-2 h-10 px-3 text-xs font-bold", isTechNova ? "border border-[#dbe6ff] bg-white/82 rounded-full text-[#4f6d92]" : "border border-slate-200 bg-white rounded-xl text-slate-600")}
             >
               <SlidersHorizontal size={14} /> Filtros
               {selectedCategory !== null && (
@@ -237,7 +273,7 @@ export default function StoreCatalog() {
               <div ref={sortRef} className="relative">
                 <button
                   onClick={() => setShowSortMenu(v => !v)}
-                  className="flex items-center gap-2 h-10 px-3 border border-slate-200 bg-white rounded-xl text-xs font-bold text-slate-600 hover:border-slate-300 transition-all"
+                  className={cn("flex items-center gap-2 h-10 px-3 text-xs font-bold transition-all", isTechNova ? "border border-[#dbe6ff] bg-white/82 rounded-full text-[#4f6d92] hover:border-[#bfd2ff]" : "border border-slate-200 bg-white rounded-xl text-slate-600 hover:border-slate-300")}
                 >
                   <ArrowUpDown size={13} />
                   <span className="hidden sm:inline">{sortLabels[sortBy]}</span>
@@ -267,7 +303,7 @@ export default function StoreCatalog() {
               </div>
 
               {/* View toggle */}
-              <div className="flex h-10 bg-white border border-slate-200 rounded-xl overflow-hidden">
+              <div className={cn("flex h-10 overflow-hidden", isTechNova ? "bg-white/82 border border-[#dbe6ff] rounded-full" : "bg-white border border-slate-200 rounded-xl")}>
                 {(["grid", "list"] as ViewMode[]).map(mode => (
                   <button
                     key={mode}
@@ -291,7 +327,7 @@ export default function StoreCatalog() {
                 onClick={() => { setSelectedCategory(cat.id); updateParams("cat", cat.id ? String(cat.id) : null); }}
                 style={selectedCategory === cat.id ? { backgroundColor: style.accent } : {}}
                 className={cn("px-3 h-8 whitespace-nowrap font-bold text-[10px] uppercase tracking-wider rounded-full border shrink-0 transition-all",
-                  selectedCategory === cat.id ? "text-white border-transparent" : "bg-white text-slate-500 border-slate-200")}
+                  selectedCategory === cat.id ? "text-white border-transparent" : isTechNova ? "bg-white/82 text-[#5b789e] border-[#dbe6ff]" : "bg-white text-slate-500 border-slate-200")}
               >
                 {cat.name}
               </button>
@@ -301,15 +337,15 @@ export default function StoreCatalog() {
           {/* Active filters */}
           {(selectedCategory !== null || searchTerm) && (
             <div className="flex flex-wrap items-center gap-2">
-              <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Filtros:</span>
+              <span className={cn("text-[10px] font-black uppercase tracking-wider", isTechNova ? "text-[#7c96b8]" : "text-slate-400")}>Filtros:</span>
               {catName && (
-                <span className="flex items-center gap-1.5 px-3 py-1 bg-blue-50 border border-blue-200 text-blue-700 rounded-full text-[10px] font-bold">
+                <span className={cn("flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-bold", isTechNova ? "bg-white/80 border border-[#dbe6ff] text-[#2563eb]" : "bg-blue-50 border border-blue-200 text-blue-700")}>
                   {catName}
                   <button onClick={() => { setSelectedCategory(null); updateParams("cat", null); }}><X size={10} /></button>
                 </span>
               )}
               {searchTerm && (
-                <span className="flex items-center gap-1.5 px-3 py-1 bg-slate-100 border border-slate-200 text-slate-600 rounded-full text-[10px] font-bold">
+                <span className={cn("flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-bold", isTechNova ? "bg-white/80 border border-[#dbe6ff] text-[#5b789e]" : "bg-slate-100 border border-slate-200 text-slate-600")}>
                   "{searchTerm}"
                   <button onClick={() => { setSearchTerm(""); updateParams("q", null); }}><X size={10} /></button>
                 </span>
@@ -324,7 +360,7 @@ export default function StoreCatalog() {
           )}
 
           {/* Result count */}
-          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+          <p className={cn("text-[10px] font-bold uppercase tracking-widest", isTechNova ? "text-[#7c96b8]" : "text-slate-400")}>
             {filtered.length} produto{filtered.length !== 1 ? "s" : ""} encontrado{filtered.length !== 1 ? "s" : ""}
           </p>
 
@@ -392,6 +428,7 @@ function ProductCard({ product, index, slug, style, wishlist, onWishlist, onAddT
     : product.image_url ? [product.image_url] : [];
   const primaryImage = allImages[0] ?? null;
   const isFashion = style.font === "font-editorial";
+  const isTechNova = style.font === "font-tech";
 
   return (
     <motion.div
@@ -400,12 +437,12 @@ function ProductCard({ product, index, slug, style, wishlist, onWishlist, onAddT
       transition={{ delay: Math.min(index * 0.04, 0.4) }}
       className={cn(
         "group relative flex flex-col overflow-hidden border transition-all duration-300",
-        isFashion ? "fashion-soft-shadow hover:-translate-y-1 hover:shadow-[0_26px_70px_rgba(108,64,55,0.12)]" : "hover:shadow-xl",
+        isFashion ? "fashion-soft-shadow hover:-translate-y-1 hover:shadow-[0_26px_70px_rgba(108,64,55,0.12)]" : isTechNova ? "tech-soft-shadow tech-card-sheen hover:-translate-y-1 hover:shadow-[0_28px_70px_rgba(42,94,188,0.18)]" : "hover:shadow-xl",
         style.card,
         style.radius
       )}
     >
-      <Link to={`/s/${slug}/produto/${product.id}`} className={cn("relative overflow-hidden block", isFashion ? "aspect-[4/5] bg-[#f8efe8]" : "aspect-square bg-slate-50")}>
+      <Link to={`/s/${slug}/produto/${product.id}`} className={cn("relative overflow-hidden block", isFashion ? "aspect-[4/5] bg-[#f8efe8]" : isTechNova ? "aspect-square tech-grid bg-[linear-gradient(180deg,#f8fbff_0%,#edf4ff_100%)]" : "aspect-square bg-slate-50")}>
         {primaryImage
           ? <img src={primaryImage} alt={product.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
           : <div className="w-full h-full flex items-center justify-center text-slate-200"><Package size={48} strokeWidth={1} /></div>}
@@ -455,30 +492,30 @@ function ProductCard({ product, index, slug, style, wishlist, onWishlist, onAddT
         </div>
       </Link>
 
-      <div className={cn("flex flex-col flex-1", isFashion ? "p-5 gap-2" : "p-3 gap-1")}>
-        <p className={cn(isFashion ? "store-kicker text-[9px] font-semibold text-[#9c7b72]" : "text-[9px] font-black text-slate-400 uppercase tracking-widest")}>{product.category_name || "Geral"}</p>
-        <Link to={`/s/${slug}/produto/${product.id}`} className={cn(isFashion ? "store-display text-[1.5rem] font-semibold text-[#2d221f] line-clamp-2 leading-[0.95] hover:text-[#7b4e46] transition-colors" : "text-xs font-bold text-slate-800 line-clamp-2 leading-snug hover:text-blue-600 transition-colors")}>
+      <div className={cn("flex flex-col flex-1", isFashion ? "p-4 sm:p-5 gap-2" : isTechNova ? "p-4 sm:p-5 gap-2" : "p-3 gap-1")}>
+        <p className={cn(isFashion ? "store-kicker text-[9px] font-semibold text-[#9c7b72]" : isTechNova ? "store-kicker text-[9px] font-semibold text-[#6f89ad]" : "text-[9px] font-black text-slate-400 uppercase tracking-widest")}>{product.category_name || "Geral"}</p>
+        <Link to={`/s/${slug}/produto/${product.id}`} className={cn(isFashion ? "store-display text-[1.28rem] sm:text-[1.5rem] font-semibold text-[#2d221f] line-clamp-2 leading-[0.95] hover:text-[#7b4e46] transition-colors" : isTechNova ? "store-display text-[1.16rem] sm:text-[1.35rem] font-semibold text-[#071426] line-clamp-2 leading-[1.02] hover:text-[#2563eb] transition-colors" : "text-xs font-bold text-slate-800 line-clamp-2 leading-snug hover:text-blue-600 transition-colors")}>
           {product.name}
         </Link>
-        {isFashion && product.description && (
-          <p className="text-[12px] leading-relaxed text-[#8c6c63] line-clamp-2">{product.description}</p>
+        {(isFashion || isTechNova) && product.description && (
+          <p className={cn("text-[11px] sm:text-[12px] leading-relaxed line-clamp-2", isFashion ? "text-[#8c6c63]" : "text-[#607b9d]")}>{product.description}</p>
         )}
         {Array.isArray(product.variations) && product.variations.length > 0 && (
           <div className="flex flex-wrap gap-1">
             {product.variations[0]?.options.slice(0, 4).map((opt, i) => (
-              <span key={i} className={cn(isFashion ? "text-[9px] border border-[#ead9ce] rounded-full px-2.5 py-1 text-[#8c6c63]" : "text-[9px] border border-slate-200 rounded px-1.5 py-0.5 text-slate-500")}>{opt.value}</span>
+              <span key={i} className={cn(isFashion ? "text-[9px] border border-[#ead9ce] rounded-full px-2.5 py-1 text-[#8c6c63]" : isTechNova ? "text-[9px] border border-[#dbe6ff] rounded-full px-2.5 py-1 text-[#607b9d] bg-white/82" : "text-[9px] border border-slate-200 rounded px-1.5 py-0.5 text-slate-500")}>{opt.value}</span>
             ))}
           </div>
         )}
-        <div className={cn("flex items-center justify-between mt-auto", isFashion ? "pt-4 border-t border-[#eee2d6]" : "pt-2")}>
+        <div className={cn("flex items-center justify-between mt-auto", isFashion ? "pt-4 border-t border-[#eee2d6]" : isTechNova ? "pt-4 border-t border-[#dbe6ff]" : "pt-2")}>
           <div>
             {product.discount_price ? (
               <div className="flex flex-col">
                 <span className="text-[10px] text-slate-400 line-through font-mono">R$ {Number(product.price).toFixed(2)}</span>
-                <span className={cn(isFashion ? "store-display text-[1.8rem] font-semibold text-[#2d221f]" : "text-sm font-black text-emerald-600 font-mono")}>R$ {Number(product.discount_price).toFixed(2)}</span>
+                <span className={cn(isFashion ? "store-display text-[1.45rem] sm:text-[1.8rem] font-semibold text-[#2d221f]" : isTechNova ? "store-display text-[1.32rem] sm:text-[1.55rem] font-semibold text-[#071426]" : "text-sm font-black text-emerald-600 font-mono")}>R$ {Number(product.discount_price).toFixed(2)}</span>
               </div>
             ) : (
-              <span className={cn(isFashion ? "store-display text-[1.8rem] font-semibold" : "text-sm font-black font-mono")} style={{ color: style.accent }}>R$ {Number(product.price).toFixed(2)}</span>
+              <span className={cn(isFashion ? "store-display text-[1.45rem] sm:text-[1.8rem] font-semibold" : isTechNova ? "store-display text-[1.32rem] sm:text-[1.55rem] font-semibold" : "text-sm font-black font-mono")} style={{ color: style.accent }}>R$ {Number(product.price).toFixed(2)}</span>
             )}
           </div>
           <button
@@ -487,12 +524,14 @@ function ProductCard({ product, index, slug, style, wishlist, onWishlist, onAddT
             className={cn(
               "text-white transition-all active:scale-90",
               isFashion
-                ? "h-10 px-4 rounded-full text-[10px] font-semibold uppercase tracking-[0.22em] flex items-center gap-2"
+                ? "w-10 h-10 sm:w-auto sm:px-4 rounded-full text-[10px] font-semibold uppercase tracking-[0.18em] sm:tracking-[0.22em] flex items-center justify-center gap-2"
+                : isTechNova
+                  ? "h-10 px-4 rounded-full text-[10px] font-semibold uppercase tracking-[0.16em] flex items-center justify-center gap-2 shadow-[0_16px_30px_rgba(37,99,235,0.2)]"
                 : "w-8 h-8 flex items-center justify-center",
               style.radius
             )}
           >
-            {isFashion ? <><Plus size={12} strokeWidth={3} /> Adicionar</> : <Plus size={14} strokeWidth={3} />}
+            {isFashion || isTechNova ? <><Plus size={12} strokeWidth={3} /><span className={cn(isTechNova && "hidden sm:inline")}>Adicionar</span></> : <Plus size={14} strokeWidth={3} />}
           </button>
         </div>
       </div>
@@ -512,6 +551,7 @@ function ProductRow({ product, index, slug, style, wishlist, onWishlist, onAddTo
     : product.image_url ? [product.image_url] : [];
   const primaryImage = allImages[0] ?? null;
   const isFashion = style.font === "font-editorial";
+  const isTechNova = style.font === "font-tech";
 
   return (
     <motion.div
@@ -520,12 +560,12 @@ function ProductRow({ product, index, slug, style, wishlist, onWishlist, onAddTo
       transition={{ delay: Math.min(index * 0.03, 0.3) }}
       className={cn(
         "flex gap-4 border transition-all group",
-        isFashion ? "fashion-soft-shadow p-4 hover:-translate-y-1 hover:shadow-[0_26px_70px_rgba(108,64,55,0.12)]" : "p-3 hover:shadow-md",
+        isFashion ? "fashion-soft-shadow p-4 hover:-translate-y-1 hover:shadow-[0_26px_70px_rgba(108,64,55,0.12)]" : isTechNova ? "tech-soft-shadow p-4 rounded-[1.75rem] hover:-translate-y-1 hover:shadow-[0_24px_60px_rgba(42,94,188,0.14)]" : "p-3 hover:shadow-md",
         style.card,
         style.radius
       )}
     >
-      <Link to={`/s/${slug}/produto/${product.id}`} className={cn(isFashion ? "w-28 h-36 shrink-0 rounded-[1.4rem] overflow-hidden bg-[#f8efe8] relative" : "w-24 h-24 shrink-0 rounded-xl overflow-hidden bg-slate-50 relative")}>
+      <Link to={`/s/${slug}/produto/${product.id}`} className={cn(isFashion ? "w-24 h-32 sm:w-28 sm:h-36 shrink-0 rounded-[1.4rem] overflow-hidden bg-[#f8efe8] relative" : isTechNova ? "w-24 h-24 sm:w-28 sm:h-28 shrink-0 rounded-[1.3rem] overflow-hidden tech-grid bg-[linear-gradient(180deg,#f8fbff_0%,#edf4ff_100%)] relative" : "w-24 h-24 shrink-0 rounded-xl overflow-hidden bg-slate-50 relative")}>
         {primaryImage
           ? <img src={primaryImage} alt={product.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
           : <div className="w-full h-full flex items-center justify-center text-slate-200"><Package size={28} strokeWidth={1} /></div>}
@@ -539,8 +579,8 @@ function ProductRow({ product, index, slug, style, wishlist, onWishlist, onAddTo
         <div>
           <div className="flex items-start justify-between gap-2">
             <div>
-              <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">{product.category_name || "Geral"}</p>
-              <Link to={`/s/${slug}/produto/${product.id}`} className={cn(isFashion ? "store-display text-[1.8rem] font-semibold text-[#2d221f] hover:text-[#7b4e46] transition-colors leading-[0.95] line-clamp-2 mt-0.5 block" : "text-sm font-bold text-slate-800 hover:text-blue-600 transition-colors leading-snug line-clamp-2 mt-0.5 block")}>
+              <p className={cn(isTechNova ? "store-kicker text-[9px] font-semibold text-[#6f89ad]" : "text-[9px] font-black text-slate-400 uppercase tracking-widest")}>{product.category_name || "Geral"}</p>
+              <Link to={`/s/${slug}/produto/${product.id}`} className={cn(isFashion ? "store-display text-[1.45rem] sm:text-[1.8rem] font-semibold text-[#2d221f] hover:text-[#7b4e46] transition-colors leading-[0.95] line-clamp-2 mt-0.5 block" : isTechNova ? "store-display text-[1.3rem] sm:text-[1.55rem] font-semibold text-[#071426] hover:text-[#2563eb] transition-colors leading-[0.98] line-clamp-2 mt-0.5 block" : "text-sm font-bold text-slate-800 hover:text-blue-600 transition-colors leading-snug line-clamp-2 mt-0.5 block")}>
                 {product.name}
               </Link>
             </div>
@@ -551,11 +591,11 @@ function ProductRow({ product, index, slug, style, wishlist, onWishlist, onAddTo
               <Heart size={14} fill={inWishlist ? "currentColor" : "none"} />
             </button>
           </div>
-          {product.description && <p className="text-[11px] text-slate-500 mt-1 line-clamp-2 leading-relaxed">{product.description}</p>}
+          {product.description && <p className={cn("text-[11px] mt-1 line-clamp-2 leading-relaxed", isTechNova ? "text-[#607b9d]" : "text-slate-500")}>{product.description}</p>}
           {Array.isArray(product.variations) && product.variations.length > 0 && (
             <div className="flex flex-wrap gap-1 mt-2">
               {product.variations.map((v, vi) => (
-                <span key={vi} className="text-[9px] bg-slate-100 text-slate-500 font-bold px-2 py-0.5 rounded-full">
+                <span key={vi} className={cn("text-[9px] font-bold px-2 py-0.5 rounded-full", isTechNova ? "bg-white border border-[#dbe6ff] text-[#607b9d]" : "bg-slate-100 text-slate-500")}>
                   {v.name}: {v.options.map(o => o.value).join(", ")}
                 </span>
               ))}
@@ -567,21 +607,21 @@ function ProductRow({ product, index, slug, style, wishlist, onWishlist, onAddTo
             {product.discount_price ? (
               <div className="flex items-center gap-2">
                 <span className="text-[10px] text-slate-400 line-through font-mono">R$ {Number(product.price).toFixed(2)}</span>
-                <span className={cn(isFashion ? "store-display text-[1.9rem] font-semibold text-[#2d221f]" : "text-base font-black text-emerald-600 font-mono")}>R$ {Number(product.discount_price).toFixed(2)}</span>
+                <span className={cn(isFashion ? "store-display text-[1.55rem] sm:text-[1.9rem] font-semibold text-[#2d221f]" : isTechNova ? "store-display text-[1.45rem] sm:text-[1.7rem] font-semibold text-[#071426]" : "text-base font-black text-emerald-600 font-mono")}>R$ {Number(product.discount_price).toFixed(2)}</span>
               </div>
             ) : (
-              <span className={cn(isFashion ? "store-display text-[1.9rem] font-semibold" : "text-base font-black font-mono")} style={{ color: style.accent }}>R$ {Number(product.price).toFixed(2)}</span>
+              <span className={cn(isFashion ? "store-display text-[1.55rem] sm:text-[1.9rem] font-semibold" : isTechNova ? "store-display text-[1.45rem] sm:text-[1.7rem] font-semibold" : "text-base font-black font-mono")} style={{ color: style.accent }}>R$ {Number(product.price).toFixed(2)}</span>
             )}
           </div>
           <div className="flex items-center gap-2">
             <Link to={`/s/${slug}/produto/${product.id}`}
-              className={cn(isFashion ? "h-10 px-4 rounded-full border border-[#ead9ce] text-[10px] font-semibold uppercase tracking-[0.22em] text-[#6b5149] hover:bg-[#fff7f1] flex items-center gap-1.5 transition-all" : "h-8 px-3 rounded-xl border border-slate-200 text-[10px] font-bold text-slate-500 hover:border-slate-400 flex items-center gap-1.5 transition-all")}>
+              className={cn(isFashion ? "h-10 px-3 sm:px-4 rounded-full border border-[#ead9ce] text-[10px] font-semibold uppercase tracking-[0.16em] sm:tracking-[0.22em] text-[#6b5149] hover:bg-[#fff7f1] flex items-center gap-1.5 transition-all" : isTechNova ? "h-10 px-4 rounded-full border border-[#dbe6ff] bg-white text-[10px] font-semibold uppercase tracking-[0.16em] text-[#5b789e] hover:border-[#bfd2ff] hover:text-[#071426] flex items-center gap-1.5 transition-all" : "h-8 px-3 rounded-xl border border-slate-200 text-[10px] font-bold text-slate-500 hover:border-slate-400 flex items-center gap-1.5 transition-all")}>
               <Eye size={12} /> Ver
             </Link>
             <button
               onClick={() => onAddToCart(product)}
               style={{ backgroundColor: style.accent }}
-              className={cn(isFashion ? "h-10 px-5 rounded-full text-white text-[10px] font-semibold uppercase tracking-[0.22em] flex items-center gap-1.5 active:scale-95 transition-all" : "h-8 px-4 rounded-xl text-white text-[10px] font-black uppercase tracking-wider flex items-center gap-1.5 active:scale-95 transition-all")}
+              className={cn(isFashion ? "h-10 px-4 sm:px-5 rounded-full text-white text-[10px] font-semibold uppercase tracking-[0.16em] sm:tracking-[0.22em] flex items-center gap-1.5 active:scale-95 transition-all" : isTechNova ? "h-10 px-5 rounded-full text-white text-[10px] font-semibold uppercase tracking-[0.16em] flex items-center gap-1.5 active:scale-95 transition-all shadow-[0_16px_30px_rgba(37,99,235,0.2)]" : "h-8 px-4 rounded-xl text-white text-[10px] font-black uppercase tracking-wider flex items-center gap-1.5 active:scale-95 transition-all")}
             >
               <Plus size={12} strokeWidth={3} /> Adicionar
             </button>
