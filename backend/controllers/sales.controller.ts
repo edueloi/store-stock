@@ -13,6 +13,29 @@ interface SaleItemInput {
   price: number;
 }
 
+// Parses "credit-visa-2x:120.00|money:30.00" into structured segments
+function parsePaymentMethod(pm: string) {
+  return pm.split("|").map((seg) => {
+    const [methodPart, amountStr] = seg.split(":");
+    const tokens = methodPart.split("-");
+    return {
+      method:       tokens[0] ?? "money",
+      brand:        tokens[1] ?? "other",
+      installments: tokens[2] ? parseInt(tokens[2].replace("x", ""), 10) : 1,
+      amount:       parseFloat(amountStr ?? "0") || 0,
+    };
+  });
+}
+
+function buildMethodSummary(pm: string) {
+  const labels: Record<string, string> = { money: "Dinheiro", pix: "PIX", debit: "Débito", credit: "Crédito" };
+  return parsePaymentMethod(pm).map(({ method, brand, installments }) => {
+    const b = brand && brand !== "other" ? `/${brand.toUpperCase()}` : "";
+    const i = method === "credit" && installments > 1 ? ` ${installments}X` : "";
+    return `${labels[method] ?? method}${b}${i}`;
+  }).join(" + ");
+}
+
 export async function createSale(req: Request, res: Response) {
   const { items, customerName, totalAmount, paymentMethod, discount, sellerId } = req.body as {
     items: SaleItemInput[];
@@ -25,6 +48,23 @@ export async function createSale(req: Request, res: Response) {
 
   try {
     const tenantId = getTenantId(req);
+
+    // Load tenant card fees to compute machine fee internally
+    const tenantData = await prisma.tenant.findUnique({
+      where: { id: tenantId },
+      select: { card_fees: true },
+    });
+    const cardFees = (tenantData?.card_fees ?? {}) as Record<string, number[]>;
+
+    // Calculate machine fee from credit payments
+    const pmString    = paymentMethod || "money";
+    const pmSegments  = parsePaymentMethod(pmString);
+    const machineFee  = pmSegments.reduce((sum, seg) => {
+      if (seg.method !== "credit" || seg.amount <= 0) return sum;
+      const rate = cardFees[seg.brand]?.[seg.installments - 1] ?? 0;
+      return sum + seg.amount * (rate / 100);
+    }, 0);
+
     const order = await prisma.order.create({
       data: {
         tenant_id: tenantId,
@@ -32,7 +72,7 @@ export async function createSale(req: Request, res: Response) {
         customer_name: customerName || "Balcão",
         total_amount: totalAmount,
         status: "completed",
-        payment_method: paymentMethod || "money",
+        payment_method: pmString,
         items: {
           create: items.map((item) => ({
             product_id: item.id,
@@ -46,25 +86,37 @@ export async function createSale(req: Request, res: Response) {
     for (const item of items) {
       await prisma.product.update({
         where: { id: item.id },
-        data: {
-          stock_quantity: {
-            decrement: item.quantity,
-          },
-        },
+        data: { stock_quantity: { decrement: item.quantity } },
       });
     }
 
-    const methodLabel: Record<string, string> = { money: "Dinheiro", card: "Cartão", pix: "PIX" };
-    const discountNote = discount && discount > 0 ? ` (desc. R$ ${Number(discount).toFixed(2)})` : "";
+    const methodSummary = buildMethodSummary(pmString);
+    const discountNote  = discount && discount > 0 ? ` (desc. R$ ${Number(discount).toFixed(2)})` : "";
+    const now = new Date();
+
+    // Receita: valor total recebido do cliente
     await prisma.finance.create({
       data: {
         tenant_id: tenantId,
         type: "income",
-        description: `Venda PDV #${order.id} — ${methodLabel[paymentMethod || "money"] ?? paymentMethod}${discountNote}`,
+        description: `Venda PDV #${order.id} — ${methodSummary}${discountNote}`,
         amount: totalAmount,
-        date: new Date(),
+        date: now,
       },
     });
+
+    // Despesa: taxa da maquininha (custo da loja)
+    if (machineFee > 0.005) {
+      await prisma.finance.create({
+        data: {
+          tenant_id: tenantId,
+          type: "expense",
+          description: `Taxa maquininha — Venda PDV #${order.id} (${methodSummary})`,
+          amount: Math.round(machineFee * 100) / 100,
+          date: now,
+        },
+      });
+    }
 
     res.json({ success: true, orderId: order.id });
   } catch {

@@ -208,19 +208,17 @@ export default function PDV() {
   const discountValue = Math.min(Number(discount) || 0, subtotal);
   const baseTotal     = subtotal - discountValue;
 
-  // juros calculados sobre baseTotal proporcional à parcela de crédito
+  // taxa interna da maquininha — custo da loja, não cobrado do cliente
   const creditPayments = payments.filter((p) => p.method === "credit");
-  const creditTotal    = creditPayments.reduce((s, p) => s + (Number(p.amount) || 0), 0);
   const feeAmount      = creditPayments.reduce((sum, p) => {
     const rate = cardFees[p.cardBrand]?.[p.installments - 1] ?? 0;
     if (!rate) return sum;
-    // aplica juros sobre a proporção do baseTotal que esse pagamento representa
     const pAmt = Number(p.amount) || 0;
-    const base = creditTotal > 0 ? baseTotal * (pAmt / creditTotal) : 0;
-    return sum + base * (rate / 100);
+    return sum + pAmt * (rate / 100);
   }, 0);
 
-  const total = baseTotal + feeAmount;
+  // cliente paga o valor sem acréscimo de taxa
+  const total = baseTotal;
 
   // quanto já foi preenchido nos pagamentos
   const paidAmount   = payments.reduce((s, p) => s + (Number(p.amount) || 0), 0);
@@ -260,12 +258,10 @@ export default function PDV() {
   // ── receipt helpers ───────────────────────────────────────────────────────────
   const buildPaymentLines = (sale: CompletedSale) =>
     sale.payments.map((p) => {
-      const rate = p.method === "credit" ? (sale.cardFees[p.cardBrand]?.[p.installments - 1] ?? 0) : 0;
       const brand = (p.method === "debit" || p.method === "credit") && p.cardBrand !== "other"
         ? `/${p.cardBrand.toUpperCase()}` : "";
       const inst  = p.method === "credit" && p.installments > 1 ? ` ${p.installments}X` : "";
-      const fee   = rate > 0 ? ` (+${rate}%)` : "";
-      return `${PM_LABEL[p.method]}${brand}${inst}${fee}: R$ ${Number(p.amount).toFixed(2)}`;
+      return `${PM_LABEL[p.method]}${brand}${inst}: R$ ${Number(p.amount).toFixed(2)}`;
     }).join(" | ");
 
   const buildThermalHtml = (sale: CompletedSale) => {
@@ -311,16 +307,13 @@ ${sale.items.map((item) => `
 <hr class="divider"/>
 <div class="row"><span class="bold">QTD DE ITENS:</span><span>${sale.items.reduce((a, b) => a + b.quantity, 0)}</span></div>
 ${sale.discountValue > 0 ? `<div class="row"><span>SUBTOTAL</span><span>R$ ${sale.subtotal.toFixed(2)}</span></div><div class="row"><span>DESCONTO</span><span>- R$ ${sale.discountValue.toFixed(2)}</span></div>` : ""}
-${sale.feeAmount > 0 ? `<div class="row"><span>JUROS</span><span>+ R$ ${sale.feeAmount.toFixed(2)}</span></div>` : ""}
 <hr class="divider-solid"/>
 <div class="row-total"><span>TOTAL R$:</span><span>R$ ${sale.total.toFixed(2)}</span></div>
 <hr class="divider-solid"/>
 ${sale.payments.map((p) => {
-  const rate  = p.method === "credit" ? (sale.cardFees[p.cardBrand]?.[p.installments - 1] ?? 0) : 0;
   const brand = (p.method === "debit" || p.method === "credit") && p.cardBrand !== "other" ? `/${p.cardBrand.toUpperCase()}` : "";
   const inst  = p.method === "credit" && p.installments > 1 ? ` ${p.installments}X` : "";
-  const fee   = rate > 0 ? `+${rate}%` : "";
-  const label = `${PM_LABEL[p.method]}${brand}${inst}${fee ? ` (${fee})` : ""}`.toUpperCase();
+  const label = `${PM_LABEL[p.method]}${brand}${inst}`.toUpperCase();
   return `<div class="row"><span class="bold">PAGAMENTO:</span><span>${label}</span></div><div class="row"><span></span><span class="bold">R$ ${Number(p.amount).toFixed(2)}</span></div>`;
 }).join('<hr class="divider"/>')}
 ${change > 0 ? `<hr class="divider"/><div class="row bold"><span>TROCO:</span><span>R$ ${change.toFixed(2)}</span></div>` : ""}
@@ -409,7 +402,6 @@ ${change > 0 ? `<hr class="divider"/><div class="row bold"><span>TROCO:</span><s
 </div>
 <div class="totals-box">
   ${sale.discountValue > 0 ? `<div class="totals-row"><span>Subtotal</span><span>R$ ${sale.subtotal.toFixed(2)}</span></div><div class="totals-row discount"><span>Desconto</span><span>− R$ ${sale.discountValue.toFixed(2)}</span></div>` : ""}
-  ${sale.feeAmount > 0 ? `<div class="totals-row fee"><span>Juros</span><span>+ R$ ${sale.feeAmount.toFixed(2)}</span></div>` : ""}
   <div class="totals-row main"><span>TOTAL</span><span>R$ ${sale.total.toFixed(2)}</span></div>
   ${change > 0 ? `<div class="totals-row change"><span>Troco devolvido</span><span>R$ ${change.toFixed(2)}</span></div>` : ""}
   <div class="pay-section">${payLines}</div>
@@ -431,7 +423,6 @@ ${change > 0 ? `<hr class="divider"/><div class="row bold"><span>TROCO:</span><s
       ...sale.items.map((i) => `• ${i.name} × ${i.quantity}  →  R$ ${(i.price * i.quantity).toFixed(2)}`),
       ``,
       sale.discountValue > 0 ? `Desconto: − R$ ${sale.discountValue.toFixed(2)}` : null,
-      sale.feeAmount > 0 ? `Juros: + R$ ${sale.feeAmount.toFixed(2)}` : null,
       `*TOTAL: R$ ${sale.total.toFixed(2)}*`,
       `Pagamento: ${payLines}`,
       sale.change > 0 ? `Troco: R$ ${sale.change.toFixed(2)}` : null,
@@ -915,9 +906,8 @@ ${change > 0 ? `<hr class="divider"/><div class="row bold"><span>TROCO:</span><s
                   {payments.map((p, idx) => {
                     const feeRate = p.method === "credit" ? (cardFees[p.cardBrand]?.[p.installments - 1] ?? 0) : 0;
                     const pAmt    = Number(p.amount) || 0;
-                    // juros sobre proporção do baseTotal
-                    const otherPaidCredit = creditTotal > 0 ? baseTotal * (pAmt / creditTotal) : 0;
-                    const pFee    = p.method === "credit" && feeRate > 0 && pAmt > 0 ? otherPaidCredit * (feeRate / 100) : 0;
+                    // taxa interna da maquininha (não é cobrada do cliente)
+                    const pFee    = p.method === "credit" && feeRate > 0 && pAmt > 0 ? pAmt * (feeRate / 100) : 0;
                     // troco desse pagamento específico: quanto dinheiro sobra apenas desse item
                     const otherPayments = paidAmount - pAmt;
                     const thisMoneyChange = p.method === "money" && pAmt > 0 ? Math.max(0, pAmt - Math.max(0, total - otherPayments)) : 0;
@@ -998,9 +988,9 @@ ${change > 0 ? `<hr class="divider"/><div class="row bold"><span>TROCO:</span><s
                             </div>
                           )}
                           {pFee > 0.005 && (
-                            <div className="flex items-center gap-1.5 bg-amber-50 border border-amber-200 rounded-xl px-3 shrink-0">
-                              <span className="text-[9px] font-black text-amber-700 uppercase tracking-widest">+{feeRate}%</span>
-                              <span className="text-[10px] font-mono font-black text-amber-700">R$ {pFee.toFixed(2)}</span>
+                            <div className="flex items-center gap-1.5 bg-slate-100 border border-slate-200 rounded-xl px-3 shrink-0" title="Taxa da maquininha — custo da loja, não cobrado do cliente">
+                              <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest">taxa {feeRate}%</span>
+                              <span className="text-[10px] font-mono font-black text-slate-500">R$ {pFee.toFixed(2)}</span>
                             </div>
                           )}
                         </div>
@@ -1022,8 +1012,8 @@ ${change > 0 ? `<hr class="divider"/><div class="row bold"><span>TROCO:</span><s
                     </>
                   )}
                   {feeAmount > 0 && (
-                    <div className="flex justify-between text-[10px] font-bold uppercase tracking-widest text-amber-400">
-                      <span>Juros (crédito)</span><span className="font-mono">+ R$ {feeAmount.toFixed(2)}</span>
+                    <div className="flex justify-between text-[10px] font-bold uppercase tracking-widest text-slate-500">
+                      <span>Taxa maquininha*</span><span className="font-mono">R$ {feeAmount.toFixed(2)}</span>
                     </div>
                   )}
                   <div className="flex justify-between items-center pt-1 border-t border-slate-700">
