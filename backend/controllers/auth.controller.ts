@@ -141,7 +141,7 @@ export async function login(req: Request, res: Response) {
     });
 
     if (!user) {
-      res.status(400).json({ error: "User not found" });
+      res.status(400).json({ error: "Usuário não encontrado." });
       return;
     }
 
@@ -155,7 +155,7 @@ export async function login(req: Request, res: Response) {
     const validPassword = await bcrypt.compare(password, user.password);
 
     if (!validPassword) {
-      res.status(400).json({ error: "Invalid password" });
+      res.status(400).json({ error: "Senha incorreta." });
       return;
     }
 
@@ -182,7 +182,7 @@ export async function login(req: Request, res: Response) {
       },
     });
   } catch {
-    res.status(500).json({ error: "Login failed" });
+    res.status(500).json({ error: "Erro ao realizar login. Tente novamente." });
   }
 }
 

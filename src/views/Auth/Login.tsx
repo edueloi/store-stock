@@ -1,7 +1,7 @@
 import { type FormEvent, useCallback, useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "motion/react";
-import { Eye, EyeOff, Lock, LogIn, User } from "lucide-react";
+import { AlertCircle, Eye, EyeOff, Lock, LogIn, User, X } from "lucide-react";
 
 import { getStoredUser, saveSession } from "../../lib/session";
 import LoginLoading from "./LoginLoading";
@@ -15,7 +15,12 @@ export default function Login() {
   const [loading, setLoading] = useState(false);
   const [showLoader, setShowLoader] = useState(false);
   const [redirectTo, setRedirectTo] = useState("");
-  const [error, setError] = useState("");
+  const [toast, setToast] = useState("");
+
+  const showToast = (msg: string) => {
+    setToast(msg);
+    setTimeout(() => setToast(""), 4000);
+  };
 
   useEffect(() => {
     const user = getStoredUser();
@@ -31,7 +36,7 @@ export default function Login() {
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();
     setLoading(true);
-    setError("");
+    setToast("");
 
     const trimmedIdentifier = identifier.trim();
     const isSuperAdminAttempt = !trimmedIdentifier.includes("@");
@@ -47,7 +52,7 @@ export default function Login() {
       const data = await response.json();
 
       if (!response.ok) {
-        setError(data.error || "Não foi possível entrar.");
+        showToast(data.error || "Não foi possível entrar.");
         return;
       }
 
@@ -62,7 +67,7 @@ export default function Login() {
       setRedirectTo(data.user?.role === "super_admin" ? "/super-admin" : "/admin");
       setShowLoader(true);
     } catch {
-      setError("Erro ao conectar com o servidor.");
+      showToast("Erro ao conectar com o servidor.");
     } finally {
       setLoading(false);
     }
@@ -76,6 +81,31 @@ export default function Login() {
     <>
       <AnimatePresence>
         {showLoader && <LoginLoading onDone={handleLoadingDone} />}
+      </AnimatePresence>
+
+      {/* Toast de erro */}
+      <AnimatePresence>
+        {toast && (
+          <motion.div
+            initial={{ opacity: 0, y: -16 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -16 }}
+            transition={{ duration: 0.25 }}
+            className="fixed left-1/2 top-5 z-50 flex -translate-x-1/2 items-center gap-3 rounded-2xl border border-red-200 bg-white px-5 py-3.5 shadow-[0_8px_32px_rgba(0,0,0,0.12)] min-w-[280px] max-w-sm"
+          >
+            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-red-100">
+              <AlertCircle size={16} className="text-red-500" />
+            </span>
+            <p className="flex-1 text-sm font-medium text-slate-800">{toast}</p>
+            <button
+              type="button"
+              onClick={() => setToast("")}
+              className="shrink-0 text-slate-400 hover:text-slate-600 transition-colors"
+            >
+              <X size={14} />
+            </button>
+          </motion.div>
+        )}
       </AnimatePresence>
     <div className="flex min-h-screen">
       {/* ── Painel esquerdo (branding) ── */}
@@ -257,13 +287,6 @@ export default function Login() {
               </div>
               <span className="text-sm font-medium text-slate-600 select-none">Lembrar-me</span>
             </label>
-
-            {/* Error */}
-            {error && (
-              <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-600">
-                {error}
-              </div>
-            )}
 
             {/* Submit */}
             <button
