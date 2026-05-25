@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from "react";
+import ExcelJS from "exceljs";
 import {
   Wallet,
   TrendingUp,
@@ -8,11 +9,8 @@ import {
   Search,
   Download,
   FileText,
-  Table,
-  X,
   ChevronDown,
   Calendar,
-  Filter,
   ArrowUpRight,
   ArrowDownRight,
   Loader2,
@@ -42,51 +40,259 @@ function formatDateBR(dateStr: string) {
   return d.toLocaleDateString("pt-BR");
 }
 
-// ─── Excel export (pure JS, no lib needed) ───────────────────────────────────
-function exportToCSV(entries: FinanceEntry[], tenant: Partial<Tenant> | null, period: string) {
-  const BOM = "﻿"; // UTF-8 BOM for Excel
-  const sep = ";";
-  const header = [
-    `Relatório Financeiro - ${tenant?.name || "Nexus ERP"}`,
-    `Período: ${period}`,
-    tenant?.address ? `Endereço: ${tenant.address}` : "",
-    (tenant as any)?.cnpj ? `CNPJ: ${(tenant as any).cnpj}` : "",
-    "",
-    ["Descrição", "Data", "Categoria", "Tipo", "Valor (R$)"].join(sep),
-  ]
-    .filter((l) => l !== null)
-    .join("\n");
+// ─── Excel export — ExcelJS com estilos completos ────────────────────────────
+async function exportToExcel(entries: FinanceEntry[], tenant: Partial<Tenant> | null, period: string) {
+  const wb = new ExcelJS.Workbook();
+  wb.creator = "Nexus ERP";
+  wb.created = new Date();
 
-  const rows = entries.map((e) =>
-    [
-      `"${e.description}"`,
-      formatDateBR(e.date),
-      e.category || "Operacional",
-      e.type === "income" ? "Receita" : "Despesa",
-      (e.type === "income" ? "" : "-") + Number(e.amount).toFixed(2).replace(".", ","),
-    ].join(sep)
-  );
+  const ws = wb.addWorksheet("Financeiro", {
+    pageSetup: { paperSize: 9, orientation: "landscape", fitToPage: true },
+    views: [{ state: "frozen", ySplit: 9 }],
+  });
 
-  const totalIncome = entries
-    .filter((e) => e.type === "income")
-    .reduce((a, e) => a + Number(e.amount), 0);
-  const totalExpense = entries
-    .filter((e) => e.type === "expense")
-    .reduce((a, e) => a + Number(e.amount), 0);
+  const totalIncome  = entries.filter(e => e.type === "income").reduce((a, e) => a + Number(e.amount), 0);
+  const totalExpense = entries.filter(e => e.type === "expense").reduce((a, e) => a + Number(e.amount), 0);
+  const balance      = totalIncome - totalExpense;
 
-  const footer = [
-    "",
-    `"TOTAL ENTRADAS";;;"";${totalIncome.toFixed(2).replace(".", ",")}`,
-    `"TOTAL SAÍDAS";;;"";-${totalExpense.toFixed(2).replace(".", ",")}`,
-    `"SALDO";;;"";"${(totalIncome - totalExpense).toFixed(2).replace(".", ",")}"`,
-  ].join("\n");
+  // ── column widths ──
+  ws.columns = [
+    { key: "seq",  width: 6  },
+    { key: "desc", width: 42 },
+    { key: "date", width: 14 },
+    { key: "cat",  width: 20 },
+    { key: "type", width: 14 },
+    { key: "val",  width: 18 },
+  ];
 
-  const csv = BOM + header + "\n" + rows.join("\n") + "\n" + footer;
-  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = `financeiro_${period.replace(/\s/g, "_")}.csv`;
+  // ── helper: apply border to a cell ──
+  const border = (style: "thin" | "medium" = "thin"): Partial<ExcelJS.Borders> => ({
+    top:    { style, color: { argb: style === "medium" ? "FF0F172A" : "FFE2E8F0" } },
+    bottom: { style, color: { argb: style === "medium" ? "FF0F172A" : "FFE2E8F0" } },
+    left:   { style, color: { argb: style === "medium" ? "FF0F172A" : "FFE2E8F0" } },
+    right:  { style, color: { argb: style === "medium" ? "FF0F172A" : "FFE2E8F0" } },
+  });
+
+  const fill = (hex: string): ExcelJS.Fill => ({
+    type: "pattern", pattern: "solid", fgColor: { argb: `FF${hex}` },
+  });
+
+  const font = (opts: {
+    bold?: boolean; italic?: boolean; size?: number; color?: string; name?: string;
+  }): Partial<ExcelJS.Font> => ({
+    name: opts.name ?? "Calibri",
+    size: opts.size ?? 11,
+    bold: opts.bold ?? false,
+    italic: opts.italic ?? false,
+    color: { argb: `FF${opts.color ?? "1E293B"}` },
+  });
+
+  // ── ROW 1: company name ──
+  ws.getRow(1).height = 30;
+  const r1 = ws.getRow(1);
+  const c1 = r1.getCell(1);
+  c1.value = tenant?.name || "Nexus ERP";
+  c1.font  = font({ bold: true, size: 20, color: "1E3A5F" });
+  c1.alignment = { vertical: "middle" };
+
+  // ── ROW 2: period + generated ──
+  ws.getRow(2).height = 16;
+  const r2 = ws.getRow(2);
+  r2.getCell(1).value = `Relatório Financeiro  ·  Período: ${period}`;
+  r2.getCell(1).font  = font({ italic: true, size: 10, color: "64748B" });
+  r2.getCell(1).alignment = { vertical: "middle" };
+  r2.getCell(6).value = `Gerado em: ${new Date().toLocaleString("pt-BR")}`;
+  r2.getCell(6).font  = font({ italic: true, size: 9, color: "94A3B8" });
+  r2.getCell(6).alignment = { horizontal: "right", vertical: "middle" };
+
+  // ── ROW 3: meta (address / CNPJ / whatsapp) ──
+  ws.getRow(3).height = 14;
+  const metaParts: string[] = [];
+  if (tenant?.address)       metaParts.push(`Endereço: ${tenant.address}`);
+  if ((tenant as any)?.cnpj) metaParts.push(`CNPJ: ${(tenant as any).cnpj}`);
+  if (tenant?.whatsapp)      metaParts.push(`WhatsApp: ${tenant.whatsapp}`);
+  if (metaParts.length) {
+    const c3 = ws.getRow(3).getCell(1);
+    c3.value = metaParts.join("   |   ");
+    c3.font  = font({ size: 9, color: "94A3B8" });
+    c3.alignment = { vertical: "middle" };
+  }
+
+  // ── ROW 4: thin separator line ──
+  ws.getRow(4).height = 4;
+  for (let c = 1; c <= 6; c++) {
+    ws.getRow(4).getCell(c).border = {
+      bottom: { style: "medium", color: { argb: "FF1E3A5F" } },
+    };
+  }
+
+  // ── ROWS 5–6: summary cards ──
+  ws.getRow(5).height = 16;
+  ws.getRow(6).height = 28;
+
+  // Card labels (row 5)
+  const cardLabels = [
+    { col: 1, label: "TOTAL ENTRADAS", bg: "D1FAE5", fg: "065F46" },
+    { col: 3, label: "TOTAL SAÍDAS",   bg: "FEE2E2", fg: "991B1B" },
+    { col: 5, label: "SALDO CONSOLIDADO", bg: "1E293B", fg: "94A3B8" },
+  ];
+  for (const { col, label, bg, fg } of cardLabels) {
+    const cell = ws.getRow(5).getCell(col);
+    cell.value = label;
+    cell.font  = font({ bold: true, size: 8, color: fg });
+    cell.fill  = fill(bg);
+    cell.alignment = { horizontal: "center", vertical: "middle" };
+    cell.border = {
+      top:   { style: "medium", color: { argb: `FF${fg}` } },
+      left:  { style: "medium", color: { argb: `FF${fg}` } },
+      right: { style: "medium", color: { argb: `FF${fg}` } },
+    };
+    // span the next column too
+    ws.mergeCells(5, col, 5, col + 1);
+  }
+
+  // Card values (row 6)
+  const balColor = balance >= 0 ? "34D399" : "F87171";
+  const cardValues = [
+    { col: 1, val: totalIncome,  bg: "D1FAE5", fg: "059669" },
+    { col: 3, val: totalExpense, bg: "FEE2E2", fg: "DC2626" },
+    { col: 5, val: balance,      bg: "1E293B", fg: balColor },
+  ];
+  for (const { col, val, bg, fg } of cardValues) {
+    const cell = ws.getRow(6).getCell(col);
+    cell.value      = val;
+    cell.numFmt     = '"R$" #,##0.00';
+    cell.font       = font({ bold: true, size: 16, color: fg });
+    cell.fill       = fill(bg);
+    cell.alignment  = { horizontal: "center", vertical: "middle" };
+    cell.border = {
+      bottom: { style: "medium", color: { argb: `FF${fg}` } },
+      left:   { style: "medium", color: { argb: `FF${fg}` } },
+      right:  { style: "medium", color: { argb: `FF${fg}` } },
+    };
+    ws.mergeCells(6, col, 6, col + 1);
+  }
+
+  // ── ROW 7: blank gap ──
+  ws.getRow(7).height = 6;
+
+  // ── ROW 8: stats bar ──
+  ws.getRow(8).height = 14;
+  const statsCell = ws.getRow(8).getCell(1);
+  statsCell.value = `${entries.length} lançamentos no período  ·  ${entries.filter(e => e.type === "income").length} receitas  ·  ${entries.filter(e => e.type === "expense").length} despesas`;
+  statsCell.font  = font({ size: 9, color: "94A3B8", italic: true });
+  statsCell.alignment = { vertical: "middle" };
+
+  // ── ROW 9: table header ──
+  ws.getRow(9).height = 22;
+  const HEADERS = ["#", "Descrição", "Data", "Categoria", "Tipo", "Valor (R$)"];
+  HEADERS.forEach((h, i) => {
+    const cell = ws.getRow(9).getCell(i + 1);
+    cell.value = h;
+    cell.font  = font({ bold: true, size: 10, color: "FFFFFF" });
+    cell.fill  = fill("1E3A5F");
+    cell.alignment = {
+      horizontal: i === 5 ? "right" : i === 0 ? "center" : "left",
+      vertical: "middle",
+    };
+    cell.border = border("medium");
+  });
+
+  // ── DATA ROWS (10+) ──
+  entries.forEach((e, i) => {
+    const rowNum = 10 + i;
+    const isIncome = e.type === "income";
+    const altBg    = i % 2 === 0 ? "FFFFFF" : "F8FAFC";
+    const row      = ws.getRow(rowNum);
+    row.height     = 20;
+
+    const styleCell = (cell: ExcelJS.Cell, align: ExcelJS.Alignment["horizontal"] = "left") => {
+      cell.fill      = fill(altBg);
+      cell.alignment = { horizontal: align, vertical: "middle" };
+      cell.border    = border("thin");
+    };
+
+    // # seq
+    const cSeq = row.getCell(1);
+    cSeq.value = i + 1;
+    cSeq.font  = font({ size: 9, color: "94A3B8" });
+    styleCell(cSeq, "center");
+
+    // Descrição
+    const cDesc = row.getCell(2);
+    cDesc.value = e.description;
+    cDesc.font  = font({ size: 10, bold: true });
+    styleCell(cDesc, "left");
+
+    // Data — real Date object so ExcelJS formats it natively
+    const cDate = row.getCell(3);
+    cDate.value  = new Date(e.date + (e.date.length === 10 ? "T12:00:00" : ""));
+    cDate.numFmt = "DD/MM/YYYY";
+    cDate.font   = font({ size: 10, color: "475569" });
+    styleCell(cDate, "center");
+
+    // Categoria
+    const cCat = row.getCell(4);
+    cCat.value = e.category || "Operacional";
+    cCat.font  = font({ size: 9, color: "6366F1" });
+    styleCell(cCat, "center");
+
+    // Tipo — coloured badge
+    const cType = row.getCell(5);
+    cType.value = isIncome ? "✦ Receita" : "▼ Despesa";
+    cType.font  = font({ bold: true, size: 9, color: isIncome ? "059669" : "DC2626" });
+    cType.fill  = fill(isIncome ? "D1FAE5" : "FEE2E2");
+    cType.alignment = { horizontal: "center", vertical: "middle" };
+    cType.border = border("thin");
+
+    // Valor
+    const cVal = row.getCell(6);
+    cVal.value  = isIncome ? Number(e.amount) : -Number(e.amount);
+    cVal.numFmt = isIncome ? '"R$" #,##0.00' : '"R$" #,##0.00;[Red]"R$" -#,##0.00';
+    cVal.font   = font({ bold: true, size: 11, color: isIncome ? "059669" : "DC2626" });
+    styleCell(cVal, "right");
+  });
+
+  // ── FOOTER TOTALS ──
+  const footerStart = 10 + entries.length + 1;
+
+  const addFooterRow = (rowN: number, label: string, val: number, bg: string, fg: string) => {
+    const row = ws.getRow(rowN);
+    row.height = 20;
+
+    for (let c = 1; c <= 4; c++) {
+      const cell = row.getCell(c);
+      cell.fill = fill(bg);
+      cell.border = border("thin");
+    }
+
+    const lCell = row.getCell(5);
+    lCell.value = label;
+    lCell.font  = font({ bold: true, size: 10, color: fg });
+    lCell.fill  = fill(bg);
+    lCell.alignment = { horizontal: "right", vertical: "middle" };
+    lCell.border = border("thin");
+
+    const vCell = row.getCell(6);
+    vCell.value  = val;
+    vCell.numFmt = '"R$" #,##0.00';
+    vCell.font   = font({ bold: true, size: 11, color: fg });
+    vCell.fill   = fill(bg);
+    vCell.alignment = { horizontal: "right", vertical: "middle" };
+    vCell.border = border("medium");
+  };
+
+  addFooterRow(footerStart,     "TOTAL ENTRADAS", totalIncome,  "D1FAE5", "059669");
+  addFooterRow(footerStart + 1, "TOTAL SAÍDAS",   totalExpense, "FEE2E2", "DC2626");
+  addFooterRow(footerStart + 2, "SALDO FINAL",    balance,      "1E293B", balColor);
+
+  // ── download ──
+  const buf  = await wb.xlsx.writeBuffer();
+  const blob = new Blob([buf], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement("a");
+  a.href     = url;
+  a.download = `Relatorio_Financeiro_${period.replace(/[^a-zA-Z0-9_-]/g, "_")}.xlsx`;
   a.click();
   URL.revokeObjectURL(url);
 }
@@ -485,13 +691,13 @@ export default function Finance() {
                   <div className="absolute right-0 top-10 w-48 bg-white border border-slate-200 rounded-xl shadow-xl z-50 overflow-hidden">
                     <button
                       onClick={() => {
-                        exportToCSV(filtered, tenant, periodLabel);
+                        exportToExcel(filtered, tenant, periodLabel);
                         setShowExport(false);
                       }}
                       className="w-full flex items-center gap-3 px-4 py-3 text-[10px] font-bold uppercase tracking-widest text-slate-700 hover:bg-slate-50 transition-colors"
                     >
                       <FileSpreadsheet size={14} className="text-emerald-600" />
-                      Excel / CSV
+                      Excel (.xlsx)
                     </button>
                     <div className="h-px bg-slate-100 mx-3" />
                     <button
