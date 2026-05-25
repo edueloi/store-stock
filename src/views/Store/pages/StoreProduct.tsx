@@ -5,10 +5,12 @@ import { ShoppingCart, Heart, Share2, ChevronLeft, ChevronRight, Package, Plus, 
 import { cn } from "../../../lib/utils";
 import { useStore } from "../StoreLayout";
 import StoreSEO from "../../../components/store/StoreSEO";
+import { buildStorePath, resolveStoreSlug } from "../store-routing";
 
 export default function StoreProduct() {
-  const { slug, productId } = useParams();
+  const { slug: routeSlug, productId } = useParams();
   const { products, categories, addToCart, style, openCart, tenant } = useStore();
+  const slug = resolveStoreSlug(routeSlug);
   const isFashion = tenant.template_id === "atelier";
   const isTechNova = tenant.template_id === "nexus_tech";
 
@@ -38,7 +40,7 @@ export default function StoreProduct() {
       <div className="max-w-7xl mx-auto px-6 py-20 text-center">
         <Package size={48} strokeWidth={1} className="mx-auto mb-4 text-slate-200" />
         <p className="text-sm font-black uppercase text-slate-700">Produto não encontrado</p>
-        <Link to={`/s/${slug}/catalogo`} className="mt-4 inline-block text-xs font-bold text-blue-600 hover:underline">
+        <Link to={buildStorePath(slug, "/catalogo")} className="mt-4 inline-block text-xs font-bold text-blue-600 hover:underline">
           ← Voltar ao catálogo
         </Link>
       </div>
@@ -128,13 +130,13 @@ export default function StoreProduct() {
 
       {/* Breadcrumb */}
       <nav className={cn("flex items-center gap-2 text-[10px] font-bold uppercase", isFashion ? "tracking-[0.24em] text-[#9c7b72]" : isTechNova ? "tracking-[0.22em] text-[#7c96b8]" : "text-slate-400 tracking-wider")}>
-        <Link to={`/s/${slug}`} className="hover:text-slate-700">Início</Link>
+        <Link to={buildStorePath(slug)} className="hover:text-slate-700">Início</Link>
         <span>/</span>
-        <Link to={`/s/${slug}/catalogo`} className="hover:text-slate-700">Catálogo</Link>
+        <Link to={buildStorePath(slug, "/catalogo")} className="hover:text-slate-700">Catálogo</Link>
         {category && (
           <>
             <span>/</span>
-            <Link to={`/s/${slug}/catalogo?cat=${category.id}`} className="hover:text-slate-700">{category.name}</Link>
+            <Link to={buildStorePath(slug, `/catalogo?cat=${category.id}`)} className="hover:text-slate-700">{category.name}</Link>
           </>
         )}
         <span>/</span>
@@ -208,7 +210,7 @@ export default function StoreProduct() {
           {/* Category + Name */}
           <div>
             {category && (
-              <Link to={`/s/${slug}/catalogo?cat=${category.id}`}
+              <Link to={buildStorePath(slug, `/catalogo?cat=${category.id}`)}
                 className={cn("flex items-center gap-1.5 mb-2 hover:opacity-70 transition-opacity", isFashion ? "text-[10px] font-semibold uppercase tracking-[0.24em]" : isTechNova ? "store-kicker text-[10px] font-semibold" : "text-[10px] font-black uppercase tracking-widest")}
                 style={{ color: style.accent }}>
                 <Tag size={11} /> {category.name}
@@ -408,7 +410,7 @@ export default function StoreProduct() {
             {related.map(p => (
               <Link
                 key={p.id}
-                to={`/s/${slug}/produto/${p.id}`}
+                to={buildStorePath(slug, `/produto/${p.id}`)}
                 className={cn(
                   "group flex flex-col border transition-all overflow-hidden",
                   isFashion ? "fashion-soft-shadow hover:-translate-y-1 hover:shadow-[0_26px_70px_rgba(108,64,55,0.12)]" : isTechNova ? "tech-soft-shadow hover:-translate-y-1 hover:shadow-[0_24px_60px_rgba(42,94,188,0.16)]" : "hover:shadow-xl",

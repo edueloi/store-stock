@@ -10,6 +10,7 @@ import {
 import { cn } from "../../../lib/utils";
 import { useStore, StoreStyle } from "../StoreLayout";
 import { Category, Product } from "../../../types";
+import { buildStorePath, resolveStoreSlug } from "../store-routing";
 
 const TECH_ICONS: Record<string, ReactNode> = {
   camera: <Camera size={20} />, câmera: <Camera size={20} />, cameras: <Camera size={20} />,
@@ -37,7 +38,7 @@ function TechCategoryCard({ cat, slug, count, accent, isTechNova = false }: { ca
   return (
     <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} whileHover={{ y: -4, transition: { duration: 0.18 } }}>
       <Link
-        to={`/s/${slug}/catalogo?cat=${cat.id}`}
+        to={buildStorePath(slug, `/catalogo?cat=${cat.id}`)}
         className={cn(
           "group flex flex-col items-center gap-3 p-5 text-center transition-all duration-300 relative overflow-hidden",
           isTechNova
@@ -115,7 +116,7 @@ function ProductCard({ product, index, slug, style, onAddToCart }: {
   return (
     <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: index * 0.04 }}>
       <Link
-        to={`/s/${slug}/produto/${product.id}`}
+        to={buildStorePath(slug, `/produto/${product.id}`)}
         className={cn(
           "group flex flex-col border overflow-hidden transition-all",
           isFashion
@@ -193,8 +194,10 @@ function ProductCard({ product, index, slug, style, onAddToCart }: {
 }
 
 export default function StoreFront() {
-  const { slug } = useParams();
+  const { slug: routeSlug } = useParams();
   const { tenant, categories, products, addToCart, style } = useStore();
+  const slug = resolveStoreSlug(routeSlug);
+  const storePath = (suffix = "") => buildStorePath(slug, suffix);
 
   const featuredLimit = tenant.featured_limit ?? 4;
   const bestsellerLimit = tenant.bestseller_limit ?? 8;
@@ -253,7 +256,7 @@ export default function StoreFront() {
                 </p>
                 <div className="mt-7 flex flex-col sm:flex-row gap-3">
                   <Link
-                    to={`/s/${slug}/catalogo`}
+                    to={storePath("/catalogo")}
                     style={{ backgroundColor: style.accent }}
                     className="inline-flex w-full sm:w-auto justify-center h-12 items-center gap-2 rounded-full px-6 sm:px-7 text-[11px] font-semibold uppercase tracking-[0.2em] text-white shadow-[0_20px_44px_rgba(37,99,235,0.24)] transition-all hover:-translate-y-0.5"
                   >
@@ -351,7 +354,7 @@ export default function StoreFront() {
                 </p>
                 <div className="mt-7 sm:mt-8 flex flex-col sm:flex-row gap-3">
                   <Link
-                    to={`/s/${slug}/catalogo`}
+                    to={storePath("/catalogo")}
                     style={{ backgroundColor: style.accent }}
                     className="inline-flex w-full sm:w-auto justify-center h-12 items-center gap-2 rounded-full px-6 sm:px-7 text-[11px] font-semibold uppercase tracking-[0.18em] sm:tracking-[0.28em] text-white shadow-lg shadow-[#c99f94]/30 transition-all hover:-translate-y-0.5"
                   >
@@ -442,7 +445,7 @@ export default function StoreFront() {
                 )}
                 <div className="flex flex-wrap gap-3 mt-8">
                   <Link
-                    to={`/s/${slug}/catalogo`}
+                    to={storePath("/catalogo")}
                     style={{ backgroundColor: style.accent }}
                     className={cn("flex items-center gap-2 px-7 h-12 text-white text-[11px] font-bold uppercase tracking-widest shadow-xl hover:opacity-90 transition-all active:scale-95", style.radius)}
                   >
@@ -493,7 +496,7 @@ export default function StoreFront() {
               </p>
               <div className="flex flex-wrap gap-3 mt-10">
                 <Link
-                  to={`/s/${slug}/catalogo`}
+                  to={storePath("/catalogo")}
                   style={{ backgroundColor: style.accent }}
                   className={cn("inline-flex items-center gap-2 px-8 h-12 text-white text-[11px] font-bold uppercase tracking-widest shadow-lg hover:opacity-90 transition-all active:scale-95", style.radius)}
                 >
@@ -501,7 +504,7 @@ export default function StoreFront() {
                 </Link>
                 {onSale.length > 0 && (
                   <Link
-                    to={`/s/${slug}/catalogo`}
+                    to={storePath("/catalogo")}
                     className={cn("inline-flex items-center gap-2 px-8 h-12 border border-slate-300 bg-white text-slate-700 text-[11px] font-bold uppercase tracking-widest hover:border-slate-400 hover:shadow transition-all", style.radius)}
                   >
                     <Zap size={13} style={{ color: style.accent }} />
@@ -549,7 +552,7 @@ export default function StoreFront() {
           <SectionHeader
             title={isFashion ? "Estilos & Categorias" : "Categorias"}
             icon={<Tag size={17} />}
-            link={`/s/${slug}/catalogo`}
+            link={storePath("/catalogo")}
             linkLabel={isFashion ? "Ver coleção completa" : "Ver catálogo"}
             accent={style.accent}
             isDark={isDark}
@@ -560,12 +563,12 @@ export default function StoreFront() {
             {categories.slice(0, CATEGORY_DISPLAY_LIMIT).map((cat, i) => {
               const count = allActive.filter(p => p.category_id === cat.id).length;
               if (isTech) {
-                return <TechCategoryCard key={cat.id} cat={cat} slug={slug!} count={count} accent={style.accent} isTechNova={isTechNova} />;
+                return <TechCategoryCard key={cat.id} cat={cat} slug={slug} count={count} accent={style.accent} isTechNova={isTechNova} />;
               }
               return (
                 <motion.div key={cat.id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.04 }}>
                   <Link
-                    to={`/s/${slug}/catalogo?cat=${cat.id}`}
+                    to={storePath(`/catalogo?cat=${cat.id}`)}
                     className={cn(
                       "group flex flex-col items-center text-center",
                       isFashion
@@ -588,7 +591,7 @@ export default function StoreFront() {
           {categories.length > CATEGORY_DISPLAY_LIMIT && (
             <div className="mt-5 text-center">
               <Link
-                to={`/s/${slug}/catalogo`}
+                to={storePath("/catalogo")}
                 className={cn(
                   isFashion
                     ? "inline-flex items-center gap-2 px-6 h-11 rounded-full border border-[#ead9ce] bg-white text-[#6b5149] text-[11px] font-semibold uppercase tracking-[0.24em] hover:bg-[#fff7f1] transition-all"
@@ -611,7 +614,7 @@ export default function StoreFront() {
               <SectionHeader
                 title="Seleção em Destaque"
                 icon={<Star size={17} />}
-                link={`/s/${slug}/catalogo`}
+                link={storePath("/catalogo")}
                 linkLabel="Ver vitrine completa"
                 accent={style.accent}
                 isDark={false}
@@ -619,7 +622,7 @@ export default function StoreFront() {
               />
               <div className="grid lg:grid-cols-[1.08fr_0.92fr] gap-5">
                 <Link
-                  to={`/s/${slug}/produto/${featured[0].id}`}
+                  to={storePath(`/produto/${featured[0].id}`)}
                   className="tech-panel tech-card-sheen group relative overflow-hidden rounded-[2rem] border border-[#dbe6ff] min-h-[520px] bg-[linear-gradient(140deg,#f2f7ff_0%,#ffffff_100%)]"
                 >
                   {getImg(featured[0]) ? (
@@ -658,7 +661,7 @@ export default function StoreFront() {
                 </Link>
                 <div className="grid sm:grid-cols-2 gap-5">
                   {featured.slice(1, 5).map((product, i) => (
-                    <ProductCard key={product.id} product={product} index={i} slug={slug!} style={style} onAddToCart={addToCart} />
+                    <ProductCard key={product.id} product={product} index={i} slug={slug} style={style} onAddToCart={addToCart} />
                   ))}
                 </div>
               </div>
@@ -670,7 +673,7 @@ export default function StoreFront() {
               <SectionHeader
                 title="Seleção em Destaque"
                 icon={<Star size={17} />}
-                link={`/s/${slug}/catalogo`}
+                link={storePath("/catalogo")}
                 linkLabel="Ver coleção"
                 accent={style.accent}
                 isDark={false}
@@ -678,7 +681,7 @@ export default function StoreFront() {
               />
               <div className="grid lg:grid-cols-[1.08fr_0.92fr] gap-5">
                 <Link
-                  to={`/s/${slug}/produto/${featured[0].id}`}
+                  to={storePath(`/produto/${featured[0].id}`)}
                   className="fashion-panel group relative overflow-hidden rounded-[2rem] border border-[#ead9ce] min-h-[540px] bg-[#f1e3d8]"
                 >
                   {getImg(featured[0]) ? (
@@ -704,7 +707,7 @@ export default function StoreFront() {
                 </Link>
                 <div className="grid sm:grid-cols-2 gap-5">
                   {featured.slice(1, 5).map((product, i) => (
-                    <ProductCard key={product.id} product={product} index={i} slug={slug!} style={style} onAddToCart={addToCart} />
+                    <ProductCard key={product.id} product={product} index={i} slug={slug} style={style} onAddToCart={addToCart} />
                   ))}
                 </div>
               </div>
@@ -724,7 +727,7 @@ export default function StoreFront() {
                   {featured.length}
                 </span>
               </div>
-              <Link to={`/s/${slug}/catalogo`} className="flex items-center gap-1 text-[11px] font-semibold uppercase tracking-wider text-slate-500 hover:text-white transition-colors">
+              <Link to={storePath("/catalogo")} className="flex items-center gap-1 text-[11px] font-semibold uppercase tracking-wider text-slate-500 hover:text-white transition-colors">
                 Ver catálogo <ChevronRight size={13} />
               </Link>
             </div>
@@ -743,7 +746,7 @@ export default function StoreFront() {
                     transition={{ delay: i * 0.07 }}
                     className={cn("group bg-white/5 border border-white/10 overflow-hidden hover:bg-white/[0.08] hover:border-white/20 transition-all", style.radius)}
                   >
-                    <Link to={`/s/${slug}/produto/${product.id}`} className="block relative overflow-hidden" style={{ aspectRatio: "16/10" }}>
+                    <Link to={storePath(`/produto/${product.id}`)} className="block relative overflow-hidden" style={{ aspectRatio: "16/10" }}>
                       {img
                         ? <img src={img} alt={product.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
                         : <div className="w-full h-full flex items-center justify-center" style={{ color: style.accent + "25" }}>
@@ -795,7 +798,7 @@ export default function StoreFront() {
           <SectionHeader
             title="Mais Vendidos"
             icon={<TrendingUp size={17} />}
-            link={`/s/${slug}/catalogo`}
+            link={storePath("/catalogo")}
             linkLabel={isFashion ? "Ver coleção" : "Ver catálogo"}
             accent={style.accent}
             isDark={isDark}
@@ -809,7 +812,7 @@ export default function StoreFront() {
             </div>
           ) : (
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
-              {bestSellers.map((product, i) => <ProductCard key={product.id} product={product} index={i} slug={slug!} style={style} onAddToCart={addToCart} />)}
+              {bestSellers.map((product, i) => <ProductCard key={product.id} product={product} index={i} slug={slug} style={style} onAddToCart={addToCart} />)}
             </div>
           )}
         </div>
@@ -829,7 +832,7 @@ export default function StoreFront() {
                 </span>
               </div>
               <Link
-                to={`/s/${slug}/catalogo`}
+                to={storePath("/catalogo")}
                 className={cn(
                   "flex items-center gap-1 transition-colors",
                   isFashion
@@ -851,7 +854,7 @@ export default function StoreFront() {
                 return (
                   <motion.div key={product.id} initial={{ opacity: 0, scale: 0.97 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: i * 0.05 }}>
                     <Link
-                      to={`/s/${slug}/produto/${product.id}`}
+                      to={storePath(`/produto/${product.id}`)}
                       className={cn(
                         "group flex flex-col border transition-all overflow-hidden",
                         isFashion ? "fashion-soft-shadow hover:-translate-y-1 hover:shadow-[0_26px_70px_rgba(108,64,55,0.12)]" : "hover:shadow-xl",

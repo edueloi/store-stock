@@ -42,6 +42,7 @@ import Analytics from "./Analytics";
 export default function AdminDashboard() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(window.innerWidth > 1024);
   const [tenantSlug, setTenantSlug] = useState<string>("");
+  const [tenantPublicUrl, setTenantPublicUrl] = useState<string>("");
   const [tenantName, setTenantName] = useState<string>("Nexus ERP");
   const [userName, setUserName] = useState<string>("Admin");
   const location = useLocation();
@@ -75,7 +76,7 @@ export default function AdminDashboard() {
   ];
 
   const viewPublicStore = () => {
-    window.open(`/s/${tenantSlug}`, '_blank');
+    window.open(tenantPublicUrl || `/s/${tenantSlug}`, "_blank");
   };
 
   const handleLogout = () => {
@@ -96,6 +97,7 @@ export default function AdminDashboard() {
       .then((data) => {
         if (data?.slug) setTenantSlug(data.slug);
         if (data?.name) setTenantName(data.name);
+        if (data?.public_url) setTenantPublicUrl(data.public_url);
       })
       .catch(() => {});
 

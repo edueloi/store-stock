@@ -13,6 +13,7 @@ import publicRoutes from "./public.routes";
 import salesRoutes from "./sales.routes";
 import statsRoutes from "./stats.routes";
 import suppliersRoutes from "./suppliers.routes";
+import superAdminRoutes from "./super-admin.routes";
 import tenantRoutes from "./tenant.routes";
 import uploadRoutes from "./upload.routes";
 import preferencesRoutes from "./preferences.routes";
@@ -34,4 +35,5 @@ export function registerRoutes(app: Express) {
   app.use("/api/tenant", tenantRoutes);
   app.use("/api/upload", uploadRoutes);
   app.use("/api/preferences", preferencesRoutes);
+  app.use("/api/super-admin", superAdminRoutes);
 }

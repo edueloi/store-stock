@@ -1,6 +1,11 @@
 import type { Request, Response } from "express";
 
 import { prisma } from "../config/prisma";
+import { getTenantAccessState } from "../utils/tenant-access";
+import {
+  buildTenantAccessUrl,
+  resolveTenantLookupFromRequest,
+} from "../utils/tenant-domain";
 
 interface CheckoutItemInput {
   id: number;
@@ -15,12 +20,28 @@ interface CheckoutOrderItem {
 
 export async function getPublicStore(req: Request, res: Response) {
   try {
-    const tenant = await prisma.tenant.findUnique({
-      where: { slug: req.params.slug },
+    const tenantLookup = resolveTenantLookupFromRequest(req);
+
+    if (!tenantLookup) {
+      res.status(404).json({ error: "Store not found" });
+      return;
+    }
+
+    const tenant = await prisma.tenant.findFirst({
+      where: {
+        OR: [{ slug: tenantLookup }, { subdomain: tenantLookup }],
+      },
     });
 
     if (!tenant) {
       res.status(404).json({ error: "Store not found" });
+      return;
+    }
+
+    const accessState = getTenantAccessState(tenant);
+
+    if (!accessState.allowed) {
+      res.status(403).json({ error: accessState.reason });
       return;
     }
 
@@ -31,7 +52,14 @@ export async function getPublicStore(req: Request, res: Response) {
       }),
     ]);
 
-    res.json({ tenant, categories, products });
+    res.json({
+      tenant: {
+        ...tenant,
+        public_url: buildTenantAccessUrl(tenant.subdomain || tenant.slug),
+      },
+      categories,
+      products,
+    });
   } catch {
     res.status(500).json({ error: "Failed to fetch store" });
   }

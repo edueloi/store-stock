@@ -15,7 +15,10 @@ export async function seedDefaultTenant() {
     data: {
       name: "Nexus Demo",
       slug: "demo",
+      subdomain: "demo",
       whatsapp: "5511999999999",
+      status: "active",
+      setup_completed_at: new Date(),
     },
   });
 

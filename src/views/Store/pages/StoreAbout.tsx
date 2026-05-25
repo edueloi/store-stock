@@ -2,10 +2,12 @@ import { Link, useParams } from "react-router-dom";
 import { MapPin, Phone, Instagram, Facebook, ArrowRight, Package } from "lucide-react";
 import { cn } from "../../../lib/utils";
 import { useStore } from "../StoreLayout";
+import { buildStorePath, resolveStoreSlug } from "../store-routing";
 
 export default function StoreAbout() {
-  const { slug } = useParams();
+  const { slug: routeSlug } = useParams();
   const { tenant, products, style } = useStore();
+  const slug = resolveStoreSlug(routeSlug);
   const isFashion = style.font === "font-editorial";
   const isTechNova = style.font === "font-tech";
 
@@ -14,7 +16,7 @@ export default function StoreAbout() {
 
       {/* Breadcrumb */}
       <nav className={cn("flex items-center gap-2 text-[10px] font-bold uppercase", isFashion ? "tracking-[0.24em] text-[#9c7b72]" : isTechNova ? "tracking-[0.22em] text-[#7c96b8]" : "text-slate-400 tracking-wider")}>
-        <Link to={`/s/${slug}`} className="hover:text-slate-700">Início</Link>
+        <Link to={buildStorePath(slug)} className="hover:text-slate-700">Início</Link>
         <span>/</span>
         <span className={cn(isTechNova ? "text-[#071426]" : "text-slate-700")}>Sobre</span>
       </nav>
@@ -33,7 +35,7 @@ export default function StoreAbout() {
           </p>
           <div className="flex flex-wrap gap-3 mt-8">
             <Link
-              to={`/s/${slug}/catalogo`}
+              to={buildStorePath(slug, "/catalogo")}
               style={{ backgroundColor: style.accent }}
               className={cn(isFashion ? "flex items-center gap-2 px-6 h-11 rounded-full text-white text-xs font-semibold uppercase tracking-[0.24em] shadow-lg hover:opacity-90 transition-all" : isTechNova ? "flex items-center gap-2 px-6 h-11 rounded-full text-white text-xs font-semibold uppercase tracking-[0.18em] shadow-[0_18px_34px_rgba(37,99,235,0.22)] hover:opacity-90 transition-all" : "flex items-center gap-2 px-6 h-11 rounded-2xl text-white text-xs font-black uppercase tracking-widest shadow-lg hover:opacity-90 transition-all")}
             >
@@ -174,7 +176,7 @@ export default function StoreAbout() {
           ))}
           <div className="mt-auto pt-4">
             <Link
-              to={`/s/${slug}/catalogo`}
+              to={buildStorePath(slug, "/catalogo")}
               style={{ backgroundColor: style.accent }}
               className={cn(isFashion ? "w-full h-11 flex items-center justify-center gap-2 text-white text-[11px] font-semibold uppercase tracking-[0.24em] rounded-full transition-all hover:opacity-90" : isTechNova ? "w-full h-11 flex items-center justify-center gap-2 text-white text-[11px] font-semibold uppercase tracking-[0.18em] rounded-full transition-all hover:opacity-90 shadow-[0_18px_34px_rgba(37,99,235,0.22)]" : "w-full h-10 flex items-center justify-center gap-2 text-white text-[11px] font-black uppercase tracking-widest rounded-xl transition-all hover:opacity-90")}
             >

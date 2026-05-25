@@ -9,14 +9,16 @@ import {
 import { cn } from "../../../lib/utils";
 import { useStore } from "../StoreLayout";
 import { Product } from "../../../types";
+import { buildStorePath, resolveStoreSlug } from "../store-routing";
 
 type SortKey = "default" | "price_asc" | "price_desc" | "name";
 type ViewMode = "grid" | "list";
 
 export default function StoreCatalog() {
-  const { slug } = useParams();
+  const { slug: routeSlug } = useParams();
   const [searchParams, setSearchParams] = useSearchParams();
   const { categories, products, addToCart, style, tenant } = useStore();
+  const slug = resolveStoreSlug(routeSlug);
   const isFashion = tenant.template_id === "atelier";
   const isTechNova = tenant.template_id === "nexus_tech";
 
@@ -151,7 +153,7 @@ export default function StoreCatalog() {
 
       {/* Breadcrumb */}
       <nav className={cn("flex items-center gap-2 text-[10px] font-bold uppercase mb-6", isFashion ? "text-[#9c7b72] tracking-[0.24em]" : isTechNova ? "text-[#7c96b8] tracking-[0.22em]" : "text-slate-400 tracking-wider")}>
-        <Link to={`/s/${slug}`} className="hover:text-slate-700 transition-colors">Início</Link>
+        <Link to={buildStorePath(slug)} className="hover:text-slate-700 transition-colors">Início</Link>
         <span>/</span>
         <span className={cn(isTechNova ? "text-[#071426]" : "text-slate-700")}>Catálogo</span>
         {catName && <><span>/</span><span style={{ color: style.accent }}>{catName}</span></>}
@@ -386,7 +388,7 @@ export default function StoreCatalog() {
           {viewMode === "grid" && filtered.length > 0 && (
             <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-4">
               {filtered.map((product, i) => (
-                <ProductCard key={product.id} product={product} index={i} slug={slug!} style={style} wishlist={wishlist} onWishlist={toggleWishlist} onAddToCart={addToCart} />
+                <ProductCard key={product.id} product={product} index={i} slug={slug} style={style} wishlist={wishlist} onWishlist={toggleWishlist} onAddToCart={addToCart} />
               ))}
             </div>
           )}
@@ -395,7 +397,7 @@ export default function StoreCatalog() {
           {viewMode === "list" && filtered.length > 0 && (
             <div className="flex flex-col gap-3">
               {filtered.map((product, i) => (
-                <ProductRow key={product.id} product={product} index={i} slug={slug!} style={style} wishlist={wishlist} onWishlist={toggleWishlist} onAddToCart={addToCart} />
+                <ProductRow key={product.id} product={product} index={i} slug={slug} style={style} wishlist={wishlist} onWishlist={toggleWishlist} onAddToCart={addToCart} />
               ))}
             </div>
           )}
@@ -442,7 +444,7 @@ function ProductCard({ product, index, slug, style, wishlist, onWishlist, onAddT
         style.radius
       )}
     >
-      <Link to={`/s/${slug}/produto/${product.id}`} className={cn("relative overflow-hidden block", isFashion ? "aspect-[4/5] bg-[#f8efe8]" : isTechNova ? "aspect-square tech-grid bg-[linear-gradient(180deg,#f8fbff_0%,#edf4ff_100%)]" : "aspect-square bg-slate-50")}>
+      <Link to={buildStorePath(slug, `/produto/${product.id}`)} className={cn("relative overflow-hidden block", isFashion ? "aspect-[4/5] bg-[#f8efe8]" : isTechNova ? "aspect-square tech-grid bg-[linear-gradient(180deg,#f8fbff_0%,#edf4ff_100%)]" : "aspect-square bg-slate-50")}>
         {primaryImage
           ? <img src={primaryImage} alt={product.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
           : <div className="w-full h-full flex items-center justify-center text-slate-200"><Package size={48} strokeWidth={1} /></div>}
@@ -472,7 +474,7 @@ function ProductCard({ product, index, slug, style, wishlist, onWishlist, onAddT
             <Heart size={12} fill={inWishlist ? "currentColor" : "none"} />
           </button>
           <Link
-            to={`/s/${slug}/produto/${product.id}`}
+            to={buildStorePath(slug, `/produto/${product.id}`)}
             onClick={e => e.stopPropagation()}
             className="w-8 h-8 rounded-full bg-white border border-slate-200 flex items-center justify-center shadow text-slate-400 hover:text-blue-600 transition-all"
           >
@@ -494,7 +496,7 @@ function ProductCard({ product, index, slug, style, wishlist, onWishlist, onAddT
 
       <div className={cn("flex flex-col flex-1", isFashion ? "p-4 sm:p-5 gap-2" : isTechNova ? "p-4 sm:p-5 gap-2" : "p-3 gap-1")}>
         <p className={cn(isFashion ? "store-kicker text-[9px] font-semibold text-[#9c7b72]" : isTechNova ? "store-kicker text-[9px] font-semibold text-[#6f89ad]" : "text-[9px] font-black text-slate-400 uppercase tracking-widest")}>{product.category_name || "Geral"}</p>
-        <Link to={`/s/${slug}/produto/${product.id}`} className={cn(isFashion ? "store-display text-[1.28rem] sm:text-[1.5rem] font-semibold text-[#2d221f] line-clamp-2 leading-[0.95] hover:text-[#7b4e46] transition-colors" : isTechNova ? "store-display text-[1.16rem] sm:text-[1.35rem] font-semibold text-[#071426] line-clamp-2 leading-[1.02] hover:text-[#2563eb] transition-colors" : "text-xs font-bold text-slate-800 line-clamp-2 leading-snug hover:text-blue-600 transition-colors")}>
+        <Link to={buildStorePath(slug, `/produto/${product.id}`)} className={cn(isFashion ? "store-display text-[1.28rem] sm:text-[1.5rem] font-semibold text-[#2d221f] line-clamp-2 leading-[0.95] hover:text-[#7b4e46] transition-colors" : isTechNova ? "store-display text-[1.16rem] sm:text-[1.35rem] font-semibold text-[#071426] line-clamp-2 leading-[1.02] hover:text-[#2563eb] transition-colors" : "text-xs font-bold text-slate-800 line-clamp-2 leading-snug hover:text-blue-600 transition-colors")}>
           {product.name}
         </Link>
         {(isFashion || isTechNova) && product.description && (
@@ -565,7 +567,7 @@ function ProductRow({ product, index, slug, style, wishlist, onWishlist, onAddTo
         style.radius
       )}
     >
-      <Link to={`/s/${slug}/produto/${product.id}`} className={cn(isFashion ? "w-24 h-32 sm:w-28 sm:h-36 shrink-0 rounded-[1.4rem] overflow-hidden bg-[#f8efe8] relative" : isTechNova ? "w-24 h-24 sm:w-28 sm:h-28 shrink-0 rounded-[1.3rem] overflow-hidden tech-grid bg-[linear-gradient(180deg,#f8fbff_0%,#edf4ff_100%)] relative" : "w-24 h-24 shrink-0 rounded-xl overflow-hidden bg-slate-50 relative")}>
+      <Link to={buildStorePath(slug, `/produto/${product.id}`)} className={cn(isFashion ? "w-24 h-32 sm:w-28 sm:h-36 shrink-0 rounded-[1.4rem] overflow-hidden bg-[#f8efe8] relative" : isTechNova ? "w-24 h-24 sm:w-28 sm:h-28 shrink-0 rounded-[1.3rem] overflow-hidden tech-grid bg-[linear-gradient(180deg,#f8fbff_0%,#edf4ff_100%)] relative" : "w-24 h-24 shrink-0 rounded-xl overflow-hidden bg-slate-50 relative")}>
         {primaryImage
           ? <img src={primaryImage} alt={product.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
           : <div className="w-full h-full flex items-center justify-center text-slate-200"><Package size={28} strokeWidth={1} /></div>}
@@ -580,7 +582,7 @@ function ProductRow({ product, index, slug, style, wishlist, onWishlist, onAddTo
           <div className="flex items-start justify-between gap-2">
             <div>
               <p className={cn(isTechNova ? "store-kicker text-[9px] font-semibold text-[#6f89ad]" : "text-[9px] font-black text-slate-400 uppercase tracking-widest")}>{product.category_name || "Geral"}</p>
-              <Link to={`/s/${slug}/produto/${product.id}`} className={cn(isFashion ? "store-display text-[1.45rem] sm:text-[1.8rem] font-semibold text-[#2d221f] hover:text-[#7b4e46] transition-colors leading-[0.95] line-clamp-2 mt-0.5 block" : isTechNova ? "store-display text-[1.3rem] sm:text-[1.55rem] font-semibold text-[#071426] hover:text-[#2563eb] transition-colors leading-[0.98] line-clamp-2 mt-0.5 block" : "text-sm font-bold text-slate-800 hover:text-blue-600 transition-colors leading-snug line-clamp-2 mt-0.5 block")}>
+              <Link to={buildStorePath(slug, `/produto/${product.id}`)} className={cn(isFashion ? "store-display text-[1.45rem] sm:text-[1.8rem] font-semibold text-[#2d221f] hover:text-[#7b4e46] transition-colors leading-[0.95] line-clamp-2 mt-0.5 block" : isTechNova ? "store-display text-[1.3rem] sm:text-[1.55rem] font-semibold text-[#071426] hover:text-[#2563eb] transition-colors leading-[0.98] line-clamp-2 mt-0.5 block" : "text-sm font-bold text-slate-800 hover:text-blue-600 transition-colors leading-snug line-clamp-2 mt-0.5 block")}>
                 {product.name}
               </Link>
             </div>
@@ -614,7 +616,7 @@ function ProductRow({ product, index, slug, style, wishlist, onWishlist, onAddTo
             )}
           </div>
           <div className="flex items-center gap-2">
-            <Link to={`/s/${slug}/produto/${product.id}`}
+            <Link to={buildStorePath(slug, `/produto/${product.id}`)}
               className={cn(isFashion ? "h-10 px-3 sm:px-4 rounded-full border border-[#ead9ce] text-[10px] font-semibold uppercase tracking-[0.16em] sm:tracking-[0.22em] text-[#6b5149] hover:bg-[#fff7f1] flex items-center gap-1.5 transition-all" : isTechNova ? "h-10 px-4 rounded-full border border-[#dbe6ff] bg-white text-[10px] font-semibold uppercase tracking-[0.16em] text-[#5b789e] hover:border-[#bfd2ff] hover:text-[#071426] flex items-center gap-1.5 transition-all" : "h-8 px-3 rounded-xl border border-slate-200 text-[10px] font-bold text-slate-500 hover:border-slate-400 flex items-center gap-1.5 transition-all")}>
               <Eye size={12} /> Ver
             </Link>

@@ -2,6 +2,7 @@ import type { Request, Response } from "express";
 
 import { prisma } from "../config/prisma";
 import type { AuthenticatedRequest } from "../types/auth";
+import { buildTenantAccessUrl, normalizeSubdomain } from "../utils/tenant-domain";
 
 function getTenantId(req: Request) {
   return (req as AuthenticatedRequest).user.tenantId;
@@ -13,7 +14,15 @@ export async function getTenant(req: Request, res: Response) {
       where: { id: getTenantId(req) },
     });
 
-    res.json(tenant);
+    if (!tenant) {
+      res.status(404).json({ error: "Tenant not found" });
+      return;
+    }
+
+    res.json({
+      ...tenant,
+      public_url: buildTenantAccessUrl(tenant.subdomain || tenant.slug),
+    });
   } catch {
     res.status(500).json({ error: "Failed to fetch tenant" });
   }
@@ -21,12 +30,15 @@ export async function getTenant(req: Request, res: Response) {
 
 export async function updateTenant(req: Request, res: Response) {
   try {
+    const normalizedPublicId = normalizeSubdomain(req.body.subdomain || req.body.slug || "");
+
     await prisma.tenant.update({
       where: { id: getTenantId(req) },
       data: {
         name: req.body.name,
         whatsapp: req.body.whatsapp,
-        slug: req.body.slug,
+        slug: normalizedPublicId || undefined,
+        subdomain: normalizedPublicId || undefined,
         about_text: req.body.about_text,
         footer_text: req.body.footer_text,
         logo_url: req.body.logo_url,

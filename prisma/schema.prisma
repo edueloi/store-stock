@@ -11,6 +11,7 @@ model Tenant {
   id           Int      @id @default(autoincrement())
   name         String
   slug         String   @unique
+  subdomain    String   @unique
   whatsapp     String
   logo_url     String?
   banner_url   String?
@@ -27,6 +28,12 @@ model Tenant {
   business_hours   Json?
   payment_methods  Json?
   policies         Json?
+  status           String   @default("active")
+  trial_days       Int      @default(30)
+  trial_starts_at  DateTime?
+  trial_ends_at    DateTime?
+  subscription_amount Decimal @default(0) @db.Decimal(10, 2)
+  setup_completed_at DateTime?
   created_at       DateTime @default(now())
   updated_at   DateTime @updatedAt
 
@@ -38,8 +45,31 @@ model Tenant {
   finance         Finance[]
   customers       Customer[]
   suppliers       Supplier[]
+  setup_invites   SetupInvite[]
 
   @@map("tenants")
+}
+
+model SetupInvite {
+  id                  Int       @id @default(autoincrement())
+  tenant_id           Int?
+  token               String    @unique
+  store_name          String
+  subdomain           String
+  whatsapp            String
+  owner_name          String?
+  owner_email         String?
+  trial_days          Int       @default(30)
+  subscription_amount Decimal   @default(0) @db.Decimal(10, 2)
+  invite_expires_at   DateTime
+  used_at             DateTime?
+  created_at          DateTime  @default(now())
+  updated_at          DateTime  @updatedAt
+
+  tenant Tenant? @relation(fields: [tenant_id], references: [id])
+
+  @@index([subdomain])
+  @@map("setup_invites")
 }
 
 model User {

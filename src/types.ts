@@ -20,6 +20,7 @@ export interface Tenant {
   id: number;
   name: string;
   slug: string;
+  subdomain: string;
   whatsapp: string;
   logo_url?: string;
   banner_url?: string;
@@ -36,6 +37,15 @@ export interface Tenant {
   business_hours?: BusinessHours;
   payment_methods?: PaymentMethods;
   policies?: StorePolicies;
+  status?: 'pending_setup' | 'trial' | 'active' | 'suspended';
+  trial_days?: number;
+  trial_starts_at?: string;
+  trial_ends_at?: string;
+  subscription_amount?: number;
+  setup_completed_at?: string;
+  public_url?: string;
+  created_at?: string;
+  updated_at?: string;
 }
 
 export interface User {
@@ -43,7 +53,8 @@ export interface User {
   tenant_id: number;
   name: string;
   email: string;
-  role: 'admin' | 'seller' | 'staff';
+  role: 'admin' | 'seller' | 'staff' | 'super_admin';
+  superAdmin?: boolean;
 }
 
 export interface Category {
@@ -110,4 +121,32 @@ export interface FinanceEntry {
   amount: number;
   date: string;
   category?: string;
+}
+
+export interface SetupInvite {
+  id: number;
+  token: string;
+  store_name: string;
+  subdomain: string;
+  whatsapp: string;
+  owner_name?: string | null;
+  owner_email?: string | null;
+  trial_days: number;
+  subscription_amount: number;
+  invite_expires_at: string;
+  used_at?: string | null;
+  created_at: string;
+  updated_at: string;
+  invite_url: string;
+  access_url: string;
+  is_expired: boolean;
+}
+
+export interface ManagedTenant extends Tenant {
+  users?: Array<{
+    id: number;
+    name: string;
+    email: string;
+    role: string;
+  }>;
 }

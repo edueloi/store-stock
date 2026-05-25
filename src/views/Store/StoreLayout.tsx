@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from "motion/react";
 import { cn } from "../../lib/utils";
 import { Tenant, Product, Category } from "../../types";
 import WhatsAppWidget from "../../components/store/WhatsAppWidget";
+import { buildStorePath, resolveStoreSlug } from "./store-routing";
 
 // ── Store pages
 import StoreFront from "./pages/StoreFront";
@@ -64,7 +65,7 @@ const templates: Record<string, StoreStyle> = {
 // ── Main Layout ────────────────────────────────────────────────────────────
 
 function StoreLayoutInner() {
-  const { slug } = useParams();
+  const { slug: routeSlug } = useParams();
   const location = useLocation();
   const [storeData, setStoreData] = useState<{ tenant: Tenant; categories: Category[]; products: Product[] } | null>(null);
   const [loading, setLoading] = useState(true);
@@ -74,9 +75,13 @@ function StoreLayoutInner() {
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const navigate = useNavigate();
+  const storeSlug = resolveStoreSlug(routeSlug);
+  const storePath = (suffix = "") => buildStorePath(storeSlug, suffix);
 
   useEffect(() => {
-    fetch(`/api/public/store/${slug}`)
+    const endpoint = storeSlug ? `/api/public/store/${storeSlug}` : "/api/public/store";
+
+    fetch(endpoint)
       .then(r => r.json())
       .then(data => {
         if (data && !data.error) {
@@ -88,7 +93,7 @@ function StoreLayoutInner() {
         }
         setLoading(false);
       });
-  }, [slug]);
+  }, [storeSlug]);
 
   const addToCart = (product: Product, options?: Record<string, string>) => {
     const variationLabel = options ? Object.entries(options).map(([k, v]) => `${k}: ${v}`).join(", ") : "";
@@ -151,20 +156,20 @@ function StoreLayoutInner() {
   const isTechNova = style.font === "font-tech";
 
   const navLinks = [
-    { label: "Início", path: `/s/${slug}`, icon: <Home size={15} /> },
-    { label: "Catálogo", path: `/s/${slug}/catalogo`, icon: <Grid3X3 size={15} /> },
-    { label: "Sobre", path: `/s/${slug}/sobre`, icon: <Info size={15} /> },
+    { label: "Início", path: storePath(), icon: <Home size={15} /> },
+    { label: "Catálogo", path: storePath("/catalogo"), icon: <Grid3X3 size={15} /> },
+    { label: "Sobre", path: storePath("/sobre"), icon: <Info size={15} /> },
   ];
 
   const isActive = (path: string) => {
-    if (path === `/s/${slug}`) return location.pathname === path;
+    if (path === storePath()) return location.pathname === path;
     return location.pathname.startsWith(path);
   };
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
     if (searchQuery.trim()) {
-      navigate(`/s/${slug}/catalogo?q=${encodeURIComponent(searchQuery.trim())}`);
+      navigate(storePath(`/catalogo?q=${encodeURIComponent(searchQuery.trim())}`));
       setSearchOpen(false);
       setSearchQuery("");
     }
@@ -188,7 +193,7 @@ function StoreLayoutInner() {
           <div className={cn("max-w-7xl mx-auto px-4 flex items-center justify-between gap-4", isFashion || isTechNova ? "h-20" : "h-16")}>
 
             {/* Logo */}
-            <Link to={`/s/${slug}`} className="flex items-center gap-3 shrink-0">
+            <Link to={storePath()} className="flex items-center gap-3 shrink-0">
               <div
                 style={{ backgroundColor: style.accent }}
                 className={cn(
@@ -256,7 +261,7 @@ function StoreLayoutInner() {
               {storeData.categories.slice(0, 3).map(cat => (
                 <Link
                   key={cat.id}
-                  to={`/s/${slug}/catalogo?cat=${cat.id}`}
+                  to={storePath(`/catalogo?cat=${cat.id}`)}
                   className={cn(
                     "transition-all",
                     isFashion
@@ -408,7 +413,7 @@ function StoreLayoutInner() {
                     {storeData.categories.map(cat => (
                       <Link
                         key={cat.id}
-                        to={`/s/${slug}/catalogo?cat=${cat.id}`}
+                        to={storePath(`/catalogo?cat=${cat.id}`)}
                         onClick={() => setMobileMenuOpen(false)}
                         className={cn("flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm transition-all", isTechNova ? "text-[#466485] hover:bg-white" : "text-slate-600 hover:bg-slate-50")}
                       >
@@ -465,7 +470,7 @@ function StoreLayoutInner() {
                 ))}
                 {storeData.categories.map(cat => (
                   <li key={cat.id}>
-                    <Link to={`/s/${slug}/catalogo?cat=${cat.id}`} className={cn("text-xs transition-colors font-medium", isFashion ? "text-[#6b5149] hover:text-[#2d221f]" : isTechNova ? "text-[#5d7698] hover:text-[#071426]" : "text-slate-500 hover:text-white")}>
+                    <Link to={storePath(`/catalogo?cat=${cat.id}`)} className={cn("text-xs transition-colors font-medium", isFashion ? "text-[#6b5149] hover:text-[#2d221f]" : isTechNova ? "text-[#5d7698] hover:text-[#071426]" : "text-slate-500 hover:text-white")}>
                       {cat.name}
                     </Link>
                   </li>
@@ -546,7 +551,7 @@ function StoreLayoutInner() {
                       <ShoppingCart size={48} strokeWidth={1} className="opacity-20" />
                       <p className="text-xs font-black uppercase tracking-wider">Carrinho vazio</p>
                       <button
-                        onClick={() => { setIsCartOpen(false); navigate(`/s/${slug}/catalogo`); }}
+                        onClick={() => { setIsCartOpen(false); navigate(storePath("/catalogo")); }}
                         style={{ backgroundColor: style.accent }}
                         className="text-white px-6 h-10 rounded-xl text-[10px] font-black uppercase tracking-wider"
                       >
