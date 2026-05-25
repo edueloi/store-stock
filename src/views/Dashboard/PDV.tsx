@@ -15,6 +15,8 @@ import {
   QrCode,
   Tag,
   Loader2,
+  ExternalLink,
+  RefreshCw,
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { Product, Category } from "../../types";
@@ -185,32 +187,66 @@ export default function PDV() {
 
   const cartQty = cart.reduce((a, b) => a + b.quantity, 0);
 
+  const openExternalPDV = () => {
+    window.open("/pdv", "_blank", "noopener,noreferrer");
+  };
+
+  const refreshProducts = () => {
+    setLoading(true);
+    const headers = { Authorization: `Bearer ${token}` };
+    Promise.all([
+      fetch("/api/products", { headers }).then((r) => r.json()),
+      fetch("/api/categories", { headers }).then((r) => r.json()),
+    ]).then(([prods, cats]) => {
+      setProducts(Array.isArray(prods) ? prods : []);
+      setCategories(Array.isArray(cats) ? cats : []);
+      setLoading(false);
+    });
+  };
+
   return (
-    <div className="h-full flex flex-col lg:flex-row gap-6 overflow-hidden relative">
+    <div className="h-full flex flex-col lg:flex-row gap-4 overflow-hidden relative">
       {/* LEFT — PRODUCT SELECTION */}
-      <div className="flex-1 flex flex-col gap-4 overflow-hidden">
-        {/* Search + mobile cart button */}
-        <div className="flex flex-col sm:flex-row gap-3 items-center">
-          <div className="relative flex-1 w-full">
-            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
+      <div className="flex-1 flex flex-col gap-3 overflow-hidden">
+        {/* Toolbar: Search + actions */}
+        <div className="flex gap-2 items-center">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={13} />
             <input
               type="text"
               placeholder="PESQUISAR PRODUTO..."
-              className="w-full pl-10 pr-4 h-12 lg:h-10 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none text-[10px] font-bold uppercase tracking-widest placeholder:text-slate-300"
+              className="w-full pl-9 pr-4 h-10 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none text-[10px] font-bold uppercase tracking-widest placeholder:text-slate-300 transition-all"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
             />
           </div>
+          {/* Refresh button */}
+          <button
+            onClick={refreshProducts}
+            title="Atualizar produtos"
+            className="h-10 w-10 flex items-center justify-center bg-white border border-slate-200 rounded-xl text-slate-400 hover:text-blue-600 hover:border-blue-300 transition-all shrink-0"
+          >
+            <RefreshCw size={14} className={loading ? "animate-spin" : ""} />
+          </button>
+          {/* Open External PDV */}
+          <button
+            onClick={openExternalPDV}
+            title="Abrir PDV em nova janela"
+            className="h-10 px-3 flex items-center gap-2 bg-slate-900 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-blue-600 transition-all shrink-0 shadow-lg"
+          >
+            <ExternalLink size={13} />
+            <span className="hidden sm:block">PDV Externo</span>
+          </button>
+          {/* Mobile cart */}
           <button
             onClick={() => setShowCartMobile(true)}
-            className="lg:hidden w-full sm:w-auto h-12 px-6 bg-slate-900 text-white rounded-xl flex items-center justify-between gap-3 text-xs font-bold uppercase tracking-widest"
+            className="lg:hidden relative h-10 px-3 bg-slate-900 text-white rounded-xl flex items-center gap-2 text-[10px] font-black uppercase tracking-widest shrink-0"
           >
-            <div className="flex items-center gap-2">
-              <ShoppingCart size={16} />
-              <span>Ver Carrinho</span>
-            </div>
+            <ShoppingCart size={14} />
             {cartQty > 0 && (
-              <div className="bg-blue-600 px-2 py-0.5 rounded text-[10px]">{cartQty}</div>
+              <span className="absolute -top-1 -right-1 w-4 h-4 bg-blue-600 rounded-full text-[9px] font-black flex items-center justify-center">
+                {cartQty}
+              </span>
             )}
           </button>
         </div>
@@ -263,11 +299,11 @@ export default function PDV() {
           ) : (
             <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-3">
               {filteredProducts.map((product) => {
-                const inCart = cart.find((i) => i.id === product.id);
                 const cartQtyForProduct = cart
                   .filter((i) => i.id === product.id)
                   .reduce((a, b) => a + b.quantity, 0);
                 const atLimit = cartQtyForProduct >= product.stock_quantity;
+                const inCart = cartQtyForProduct > 0;
                 return (
                   <motion.button
                     layout
@@ -276,42 +312,56 @@ export default function PDV() {
                     className={cn(
                       "bg-white p-3 rounded-2xl border shadow-sm transition-all flex flex-col items-start group relative text-left",
                       atLimit
-                        ? "border-slate-100 opacity-50 cursor-not-allowed"
-                        : "border-slate-200 hover:border-blue-500 hover:shadow-md cursor-pointer"
+                        ? "border-slate-100 opacity-40 cursor-not-allowed"
+                        : inCart
+                        ? "border-blue-400 shadow-blue-100 shadow-md ring-1 ring-blue-300/50 cursor-pointer"
+                        : "border-slate-200 hover:border-blue-400 hover:shadow-md cursor-pointer"
                     )}
                   >
-                    <div className="w-full aspect-square bg-slate-50 rounded-xl border border-slate-100 mb-3 overflow-hidden flex items-center justify-center relative">
+                    {/* Stock badge top-right, cart badge top-left */}
+                    <div className="w-full aspect-square bg-slate-50 rounded-xl border border-slate-100 mb-2 overflow-hidden flex items-center justify-center relative">
                       {product.image_url ? (
                         <img
                           src={product.image_url}
                           alt={product.name}
-                          className="object-cover w-full h-full group-hover:scale-105 transition-transform"
+                          className="object-cover w-full h-full group-hover:scale-105 transition-transform duration-300"
                         />
                       ) : (
                         <Package size={24} className="text-slate-200" />
                       )}
-                      <div className="absolute top-2 right-2 bg-slate-900 border border-slate-700 text-white px-2 py-0.5 rounded text-[8px] font-mono font-bold tracking-tighter uppercase">
+                      <div className="absolute top-1.5 right-1.5 bg-slate-900/80 backdrop-blur-sm border border-slate-700/50 text-white px-1.5 py-0.5 rounded-md text-[8px] font-mono font-bold">
                         {product.stock_quantity}
                       </div>
                       {inCart && (
-                        <div className="absolute top-2 left-2 bg-blue-600 text-white w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-black">
+                        <motion.div
+                          initial={{ scale: 0 }}
+                          animate={{ scale: 1 }}
+                          className="absolute top-1.5 left-1.5 bg-blue-600 text-white w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-black shadow-lg shadow-blue-500/30"
+                        >
                           {cartQtyForProduct}
+                        </motion.div>
+                      )}
+                      {/* Add overlay */}
+                      {!atLimit && (
+                        <div className="absolute inset-0 bg-blue-600/0 group-hover:bg-blue-600/8 transition-colors flex items-center justify-center">
+                          <div className="opacity-0 group-hover:opacity-100 transition-all bg-blue-600 text-white rounded-full w-8 h-8 flex items-center justify-center shadow-xl scale-75 group-hover:scale-100">
+                            <Plus size={14} strokeWidth={3} />
+                          </div>
                         </div>
                       )}
                     </div>
-                    <p className="text-[10px] font-bold text-slate-900 uppercase truncate w-full mb-1">
+                    <p className="text-[10px] font-bold text-slate-900 uppercase truncate w-full leading-tight mb-0.5">
                       {product.name}
                     </p>
                     {((Array.isArray(product.attributes) && product.attributes.length > 0) ||
                       (Array.isArray(product.variations) && product.variations.length > 0)) && (
-                      <p className="text-[8px] font-black text-blue-500 uppercase tracking-widest mb-1">
-                        C/ Variações
+                      <p className="text-[8px] font-black text-blue-500 uppercase tracking-widest mb-0.5">
+                        Variações
                       </p>
                     )}
-                    <p className="text-xs font-mono font-bold text-blue-600">
+                    <p className="text-[11px] font-mono font-black text-blue-600">
                       R$ {Number(product.price).toFixed(2)}
                     </p>
-                    <div className="absolute inset-0 bg-blue-600/0 group-hover:bg-blue-600/5 transition-colors pointer-events-none rounded-2xl" />
                   </motion.button>
                 );
               })}
@@ -428,7 +478,7 @@ export default function PDV() {
       </AnimatePresence>
 
       {/* RIGHT — CART PANEL (desktop) */}
-      <div className="hidden lg:flex w-[400px] bg-white rounded-2xl border border-slate-200 shadow-xl flex-col overflow-hidden shrink-0">
+      <div className="hidden lg:flex w-[380px] bg-white rounded-2xl border border-slate-200 shadow-xl flex-col overflow-hidden shrink-0">
         <CartContent
           cart={cart}
           updateQuantity={updateQuantity}
@@ -535,32 +585,35 @@ function CartContent({
   return (
     <>
       {/* Header */}
-      <div className="px-6 py-5 bg-slate-50 border-b border-slate-200 flex items-center justify-between shrink-0">
+      <div className="px-5 py-4 bg-white border-b border-slate-100 flex items-center justify-between shrink-0">
         <div className="flex flex-col">
-          <h3 className="text-xs font-black uppercase tracking-widest text-slate-900">
+          <h3 className="text-[11px] font-black uppercase tracking-widest text-slate-900 flex items-center gap-2">
+            <ShoppingCart size={13} className="text-blue-600" />
             Carrinho PDV
           </h3>
-          <span className="text-[9px] text-slate-500 font-bold uppercase tracking-tight">
-            Venda Direta no Balcão
+          <span className="text-[9px] text-slate-400 font-bold uppercase tracking-widest mt-0.5">
+            Venda no Balcão
           </span>
         </div>
         <div className="flex items-center gap-2">
-          <div className="bg-blue-100 px-2 py-1 rounded-lg text-[10px] font-black text-blue-700 uppercase tracking-widest">
-            {totalQty} {totalQty === 1 ? "ITEM" : "ITENS"}
-          </div>
+          {totalQty > 0 && (
+            <div className="bg-blue-600 px-2.5 py-1 rounded-lg text-[9px] font-black text-white uppercase tracking-widest shadow-sm shadow-blue-300">
+              {totalQty} {totalQty === 1 ? "ITEM" : "ITENS"}
+            </div>
+          )}
           {onClose && (
             <button
               onClick={onClose}
-              className="p-2 hover:bg-slate-200 rounded-full text-slate-400"
+              className="p-1.5 hover:bg-slate-100 rounded-full text-slate-400"
             >
-              <X size={20} />
+              <X size={18} />
             </button>
           )}
         </div>
       </div>
 
       {/* Items */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-2">
+      <div className="flex-1 overflow-y-auto p-3 space-y-2">
         <AnimatePresence initial={false}>
           {cart.map((item) => (
             <motion.div
@@ -570,49 +623,49 @@ function CartContent({
               exit={{ opacity: 0, height: 0 }}
               transition={{ duration: 0.15 }}
             >
-              <div className="flex items-center gap-3 p-3 rounded-2xl border border-slate-100 bg-white shadow-sm">
+              <div className="flex items-center gap-2.5 p-3 rounded-xl border border-slate-100 bg-slate-50/50 hover:bg-white hover:shadow-sm transition-all">
                 <div className="flex-1 min-w-0">
-                  <p className="text-[11px] font-black text-slate-800 uppercase truncate">
+                  <p className="text-[10px] font-black text-slate-800 uppercase truncate leading-tight">
                     {item.name}
                   </p>
                   {item.variationLabel && (
-                    <p className="text-[8px] font-bold text-slate-400 uppercase tracking-widest">
+                    <p className="text-[8px] font-bold text-blue-500 uppercase tracking-widest mt-0.5">
                       {item.variationLabel}
                     </p>
                   )}
-                  <div className="flex items-center justify-between mt-1">
-                    <p className="text-[10px] font-mono text-slate-400">
+                  <div className="flex items-center justify-between mt-1.5">
+                    <p className="text-[9px] font-mono text-slate-400">
                       R$ {item.price.toFixed(2)} × {item.quantity}
                     </p>
-                    <p className="text-[11px] font-mono font-black text-slate-800">
+                    <p className="text-[11px] font-mono font-black text-slate-900">
                       R$ {(item.price * item.quantity).toFixed(2)}
                     </p>
                   </div>
                 </div>
                 <div className="flex flex-col items-center gap-1 shrink-0">
-                  <div className="flex items-center gap-1 bg-slate-50 border border-slate-100 rounded-xl p-1">
+                  <div className="flex items-center gap-0.5 bg-white border border-slate-200 rounded-lg p-0.5">
                     <button
                       onClick={() => updateQuantity(item.cartItemId, -1)}
-                      className="p-1 hover:bg-white hover:shadow-sm rounded-lg text-slate-500 transition-all"
+                      className="p-1 hover:bg-slate-50 rounded text-slate-500 transition-all"
                     >
-                      <Minus size={11} />
+                      <Minus size={10} />
                     </button>
-                    <span className="w-6 text-center font-mono font-black text-xs">
+                    <span className="w-5 text-center font-mono font-black text-[11px] text-slate-800">
                       {item.quantity}
                     </span>
                     <button
                       onClick={() => updateQuantity(item.cartItemId, 1)}
                       disabled={item.quantity >= item.stock_quantity}
-                      className="p-1 hover:bg-white hover:shadow-sm rounded-lg text-slate-500 transition-all disabled:opacity-30"
+                      className="p-1 hover:bg-slate-50 rounded text-slate-500 transition-all disabled:opacity-30"
                     >
-                      <Plus size={11} />
+                      <Plus size={10} />
                     </button>
                   </div>
                   <button
                     onClick={() => removeFromCart(item.cartItemId)}
-                    className="p-1 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"
+                    className="p-1 text-slate-300 hover:text-red-500 transition-all"
                   >
-                    <Trash2 size={13} />
+                    <Trash2 size={12} />
                   </button>
                 </div>
               </div>
@@ -621,12 +674,12 @@ function CartContent({
         </AnimatePresence>
 
         {cart.length === 0 && (
-          <div className="h-full flex flex-col items-center justify-center text-slate-300 gap-4 py-16">
-            <div className="p-8 bg-slate-50 rounded-[32px] border border-slate-100">
-              <ShoppingCart size={40} className="opacity-10" />
+          <div className="h-full flex flex-col items-center justify-center text-slate-300 gap-3 py-16">
+            <div className="p-6 bg-slate-50 rounded-3xl border border-slate-100">
+              <ShoppingCart size={32} className="opacity-20" />
             </div>
             <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">
-              Sacola Vazia
+              Carrinho Vazio
             </p>
           </div>
         )}

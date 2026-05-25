@@ -1,3 +1,21 @@
+export interface BusinessHours {
+  [day: string]: { open: string; close: string; closed: boolean };
+}
+
+export interface PaymentMethods {
+  pix: boolean;
+  credit_card: boolean;
+  debit_card: boolean;
+  cash: boolean;
+  boleto: boolean;
+}
+
+export interface StorePolicies {
+  returns: string;
+  shipping: string;
+  exchange: string;
+}
+
 export interface Tenant {
   id: number;
   name: string;
@@ -15,6 +33,9 @@ export interface Tenant {
   primary_color: string;
   featured_limit?: number;
   bestseller_limit?: number;
+  business_hours?: BusinessHours;
+  payment_methods?: PaymentMethods;
+  policies?: StorePolicies;
 }
 
 export interface User {

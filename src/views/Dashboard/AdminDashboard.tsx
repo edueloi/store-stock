@@ -1,12 +1,12 @@
 import { useState, useEffect } from "react";
 import { Routes, Route, Link, useLocation, useNavigate } from "react-router-dom";
-import { 
-  BarChart3, 
-  Package, 
-  ShoppingCart, 
-  DollarSign, 
-  Menu, 
-  X, 
+import {
+  BarChart3,
+  Package,
+  ShoppingCart,
+  DollarSign,
+  Menu,
+  X,
   LogOut,
   LayoutDashboard,
   Box,
@@ -20,7 +20,8 @@ import {
   UserCheck,
   Truck,
   FolderOpen,
-  Settings as SettingsIcon
+  Settings as SettingsIcon,
+  LineChart,
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { cn } from "../../lib/utils";
@@ -36,6 +37,7 @@ import Settings from "./Settings";
 import Customers from "./Customers";
 import Suppliers from "./Suppliers";
 import Categories from "./Categories";
+import Analytics from "./Analytics";
 
 export default function AdminDashboard() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(window.innerWidth > 1024);
@@ -59,16 +61,17 @@ export default function AdminDashboard() {
   }, []);
 
   const menuItems = [
-    { icon: LayoutDashboard, label: "Dashboard", path: "/admin" },
-    { icon: Box, label: "Estoque", path: "/admin/stock" },
-    { icon: Tags, label: "Catálogo", path: "/admin/catalog" },
-    { icon: FolderOpen, label: "Categorias", path: "/admin/categories" },
-    { icon: Users, label: "Clientes", path: "/admin/customers" },
-    { icon: Truck, label: "Fornecedores", path: "/admin/suppliers" },
-    { icon: ShoppingCart, label: "PDV (Vendas)", path: "/admin/pdv" },
-    { icon: Receipt, label: "Pedidos", path: "/admin/orders" },
-    { icon: Wallet, label: "Financeiro", path: "/admin/finance" },
-    { icon: SettingsIcon, label: "Configurações", path: "/admin/settings" },
+    { icon: LayoutDashboard, label: "Dashboard",      path: "/admin" },
+    { icon: Box,             label: "Estoque",         path: "/admin/stock" },
+    { icon: Tags,            label: "Catálogo",        path: "/admin/catalog" },
+    { icon: FolderOpen,      label: "Categorias",      path: "/admin/categories" },
+    { icon: Users,           label: "Clientes",        path: "/admin/customers" },
+    { icon: Truck,           label: "Fornecedores",    path: "/admin/suppliers" },
+    { icon: ShoppingCart,    label: "PDV (Vendas)",    path: "/admin/pdv" },
+    { icon: Receipt,         label: "Pedidos",         path: "/admin/orders" },
+    { icon: Wallet,          label: "Financeiro",      path: "/admin/finance" },
+    { icon: LineChart,       label: "Métricas",        path: "/admin/analytics" },
+    { icon: SettingsIcon,    label: "Configurações",   path: "/admin/settings" },
   ];
 
   const viewPublicStore = () => {
@@ -305,6 +308,7 @@ export default function AdminDashboard() {
              <Route path="suppliers" element={<Suppliers />} />
              <Route path="orders" element={<Orders />} />
              <Route path="finance" element={<Finance />} />
+             <Route path="analytics" element={<Analytics />} />
              <Route path="settings" element={<Settings />} />
              <Route path="inventory" element={<Stock />} />
            </Routes>
@@ -324,11 +328,11 @@ export default function AdminDashboard() {
         {/* Mobile Bottom Navigation */}
         <nav className="lg:hidden shrink-0 bg-white border-t border-slate-200 flex items-stretch" style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
           {[
-            { icon: LayoutDashboard, label: "Home", path: "/admin" },
-            { icon: Box, label: "Estoque", path: "/admin/stock" },
-            { icon: Tags, label: "Catálogo", path: "/admin/catalog" },
-            { icon: ShoppingCart, label: "PDV", path: "/admin/pdv" },
-            { icon: Receipt, label: "Pedidos", path: "/admin/orders" },
+            { icon: LayoutDashboard, label: "Home",     path: "/admin" },
+            { icon: Tags,            label: "Catálogo", path: "/admin/catalog" },
+            { icon: ShoppingCart,    label: "PDV",      path: "/admin/pdv" },
+            { icon: Receipt,         label: "Pedidos",  path: "/admin/orders" },
+            { icon: LineChart,       label: "Métricas", path: "/admin/analytics" },
           ].map((item) => {
             const isActive = location.pathname === item.path || (item.path === "/admin" && location.pathname === "/admin/");
             return (

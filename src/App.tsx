@@ -20,12 +20,14 @@ import { cn } from "./lib/utils";
 import AdminDashboard from "./views/Dashboard/AdminDashboard";
 import StoreLayout from "./views/Store/StoreLayout";
 import Login from "./views/Auth/Login";
+import PDVStandalone from "./views/PDVStandalone";
 
 export default function App() {
   return (
     <BrowserRouter>
       <Routes>
         <Route path="/login" element={<Login />} />
+        <Route path="/pdv" element={<PDVStandalone />} />
         <Route path="/admin/*" element={<AdminDashboard />} />
         <Route path="/s/:slug/*" element={<StoreLayout />} />
         <Route path="/" element={<Navigate to="/login" replace />} />

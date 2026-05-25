@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from "react";
 import {
   Plus, Edit2, Trash2, Image as ImageIcon, Save, X, Package,
   TrendingUp, Upload, LayoutGrid, List, Tag, Search, AlertTriangle,
-  Star, ChevronLeft, ChevronRight, GripVertical, Zap,
+  Star, ChevronLeft, ChevronRight, GripVertical, Zap, ArrowUpDown,
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { cn } from "../../lib/utils";
@@ -15,7 +15,6 @@ import StatsGrid from "../../components/ui/StatsGrid";
 import { Switch } from "../../components/ui/Switch";
 import ConfirmDialog from "../../components/ui/ConfirmDialog";
 import { DropdownMenu } from "../../components/ui/Dropdown";
-import { Tabs, TabList, Tab } from "../../components/ui/Tabs";
 
 // ── helpers ────────────────────────────────────────────────────────────────
 function toSlug(name: string) {
@@ -281,18 +280,29 @@ export default function Inventory() {
   const [editingProduct, setEditingProduct] = useState<Partial<Product> | null>(null);
   const [editingImages, setEditingImages] = useState<string[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
-  const [activeTab, setActiveTab] = useState<"sale" | "internal">("sale");
   const [viewMode, setViewMode] = useState<"table" | "grid">("table");
   const [deleteTarget, setDeleteTarget] = useState<Product | null>(null);
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [filterCategory, setFilterCategory] = useState<number | "">("");
   const [filterStatus, setFilterStatus] = useState<"all" | "active" | "inactive">("all");
+  const [sortBy, setSortBy] = useState<"name_asc" | "name_desc" | "price_asc" | "price_desc" | "stock_asc" | "stock_desc" | "newest">("newest");
 
   // Variation state — new attribute+SKU model
   const [newAttrName, setNewAttrName] = useState("");
   const [newAttrValue, setNewAttrValue] = useState("");
   const [showPresets, setShowPresets] = useState(false);
+
+  type SortKey = typeof sortBy;
+  const SORT_OPTIONS: { value: SortKey; label: string }[] = [
+    { value: "newest",      label: "Mais recentes" },
+    { value: "name_asc",    label: "Nome: A → Z" },
+    { value: "name_desc",   label: "Nome: Z → A" },
+    { value: "price_asc",   label: "Preço: menor → maior" },
+    { value: "price_desc",  label: "Preço: maior → menor" },
+    { value: "stock_asc",   label: "Estoque: menor → maior" },
+    { value: "stock_desc",  label: "Estoque: maior → menor" },
+  ];
 
   const fetchInventory = async () => {
     try {
@@ -312,7 +322,7 @@ export default function Inventory() {
   const resetVarState = () => { setNewAttrName(""); setNewAttrValue(""); setShowPresets(false); };
 
   const openNew = () => {
-    setEditingProduct({ type: activeTab, is_active: true, is_featured: false, stock_quantity: 0, attributes: [], skus: [] });
+    setEditingProduct({ type: "sale", is_active: true, is_featured: false, stock_quantity: 0, attributes: [], skus: [] });
     setEditingImages([]);
     resetVarState();
     setIsModalOpen(true);
@@ -349,7 +359,7 @@ export default function Inventory() {
 
     const payload = {
       ...editingProduct,
-      type: editingProduct?.type || activeTab,
+      type: editingProduct?.type || "sale",
       is_active: editingProduct?.is_active ?? true,
       is_featured: editingProduct?.is_featured ?? false,
       sku: editingProduct?.sku?.trim() || (editingProduct?.name ? toSlug(editingProduct.name) : undefined),
@@ -456,14 +466,26 @@ export default function Inventory() {
     setShowPresets(false);
   };
 
-  const filteredProducts = products.filter(p => {
-    if (p.type !== activeTab) return false;
-    if (searchTerm && !p.name.toLowerCase().includes(searchTerm.toLowerCase()) && !(p.sku?.toLowerCase().includes(searchTerm.toLowerCase()))) return false;
-    if (filterCategory && p.category_id !== filterCategory) return false;
-    if (filterStatus === "active" && !p.is_active) return false;
-    if (filterStatus === "inactive" && p.is_active) return false;
-    return true;
-  });
+  const filteredProducts = [...products]
+    .filter(p => {
+      if (p.type !== "sale") return false;
+      if (searchTerm && !p.name.toLowerCase().includes(searchTerm.toLowerCase()) && !(p.sku?.toLowerCase().includes(searchTerm.toLowerCase()))) return false;
+      if (filterCategory && p.category_id !== filterCategory) return false;
+      if (filterStatus === "active" && !p.is_active) return false;
+      if (filterStatus === "inactive" && p.is_active) return false;
+      return true;
+    })
+    .sort((a, b) => {
+      switch (sortBy) {
+        case "name_asc":   return a.name.localeCompare(b.name, "pt-BR");
+        case "name_desc":  return b.name.localeCompare(a.name, "pt-BR");
+        case "price_asc":  return Number(a.discount_price ?? a.price) - Number(b.discount_price ?? b.price);
+        case "price_desc": return Number(b.discount_price ?? b.price) - Number(a.discount_price ?? a.price);
+        case "stock_asc":  return a.stock_quantity - b.stock_quantity;
+        case "stock_desc": return b.stock_quantity - a.stock_quantity;
+        default:           return b.id - a.id; // newest
+      }
+    });
 
   const saleProducts = products.filter(p => p.type === "sale");
   const totalCost = saleProducts.reduce((s, p) => s + Number(p.cost_price || 0) * p.stock_quantity, 0);
@@ -495,7 +517,7 @@ export default function Inventory() {
               {viewMode === "table" ? "Grade" : "Tabela"}
             </Button>
             <Button icon={<Plus size={14} />} onClick={openNew}>
-              {activeTab === "sale" ? "Novo Produto" : "Novo Interno"}
+              Novo Produto
             </Button>
           </div>
         }
@@ -508,35 +530,42 @@ export default function Inventory() {
         { label: "Destaques Ativos", value: featured, icon: <Star size={18} />, accent: "amber" },
       ]} />
 
-      <Tabs defaultTab={activeTab} onChange={(v) => setActiveTab(v as "sale" | "internal")}>
-        <TabList variant="pill">
-          <Tab id="sale">Catálogo de Venda</Tab>
-          <Tab id="internal">Uso Interno</Tab>
-        </TabList>
-      </Tabs>
-
       {/* Filters */}
-      <div className="space-y-2 sm:space-y-0 sm:flex sm:flex-wrap sm:gap-3 sm:items-center">
+      <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
+        {/* search */}
         <div className="relative flex-1 min-w-0 sm:min-w-[200px]">
           <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
           <input type="text" placeholder="Buscar por nome ou SKU..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)}
             className="w-full pl-9 pr-4 h-10 rounded-xl border border-slate-200 bg-white text-xs font-medium outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-500/10 transition-all" />
         </div>
-        <div className="flex gap-2 sm:contents">
+
+        {/* category + status + sort — row on mobile too */}
+        <div className="flex gap-2 flex-wrap">
           <select value={filterCategory} onChange={e => setFilterCategory(e.target.value === "" ? "" : Number(e.target.value))}
-            className="flex-1 sm:flex-none h-10 px-3 rounded-xl border border-slate-200 bg-white text-xs font-bold text-slate-600 outline-none focus:border-blue-400 transition-all">
+            className="h-10 px-3 rounded-xl border border-slate-200 bg-white text-xs font-bold text-slate-600 outline-none focus:border-blue-400 transition-all">
             <option value="">Todas as categorias</option>
             {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
           </select>
+
           <select value={filterStatus} onChange={e => setFilterStatus(e.target.value as typeof filterStatus)}
-            className="flex-1 sm:flex-none h-10 px-3 rounded-xl border border-slate-200 bg-white text-xs font-bold text-slate-600 outline-none focus:border-blue-400 transition-all">
+            className="h-10 px-3 rounded-xl border border-slate-200 bg-white text-xs font-bold text-slate-600 outline-none focus:border-blue-400 transition-all">
             <option value="all">Todos os status</option>
             <option value="active">Ativos</option>
             <option value="inactive">Inativos</option>
           </select>
+
+          {/* sort */}
+          <div className="relative flex items-center">
+            <ArrowUpDown size={13} className="absolute left-3 text-slate-400 pointer-events-none" />
+            <select value={sortBy} onChange={e => setSortBy(e.target.value as typeof sortBy)}
+              className="h-10 pl-8 pr-3 rounded-xl border border-slate-200 bg-white text-xs font-bold text-slate-600 outline-none focus:border-blue-400 transition-all appearance-none">
+              {SORT_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+            </select>
+          </div>
         </div>
-        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest sm:ml-auto block text-right sm:text-left">
-          {filteredProducts.length} item{filteredProducts.length !== 1 ? "s" : ""}
+
+        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest sm:ml-auto">
+          {filteredProducts.length} produto{filteredProducts.length !== 1 ? "s" : ""}
         </span>
       </div>
 
@@ -731,7 +760,7 @@ export default function Inventory() {
       {/* ── MODAL ── */}
       <Modal open={isModalOpen} onClose={() => setIsModalOpen(false)}
         title={editingProduct?.id ? "Editar Produto" : "Novo Produto"}
-        subtitle={`Tipo: ${activeTab === "sale" ? "Venda" : "Uso Interno"}`}
+        subtitle="Catálogo de venda"
         size="xl"
         footer={
           <>
@@ -829,10 +858,8 @@ export default function Inventory() {
           <div className="flex flex-wrap gap-6 border-t border-slate-100 pt-4">
             <Switch label="Ativo no catálogo" checked={editingProduct?.is_active ?? true}
               onChange={v => setEditingProduct(prev => ({ ...prev!, is_active: v }))} accent="emerald" />
-            {activeTab === "sale" && (
-              <Switch label="Destaque na home" checked={editingProduct?.is_featured ?? false}
-                onChange={v => setEditingProduct(prev => ({ ...prev!, is_featured: v }))} accent="amber" />
-            )}
+            <Switch label="Destaque na home" checked={editingProduct?.is_featured ?? false}
+              onChange={v => setEditingProduct(prev => ({ ...prev!, is_featured: v }))} accent="amber" />
           </div>
 
           {/* ── VARIAÇÕES ── */}

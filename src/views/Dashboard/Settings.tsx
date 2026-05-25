@@ -1,417 +1,954 @@
-import React, { useState, useEffect } from "react";
-import { Settings as SettingsIcon, Users, Store, Shield, Bell, Save, Palette, Loader2, Search, Check } from "lucide-react";
-import { motion } from "motion/react";
+import React, { useState, useEffect, useCallback } from "react";
+import {
+  Store, Palette, Share2, Clock, CreditCard, Shield, Settings2,
+  Users, Save, Loader2, Search, Check, ChevronRight, Globe,
+  Bell, Sun, Moon, Package, AlertTriangle, Lock,
+} from "lucide-react";
 import { cn } from "../../lib/utils";
-import { Tenant } from "../../types";
+import type { Tenant, BusinessHours, PaymentMethods, StorePolicies } from "../../types";
+
+// ─── helpers ────────────────────────────────────────────────────────────────
+
+const API_HEADERS = () => ({
+  "Content-Type": "application/json",
+  Authorization: `Bearer ${localStorage.getItem("token")}`,
+});
+
+const DAYS: { key: string; label: string }[] = [
+  { key: "seg", label: "Segunda" },
+  { key: "ter", label: "Terça" },
+  { key: "qua", label: "Quarta" },
+  { key: "qui", label: "Quinta" },
+  { key: "sex", label: "Sexta" },
+  { key: "sab", label: "Sábado" },
+  { key: "dom", label: "Domingo" },
+];
+
+const DEFAULT_HOURS: BusinessHours = Object.fromEntries(
+  DAYS.map(({ key }) => [key, { open: "09:00", close: "18:00", closed: key === "dom" }])
+);
+
+const DEFAULT_PAYMENTS: PaymentMethods = {
+  pix: true, credit_card: true, debit_card: true, cash: true, boleto: false,
+};
+
+const DEFAULT_POLICIES: StorePolicies = { returns: "", shipping: "", exchange: "" };
+
+// ─── sub-components ──────────────────────────────────────────────────────────
+
+function SectionHeader({ title, subtitle }: { title: string; subtitle?: string }) {
+  return (
+    <div className="pb-4 border-b border-slate-100 mb-6">
+      <h3 className="text-sm font-black uppercase tracking-widest text-slate-900">{title}</h3>
+      {subtitle && <p className="text-[10px] text-slate-400 font-medium mt-1">{subtitle}</p>}
+    </div>
+  );
+}
+
+function Field({
+  label, hint, children,
+}: { label: string; hint?: string; children: React.ReactNode }) {
+  return (
+    <div className="space-y-1.5">
+      <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.18em] px-1 block">
+        {label}
+      </label>
+      {children}
+      {hint && <p className="text-[9px] text-slate-400 font-medium px-1">{hint}</p>}
+    </div>
+  );
+}
+
+function TextInput({
+  value, onChange, placeholder, type = "text", mono = false, className = "",
+}: {
+  value: string; onChange: (v: string) => void; placeholder?: string;
+  type?: string; mono?: boolean; className?: string;
+}) {
+  return (
+    <input
+      type={type}
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      placeholder={placeholder}
+      className={cn(
+        "w-full bg-slate-50 border border-slate-200 rounded-xl px-4 h-11 text-xs font-bold outline-none",
+        "focus:ring-4 focus:ring-blue-500/8 focus:border-blue-500 transition-all",
+        mono ? "font-mono" : "font-sans",
+        className,
+      )}
+    />
+  );
+}
+
+function Toggle({
+  checked, onChange, label,
+}: { checked: boolean; onChange: (v: boolean) => void; label?: string }) {
+  return (
+    <div className="flex items-center gap-3">
+      <button
+        onClick={() => onChange(!checked)}
+        className={cn(
+          "w-10 h-5 rounded-full transition-all relative shadow-inner shrink-0",
+          checked ? "bg-emerald-500" : "bg-slate-200",
+        )}
+      >
+        <div className={cn(
+          "absolute top-1 w-3 h-3 bg-white rounded-full transition-all shadow-sm",
+          checked ? "left-6" : "left-1",
+        )} />
+      </button>
+      {label && <span className="text-[10px] font-bold text-slate-600 uppercase tracking-widest">{label}</span>}
+    </div>
+  );
+}
+
+function SaveButton({ onClick, label = "Guardar Alterações", className = "" }: {
+  onClick: () => void; label?: string; className?: string;
+}) {
+  return (
+    <div className={cn("pt-6 border-t border-slate-100 flex justify-end", className)}>
+      <button
+        onClick={onClick}
+        className="bg-blue-600 text-white px-8 h-12 rounded-xl text-[10px] font-black uppercase tracking-[0.2em] shadow-xl shadow-blue-500/20 flex items-center gap-3 hover:bg-blue-700 transition-all active:scale-95"
+      >
+        <Save size={15} strokeWidth={2.5} /> {label}
+      </button>
+    </div>
+  );
+}
+
+// ─── nav groups ──────────────────────────────────────────────────────────────
+
+const NAV = [
+  {
+    group: "Loja Pública",
+    desc: "Visível para os seus clientes",
+    color: "text-blue-600",
+    items: [
+      { id: "identity", icon: Store, label: "Identidade & Dados" },
+      { id: "design", icon: Palette, label: "Design & Templates" },
+      { id: "social", icon: Share2, label: "Canais Sociais" },
+      { id: "hours", icon: Clock, label: "Horário de Funcionamento" },
+      { id: "payments", icon: CreditCard, label: "Pagamentos & Políticas" },
+    ],
+  },
+  {
+    group: "Sistema",
+    desc: "Configurações do painel admin",
+    color: "text-slate-400",
+    items: [
+      { id: "preferences", icon: Settings2, label: "Preferências do Painel" },
+      { id: "security", icon: Shield, label: "Segurança" },
+      { id: "users", icon: Users, label: "Time & Acessos" },
+    ],
+  },
+];
+
+// ─── main component ──────────────────────────────────────────────────────────
 
 export default function Settings() {
-  const [activeTab, setActiveTab] = useState("profile");
+  const [active, setActive] = useState("identity");
   const [tenant, setTenant] = useState<Partial<Tenant> | null>(null);
   const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
   const [cepLoading, setCepLoading] = useState(false);
 
+  // system prefs (stored in UserPreference)
+  const [panelTheme, setPanelTheme] = useState<"light" | "dark">("light");
+  const [lowStockAlert, setLowStockAlert] = useState(5);
+  const [panelLang, setPanelLang] = useState("pt-BR");
+
+  // password fields
+  const [newPass, setNewPass] = useState("");
+  const [confirmPass, setConfirmPass] = useState("");
+
   useEffect(() => {
-    fetch("/api/tenant", {
-      headers: { "Authorization": `Bearer ${localStorage.getItem("token")}` }
-    })
-    .then(res => res.json())
-    .then(data => {
-      setTenant(data);
-      setLoading(false);
-    });
+    fetch("/api/tenant", { headers: API_HEADERS() })
+      .then((r) => r.json())
+      .then((d) => { setTenant(d); setLoading(false); });
+
+    // load panel prefs
+    Promise.all([
+      fetch("/api/preferences/panel_theme", { headers: API_HEADERS() }).then((r) => r.json()),
+      fetch("/api/preferences/low_stock_alert", { headers: API_HEADERS() }).then((r) => r.json()),
+      fetch("/api/preferences/panel_lang", { headers: API_HEADERS() }).then((r) => r.json()),
+    ]).then(([theme, alert, lang]) => {
+      if (theme) setPanelTheme(theme as "light" | "dark");
+      if (alert !== null) setLowStockAlert(Number(alert));
+      if (lang) setPanelLang(lang as string);
+    }).catch(() => { /* prefs optional */ });
   }, []);
+
+  const setT = useCallback(
+    (patch: Partial<Tenant>) => setTenant((prev) => ({ ...prev, ...patch })),
+    [],
+  );
+
+  const hours = (tenant?.business_hours ?? DEFAULT_HOURS) as BusinessHours;
+  const payments = (tenant?.payment_methods ?? DEFAULT_PAYMENTS) as PaymentMethods;
+  const policies = (tenant?.policies ?? DEFAULT_POLICIES) as StorePolicies;
+
+  const showSaved = () => {
+    setSaved(true);
+    setTimeout(() => setSaved(false), 2500);
+  };
+
+  const handleSaveTenant = async () => {
+    setSaving(true);
+    try {
+      const res = await fetch("/api/tenant", {
+        method: "PUT",
+        headers: API_HEADERS(),
+        body: JSON.stringify(tenant),
+      });
+      if (res.ok) showSaved();
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleSavePrefs = async () => {
+    setSaving(true);
+    try {
+      await Promise.all([
+        fetch("/api/preferences/panel_theme", {
+          method: "PUT", headers: API_HEADERS(),
+          body: JSON.stringify({ value: panelTheme }),
+        }),
+        fetch("/api/preferences/low_stock_alert", {
+          method: "PUT", headers: API_HEADERS(),
+          body: JSON.stringify({ value: lowStockAlert }),
+        }),
+        fetch("/api/preferences/panel_lang", {
+          method: "PUT", headers: API_HEADERS(),
+          body: JSON.stringify({ value: panelLang }),
+        }),
+      ]);
+      showSaved();
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleChangePassword = async () => {
+    if (!newPass || newPass !== confirmPass) {
+      alert("As senhas não coincidem ou estão vazias.");
+      return;
+    }
+    setSaving(true);
+    try {
+      const res = await fetch("/api/auth/change-password", {
+        method: "POST", headers: API_HEADERS(),
+        body: JSON.stringify({ password: newPass }),
+      });
+      if (res.ok) { showSaved(); setNewPass(""); setConfirmPass(""); }
+      else alert("Erro ao alterar senha.");
+    } finally {
+      setSaving(false);
+    }
+  };
 
   const handleLookupCEP = async () => {
     const cep = tenant?.address?.match(/\d{5}-?\d{3}/)?.[0];
     if (!cep) return;
-    
     setCepLoading(true);
     try {
-      const res = await fetch(`https://viacep.com.br/ws/${cep.replace('-', '')}/json/`);
-      const data = await res.json();
-      if (!data.erro) {
-        setTenant({
-          ...tenant!,
-          address: `${data.logradouro}, ${data.bairro}, ${data.localidade} - ${data.uf}`
-        });
-      }
-    } catch (err) {
-      console.error(err);
+      const res = await fetch(`https://viacep.com.br/ws/${cep.replace("-", "")}/json/`);
+      const d = await res.json();
+      if (!d.erro) setT({ address: `${d.logradouro}, ${d.bairro}, ${d.localidade} - ${d.uf}` });
+    } catch {
+      // silent
     } finally {
       setCepLoading(false);
     }
   };
 
-  const handleSave = async () => {
-    try {
-      const res = await fetch("/api/tenant", {
-        method: "PUT",
-        headers: { 
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${localStorage.getItem("token")}`
-        },
-        body: JSON.stringify(tenant)
-      });
-      if (res.ok) alert("Configurações salvas com sucesso!");
-    } catch (err) {
-      console.error(err);
-    }
-  };
+  const setHours = (day: string, patch: Partial<{ open: string; close: string; closed: boolean }>) =>
+    setT({ business_hours: { ...hours, [day]: { ...hours[day], ...patch } } });
 
-  const tabs = [
-    { id: "profile", label: "Dados da Loja", icon: Store },
-    { id: "theme", label: "Design & Brand", icon: Palette },
-    { id: "social", label: "Canais Sociais", icon: Bell },
-    { id: "users", label: "Time & Acessos", icon: Users },
-    { id: "security", label: "Segurança", icon: Shield },
-  ];
+  const setPayment = (key: keyof PaymentMethods, val: boolean) =>
+    setT({ payment_methods: { ...payments, [key]: val } });
 
-  if (loading) return <div className="p-8 text-center text-xs font-bold uppercase tracking-widest text-slate-400">Carregando painel...</div>;
+  const setPolicies = (patch: Partial<StorePolicies>) =>
+    setT({ policies: { ...policies, ...patch } });
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <Loader2 className="animate-spin text-slate-300" size={28} />
+      </div>
+    );
+  }
+
+  // find active item label
+  const allItems = NAV.flatMap((g) => g.items);
+  const activeItem = allItems.find((i) => i.id === active);
 
   return (
-    <div className="space-y-6 ">
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+    <div className="space-y-4">
+      {/* Page header */}
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
         <div>
-          <h2 className="text-xl font-bold text-slate-900 uppercase tracking-tight">Painel de Configuração Nexus</h2>
-          <p className="text-slate-500 text-[10px] font-bold uppercase tracking-widest leading-none">Arquitetura de Marca, Digital e Operacional</p>
+          <h2 className="text-lg font-black text-slate-900 uppercase tracking-tight">Configurações</h2>
+          <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mt-0.5">
+            Loja pública e sistema interno
+          </p>
         </div>
+        {saved && (
+          <div className="flex items-center gap-2 bg-emerald-50 border border-emerald-200 text-emerald-700 px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest">
+            <Check size={13} strokeWidth={3} /> Salvo com sucesso
+          </div>
+        )}
       </div>
 
-      <div className="flex flex-col lg:flex-row gap-6">
-        {/* Navigation Sidebar */}
-        <aside className="w-full lg:w-72 space-x-2 sm:space-x-0 sm:space-y-2 flex sm:block overflow-x-auto no-scrollbar pb-2 sm:pb-0">
-          {tabs.map((tab) => (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
-              className={`flex-1 sm:w-full flex items-center justify-between px-5 h-14 rounded-[18px] text-[10px] font-black uppercase tracking-[0.2em] transition-all shrink-0 whitespace-nowrap active:scale-95 ${
-                activeTab === tab.id 
-                  ? "bg-slate-900 text-white shadow-2xl shadow-slate-300 translate-y-0" 
-                  : "bg-white text-slate-400 hover:bg-slate-50 border border-slate-100 transition-colors"
-              }`}
-            >
-              <div className="flex items-center gap-4">
-                <tab.icon size={18} strokeWidth={activeTab === tab.id ? 2.5 : 2} />
-                <span className={activeTab === tab.id ? "opacity-100" : "opacity-80"}>{tab.label}</span>
+      <div className="flex flex-col lg:flex-row gap-5">
+        {/* ── Sidebar ──────────────────────────────────────────────────── */}
+        <aside className="w-full lg:w-64 shrink-0">
+          {/* mobile: horizontal scroll */}
+          <div className="flex lg:hidden gap-2 overflow-x-auto no-scrollbar pb-2">
+            {allItems.map((item) => (
+              <button
+                key={item.id}
+                onClick={() => setActive(item.id)}
+                className={cn(
+                  "flex items-center gap-2 px-4 h-10 rounded-xl text-[9px] font-black uppercase tracking-widest whitespace-nowrap shrink-0 transition-all",
+                  active === item.id
+                    ? "bg-slate-900 text-white shadow-lg"
+                    : "bg-white border border-slate-100 text-slate-400 hover:border-slate-200",
+                )}
+              >
+                <item.icon size={13} />
+                {item.label}
+              </button>
+            ))}
+          </div>
+
+          {/* desktop: stacked sidebar */}
+          <div className="hidden lg:flex flex-col gap-1">
+            {NAV.map((group) => (
+              <div key={group.group} className="mb-3">
+                <div className="px-3 pb-1.5 flex items-center gap-2">
+                  <Globe size={10} className={group.color} />
+                  <span className={cn("text-[9px] font-black uppercase tracking-[0.2em]", group.color)}>
+                    {group.group}
+                  </span>
+                </div>
+                <div className="space-y-0.5">
+                  {group.items.map((item) => (
+                    <button
+                      key={item.id}
+                      onClick={() => setActive(item.id)}
+                      className={cn(
+                        "w-full flex items-center justify-between px-3 h-10 rounded-xl text-[10px] font-bold uppercase tracking-widest transition-all group",
+                        active === item.id
+                          ? "bg-slate-900 text-white shadow-lg shadow-slate-200"
+                          : "text-slate-500 hover:bg-slate-50 hover:text-slate-800",
+                      )}
+                    >
+                      <div className="flex items-center gap-3">
+                        <item.icon size={14} strokeWidth={active === item.id ? 2.5 : 2} />
+                        {item.label}
+                      </div>
+                      <ChevronRight
+                        size={12}
+                        className={cn(
+                          "transition-opacity",
+                          active === item.id ? "opacity-60" : "opacity-0 group-hover:opacity-30",
+                        )}
+                      />
+                    </button>
+                  ))}
+                </div>
               </div>
-              {activeTab === tab.id && <div className="hidden sm:block w-2 h-2 rounded-full bg-blue-500 animate-pulse"></div>}
-            </button>
-          ))}
+            ))}
+          </div>
         </aside>
 
-        {/* Content Area */}
-        <div className="flex-1">
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden transition-all">
-             {activeTab === "profile" && (
-                <div className="p-5 sm:p-8 space-y-8">
-                   <div className="grid grid-cols-1 md:grid-cols-2 gap-5 sm:gap-6">
-                      <div className="space-y-1 md:col-span-1">
-                         <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] px-1">Nome da Organização</label>
-                         <input 
-                           type="text" 
-                           className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 h-12 text-xs font-black uppercase outline-none focus:ring-4 focus:ring-blue-500/5 focus:border-blue-500 transition-all font-sans" 
-                           value={tenant?.name || ""}
-                           onChange={(e) => setTenant({...tenant, name: e.target.value})}
-                         />
-                      </div>
-                      <div className="space-y-1">
-                         <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] px-1">WhatsApp de Vendas</label>
-                         <input 
-                           type="text" 
-                           className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 h-12 text-xs font-black uppercase outline-none focus:ring-4 focus:ring-blue-500/5 focus:border-blue-500 transition-all font-mono" 
-                           value={tenant?.whatsapp || ""}
-                           onChange={(e) => setTenant({...tenant, whatsapp: e.target.value})}
-                           placeholder="5511999999999"
-                         />
-                      </div>
-                      <div className="space-y-1">
-                         <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] px-1">Identificador Público</label>
-                         <div className="flex items-center border border-slate-200 rounded-xl overflow-hidden focus-within:ring-4 focus-within:ring-blue-500/5 focus-within:border-blue-500 transition-all">
-                            <span className="bg-slate-100 border-r border-slate-200 px-4 h-12 flex items-center text-[10px] font-mono text-slate-400 shrink-0">/s/</span>
-                            <input 
-                              type="text" 
-                              className="w-full bg-slate-50 border-none px-4 h-12 text-xs font-black uppercase outline-none" 
-                              value={tenant?.slug || ""}
-                              onChange={(e) => setTenant({...tenant, slug: e.target.value})}
-                            />
-                         </div>
-                      </div>
-                      <div className="space-y-1 md:col-span-2">
-                         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 px-1 mb-2">
-                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Endereço / Sede Administrativa</label>
-                            <div className="flex items-center gap-3 bg-slate-50 px-3 py-1.5 rounded-full border border-slate-100">
-                               <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Publicar no Site?</span>
-                               <button 
-                                 onClick={() => setTenant({...tenant!, show_address: !tenant?.show_address})}
-                                 className={cn(
-                                   "w-10 h-5 rounded-full transition-all relative shadow-inner",
-                                   tenant?.show_address ? "bg-emerald-500" : "bg-slate-200"
-                                 )}
-                               >
-                                  <div className={cn(
-                                    "absolute top-1 w-3 h-3 bg-white rounded-full transition-all shadow-sm",
-                                    tenant?.show_address ? "left-6" : "left-1"
-                                  )} />
-                               </button>
-                            </div>
-                         </div>
-                         <div className="flex flex-col sm:flex-row gap-2">
-                            <input 
-                              type="text" 
-                              className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-4 h-12 text-xs font-bold uppercase outline-none focus:ring-4 focus:ring-blue-500/5 focus:border-blue-500 transition-all" 
-                              value={tenant?.address || ""}
-                              onChange={(e) => setTenant({...tenant!, address: e.target.value})}
-                              placeholder="CEP OU RUA, NÚMERO..."
-                            />
-                            <button 
-                               onClick={handleLookupCEP}
-                               disabled={cepLoading}
-                               className="h-12 px-6 bg-slate-900 text-white rounded-xl text-[9px] font-black uppercase tracking-[0.2em] hover:bg-slate-800 transition-all flex items-center justify-center gap-3 disabled:opacity-50 shrink-0 shadow-lg"
-                            >
-                               {cepLoading ? <Loader2 size={14} className="animate-spin" /> : <Search size={14} strokeWidth={3} />}
-                               Buscar CEP
-                            </button>
-                         </div>
-                      </div>
-                      <div className="space-y-1 md:col-span-2">
-                         <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] px-1">Manifesto da Marca (About)</label>
-                         <textarea 
-                           className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-5 py-4 text-xs font-medium outline-none h-40 resize-none focus:ring-4 focus:ring-blue-500/5 focus:border-blue-500 transition-all font-sans"
-                           value={tenant?.about_text || ""}
-                           onChange={(e) => setTenant({...tenant, about_text: e.target.value})}
-                           placeholder="Descreva a essência do seu negócio..."
-                         />
-                      </div>
-                   </div>
+        {/* ── Content ──────────────────────────────────────────────────── */}
+        <div className="flex-1 bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+          {/* breadcrumb strip */}
+          <div className="px-6 py-3 border-b border-slate-50 flex items-center gap-2 text-[9px] font-black uppercase tracking-widest text-slate-300">
+            <Settings2 size={10} />
+            <span>Configurações</span>
+            <ChevronRight size={9} />
+            <span className="text-slate-600">{activeItem?.label}</span>
+          </div>
 
-                   <div className="pt-6 border-t border-slate-100 flex justify-end">
-                      <button 
-                        onClick={handleSave}
-                        className="w-full sm:w-auto bg-blue-600 text-white px-10 h-14 rounded-2xl text-[10px] font-black uppercase tracking-[0.2em] shadow-2xl shadow-blue-500/30 flex items-center justify-center gap-3 hover:bg-blue-700 transition-all active:scale-95"
+          <div className="p-6 sm:p-8">
+            {/* ── Identidade & Dados ──────────────────────────────────── */}
+            {active === "identity" && (
+              <div className="space-y-6">
+                <SectionHeader
+                  title="Identidade & Dados"
+                  subtitle="Informações básicas da sua loja exibidas para os clientes"
+                />
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                  <Field label="Nome da Organização">
+                    <TextInput value={tenant?.name ?? ""} onChange={(v) => setT({ name: v })} />
+                  </Field>
+                  <Field label="WhatsApp de Vendas" hint="Formato: 5511999999999">
+                    <TextInput
+                      value={tenant?.whatsapp ?? ""}
+                      onChange={(v) => setT({ whatsapp: v })}
+                      placeholder="5511999999999"
+                      mono
+                    />
+                  </Field>
+                  <Field label="Identificador Público (Slug)">
+                    <div className="flex items-center border border-slate-200 rounded-xl overflow-hidden focus-within:ring-4 focus-within:ring-blue-500/8 focus-within:border-blue-500 transition-all bg-slate-50">
+                      <span className="bg-slate-100 border-r border-slate-200 px-3 h-11 flex items-center text-[10px] font-mono text-slate-400 shrink-0">/s/</span>
+                      <input
+                        type="text"
+                        className="flex-1 bg-transparent px-4 h-11 text-xs font-bold uppercase outline-none font-mono"
+                        value={tenant?.slug ?? ""}
+                        onChange={(e) => setT({ slug: e.target.value })}
+                      />
+                    </div>
+                  </Field>
+                  <div className="md:col-span-2 space-y-1.5">
+                    <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 px-1">
+                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.18em]">
+                        Endereço / Sede
+                      </label>
+                      <div className="flex items-center gap-3 bg-slate-50 px-3 py-1.5 rounded-full border border-slate-100">
+                        <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Exibir no Site</span>
+                        <Toggle
+                          checked={tenant?.show_address ?? true}
+                          onChange={(v) => setT({ show_address: v })}
+                        />
+                      </div>
+                    </div>
+                    <div className="flex flex-col sm:flex-row gap-2">
+                      <TextInput
+                        value={tenant?.address ?? ""}
+                        onChange={(v) => setT({ address: v })}
+                        placeholder="CEP ou Rua, Número..."
+                        className="flex-1"
+                      />
+                      <button
+                        onClick={handleLookupCEP}
+                        disabled={cepLoading}
+                        className="h-11 px-5 bg-slate-900 text-white rounded-xl text-[9px] font-black uppercase tracking-[0.2em] hover:bg-slate-800 transition-all flex items-center gap-2 disabled:opacity-50 shrink-0"
                       >
-                         <Save size={18} strokeWidth={2.5} /> Guardar Alterações
+                        {cepLoading ? <Loader2 size={13} className="animate-spin" /> : <Search size={13} strokeWidth={3} />}
+                        Buscar CEP
                       </button>
-                   </div>
+                    </div>
+                  </div>
+                  <div className="md:col-span-2">
+                    <Field label="Manifesto da Marca (About)" hint="Texto exibido na página Sobre da loja pública">
+                      <textarea
+                        className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-5 py-4 text-xs font-medium outline-none h-36 resize-none focus:ring-4 focus:ring-blue-500/8 focus:border-blue-500 transition-all"
+                        value={tenant?.about_text ?? ""}
+                        onChange={(e) => setT({ about_text: e.target.value })}
+                        placeholder="Descreva a essência do seu negócio..."
+                      />
+                    </Field>
+                  </div>
                 </div>
-             )}
+                <SaveButton onClick={handleSaveTenant} />
+              </div>
+            )}
 
-             {activeTab === "theme" && (
-                <div className="p-8 space-y-10">
-                   <div className="space-y-4">
-                      <h3 className="text-xs font-bold uppercase tracking-widest text-slate-900 border-l-4 border-blue-600 pl-3">Presets de Arquitetura (Templates)</h3>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
-                         {[
-                           { id: 'minimal', name: 'Minimalist White', desc: 'Foco total no produto', color: '#2563eb', bg: '#f8fafc' },
-                           { id: 'cyber',   name: 'Cyber Dark',       desc: 'Estética neon / High-Contrast', color: '#00ff7f', bg: '#000' },
-                           { id: 'organic', name: 'Organic Soft',     desc: 'Tons pasteis e bordas suaves', color: '#d97706', bg: '#fefaf6' },
-                           { id: 'luxury',  name: 'Luxury Gold',      desc: 'Aura premium e tipografia serif', color: '#c5a059', bg: '#0a0a0a' },
-                           { id: 'tech',    name: 'Tech Pro',         desc: 'Clean premium para tecnologia', color: '#0ea5e9', bg: '#f4f6fb' },
-                         ].map(temp => (
-                           <button
-                             key={temp.id}
-                             onClick={() => setTenant({...tenant!, template_id: temp.id})}
-                             className={cn(
-                               "p-4 rounded-2xl border-2 text-left transition-all group relative overflow-hidden",
-                               tenant?.template_id === temp.id ? "border-blue-600 bg-blue-50/30" : "border-slate-100 bg-white hover:border-slate-200"
-                             )}
-                           >
-                              {tenant?.template_id === temp.id && (
-                                <div className="absolute top-2 right-2 text-blue-600">
-                                   <Check size={16} strokeWidth={3} />
-                                </div>
-                              )}
-                              <div className="w-full h-10 rounded-lg mb-3 flex items-center justify-center overflow-hidden" style={{ backgroundColor: temp.bg, border: `1px solid ${temp.color}30` }}>
-                                 <div className="w-3 h-3 rounded-full" style={{ backgroundColor: temp.color, boxShadow: `0 0 8px ${temp.color}` }} />
-                              </div>
-                              <p className="text-[10px] font-black uppercase tracking-widest mb-1 group-hover:text-blue-600">{temp.name}</p>
-                              <p className="text-[9px] text-slate-400 font-bold leading-tight uppercase tracking-tighter">{temp.desc}</p>
-                           </button>
-                         ))}
-                      </div>
-                   </div>
+            {/* ── Design & Templates ──────────────────────────────────── */}
+            {active === "design" && (
+              <div className="space-y-8">
+                <SectionHeader
+                  title="Design & Templates"
+                  subtitle="Aparência visual da sua loja pública"
+                />
 
-                   <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                      <div className="space-y-1">
-                         <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-1">Assinatura de Cor (Main UI)</label>
-                         <div className="flex gap-4">
-                            <input 
-                              type="color" 
-                              className="w-12 h-12 rounded-xl cursor-pointer border-2 border-slate-100 shadow-sm"
-                              value={tenant?.primary_color || "#000000"} 
-                              onChange={(e) => setTenant({...tenant, primary_color: e.target.value})}
-                            />
-                            <input 
-                              type="text" 
-                              className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-4 text-xs font-mono font-bold uppercase outline-none focus:ring-2 focus:ring-blue-500/10"
-                              value={tenant?.primary_color || ""}
-                              onChange={(e) => setTenant({...tenant, primary_color: e.target.value})}
-                            />
-                         </div>
-                      </div>
-                      <div className="space-y-1">
-                         <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-1">Logo URL (PNG/SVG)</label>
-                         <input 
-                           type="text" 
-                           className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 h-11 text-xs font-medium outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 transition-all"
-                           value={tenant?.logo_url || ""}
-                           onChange={(e) => setTenant({...tenant, logo_url: e.target.value})}
-                           placeholder="https://imgur.com/link-do-logo.png"
-                         />
-                      </div>
-                      <div className="space-y-1 col-span-2">
-                         <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-1">Banner Principal da Vitrine (URL)</label>
-                         <input 
-                           type="text" 
-                           className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 h-11 text-xs font-medium outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 transition-all"
-                           value={tenant?.banner_url || ""}
-                           onChange={(e) => setTenant({...tenant, banner_url: e.target.value})}
-                           placeholder="URL de imagem para o topo da loja pública"
-                         />
-                      </div>
-                      <div className="space-y-1 col-span-2">
-                         <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-1">Assinatura de Rodapé (Copyright)</label>
-                         <input
-                           type="text"
-                           className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 h-11 text-xs font-medium outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 transition-all"
-                           value={tenant?.footer_text || ""}
-                           onChange={(e) => setTenant({...tenant, footer_text: e.target.value})}
-                           placeholder="Ex: © 2026 Nexus Brand Store. Todos os direitos reservados."
-                         />
-                      </div>
-                   </div>
-
-                   {/* ── Vitrine Controls ─────────────────────────────── */}
-                   <div className="space-y-4">
-                      <h3 className="text-xs font-bold uppercase tracking-widest text-slate-900 border-l-4 border-blue-600 pl-3">Controles da Vitrine</h3>
-                      <p className="text-[10px] text-slate-400 font-medium">Configure quantos produtos aparecem em cada seção da página inicial da loja.</p>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                         <div className="bg-slate-50 border border-slate-200 rounded-2xl p-5 space-y-3">
-                            <div>
-                               <p className="text-[10px] font-black uppercase tracking-widest text-slate-700">Seção Destaques</p>
-                               <p className="text-[9px] text-slate-400 mt-0.5">Produtos marcados como destaque na vitrine. Controle manual via flag "Destaque" no produto.</p>
-                            </div>
-                            <div className="flex items-center gap-4">
-                               <input
-                                 type="range"
-                                 min={1} max={12}
-                                 value={tenant?.featured_limit ?? 4}
-                                 onChange={(e) => setTenant({...tenant!, featured_limit: Number(e.target.value)})}
-                                 className="flex-1 accent-blue-600"
-                               />
-                               <span className="text-lg font-black text-slate-900 w-8 text-center">{tenant?.featured_limit ?? 4}</span>
-                            </div>
-                            <p className="text-[9px] text-slate-400 font-medium">Exibir até <strong>{tenant?.featured_limit ?? 4}</strong> produtos em destaque</p>
-                         </div>
-                         <div className="bg-slate-50 border border-slate-200 rounded-2xl p-5 space-y-3">
-                            <div>
-                               <p className="text-[10px] font-black uppercase tracking-widest text-slate-700">Seção Mais Vendidos</p>
-                               <p className="text-[9px] text-slate-400 mt-0.5">Gerado automaticamente: produtos com destaque primeiro, depois os demais por popularidade.</p>
-                            </div>
-                            <div className="flex items-center gap-4">
-                               <input
-                                 type="range"
-                                 min={2} max={20}
-                                 value={tenant?.bestseller_limit ?? 8}
-                                 onChange={(e) => setTenant({...tenant!, bestseller_limit: Number(e.target.value)})}
-                                 className="flex-1 accent-blue-600"
-                               />
-                               <span className="text-lg font-black text-slate-900 w-8 text-center">{tenant?.bestseller_limit ?? 8}</span>
-                            </div>
-                            <p className="text-[9px] text-slate-400 font-medium">Exibir até <strong>{tenant?.bestseller_limit ?? 8}</strong> produtos mais vendidos</p>
-                         </div>
-                      </div>
-                   </div>
-
-                   <div className="pt-4 border-t border-slate-100 flex justify-end">
-                      <button 
-                        onClick={handleSave}
-                        className="bg-blue-600 text-white px-8 h-11 rounded-xl text-[10px] font-bold uppercase tracking-widest shadow-xl shadow-blue-500/20 hover:bg-blue-700 transition-all active:scale-95"
+                {/* templates */}
+                <div className="space-y-3">
+                  <p className="text-[10px] font-black uppercase tracking-widest text-slate-700 border-l-4 border-blue-500 pl-3">
+                    Presets de Template
+                  </p>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-5 gap-3">
+                    {[
+                      { id: "minimal", name: "Minimalist", desc: "Foco no produto", color: "#2563eb", bg: "#f8fafc" },
+                      { id: "cyber",   name: "Cyber Dark",  desc: "Neon / high contrast", color: "#00ff7f", bg: "#000" },
+                      { id: "organic", name: "Organic",     desc: "Tons pasteis", color: "#d97706", bg: "#fefaf6" },
+                      { id: "luxury",  name: "Luxury Gold", desc: "Aura premium", color: "#c5a059", bg: "#0a0a0a" },
+                      { id: "tech",    name: "Tech Pro",    desc: "Clean tech", color: "#0ea5e9", bg: "#f4f6fb" },
+                    ].map((t) => (
+                      <button
+                        key={t.id}
+                        onClick={() => setT({ template_id: t.id })}
+                        className={cn(
+                          "p-4 rounded-2xl border-2 text-left transition-all relative overflow-hidden group",
+                          tenant?.template_id === t.id
+                            ? "border-blue-600 bg-blue-50/40"
+                            : "border-slate-100 hover:border-slate-200 bg-white",
+                        )}
                       >
-                         <Save size={14} /> Aplicar Design
+                        {tenant?.template_id === t.id && (
+                          <div className="absolute top-2 right-2 text-blue-600">
+                            <Check size={14} strokeWidth={3} />
+                          </div>
+                        )}
+                        <div
+                          className="w-full h-8 rounded-lg mb-3 flex items-center justify-center"
+                          style={{ backgroundColor: t.bg, border: `1px solid ${t.color}30` }}
+                        >
+                          <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: t.color, boxShadow: `0 0 6px ${t.color}` }} />
+                        </div>
+                        <p className="text-[10px] font-black uppercase tracking-wider group-hover:text-blue-600 transition-colors">{t.name}</p>
+                        <p className="text-[9px] text-slate-400 mt-0.5 font-medium">{t.desc}</p>
                       </button>
-                   </div>
+                    ))}
+                  </div>
                 </div>
-             )}
 
-             {activeTab === "social" && (
-                <div className="p-8 space-y-8">
-                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                      <div className="space-y-1">
-                         <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-1">Instagram (@usuario)</label>
-                         <input 
-                           type="text" 
-                           className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 h-11 text-xs font-bold uppercase outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 transition-all" 
-                           value={tenant?.instagram_url || ""}
-                           onChange={(e) => setTenant({...tenant, instagram_url: e.target.value})}
-                         />
+                {/* color + urls */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <Field label="Cor Principal (Brand Color)">
+                    <div className="flex gap-3">
+                      <input
+                        type="color"
+                        className="w-11 h-11 rounded-xl cursor-pointer border-2 border-slate-100 shadow-sm shrink-0"
+                        value={tenant?.primary_color ?? "#000000"}
+                        onChange={(e) => setT({ primary_color: e.target.value })}
+                      />
+                      <TextInput
+                        value={tenant?.primary_color ?? ""}
+                        onChange={(v) => setT({ primary_color: v })}
+                        mono
+                      />
+                    </div>
+                  </Field>
+                  <Field label="Logo URL (PNG/SVG)">
+                    <TextInput
+                      value={tenant?.logo_url ?? ""}
+                      onChange={(v) => setT({ logo_url: v })}
+                      placeholder="https://..."
+                    />
+                  </Field>
+                  <div className="md:col-span-2">
+                    <Field label="Banner Principal (URL da Imagem)">
+                      <TextInput
+                        value={tenant?.banner_url ?? ""}
+                        onChange={(v) => setT({ banner_url: v })}
+                        placeholder="URL de imagem para o topo da vitrine"
+                      />
+                    </Field>
+                  </div>
+                  <div className="md:col-span-2">
+                    <Field label="Texto do Rodapé (Copyright)">
+                      <TextInput
+                        value={tenant?.footer_text ?? ""}
+                        onChange={(v) => setT({ footer_text: v })}
+                        placeholder="© 2026 Minha Loja. Todos os direitos reservados."
+                      />
+                    </Field>
+                  </div>
+                </div>
+
+                {/* vitrine sliders */}
+                <div className="space-y-3">
+                  <p className="text-[10px] font-black uppercase tracking-widest text-slate-700 border-l-4 border-blue-500 pl-3">
+                    Vitrine — Limites de Exibição
+                  </p>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    {[
+                      { key: "featured_limit" as const, label: "Seção Destaques", min: 1, max: 12, desc: "Produtos marcados como destaque" },
+                      { key: "bestseller_limit" as const, label: "Mais Vendidos", min: 2, max: 20, desc: "Gerado automaticamente por popularidade" },
+                    ].map(({ key, label, min, max, desc }) => (
+                      <div key={key} className="bg-slate-50 border border-slate-100 rounded-2xl p-5 space-y-3">
+                        <div>
+                          <p className="text-[10px] font-black uppercase tracking-widest text-slate-700">{label}</p>
+                          <p className="text-[9px] text-slate-400 mt-0.5 font-medium">{desc}</p>
+                        </div>
+                        <div className="flex items-center gap-4">
+                          <input
+                            type="range"
+                            min={min} max={max}
+                            value={(tenant?.[key] as number) ?? (key === "featured_limit" ? 4 : 8)}
+                            onChange={(e) => setT({ [key]: Number(e.target.value) })}
+                            className="flex-1 accent-blue-600"
+                          />
+                          <span className="text-xl font-black text-slate-900 w-8 text-center tabular-nums">
+                            {(tenant?.[key] as number) ?? (key === "featured_limit" ? 4 : 8)}
+                          </span>
+                        </div>
                       </div>
-                      <div className="space-y-1">
-                         <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-1">Facebook (link ou usuario)</label>
-                         <input 
-                           type="text" 
-                           className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 h-11 text-xs font-bold uppercase outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 transition-all" 
-                           value={tenant?.facebook_url || ""}
-                           onChange={(e) => setTenant({...tenant, facebook_url: e.target.value})}
-                         />
-                      </div>
-                   </div>
-                   <div className="p-6 bg-slate-50 rounded-2xl border border-slate-100">
-                      <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-2">Omnichannel Flow</p>
-                      <h4 className="text-xs font-bold text-slate-900 uppercase mb-2">Integração Direta via WhatsApp</h4>
-                      <p className="text-[10px] text-slate-500 leading-relaxed font-medium">Os pedidos realizados na loja pública dispararão automaticamente uma notificação formatada para o número configurado em "Dados da Loja". Certifique-se de usar o formato internacional (55 + DDD + Numero).</p>
-                   </div>
-                   <div className="pt-4 border-t border-slate-100 flex justify-end">
-                      <button 
-                        onClick={handleSave}
-                        className="bg-blue-600 text-white px-8 h-11 rounded-xl text-[10px] font-bold uppercase tracking-widest shadow-xl shadow-blue-500/20 hover:bg-blue-700 transition-all active:scale-95"
+                    ))}
+                  </div>
+                </div>
+
+                <SaveButton onClick={handleSaveTenant} label="Aplicar Design" />
+              </div>
+            )}
+
+            {/* ── Canais Sociais ──────────────────────────────────────── */}
+            {active === "social" && (
+              <div className="space-y-6">
+                <SectionHeader
+                  title="Canais Sociais"
+                  subtitle="Redes sociais exibidas na loja pública"
+                />
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                  <Field label="Instagram (@usuario)">
+                    <TextInput
+                      value={tenant?.instagram_url ?? ""}
+                      onChange={(v) => setT({ instagram_url: v })}
+                      placeholder="@minhaloja"
+                    />
+                  </Field>
+                  <Field label="Facebook (link ou @usuario)">
+                    <TextInput
+                      value={tenant?.facebook_url ?? ""}
+                      onChange={(v) => setT({ facebook_url: v })}
+                      placeholder="facebook.com/minhaloja"
+                    />
+                  </Field>
+                </div>
+
+                <div className="p-5 bg-blue-50 border border-blue-100 rounded-2xl space-y-2">
+                  <p className="text-[9px] font-black text-blue-600 uppercase tracking-widest">
+                    Integração WhatsApp
+                  </p>
+                  <p className="text-[10px] text-blue-800 leading-relaxed font-medium">
+                    Pedidos realizados na loja pública disparam notificação automática para o número configurado em{" "}
+                    <button
+                      onClick={() => setActive("identity")}
+                      className="underline font-black hover:no-underline"
+                    >
+                      Identidade &amp; Dados
+                    </button>
+                    . Use o formato internacional: <span className="font-mono font-bold">55 + DDD + Número</span>.
+                  </p>
+                </div>
+                <SaveButton onClick={handleSaveTenant} label="Vincular Canais" />
+              </div>
+            )}
+
+            {/* ── Horário de Funcionamento ────────────────────────────── */}
+            {active === "hours" && (
+              <div className="space-y-6">
+                <SectionHeader
+                  title="Horário de Funcionamento"
+                  subtitle="Exibido na página da loja para os clientes"
+                />
+                <div className="space-y-2">
+                  {DAYS.map(({ key, label }) => {
+                    const day = hours[key] ?? { open: "09:00", close: "18:00", closed: false };
+                    return (
+                      <div
+                        key={key}
+                        className={cn(
+                          "flex flex-col sm:flex-row items-start sm:items-center gap-3 p-4 rounded-xl border transition-all",
+                          day.closed ? "bg-slate-50 border-slate-100" : "bg-white border-slate-100",
+                        )}
                       >
-                         <Save size={14} /> Vincular Canais
-                      </button>
-                   </div>
+                        <span className="text-[10px] font-black uppercase tracking-widest text-slate-700 w-20 shrink-0">
+                          {label}
+                        </span>
+                        {day.closed ? (
+                          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest flex-1">
+                            Fechado
+                          </span>
+                        ) : (
+                          <div className="flex items-center gap-2 flex-1">
+                            <input
+                              type="time"
+                              value={day.open}
+                              onChange={(e) => setHours(key, { open: e.target.value })}
+                              className="bg-slate-50 border border-slate-200 rounded-lg px-3 h-9 text-xs font-mono font-bold outline-none focus:border-blue-500 transition-all"
+                            />
+                            <span className="text-[10px] text-slate-300 font-bold">até</span>
+                            <input
+                              type="time"
+                              value={day.close}
+                              onChange={(e) => setHours(key, { close: e.target.value })}
+                              className="bg-slate-50 border border-slate-200 rounded-lg px-3 h-9 text-xs font-mono font-bold outline-none focus:border-blue-500 transition-all"
+                            />
+                          </div>
+                        )}
+                        <Toggle
+                          checked={!day.closed}
+                          onChange={(v) => setHours(key, { closed: !v })}
+                          label={day.closed ? "Abrir" : "Aberto"}
+                        />
+                      </div>
+                    );
+                  })}
                 </div>
-             )}
+                <SaveButton onClick={handleSaveTenant} label="Salvar Horários" />
+              </div>
+            )}
 
-             {activeTab === "users" && (
-                <div className="p-8 space-y-6">
-                   <div className="flex justify-between items-center text-center py-12">
-                      <div className="mx-auto max-w-xs space-y-4">
-                        <Users size={48} strokeWidth={1} className="mx-auto text-slate-200" />
-                        <h3 className="text-xs font-bold uppercase tracking-widest text-slate-400 leading-relaxed px-4">
-                           A gestão avançada de múltiplos usuários e permissões granulares está disponível no módulo SaaS Premium.
-                        </h3>
-                        <button className="bg-slate-900 text-white px-8 h-10 rounded-xl text-[10px] font-bold uppercase tracking-widest shadow-xl shadow-slate-200">Explorar Upgrades</button>
-                      </div>
-                   </div>
-                </div>
-             )}
+            {/* ── Pagamentos & Políticas ──────────────────────────────── */}
+            {active === "payments" && (
+              <div className="space-y-8">
+                <SectionHeader
+                  title="Pagamentos & Políticas"
+                  subtitle="Métodos aceitos e textos de política exibidos no checkout"
+                />
 
-             {activeTab === "security" && (
-                <div className="p-8 space-y-8">
-                   <div className="max-w-sm space-y-4">
-                      <div className="space-y-1">
-                         <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-1">Nova Senha Admin</label>
-                         <input 
-                           type="password" 
-                           placeholder="••••••••"
-                           className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 h-11 text-xs outline-none focus:ring-2 focus:ring-red-500/10 focus:border-red-500 transition-all" 
-                         />
-                      </div>
-                      <div className="space-y-1">
-                         <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-1">Confirme a Senha</label>
-                         <input 
-                           type="password" 
-                           placeholder="••••••••"
-                           className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 h-11 text-xs outline-none focus:ring-2 focus:ring-red-500/10 focus:border-red-500 transition-all" 
-                         />
-                      </div>
-                   </div>
-                   <div className="pt-4 border-t border-slate-100 flex justify-end">
-                      <button className="bg-red-600 text-white px-8 h-11 rounded-xl text-[10px] font-bold uppercase tracking-widest shadow-xl shadow-red-500/20 hover:bg-red-700 transition-all active:scale-95">
-                         Alterar Credenciais
+                {/* payment methods */}
+                <div className="space-y-3">
+                  <p className="text-[10px] font-black uppercase tracking-widest text-slate-700 border-l-4 border-blue-500 pl-3">
+                    Métodos de Pagamento Aceitos
+                  </p>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
+                    {(
+                      [
+                        { key: "pix", label: "PIX", emoji: "⚡" },
+                        { key: "credit_card", label: "Crédito", emoji: "💳" },
+                        { key: "debit_card", label: "Débito", emoji: "🏧" },
+                        { key: "cash", label: "Dinheiro", emoji: "💵" },
+                        { key: "boleto", label: "Boleto", emoji: "📄" },
+                      ] as { key: keyof PaymentMethods; label: string; emoji: string }[]
+                    ).map(({ key, label, emoji }) => (
+                      <button
+                        key={key}
+                        onClick={() => setPayment(key, !payments[key])}
+                        className={cn(
+                          "flex flex-col items-center justify-center gap-2 p-4 rounded-2xl border-2 transition-all",
+                          payments[key]
+                            ? "border-emerald-500 bg-emerald-50 text-emerald-800"
+                            : "border-slate-100 bg-white text-slate-400 hover:border-slate-200",
+                        )}
+                      >
+                        <span className="text-xl">{emoji}</span>
+                        <span className="text-[9px] font-black uppercase tracking-widest">{label}</span>
+                        {payments[key] && <Check size={12} strokeWidth={3} className="text-emerald-600" />}
                       </button>
-                   </div>
+                    ))}
+                  </div>
                 </div>
-             )}
+
+                {/* policies */}
+                <div className="space-y-4">
+                  <p className="text-[10px] font-black uppercase tracking-widest text-slate-700 border-l-4 border-blue-500 pl-3">
+                    Políticas da Loja
+                  </p>
+                  {(
+                    [
+                      { policyKey: "returns" as const, label: "Política de Devolução", placeholder: "Ex: Devoluções aceitas em até 7 dias após a entrega..." },
+                      { policyKey: "exchange" as const, label: "Política de Troca", placeholder: "Ex: Trocas em até 30 dias mediante apresentação da nota..." },
+                      { policyKey: "shipping" as const, label: "Política de Frete", placeholder: "Ex: Frete grátis para compras acima de R$ 150..." },
+                    ] as { policyKey: keyof StorePolicies; label: string; placeholder: string }[]
+                  ).map(({ policyKey, label, placeholder }) => (
+                    <div key={policyKey}>
+                      <Field label={label}>
+                        <textarea
+                          className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-xs font-medium outline-none h-24 resize-none focus:ring-4 focus:ring-blue-500/8 focus:border-blue-500 transition-all"
+                          value={policies[policyKey]}
+                          onChange={(e) => setPolicies({ [policyKey]: e.target.value })}
+                          placeholder={placeholder}
+                        />
+                      </Field>
+                    </div>
+                  ))}
+                </div>
+
+                <SaveButton onClick={handleSaveTenant} label="Salvar Políticas" />
+              </div>
+            )}
+
+            {/* ── Preferências do Painel ──────────────────────────────── */}
+            {active === "preferences" && (
+              <div className="space-y-8">
+                <SectionHeader
+                  title="Preferências do Painel"
+                  subtitle="Configurações pessoais do painel administrativo"
+                />
+
+                {/* theme */}
+                <div className="space-y-3">
+                  <p className="text-[10px] font-black uppercase tracking-widest text-slate-700 border-l-4 border-blue-500 pl-3">
+                    Tema do Painel
+                  </p>
+                  <div className="grid grid-cols-2 gap-3 max-w-xs">
+                    {(["light", "dark"] as const).map((t) => (
+                      <button
+                        key={t}
+                        onClick={() => setPanelTheme(t)}
+                        className={cn(
+                          "flex flex-col items-center gap-2 p-5 rounded-2xl border-2 transition-all",
+                          panelTheme === t
+                            ? "border-blue-600 bg-blue-50"
+                            : "border-slate-100 hover:border-slate-200 bg-white",
+                        )}
+                      >
+                        {t === "light" ? (
+                          <Sun size={22} className={panelTheme === t ? "text-blue-600" : "text-slate-300"} />
+                        ) : (
+                          <Moon size={22} className={panelTheme === t ? "text-blue-600" : "text-slate-300"} />
+                        )}
+                        <span className="text-[9px] font-black uppercase tracking-widest text-slate-600">
+                          {t === "light" ? "Claro" : "Escuro"}
+                        </span>
+                        {panelTheme === t && <Check size={12} strokeWidth={3} className="text-blue-600" />}
+                      </button>
+                    ))}
+                  </div>
+                  <p className="text-[9px] text-slate-400 font-medium px-1">
+                    O tema escuro será aplicado no próximo login.
+                  </p>
+                </div>
+
+                {/* low stock alert */}
+                <div className="space-y-3">
+                  <p className="text-[10px] font-black uppercase tracking-widest text-slate-700 border-l-4 border-amber-500 pl-3">
+                    Alerta de Estoque Baixo
+                  </p>
+                  <div className="bg-slate-50 border border-slate-100 rounded-2xl p-5 space-y-4 max-w-sm">
+                    <div className="flex items-center gap-3">
+                      <AlertTriangle size={16} className="text-amber-500 shrink-0" />
+                      <p className="text-[10px] text-slate-600 font-medium leading-relaxed">
+                        Exibir alerta no painel quando o estoque de um produto ficar abaixo de{" "}
+                        <strong className="text-slate-900 font-black">{lowStockAlert}</strong> unidades.
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-4">
+                      <Package size={14} className="text-slate-400 shrink-0" />
+                      <input
+                        type="range"
+                        min={1} max={50}
+                        value={lowStockAlert}
+                        onChange={(e) => setLowStockAlert(Number(e.target.value))}
+                        className="flex-1 accent-amber-500"
+                      />
+                      <span className="text-xl font-black text-slate-900 w-10 text-center tabular-nums">
+                        {lowStockAlert}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* language */}
+                <div className="space-y-3">
+                  <p className="text-[10px] font-black uppercase tracking-widest text-slate-700 border-l-4 border-blue-500 pl-3">
+                    Idioma do Painel
+                  </p>
+                  <div className="flex gap-3 flex-wrap">
+                    {[
+                      { code: "pt-BR", label: "Português (BR)" },
+                      { code: "en-US", label: "English (US)" },
+                      { code: "es-ES", label: "Español" },
+                    ].map(({ code, label }) => (
+                      <button
+                        key={code}
+                        onClick={() => setPanelLang(code)}
+                        className={cn(
+                          "px-5 h-10 rounded-xl text-[10px] font-black uppercase tracking-widest border-2 transition-all",
+                          panelLang === code
+                            ? "border-blue-600 bg-blue-50 text-blue-700"
+                            : "border-slate-100 text-slate-500 hover:border-slate-200 bg-white",
+                        )}
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                  <p className="text-[9px] text-slate-400 font-medium px-1">
+                    Suporte multilíngue completo em breve.
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-3 p-4 bg-amber-50 border border-amber-100 rounded-xl">
+                  <Bell size={14} className="text-amber-600 shrink-0" />
+                  <p className="text-[10px] text-amber-800 font-medium">
+                    Notificações por email para alertas de estoque e novos pedidos podem ser configuradas nas preferências avançadas.
+                  </p>
+                </div>
+
+                <SaveButton onClick={handleSavePrefs} label="Salvar Preferências" />
+              </div>
+            )}
+
+            {/* ── Segurança ───────────────────────────────────────────── */}
+            {active === "security" && (
+              <div className="space-y-6">
+                <SectionHeader
+                  title="Segurança"
+                  subtitle="Credenciais de acesso ao painel administrativo"
+                />
+                <div className="max-w-sm space-y-4">
+                  <Field label="Nova Senha">
+                    <input
+                      type="password"
+                      value={newPass}
+                      onChange={(e) => setNewPass(e.target.value)}
+                      placeholder="••••••••"
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 h-11 text-xs outline-none focus:ring-4 focus:ring-red-500/8 focus:border-red-500 transition-all"
+                    />
+                  </Field>
+                  <Field label="Confirme a Nova Senha">
+                    <input
+                      type="password"
+                      value={confirmPass}
+                      onChange={(e) => setConfirmPass(e.target.value)}
+                      placeholder="••••••••"
+                      className={cn(
+                        "w-full bg-slate-50 border rounded-xl px-4 h-11 text-xs outline-none focus:ring-4 transition-all",
+                        confirmPass && newPass !== confirmPass
+                          ? "border-red-300 focus:ring-red-500/8 focus:border-red-500"
+                          : "border-slate-200 focus:ring-red-500/8 focus:border-red-500",
+                      )}
+                    />
+                    {confirmPass && newPass !== confirmPass && (
+                      <p className="text-[9px] text-red-500 font-bold px-1 mt-1">As senhas não coincidem</p>
+                    )}
+                  </Field>
+
+                  <div className="p-4 bg-slate-50 border border-slate-100 rounded-xl space-y-1">
+                    <p className="text-[9px] font-black uppercase tracking-widest text-slate-500">Requisitos</p>
+                    {[
+                      { ok: newPass.length >= 8, label: "Mínimo 8 caracteres" },
+                      { ok: /[A-Z]/.test(newPass), label: "Uma letra maiúscula" },
+                      { ok: /\d/.test(newPass), label: "Um número" },
+                    ].map(({ ok, label }) => (
+                      <div key={label} className="flex items-center gap-2">
+                        <div className={cn("w-3 h-3 rounded-full shrink-0 transition-all", ok ? "bg-emerald-500" : "bg-slate-200")} />
+                        <span className={cn("text-[9px] font-bold", ok ? "text-emerald-700" : "text-slate-400")}>{label}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="pt-6 border-t border-slate-100 flex justify-end">
+                  <button
+                    onClick={handleChangePassword}
+                    disabled={saving || !newPass || newPass !== confirmPass}
+                    className="flex items-center gap-3 bg-red-600 text-white px-8 h-12 rounded-xl text-[10px] font-black uppercase tracking-[0.2em] shadow-xl shadow-red-500/20 hover:bg-red-700 transition-all active:scale-95 disabled:opacity-40"
+                  >
+                    <Lock size={14} strokeWidth={2.5} />
+                    {saving ? "Alterando..." : "Alterar Credenciais"}
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* ── Time & Acessos ──────────────────────────────────────── */}
+            {active === "users" && (
+              <div className="space-y-6">
+                <SectionHeader
+                  title="Time & Acessos"
+                  subtitle="Gestão de usuários e permissões"
+                />
+                <div className="flex flex-col items-center justify-center py-16 gap-5">
+                  <div className="w-16 h-16 bg-slate-100 rounded-2xl flex items-center justify-center">
+                    <Users size={28} strokeWidth={1.5} className="text-slate-300" />
+                  </div>
+                  <div className="text-center max-w-xs space-y-2">
+                    <h4 className="text-xs font-black uppercase tracking-widest text-slate-500">
+                      Módulo Multi-Usuário
+                    </h4>
+                    <p className="text-[10px] text-slate-400 font-medium leading-relaxed">
+                      Gestão avançada de permissões granulares, convite de colaboradores e logs de auditoria estão disponíveis no plano SaaS Premium.
+                    </p>
+                  </div>
+                  <button className="bg-slate-900 text-white px-8 h-10 rounded-xl text-[9px] font-black uppercase tracking-widest shadow-lg hover:bg-slate-800 transition-all active:scale-95">
+                    Explorar Upgrades
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </div>

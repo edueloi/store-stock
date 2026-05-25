@@ -1,203 +1,674 @@
-import { useState, useEffect } from "react";
-import { 
-  TrendingUp, 
-  TrendingDown, 
-  Users, 
-  Package, 
-  DollarSign, 
-  ArrowUpRight,
-  Calendar,
-  Layers,
-  ArrowRight,
-  Trophy,
-  Activity,
-  ShoppingCart,
-  Clock
+import React, { useState, useEffect } from "react";
+import {
+  TrendingUp, TrendingDown, Package, DollarSign, Activity,
+  ShoppingCart, Users, AlertTriangle, Trophy, ArrowRight,
+  Plus, X, Edit2, Trash2, Globe, Instagram, Facebook,
+  Twitter, Youtube, Linkedin, Mail, Phone, MessageCircle,
+  Calendar, Music, Bookmark, Star, Shield, Coffee, Heart,
+  Link2, CheckCircle2, Circle, Check, ExternalLink,
+  ChevronRight, BarChart3, Clock, Zap
 } from "lucide-react";
-import { 
-  BarChart, 
-  Bar, 
-  XAxis, 
-  YAxis, 
-  CartesianGrid, 
-  Tooltip, 
-  ResponsiveContainer, 
-  AreaChart,
-  Area
+import {
+  AreaChart, Area, XAxis, YAxis, CartesianGrid,
+  Tooltip, ResponsiveContainer
 } from "recharts";
-import { motion } from "motion/react";
+import { motion, AnimatePresence } from "motion/react";
 import { cn } from "../../lib/utils";
+import Modal from "../../components/ui/Modal";
+
+// ── Types ──────────────────────────────────────────────────────────
+
+interface QuickLink {
+  id: string;
+  label: string;
+  url: string;
+  icon: string;
+  color: string;
+}
+
+interface Task {
+  id: string;
+  text: string;
+  done: boolean;
+  created_at: string;
+}
+
+// ── Icon catalogue ────────────────────────────────────────────────
+
+const ICON_MAP: Record<string, React.ElementType> = {
+  link: Link2, globe: Globe, instagram: Instagram, facebook: Facebook,
+  twitter: Twitter, youtube: Youtube, linkedin: Linkedin, mail: Mail,
+  phone: Phone, whatsapp: MessageCircle, calendar: Calendar,
+  music: Music, bookmark: Bookmark, star: Star, shield: Shield,
+  coffee: Coffee, heart: Heart, chart: BarChart3, zap: Zap,
+  users: Users, package: Package,
+};
+
+const ICON_KEYS = Object.keys(ICON_MAP);
+
+const COLORS = [
+  "#64748b","#1e293b","#ef4444","#dc2626","#f97316","#ea580c",
+  "#f59e0b","#d97706","#eab308","#ca8a04","#84cc16","#65a30d",
+  "#22c55e","#16a34a","#10b981","#059669","#14b8a6","#0d9488",
+  "#06b6d4","#0891b2","#38bdf8","#0ea5e9","#3b82f6","#2563eb",
+  "#6366f1","#4f46e5","#8b5cf6","#7c3aed","#a855f7","#9333ea",
+  "#ec4899","#db2777","#f43f5e","#e11d48",
+];
+
+// ── API helpers ───────────────────────────────────────────────────
+
+const headers = () => ({ "Authorization": `Bearer ${localStorage.getItem("token")}` });
+const jsonHeaders = () => ({ ...headers(), "Content-Type": "application/json" });
+
+async function getPref<T>(key: string, fallback: T): Promise<T> {
+  try {
+    const r = await fetch(`/api/preferences/${key}`, { headers: headers() });
+    const d = await r.json();
+    return d ?? fallback;
+  } catch { return fallback; }
+}
+
+async function setPref(key: string, value: unknown) {
+  await fetch(`/api/preferences/${key}`, {
+    method: "PUT", headers: jsonHeaders(),
+    body: JSON.stringify({ value }),
+  });
+}
+
+// ── Icon picker component ─────────────────────────────────────────
+
+function IconCircle({ icon, color, size = 40 }: { icon: string; color: string; size?: number }) {
+  const Icon = ICON_MAP[icon] ?? Link2;
+  return (
+    <div
+      className="rounded-2xl flex items-center justify-center shrink-0"
+      style={{ width: size, height: size, backgroundColor: color }}
+    >
+      <Icon size={size * 0.45} color="#fff" />
+    </div>
+  );
+}
+
+// ── Main component ────────────────────────────────────────────────
 
 export default function Home() {
   const [stats, setStats] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
   const [topProducts, setTopProducts] = useState<any[]>([]);
+  const [loadingStats, setLoadingStats] = useState(true);
+
+  // Quick links
+  const [links, setLinks] = useState<QuickLink[]>([]);
+  const [linkModal, setLinkModal] = useState(false);
+  const [editingLink, setEditingLink] = useState<QuickLink | null>(null);
+  const [deleteLink, setDeleteLink] = useState<QuickLink | null>(null);
+  const [linkForm, setLinkForm] = useState({ label: "", url: "", icon: "globe", color: "#3b82f6" });
+
+  // Tasks
+  const [tasks, setTasks] = useState<Task[]>([]);
+  const [taskInput, setTaskInput] = useState("");
+  const [editingTask, setEditingTask] = useState<Task | null>(null);
+  const [editTaskText, setEditTaskText] = useState("");
+  const [deleteTask, setDeleteTask] = useState<Task | null>(null);
+
+  // ── Load everything ───────────────────────────────────────────
 
   useEffect(() => {
-    const fetchStats = async () => {
-      try {
-        const [statsRes, topRes] = await Promise.all([
-          fetch("/api/stats", { headers: { "Authorization": `Bearer ${localStorage.getItem("token")}` } }),
-          fetch("/api/stats/top-selling", { headers: { "Authorization": `Bearer ${localStorage.getItem("token")}` } })
-        ]);
-        setStats(await statsRes.json());
-        setTopProducts(await topRes.json());
-        setLoading(false);
-      } catch (err) {
-        console.error("Stats fail", err);
-      }
-    };
-    fetchStats();
+    const auth = headers();
+    Promise.all([
+      fetch("/api/stats", { headers: auth }).then(r => r.json()),
+      fetch("/api/stats/top-selling", { headers: auth }).then(r => r.json()),
+      getPref<QuickLink[]>("quick_links", []),
+      getPref<Task[]>("daily_tasks", []),
+    ]).then(([s, top, ql, tk]) => {
+      setStats(s);
+      setTopProducts(Array.isArray(top) ? top : []);
+      setLinks(Array.isArray(ql) ? ql : []);
+      setTasks(Array.isArray(tk) ? tk : []);
+      setLoadingStats(false);
+    }).catch(() => setLoadingStats(false));
   }, []);
 
-  if (loading) return <div className="p-8 text-center text-xs font-bold uppercase tracking-widest text-slate-400">Consolidando Matriz de Dados...</div>;
+  // ── Quick Links CRUD ──────────────────────────────────────────
 
-  const cards = [
-    { title: "Volume de Faturamento", value: `R$ ${stats.summary.revenue.toLocaleString(undefined, { minimumFractionDigits: 2 })}`, icon: DollarSign, trend: "+12.5%", color: "text-blue-600", bg: "bg-blue-50" },
-    { title: "Custos do Período", value: `R$ ${stats.summary.expenses.toLocaleString(undefined, { minimumFractionDigits: 2 })}`, icon: TrendingDown, trend: "-4.2%", color: "text-rose-600", bg: "bg-rose-50" },
-    { title: "Valor em Inventário", value: `R$ ${stats.summary.stockValue.toLocaleString(undefined, { minimumFractionDigits: 2 })}`, icon: Package, trend: "+1.8%", color: "text-amber-600", bg: "bg-amber-50" },
-    { title: "Margem Líquida Est.", value: `R$ ${stats.summary.profit.toLocaleString(undefined, { minimumFractionDigits: 2 })}`, icon: Activity, trend: "+15.2%", color: "text-emerald-600", bg: "bg-emerald-50" },
-  ];
+  function openNewLink() {
+    setEditingLink(null);
+    setLinkForm({ label: "", url: "", icon: "globe", color: "#3b82f6" });
+    setLinkModal(true);
+  }
+
+  function openEditLink(link: QuickLink) {
+    setEditingLink(link);
+    setLinkForm({ label: link.label, url: link.url, icon: link.icon, color: link.color });
+    setLinkModal(true);
+  }
+
+  async function saveLink() {
+    if (!linkForm.label.trim() || !linkForm.url.trim()) return;
+    let url = linkForm.url.trim();
+    if (url && !url.startsWith("http://") && !url.startsWith("https://")) url = "https://" + url;
+    const updated = editingLink
+      ? links.map(l => l.id === editingLink.id ? { ...l, ...linkForm, url } : l)
+      : [...links, { id: crypto.randomUUID(), ...linkForm, url }];
+    setLinks(updated);
+    await setPref("quick_links", updated);
+    setLinkModal(false);
+  }
+
+  async function confirmDeleteLink() {
+    if (!deleteLink) return;
+    const updated = links.filter(l => l.id !== deleteLink.id);
+    setLinks(updated);
+    await setPref("quick_links", updated);
+    setDeleteLink(null);
+  }
+
+  // ── Tasks CRUD ────────────────────────────────────────────────
+
+  async function addTask() {
+    if (!taskInput.trim()) return;
+    const updated = [...tasks, {
+      id: crypto.randomUUID(),
+      text: taskInput.trim(),
+      done: false,
+      created_at: new Date().toISOString(),
+    }];
+    setTasks(updated);
+    setTaskInput("");
+    await setPref("daily_tasks", updated);
+  }
+
+  async function toggleTask(id: string) {
+    const updated = tasks.map(t => t.id === id ? { ...t, done: !t.done } : t);
+    setTasks(updated);
+    await setPref("daily_tasks", updated);
+  }
+
+  async function saveEditTask() {
+    if (!editingTask || !editTaskText.trim()) return;
+    const updated = tasks.map(t => t.id === editingTask.id ? { ...t, text: editTaskText.trim() } : t);
+    setTasks(updated);
+    await setPref("daily_tasks", updated);
+    setEditingTask(null);
+  }
+
+  async function confirmDeleteTask() {
+    if (!deleteTask) return;
+    const updated = tasks.filter(t => t.id !== deleteTask.id);
+    setTasks(updated);
+    await setPref("daily_tasks", updated);
+    setDeleteTask(null);
+  }
+
+  const pendingTasks = tasks.filter(t => !t.done).length;
+
+  // ── Render ────────────────────────────────────────────────────
+
+  const kpis = stats ? [
+    {
+      label: "Faturamento", value: `R$ ${Number(stats.summary.revenue).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`,
+      icon: DollarSign, color: "text-blue-600", bg: "bg-blue-50", border: "border-blue-100",
+    },
+    {
+      label: "Margem Líquida", value: `R$ ${Number(stats.summary.profit).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`,
+      icon: TrendingUp, color: "text-emerald-600", bg: "bg-emerald-50", border: "border-emerald-100",
+    },
+    {
+      label: "Custos", value: `R$ ${Number(stats.summary.expenses).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`,
+      icon: TrendingDown, color: "text-rose-600", bg: "bg-rose-50", border: "border-rose-100",
+    },
+    {
+      label: "Valor em Estoque", value: `R$ ${Number(stats.summary.stockValue).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`,
+      icon: Package, color: "text-amber-600", bg: "bg-amber-50", border: "border-amber-100",
+    },
+  ] : [];
+
+  const today = new Date().toLocaleDateString("pt-BR", { weekday: "long", day: "numeric", month: "long" });
 
   return (
-    <div className="space-y-6 ">
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
         <div>
-          <h2 className="text-xl font-bold text-slate-900 uppercase tracking-tight">Cockpit de Gestão Nexus</h2>
-          <p className="text-slate-500 text-[10px] font-bold uppercase tracking-widest leading-none">Console Central de Monitoramento ERP/CRM</p>
-        </div>
-        <div className="flex gap-2">
-          <div className="bg-white px-3 py-2 rounded-xl border border-slate-200 shadow-sm flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-slate-500">
-            <Calendar size={14} className="text-blue-500" />
-            Jan - Dez 2026
-          </div>
-          <button className="bg-slate-900 text-white px-4 py-2 rounded-xl text-[10px] font-bold uppercase tracking-widest hover:bg-slate-800 transition-all shadow-lg active:scale-95">
-             Nova Ordem
-          </button>
+          <h2 className="text-xl font-bold text-slate-900 uppercase tracking-tight">Dashboard</h2>
+          <p className="text-slate-400 text-[11px] font-medium capitalize">{today}</p>
         </div>
       </div>
 
-      {/* Primary Analytics Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {cards.map((card, idx) => (
-          <motion.div 
-            key={idx}
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: idx * 0.05 }}
-            className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md transition-shadow"
-          >
-            <div className="flex justify-between items-start mb-4">
-               <div className={cn("p-2 rounded-xl", card.bg, card.color)}>
-                  <card.icon size={20} />
-               </div>
-               <span className={cn(
-                 "text-[10px] font-bold px-2 py-0.5 rounded-full border",
-                 card.trend.startsWith('+') ? "bg-emerald-50 text-emerald-600 border-emerald-100" : "bg-rose-50 text-rose-600 border-rose-100"
-               )}>
-                 {card.trend}
-               </span>
-            </div>
-            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mb-1">{card.title}</p>
-            <h3 className="text-2xl font-black text-slate-900 tracking-tighter font-mono">{card.value}</h3>
-          </motion.div>
-        ))}
-      </div>
+      {/* KPI Cards */}
+      {loadingStats ? (
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          {[...Array(4)].map((_, i) => (
+            <div key={i} className="bg-white h-24 rounded-2xl border border-slate-100 animate-pulse" />
+          ))}
+        </div>
+      ) : (
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          {kpis.map((k, i) => (
+            <motion.div
+              key={i}
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: i * 0.05 }}
+              className={cn("bg-white p-4 rounded-2xl border shadow-sm hover:shadow-md transition-shadow", k.border)}
+            >
+              <div className={cn("w-9 h-9 rounded-xl flex items-center justify-center mb-3", k.bg)}>
+                <k.icon size={18} className={k.color} />
+              </div>
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-0.5">{k.label}</p>
+              <h3 className="text-lg font-black text-slate-900 tracking-tight font-mono leading-none">{k.value}</h3>
+            </motion.div>
+          ))}
+        </div>
+      )}
 
+      {/* Chart + Top Products */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Main Performance Chart */}
-        <div className="lg:col-span-2 bg-white p-6 rounded-2xl border border-slate-100 shadow-sm flex flex-col">
-          <div className="flex items-center justify-between mb-8">
+        <div className="lg:col-span-2 bg-white p-5 rounded-2xl border border-slate-100 shadow-sm">
+          <div className="flex items-center justify-between mb-5">
             <div>
-               <h3 className="text-xs font-bold uppercase tracking-widest text-slate-900 flex items-center gap-2">
-                  <Activity size={14} className="text-blue-500" />
-                  Curva de Faturamento Sazonal
-               </h3>
-               <p className="text-[9px] font-bold text-slate-400 uppercase tracking-tighter mt-1">Análise de Recebimentos Brutos Mensais</p>
+              <h3 className="text-xs font-bold uppercase tracking-widest text-slate-900">Faturamento — últimos 7 dias</h3>
+              <p className="text-[10px] text-slate-400 font-medium mt-0.5">Receita bruta de pedidos concluídos</p>
             </div>
-            <div className="flex gap-1">
-               <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+            <div className="w-2 h-2 bg-blue-500 rounded-full" />
+          </div>
+          {stats?.salesOverTime?.length > 0 ? (
+            <div className="h-52 -mx-2">
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={stats.salesOverTime}>
+                  <defs>
+                    <linearGradient id="gSales" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.12} />
+                      <stop offset="95%" stopColor="#3b82f6" stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="4 4" vertical={false} stroke="#f1f5f9" />
+                  <XAxis dataKey="date" axisLine={false} tickLine={false} tick={{ fontSize: 9, fill: "#94a3b8", fontWeight: 700 }} dy={8} />
+                  <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 9, fill: "#94a3b8", fontWeight: 700 }} width={48} />
+                  <Tooltip
+                    contentStyle={{ borderRadius: 10, border: "1px solid #f1f5f9", fontSize: 11, fontWeight: 700, boxShadow: "0 4px 12px rgba(0,0,0,0.08)" }}
+                    labelStyle={{ color: "#1e293b", marginBottom: 2 }}
+                  />
+                  <Area type="monotone" dataKey="total" stroke="#3b82f6" strokeWidth={2.5} fillOpacity={1} fill="url(#gSales)" dot={false} />
+                </AreaChart>
+              </ResponsiveContainer>
             </div>
-          </div>
-          <div className="h-[320px] -ml-6">
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={stats.salesOverTime}>
-                <defs>
-                  <linearGradient id="colorSales" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.15}/>
-                    <stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/>
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="6 6" vertical={false} stroke="#f1f5f9" />
-                <XAxis dataKey="date" axisLine={false} tickLine={false} tick={{fontSize: 9, fill: '#64748b', fontWeight: 'bold'}} dy={10} />
-                <YAxis axisLine={false} tickLine={false} tick={{fontSize: 9, fill: '#64748b', fontWeight: 'bold'}} />
-                <Tooltip 
-                  contentStyle={{ borderRadius: '12px', border: '1px solid #f1f5f9', fontSize: '11px', fontWeight: '800', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)' }}
-                  labelStyle={{ color: '#1e293b', marginBottom: '4px' }}
-                />
-                <Area type="monotone" dataKey="total" stroke="#3b82f6" strokeWidth={3} fillOpacity={1} fill="url(#colorSales)" />
-              </AreaChart>
-            </ResponsiveContainer>
-          </div>
+          ) : (
+            <div className="h-52 flex items-center justify-center text-slate-300 flex-col gap-2">
+              <BarChart3 size={36} strokeWidth={1} />
+              <p className="text-[10px] font-bold uppercase tracking-widest">Sem dados ainda</p>
+            </div>
+          )}
         </div>
 
-        {/* Dynamic Analytics & Metric Panel */}
-        <div className="space-y-6">
-           <div className="bg-slate-900 rounded-2xl p-6 text-white shadow-xl shadow-slate-200">
-              <div className="flex items-center justify-between mb-6">
-                 <h3 className="text-xs font-bold uppercase tracking-widest flex items-center gap-2">
-                    <Trophy size={14} className="text-amber-400" /> Curva ABC (Top 5)
-                 </h3>
-                 <span className="text-[8px] bg-white/10 px-2 py-0.5 rounded uppercase font-bold tracking-widest">Tempo Real</span>
+        <div className="bg-slate-900 rounded-2xl p-5 text-white shadow-xl">
+          <div className="flex items-center justify-between mb-5">
+            <h3 className="text-xs font-bold uppercase tracking-widest flex items-center gap-2">
+              <Trophy size={13} className="text-amber-400" /> Top Produtos
+            </h3>
+            <span className="text-[8px] bg-white/10 px-2 py-0.5 rounded-full uppercase font-bold tracking-widest">Tempo real</span>
+          </div>
+          <div className="space-y-3">
+            {topProducts.map((p, i) => (
+              <div key={i} className="flex items-center gap-3 group">
+                <span className="text-[10px] font-black text-slate-600 w-4 shrink-0">{i + 1}</span>
+                <div className="flex-1 min-w-0">
+                  <p className="text-[11px] font-bold text-slate-300 group-hover:text-white transition-colors truncate uppercase">{p.name}</p>
+                  <div className="mt-1 h-1 bg-white/5 rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-blue-500 rounded-full"
+                      style={{ width: `${Math.min(100, (p.total_sold / (topProducts[0]?.total_sold || 1)) * 100)}%` }}
+                    />
+                  </div>
+                </div>
+                <span className="text-[10px] font-mono font-black text-blue-400 shrink-0">{p.total_sold} un</span>
               </div>
-              <div className="space-y-4">
-                 {topProducts.map((p, i) => (
-                    <div key={i} className="flex items-center justify-between group">
-                       <div className="flex items-center gap-3">
-                          <span className="text-[10px] font-black text-slate-500 bg-white/5 w-5 h-5 flex items-center justify-center rounded truncate">{i+1}</span>
-                          <span className="text-[10px] font-bold uppercase text-slate-300 truncate max-w-[140px] group-hover:text-white transition-colors">{p.name}</span>
-                       </div>
-                       <span className="text-[10px] font-mono font-bold text-blue-400">{p.total_sold} <span className="text-[8px] text-slate-500">UN</span></span>
-                    </div>
-                 ))}
-                 {topProducts.length === 0 && (
-                    <p className="text-[10px] text-slate-500 py-4 font-bold uppercase italic text-center">Aguardando volume transacional...</p>
-                 )}
-              </div>
-              <button className="w-full mt-6 py-2 bg-white/5 hover:bg-white/10 border border-white/5 rounded-xl text-[9px] font-bold uppercase tracking-widest text-slate-400 transition-all flex items-center justify-center gap-2">
-                 Relatório Expandido <ArrowRight size={12} />
-              </button>
-           </div>
-
-           <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm">
-              <h3 className="text-xs font-bold uppercase tracking-widest text-slate-900 mb-6 flex items-center gap-2">
-                 <Activity size={14} className="text-emerald-500" /> Health Check
-              </h3>
-              <div className="space-y-4">
-                 {[
-                   { label: "Capacidade Operacional", current: 78, color: "bg-blue-500" },
-                   { label: "Acuracidade de Inventário", current: 92, color: "bg-emerald-500" },
-                   { label: "Taxa de Retenção (CRM)", current: 85, color: "bg-indigo-500" },
-                   { label: "Nível de Ruptura", current: 4, color: "bg-rose-500" },
-                 ].map((item, i) => (
-                   <div key={i} className="space-y-1.5">
-                      <div className="flex justify-between text-[10px] font-bold uppercase tracking-tighter">
-                         <span className="text-slate-400">{item.label}</span>
-                         <span className="text-slate-900">{item.current}%</span>
-                      </div>
-                      <div className="w-full h-1.5 bg-slate-50 rounded-full overflow-hidden">
-                         <motion.div 
-                           initial={{ width: 0 }}
-                           animate={{ width: `${item.current}%` }}
-                           className={`h-full ${item.color}`}
-                         />
-                      </div>
-                   </div>
-                 ))}
-              </div>
-           </div>
+            ))}
+            {topProducts.length === 0 && (
+              <p className="text-[10px] text-slate-600 py-6 text-center font-bold uppercase">Nenhuma venda ainda</p>
+            )}
+          </div>
         </div>
       </div>
+
+      {/* Quick Links + Tasks (side by side) */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+
+        {/* ── Acessos Rápidos ─────────────────────────────── */}
+        <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+          <div className="px-5 py-4 flex items-center justify-between border-b border-slate-50">
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-xl bg-blue-50 flex items-center justify-center">
+                <Globe size={16} className="text-blue-600" />
+              </div>
+              <div>
+                <h3 className="text-xs font-bold text-slate-900 uppercase tracking-widest leading-none">Acessos Rápidos</h3>
+                <p className="text-[10px] text-slate-400 font-medium mt-0.5">Links de apoio para o dia a dia</p>
+              </div>
+            </div>
+            <button
+              onClick={openNewLink}
+              className="flex items-center gap-1.5 px-3 h-8 bg-slate-900 text-white rounded-lg text-[10px] font-bold uppercase tracking-widest hover:bg-slate-700 transition-all active:scale-95"
+            >
+              <Plus size={12} /> Novo
+            </button>
+          </div>
+
+          <div className="p-4">
+            {links.length === 0 ? (
+              <button
+                onClick={openNewLink}
+                className="w-full py-8 border-2 border-dashed border-slate-200 rounded-xl text-slate-400 text-[11px] font-bold uppercase tracking-widest hover:border-blue-300 hover:text-blue-500 transition-all flex flex-col items-center gap-2"
+              >
+                <Plus size={20} />
+                Adicionar primeiro acesso
+              </button>
+            ) : (
+              <div className="grid grid-cols-3 sm:grid-cols-4 gap-3">
+                {links.map(link => (
+                  <div key={link.id} className="group relative flex flex-col items-center gap-2">
+                    <a
+                      href={link.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="block"
+                    >
+                      <IconCircle icon={link.icon} color={link.color} size={52} />
+                    </a>
+                    <p className="text-[10px] font-bold text-slate-600 text-center leading-tight truncate w-full text-center">{link.label}</p>
+                    {/* Edit/Delete overlay */}
+                    <div className="absolute -top-1 -right-1 hidden group-hover:flex gap-1">
+                      <button
+                        onClick={() => openEditLink(link)}
+                        className="w-5 h-5 bg-white border border-slate-200 rounded-full flex items-center justify-center text-slate-500 hover:text-blue-600 shadow-sm"
+                      >
+                        <Edit2 size={9} />
+                      </button>
+                      <button
+                        onClick={() => setDeleteLink(link)}
+                        className="w-5 h-5 bg-white border border-slate-200 rounded-full flex items-center justify-center text-slate-500 hover:text-red-600 shadow-sm"
+                      >
+                        <X size={9} />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+                <div className="flex flex-col items-center gap-2">
+                  <button
+                    onClick={openNewLink}
+                    className="w-[52px] h-[52px] rounded-2xl border-2 border-dashed border-slate-200 flex items-center justify-center text-slate-400 hover:border-blue-400 hover:text-blue-500 transition-all"
+                  >
+                    <Plus size={18} />
+                  </button>
+                  <p className="text-[10px] font-bold text-slate-300 text-center">Novo</p>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* ── Tarefas Diárias ──────────────────────────────── */}
+        <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+          <div className="px-5 py-4 flex items-center justify-between border-b border-slate-50">
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-xl bg-amber-50 flex items-center justify-center">
+                <CheckCircle2 size={16} className="text-amber-500" />
+              </div>
+              <div>
+                <h3 className="text-xs font-bold text-slate-900 uppercase tracking-widest leading-none">Tarefas Diárias</h3>
+                <p className="text-[10px] text-slate-400 font-medium mt-0.5">Checklist rápido de hoje</p>
+              </div>
+            </div>
+            {pendingTasks > 0 && (
+              <span className="px-2.5 py-1 bg-amber-100 text-amber-700 text-[10px] font-black uppercase tracking-widest rounded-full">
+                {pendingTasks} pendente{pendingTasks > 1 ? "s" : ""}
+              </span>
+            )}
+            {pendingTasks === 0 && tasks.length > 0 && (
+              <span className="px-2.5 py-1 bg-emerald-100 text-emerald-700 text-[10px] font-black uppercase tracking-widest rounded-full flex items-center gap-1">
+                <Check size={10} /> Tudo feito!
+              </span>
+            )}
+          </div>
+
+          <div className="flex flex-col" style={{ maxHeight: 280 }}>
+            <div className="flex-1 overflow-y-auto divide-y divide-slate-50">
+              <AnimatePresence initial={false}>
+                {tasks.map(task => (
+                  <motion.div
+                    key={task.id}
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: "auto" }}
+                    exit={{ opacity: 0, height: 0 }}
+                    transition={{ duration: 0.15 }}
+                    className="group flex items-center gap-3 px-5 py-3 hover:bg-slate-50/60 transition-colors"
+                  >
+                    <button
+                      onClick={() => toggleTask(task.id)}
+                      className={cn(
+                        "w-5 h-5 rounded-full border-2 shrink-0 flex items-center justify-center transition-all",
+                        task.done
+                          ? "bg-emerald-500 border-emerald-500"
+                          : "border-slate-300 hover:border-emerald-400"
+                      )}
+                    >
+                      {task.done && <Check size={10} color="white" strokeWidth={3} />}
+                    </button>
+
+                    {editingTask?.id === task.id ? (
+                      <input
+                        autoFocus
+                        className="flex-1 text-sm bg-transparent outline-none border-b border-blue-400"
+                        value={editTaskText}
+                        onChange={e => setEditTaskText(e.target.value)}
+                        onKeyDown={e => { if (e.key === "Enter") saveEditTask(); if (e.key === "Escape") setEditingTask(null); }}
+                        onBlur={saveEditTask}
+                      />
+                    ) : (
+                      <span
+                        className={cn(
+                          "flex-1 text-sm font-medium leading-snug",
+                          task.done ? "line-through text-slate-400" : "text-slate-700"
+                        )}
+                      >
+                        {task.text}
+                      </span>
+                    )}
+
+                    <div className="hidden group-hover:flex items-center gap-1 shrink-0">
+                      <button
+                        onClick={() => { setEditingTask(task); setEditTaskText(task.text); }}
+                        className="p-1 text-slate-400 hover:text-blue-600 transition-colors"
+                      >
+                        <Edit2 size={12} />
+                      </button>
+                      <button
+                        onClick={() => setDeleteTask(task)}
+                        className="p-1 text-slate-400 hover:text-red-500 transition-colors"
+                      >
+                        <Trash2 size={12} />
+                      </button>
+                    </div>
+                  </motion.div>
+                ))}
+              </AnimatePresence>
+              {tasks.length === 0 && (
+                <div className="py-8 text-center text-[10px] font-bold uppercase tracking-widest text-slate-300">
+                  Nenhuma tarefa ainda
+                </div>
+              )}
+            </div>
+
+            {/* Add task input */}
+            <div className="shrink-0 border-t border-slate-100 flex items-center gap-2 px-4 py-3">
+              <input
+                className="flex-1 text-sm bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 placeholder:text-slate-300 transition-all"
+                placeholder="O que você não pode esquecer hoje?"
+                value={taskInput}
+                onChange={e => setTaskInput(e.target.value)}
+                onKeyDown={e => e.key === "Enter" && addTask()}
+              />
+              <button
+                onClick={addTask}
+                disabled={!taskInput.trim()}
+                className="shrink-0 h-9 px-3 bg-blue-600 text-white rounded-xl text-[10px] font-bold uppercase tracking-widest hover:bg-blue-700 disabled:opacity-30 transition-all active:scale-95 flex items-center gap-1.5"
+              >
+                <Plus size={13} /> Adicionar
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* ── Modal: Criar / Editar Acesso Rápido ─────────── */}
+      <Modal
+        open={linkModal}
+        onClose={() => setLinkModal(false)}
+        title={editingLink ? "Editar Acesso Rápido" : "Novo Acesso Rápido"}
+        size="md"
+        footer={
+          <>
+            <button onClick={() => setLinkModal(false)} className="flex-1 h-10 border border-slate-200 rounded-lg text-[10px] font-bold uppercase tracking-widest hover:bg-slate-50 transition-colors">
+              Cancelar
+            </button>
+            <button
+              onClick={saveLink}
+              disabled={!linkForm.label.trim() || !linkForm.url.trim()}
+              className="flex-1 h-10 bg-slate-900 text-white rounded-lg text-[10px] font-bold uppercase tracking-widest hover:bg-slate-700 disabled:opacity-40 transition-all shadow-lg"
+            >
+              Salvar
+            </button>
+          </>
+        }
+      >
+        <div className="space-y-5">
+          {/* Preview + campos lado a lado no desktop */}
+          <div className="flex items-center gap-4 p-4 bg-slate-50 rounded-xl border border-slate-100">
+            <div className="shrink-0">
+              <IconCircle icon={linkForm.icon} color={linkForm.color} size={56} />
+            </div>
+            <div className="flex-1 min-w-0 grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest px-1">Nome do acesso</label>
+                <input
+                  autoFocus
+                  className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 outline-none"
+                  placeholder="Ex: Meu site, artigos..."
+                  value={linkForm.label}
+                  onChange={e => setLinkForm(f => ({ ...f, label: e.target.value }))}
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest px-1">Link (URL)</label>
+                <input
+                  className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm font-mono focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 outline-none"
+                  placeholder="exemplo.com.br"
+                  value={linkForm.url}
+                  onChange={e => setLinkForm(f => ({ ...f, url: e.target.value }))}
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Icon picker — 2 colunas: ícones | cores */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+            <div className="space-y-2">
+              <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest px-1">Ícone</label>
+              <div className="grid grid-cols-6 gap-1.5">
+                {ICON_KEYS.map(key => {
+                  const Icon = ICON_MAP[key];
+                  const active = linkForm.icon === key;
+                  return (
+                    <button
+                      key={key}
+                      onClick={() => setLinkForm(f => ({ ...f, icon: key }))}
+                      className={cn(
+                        "w-full aspect-square rounded-xl flex items-center justify-center border transition-all",
+                        active
+                          ? "bg-slate-900 border-slate-900 text-white shadow-lg"
+                          : "bg-white border-slate-200 text-slate-500 hover:border-slate-400 hover:text-slate-700"
+                      )}
+                    >
+                      <Icon size={15} />
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest px-1">Cor</label>
+              <div className="grid grid-cols-6 gap-1.5">
+                {COLORS.map(c => (
+                  <button
+                    key={c}
+                    onClick={() => setLinkForm(f => ({ ...f, color: c }))}
+                    className={cn(
+                      "w-full aspect-square rounded-full border-2 transition-all hover:scale-110 active:scale-95",
+                      linkForm.color === c ? "border-slate-900 scale-110 shadow-md" : "border-transparent"
+                    )}
+                    style={{ backgroundColor: c }}
+                  />
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      </Modal>
+
+      {/* ── Modal: Confirmar exclusão de link ───────────── */}
+      <Modal
+        open={!!deleteLink}
+        onClose={() => setDeleteLink(null)}
+        title="Remover acesso"
+        size="sm"
+        footer={
+          <>
+            <button onClick={() => setDeleteLink(null)} className="flex-1 h-10 border border-slate-200 rounded-lg text-[10px] font-bold uppercase tracking-widest hover:bg-slate-50 transition-colors">
+              Cancelar
+            </button>
+            <button
+              onClick={confirmDeleteLink}
+              className="flex-1 h-10 bg-red-600 text-white rounded-lg text-[10px] font-bold uppercase tracking-widest hover:bg-red-700 transition-all shadow-lg shadow-red-100"
+            >
+              Remover
+            </button>
+          </>
+        }
+      >
+        <div className="flex items-center gap-4 p-4 bg-red-50 rounded-xl">
+          {deleteLink && <IconCircle icon={deleteLink.icon} color={deleteLink.color} size={44} />}
+          <div>
+            <p className="text-sm font-bold text-slate-900">{deleteLink?.label}</p>
+            <p className="text-[10px] text-slate-500 mt-0.5">Esta ação não pode ser desfeita.</p>
+          </div>
+        </div>
+      </Modal>
+
+      {/* ── Modal: Confirmar exclusão de tarefa ─────────── */}
+      <Modal
+        open={!!deleteTask}
+        onClose={() => setDeleteTask(null)}
+        title="Remover tarefa"
+        size="sm"
+        footer={
+          <>
+            <button onClick={() => setDeleteTask(null)} className="flex-1 h-10 border border-slate-200 rounded-lg text-[10px] font-bold uppercase tracking-widest hover:bg-slate-50 transition-colors">
+              Cancelar
+            </button>
+            <button
+              onClick={confirmDeleteTask}
+              className="flex-1 h-10 bg-red-600 text-white rounded-lg text-[10px] font-bold uppercase tracking-widest hover:bg-red-700 transition-all shadow-lg shadow-red-100"
+            >
+              Remover
+            </button>
+          </>
+        }
+      >
+        <div className="p-4 bg-red-50 rounded-xl">
+          <p className="text-sm font-medium text-slate-700 leading-snug">"{deleteTask?.text}"</p>
+          <p className="text-[10px] text-slate-400 font-bold uppercase mt-2">Esta ação não pode ser desfeita.</p>
+        </div>
+      </Modal>
     </div>
   );
 }

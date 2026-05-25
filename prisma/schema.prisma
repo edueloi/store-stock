@@ -24,6 +24,9 @@ model Tenant {
   primary_color    String  @default("#000000")
   featured_limit   Int     @default(4)
   bestseller_limit Int     @default(8)
+  business_hours   Json?
+  payment_methods  Json?
+  policies         Json?
   created_at       DateTime @default(now())
   updated_at   DateTime @updatedAt
 
@@ -49,7 +52,8 @@ model User {
   created_at DateTime @default(now())
   updated_at DateTime @updatedAt
 
-  tenant Tenant @relation(fields: [tenant_id], references: [id])
+  tenant      Tenant           @relation(fields: [tenant_id], references: [id])
+  preferences UserPreference[]
 
   @@map("users")
 }
@@ -193,4 +197,18 @@ model Supplier {
   tenant Tenant @relation(fields: [tenant_id], references: [id])
 
   @@map("suppliers")
+}
+
+model UserPreference {
+  id         Int      @id @default(autoincrement())
+  user_id    Int
+  pref_key   String
+  value      Json
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  user User @relation(fields: [user_id], references: [id])
+
+  @@unique([user_id, pref_key])
+  @@map("user_preferences")
 }
