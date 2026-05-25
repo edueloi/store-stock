@@ -3,6 +3,8 @@ import path from "path";
 import type { Express } from "express";
 import express from "express";
 
+import accountsPayableRoutes from "./accounts-payable.routes";
+import accountsReceivableRoutes from "./accounts-receivable.routes";
 import authRoutes from "./auth.routes";
 import categoriesRoutes from "./categories.routes";
 import customersRoutes from "./customers.routes";
@@ -32,6 +34,8 @@ export function registerRoutes(app: Express) {
   app.use("/api/sales", salesRoutes);
   app.use("/api/suppliers", suppliersRoutes);
   app.use("/api/finance", financeRoutes);
+  app.use("/api/accounts-receivable", accountsReceivableRoutes);
+  app.use("/api/accounts-payable", accountsPayableRoutes);
   app.use("/api/tenant", tenantRoutes);
   app.use("/api/upload", uploadRoutes);
   app.use("/api/preferences", preferencesRoutes);

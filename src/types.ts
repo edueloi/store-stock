@@ -128,6 +128,38 @@ export interface FinanceEntry {
   category?: string;
 }
 
+export type AccountStatus = 'pending' | 'received' | 'paid' | 'overdue' | 'cancelled';
+
+export interface AccountReceivable {
+  id: number;
+  tenant_id: number;
+  description: string;
+  amount: number;
+  due_date: string;
+  received_date?: string | null;
+  status: AccountStatus;
+  category?: string;
+  customer_name?: string;
+  notes?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AccountPayable {
+  id: number;
+  tenant_id: number;
+  description: string;
+  amount: number;
+  due_date: string;
+  paid_date?: string | null;
+  status: AccountStatus;
+  category?: string;
+  supplier_name?: string;
+  notes?: string;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface SetupInvite {
   id: number;
   token: string;

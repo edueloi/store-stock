@@ -18,6 +18,8 @@ import {
   FolderOpen,
   Settings as SettingsIcon,
   LineChart,
+  ArrowDownCircle,
+  ArrowUpCircle,
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { cn } from "../../lib/utils";
@@ -29,6 +31,8 @@ import Stock from "./Stock"; // This will be "Estoque"
 import PDV from "./PDV";
 import Orders from "./Orders";
 import Finance from "./Finance";
+import ContasReceber from "./ContasReceber";
+import ContasPagar from "./ContasPagar";
 import Settings from "./Settings";
 import Customers from "./Customers";
 import Suppliers from "./Suppliers";
@@ -78,8 +82,10 @@ export default function AdminDashboard() {
     {
       label: "Financeiro",
       items: [
-        { icon: Wallet,    label: "Fluxo de Caixa",  path: "/admin/finance" },
-        { icon: LineChart, label: "Relatórios",       path: "/admin/analytics" },
+        { icon: Wallet,           label: "Fluxo de Caixa",    path: "/admin/finance" },
+        { icon: ArrowDownCircle,  label: "Contas a Receber",  path: "/admin/contas-receber" },
+        { icon: ArrowUpCircle,    label: "Contas a Pagar",    path: "/admin/contas-pagar" },
+        { icon: LineChart,        label: "Relatórios",        path: "/admin/analytics" },
       ],
     },
     {
@@ -140,7 +146,7 @@ export default function AdminDashboard() {
       )}>
         {/* Logo */}
         <div className={cn(
-          "flex items-center gap-3 border-b border-white/5 h-12 shrink-0",
+          "flex items-center gap-3 border-b border-white/5 h-16 shrink-0",
           isSidebarOpen ? "px-4" : "px-0 justify-center"
         )}>
           <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-white shadow-md">
@@ -238,7 +244,7 @@ export default function AdminDashboard() {
             className="fixed inset-y-0 left-0 w-[260px] bg-[#0f172a] text-slate-300 flex flex-col z-[101] lg:hidden border-r border-white/5 shadow-2xl"
           >
             {/* Logo mobile */}
-            <div className="flex items-center justify-between border-b border-white/5 px-4 h-12 shrink-0">
+            <div className="flex items-center justify-between border-b border-white/5 px-4 h-16 shrink-0">
               <div className="flex items-center gap-3">
                 <img src="/system/logo.png" alt="BoxSys" className="h-7 w-7 object-contain rounded-lg" />
                 <div>
@@ -331,26 +337,32 @@ export default function AdminDashboard() {
           </div>
         </header>
 
-        {/* Viewport — PDV usa p-0 para ocupar tela toda */}
+        {/* Viewport */}
         <div className={cn(
-          "flex-1 overflow-y-auto admin-scroll relative",
-          isPDV ? "p-0" : "p-4 lg:p-6 bg-[#f8fafc]"
+          "flex-1 min-h-0",
+          isPDV
+            ? "overflow-hidden flex flex-col"
+            : "overflow-y-auto admin-scroll p-4 lg:p-6 bg-[#f8fafc]"
         )}>
-          <Routes>
-            <Route index element={<Home />} />
-            <Route path="catalog" element={<Inventory />} />
-            <Route path="categories" element={<Categories />} />
-            <Route path="stock" element={<Stock />} />
-            <Route path="pdv" element={<PDV />} />
-            <Route path="customers" element={<Customers />} />
-            <Route path="suppliers" element={<Suppliers />} />
-            <Route path="orders" element={<Orders />} />
-            <Route path="finance" element={<Finance />} />
-            <Route path="analytics" element={<Analytics />} />
-            <Route path="settings" element={<Settings />} />
-            <Route path="loyalty" element={<Loyalty />} />
-            <Route path="inventory" element={<Stock />} />
-          </Routes>
+          <div className={isPDV ? "flex-1 min-h-0 flex flex-col" : ""}>
+            <Routes>
+              <Route index element={<Home />} />
+              <Route path="catalog" element={<Inventory />} />
+              <Route path="categories" element={<Categories />} />
+              <Route path="stock" element={<Stock />} />
+              <Route path="pdv" element={<PDV />} />
+              <Route path="customers" element={<Customers />} />
+              <Route path="suppliers" element={<Suppliers />} />
+              <Route path="orders" element={<Orders />} />
+              <Route path="finance" element={<Finance />} />
+              <Route path="contas-receber" element={<ContasReceber />} />
+              <Route path="contas-pagar" element={<ContasPagar />} />
+              <Route path="analytics" element={<Analytics />} />
+              <Route path="settings" element={<Settings />} />
+              <Route path="loyalty" element={<Loyalty />} />
+              <Route path="inventory" element={<Stock />} />
+            </Routes>
+          </div>
         </div>
 
         {/* Status bar desktop */}

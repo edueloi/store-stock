@@ -43,8 +43,10 @@ model Tenant {
   products        Product[]
   orders          Order[]
   stock_movements StockMovement[]
-  finance         Finance[]
-  customers       Customer[]
+  finance              Finance[]
+  accounts_receivable  AccountReceivable[]
+  accounts_payable     AccountPayable[]
+  customers            Customer[]
   suppliers       Supplier[]
   setup_invites   SetupInvite[]
 
@@ -195,6 +197,44 @@ model Finance {
   tenant Tenant @relation(fields: [tenant_id], references: [id])
 
   @@map("finance")
+}
+
+model AccountReceivable {
+  id            Int       @id @default(autoincrement())
+  tenant_id     Int
+  description   String
+  amount        Decimal   @db.Decimal(10, 2)
+  due_date      DateTime  @db.Date
+  received_date DateTime? @db.Date
+  status        String    @default("pending")
+  category      String?
+  customer_name String?
+  notes         String?   @db.Text
+  created_at    DateTime  @default(now())
+  updated_at    DateTime  @updatedAt
+
+  tenant Tenant @relation(fields: [tenant_id], references: [id])
+
+  @@map("accounts_receivable")
+}
+
+model AccountPayable {
+  id            Int       @id @default(autoincrement())
+  tenant_id     Int
+  description   String
+  amount        Decimal   @db.Decimal(10, 2)
+  due_date      DateTime  @db.Date
+  paid_date     DateTime? @db.Date
+  status        String    @default("pending")
+  category      String?
+  supplier_name String?
+  notes         String?   @db.Text
+  created_at    DateTime  @default(now())
+  updated_at    DateTime  @updatedAt
+
+  tenant Tenant @relation(fields: [tenant_id], references: [id])
+
+  @@map("accounts_payable")
 }
 
 model Customer {
