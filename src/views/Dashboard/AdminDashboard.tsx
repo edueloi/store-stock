@@ -4,7 +4,6 @@ import {
   BarChart3,
   Package,
   ShoppingCart,
-  DollarSign,
   Menu,
   X,
   LogOut,
@@ -14,9 +13,6 @@ import {
   Users,
   Receipt,
   Wallet,
-  Contact2,
-  Table2,
-  Trash2,
   UserCheck,
   Truck,
   FolderOpen,
@@ -45,7 +41,6 @@ export default function AdminDashboard() {
   const [tenantSlug, setTenantSlug] = useState<string>("");
   const [tenantPublicUrl, setTenantPublicUrl] = useState<string>("");
   const [tenantName, setTenantName] = useState<string>("Nexus ERP");
-  const [userName, setUserName] = useState<string>("Admin");
   const location = useLocation();
   const navigate = useNavigate();
 
@@ -131,49 +126,45 @@ export default function AdminDashboard() {
         if (data?.public_url) setTenantPublicUrl(data.public_url);
       })
       .catch(() => {});
-
-    // Read user name from stored user object
-    try {
-      const stored = localStorage.getItem("user");
-      if (stored) {
-        const u = JSON.parse(stored);
-        if (u?.name) setUserName(u.name);
-      }
-    } catch {}
   }, [navigate]);
+
+  const isPDV = location.pathname === "/admin/pdv";
 
   return (
     <div className="flex h-screen bg-[#f8fafc] overflow-hidden font-sans text-slate-800 relative">
-      {/* Sidebar Navigation - Desktop */}
-      <aside
-        className={cn(
-          "bg-[#0f172a] text-slate-300 hidden lg:flex flex-col border-r border-white/5 transition-all duration-300 shrink-0",
-          isSidebarOpen ? "w-64" : "w-[72px]"
-        )}
-      >
+
+      {/* ── SIDEBAR DESKTOP ─────────────────────────────────────────────── */}
+      <aside className={cn(
+        "bg-[#0f172a] text-slate-300 hidden lg:flex flex-col border-r border-white/5 transition-all duration-300 shrink-0",
+        isSidebarOpen ? "w-60" : "w-[60px]"
+      )}>
         {/* Logo */}
-        <div className={cn("flex items-center gap-3 border-b border-white/5", isSidebarOpen ? "px-5 py-5" : "px-4 py-5 justify-center")}>
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white shadow-md">
-            <img src="/system/logo.png" alt="BoxSys" className="h-6 w-6 object-contain" />
+        <div className={cn(
+          "flex items-center gap-3 border-b border-white/5 h-12 shrink-0",
+          isSidebarOpen ? "px-4" : "px-0 justify-center"
+        )}>
+          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-white shadow-md">
+            <img src="/system/logo.png" alt="BoxSys" className="h-5 w-5 object-contain" />
           </div>
           {isSidebarOpen && (
-            <div>
-              <p className="text-[11px] font-black uppercase tracking-[0.2em] text-slate-400">Box Sys</p>
-              <p className="text-sm font-bold text-white leading-tight truncate">{tenantName}</p>
+            <div className="min-w-0">
+              <p className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-500 leading-none">Box Sys</p>
+              <p className="text-[13px] font-bold text-white leading-tight truncate mt-0.5">{tenantName}</p>
             </div>
           )}
         </div>
 
-        {/* Nav groups */}
-        <nav className="flex-1 overflow-y-auto py-4 space-y-5 px-3">
+        {/* Nav */}
+        <nav className="flex-1 overflow-y-auto admin-scroll py-2 px-2 space-y-3">
           {menuGroups.map((group) => (
             <div key={group.label}>
               {isSidebarOpen && (
-                <p className="mb-1.5 px-2 text-[10px] font-bold uppercase tracking-[0.2em] text-slate-600">
+                <p className="mb-1 px-2 text-[9px] font-black uppercase tracking-[0.18em] text-slate-600">
                   {group.label}
                 </p>
               )}
-              <div className="space-y-0.5">
+              {!isSidebarOpen && <div className="my-1 mx-2 border-t border-white/5" />}
+              <div className="space-y-px">
                 {group.items.map((item) => {
                   const isActive = location.pathname === item.path || (item.path === "/admin" && location.pathname === "/admin/");
                   return (
@@ -181,16 +172,16 @@ export default function AdminDashboard() {
                       key={item.path}
                       to={item.path}
                       className={cn(
-                        "group flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold transition-all relative",
+                        "group flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-[13px] font-semibold transition-all relative",
                         isActive
-                          ? "bg-[#C9A227] text-white shadow-[0_4px_16px_rgba(201,162,39,0.30)]"
+                          ? "bg-[#C9A227] text-white shadow-[0_2px_12px_rgba(201,162,39,0.35)]"
                           : "text-slate-400 hover:bg-white/5 hover:text-white"
                       )}
                     >
-                      <item.icon size={17} className="shrink-0" />
-                      {isSidebarOpen && <span>{item.label}</span>}
+                      <item.icon size={16} className="shrink-0" />
+                      {isSidebarOpen && <span className="truncate">{item.label}</span>}
                       {!isSidebarOpen && (
-                        <div className="absolute left-[68px] z-50 whitespace-nowrap rounded-lg bg-slate-800 px-2.5 py-1.5 text-[11px] font-bold text-white opacity-0 shadow-xl transition-opacity group-hover:opacity-100 pointer-events-none">
+                        <div className="absolute left-[56px] z-50 whitespace-nowrap rounded-lg bg-slate-800 border border-slate-700 px-2.5 py-1.5 text-[11px] font-bold text-white opacity-0 shadow-xl transition-opacity group-hover:opacity-100 pointer-events-none">
                           {item.label}
                         </div>
                       )}
@@ -203,83 +194,81 @@ export default function AdminDashboard() {
         </nav>
 
         {/* Footer */}
-        <div className="border-t border-white/5 p-3 space-y-1">
-          <button
-            onClick={viewPublicStore}
-            className="group flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold text-slate-400 transition-all hover:bg-white/5 hover:text-white"
-          >
-            <Package size={17} className="shrink-0" />
+        <div className="border-t border-white/5 p-2 space-y-px">
+          <button onClick={viewPublicStore}
+            className="group flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-[13px] font-semibold text-slate-400 transition-all hover:bg-white/5 hover:text-white relative">
+            <Package size={16} className="shrink-0" />
             {isSidebarOpen && <span>Ver Loja</span>}
+            {!isSidebarOpen && (
+              <div className="absolute left-[56px] z-50 whitespace-nowrap rounded-lg bg-slate-800 border border-slate-700 px-2.5 py-1.5 text-[11px] font-bold text-white opacity-0 shadow-xl transition-opacity group-hover:opacity-100 pointer-events-none">
+                Ver Loja
+              </div>
+            )}
           </button>
-          <button
-            onClick={handleLogout}
-            className="group flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold text-slate-400 transition-all hover:bg-red-500/10 hover:text-red-400"
-          >
-            <LogOut size={17} className="shrink-0" />
+          <button onClick={handleLogout}
+            className="group flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-[13px] font-semibold text-slate-400 transition-all hover:bg-red-500/10 hover:text-red-400 relative">
+            <LogOut size={16} className="shrink-0" />
             {isSidebarOpen && <span>Sair</span>}
+            {!isSidebarOpen && (
+              <div className="absolute left-[56px] z-50 whitespace-nowrap rounded-lg bg-slate-800 border border-slate-700 px-2.5 py-1.5 text-[11px] font-bold text-white opacity-0 shadow-xl transition-opacity group-hover:opacity-100 pointer-events-none">
+                Sair
+              </div>
+            )}
           </button>
         </div>
       </aside>
 
-      {/* Mobile Drawer Overlay */}
+      {/* ── MOBILE OVERLAY ──────────────────────────────────────────────── */}
       <AnimatePresence>
         {isSidebarOpen && (
           <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
             onClick={() => setIsSidebarOpen(false)}
             className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[100] lg:hidden"
           />
         )}
       </AnimatePresence>
 
-      {/* Mobile Sidebar - Drawer */}
+      {/* ── MOBILE SIDEBAR DRAWER ───────────────────────────────────────── */}
       <AnimatePresence>
         {isSidebarOpen && (
           <motion.aside
-            initial={{ x: "-100%" }}
-            animate={{ x: 0 }}
-            exit={{ x: "-100%" }}
-            transition={{ type: "spring", damping: 25, stiffness: 200 }}
-            className="fixed inset-y-0 left-0 w-[280px] bg-[#0f172a] text-slate-300 flex flex-col z-[101] lg:hidden border-r border-white/5 shadow-2xl"
+            initial={{ x: "-100%" }} animate={{ x: 0 }} exit={{ x: "-100%" }}
+            transition={{ type: "spring", damping: 28, stiffness: 220 }}
+            className="fixed inset-y-0 left-0 w-[260px] bg-[#0f172a] text-slate-300 flex flex-col z-[101] lg:hidden border-r border-white/5 shadow-2xl"
           >
             {/* Logo mobile */}
-            <div className="flex items-center justify-between border-b border-white/5 px-5 py-5">
+            <div className="flex items-center justify-between border-b border-white/5 px-4 h-12 shrink-0">
               <div className="flex items-center gap-3">
-                <img src="/system/logo.png" alt="BoxSys" className="h-8 w-8 object-contain rounded-lg" />
+                <img src="/system/logo.png" alt="BoxSys" className="h-7 w-7 object-contain rounded-lg" />
                 <div>
-                  <p className="text-[11px] font-black uppercase tracking-[0.2em] text-slate-400">Box Sys</p>
-                  <p className="text-sm font-bold text-white leading-tight truncate">{tenantName}</p>
+                  <p className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-500 leading-none">Box Sys</p>
+                  <p className="text-[13px] font-bold text-white leading-tight truncate mt-0.5">{tenantName}</p>
                 </div>
               </div>
-              <button onClick={() => setIsSidebarOpen(false)} className="p-2 text-slate-500 hover:text-white">
-                <X size={20} />
+              <button onClick={() => setIsSidebarOpen(false)} className="p-1.5 text-slate-500 hover:text-white rounded-lg hover:bg-white/5">
+                <X size={18} />
               </button>
             </div>
 
-            <nav className="flex-1 overflow-y-auto py-4 space-y-5 px-3">
+            <nav className="flex-1 overflow-y-auto admin-scroll py-2 px-2 space-y-3">
               {menuGroups.map((group) => (
                 <div key={group.label}>
-                  <p className="mb-1.5 px-2 text-[10px] font-bold uppercase tracking-[0.2em] text-slate-600">
+                  <p className="mb-1 px-2 text-[9px] font-black uppercase tracking-[0.18em] text-slate-600">
                     {group.label}
                   </p>
-                  <div className="space-y-0.5">
+                  <div className="space-y-px">
                     {group.items.map((item) => {
                       const isActive = location.pathname === item.path || (item.path === "/admin" && location.pathname === "/admin/");
                       return (
-                        <Link
-                          key={item.path}
-                          to={item.path}
-                          onClick={() => setIsSidebarOpen(false)}
+                        <Link key={item.path} to={item.path} onClick={() => setIsSidebarOpen(false)}
                           className={cn(
-                            "flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-semibold transition-all",
+                            "flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-[13px] font-semibold transition-all",
                             isActive
-                              ? "bg-[#C9A227] text-white shadow-[0_4px_16px_rgba(201,162,39,0.30)]"
+                              ? "bg-[#C9A227] text-white shadow-[0_2px_12px_rgba(201,162,39,0.35)]"
                               : "text-slate-400 hover:bg-white/5 hover:text-white"
-                          )}
-                        >
-                          <item.icon size={18} />
+                          )}>
+                          <item.icon size={16} />
                           <span>{item.label}</span>
                         </Link>
                       );
@@ -289,103 +278,95 @@ export default function AdminDashboard() {
               ))}
             </nav>
 
-            <div className="border-t border-white/5 p-3 space-y-1">
-              <button
-                onClick={() => { setIsSidebarOpen(false); viewPublicStore(); }}
-                className="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-sm font-semibold text-slate-400 transition-all hover:bg-white/5 hover:text-white"
-              >
-                <Package size={18} />
-                <span>Ver Loja</span>
+            <div className="border-t border-white/5 p-2 space-y-px">
+              <button onClick={() => { setIsSidebarOpen(false); viewPublicStore(); }}
+                className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-[13px] font-semibold text-slate-400 transition-all hover:bg-white/5 hover:text-white">
+                <Package size={16} /><span>Ver Loja</span>
               </button>
-              <button
-                onClick={handleLogout}
-                className="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-sm font-semibold text-slate-400 transition-all hover:bg-red-500/10 hover:text-red-400"
-              >
-                <LogOut size={18} />
-                <span>Sair</span>
+              <button onClick={handleLogout}
+                className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-[13px] font-semibold text-slate-400 transition-all hover:bg-red-500/10 hover:text-red-400">
+                <LogOut size={16} /><span>Sair</span>
               </button>
             </div>
           </motion.aside>
         )}
       </AnimatePresence>
 
-      {/* Main Content Area */}
-      <main className="flex-1 flex flex-col overflow-hidden w-full">
+      {/* ── MAIN CONTENT ────────────────────────────────────────────────── */}
+      <main className="flex-1 flex flex-col overflow-hidden w-full min-w-0">
+
         {/* Header */}
-        <header className="h-16 lg:h-14 bg-white border-b border-slate-200 flex items-center justify-between px-4 lg:px-6 shrink-0 shadow-sm z-10 transition-all">
-          <div className="flex items-center gap-3 lg:gap-4">
-            <button
-              onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-              className="hidden lg:flex p-2 hover:bg-slate-50 rounded-lg text-slate-500 focus:outline-none bg-slate-50 border border-slate-200"
-            >
-              <Menu size={20} />
+        <header className="h-12 bg-white border-b border-slate-200 flex items-center justify-between px-4 shrink-0 shadow-sm z-10">
+          <div className="flex items-center gap-3">
+            {/* Toggle sidebar desktop */}
+            <button onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+              className="hidden lg:flex p-1.5 hover:bg-slate-100 rounded-lg text-slate-500 border border-slate-200 transition-all">
+              <Menu size={17} />
             </button>
-            <div className="flex flex-col lg:flex-row lg:items-center gap-0 lg:gap-4">
-              <h1 className="text-xs lg:text-sm font-black text-slate-900 uppercase tracking-tight">
-                {menuItems.find(m => m.path === location.pathname)?.label || "Dashboard"}
-              </h1>
-              <div className="hidden lg:block h-4 w-px bg-slate-300"></div>
-              <span className="text-[8px] lg:text-[10px] text-blue-600 font-black uppercase tracking-widest flex items-center gap-1.5 leading-none">
-                <div className="w-1 h-1 rounded-full bg-blue-600 animate-pulse"></div>
-                Produção Ativa
-              </span>
-            </div>
+            {/* Open drawer mobile */}
+            <button onClick={() => setIsSidebarOpen(true)}
+              className="lg:hidden p-1.5 hover:bg-slate-100 rounded-lg text-slate-500">
+              <Menu size={17} />
+            </button>
+            <h1 className="text-[11px] font-black text-slate-900 uppercase tracking-widest leading-none">
+              {menuItems.find(m => m.path === location.pathname)?.label || "Dashboard"}
+            </h1>
+            <span className="hidden sm:flex text-[9px] text-blue-600 font-black uppercase tracking-widest items-center gap-1.5 leading-none">
+              <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse" />
+              Produção Ativa
+            </span>
           </div>
-          
-          <div className="flex items-center gap-2 lg:gap-4 text-xs font-bold">
-            <button 
-              onClick={viewPublicStore}
-              className="px-3 h-10 lg:h-9 bg-white border border-slate-200 rounded-xl flex items-center gap-2 hover:bg-slate-50 text-slate-600 transition-all shadow-sm"
-            >
-              <BarChart3 size={14} className="hidden sm:block" />
-              <span className="text-[10px] uppercase tracking-tighter">Loja</span>
+
+          <div className="flex items-center gap-2">
+            <button onClick={viewPublicStore}
+              className="h-8 px-3 bg-white border border-slate-200 rounded-lg flex items-center gap-1.5 hover:bg-slate-50 text-slate-600 transition-all text-[10px] font-bold uppercase tracking-tight">
+              <BarChart3 size={13} />
+              <span className="hidden sm:inline">Loja</span>
             </button>
-            
-            <Link 
-              to="/admin/pdv" 
-              className="px-3 md:px-5 h-10 lg:h-9 bg-blue-600 text-white rounded-xl flex items-center gap-2 shadow-lg shadow-blue-500/20 transition-all hover:bg-blue-700 active:scale-95"
-            >
-              <ShoppingCart size={14} />
-              <span className="hidden md:inline text-[10px] uppercase tracking-widest">Nova Venda</span>
+            <Link to="/admin/pdv"
+              className="h-8 px-3 bg-blue-600 text-white rounded-lg flex items-center gap-1.5 shadow-md shadow-blue-500/25 transition-all hover:bg-blue-700 active:scale-95 text-[10px] font-black uppercase tracking-widest">
+              <ShoppingCart size={13} />
+              <span className="hidden sm:inline">Nova Venda</span>
             </Link>
           </div>
         </header>
 
-        {/* Viewport */}
+        {/* Viewport — PDV usa p-0 para ocupar tela toda */}
         <div className={cn(
-          "flex-1 overflow-y-auto relative transition-all duration-300",
-          "p-4 lg:p-8 bg-[#f8fafc]"
+          "flex-1 overflow-y-auto admin-scroll relative",
+          isPDV ? "p-0" : "p-4 lg:p-6 bg-[#f8fafc]"
         )}>
-           <Routes>
-             <Route index element={<Home />} />
-             <Route path="catalog" element={<Inventory />} />
-             <Route path="categories" element={<Categories />} />
-             <Route path="stock" element={<Stock />} />
-             <Route path="pdv" element={<PDV />} />
-             <Route path="customers" element={<Customers />} />
-             <Route path="suppliers" element={<Suppliers />} />
-             <Route path="orders" element={<Orders />} />
-             <Route path="finance" element={<Finance />} />
-             <Route path="analytics" element={<Analytics />} />
-             <Route path="settings" element={<Settings />} />
-             <Route path="loyalty" element={<Loyalty />} />
-             <Route path="inventory" element={<Stock />} />
-           </Routes>
+          <Routes>
+            <Route index element={<Home />} />
+            <Route path="catalog" element={<Inventory />} />
+            <Route path="categories" element={<Categories />} />
+            <Route path="stock" element={<Stock />} />
+            <Route path="pdv" element={<PDV />} />
+            <Route path="customers" element={<Customers />} />
+            <Route path="suppliers" element={<Suppliers />} />
+            <Route path="orders" element={<Orders />} />
+            <Route path="finance" element={<Finance />} />
+            <Route path="analytics" element={<Analytics />} />
+            <Route path="settings" element={<Settings />} />
+            <Route path="loyalty" element={<Loyalty />} />
+            <Route path="inventory" element={<Stock />} />
+          </Routes>
         </div>
 
-        {/* Bottom Bar - Desktop status bar */}
-        <footer className="hidden lg:flex h-8 bg-slate-900 border-t border-slate-800 px-6 items-center justify-between shrink-0 overflow-hidden">
-          <div className="text-[10px] text-slate-400 font-bold uppercase tracking-widest truncate">
+        {/* Status bar desktop */}
+        <footer className="hidden lg:flex h-7 bg-slate-900 border-t border-slate-800 px-5 items-center justify-between shrink-0">
+          <span className="text-[9px] text-slate-500 font-bold uppercase tracking-widest truncate">
             BoxSys Store · Sistema de Gestão para Lojas
-          </div>
-          <div className="flex gap-4">
-            <span className="text-[10px] text-emerald-400 font-bold uppercase">Online</span>
-            <span className="text-[10px] text-slate-500 font-bold uppercase">v.BoxSys-1.0</span>
+          </span>
+          <div className="flex gap-4 shrink-0">
+            <span className="text-[9px] text-emerald-400 font-bold uppercase">Online</span>
+            <span className="text-[9px] text-slate-600 font-bold uppercase">v.BoxSys-1.0</span>
           </div>
         </footer>
 
-        {/* Mobile Bottom Navigation */}
-        <nav className="lg:hidden shrink-0 bg-white border-t border-slate-200 flex items-stretch" style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
+        {/* Bottom nav mobile */}
+        <nav className="lg:hidden shrink-0 bg-white border-t border-slate-200 flex items-stretch"
+          style={{ paddingBottom: "env(safe-area-inset-bottom, 0px)" }}>
           {[
             { icon: LayoutDashboard, label: "Home",     path: "/admin" },
             { icon: Tags,            label: "Catálogo", path: "/admin/catalog" },
@@ -395,25 +376,18 @@ export default function AdminDashboard() {
           ].map((item) => {
             const isActive = location.pathname === item.path || (item.path === "/admin" && location.pathname === "/admin/");
             return (
-              <Link
-                key={item.path}
-                to={item.path}
-                className={cn(
-                  "flex-1 flex flex-col items-center justify-center gap-1 py-2 transition-colors",
-                  isActive ? "text-blue-600" : "text-slate-400"
-                )}
-              >
-                <item.icon size={20} strokeWidth={isActive ? 2.5 : 1.5} />
-                <span className="text-[9px] font-bold uppercase tracking-wide leading-none">{item.label}</span>
+              <Link key={item.path} to={item.path}
+                className={cn("flex-1 flex flex-col items-center justify-center gap-0.5 py-2 transition-colors",
+                  isActive ? "text-blue-600" : "text-slate-400")}>
+                <item.icon size={19} strokeWidth={isActive ? 2.5 : 1.5} />
+                <span className="text-[8px] font-bold uppercase tracking-wide leading-none">{item.label}</span>
               </Link>
             );
           })}
-          <button
-            onClick={() => setIsSidebarOpen(true)}
-            className="flex-1 flex flex-col items-center justify-center gap-1 py-2 text-slate-400"
-          >
-            <Menu size={20} strokeWidth={1.5} />
-            <span className="text-[9px] font-bold uppercase tracking-wide leading-none">Mais</span>
+          <button onClick={() => setIsSidebarOpen(true)}
+            className="flex-1 flex flex-col items-center justify-center gap-0.5 py-2 text-slate-400">
+            <Menu size={19} strokeWidth={1.5} />
+            <span className="text-[8px] font-bold uppercase tracking-wide leading-none">Mais</span>
           </button>
         </nav>
       </main>
