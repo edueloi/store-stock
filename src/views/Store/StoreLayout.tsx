@@ -69,6 +69,7 @@ function StoreLayoutInner() {
   const location = useLocation();
   const [storeData, setStoreData] = useState<{ tenant: Tenant; categories: Category[]; products: Product[] } | null>(null);
   const [loading, setLoading] = useState(true);
+  const [accessDenied, setAccessDenied] = useState<string | null>(null);
   const [cart, setCart] = useState<CartItem[]>([]);
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -82,9 +83,11 @@ function StoreLayoutInner() {
     const endpoint = storeSlug ? `/api/public/store/${storeSlug}` : "/api/public/store";
 
     fetch(endpoint)
-      .then(r => r.json())
-      .then(data => {
-        if (data && !data.error) {
+      .then(async r => {
+        const data = await r.json();
+        if (r.status === 403) {
+          setAccessDenied(data.error || "Loja indisponível.");
+        } else if (data && !data.error) {
           setStoreData({
             tenant: data.tenant,
             categories: Array.isArray(data.categories) ? data.categories : [],
@@ -134,6 +137,19 @@ function StoreLayoutInner() {
       <div className="h-screen flex flex-col items-center justify-center gap-4 bg-white">
         <div className="w-10 h-10 border-4 border-blue-600 border-t-transparent rounded-full animate-spin" />
         <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Carregando loja...</p>
+      </div>
+    );
+  }
+
+  if (accessDenied) {
+    return (
+      <div className="h-screen flex flex-col items-center justify-center gap-6 bg-slate-50 px-6 text-center">
+        <div className="w-16 h-16 rounded-2xl bg-slate-100 flex items-center justify-center text-3xl">🔒</div>
+        <div>
+          <p className="text-xl font-black text-slate-800 mb-1">Loja indisponível</p>
+          <p className="text-sm text-slate-500 max-w-xs">{accessDenied}</p>
+        </div>
+        <p className="text-[10px] font-bold uppercase tracking-widest text-slate-300">Em breve por aqui</p>
       </div>
     );
   }

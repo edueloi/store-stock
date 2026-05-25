@@ -106,7 +106,8 @@ export default function AdminDashboard() {
   const menuItems = menuGroups.flatMap((g) => g.items);
 
   const viewPublicStore = () => {
-    window.open(tenantPublicUrl || `/s/${tenantSlug}`, "_blank");
+    const isLocal = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1";
+    window.open(isLocal ? `/s/${tenantSlug}` : (tenantPublicUrl || `/s/${tenantSlug}`), "_blank");
   };
 
   const handleLogout = () => {

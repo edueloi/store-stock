@@ -68,6 +68,7 @@ export default function PDV() {
   const [installments, setInstallments] = useState(1);
   // card fee rates loaded from tenant settings
   const [cardFees, setCardFees] = useState<Record<string, number[]>>({});
+  const [amountReceived, setAmountReceived] = useState("");
 
   const token = localStorage.getItem("token");
 
@@ -173,8 +174,12 @@ export default function PDV() {
   const total = baseTotal + feeAmount;
   const installmentValue = paymentMethod === "credit" && installments > 1 ? total / installments : 0;
 
+  const amountReceivedNum = Number(amountReceived) || 0;
+  const change = paymentMethod === "money" && amountReceivedNum > 0 ? amountReceivedNum - total : 0;
+
   const handleFinishSale = async () => {
     if (cart.length === 0 || finishing) return;
+    if (paymentMethod === "money" && amountReceivedNum > 0 && amountReceivedNum < total) return;
     setFinishing(true);
     try {
       const res = await fetch("/api/sales", {
@@ -202,6 +207,7 @@ export default function PDV() {
         setPaymentMethod("money");
         setCardBrand("visa");
         setInstallments(1);
+        setAmountReceived("");
         setSuccess(true);
         setShowCartMobile(false);
         setTimeout(() => setSuccess(false), 3000);
@@ -536,6 +542,9 @@ export default function PDV() {
           cardFees={cardFees}
           discount={discount}
           setDiscount={setDiscount}
+          amountReceived={amountReceived}
+          setAmountReceived={setAmountReceived}
+          change={change}
           subtotal={subtotal}
           discountValue={discountValue}
           feeAmount={feeAmount}
@@ -583,6 +592,9 @@ export default function PDV() {
                   cardFees={cardFees}
                   discount={discount}
                   setDiscount={setDiscount}
+                  amountReceived={amountReceived}
+                  setAmountReceived={setAmountReceived}
+                  change={change}
                   subtotal={subtotal}
                   discountValue={discountValue}
                   feeAmount={feeAmount}
@@ -618,6 +630,9 @@ function CartContent({
   cardFees,
   discount,
   setDiscount,
+  amountReceived,
+  setAmountReceived,
+  change,
   subtotal,
   discountValue,
   feeAmount,
@@ -643,6 +658,9 @@ function CartContent({
   cardFees: Record<string, number[]>;
   discount: string;
   setDiscount: (v: string) => void;
+  amountReceived: string;
+  setAmountReceived: (v: string) => void;
+  change: number;
   subtotal: number;
   discountValue: number;
   feeAmount: number;
@@ -869,6 +887,26 @@ function CartContent({
           />
         </div>
 
+        {/* Cash: valor recebido */}
+        {paymentMethod === "money" && (
+          <div className="relative">
+            <Banknote className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-600" size={14} />
+            <input
+              type="number"
+              min="0"
+              placeholder="VALOR RECEBIDO (R$)..."
+              className={cn(
+                "w-full pl-9 pr-4 h-10 bg-slate-800/50 border rounded-xl focus:outline-none text-[10px] font-bold uppercase tracking-widest text-white placeholder:text-slate-600 transition-all [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none",
+                amountReceived && Number(amountReceived) < total
+                  ? "border-red-500 focus:border-red-500"
+                  : "border-slate-700/50 focus:border-blue-500"
+              )}
+              value={amountReceived}
+              onChange={(e) => setAmountReceived(e.target.value)}
+            />
+          </div>
+        )}
+
         {/* Totals */}
         <div className="space-y-1.5 pt-1">
           {discountValue > 0 && (
@@ -903,6 +941,20 @@ function CartContent({
               <span className="font-mono">R$ {installmentValue.toFixed(2)}</span>
             </div>
           )}
+          {/* Troco */}
+          {paymentMethod === "money" && amountReceived && Number(amountReceived) > 0 && (
+            <div className={cn(
+              "flex justify-between text-[10px] font-black uppercase tracking-widest mt-1 pt-2 border-t border-slate-700/50",
+              change >= 0 ? "text-emerald-400" : "text-red-400"
+            )}>
+              <span>{change >= 0 ? "Troco" : "Faltam"}</span>
+              <span className="font-mono">
+                {change >= 0
+                  ? `R$ ${change.toFixed(2)}`
+                  : `R$ ${Math.abs(change).toFixed(2)}`}
+              </span>
+            </div>
+          )}
         </div>
 
         {/* Finish button */}
@@ -921,7 +973,11 @@ function CartContent({
             <motion.button
               key="btn"
               onClick={handleFinishSale}
-              disabled={cart.length === 0 || finishing}
+              disabled={
+                cart.length === 0 ||
+                finishing ||
+                (paymentMethod === "money" && !!amountReceived && Number(amountReceived) < total)
+              }
               className="w-full h-14 bg-blue-600 text-white rounded-2xl text-[11px] font-black uppercase tracking-widest hover:bg-blue-700 transition-all disabled:opacity-20 disabled:grayscale shadow-2xl shadow-blue-500/30 active:scale-[0.98] flex items-center justify-center gap-3"
             >
               {finishing ? (
