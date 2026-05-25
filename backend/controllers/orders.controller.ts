@@ -9,12 +9,32 @@ function getTenantId(req: Request) {
 
 export async function listOrders(req: Request, res: Response) {
   try {
+    const limit = req.query.limit ? Number(req.query.limit) : undefined;
     const orders = await prisma.order.findMany({
       where: { tenant_id: getTenantId(req) },
       orderBy: { created_at: "desc" },
+      take: limit,
+      include: {
+        items: {
+          include: {
+            product: {
+              select: { name: true, image_url: true },
+            },
+          },
+        },
+      },
     });
 
-    res.json(orders);
+    res.json(orders.map((order) => ({
+      ...order,
+      items: order.items.map((item) => ({
+        id: item.id,
+        product_name: item.product.name,
+        image_url: item.product.image_url,
+        quantity: item.quantity,
+        unit_price: item.unit_price,
+      })),
+    })));
   } catch {
     res.status(500).json({ error: "Failed to fetch orders" });
   }

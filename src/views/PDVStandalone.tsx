@@ -19,6 +19,12 @@ import {
   Mail,
   LogOut,
   Store,
+  Printer,
+  FileText,
+  MessageCircle,
+  Phone,
+  ChevronRight,
+  ChevronDown,
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { Product, Category } from "../types";
@@ -43,6 +49,23 @@ interface CartItem extends Product {
   cartItemId: string;
   variationLabel: string;
   selectedOptions?: Record<string, string>;
+}
+
+interface CompletedSale {
+  orderId: number;
+  customerName: string;
+  paymentMethod: string;
+  items: { name: string; quantity: number; price: number; image_url?: string }[];
+  subtotal: number;
+  discountValue: number;
+  feeAmount: number;
+  creditFeeRate: number;
+  total: number;
+  change: number;
+  installments: number;
+  cardBrand: string;
+  tenantName: string;
+  tenantAddress: string;
 }
 
 // ─── LOGIN ────────────────────────────────────────────────────────────────────
@@ -134,11 +157,17 @@ export default function PDVStandalone() {
   const [amountReceived, setAmountReceived] = useState("");
   const [loading, setLoading]             = useState(false);
   const [finishing, setFinishing]         = useState(false);
-  const [success, setSuccess]             = useState(false);
   const [showCartMobile, setShowCartMobile] = useState(false);
   const [configProduct, setConfigProduct] = useState<Product | null>(null);
   const [selectedOptions, setSelectedOptions] = useState<Record<string, string>>({});
   const [tenantName, setTenantName]       = useState("PDV");
+  const [tenantAddress, setTenantAddress] = useState("");
+
+  // receipt modal
+  const [completedSale, setCompletedSale]   = useState<CompletedSale | null>(null);
+  const [showReceipt, setShowReceipt]       = useState(false);
+  const [whatsappPhone, setWhatsappPhone]   = useState("");
+  const [showPhoneInput, setShowPhoneInput] = useState(false);
 
   const handleLogin = (newToken: string) => setToken(newToken);
 
@@ -162,6 +191,7 @@ export default function PDVStandalone() {
         setProducts(Array.isArray(prods) ? prods : []);
         setCategories(Array.isArray(cats) ? cats : []);
         if (tenant?.name)      setTenantName(tenant.name);
+        if (tenant?.address)   setTenantAddress(tenant.address);
         if (tenant?.card_fees) setCardFees(tenant.card_fees);
       })
       .catch(() => {})
@@ -224,6 +254,9 @@ export default function PDVStandalone() {
     if (paymentMethod === "money" && (!amountReceived || amountReceivedNum < total)) return;
     setFinishing(true);
     try {
+      const pmString = paymentMethod === "credit"
+        ? `crédito-${cardBrand}${installments > 1 ? `-${installments}x` : ""}`
+        : paymentMethod === "debit" ? `débito-${cardBrand}` : paymentMethod;
       const res = await fetch("/api/sales", {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
@@ -231,15 +264,25 @@ export default function PDVStandalone() {
           items: cart.map((i) => ({ id: i.id, quantity: i.quantity, price: i.price })),
           customerName,
           totalAmount: total,
-          paymentMethod: paymentMethod === "credit"
-            ? `crédito-${cardBrand}${installments > 1 ? `-${installments}x` : ""}`
-            : paymentMethod === "debit"
-            ? `débito-${cardBrand}`
-            : paymentMethod,
+          paymentMethod: pmString,
           discount: discountValue,
         }),
       });
       if (res.ok) {
+        const data = await res.json();
+        const sale: CompletedSale = {
+          orderId:      data.orderId,
+          customerName,
+          paymentMethod: pmString,
+          items: cart.map((i) => ({ name: i.name, quantity: i.quantity, price: i.price, image_url: i.image_url })),
+          subtotal, discountValue, feeAmount, creditFeeRate, total,
+          change: paymentMethod === "money" ? Math.max(0, change) : 0,
+          installments: paymentMethod === "credit" ? installments : 1,
+          cardBrand: (paymentMethod === "credit" || paymentMethod === "debit") ? cardBrand : "",
+          tenantName,
+          tenantAddress,
+        };
+        setCompletedSale(sale);
         setCart([]);
         setCustomerName("");
         setDiscount("");
@@ -247,12 +290,13 @@ export default function PDVStandalone() {
         setPaymentMethod("money");
         setCardBrand("visa");
         setInstallments(1);
-        setSuccess(true);
         setShowCartMobile(false);
-        setTimeout(() => setSuccess(false), 3000);
+        setShowReceipt(true);
+        setWhatsappPhone("");
+        setShowPhoneInput(false);
         fetch("/api/products", { headers: { Authorization: `Bearer ${token}` } })
           .then((r) => r.json())
-          .then((data) => setProducts(Array.isArray(data) ? data : []));
+          .then((d) => setProducts(Array.isArray(d) ? d : []));
       }
     } catch {
       console.error("Sale failed");
@@ -273,6 +317,189 @@ export default function PDVStandalone() {
 
   if (!token) return <PDVLogin onLogin={handleLogin} />;
 
+  // ── receipt helpers ──────────────────────────────────────────────────────────
+  const buildThermalHtml = (sale: CompletedSale) => {
+    const paymentLabel: Record<string, string> = { money: "Dinheiro", pix: "PIX", debit: "Débito", credit: "Crédito" };
+    const pmKey = sale.paymentMethod.split("-")[0];
+    const pmLabel = paymentLabel[pmKey] ?? sale.paymentMethod;
+    const now = new Date().toLocaleString("pt-BR");
+    return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Comprovante #${String(sale.orderId).padStart(5, "0")}</title>
+<style>
+  * { box-sizing: border-box; }
+  body { font-family: 'Courier New', monospace; font-size: 13px; max-width: 320px; margin: 0 auto; padding: 20px 16px; color: #000; background: #fff; }
+  h1 { font-size: 14px; text-align: center; margin: 0 0 2px; text-transform: uppercase; letter-spacing: 2px; }
+  .sub { text-align: center; font-size: 11px; color: #555; margin: 0 0 3px; }
+  hr { border: none; border-top: 1px dashed #000; margin: 8px 0; }
+  .row { display: flex; justify-content: space-between; font-size: 12px; margin: 3px 0; }
+  .row .lbl { color: #555; }
+  .item-name { font-weight: bold; font-size: 12px; }
+  .item-sub { font-size: 11px; color: #555; }
+  .item-price { font-weight: bold; text-align: right; white-space: nowrap; }
+  .total-row { display: flex; justify-content: space-between; font-size: 16px; font-weight: bold; margin: 6px 0; }
+  .troco { display: flex; justify-content: space-between; font-size: 13px; font-weight: bold; color: #166534; margin: 3px 0; }
+  .footer { text-align: center; font-size: 10px; color: #777; margin-top: 16px; line-height: 1.6; }
+  @media print { @page { margin: 0; size: 80mm auto; } body { padding: 10px 8px; } }
+</style></head><body>
+<h1>${sale.tenantName}</h1>
+${sale.tenantAddress ? `<p class="sub">${sale.tenantAddress}</p>` : ""}
+<p class="sub">Comprovante #${String(sale.orderId).padStart(5, "0")}</p>
+<p class="sub">${now}</p>
+<hr/>
+<div class="row"><span class="lbl">Cliente:</span><strong>${sale.customerName || "Consumidor Final"}</strong></div>
+<hr/>
+<p style="font-weight:bold;font-size:11px;text-transform:uppercase;letter-spacing:1px;margin:4px 0">Itens</p>
+${sale.items.map((item) => `
+<div style="margin:5px 0">
+  <div class="row"><span class="item-name">${item.name}</span><span class="item-price">R$ ${(item.price * item.quantity).toFixed(2)}</span></div>
+  <div class="item-sub">${item.quantity} un × R$ ${item.price.toFixed(2)}</div>
+</div>`).join("")}
+<hr/>
+${sale.discountValue > 0 ? `<div class="row"><span class="lbl">Subtotal</span><span>R$ ${sale.subtotal.toFixed(2)}</span></div><div class="row"><span class="lbl">Desconto</span><span>− R$ ${sale.discountValue.toFixed(2)}</span></div>` : ""}
+${sale.feeAmount > 0 ? `<div class="row"><span class="lbl">Juros (${sale.creditFeeRate}%)</span><span>+ R$ ${sale.feeAmount.toFixed(2)}</span></div>` : ""}
+<div class="total-row"><span>TOTAL</span><span>R$ ${sale.total.toFixed(2)}</span></div>
+${sale.installments > 1 ? `<div class="row"><span class="lbl">${sale.installments}× de</span><span>R$ ${(sale.total / sale.installments).toFixed(2)}</span></div>` : ""}
+<hr/>
+<div class="row"><span class="lbl">Pagamento:</span><strong>${pmLabel}${sale.cardBrand && sale.cardBrand !== "other" ? ` · ${sale.cardBrand.toUpperCase()}` : ""}</strong></div>
+${sale.change > 0 ? `<div class="troco"><span>Troco</span><span>R$ ${sale.change.toFixed(2)}</span></div>` : ""}
+<p class="footer">Obrigado pela preferência!<br/>Gerado em ${now}</p>
+</body></html>`;
+  };
+
+  const buildWhatsAppText = (sale: CompletedSale) => {
+    const now = new Date().toLocaleString("pt-BR");
+    const lines = [
+      `*${sale.tenantName}*`,
+      `Comprovante #${String(sale.orderId).padStart(5, "0")}`,
+      `Data: ${now}`,
+      ``,
+      `*Cliente:* ${sale.customerName || "Consumidor Final"}`,
+      ``,
+      `*Itens:*`,
+      ...sale.items.map((i) => `• ${i.name} × ${i.quantity}  →  R$ ${(i.price * i.quantity).toFixed(2)}`),
+      ``,
+      sale.discountValue > 0 ? `Desconto: − R$ ${sale.discountValue.toFixed(2)}` : null,
+      sale.feeAmount > 0 ? `Juros (${sale.creditFeeRate}%): + R$ ${sale.feeAmount.toFixed(2)}` : null,
+      `*TOTAL: R$ ${sale.total.toFixed(2)}*`,
+      sale.change > 0 ? `Troco: R$ ${sale.change.toFixed(2)}` : null,
+      ``,
+      `Obrigado pela preferência! 🙏`,
+    ].filter((l) => l !== null) as string[];
+    return lines.join("\n");
+  };
+
+  const printThermal = (sale: CompletedSale) => {
+    const html  = buildThermalHtml(sale);
+    const iframe = document.createElement("iframe");
+    Object.assign(iframe.style, { position: "fixed", right: "0", bottom: "0", width: "0", height: "0", border: "none" });
+    document.body.appendChild(iframe);
+    const doc = iframe.contentDocument || iframe.contentWindow?.document;
+    if (!doc) return;
+    doc.open(); doc.write(html); doc.close();
+    setTimeout(() => {
+      iframe.contentWindow?.focus();
+      iframe.contentWindow?.print();
+      setTimeout(() => document.body.removeChild(iframe), 1000);
+    }, 400);
+  };
+
+  const printPDF = (sale: CompletedSale) => {
+    const now = new Date().toLocaleString("pt-BR");
+    const paymentLabel: Record<string, string> = { money: "Dinheiro", pix: "PIX", debit: "Débito", credit: "Crédito" };
+    const pmKey = sale.paymentMethod.split("-")[0];
+    const pmLabel = paymentLabel[pmKey] ?? sale.paymentMethod;
+    const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Nota PDV #${String(sale.orderId).padStart(5, "0")}</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Inter', sans-serif; background: #fff; color: #0f172a; padding: 40px; max-width: 700px; margin: 0 auto; }
+  .header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 32px; padding-bottom: 24px; border-bottom: 3px solid #0f172a; }
+  .store-name { font-size: 22px; font-weight: 900; text-transform: uppercase; letter-spacing: 1px; }
+  .store-addr { font-size: 12px; color: #64748b; margin-top: 4px; }
+  .header-right { text-align: right; }
+  .receipt-title { font-size: 11px; font-weight: 800; color: #64748b; text-transform: uppercase; letter-spacing: 3px; }
+  .receipt-num { font-size: 28px; font-weight: 900; }
+  .receipt-date { font-size: 12px; color: #64748b; margin-top: 4px; }
+  .section { margin-bottom: 24px; }
+  .section-title { font-size: 10px; font-weight: 800; color: #94a3b8; text-transform: uppercase; letter-spacing: 3px; margin-bottom: 10px; }
+  .customer-box { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 14px 18px; }
+  .customer-name { font-size: 16px; font-weight: 700; }
+  table { width: 100%; border-collapse: collapse; }
+  thead tr th { font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 2px; color: #94a3b8; padding: 8px 0; border-bottom: 1px solid #e2e8f0; text-align: left; }
+  thead tr th:last-child { text-align: right; }
+  tbody tr td { padding: 10px 0; border-bottom: 1px solid #f1f5f9; vertical-align: middle; }
+  .product-name { font-weight: 700; font-size: 13px; }
+  .product-qty { font-size: 12px; color: #64748b; background: #f1f5f9; border-radius: 6px; padding: 2px 8px; display: inline-block; }
+  .price-cell { text-align: right; font-weight: 700; font-size: 13px; }
+  .totals-box { background: #0f172a; border-radius: 16px; padding: 20px 24px; color: #fff; margin-top: 24px; }
+  .totals-row { display: flex; justify-content: space-between; font-size: 13px; padding: 4px 0; color: #94a3b8; }
+  .totals-row.discount { color: #34d399; }
+  .totals-row.fee { color: #fbbf24; }
+  .totals-row.main { font-size: 24px; font-weight: 900; color: #fff; padding-top: 12px; border-top: 1px solid #334155; margin-top: 8px; }
+  .totals-row.install { color: #93c5fd; }
+  .totals-row.change { color: #34d399; font-weight: 700; }
+  .payment-badge { display: inline-flex; align-items: center; gap: 6px; background: #1e293b; border-radius: 8px; padding: 6px 12px; font-size: 12px; font-weight: 700; color: #cbd5e1; margin-top: 12px; }
+  .footer { margin-top: 40px; padding-top: 20px; border-top: 1px solid #e2e8f0; text-align: center; font-size: 11px; color: #94a3b8; }
+  @media print { @page { size: A4; margin: 20mm 15mm; } body { padding: 0; } }
+</style></head><body>
+<div class="header">
+  <div>
+    <div class="store-name">${sale.tenantName}</div>
+    ${sale.tenantAddress ? `<div class="store-addr">${sale.tenantAddress}</div>` : ""}
+  </div>
+  <div class="header-right">
+    <div class="receipt-title">Comprovante PDV</div>
+    <div class="receipt-num">#${String(sale.orderId).padStart(5, "0")}</div>
+    <div class="receipt-date">${now}</div>
+  </div>
+</div>
+<div class="section">
+  <div class="section-title">Cliente</div>
+  <div class="customer-box"><div class="customer-name">${sale.customerName || "Consumidor Final"}</div></div>
+</div>
+<div class="section">
+  <div class="section-title">Itens da Venda</div>
+  <table>
+    <thead><tr><th>Produto</th><th>Qtd</th><th>Unit.</th><th>Total</th></tr></thead>
+    <tbody>${sale.items.map((item) => `
+      <tr>
+        <td><div class="product-name">${item.name}</div></td>
+        <td><span class="product-qty">${item.quantity}</span></td>
+        <td style="font-size:13px;color:#64748b">R$ ${item.price.toFixed(2)}</td>
+        <td class="price-cell">R$ ${(item.price * item.quantity).toFixed(2)}</td>
+      </tr>`).join("")}
+    </tbody>
+  </table>
+</div>
+<div class="totals-box">
+  ${sale.discountValue > 0 ? `<div class="totals-row"><span>Subtotal</span><span>R$ ${sale.subtotal.toFixed(2)}</span></div><div class="totals-row discount"><span>Desconto</span><span>− R$ ${sale.discountValue.toFixed(2)}</span></div>` : ""}
+  ${sale.feeAmount > 0 ? `<div class="totals-row fee"><span>Juros (${sale.creditFeeRate}%)</span><span>+ R$ ${sale.feeAmount.toFixed(2)}</span></div>` : ""}
+  <div class="totals-row main"><span>TOTAL</span><span>R$ ${sale.total.toFixed(2)}</span></div>
+  ${sale.installments > 1 ? `<div class="totals-row install"><span>${sale.installments}× de</span><span>R$ ${(sale.total / sale.installments).toFixed(2)}</span></div>` : ""}
+  ${sale.change > 0 ? `<div class="totals-row change"><span>Troco devolvido</span><span>R$ ${sale.change.toFixed(2)}</span></div>` : ""}
+  <div class="payment-badge">💳 ${pmLabel}${sale.cardBrand && sale.cardBrand !== "other" ? ` · ${sale.cardBrand.toUpperCase()}` : ""}</div>
+</div>
+<div class="footer">Documento gerado pelo BoxSys PDV · ${now}</div>
+</body></html>`;
+    const iframe = document.createElement("iframe");
+    Object.assign(iframe.style, { position: "fixed", right: "0", bottom: "0", width: "0", height: "0", border: "none" });
+    document.body.appendChild(iframe);
+    const doc = iframe.contentDocument || iframe.contentWindow?.document;
+    if (!doc) return;
+    doc.open(); doc.write(html); doc.close();
+    setTimeout(() => {
+      iframe.contentWindow?.focus();
+      iframe.contentWindow?.print();
+      setTimeout(() => document.body.removeChild(iframe), 1500);
+    }, 600);
+  };
+
+  const sendWhatsApp = (sale: CompletedSale, phone: string) => {
+    const cleaned = phone.replace(/\D/g, "");
+    const full    = cleaned.startsWith("55") ? cleaned : `55${cleaned}`;
+    const text    = buildWhatsAppText(sale);
+    window.open(`https://wa.me/${full}?text=${encodeURIComponent(text)}`, "_blank", "noopener,noreferrer");
+  };
+
   const cartProps = {
     cart, updateQuantity, removeFromCart,
     customerName, setCustomerName,
@@ -285,7 +512,7 @@ export default function PDVStandalone() {
     change,
     subtotal, discountValue, feeAmount, creditFeeRate,
     total, installmentValue,
-    success, finishing, handleFinishSale,
+    finishing, handleFinishSale,
   };
 
   return (
@@ -484,6 +711,138 @@ export default function PDVStandalone() {
           </>
         )}
       </AnimatePresence>
+
+      {/* ── RECEIPT MODAL ──────────────────────────────────────────────────── */}
+      <AnimatePresence>
+        {showReceipt && completedSale && (
+          <>
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-[300]" />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.92, y: 32 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.92, y: 32 }}
+              transition={{ type: "spring", damping: 28, stiffness: 260 }}
+              className="fixed inset-x-0 bottom-0 sm:inset-auto sm:top-1/2 sm:left-1/2 sm:-translate-x-1/2 sm:-translate-y-1/2 z-[301] w-full sm:w-[440px] bg-slate-900 border border-slate-700 sm:rounded-3xl rounded-t-3xl shadow-2xl flex flex-col overflow-hidden max-h-[90vh]"
+            >
+              {/* success header */}
+              <div className="shrink-0 bg-gradient-to-br from-emerald-600 to-emerald-800 px-6 pt-6 pb-5 text-white relative overflow-hidden">
+                <div className="absolute inset-0 opacity-10">
+                  <div className="absolute -top-4 -right-4 w-32 h-32 bg-white rounded-full" />
+                  <div className="absolute -bottom-8 -left-4 w-48 h-48 bg-white rounded-full" />
+                </div>
+                <div className="relative flex items-start justify-between">
+                  <div>
+                    <div className="flex items-center gap-2 mb-2">
+                      <CheckCircle2 size={20} className="text-emerald-200" />
+                      <span className="text-[10px] font-black uppercase tracking-[0.2em] text-emerald-200">Venda Confirmada</span>
+                    </div>
+                    <p className="text-2xl font-mono font-black">R$ {completedSale.total.toFixed(2)}</p>
+                    <p className="text-[11px] text-emerald-200 font-bold mt-1">
+                      #{String(completedSale.orderId).padStart(5, "0")} · {completedSale.customerName || "Consumidor Final"}
+                    </p>
+                    {completedSale.change > 0 && (
+                      <div className="mt-2 inline-flex items-center gap-1.5 bg-white/20 rounded-lg px-3 py-1.5">
+                        <Banknote size={13} className="text-emerald-200" />
+                        <span className="text-[11px] font-black text-white">Troco: R$ {completedSale.change.toFixed(2)}</span>
+                      </div>
+                    )}
+                  </div>
+                  <button onClick={() => setShowReceipt(false)} className="p-1.5 hover:bg-white/20 rounded-xl transition-all text-emerald-200">
+                    <X size={18} />
+                  </button>
+                </div>
+                <div className="relative mt-4 flex gap-2 overflow-x-auto scrollbar-none pb-0.5">
+                  {completedSale.items.map((item, idx) => (
+                    <div key={idx} className="shrink-0 flex items-center gap-1.5 bg-white/15 rounded-xl px-2.5 py-1.5">
+                      {item.image_url
+                        ? <img src={item.image_url} className="w-5 h-5 rounded object-cover shrink-0" alt={item.name} />
+                        : <Package size={14} className="text-emerald-200 shrink-0" />}
+                      <span className="text-[10px] font-bold text-white truncate max-w-[80px]">{item.name}</span>
+                      <span className="text-[10px] font-black text-emerald-200">×{item.quantity}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* actions */}
+              <div className="shrink-0 p-5 space-y-2.5">
+                <p className="text-[9px] font-black text-slate-500 uppercase tracking-[0.2em] mb-3">Emitir Comprovante</p>
+
+                <button onClick={() => printThermal(completedSale)}
+                  className="w-full flex items-center gap-4 h-14 bg-slate-800 hover:bg-slate-700 border border-slate-700 hover:border-slate-600 rounded-2xl px-5 transition-all group">
+                  <div className="w-9 h-9 bg-white rounded-xl flex items-center justify-center shrink-0">
+                    <Printer size={16} className="text-slate-900" />
+                  </div>
+                  <div className="text-left">
+                    <p className="text-[11px] font-black text-white uppercase tracking-widest">Nota Térmica</p>
+                    <p className="text-[9px] text-slate-500 font-medium">Impressão 80mm para bobina</p>
+                  </div>
+                  <ChevronRight size={14} className="ml-auto text-slate-600 group-hover:text-slate-400 transition-colors" />
+                </button>
+
+                <button onClick={() => printPDF(completedSale)}
+                  className="w-full flex items-center gap-4 h-14 bg-slate-800 hover:bg-slate-700 border border-slate-700 hover:border-slate-600 rounded-2xl px-5 transition-all group">
+                  <div className="w-9 h-9 bg-blue-600 rounded-xl flex items-center justify-center shrink-0">
+                    <FileText size={16} className="text-white" />
+                  </div>
+                  <div className="text-left">
+                    <p className="text-[11px] font-black text-white uppercase tracking-widest">PDF Completo</p>
+                    <p className="text-[9px] text-slate-500 font-medium">Nota detalhada em A4</p>
+                  </div>
+                  <ChevronRight size={14} className="ml-auto text-slate-600 group-hover:text-slate-400 transition-colors" />
+                </button>
+
+                <button onClick={() => setShowPhoneInput(!showPhoneInput)}
+                  className={cn("w-full flex items-center gap-4 h-14 border rounded-2xl px-5 transition-all group",
+                    showPhoneInput ? "bg-emerald-900/30 border-emerald-600" : "bg-slate-800 hover:bg-slate-700 border-slate-700 hover:border-slate-600")}>
+                  <div className={cn("w-9 h-9 rounded-xl flex items-center justify-center shrink-0", showPhoneInput ? "bg-emerald-600" : "bg-emerald-700")}>
+                    <MessageCircle size={16} className="text-white" />
+                  </div>
+                  <div className="text-left">
+                    <p className="text-[11px] font-black text-white uppercase tracking-widest">Enviar WhatsApp</p>
+                    <p className="text-[9px] text-slate-500 font-medium">Abre WhatsApp Web com comprovante</p>
+                  </div>
+                  <ChevronDown size={14} className={cn("ml-auto transition-transform text-slate-600", showPhoneInput ? "rotate-180 text-emerald-400" : "")} />
+                </button>
+
+                <AnimatePresence>
+                  {showPhoneInput && (
+                    <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }} className="overflow-hidden">
+                      <div className="flex gap-2 pt-1">
+                        <div className="relative flex-1">
+                          <Phone className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-600" size={14} />
+                          <input type="tel" placeholder="(11) 99999-9999"
+                            className="w-full pl-9 pr-4 h-11 bg-slate-800 border border-emerald-600 rounded-xl focus:outline-none text-[12px] font-medium text-white placeholder:text-slate-600 transition-all"
+                            value={whatsappPhone} onChange={(e) => setWhatsappPhone(e.target.value)} />
+                        </div>
+                        <button
+                          onClick={() => {
+                            const cleaned = whatsappPhone.replace(/\D/g, "");
+                            const full = cleaned.startsWith("55") ? cleaned : `55${cleaned}`;
+                            const text = buildWhatsAppText(completedSale);
+                            window.open(`https://wa.me/${full}?text=${encodeURIComponent(text)}`, "_blank", "noopener,noreferrer");
+                          }}
+                          disabled={whatsappPhone.replace(/\D/g, "").length < 10}
+                          className="h-11 px-4 bg-emerald-600 disabled:bg-slate-700 disabled:text-slate-500 text-white rounded-xl font-black text-[11px] uppercase tracking-widest flex items-center gap-2 transition-all hover:bg-emerald-500 disabled:cursor-not-allowed shrink-0">
+                          <MessageCircle size={14} /> Enviar
+                        </button>
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+
+              <div className="shrink-0 px-5 pb-5">
+                <button onClick={() => setShowReceipt(false)}
+                  className="w-full h-11 border border-slate-700 rounded-2xl text-[11px] font-black text-slate-500 uppercase tracking-widest hover:bg-slate-800 transition-all">
+                  Fechar
+                </button>
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
@@ -501,7 +860,7 @@ function StandaloneCart({
   change,
   subtotal, discountValue, feeAmount, creditFeeRate,
   total, installmentValue,
-  success, finishing, handleFinishSale,
+  finishing, handleFinishSale,
   onClose,
 }: {
   cart: CartItem[];
@@ -527,7 +886,6 @@ function StandaloneCart({
   creditFeeRate: number;
   total: number;
   installmentValue: number;
-  success: boolean;
   finishing: boolean;
   handleFinishSale: () => void;
   onClose?: () => void;
@@ -722,26 +1080,16 @@ function StandaloneCart({
         </div>
 
         {/* Finalizar */}
-        <AnimatePresence mode="wait">
-          {success ? (
-            <motion.div key="success"
-              initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0 }}
-              className="bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 h-12 rounded-xl flex items-center justify-center gap-2 text-[10px] font-black uppercase tracking-widest">
-              <CheckCircle2 size={16} /> Venda Registrada!
-            </motion.div>
-          ) : (
-            <motion.button key="btn"
-              onClick={handleFinishSale}
-              disabled={
-                cart.length === 0 ||
-                finishing ||
-                (paymentMethod === "money" && (!amountReceived || Number(amountReceived) < total))
-              }
-              className="w-full h-12 bg-blue-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-blue-500 transition-all disabled:opacity-20 shadow-xl shadow-blue-500/20 active:scale-[0.98] flex items-center justify-center gap-2">
-              {finishing ? <Loader2 size={16} className="animate-spin" /> : <><CreditCard size={16} /> Finalizar Venda</>}
-            </motion.button>
-          )}
-        </AnimatePresence>
+        <button
+          onClick={handleFinishSale}
+          disabled={
+            cart.length === 0 ||
+            finishing ||
+            (paymentMethod === "money" && (!amountReceived || Number(amountReceived) < total))
+          }
+          className="w-full h-12 bg-blue-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-blue-500 transition-all disabled:opacity-20 shadow-xl shadow-blue-500/20 active:scale-[0.98] flex items-center justify-center gap-2">
+          {finishing ? <Loader2 size={16} className="animate-spin" /> : <><CreditCard size={16} /> Finalizar Venda</>}
+        </button>
       </div>
     </>
   );
