@@ -21,6 +21,7 @@ import {
   ArrowDownCircle,
   ArrowUpCircle,
   FileText,
+  Star,
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { cn } from "../../lib/utils";
@@ -42,6 +43,7 @@ import Categories from "./Categories";
 import Analytics from "./Analytics";
 import Loyalty from "./Loyalty";
 import Quotes from "./Quotes";
+import Sellers from "./Sellers";
 
 export default function AdminDashboard() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(window.innerWidth > 1024);
@@ -96,7 +98,8 @@ export default function AdminDashboard() {
       label: "Clientes & Marketing",
       items: [
         { icon: Users,       label: "Clientes — CRM", path: "/admin/customers" },
-        { icon: UserCheck,   label: "Fidelidade",     path: "/admin/loyalty" },
+        { icon: Star,        label: "Vendedores",      path: "/admin/vendedores" },
+        { icon: UserCheck,   label: "Fidelidade",      path: "/admin/loyalty" },
       ],
     },
     {
@@ -364,6 +367,7 @@ export default function AdminDashboard() {
               <Route path="contas-pagar" element={<ContasPagar />} />
               <Route path="analytics" element={<Analytics />} />
               <Route path="orcamentos" element={<Quotes />} />
+              <Route path="vendedores" element={<Sellers />} />
               <Route path="settings" element={<Settings />} />
               <Route path="loyalty" element={<Loyalty />} />
               <Route path="inventory" element={<Stock />} />

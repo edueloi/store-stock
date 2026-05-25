@@ -58,6 +58,7 @@ model Tenant {
   suppliers       Supplier[]
   setup_invites   SetupInvite[]
   quotes          Quote[]
+  sellers         Seller[]
 
   @@map("tenants")
 }
@@ -148,6 +149,7 @@ model Product {
 model Order {
   id               Int      @id @default(autoincrement())
   tenant_id        Int
+  seller_id        Int?
   customer_name    String?
   customer_phone   String?
   customer_address String?
@@ -158,9 +160,29 @@ model Order {
   updated_at       DateTime @updatedAt
 
   tenant Tenant      @relation(fields: [tenant_id], references: [id])
+  seller Seller?     @relation(fields: [seller_id], references: [id], onDelete: SetNull)
   items  OrderItem[]
 
   @@map("orders")
+}
+
+model Seller {
+  id              Int      @id @default(autoincrement())
+  tenant_id       Int
+  name            String
+  email           String?
+  phone           String?
+  document        String?
+  commission_rate Decimal  @default(0) @db.Decimal(5, 2)
+  is_active       Boolean  @default(true)
+  notes           String?  @db.Text
+  created_at      DateTime @default(now())
+  updated_at      DateTime @updatedAt
+
+  tenant Tenant  @relation(fields: [tenant_id], references: [id])
+  orders Order[]
+
+  @@map("sellers")
 }
 
 model OrderItem {

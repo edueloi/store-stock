@@ -14,12 +14,13 @@ interface SaleItemInput {
 }
 
 export async function createSale(req: Request, res: Response) {
-  const { items, customerName, totalAmount, paymentMethod, discount } = req.body as {
+  const { items, customerName, totalAmount, paymentMethod, discount, sellerId } = req.body as {
     items: SaleItemInput[];
     customerName?: string;
     totalAmount: number;
     paymentMethod?: string;
     discount?: number;
+    sellerId?: number;
   };
 
   try {
@@ -27,6 +28,7 @@ export async function createSale(req: Request, res: Response) {
     const order = await prisma.order.create({
       data: {
         tenant_id: tenantId,
+        seller_id: sellerId ?? null,
         customer_name: customerName || "Balcão",
         total_amount: totalAmount,
         status: "completed",

@@ -4,7 +4,7 @@ import {
   Banknote, Percent, CheckCircle2, Package, X, QrCode, Tag,
   Loader2, ExternalLink, RefreshCw, ChevronRight,
   Printer, FileText, MessageCircle, Phone, Clock, Receipt,
-  ChevronDown, PlusCircle,
+  ChevronDown, PlusCircle, Users,
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { Product, Category } from "../../types";
@@ -118,6 +118,10 @@ export default function PDV() {
   const [showRightPanel, setShowRightPanel] = useState(false);
   const [loadingOrders, setLoadingOrders] = useState(false);
 
+  // sellers
+  const [sellers, setSellers]         = useState<{ id: number; name: string; commission_rate: number }[]>([]);
+  const [selectedSellerId, setSelectedSellerId] = useState<number | null>(null);
+
   // tenant
   const [tenant, setTenant] = useState<TenantInfo>({ name: "BoxSys Store" });
 
@@ -145,6 +149,10 @@ export default function PDV() {
           primary_color: d?.primary_color || "#2563eb",
         });
       })
+      .catch(() => {});
+    fetch("/api/sellers", { headers })
+      .then((r) => r.json())
+      .then((d) => setSellers(Array.isArray(d) ? d.filter((s: any) => s.is_active) : []))
       .catch(() => {});
   }, []);
 
@@ -466,6 +474,7 @@ ${change > 0 ? `<hr class="divider"/><div class="row bold"><span>TROCO:</span><s
           totalAmount: total,
           paymentMethod: pmString,
           discount: discountValue,
+          sellerId: selectedSellerId ?? undefined,
         }),
       });
       if (res.ok) {
@@ -496,7 +505,7 @@ ${change > 0 ? `<hr class="divider"/><div class="row bold"><span>TROCO:</span><s
         };
         setCompletedSale(sale);
         setCart([]); setCustomerName(""); setDiscount("");
-        setPayments([newPayment()]);
+        setPayments([newPayment()]); setSelectedSellerId(null);
         setShowCheckout(false);
         setShowReceipt(true);
         setWhatsappPhone(""); setShowPhoneInput(false);
@@ -849,6 +858,49 @@ ${change > 0 ? `<hr class="divider"/><div class="row bold"><span>TROCO:</span><s
                     className="w-full pl-9 pr-4 h-10 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:border-blue-500 text-[11px] font-medium text-slate-800 placeholder:text-slate-400 transition-all [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none"
                     value={discount} onChange={(e) => setDiscount(e.target.value)} />
                 </div>
+
+                {/* ── VENDEDOR ────────────────────────────────────────────── */}
+                {sellers.length > 0 && (
+                  <div>
+                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2">Vendedor Responsável</p>
+                    <div className="grid grid-cols-2 gap-1.5">
+                      <button
+                        onClick={() => setSelectedSellerId(null)}
+                        className={cn(
+                          "h-9 rounded-xl border text-[9px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-1.5",
+                          selectedSellerId === null
+                            ? "bg-slate-900 border-slate-900 text-white shadow-sm"
+                            : "bg-white border-slate-200 text-slate-500 hover:border-slate-400"
+                        )}
+                      >
+                        <Users size={11} /> Sem vendedor
+                      </button>
+                      {sellers.map((s) => (
+                        <button
+                          key={s.id}
+                          onClick={() => setSelectedSellerId(s.id)}
+                          className={cn(
+                            "h-9 rounded-xl border text-[9px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-1.5 px-2 truncate",
+                            selectedSellerId === s.id
+                              ? "bg-blue-600 border-blue-500 text-white shadow-sm shadow-blue-500/30"
+                              : "bg-white border-slate-200 text-slate-500 hover:border-blue-300"
+                          )}
+                          title={`${s.name} — ${Number(s.commission_rate).toFixed(1)}% comissão`}
+                        >
+                          <span className="w-5 h-5 rounded-full bg-current/20 flex items-center justify-center font-black text-[8px] shrink-0">
+                            {s.name.charAt(0).toUpperCase()}
+                          </span>
+                          <span className="truncate">{s.name.split(" ")[0]}</span>
+                        </button>
+                      ))}
+                    </div>
+                    {selectedSellerId && (
+                      <p className="text-[9px] text-blue-500 font-bold mt-1.5">
+                        Comissão: {Number(sellers.find((s) => s.id === selectedSellerId)?.commission_rate ?? 0).toFixed(1)}% sobre R$ {total.toFixed(2)} = R$ {(total * Number(sellers.find((s) => s.id === selectedSellerId)?.commission_rate ?? 0) / 100).toFixed(2)}
+                      </p>
+                    )}
+                  </div>
+                )}
 
                 {/* ── PAYMENTS ────────────────────────────────────────────── */}
                 <div className="space-y-3">
