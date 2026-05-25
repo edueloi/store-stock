@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 import { AccountPayable, AccountStatus } from "../../types";
 import { cn } from "../../lib/utils";
+import { useToast } from "../../components/ui/Toast";
 
 const fmt = (v: number) =>
   v.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -68,6 +69,7 @@ const EMPTY_FORM: FormData = {
 };
 
 export default function ContasPagar() {
+  const { success, error: toastError } = useToast();
   const [items, setItems] = useState<AccountPayable[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -147,8 +149,17 @@ export default function ContasPagar() {
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token()}` },
         body: JSON.stringify(body),
       });
-      if (res.ok) { closeModal(); fetchItems(); }
-    } catch {}
+      if (res.ok) {
+        success(modalMode === "edit" ? "Conta atualizada com sucesso!" : "Conta cadastrada com sucesso!");
+        closeModal();
+        fetchItems();
+      } else {
+        const data = await res.json().catch(() => ({}));
+        toastError(data.error || "Erro ao salvar conta. Tente novamente.");
+      }
+    } catch {
+      toastError("Erro de conexão. Verifique sua internet.");
+    }
     setSaving(false);
   };
 
@@ -161,8 +172,17 @@ export default function ContasPagar() {
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token()}` },
         body: JSON.stringify({ paid_date: paidDate }),
       });
-      if (res.ok) { closeModal(); fetchItems(); }
-    } catch {}
+      if (res.ok) {
+        success("Pagamento confirmado!");
+        closeModal();
+        fetchItems();
+      } else {
+        const data = await res.json().catch(() => ({}));
+        toastError(data.error || "Erro ao confirmar pagamento.");
+      }
+    } catch {
+      toastError("Erro de conexão. Verifique sua internet.");
+    }
     setSaving(false);
   };
 
@@ -173,8 +193,17 @@ export default function ContasPagar() {
         method: "DELETE",
         headers: { Authorization: `Bearer ${token()}` },
       });
-      if (res.ok) { closeModal(); fetchItems(); }
-    } catch {}
+      if (res.ok) {
+        success("Conta excluída.");
+        closeModal();
+        fetchItems();
+      } else {
+        const data = await res.json().catch(() => ({}));
+        toastError(data.error || "Erro ao excluir conta.");
+      }
+    } catch {
+      toastError("Erro de conexão. Verifique sua internet.");
+    }
     setSaving(false);
   };
 
@@ -403,9 +432,9 @@ export default function ContasPagar() {
 
       {/* Create / Edit Modal */}
       {isFormModal && (
-        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-[200] flex items-end sm:items-center justify-center sm:p-4">
           <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={closeModal} />
-          <div className="relative w-full max-w-lg bg-white rounded-2xl shadow-2xl overflow-hidden">
+          <div className="relative w-full sm:max-w-lg bg-white sm:rounded-2xl rounded-t-2xl shadow-2xl overflow-hidden max-h-[92vh] flex flex-col">
             <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
               <div>
                 <h2 className="text-[13px] font-black uppercase tracking-widest text-slate-900">
@@ -418,7 +447,7 @@ export default function ContasPagar() {
               </button>
             </div>
 
-            <form id="ap-form" onSubmit={handleSave} className="px-6 py-5 space-y-4">
+            <form id="ap-form" onSubmit={handleSave} className="px-6 py-5 space-y-4 overflow-y-auto flex-1">
               <div className="space-y-1.5">
                 <label className="flex items-center gap-1.5 text-[9px] font-black text-slate-400 uppercase tracking-[0.18em]">
                   <FileText size={10} /> Descrição *
@@ -517,9 +546,9 @@ export default function ContasPagar() {
 
       {/* Pay Modal — dark style igual ao PDV */}
       {modalMode === "pay" && selected && (
-        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-[200] flex items-end sm:items-center justify-center sm:p-4">
           <div className="absolute inset-0 bg-slate-900/70 backdrop-blur-sm" onClick={closeModal} />
-          <div className="relative w-full max-w-md bg-[#0f172a] rounded-2xl shadow-2xl overflow-hidden border border-white/10">
+          <div className="relative w-full sm:max-w-md bg-[#0f172a] sm:rounded-2xl rounded-t-2xl shadow-2xl overflow-hidden border border-white/10 max-h-[92vh] flex flex-col">
             {/* Header dark */}
             <div className="flex items-center justify-between px-6 py-4 border-b border-white/10">
               <div>
@@ -532,7 +561,7 @@ export default function ContasPagar() {
             </div>
 
             {/* Resumo */}
-            <div className="px-6 py-5 space-y-3">
+            <div className="px-6 py-5 space-y-3 overflow-y-auto flex-1">
               <div className="bg-white/5 rounded-xl p-4 space-y-2">
                 <div className="flex justify-between items-start">
                   <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Conta</span>

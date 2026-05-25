@@ -18,13 +18,25 @@ export async function listAccountsReceivable(req: Request, res: Response) {
   }
 }
 
+function parseBody(body: Record<string, unknown>) {
+  const data = { ...body };
+  if (typeof data.due_date === "string" && data.due_date.length === 10) {
+    data.due_date = new Date(data.due_date + "T12:00:00") as unknown as string;
+  }
+  if (typeof data.received_date === "string" && data.received_date.length === 10) {
+    data.received_date = new Date(data.received_date + "T12:00:00") as unknown as string;
+  }
+  return data;
+}
+
 export async function createAccountReceivable(req: Request, res: Response) {
   try {
     const item = await prisma.accountReceivable.create({
-      data: { ...req.body, tenant_id: getTenantId(req) },
+      data: { ...parseBody(req.body), tenant_id: getTenantId(req) },
     });
     res.json(item);
-  } catch {
+  } catch (err) {
+    console.error("createAccountReceivable error:", err);
     res.status(500).json({ error: "Failed to create account receivable" });
   }
 }
@@ -38,10 +50,11 @@ export async function updateAccountReceivable(req: Request, res: Response) {
 
     const updated = await prisma.accountReceivable.update({
       where: { id },
-      data: req.body,
+      data: parseBody(req.body),
     });
     res.json(updated);
-  } catch {
+  } catch (err) {
+    console.error("updateAccountReceivable error:", err);
     res.status(500).json({ error: "Failed to update account receivable" });
   }
 }

@@ -20,9 +20,11 @@ import {
   LineChart,
   ArrowDownCircle,
   ArrowUpCircle,
+  FileText,
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { cn } from "../../lib/utils";
+import { ToastProvider } from "../../components/ui/Toast";
 
 // Sub-views
 import Home from "./Home";
@@ -39,6 +41,7 @@ import Suppliers from "./Suppliers";
 import Categories from "./Categories";
 import Analytics from "./Analytics";
 import Loyalty from "./Loyalty";
+import Quotes from "./Quotes";
 
 export default function AdminDashboard() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(window.innerWidth > 1024);
@@ -68,6 +71,7 @@ export default function AdminDashboard() {
         { icon: LayoutDashboard, label: "Visão Geral",   path: "/admin" },
         { icon: ShoppingCart,    label: "PDV — Caixa",   path: "/admin/pdv" },
         { icon: Receipt,         label: "Pedidos",        path: "/admin/orders" },
+        { icon: FileText,        label: "Orçamentos",     path: "/admin/orcamentos" },
       ],
     },
     {
@@ -137,6 +141,7 @@ export default function AdminDashboard() {
   const isPDV = location.pathname === "/admin/pdv";
 
   return (
+    <ToastProvider>
     <div className="flex h-screen bg-[#f8fafc] overflow-hidden font-sans text-slate-800 relative">
 
       {/* ── SIDEBAR DESKTOP ─────────────────────────────────────────────── */}
@@ -358,6 +363,7 @@ export default function AdminDashboard() {
               <Route path="contas-receber" element={<ContasReceber />} />
               <Route path="contas-pagar" element={<ContasPagar />} />
               <Route path="analytics" element={<Analytics />} />
+              <Route path="orcamentos" element={<Quotes />} />
               <Route path="settings" element={<Settings />} />
               <Route path="loyalty" element={<Loyalty />} />
               <Route path="inventory" element={<Stock />} />
@@ -404,5 +410,6 @@ export default function AdminDashboard() {
         </nav>
       </main>
     </div>
+    </ToastProvider>
   );
 }

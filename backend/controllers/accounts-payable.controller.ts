@@ -18,13 +18,25 @@ export async function listAccountsPayable(req: Request, res: Response) {
   }
 }
 
+function parseBody(body: Record<string, unknown>) {
+  const data = { ...body };
+  if (typeof data.due_date === "string" && data.due_date.length === 10) {
+    data.due_date = new Date(data.due_date + "T12:00:00") as unknown as string;
+  }
+  if (typeof data.paid_date === "string" && data.paid_date.length === 10) {
+    data.paid_date = new Date(data.paid_date + "T12:00:00") as unknown as string;
+  }
+  return data;
+}
+
 export async function createAccountPayable(req: Request, res: Response) {
   try {
     const item = await prisma.accountPayable.create({
-      data: { ...req.body, tenant_id: getTenantId(req) },
+      data: { ...parseBody(req.body), tenant_id: getTenantId(req) },
     });
     res.json(item);
-  } catch {
+  } catch (err) {
+    console.error("createAccountPayable error:", err);
     res.status(500).json({ error: "Failed to create account payable" });
   }
 }
@@ -38,10 +50,11 @@ export async function updateAccountPayable(req: Request, res: Response) {
 
     const updated = await prisma.accountPayable.update({
       where: { id },
-      data: req.body,
+      data: parseBody(req.body),
     });
     res.json(updated);
-  } catch {
+  } catch (err) {
+    console.error("updateAccountPayable error:", err);
     res.status(500).json({ error: "Failed to update account payable" });
   }
 }

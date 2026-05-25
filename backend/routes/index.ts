@@ -19,6 +19,7 @@ import superAdminRoutes from "./super-admin.routes";
 import tenantRoutes from "./tenant.routes";
 import uploadRoutes from "./upload.routes";
 import preferencesRoutes from "./preferences.routes";
+import quotesRoutes from "./quotes.routes";
 
 export function registerRoutes(app: Express) {
   // Serve uploaded images
@@ -39,5 +40,6 @@ export function registerRoutes(app: Express) {
   app.use("/api/tenant", tenantRoutes);
   app.use("/api/upload", uploadRoutes);
   app.use("/api/preferences", preferencesRoutes);
+  app.use("/api/quotes", quotesRoutes);
   app.use("/api/super-admin", superAdminRoutes);
 }

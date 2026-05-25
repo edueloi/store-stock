@@ -57,6 +57,7 @@ model Tenant {
   customers            Customer[]
   suppliers       Supplier[]
   setup_invites   SetupInvite[]
+  quotes          Quote[]
 
   @@map("tenants")
 }
@@ -277,6 +278,46 @@ model Supplier {
   tenant Tenant @relation(fields: [tenant_id], references: [id])
 
   @@map("suppliers")
+}
+
+model Quote {
+  id                 Int         @id @default(autoincrement())
+  tenant_id          Int
+  number             Int
+  customer_id        Int?
+  customer_name      String
+  customer_phone     String?
+  customer_email     String?
+  subtotal           Decimal     @db.Decimal(10, 2)
+  discount_type      String      @default("percent")
+  discount_value     Decimal     @default(0) @db.Decimal(10, 2)
+  total_amount       Decimal     @db.Decimal(10, 2)
+  validity_days      Int         @default(7)
+  notes              String?     @db.Text
+  status             String      @default("open")
+  converted_order_id Int?
+  created_at         DateTime    @default(now())
+  updated_at         DateTime    @updatedAt
+
+  tenant Tenant      @relation(fields: [tenant_id], references: [id])
+  items  QuoteItem[]
+
+  @@unique([tenant_id, number])
+  @@map("quotes")
+}
+
+model QuoteItem {
+  id         Int      @id @default(autoincrement())
+  quote_id   Int
+  product_id Int?
+  name       String
+  quantity   Int
+  unit_price Decimal  @db.Decimal(10, 2)
+  total      Decimal  @db.Decimal(10, 2)
+
+  quote Quote @relation(fields: [quote_id], references: [id], onDelete: Cascade)
+
+  @@map("quote_items")
 }
 
 model UserPreference {
