@@ -219,8 +219,8 @@ export default function StoreFront() {
   const isFashion = tenant.template_id === "atelier";
   const isDark = ["cyber", "luxury"].includes(tenant.template_id || "");
 
-  const getImg = (p: Product) =>
-    (Array.isArray(p.images) && (p.images as string[])[0]) || p.image_url || null;
+  const getImg = (p: Product | undefined) =>
+    p ? ((Array.isArray(p.images) && (p.images as string[])[0]) || p.image_url || null) : null;
   const heroImage = tenant.banner_url || getImg(featured[0]) || getImg(bestSellers[0]) || getImg(allActive[0]);
 
   return (
