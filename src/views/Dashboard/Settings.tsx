@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useRef } from "react";
 import {
   Store, Palette, Share2, Clock, CreditCard, Shield, Settings2,
   Users, Save, Loader2, Search, Check, ChevronRight, Globe,
-  Bell, Sun, Moon, Package, AlertTriangle, Lock, Image, Upload, X,
+  Bell, Sun, Moon, Package, AlertTriangle, Lock, Image, Upload, X, FileCheck,
 } from "lucide-react";
 import PageHeader from "../../components/layout/PageHeader";
 import { cn } from "../../lib/utils";
@@ -33,7 +33,21 @@ const DEFAULT_PAYMENTS: PaymentMethods = {
   pix: true, credit_card: true, debit_card: true, cash: true, boleto: false,
 };
 
-const DEFAULT_POLICIES: StorePolicies = { returns: "", shipping: "", exchange: "" };
+const DEFAULT_POLICIES: StorePolicies = {
+  returns: "",
+  shipping: "",
+  exchange: "",
+  warranty_days: 90,
+  warranty_resolution_days: 30,
+  warranty_title: "Termos e Condições de Garantia",
+  warranty_clauses: [
+    "A garantia cobre defeitos de fabricação pelo período estabelecido a partir da data de emissão deste termo, conforme art. 26 do Código de Defesa do Consumidor (Lei 8.078/90).",
+    "Para acionar a garantia, o cliente deverá apresentar este documento juntamente com comprovante de compra e identificação pessoal.",
+    "A garantia não cobre danos causados por uso inadequado, queda, umidade, mau uso, tentativa de conserto por terceiros não autorizados ou desgaste natural do produto.",
+    "O produto defeituoso será reparado, substituído por outro de mesma espécie, ou o valor será devolvido, a critério do fornecedor e conforme disponibilidade de estoque.",
+    "Esta garantia é intransferível e válida somente para o comprador original identificado neste documento.",
+  ],
+};
 
 // ─── sub-components ──────────────────────────────────────────────────────────
 
@@ -133,6 +147,7 @@ const NAV = [
       { id: "hours", icon: Clock, label: "Horário de Funcionamento" },
       { id: "payments", icon: CreditCard, label: "Pagamentos & Políticas" },
       { id: "card_fees", icon: CreditCard, label: "Maquininha & Taxas" },
+      { id: "warranty", icon: FileCheck, label: "Termos de Garantia" },
     ],
   },
   {
@@ -1064,6 +1079,164 @@ export default function Settings() {
                 <SaveButton onClick={handleSaveCardFees} label="Salvar Taxas" />
               </div>
             )}
+
+            {/* ── Termos de Garantia ──────────────────────────────────── */}
+            {active === "warranty" && (() => {
+              const wp = policies as StorePolicies;
+              const clauses: string[] = wp.warranty_clauses ?? DEFAULT_POLICIES.warranty_clauses!;
+
+              const setWarranty = (patch: Partial<StorePolicies>) =>
+                setPolicies(patch);
+
+              const updateClause = (idx: number, val: string) => {
+                const next = [...clauses];
+                next[idx] = val;
+                setWarranty({ warranty_clauses: next });
+              };
+
+              const addClause = () =>
+                setWarranty({ warranty_clauses: [...clauses, ""] });
+
+              const removeClause = (idx: number) =>
+                setWarranty({ warranty_clauses: clauses.filter((_, i) => i !== idx) });
+
+              return (
+                <div className="space-y-8">
+                  <SectionHeader
+                    title="Termos de Garantia"
+                    subtitle="Configure o texto do termo de garantia impresso nos pedidos"
+                  />
+
+                  {/* Prazos */}
+                  <div className="space-y-3">
+                    <p className="text-[10px] font-black uppercase tracking-widest text-slate-700 border-l-4 border-blue-500 pl-3">
+                      Prazos
+                    </p>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+                      <div className="bg-slate-50 border border-slate-100 rounded-2xl p-5 space-y-3">
+                        <div>
+                          <p className="text-[10px] font-black uppercase tracking-widest text-slate-700">Prazo de Garantia</p>
+                          <p className="text-[9px] text-slate-400 mt-0.5 font-medium">Em dias a partir da emissão</p>
+                        </div>
+                        <div className="flex items-center gap-4">
+                          <input
+                            type="range"
+                            min={7} max={365}
+                            value={wp.warranty_days ?? 90}
+                            onChange={(e) => setWarranty({ warranty_days: Number(e.target.value) })}
+                            className="flex-1 accent-blue-600"
+                          />
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-xl font-black text-slate-900 tabular-nums w-10 text-right">
+                              {wp.warranty_days ?? 90}
+                            </span>
+                            <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">dias</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="bg-slate-50 border border-slate-100 rounded-2xl p-5 space-y-3">
+                        <div>
+                          <p className="text-[10px] font-black uppercase tracking-widest text-slate-700">Prazo de Atendimento</p>
+                          <p className="text-[9px] text-slate-400 mt-0.5 font-medium">Dias corridos para resolução</p>
+                        </div>
+                        <div className="flex items-center gap-4">
+                          <input
+                            type="range"
+                            min={1} max={90}
+                            value={wp.warranty_resolution_days ?? 30}
+                            onChange={(e) => setWarranty({ warranty_resolution_days: Number(e.target.value) })}
+                            className="flex-1 accent-blue-600"
+                          />
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-xl font-black text-slate-900 tabular-nums w-10 text-right">
+                              {wp.warranty_resolution_days ?? 30}
+                            </span>
+                            <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">dias</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Título */}
+                  <div className="space-y-3">
+                    <p className="text-[10px] font-black uppercase tracking-widest text-slate-700 border-l-4 border-blue-500 pl-3">
+                      Título do Termo
+                    </p>
+                    <TextInput
+                      value={wp.warranty_title ?? "Termos e Condições de Garantia"}
+                      onChange={(v) => setWarranty({ warranty_title: v })}
+                      placeholder="Termos e Condições de Garantia"
+                    />
+                  </div>
+
+                  {/* Cláusulas */}
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <p className="text-[10px] font-black uppercase tracking-widest text-slate-700 border-l-4 border-blue-500 pl-3">
+                        Cláusulas
+                      </p>
+                      <button
+                        onClick={addClause}
+                        className="flex items-center gap-2 text-[9px] font-black uppercase tracking-widest text-blue-600 hover:text-blue-800 transition-colors px-3 h-8 rounded-lg border border-blue-200 bg-blue-50 hover:bg-blue-100"
+                      >
+                        + Adicionar Cláusula
+                      </button>
+                    </div>
+                    <p className="text-[9px] text-slate-400 font-medium">
+                      Use <strong className="text-slate-600">{"{{warranty_days}}"}</strong> e <strong className="text-slate-600">{"{{resolution_days}}"}</strong> para inserir os prazos automaticamente no texto.
+                    </p>
+                    <div className="space-y-3">
+                      {clauses.map((clause, idx) => (
+                        <div key={idx} className="flex gap-3 items-start">
+                          <div className="w-6 h-6 rounded-full bg-slate-900 text-white flex items-center justify-center text-[9px] font-black shrink-0 mt-3">
+                            {idx + 1}
+                          </div>
+                          <textarea
+                            className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-xs font-medium outline-none h-20 resize-none focus:ring-4 focus:ring-blue-500/8 focus:border-blue-500 transition-all"
+                            value={clause}
+                            onChange={(e) => updateClause(idx, e.target.value)}
+                            placeholder={`Cláusula ${idx + 1}...`}
+                          />
+                          <button
+                            onClick={() => removeClause(idx)}
+                            className="w-6 h-6 rounded-full bg-rose-50 text-rose-400 flex items-center justify-center hover:bg-rose-100 hover:text-rose-600 transition-colors shrink-0 mt-3"
+                          >
+                            <X size={11} strokeWidth={3} />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Preview */}
+                  <div className="space-y-3">
+                    <p className="text-[10px] font-black uppercase tracking-widest text-slate-700 border-l-4 border-emerald-500 pl-3">
+                      Pré-visualização
+                    </p>
+                    <div className="border-2 border-slate-200 rounded-2xl p-5 bg-slate-50 font-mono text-[11px] leading-relaxed text-slate-700 space-y-2">
+                      <strong className="text-sm font-sans font-black text-slate-900 uppercase tracking-wide block mb-3">
+                        {wp.warranty_title ?? "Termos e Condições de Garantia"}
+                      </strong>
+                      {clauses.map((c, i) => (
+                        <div key={i} className="flex gap-2">
+                          <span className="text-emerald-600 font-black shrink-0">✓</span>
+                          <span>
+                            {c
+                              .replace(/\{\{warranty_days\}\}/g, String(wp.warranty_days ?? 90))
+                              .replace(/\{\{resolution_days\}\}/g, String(wp.warranty_resolution_days ?? 30))
+                            }
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  <SaveButton onClick={handleSaveTenant} label="Salvar Termos" />
+                </div>
+              );
+            })()}
 
             {/* ── Preferências do Painel ──────────────────────────────── */}
             {active === "preferences" && (

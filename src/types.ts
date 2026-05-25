@@ -18,6 +18,10 @@ export interface StorePolicies {
   returns: string;
   shipping: string;
   exchange: string;
+  warranty_days?: number;
+  warranty_resolution_days?: number;
+  warranty_title?: string;
+  warranty_clauses?: string[];
 }
 
 export interface Tenant {

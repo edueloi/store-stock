@@ -41,6 +41,15 @@ interface TenantBasic {
   address_state?: string;
   address_zip?: string;
   address?: string;
+  policies?: {
+    returns?: string;
+    shipping?: string;
+    exchange?: string;
+    warranty_days?: number;
+    warranty_resolution_days?: number;
+    warranty_title?: string;
+    warranty_clauses?: string[];
+  };
 }
 
 export default function Orders() {
@@ -122,6 +131,29 @@ export default function Orders() {
     const storeLogo   = rawLogo && !rawLogo.startsWith("http")
       ? `${window.location.origin}${rawLogo}`
       : rawLogo;
+
+    const wp = tenant?.policies ?? {};
+    const warrantyDays     = wp.warranty_days ?? 90;
+    const resolutionDays   = wp.warranty_resolution_days ?? 30;
+    const warrantyTitle    = wp.warranty_title ?? "Termos e Condições de Garantia";
+    const defaultClauses   = [
+      `A garantia cobre defeitos de fabricação pelo período de <strong>${warrantyDays} dias</strong> a partir da data de emissão deste termo, conforme art. 26 do Código de Defesa do Consumidor (Lei 8.078/90).`,
+      "Para acionar a garantia, o cliente deverá apresentar este documento juntamente com comprovante de compra e identificação pessoal.",
+      "A garantia não cobre danos causados por uso inadequado, queda, umidade, mau uso, tentativa de conserto por terceiros não autorizados ou desgaste natural do produto.",
+      "O produto defeituoso será reparado, substituído por outro de mesma espécie, ou o valor será devolvido, a critério do fornecedor e conforme disponibilidade de estoque.",
+      `O prazo para atendimento e resolução é de até <strong>${resolutionDays} dias corridos</strong> após o acionamento da garantia.`,
+      "Esta garantia é intransferível e válida somente para o comprador original identificado neste documento.",
+    ];
+    const rawClauses = wp.warranty_clauses ?? [];
+    const clauses = rawClauses.length > 0
+      ? rawClauses.map((c) =>
+          c.replace(/\{\{warranty_days\}\}/g, String(warrantyDays))
+           .replace(/\{\{resolution_days\}\}/g, String(resolutionDays))
+        )
+      : defaultClauses;
+    const warrantyClausesHtml = clauses
+      .map((c) => `<div class="warranty-item">${c}</div>`)
+      .join("\n  ");
 
     const orderNum    = String(order.id).padStart(6, "0");
     const orderDate   = new Date(order.created_at).toLocaleDateString("pt-BR");
@@ -227,13 +259,8 @@ export default function Orders() {
 </div>
 
 <div class="warranty-box">
-  <strong>Termos e Condições de Garantia</strong>
-  <div class="warranty-item">A garantia cobre defeitos de fabricação pelo período de <strong>90 (noventa) dias</strong> a partir da data de emissão deste termo, conforme art. 26 do Código de Defesa do Consumidor (Lei 8.078/90).</div>
-  <div class="warranty-item">Para acionar a garantia, o cliente deverá apresentar este documento juntamente com comprovante de compra e identificação pessoal.</div>
-  <div class="warranty-item">A garantia não cobre danos causados por uso inadequado, queda, umidade, mau uso, tentativa de conserto por terceiros não autorizados ou desgaste natural do produto.</div>
-  <div class="warranty-item">O produto defeituoso será reparado, substituído por outro de mesma espécie, ou o valor será devolvido, a critério do fornecedor e conforme disponibilidade de estoque.</div>
-  <div class="warranty-item">O prazo para atendimento e resolução é de até <strong>30 (trinta) dias corridos</strong> após o acionamento da garantia.</div>
-  <div class="warranty-item">Esta garantia é intransferível e válida somente para o comprador original identificado neste documento.</div>
+  <strong>${warrantyTitle}</strong>
+  ${warrantyClausesHtml}
 </div>
 
 <div class="signatures">
