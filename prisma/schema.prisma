@@ -28,6 +28,7 @@ model Tenant {
   business_hours   Json?
   payment_methods  Json?
   policies         Json?
+  card_fees        Json?
   status           String   @default("active")
   trial_days       Int      @default(30)
   trial_starts_at  DateTime?

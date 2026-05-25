@@ -179,7 +179,7 @@ export default function PDV() {
 
   const handleFinishSale = async () => {
     if (cart.length === 0 || finishing) return;
-    if (paymentMethod === "money" && amountReceivedNum > 0 && amountReceivedNum < total) return;
+    if (paymentMethod === "money" && (!amountReceived || amountReceivedNum < total)) return;
     setFinishing(true);
     try {
       const res = await fetch("/api/sales", {
@@ -976,7 +976,7 @@ function CartContent({
               disabled={
                 cart.length === 0 ||
                 finishing ||
-                (paymentMethod === "money" && !!amountReceived && Number(amountReceived) < total)
+                (paymentMethod === "money" && (!amountReceived || Number(amountReceived) < total))
               }
               className="w-full h-14 bg-blue-600 text-white rounded-2xl text-[11px] font-black uppercase tracking-widest hover:bg-blue-700 transition-all disabled:opacity-20 disabled:grayscale shadow-2xl shadow-blue-500/30 active:scale-[0.98] flex items-center justify-center gap-3"
             >

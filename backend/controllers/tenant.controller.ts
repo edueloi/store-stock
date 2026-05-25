@@ -51,6 +51,10 @@ export async function updateTenant(req: Request, res: Response) {
         primary_color: req.body.primary_color,
         featured_limit: req.body.featured_limit !== undefined ? Number(req.body.featured_limit) : undefined,
         bestseller_limit: req.body.bestseller_limit !== undefined ? Number(req.body.bestseller_limit) : undefined,
+        business_hours: req.body.business_hours !== undefined ? req.body.business_hours : undefined,
+        payment_methods: req.body.payment_methods !== undefined ? req.body.payment_methods : undefined,
+        policies: req.body.policies !== undefined ? req.body.policies : undefined,
+        card_fees: req.body.card_fees !== undefined ? req.body.card_fees : undefined,
       },
     });
 
