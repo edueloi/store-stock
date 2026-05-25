@@ -409,9 +409,12 @@ export default function Quotes() {
         fetch("/api/customers", { headers: h }),
         fetch("/api/tenant", { headers: h }),
       ]);
-      setQuotes(await qRes.json());
-      setProducts(await pRes.json());
-      setCustomers(await cRes.json());
+      const qData = await qRes.json();
+      const pData = await pRes.json();
+      const cData = await cRes.json();
+      setQuotes(Array.isArray(qData) ? qData : []);
+      setProducts(Array.isArray(pData) ? pData : []);
+      setCustomers(Array.isArray(cData) ? cData : []);
       setTenant(await tRes.json());
     } finally {
       setLoading(false);
