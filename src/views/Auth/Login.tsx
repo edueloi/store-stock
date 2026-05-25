@@ -217,7 +217,7 @@ export default function Login() {
             {/* Identifier */}
             <div className="space-y-1.5">
               <label className="block text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500">
-                E-mail ou usuário
+                E-mail
               </label>
               <div className="flex h-12 items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 px-4 transition-all focus-within:border-blue-500 focus-within:bg-white focus-within:shadow-[0_0_0_3px_rgba(59,130,246,0.12)]">
                 <User size={15} className="shrink-0 text-slate-400" />
