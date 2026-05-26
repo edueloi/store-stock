@@ -15,6 +15,11 @@ import {
   User,
   Percent,
   DollarSign,
+  CreditCard,
+  Banknote,
+  QrCode,
+  PlusCircle,
+  Loader2,
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { cn } from "../../lib/utils";
@@ -79,6 +84,47 @@ interface Tenant {
   address_zip?: string;
   address?: string;
   primary_color?: string;
+}
+
+// ─── Payment types (same engine as PDV) ──────────────────────────────────────
+
+type ConvertMethod = "money" | "debit" | "credit" | "pix";
+type ConvertBrand  = "visa" | "master" | "elo" | "amex" | "hiper" | "other";
+
+interface ConvertPayment {
+  id: string;
+  method: ConvertMethod;
+  cardBrand: ConvertBrand;
+  installments: number;
+  amount: string;
+}
+
+const CONVERT_PM_LABEL: Record<ConvertMethod, string> = {
+  money: "Dinheiro", debit: "Débito", credit: "Crédito", pix: "PIX",
+};
+
+const CONVERT_CARD_BRANDS: { key: ConvertBrand; label: string; color: string }[] = [
+  { key: "visa",   label: "Visa",       color: "#1A1F71" },
+  { key: "master", label: "Mastercard", color: "#EB001B" },
+  { key: "elo",    label: "Elo",        color: "#00A4E0" },
+  { key: "amex",   label: "Amex",       color: "#2E77BC" },
+  { key: "hiper",  label: "Hipercard",  color: "#B22222" },
+  { key: "other",  label: "Outra",      color: "#64748b" },
+];
+
+function newConvertPayment(): ConvertPayment {
+  return { id: Math.random().toString(36).slice(2), method: "money", cardBrand: "visa", installments: 1, amount: "" };
+}
+
+function buildConvertPmString(payments: ConvertPayment[]): string {
+  return payments
+    .filter((p) => Number(p.amount) > 0)
+    .map((p) => {
+      const brand = (p.method === "credit" || p.method === "debit") ? `-${p.cardBrand}` : "";
+      const inst  = p.method === "credit" && p.installments > 1 ? `-${p.installments}x` : "";
+      return `${p.method}${brand}${inst}:${Number(p.amount).toFixed(2)}`;
+    })
+    .join("|");
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -398,24 +444,34 @@ export default function Quotes() {
   // Detail/convert modal
   const [selectedQuote, setSelectedQuote] = useState<Quote | null>(null);
   const [showConvertModal, setShowConvertModal] = useState(false);
-  const [convertPayment, setConvertPayment] = useState("money");
+  // convert payment — same multi-payment engine as PDV
+  const [convertPayments, setConvertPayments] = useState<ConvertPayment[]>([newConvertPayment()]);
+  const [convertSellerId, setConvertSellerId] = useState<number | "">("");
+  const [cardFees, setCardFees] = useState<Record<string, number[]>>({});
+  const [sellers, setSellers] = useState<{ id: number; name: string }[]>([]);
+  const [converting, setConverting] = useState(false);
 
   const fetchAll = useCallback(async () => {
     const h = { Authorization: `Bearer ${localStorage.getItem("token")}` };
     try {
-      const [qRes, pRes, cRes, tRes] = await Promise.all([
-        fetch("/api/quotes", { headers: h }),
-        fetch("/api/products", { headers: h }),
+      const [qRes, pRes, cRes, tRes, sRes] = await Promise.all([
+        fetch("/api/quotes",    { headers: h }),
+        fetch("/api/products",  { headers: h }),
         fetch("/api/customers", { headers: h }),
-        fetch("/api/tenant", { headers: h }),
+        fetch("/api/tenant",    { headers: h }),
+        fetch("/api/sellers",   { headers: h }),
       ]);
       const qData = await qRes.json();
       const pData = await pRes.json();
       const cData = await cRes.json();
+      const tData = await tRes.json();
+      const sData = await sRes.json();
       setQuotes(Array.isArray(qData) ? qData : []);
       setProducts(Array.isArray(pData) ? pData : []);
       setCustomers(Array.isArray(cData) ? cData : []);
-      setTenant(await tRes.json());
+      setTenant(tData);
+      if (tData?.card_fees) setCardFees(tData.card_fees);
+      setSellers(Array.isArray(sData) ? sData.filter((s: any) => s.is_active !== false) : []);
     } finally {
       setLoading(false);
     }
@@ -524,15 +580,32 @@ export default function Quotes() {
 
   const handleConvert = async () => {
     if (!selectedQuote) return;
-    await fetch(`/api/quotes/${selectedQuote.id}/convert`, {
-      method: "POST",
-      headers: authHeader(),
-      body: JSON.stringify({ payment_method: convertPayment }),
-    });
-    setShowConvertModal(false);
-    setSelectedQuote(null);
-    fetchAll();
+    setConverting(true);
+    try {
+      const pmString = buildConvertPmString(convertPayments) || "money";
+      await fetch(`/api/quotes/${selectedQuote.id}/convert`, {
+        method: "POST",
+        headers: authHeader(),
+        body: JSON.stringify({
+          payment_method: pmString,
+          seller_id: convertSellerId || undefined,
+        }),
+      });
+      setShowConvertModal(false);
+      setSelectedQuote(null);
+      setConvertPayments([newConvertPayment()]);
+      setConvertSellerId("");
+      fetchAll();
+    } finally {
+      setConverting(false);
+    }
   };
+
+  const updateConvertPayment = (id: string, patch: Partial<ConvertPayment>) => {
+    setConvertPayments((prev) => prev.map((p) => p.id === id ? { ...p, ...patch } : p));
+  };
+  const addConvertPayment = () => setConvertPayments((prev) => [...prev, newConvertPayment()]);
+  const removeConvertPayment = (id: string) => setConvertPayments((prev) => prev.filter((p) => p.id !== id));
 
   const handleDownloadPDF = async (q: Quote) => {
     if (!tenant) return;
@@ -686,7 +759,12 @@ export default function Quotes() {
                         </button>
                         {q.status === "open" && (
                           <button
-                            onClick={() => { setSelectedQuote(q); setShowConvertModal(true); }}
+                            onClick={() => {
+                              setSelectedQuote(q);
+                              setConvertPayments([newConvertPayment()]);
+                              setConvertSellerId("");
+                              setShowConvertModal(true);
+                            }}
                             title="Converter em venda"
                             className="p-1.5 hover:bg-emerald-50 text-emerald-500 rounded-lg transition-colors"
                           >
@@ -974,57 +1052,241 @@ export default function Quotes() {
 
       {/* ── Convert to Order Modal ────────────────────────────────────────────── */}
       <AnimatePresence>
-        {showConvertModal && selectedQuote && (
-          <>
-            <motion.div
-              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-              onClick={() => setShowConvertModal(false)}
-              className="fixed inset-0 bg-slate-900/50 z-40 backdrop-blur-sm"
-            />
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }}
-              className="fixed inset-0 z-50 flex items-center justify-center p-4"
-            >
-              <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6">
-                <h3 className="font-black text-slate-900 text-base mb-1">Converter em Venda</h3>
-                <p className="text-sm text-slate-500 mb-4">
-                  Orçamento #{String(selectedQuote.number).padStart(4, "0")} — {selectedQuote.customer_name}
-                  <br />
-                  <span className="font-bold text-slate-700">{fmt(Number(selectedQuote.total_amount))}</span>
-                </p>
-                <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block mb-1">
-                  Forma de Pagamento
-                </label>
-                <div className="relative mb-4">
-                  <select
-                    value={convertPayment}
-                    onChange={(e) => setConvertPayment(e.target.value)}
-                    className="w-full h-10 pl-3 pr-8 rounded-lg border border-slate-200 text-sm appearance-none focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
-                  >
-                    <option value="money">Dinheiro</option>
-                    <option value="card">Cartão</option>
-                    <option value="pix">PIX</option>
-                  </select>
-                  <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+        {showConvertModal && selectedQuote && (() => {
+          const quoteTotal = Number(selectedQuote.total_amount);
+          const paidTotal  = convertPayments.reduce((s, p) => s + (Number(p.amount) || 0), 0);
+          const remaining  = Math.max(0, quoteTotal - paidTotal);
+
+          return (
+            <>
+              <motion.div
+                initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                onClick={() => !converting && setShowConvertModal(false)}
+                className="fixed inset-0 bg-slate-900/60 z-40 backdrop-blur-sm"
+              />
+              <motion.div
+                initial={{ opacity: 0, scale: 0.95, y: 20 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.95, y: 20 }}
+                className="fixed inset-0 z-50 flex items-center justify-center p-4 overflow-y-auto"
+              >
+                <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md my-auto">
+                  {/* header */}
+                  <div className="px-6 pt-6 pb-4 border-b border-slate-100">
+                    <div className="flex items-start justify-between">
+                      <div>
+                        <h3 className="font-black text-slate-900 text-base">Converter em Venda</h3>
+                        <p className="text-[11px] text-slate-500 mt-0.5">
+                          Orç. #{String(selectedQuote.number).padStart(4, "0")} · {selectedQuote.customer_name}
+                        </p>
+                      </div>
+                      <button onClick={() => setShowConvertModal(false)} className="text-slate-300 hover:text-slate-600 transition-colors">
+                        <X size={18} />
+                      </button>
+                    </div>
+                    {/* total badge */}
+                    <div className="mt-3 bg-slate-900 rounded-xl px-4 py-2.5 flex items-center justify-between">
+                      <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Total do Orçamento</span>
+                      <span className="text-lg font-mono font-black text-white">{fmt(quoteTotal)}</span>
+                    </div>
+                  </div>
+
+                  <div className="px-6 py-4 space-y-4 max-h-[65vh] overflow-y-auto">
+
+                    {/* ── Vendedor ──────────────────────────── */}
+                    {sellers.length > 0 && (
+                      <div>
+                        <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Vendedor</p>
+                        <div className="relative">
+                          <User size={12} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                          <select
+                            value={convertSellerId}
+                            onChange={(e) => setConvertSellerId(e.target.value === "" ? "" : Number(e.target.value))}
+                            className="w-full pl-8 pr-8 h-10 rounded-xl border border-slate-200 text-[11px] font-bold appearance-none focus:outline-none focus:border-blue-400 bg-white"
+                          >
+                            <option value="">Sem vendedor</option>
+                            {sellers.map((s) => (
+                              <option key={s.id} value={s.id}>{s.name}</option>
+                            ))}
+                          </select>
+                          <ChevronDown size={12} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                        </div>
+                      </div>
+                    )}
+
+                    {/* ── Formas de Pagamento ───────────────── */}
+                    <div>
+                      <div className="flex items-center justify-between mb-1.5">
+                        <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Formas de Pagamento</p>
+                        <button
+                          onClick={addConvertPayment}
+                          className="flex items-center gap-1 h-6 px-2 bg-blue-50 border border-blue-200 rounded-lg text-[9px] font-black text-blue-600 uppercase tracking-widest hover:bg-blue-100 transition-all"
+                        >
+                          <PlusCircle size={10} /> Adicionar
+                        </button>
+                      </div>
+
+                      <div className="space-y-2.5">
+                        {convertPayments.map((p, idx) => {
+                          const feeRate = p.method === "credit" ? (cardFees[p.cardBrand]?.[p.installments - 1] ?? 0) : 0;
+                          const pAmt    = Number(p.amount) || 0;
+                          const pFee    = feeRate > 0 && pAmt > 0 ? pAmt * (feeRate / 100) : 0;
+                          return (
+                            <div key={p.id} className="bg-slate-50 rounded-2xl border border-slate-200 p-3 space-y-2.5">
+                              {/* method buttons */}
+                              <div className="flex items-center gap-2">
+                                {convertPayments.length > 1 && (
+                                  <span className="w-5 h-5 bg-slate-200 rounded-full flex items-center justify-center text-[9px] font-black text-slate-600 shrink-0">{idx + 1}</span>
+                                )}
+                                <div className="grid grid-cols-4 gap-1.5 flex-1">
+                                  {(["money", "debit", "credit", "pix"] as ConvertMethod[]).map((key) => (
+                                    <button key={key}
+                                      onClick={() => updateConvertPayment(p.id, { method: key, installments: 1 })}
+                                      className={cn(
+                                        "h-9 rounded-xl border text-[9px] font-black uppercase tracking-widest transition-all flex flex-col items-center justify-center gap-0.5",
+                                        p.method === key
+                                          ? key === "credit" ? "bg-emerald-600 border-emerald-500 text-white" : "bg-blue-600 border-blue-500 text-white"
+                                          : "bg-white border-slate-200 text-slate-500 hover:border-slate-400"
+                                      )}>
+                                      {key === "money"  && <Banknote size={12} />}
+                                      {key === "debit"  && <CreditCard size={12} />}
+                                      {key === "credit" && <CreditCard size={12} />}
+                                      {key === "pix"    && <QrCode size={12} />}
+                                      {CONVERT_PM_LABEL[key]}
+                                    </button>
+                                  ))}
+                                </div>
+                                {convertPayments.length > 1 && (
+                                  <button onClick={() => removeConvertPayment(p.id)} className="text-slate-300 hover:text-red-500 transition-colors shrink-0">
+                                    <X size={14} />
+                                  </button>
+                                )}
+                              </div>
+
+                              {/* bandeira */}
+                              {(p.method === "debit" || p.method === "credit") && (
+                                <div className="grid grid-cols-3 gap-1">
+                                  {CONVERT_CARD_BRANDS.map(({ key, label, color }) => (
+                                    <button key={key}
+                                      onClick={() => updateConvertPayment(p.id, { cardBrand: key })}
+                                      className={cn(
+                                        "h-7 rounded-lg border text-[8px] font-black uppercase tracking-widest transition-all",
+                                        p.cardBrand === key ? "text-white border-transparent" : "bg-white border-slate-200 text-slate-500 hover:border-slate-400"
+                                      )}
+                                      style={p.cardBrand === key ? { backgroundColor: color } : {}}>
+                                      {label}
+                                    </button>
+                                  ))}
+                                </div>
+                              )}
+
+                              {/* parcelamento */}
+                              {p.method === "credit" && (
+                                <div className="grid grid-cols-4 gap-1">
+                                  {[1, 2, 3, 4, 5, 6, 10, 12].map((n) => {
+                                    const rate      = cardFees[p.cardBrand]?.[n - 1] ?? 0;
+                                    const totalWFee = pAmt > 0 && rate > 0 ? pAmt * (1 + rate / 100) : pAmt;
+                                    const perInst   = n > 1 && pAmt > 0 ? totalWFee / n : 0;
+                                    const isActive  = p.installments === n;
+                                    return (
+                                      <button key={n}
+                                        onClick={() => updateConvertPayment(p.id, { installments: n })}
+                                        className={cn(
+                                          "rounded-lg border transition-all flex flex-col items-center justify-center py-1.5 px-1 gap-0.5",
+                                          isActive ? "bg-emerald-600 border-emerald-500 text-white" : "bg-white border-slate-200 text-slate-500 hover:border-slate-400"
+                                        )}>
+                                        <span className="text-[8px] font-black uppercase">{n === 1 ? "Vista" : `${n}×`}</span>
+                                        {rate > 0 && (
+                                          <span className={cn("text-[7px] font-bold", isActive ? "text-emerald-200" : "text-amber-500")}>+{rate}%</span>
+                                        )}
+                                        {pAmt > 0 && rate > 0 && (
+                                          <span className={cn("text-[7px] font-mono font-black", isActive ? "text-emerald-100" : "text-slate-600")}>R${totalWFee.toFixed(2)}</span>
+                                        )}
+                                        {perInst > 0 && (
+                                          <span className={cn("text-[7px] font-mono", isActive ? "text-emerald-200" : "text-slate-400")}>{n}×R${perInst.toFixed(2)}</span>
+                                        )}
+                                      </button>
+                                    );
+                                  })}
+                                </div>
+                              )}
+
+                              {/* valor + taxa */}
+                              <div className="flex gap-2">
+                                <div className="relative flex-1">
+                                  <Banknote className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={13} />
+                                  <input type="number" min="0" step="0.01"
+                                    placeholder={idx === 0 && remaining > 0 ? `R$ ${remaining.toFixed(2)}` : "Valor (R$)"}
+                                    className="w-full pl-9 pr-3 h-10 bg-white border border-slate-200 rounded-xl focus:outline-none focus:border-blue-500 text-[11px] font-medium text-slate-800 placeholder:text-slate-400 transition-all [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none"
+                                    value={p.amount}
+                                    onChange={(e) => updateConvertPayment(p.id, { amount: e.target.value })}
+                                  />
+                                </div>
+                                {pFee > 0.005 && (
+                                  <div className="flex flex-col items-end gap-0.5 bg-amber-50 border border-amber-200 rounded-xl px-3 py-1.5 shrink-0">
+                                    <span className="text-[8px] font-black text-amber-600 uppercase">Taxa {feeRate}%</span>
+                                    <span className="text-[10px] font-mono font-black text-amber-700">− R$ {pFee.toFixed(2)}</span>
+                                    {p.installments > 1 && pAmt > 0 && (
+                                      <span className="text-[7px] font-bold text-amber-500">
+                                        {p.installments}× R$ {((pAmt * (1 + feeRate / 100)) / p.installments).toFixed(2)}/parc
+                                      </span>
+                                    )}
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    {/* ── Resumo ────────────────────────────── */}
+                    <div className="bg-slate-900 rounded-2xl p-4 space-y-2">
+                      <div className="flex justify-between text-[10px] font-bold uppercase text-slate-500">
+                        <span>Total orçamento</span>
+                        <span className="font-mono">R$ {quoteTotal.toFixed(2)}</span>
+                      </div>
+                      <div className="flex justify-between text-[10px] font-bold uppercase text-slate-400">
+                        <span>Pago</span>
+                        <span className="font-mono text-emerald-400">R$ {paidTotal.toFixed(2)}</span>
+                      </div>
+                      {remaining > 0.005 && (
+                        <div className="flex justify-between text-[10px] font-black uppercase text-rose-400 pt-1 border-t border-slate-700">
+                          <span>Restante</span>
+                          <span className="font-mono">R$ {remaining.toFixed(2)}</span>
+                        </div>
+                      )}
+                      {remaining <= 0.005 && paidTotal > 0 && (
+                        <div className="flex justify-between text-[10px] font-black uppercase text-emerald-400 pt-1 border-t border-slate-700">
+                          <span>Pagamento OK</span>
+                          <span className="font-mono">✓</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* footer */}
+                  <div className="px-6 pb-6 pt-3 flex gap-2 border-t border-slate-100">
+                    <button
+                      onClick={() => setShowConvertModal(false)}
+                      className="flex-1 h-11 rounded-xl border border-slate-200 text-[10px] font-black uppercase tracking-widest text-slate-600 hover:bg-slate-50 transition-colors"
+                    >
+                      Cancelar
+                    </button>
+                    <button
+                      onClick={handleConvert}
+                      disabled={converting || paidTotal <= 0}
+                      className="flex-1 h-11 bg-emerald-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-emerald-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                    >
+                      {converting ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle2 size={14} />}
+                      Confirmar Venda
+                    </button>
+                  </div>
                 </div>
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => setShowConvertModal(false)}
-                    className="flex-1 h-10 rounded-lg border border-slate-200 text-sm font-semibold text-slate-600 hover:bg-slate-50"
-                  >
-                    Cancelar
-                  </button>
-                  <button
-                    onClick={handleConvert}
-                    className="flex-1 h-10 bg-emerald-600 text-white rounded-lg text-sm font-bold hover:bg-emerald-700 transition-all"
-                  >
-                    Confirmar Venda
-                  </button>
-                </div>
-              </div>
-            </motion.div>
-          </>
-        )}
+              </motion.div>
+            </>
+          );
+        })()}
       </AnimatePresence>
     </div>
   );

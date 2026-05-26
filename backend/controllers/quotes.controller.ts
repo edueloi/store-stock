@@ -120,10 +120,33 @@ export async function deleteQuote(req: Request, res: Response) {
   }
 }
 
+// ── shared helpers (mirrored from sales.controller) ─────────────────────────
+function parsePaymentMethod(pm: string) {
+  return pm.split("|").map((seg) => {
+    const [methodPart, amountStr] = seg.split(":");
+    const tokens = methodPart.split("-");
+    return {
+      method:       tokens[0] ?? "money",
+      brand:        tokens[1] ?? "other",
+      installments: tokens[2] ? parseInt(tokens[2].replace("x", ""), 10) : 1,
+      amount:       parseFloat(amountStr ?? "0") || 0,
+    };
+  });
+}
+
+function buildMethodSummary(pm: string) {
+  const labels: Record<string, string> = { money: "Dinheiro", pix: "PIX", debit: "Débito", credit: "Crédito" };
+  return parsePaymentMethod(pm).map(({ method, brand, installments }) => {
+    const b = brand && brand !== "other" ? `/${brand.toUpperCase()}` : "";
+    const i = method === "credit" && installments > 1 ? ` ${installments}X` : "";
+    return `${labels[method] ?? method}${b}${i}`;
+  }).join(" + ");
+}
+
 export async function convertToOrder(req: Request, res: Response) {
   try {
     const tenantId = getTenantId(req);
-    const quoteId = Number(req.params.id);
+    const quoteId  = Number(req.params.id);
 
     const quote = await prisma.quote.findFirst({
       where: { id: quoteId, tenant_id: tenantId },
@@ -132,20 +155,57 @@ export async function convertToOrder(req: Request, res: Response) {
     if (!quote) return res.status(404).json({ error: "Orçamento não encontrado" });
     if (quote.status === "converted") return res.status(400).json({ error: "Orçamento já foi convertido em venda" });
 
-    const { payment_method } = req.body;
+    const { payment_method, seller_id } = req.body as {
+      payment_method?: string;
+      seller_id?: number;
+    };
+
+    const pmString = payment_method || "money";
+
+    // Load tenant card fees to compute machine fee
+    const tenantData = await prisma.tenant.findUnique({
+      where: { id: tenantId },
+      select: { card_fees: true },
+    });
+    const cardFees = (tenantData?.card_fees ?? {}) as Record<string, number[]>;
+
+    // Calculate machine fee from credit segments
+    const pmSegments = parsePaymentMethod(pmString);
+    const machineFee = pmSegments.reduce((sum, seg) => {
+      if (seg.method !== "credit" || seg.amount <= 0) return sum;
+      const rate = cardFees[seg.brand]?.[seg.installments - 1] ?? 0;
+      return sum + seg.amount * (rate / 100);
+    }, 0);
+    const roundedFee  = Math.round(machineFee * 100) / 100;
+    const totalAmount = Number(quote.total_amount);
+    const discountVal = Number(quote.discount_value ?? 0);
+    const grossAmount = Math.round((totalAmount + discountVal) * 100) / 100;
+    const netAmount   = Math.round((totalAmount - roundedFee) * 100) / 100;
+
+    // Load seller name
+    let sellerName: string | null = null;
+    if (seller_id) {
+      const seller = await prisma.seller.findUnique({ where: { id: seller_id }, select: { name: true } });
+      sellerName = seller?.name ?? null;
+    }
 
     const order = await prisma.order.create({
       data: {
-        tenant_id: tenantId,
-        customer_name: quote.customer_name,
-        customer_phone: quote.customer_phone || undefined,
-        total_amount: quote.total_amount,
-        status: "completed",
-        payment_method: payment_method || "money",
+        tenant_id:       tenantId,
+        seller_id:       seller_id ?? null,
+        seller_name:     sellerName,
+        customer_name:   quote.customer_name,
+        customer_phone:  quote.customer_phone || undefined,
+        total_amount:    totalAmount,
+        gross_amount:    grossAmount,
+        discount_amount: discountVal > 0 ? discountVal : null,
+        fee_amount:      roundedFee > 0 ? roundedFee : null,
+        status:          "completed",
+        payment_method:  pmString,
         items: {
           create: quote.items.map((i) => ({
             product_id: i.product_id!,
-            quantity: i.quantity,
+            quantity:   i.quantity,
             unit_price: i.unit_price,
           })),
         },
@@ -161,14 +221,17 @@ export async function convertToOrder(req: Request, res: Response) {
       }
     }
 
-    const methodLabel: Record<string, string> = { money: "Dinheiro", card: "Cartão", pix: "PIX" };
+    const methodSummary = buildMethodSummary(pmString);
     await prisma.finance.create({
       data: {
-        tenant_id: tenantId,
-        type: "income",
-        description: `Venda (Orç. #${quote.number}) — ${methodLabel[payment_method] ?? payment_method ?? "Dinheiro"}`,
-        amount: quote.total_amount,
-        date: new Date(),
+        tenant_id:       tenantId,
+        type:            "income",
+        description:     `Venda (Orç. #${quote.number}) — ${methodSummary}`,
+        amount:          netAmount,
+        gross_amount:    grossAmount,
+        fee_amount:      roundedFee > 0 ? roundedFee : null,
+        discount_amount: discountVal > 0 ? discountVal : null,
+        date:            new Date(),
       },
     });
 
