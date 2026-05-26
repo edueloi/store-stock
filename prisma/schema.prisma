@@ -271,20 +271,57 @@ model AccountPayable {
 }
 
 model Customer {
-  id         Int      @id @default(autoincrement())
-  tenant_id  Int
-  name       String
-  email      String?
-  phone      String?
-  document   String?
-  address    String?
-  notes      String?  @db.Text
-  created_at DateTime @default(now())
-  updated_at DateTime @updatedAt
+  id           Int      @id @default(autoincrement())
+  tenant_id    Int
+  name         String
+  email        String?
+  phone        String?
+  document     String?
+  address      String?
+  notes        String?  @db.Text
+  credit_limit Decimal? @db.Decimal(10, 2)
+  risk_flag    Boolean  @default(false)
+  risk_reason  String?  @db.Text
+  created_at   DateTime @default(now())
+  updated_at   DateTime @updatedAt
 
-  tenant Tenant @relation(fields: [tenant_id], references: [id])
+  tenant         Tenant          @relation(fields: [tenant_id], references: [id])
+  debts          CustomerDebt[]
+  customer_notes CustomerNote[]
 
   @@map("customers")
+}
+
+model CustomerDebt {
+  id          Int       @id @default(autoincrement())
+  tenant_id   Int
+  customer_id Int
+  description String
+  amount      Decimal   @db.Decimal(10, 2)
+  due_date    DateTime? @db.Date
+  paid_at     DateTime?
+  status      String    @default("open")
+  created_at  DateTime  @default(now())
+  updated_at  DateTime  @updatedAt
+
+  customer Customer @relation(fields: [customer_id], references: [id], onDelete: Cascade)
+
+  @@index([tenant_id])
+  @@index([customer_id])
+  @@map("customer_debts")
+}
+
+model CustomerNote {
+  id          Int      @id @default(autoincrement())
+  tenant_id   Int
+  customer_id Int
+  body        String   @db.Text
+  created_at  DateTime @default(now())
+
+  customer Customer @relation(fields: [customer_id], references: [id], onDelete: Cascade)
+
+  @@index([customer_id])
+  @@map("customer_notes")
 }
 
 model Supplier {

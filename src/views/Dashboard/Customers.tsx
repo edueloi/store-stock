@@ -1,240 +1,981 @@
-import React, { useState, useEffect } from "react";
-import { Users, UserPlus, Mail, Phone, MapPin, ChevronRight } from "lucide-react";
-import { motion } from "motion/react";
-import Button from "../../components/ui/Button";
-import { Input, Textarea } from "../../components/ui/Input";
-import Modal from "../../components/ui/Modal";
+import { useState, useEffect, useCallback } from "react";
+import {
+  Users, UserPlus, Phone, Mail, MapPin, Search,
+  AlertTriangle, X, Plus, ChevronRight, Trash2,
+  DollarSign, Clock, CheckCircle2, FileText,
+  ShoppingBag, StickyNote, Edit2, Save, XCircle,
+  TrendingDown, AlertCircle, Shield,
+} from "lucide-react";
+import { motion, AnimatePresence } from "motion/react";
+import { cn } from "../../lib/utils";
 import PageHeader from "../../components/layout/PageHeader";
-import SearchBar from "../../components/layout/SearchBar";
-import { EmptyState, LoadingState } from "../../components/layout/EmptyState";
-import { StatCard } from "../../components/ui/Card";
+
+// ─── Types ────────────────────────────────────────────────────────────────────
 
 interface Customer {
   id: number;
   name: string;
-  email: string;
-  phone: string;
-  document: string;
-  address: string;
-  notes: string;
+  email?: string;
+  phone?: string;
+  document?: string;
+  address?: string;
+  notes?: string;
+  credit_limit?: number;
+  risk_flag: boolean;
+  risk_reason?: string;
+  created_at: string;
+  total_debt?: number;
+  open_debts?: number;
+}
+
+interface Debt {
+  id: number;
+  description: string;
+  amount: number;
+  due_date?: string;
+  paid_at?: string;
+  status: "open" | "paid";
   created_at: string;
 }
 
-const EMPTY: Partial<Customer> = { name: "", email: "", phone: "", document: "", address: "", notes: "" };
+interface Note {
+  id: number;
+  body: string;
+  created_at: string;
+}
+
+interface OrderItem {
+  id: number;
+  name?: string;
+  quantity: number;
+  unit_price: number;
+}
+
+interface Order {
+  id: number;
+  total_amount: number;
+  payment_method?: string;
+  created_at: string;
+  items: OrderItem[];
+}
+
+interface CustomerDetail extends Customer {
+  debts: Debt[];
+  customer_notes: Note[];
+  orders: Order[];
+  total_debt: number;
+}
+
+interface Debtor {
+  customer_id: number;
+  customer_name: string;
+  customer_phone?: string;
+  risk_flag: boolean;
+  total_debt: number;
+  open_debts: number;
+}
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+const fmt = (v: number) =>
+  v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+
+const fmtDate = (s: string) =>
+  new Date(s).toLocaleDateString("pt-BR");
+
+const authH = () => ({
+  Authorization: `Bearer ${localStorage.getItem("token")}`,
+  "Content-Type": "application/json",
+});
+
+function isOverdue(due_date?: string) {
+  if (!due_date) return false;
+  return new Date(due_date) < new Date();
+}
+
+const PAY_LABELS: Record<string, string> = {
+  money: "Dinheiro", card: "Cartão", pix: "PIX",
+};
+
+// ─── Main Component ───────────────────────────────────────────────────────────
+
+type MainTab = "customers" | "debtors";
+type DetailTab = "summary" | "fiado" | "history" | "notes";
 
 export default function Customers() {
+  const [mainTab, setMainTab] = useState<MainTab>("customers");
   const [customers, setCustomers] = useState<Customer[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [searchTerm, setSearchTerm] = useState("");
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [form, setForm] = useState<Partial<Customer>>(EMPTY);
-  const [saving, setSaving] = useState(false);
+  const [debtors, setDebtors]     = useState<Debtor[]>([]);
+  const [loading, setLoading]     = useState(true);
+  const [search, setSearch]       = useState("");
 
-  const headers = () => ({
-    "Content-Type": "application/json",
-    Authorization: `Bearer ${localStorage.getItem("token")}`,
-  });
+  // Customer form (create/edit)
+  const [showForm, setShowForm]   = useState(false);
+  const [editCust, setEditCust]   = useState<Customer | null>(null);
+  const [fName, setFName]         = useState("");
+  const [fEmail, setFEmail]       = useState("");
+  const [fPhone, setFPhone]       = useState("");
+  const [fDoc, setFDoc]           = useState("");
+  const [fAddr, setFAddr]         = useState("");
+  const [fNotes, setFNotes]       = useState("");
+  const [fCredit, setFCredit]     = useState("");
+  const [fRisk, setFRisk]         = useState(false);
+  const [fRiskReason, setFRiskReason] = useState("");
+  const [saving, setSaving]       = useState(false);
 
-  const fetchCustomers = async () => {
+  // Detail panel
+  const [detail, setDetail]       = useState<CustomerDetail | null>(null);
+  const [detailTab, setDetailTab] = useState<DetailTab>("summary");
+  const [loadingDetail, setLoadingDetail] = useState(false);
+
+  // Debt form
+  const [showDebtForm, setShowDebtForm] = useState(false);
+  const [dDesc, setDDesc]   = useState("");
+  const [dAmt, setDAmt]     = useState("");
+  const [dDue, setDDue]     = useState("");
+  const [savingDebt, setSavingDebt] = useState(false);
+
+  // Note form
+  const [noteBody, setNoteBody]   = useState("");
+  const [savingNote, setSavingNote] = useState(false);
+
+  // ── fetch
+
+  const fetchAll = useCallback(async () => {
+    const h = { Authorization: `Bearer ${localStorage.getItem("token")}` };
     try {
-      const res = await fetch("/api/customers", { headers: headers() });
-      const data = await res.json();
-      setCustomers(Array.isArray(data) ? data : []);
-    } catch (err) {
-      console.error(err);
+      const [cRes, dRes] = await Promise.all([
+        fetch("/api/customers", { headers: h }),
+        fetch("/api/customers/debtors", { headers: h }),
+      ]);
+      const cData = await cRes.json();
+      const dData = await dRes.json();
+      setCustomers(Array.isArray(cData) ? cData : []);
+      setDebtors(Array.isArray(dData) ? dData : []);
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
-  useEffect(() => { fetchCustomers(); }, []);
+  useEffect(() => { fetchAll(); }, [fetchAll]);
 
-  const openNew = () => { setForm(EMPTY); setIsModalOpen(true); };
-  const closeModal = () => { setIsModalOpen(false); setForm(EMPTY); };
+  const fetchDetail = useCallback(async (id: number) => {
+    setLoadingDetail(true);
+    const h = { Authorization: `Bearer ${localStorage.getItem("token")}` };
+    try {
+      const res = await fetch(`/api/customers/${id}`, { headers: h });
+      const data = await res.json();
+      setDetail(data);
+    } finally {
+      setLoadingDetail(false);
+    }
+  }, []);
 
-  const handleSave = async (e: React.FormEvent) => {
-    e.preventDefault();
+  // ── form helpers
+
+  function openCreate() {
+    setEditCust(null);
+    setFName(""); setFEmail(""); setFPhone(""); setFDoc("");
+    setFAddr(""); setFNotes(""); setFCredit(""); setFRisk(false); setFRiskReason("");
+    setShowForm(true);
+  }
+
+  function openEdit(c: Customer) {
+    setEditCust(c);
+    setFName(c.name); setFEmail(c.email ?? ""); setFPhone(c.phone ?? "");
+    setFDoc(c.document ?? ""); setFAddr(c.address ?? ""); setFNotes(c.notes ?? "");
+    setFCredit(c.credit_limit ? String(c.credit_limit) : "");
+    setFRisk(c.risk_flag); setFRiskReason(c.risk_reason ?? "");
+    setShowForm(true);
+  }
+
+  function closeForm() { setShowForm(false); setEditCust(null); }
+
+  async function handleSave() {
+    if (!fName.trim()) return;
     setSaving(true);
     try {
-      const res = await fetch("/api/customers", {
-        method: "POST",
-        headers: headers(),
-        body: JSON.stringify(form),
-      });
-      if (res.ok) { closeModal(); fetchCustomers(); }
+      const body = {
+        name: fName, email: fEmail, phone: fPhone, document: fDoc,
+        address: fAddr, notes: fNotes,
+        credit_limit: fCredit ? Number(fCredit) : null,
+        risk_flag: fRisk,
+        risk_reason: fRiskReason || null,
+      };
+      if (editCust) {
+        await fetch(`/api/customers/${editCust.id}`, {
+          method: "PUT", headers: authH(), body: JSON.stringify(body),
+        });
+        if (detail?.id === editCust.id) await fetchDetail(editCust.id);
+      } else {
+        await fetch("/api/customers", {
+          method: "POST", headers: authH(), body: JSON.stringify(body),
+        });
+      }
+      await fetchAll();
+      closeForm();
     } finally {
       setSaving(false);
     }
-  };
+  }
 
-  const filtered = customers.filter((c) =>
-    c.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    (c.email && c.email.toLowerCase().includes(searchTerm.toLowerCase())) ||
-    (c.phone && c.phone.includes(searchTerm))
+  async function handleDelete(id: number) {
+    if (!confirm("Excluir este cliente? Todas as dívidas e notas serão removidas.")) return;
+    await fetch(`/api/customers/${id}`, { method: "DELETE", headers: authH() });
+    if (detail?.id === id) setDetail(null);
+    fetchAll();
+  }
+
+  // ── debt actions
+
+  async function handleAddDebt() {
+    if (!detail || !dDesc.trim() || !dAmt) return;
+    setSavingDebt(true);
+    try {
+      await fetch(`/api/customers/${detail.id}/debts`, {
+        method: "POST", headers: authH(),
+        body: JSON.stringify({ description: dDesc, amount: Number(dAmt), due_date: dDue || null }),
+      });
+      setDDesc(""); setDAmt(""); setDDue("");
+      setShowDebtForm(false);
+      await fetchDetail(detail.id);
+      fetchAll();
+    } finally { setSavingDebt(false); }
+  }
+
+  async function handlePayDebt(debtId: number) {
+    if (!detail) return;
+    await fetch(`/api/customers/${detail.id}/debts/${debtId}/pay`, {
+      method: "POST", headers: authH(),
+    });
+    await fetchDetail(detail.id);
+    fetchAll();
+  }
+
+  async function handleDeleteDebt(debtId: number) {
+    if (!detail || !confirm("Remover esta dívida?")) return;
+    await fetch(`/api/customers/${detail.id}/debts/${debtId}`, {
+      method: "DELETE", headers: authH(),
+    });
+    await fetchDetail(detail.id);
+    fetchAll();
+  }
+
+  // ── note actions
+
+  async function handleAddNote() {
+    if (!detail || !noteBody.trim()) return;
+    setSavingNote(true);
+    try {
+      await fetch(`/api/customers/${detail.id}/notes`, {
+        method: "POST", headers: authH(),
+        body: JSON.stringify({ body: noteBody }),
+      });
+      setNoteBody("");
+      await fetchDetail(detail.id);
+    } finally { setSavingNote(false); }
+  }
+
+  async function handleDeleteNote(noteId: number) {
+    if (!detail || !confirm("Remover esta nota?")) return;
+    await fetch(`/api/customers/${detail.id}/notes/${noteId}`, {
+      method: "DELETE", headers: authH(),
+    });
+    await fetchDetail(detail.id);
+  }
+
+  // ── filters
+
+  const filteredCustomers = customers.filter((c) =>
+    c.name.toLowerCase().includes(search.toLowerCase()) ||
+    (c.phone && c.phone.includes(search)) ||
+    (c.email && c.email.toLowerCase().includes(search.toLowerCase()))
   );
 
+  const filteredDebtors = debtors.filter((d) =>
+    d.customer_name.toLowerCase().includes(search.toLowerCase()) ||
+    (d.customer_phone && d.customer_phone.includes(search))
+  );
+
+  const totalDebt = debtors.reduce((s, d) => s + d.total_debt, 0);
+
+  // ─────────────────────────────────────────────────────────────────────────────
+
   return (
-    <div className="space-y-6 ">
+    <div className="space-y-4">
       <PageHeader
-        title="CRM / Clientes"
-        subtitle="Gestão de relacionamento e fidelização"
+        title="Clientes"
+        subtitle="CRM, fiado, histórico de compras e notas internas"
         action={
-          <Button icon={<UserPlus size={15} />} onClick={openNew}>
-            Novo Cliente
-          </Button>
+          <button
+            onClick={openCreate}
+            className="h-9 px-4 bg-blue-600 text-white rounded-lg flex items-center gap-2 text-[12px] font-bold hover:bg-blue-700 transition-all shadow-md shadow-blue-500/20"
+          >
+            <UserPlus size={14} /> Novo Cliente
+          </button>
         }
       />
 
       {/* Stats */}
-      <div className="grid grid-cols-2 gap-4">
-        <StatCard
-          label="Total de Clientes"
-          value={customers.length}
-          icon={<Users />}
-          accent="blue"
-        />
-        <StatCard
-          label="Resultado da Busca"
-          value={filtered.length}
-          icon={<Users />}
-          accent="slate"
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        {[
+          { label: "Total Clientes",  value: customers.length,    color: "text-slate-700",   bg: "bg-slate-50",   icon: Users },
+          { label: "Com Dívida",      value: debtors.length,      color: "text-orange-600",  bg: "bg-orange-50",  icon: AlertCircle },
+          { label: "Total em Fiado",  value: fmt(totalDebt),      color: "text-red-600",     bg: "bg-red-50",     icon: DollarSign },
+          { label: "Clientes em Risco", value: customers.filter(c => c.risk_flag).length, color: "text-rose-600", bg: "bg-rose-50", icon: AlertTriangle },
+        ].map((s) => (
+          <div key={s.label} className={cn("rounded-xl p-4 border border-white/60 shadow-sm flex items-center gap-3", s.bg)}>
+            <s.icon size={20} className={cn(s.color, "shrink-0")} />
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500 leading-none">{s.label}</p>
+              <p className={cn("text-xl font-black mt-0.5 leading-none", s.color)}>{s.value}</p>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Main tabs */}
+      <div className="flex gap-1 bg-slate-100 p-1 rounded-xl w-fit">
+        {([
+          { value: "customers", label: "Todos os Clientes", icon: Users },
+          { value: "debtors",   label: `Devedores (${debtors.length})`, icon: TrendingDown },
+        ] as { value: MainTab; label: string; icon: React.FC<{ size: number }> }[]).map((t) => (
+          <button
+            key={t.value}
+            onClick={() => setMainTab(t.value)}
+            className={cn(
+              "flex items-center gap-1.5 px-4 py-2 rounded-lg text-[12px] font-bold transition-all",
+              mainTab === t.value ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"
+            )}
+          >
+            <t.icon size={13} /> {t.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Search */}
+      <div className="relative max-w-sm">
+        <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+        <input
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder={mainTab === "customers" ? "Buscar cliente…" : "Buscar devedor…"}
+          className="w-full pl-9 pr-3 h-9 rounded-lg border border-slate-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
         />
       </div>
 
-      <SearchBar
-        value={searchTerm}
-        onChange={setSearchTerm}
-        placeholder="Buscar por nome, e-mail ou telefone..."
-      />
-
-      {/* Content */}
-      {loading ? (
-        <LoadingState rows={6} />
-      ) : filtered.length === 0 ? (
-        <EmptyState
-          icon={<Users size={32} strokeWidth={1} />}
-          title={searchTerm ? "Nenhum cliente encontrado" : "Nenhum cliente cadastrado"}
-          description={searchTerm ? `Sem resultados para "${searchTerm}"` : "Cadastre seu primeiro cliente para começar."}
-          action={!searchTerm && <Button icon={<UserPlus size={14} />} onClick={openNew}>Novo Cliente</Button>}
-        />
-      ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 lg:gap-6">
-          {filtered.map((customer) => (
-            <motion.div
-              whileHover={{ y: -3 }}
-              key={customer.id}
-              className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm hover:shadow-xl transition-all group cursor-pointer"
-            >
-              <div className="flex justify-between items-start mb-4">
-                <div className="w-11 h-11 bg-blue-50 border border-blue-100 rounded-2xl flex items-center justify-center text-blue-600 font-black text-lg uppercase shrink-0">
-                  {customer.name[0]}
-                </div>
-                <span className="text-[9px] font-black text-slate-300 uppercase tracking-widest">
-                  #{String(customer.id).padStart(4, "0")}
-                </span>
-              </div>
-
-              <div className="space-y-3">
-                <h3 className="text-sm font-black text-slate-900 uppercase tracking-tight line-clamp-1">
-                  {customer.name}
-                </h3>
-
-                <div className="space-y-1.5">
-                  {customer.email && (
-                    <div className="flex items-center gap-2 text-slate-500">
-                      <Mail size={12} className="shrink-0 text-slate-400" />
-                      <span className="text-[10px] font-mono truncate">{customer.email}</span>
-                    </div>
+      {/* ── CUSTOMERS LIST ─────────────────────────────────────────────────── */}
+      {mainTab === "customers" && (
+        <>
+          {loading ? (
+            <div className="flex justify-center py-16 text-slate-400 text-sm">Carregando…</div>
+          ) : filteredCustomers.length === 0 ? (
+            <div className="flex flex-col items-center py-16 text-slate-400 gap-3">
+              <Users size={40} strokeWidth={1} />
+              <p className="text-sm font-medium">Nenhum cliente encontrado</p>
+              <button onClick={openCreate} className="h-8 px-4 bg-blue-600 text-white rounded-lg text-xs font-bold hover:bg-blue-700">
+                Cadastrar cliente
+              </button>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
+              {filteredCustomers.map((c) => (
+                <motion.div
+                  key={c.id}
+                  whileHover={{ y: -2 }}
+                  onClick={() => { setDetail(null); setDetailTab("summary"); fetchDetail(c.id); }}
+                  className={cn(
+                    "bg-white rounded-2xl border shadow-sm hover:shadow-md transition-all cursor-pointer p-4 flex flex-col gap-3",
+                    c.risk_flag ? "border-rose-200 ring-1 ring-rose-100" : "border-slate-200"
                   )}
-                  {customer.phone && (
-                    <div className="flex items-center gap-2 text-slate-500">
-                      <Phone size={12} className="shrink-0 text-slate-400" />
-                      <span className="text-[10px] font-mono">{customer.phone}</span>
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className={cn(
+                        "w-10 h-10 rounded-xl flex items-center justify-center font-black text-lg uppercase shrink-0",
+                        c.risk_flag ? "bg-rose-50 text-rose-500 border border-rose-200" : "bg-blue-50 text-blue-600 border border-blue-100"
+                      )}>
+                        {c.name[0]}
+                      </div>
+                      <div className="min-w-0">
+                        <p className="font-black text-slate-800 text-[13px] truncate">{c.name}</p>
+                        {c.phone && (
+                          <p className="text-[11px] text-slate-400 flex items-center gap-1 mt-0.5">
+                            <Phone size={9} /> {c.phone}
+                          </p>
+                        )}
+                      </div>
                     </div>
-                  )}
-                  {customer.address && (
-                    <div className="flex items-center gap-2 text-slate-500">
-                      <MapPin size={12} className="shrink-0 text-slate-400" />
-                      <span className="text-[10px] line-clamp-1 truncate">{customer.address}</span>
+                    <div className="flex items-center gap-1 shrink-0">
+                      {c.risk_flag && (
+                        <span title="Cliente em risco" className="p-1 bg-rose-50 text-rose-500 rounded-lg">
+                          <AlertTriangle size={12} />
+                        </span>
+                      )}
+                      {(c.total_debt ?? 0) > 0 && (
+                        <span className="text-[10px] font-black text-red-500 bg-red-50 px-1.5 py-0.5 rounded-full">
+                          {fmt(c.total_debt!)}
+                        </span>
+                      )}
                     </div>
-                  )}
-                </div>
-              </div>
+                  </div>
 
-              <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between">
-                <span className="text-[9px] font-bold text-slate-300 uppercase">
-                  {new Date(customer.created_at).toLocaleDateString("pt-BR")}
-                </span>
-                <span className="text-[10px] font-bold text-blue-600 uppercase flex items-center gap-0.5 group-hover:gap-1.5 transition-all">
-                  Ver Ficha <ChevronRight size={13} />
-                </span>
-              </div>
-            </motion.div>
-          ))}
-        </div>
+                  <div className="flex items-center justify-between pt-1 border-t border-slate-100">
+                    <span className="text-[9px] text-slate-400 font-semibold">
+                      Desde {fmtDate(c.created_at)}
+                    </span>
+                    <span className="text-[10px] text-blue-600 font-bold flex items-center gap-0.5">
+                      Ver ficha <ChevronRight size={11} />
+                    </span>
+                  </div>
+                </motion.div>
+              ))}
+            </div>
+          )}
+        </>
       )}
 
-      {/* Modal */}
-      <Modal
-        open={isModalOpen}
-        onClose={closeModal}
-        title="Novo Cliente"
-        subtitle="Cadastro CRM"
-        footer={
+      {/* ── DEBTORS LIST ───────────────────────────────────────────────────── */}
+      {mainTab === "debtors" && (
+        <>
+          {filteredDebtors.length === 0 ? (
+            <div className="flex flex-col items-center py-16 text-slate-400 gap-3">
+              <CheckCircle2 size={40} strokeWidth={1} />
+              <p className="text-sm font-medium">Nenhum devedor em aberto</p>
+            </div>
+          ) : (
+            <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="bg-slate-50 border-b border-slate-200">
+                    <th className="px-4 py-3 text-left text-[10px] font-black uppercase tracking-wider text-slate-500">Cliente</th>
+                    <th className="px-4 py-3 text-left text-[10px] font-black uppercase tracking-wider text-slate-500 hidden sm:table-cell">Telefone</th>
+                    <th className="px-4 py-3 text-center text-[10px] font-black uppercase tracking-wider text-slate-500">Parcelas</th>
+                    <th className="px-4 py-3 text-right text-[10px] font-black uppercase tracking-wider text-slate-500">Total Devendo</th>
+                    <th className="px-4 py-3 text-center text-[10px] font-black uppercase tracking-wider text-slate-500">Risco</th>
+                    <th className="px-4 py-3 text-right text-[10px] font-black uppercase tracking-wider text-slate-500">Ação</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {filteredDebtors.map((d) => (
+                    <tr key={d.customer_id} className="hover:bg-slate-50 transition-colors">
+                      <td className="px-4 py-3">
+                        <span className="font-semibold text-slate-800">{d.customer_name}</span>
+                      </td>
+                      <td className="px-4 py-3 text-slate-500 hidden sm:table-cell">{d.customer_phone ?? "–"}</td>
+                      <td className="px-4 py-3 text-center">
+                        <span className="text-[11px] font-bold text-slate-600 bg-slate-100 px-2 py-0.5 rounded-full">
+                          {d.open_debts}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-right font-black text-red-600">{fmt(d.total_debt)}</td>
+                      <td className="px-4 py-3 text-center">
+                        {d.risk_flag
+                          ? <AlertTriangle size={14} className="text-rose-500 mx-auto" />
+                          : <span className="text-slate-300 text-xs">—</span>}
+                      </td>
+                      <td className="px-4 py-3 text-right">
+                        <button
+                          onClick={() => { setDetail(null); setDetailTab("fiado"); fetchDetail(d.customer_id); }}
+                          className="text-[11px] font-bold text-blue-600 hover:underline"
+                        >
+                          Ver ficha
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+                <tfoot>
+                  <tr className="bg-red-50 border-t border-red-100">
+                    <td colSpan={3} className="px-4 py-2 text-[11px] font-black uppercase text-red-500">Total em aberto</td>
+                    <td className="px-4 py-2 text-right font-black text-red-600">{fmt(totalDebt)}</td>
+                    <td colSpan={2} />
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+          )}
+        </>
+      )}
+
+      {/* ── CUSTOMER DETAIL PANEL ──────────────────────────────────────────── */}
+      <AnimatePresence>
+        {detail !== null && (
           <>
-            <Button variant="secondary" onClick={closeModal}>Cancelar</Button>
-            <Button form="customer-form" type="submit" loading={saving} icon={<UserPlus size={14} />}>
-              Confirmar
-            </Button>
+            <motion.div
+              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              onClick={() => setDetail(null)}
+              className="fixed inset-0 bg-slate-900/50 z-40 backdrop-blur-sm"
+            />
+            <motion.div
+              initial={{ x: "100%" }} animate={{ x: 0 }} exit={{ x: "100%" }}
+              transition={{ type: "spring", damping: 26, stiffness: 200 }}
+              className="fixed inset-y-0 right-0 w-full max-w-lg bg-white z-50 shadow-2xl flex flex-col"
+            >
+              {loadingDetail ? (
+                <div className="flex-1 flex items-center justify-center text-slate-400">Carregando…</div>
+              ) : (
+                <>
+                  {/* Panel header */}
+                  <div className={cn(
+                    "px-5 py-4 border-b border-slate-200 shrink-0",
+                    detail.risk_flag ? "bg-rose-50" : "bg-white"
+                  )}>
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div className={cn(
+                          "w-12 h-12 rounded-2xl flex items-center justify-center font-black text-xl uppercase shrink-0",
+                          detail.risk_flag ? "bg-rose-100 text-rose-600" : "bg-blue-50 text-blue-600"
+                        )}>
+                          {detail.name[0]}
+                        </div>
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <h2 className="font-black text-slate-900 text-[16px] leading-tight">{detail.name}</h2>
+                            {detail.risk_flag && (
+                              <span className="flex items-center gap-1 text-[9px] font-black text-rose-600 bg-rose-100 px-2 py-0.5 rounded-full uppercase">
+                                <AlertTriangle size={9} /> Risco
+                              </span>
+                            )}
+                          </div>
+                          <div className="flex flex-wrap gap-3 mt-1">
+                            {detail.phone && (
+                              <a href={`tel:${detail.phone}`} className="text-[11px] text-slate-500 flex items-center gap-1 hover:text-blue-600">
+                                <Phone size={10} /> {detail.phone}
+                              </a>
+                            )}
+                            {detail.email && (
+                              <a href={`mailto:${detail.email}`} className="text-[11px] text-slate-500 flex items-center gap-1 hover:text-blue-600">
+                                <Mail size={10} /> {detail.email}
+                              </a>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                      <div className="flex gap-1 shrink-0">
+                        <button
+                          onClick={() => openEdit(detail)}
+                          className="p-2 hover:bg-slate-100 rounded-lg text-slate-500"
+                          title="Editar"
+                        >
+                          <Edit2 size={15} />
+                        </button>
+                        <button
+                          onClick={() => handleDelete(detail.id)}
+                          className="p-2 hover:bg-red-50 text-slate-400 hover:text-red-500 rounded-lg"
+                          title="Excluir"
+                        >
+                          <Trash2 size={15} />
+                        </button>
+                        <button
+                          onClick={() => setDetail(null)}
+                          className="p-2 hover:bg-slate-100 rounded-lg text-slate-500"
+                        >
+                          <X size={15} />
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Debt badge */}
+                    {detail.total_debt > 0 && (
+                      <div className="mt-3 flex items-center gap-2 bg-red-50 border border-red-200 rounded-xl px-3 py-2">
+                        <DollarSign size={14} className="text-red-500 shrink-0" />
+                        <span className="text-[12px] font-black text-red-600">
+                          Deve {fmt(detail.total_debt)} em aberto
+                        </span>
+                      </div>
+                    )}
+                    {detail.risk_reason && (
+                      <div className="mt-2 flex items-start gap-2 bg-rose-50 border border-rose-200 rounded-xl px-3 py-2">
+                        <Shield size={13} className="text-rose-500 mt-0.5 shrink-0" />
+                        <p className="text-[11px] text-rose-700 font-semibold">{detail.risk_reason}</p>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Detail tabs */}
+                  <div className="flex gap-0 border-b border-slate-200 shrink-0 overflow-x-auto">
+                    {([
+                      { value: "summary", label: "Resumo",    icon: Users },
+                      { value: "fiado",   label: `Fiado (${detail.debts.filter(d => d.status === "open").length})`, icon: DollarSign },
+                      { value: "history", label: `Compras (${detail.orders.length})`, icon: ShoppingBag },
+                      { value: "notes",   label: `Notas (${detail.customer_notes.length})`, icon: StickyNote },
+                    ] as { value: DetailTab; label: string; icon: React.FC<{size: number}> }[]).map((t) => (
+                      <button
+                        key={t.value}
+                        onClick={() => setDetailTab(t.value)}
+                        className={cn(
+                          "flex items-center gap-1.5 px-4 py-2.5 text-[11px] font-bold whitespace-nowrap border-b-2 transition-all",
+                          detailTab === t.value
+                            ? "border-blue-600 text-blue-600"
+                            : "border-transparent text-slate-500 hover:text-slate-700"
+                        )}
+                      >
+                        <t.icon size={12} /> {t.label}
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* Tab content */}
+                  <div className="flex-1 overflow-y-auto p-5 space-y-4">
+
+                    {/* ─ SUMMARY ─ */}
+                    {detailTab === "summary" && (
+                      <div className="space-y-4">
+                        <div className="grid grid-cols-2 gap-3">
+                          {[
+                            { label: "Total de Compras", value: detail.orders.length, icon: ShoppingBag },
+                            { label: "Gasto Total",      value: fmt(detail.orders.reduce((s, o) => s + Number(o.total_amount), 0)), icon: DollarSign },
+                            { label: "Fiados em Aberto", value: detail.debts.filter(d => d.status === "open").length, icon: AlertCircle },
+                            { label: "Notas Internas",   value: detail.customer_notes.length, icon: StickyNote },
+                          ].map((s) => (
+                            <div key={s.label} className="bg-slate-50 rounded-xl p-3 border border-slate-100">
+                              <p className="text-[9px] font-black uppercase tracking-wider text-slate-400">{s.label}</p>
+                              <p className="text-lg font-black text-slate-800 mt-0.5">{s.value}</p>
+                            </div>
+                          ))}
+                        </div>
+
+                        {detail.address && (
+                          <div className="flex items-center gap-2 text-sm text-slate-600">
+                            <MapPin size={13} className="text-slate-400 shrink-0" />
+                            {detail.address}
+                          </div>
+                        )}
+                        {detail.document && (
+                          <div className="text-sm text-slate-600">
+                            <span className="font-semibold">CPF/CNPJ:</span> {detail.document}
+                          </div>
+                        )}
+                        {detail.credit_limit && (
+                          <div className="text-sm text-slate-600">
+                            <span className="font-semibold">Limite de crédito:</span> {fmt(Number(detail.credit_limit))}
+                          </div>
+                        )}
+                        {detail.notes && (
+                          <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-[12px] text-amber-800">
+                            <p className="font-bold mb-1 flex items-center gap-1"><FileText size={11} /> Observações do cadastro</p>
+                            {detail.notes}
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* ─ FIADO ─ */}
+                    {detailTab === "fiado" && (
+                      <div className="space-y-3">
+                        {/* Add debt button */}
+                        {!showDebtForm ? (
+                          <button
+                            onClick={() => setShowDebtForm(true)}
+                            className="w-full h-9 border-2 border-dashed border-slate-200 rounded-xl text-[12px] font-bold text-slate-500 hover:border-blue-400 hover:text-blue-600 transition-all flex items-center justify-center gap-1.5"
+                          >
+                            <Plus size={14} /> Adicionar Fiado
+                          </button>
+                        ) : (
+                          <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 space-y-3">
+                            <p className="text-[11px] font-black uppercase tracking-wider text-blue-600">Novo Fiado</p>
+                            <input
+                              value={dDesc}
+                              onChange={(e) => setDDesc(e.target.value)}
+                              placeholder="Descrição (ex: 1 kg de frango)"
+                              className="w-full h-9 px-3 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            />
+                            <div className="grid grid-cols-2 gap-2">
+                              <div className="relative">
+                                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm font-bold">R$</span>
+                                <input
+                                  type="number" min={0} step="0.01"
+                                  value={dAmt}
+                                  onChange={(e) => setDAmt(e.target.value)}
+                                  placeholder="0,00"
+                                  className="w-full h-9 pl-8 pr-3 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                />
+                              </div>
+                              <input
+                                type="date"
+                                value={dDue}
+                                onChange={(e) => setDDue(e.target.value)}
+                                placeholder="Vencimento"
+                                className="w-full h-9 px-3 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                              />
+                            </div>
+                            <div className="flex gap-2">
+                              <button
+                                onClick={() => setShowDebtForm(false)}
+                                className="flex-1 h-9 rounded-lg border border-slate-200 text-sm font-semibold text-slate-600 hover:bg-slate-100"
+                              >
+                                Cancelar
+                              </button>
+                              <button
+                                onClick={handleAddDebt}
+                                disabled={savingDebt || !dDesc.trim() || !dAmt}
+                                className="flex-1 h-9 bg-blue-600 text-white rounded-lg text-sm font-bold hover:bg-blue-700 disabled:opacity-50"
+                              >
+                                {savingDebt ? "Salvando…" : "Registrar"}
+                              </button>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Debts list */}
+                        {detail.debts.length === 0 ? (
+                          <p className="text-center text-sm text-slate-400 py-8">Nenhum fiado registrado</p>
+                        ) : (
+                          <div className="space-y-2">
+                            {detail.debts.map((d) => (
+                              <div
+                                key={d.id}
+                                className={cn(
+                                  "flex items-start gap-3 p-3 rounded-xl border",
+                                  d.status === "paid"
+                                    ? "bg-emerald-50 border-emerald-200"
+                                    : isOverdue(d.due_date)
+                                    ? "bg-red-50 border-red-200"
+                                    : "bg-white border-slate-200"
+                                )}
+                              >
+                                <div className={cn(
+                                  "w-8 h-8 rounded-lg flex items-center justify-center shrink-0 mt-0.5",
+                                  d.status === "paid" ? "bg-emerald-100" : "bg-red-100"
+                                )}>
+                                  {d.status === "paid"
+                                    ? <CheckCircle2 size={15} className="text-emerald-600" />
+                                    : <Clock size={15} className="text-red-500" />}
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <p className="font-semibold text-[13px] text-slate-800">{d.description}</p>
+                                  <p className="font-black text-[13px] text-red-600">{fmt(Number(d.amount))}</p>
+                                  <div className="flex flex-wrap gap-2 mt-0.5">
+                                    <span className="text-[10px] text-slate-400">{fmtDate(d.created_at)}</span>
+                                    {d.due_date && (
+                                      <span className={cn(
+                                        "text-[10px] font-semibold",
+                                        isOverdue(d.due_date) && d.status === "open" ? "text-red-500" : "text-slate-400"
+                                      )}>
+                                        Vence: {fmtDate(d.due_date)}
+                                        {isOverdue(d.due_date) && d.status === "open" && " (vencido)"}
+                                      </span>
+                                    )}
+                                    {d.status === "paid" && d.paid_at && (
+                                      <span className="text-[10px] text-emerald-600 font-semibold">
+                                        Pago em {fmtDate(d.paid_at)}
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
+                                {d.status === "open" && (
+                                  <div className="flex gap-1 shrink-0">
+                                    <button
+                                      onClick={() => handlePayDebt(d.id)}
+                                      title="Marcar como pago"
+                                      className="p-1.5 bg-emerald-100 hover:bg-emerald-200 text-emerald-600 rounded-lg transition-colors"
+                                    >
+                                      <CheckCircle2 size={13} />
+                                    </button>
+                                    <button
+                                      onClick={() => handleDeleteDebt(d.id)}
+                                      title="Remover"
+                                      className="p-1.5 hover:bg-red-50 text-slate-300 hover:text-red-400 rounded-lg transition-colors"
+                                    >
+                                      <Trash2 size={13} />
+                                    </button>
+                                  </div>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* ─ HISTORY ─ */}
+                    {detailTab === "history" && (
+                      <div className="space-y-2">
+                        {detail.orders.length === 0 ? (
+                          <p className="text-center text-sm text-slate-400 py-8">Nenhuma compra registrada</p>
+                        ) : (
+                          detail.orders.map((o) => (
+                            <div key={o.id} className="bg-white border border-slate-200 rounded-xl p-3 space-y-2">
+                              <div className="flex items-center justify-between">
+                                <span className="text-[11px] text-slate-400">{fmtDate(o.created_at)}</span>
+                                <div className="flex items-center gap-2">
+                                  {o.payment_method && (
+                                    <span className="text-[10px] font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full">
+                                      {PAY_LABELS[o.payment_method] ?? o.payment_method}
+                                    </span>
+                                  )}
+                                  <span className="font-black text-emerald-600 text-[13px]">{fmt(Number(o.total_amount))}</span>
+                                </div>
+                              </div>
+                              {o.items.length > 0 && (
+                                <div className="space-y-0.5">
+                                  {o.items.slice(0, 4).map((it) => (
+                                    <div key={it.id} className="flex items-center justify-between text-[11px] text-slate-600">
+                                      <span className="truncate">{it.name ?? `Item #${it.id}`} × {it.quantity}</span>
+                                      <span className="font-semibold ml-2 shrink-0">{fmt(Number(it.unit_price) * it.quantity)}</span>
+                                    </div>
+                                  ))}
+                                  {o.items.length > 4 && (
+                                    <p className="text-[10px] text-slate-400">+{o.items.length - 4} itens</p>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                          ))
+                        )}
+                      </div>
+                    )}
+
+                    {/* ─ NOTES ─ */}
+                    {detailTab === "notes" && (
+                      <div className="space-y-3">
+                        {/* Add note */}
+                        <div className="space-y-2">
+                          <textarea
+                            value={noteBody}
+                            onChange={(e) => setNoteBody(e.target.value)}
+                            rows={3}
+                            placeholder="Adicionar nota interna… Ex: cliente costuma atrasar pagamento, cuidado ao fazer fiado."
+                            className="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+                          />
+                          <button
+                            onClick={handleAddNote}
+                            disabled={savingNote || !noteBody.trim()}
+                            className="h-8 px-4 bg-amber-500 text-white rounded-lg text-[12px] font-bold hover:bg-amber-600 disabled:opacity-50 transition-all flex items-center gap-1.5"
+                          >
+                            <Save size={12} /> {savingNote ? "Salvando…" : "Salvar Nota"}
+                          </button>
+                        </div>
+
+                        {/* Notes list */}
+                        {detail.customer_notes.length === 0 ? (
+                          <p className="text-center text-sm text-slate-400 py-6">Nenhuma nota ainda</p>
+                        ) : (
+                          <div className="space-y-2">
+                            {detail.customer_notes.map((n) => (
+                              <div key={n.id} className="bg-amber-50 border border-amber-200 rounded-xl p-3 flex items-start gap-2">
+                                <StickyNote size={13} className="text-amber-500 mt-0.5 shrink-0" />
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-[12px] text-amber-900">{n.body}</p>
+                                  <p className="text-[10px] text-amber-500 mt-1">{fmtDate(n.created_at)}</p>
+                                </div>
+                                <button
+                                  onClick={() => handleDeleteNote(n.id)}
+                                  className="p-1 hover:bg-amber-100 text-amber-300 hover:text-amber-500 rounded-lg transition-colors"
+                                >
+                                  <XCircle size={13} />
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </>
+              )}
+            </motion.div>
           </>
-        }
-      >
-        <form id="customer-form" onSubmit={handleSave} className="space-y-4">
-          <Input
-            label="Nome Completo / Razão Social *"
-            required
-            placeholder="Nome do cliente"
-            value={form.name || ""}
-            onChange={(e) => setForm({ ...form, name: e.target.value })}
-          />
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <Input
-              label="E-mail"
-              type="email"
-              placeholder="email@exemplo.com"
-              value={form.email || ""}
-              onChange={(e) => setForm({ ...form, email: e.target.value })}
+        )}
+      </AnimatePresence>
+
+      {/* ── CREATE / EDIT FORM DRAWER ─────────────────────────────────────── */}
+      <AnimatePresence>
+        {showForm && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              onClick={closeForm}
+              className="fixed inset-0 bg-slate-900/50 z-[60] backdrop-blur-sm"
             />
-            <Input
-              label="Telefone / WhatsApp"
-              placeholder="(11) 99999-9999"
-              value={form.phone || ""}
-              onChange={(e) => setForm({ ...form, phone: e.target.value })}
-            />
-          </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <Input
-              label="CPF / CNPJ"
-              placeholder="000.000.000-00"
-              value={form.document || ""}
-              onChange={(e) => setForm({ ...form, document: e.target.value })}
-            />
-            <Input
-              label="Endereço"
-              placeholder="Rua, Cidade - UF"
-              value={form.address || ""}
-              onChange={(e) => setForm({ ...form, address: e.target.value })}
-            />
-          </div>
-          <Textarea
-            label="Observações"
-            placeholder="Preferências, histórico, notas..."
-            rows={3}
-            value={form.notes || ""}
-            onChange={(e) => setForm({ ...form, notes: e.target.value })}
-          />
-        </form>
-      </Modal>
+            <motion.div
+              initial={{ x: "100%" }} animate={{ x: 0 }} exit={{ x: "100%" }}
+              transition={{ type: "spring", damping: 26, stiffness: 200 }}
+              className="fixed inset-y-0 right-0 w-full max-w-sm bg-white z-[70] shadow-2xl flex flex-col"
+            >
+              <div className="flex items-center justify-between px-5 py-4 border-b border-slate-200 shrink-0">
+                <div>
+                  <h2 className="font-black text-slate-900 text-[15px]">{editCust ? "Editar Cliente" : "Novo Cliente"}</h2>
+                  <p className="text-[11px] text-slate-500">Cadastro CRM</p>
+                </div>
+                <button onClick={closeForm} className="p-2 hover:bg-slate-100 rounded-lg text-slate-500">
+                  <X size={18} />
+                </button>
+              </div>
+
+              <div className="flex-1 overflow-y-auto p-5 space-y-3">
+                <div>
+                  <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block mb-1">Nome *</label>
+                  <input value={fName} onChange={(e) => setFName(e.target.value)} placeholder="Nome completo" className="w-full h-9 px-3 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block mb-1">Telefone</label>
+                    <input value={fPhone} onChange={(e) => setFPhone(e.target.value)} placeholder="(11) 99999-9999" className="w-full h-9 px-3 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block mb-1">CPF/CNPJ</label>
+                    <input value={fDoc} onChange={(e) => setFDoc(e.target.value)} placeholder="000.000.000-00" className="w-full h-9 px-3 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                  </div>
+                </div>
+                <div>
+                  <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block mb-1">E-mail</label>
+                  <input type="email" value={fEmail} onChange={(e) => setFEmail(e.target.value)} placeholder="email@exemplo.com" className="w-full h-9 px-3 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                </div>
+                <div>
+                  <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block mb-1">Endereço</label>
+                  <input value={fAddr} onChange={(e) => setFAddr(e.target.value)} placeholder="Rua, Cidade - UF" className="w-full h-9 px-3 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                </div>
+                <div>
+                  <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block mb-1">Limite de Crédito (R$)</label>
+                  <input type="number" min={0} value={fCredit} onChange={(e) => setFCredit(e.target.value)} placeholder="0,00" className="w-full h-9 px-3 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                </div>
+                <div>
+                  <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block mb-1">Observações</label>
+                  <textarea value={fNotes} onChange={(e) => setFNotes(e.target.value)} rows={2} placeholder="Preferências, anotações gerais…" className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none" />
+                </div>
+
+                {/* Risk flag */}
+                <div className={cn("rounded-xl border p-3 space-y-2 transition-colors", fRisk ? "bg-rose-50 border-rose-200" : "bg-slate-50 border-slate-200")}>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={fRisk}
+                      onChange={(e) => setFRisk(e.target.checked)}
+                      className="w-4 h-4 accent-rose-500"
+                    />
+                    <span className={cn("text-[12px] font-black", fRisk ? "text-rose-600" : "text-slate-600")}>
+                      <AlertTriangle size={12} className="inline mr-1" />
+                      Marcar como Cliente de Risco
+                    </span>
+                  </label>
+                  {fRisk && (
+                    <textarea
+                      value={fRiskReason}
+                      onChange={(e) => setFRiskReason(e.target.value)}
+                      rows={2}
+                      placeholder="Motivo do risco (ex: atrasou 3x, cheque sem fundo…)"
+                      className="w-full px-3 py-2 rounded-lg border border-rose-200 text-sm focus:outline-none focus:ring-2 focus:ring-rose-400 resize-none bg-white"
+                    />
+                  )}
+                </div>
+              </div>
+
+              <div className="border-t border-slate-200 px-5 py-4 shrink-0 bg-slate-50 flex gap-2">
+                <button onClick={closeForm} className="flex-1 h-9 rounded-lg border border-slate-200 text-sm font-semibold text-slate-600 hover:bg-slate-100">Cancelar</button>
+                <button
+                  onClick={handleSave}
+                  disabled={saving || !fName.trim()}
+                  className="flex-1 h-9 bg-blue-600 text-white rounded-lg text-sm font-bold hover:bg-blue-700 disabled:opacity-50 transition-all"
+                >
+                  {saving ? "Salvando…" : editCust ? "Salvar" : "Criar Cliente"}
+                </button>
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
