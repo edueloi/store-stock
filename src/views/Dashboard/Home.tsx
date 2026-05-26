@@ -262,7 +262,7 @@ export default function Home() {
           <div className="flex items-center justify-between mb-5">
             <div>
               <h3 className="text-xs font-bold uppercase tracking-widest text-slate-900">Faturamento — últimos 7 dias</h3>
-              <p className="text-[10px] text-slate-400 font-medium mt-0.5">Receita bruta de pedidos concluídos</p>
+              <p className="text-[10px] text-slate-400 font-medium mt-0.5">Receita líquida de pedidos concluídos</p>
             </div>
             <div className="w-2 h-2 bg-blue-500 rounded-full" />
           </div>

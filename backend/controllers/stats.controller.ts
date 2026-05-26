@@ -47,10 +47,10 @@ export async function getDashboardStats(req: Request, res: Response) {
   const tenantId = getTenantId(req);
 
   try {
-    const [totalSales, totalExpenses, products] = await Promise.all([
-      prisma.order.aggregate({
-        where: { tenant_id: tenantId, status: "completed" },
-        _sum: { total_amount: true },
+    const [totalIncome, totalExpenses, products] = await Promise.all([
+      prisma.finance.aggregate({
+        where: { tenant_id: tenantId, type: "income" },
+        _sum: { amount: true },
       }),
       prisma.finance.aggregate({
         where: { tenant_id: tenantId, type: "expense" },
@@ -69,15 +69,15 @@ export async function getDashboardStats(req: Request, res: Response) {
     );
 
     const salesOverTime = await prisma.$queryRaw<{ date: string; total: number }[]>`
-      SELECT DATE(created_at) as date, SUM(total_amount) as total
-      FROM orders
-      WHERE tenant_id = ${tenantId} AND status = 'completed'
-      GROUP BY DATE(created_at)
+      SELECT DATE(date) as date, SUM(amount) as total
+      FROM finance
+      WHERE tenant_id = ${tenantId} AND type = 'income'
+      GROUP BY DATE(date)
       ORDER BY date DESC
       LIMIT 7
     `;
 
-    const revenue = Number(totalSales._sum.total_amount) || 0;
+    const revenue = Number(totalIncome._sum.amount) || 0;
     const expenses = Number(totalExpenses._sum.amount) || 0;
 
     res.json({

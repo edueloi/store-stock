@@ -866,6 +866,18 @@ export default function Markup() {
             <div className="mt-2">
               <ProfitBar pct={inputs.desired_margin} color="#22c55e" />
             </div>
+            <button
+              onClick={() => saveInputs(inputs)}
+              className={cn(
+                "mt-3 w-full h-9 px-3 rounded-lg flex items-center justify-center gap-2 text-[12px] font-bold transition-all shadow-md",
+                savedMsg
+                  ? "bg-emerald-500 text-white shadow-emerald-500/20"
+                  : "bg-blue-600 text-white hover:bg-blue-700 shadow-blue-500/20"
+              )}
+            >
+              {savedMsg ? <CheckCircle2 size={14} /> : <Save size={14} />}
+              {savedMsg ? "Salvo!" : "Salvar Config."}
+            </button>
           </div>
         </div>
 
