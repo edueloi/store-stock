@@ -144,8 +144,25 @@ model Product {
   category        Category?       @relation(fields: [category_id], references: [id])
   order_items     OrderItem[]
   stock_movements StockMovement[]
+  history         ProductHistory[]
 
   @@map("products")
+}
+
+model ProductHistory {
+  id         Int      @id @default(autoincrement())
+  tenant_id  Int
+  product_id Int
+  field      String
+  old_value  String?  @db.Text
+  new_value  String?  @db.Text
+  created_at DateTime @default(now())
+
+  product Product @relation(fields: [product_id], references: [id], onDelete: Cascade)
+
+  @@index([product_id])
+  @@index([tenant_id])
+  @@map("product_history")
 }
 
 model Order {

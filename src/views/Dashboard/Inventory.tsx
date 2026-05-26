@@ -3,6 +3,7 @@ import {
   Plus, Edit2, Trash2, Image as ImageIcon, Save, X, Package,
   TrendingUp, Upload, LayoutGrid, List, Tag, Search, AlertTriangle,
   Star, ChevronLeft, ChevronRight, GripVertical, Zap, ArrowUpDown,
+  History, ArrowRight, Loader2,
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { cn } from "../../lib/utils";
@@ -293,6 +294,12 @@ export default function Inventory() {
   const [newAttrValue, setNewAttrValue] = useState("");
   const [showPresets, setShowPresets] = useState(false);
 
+  // Product history panel
+  interface HistoryEntry { id: number; field: string; old_value: string | null; new_value: string | null; created_at: string; }
+  const [historyProduct, setHistoryProduct] = useState<Product | null>(null);
+  const [historyEntries, setHistoryEntries] = useState<HistoryEntry[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
+
   type SortKey = typeof sortBy;
   const SORT_OPTIONS: { value: SortKey; label: string }[] = [
     { value: "newest",      label: "Mais recentes" },
@@ -464,6 +471,20 @@ export default function Inventory() {
 
   const clearAttributes = () => {
     setEditingProduct(prev => ({ ...prev!, attributes: [], skus: [] }));
+  };
+
+  const openHistory = async (p: Product) => {
+    setHistoryProduct(p);
+    setHistoryEntries([]);
+    setHistoryLoading(true);
+    try {
+      const res = await fetch(`/api/products/${p.id}/history`, {
+        headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
+      });
+      const data = await res.json();
+      setHistoryEntries(Array.isArray(data) ? data : []);
+    } catch { /* noop */ }
+    setHistoryLoading(false);
   };
 
   const filteredProducts = [...products]
@@ -707,6 +728,7 @@ export default function Inventory() {
                       <td className="px-5 py-3.5 text-right">
                         <DropdownMenu items={[
                           { label: "Editar produto", icon: <Edit2 size={13} />, onClick: () => openEdit(p) },
+                          { label: "Histórico", icon: <History size={13} />, onClick: () => openHistory(p) },
                           { label: "Excluir", icon: <Trash2 size={13} />, variant: "danger", onClick: () => setDeleteTarget(p) },
                         ]} />
                       </td>
@@ -1042,6 +1064,101 @@ export default function Inventory() {
         title={`Excluir "${deleteTarget?.name}"?`}
         description="Todas as fotos e dados serão removidos permanentemente."
         variant="danger" confirmLabel="Excluir produto" loading={deleteLoading} />
+
+      {/* ── HISTORY PANEL ── */}
+      <AnimatePresence>
+        {historyProduct && (
+          <>
+            <motion.div
+              key="history-backdrop"
+              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              className="fixed inset-0 bg-black/40 backdrop-blur-sm z-40"
+              onClick={() => setHistoryProduct(null)}
+            />
+            <motion.div
+              key="history-panel"
+              initial={{ x: "100%" }} animate={{ x: 0 }} exit={{ x: "100%" }}
+              transition={{ type: "spring", damping: 28, stiffness: 300 }}
+              className="fixed right-0 top-0 h-full w-full max-w-md bg-white shadow-2xl z-50 flex flex-col overflow-hidden"
+            >
+              {/* Header */}
+              <div className="px-6 py-5 border-b border-slate-100 bg-slate-50 flex items-start justify-between">
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 mb-1">
+                    <History size={14} className="text-blue-600 shrink-0" />
+                    <span className="text-[9px] font-black text-blue-600 uppercase tracking-widest">Histórico de Alterações</span>
+                  </div>
+                  <p className="text-[13px] font-black text-slate-900 uppercase leading-tight truncate">{historyProduct.name}</p>
+                  {historyProduct.sku && (
+                    <p className="text-[9px] text-slate-400 font-mono mt-0.5">{historyProduct.sku}</p>
+                  )}
+                </div>
+                <button
+                  onClick={() => setHistoryProduct(null)}
+                  className="ml-4 w-8 h-8 rounded-lg bg-white border border-slate-200 flex items-center justify-center text-slate-400 hover:text-slate-700 hover:border-slate-400 transition-all shrink-0"
+                >
+                  <X size={14} />
+                </button>
+              </div>
+
+              {/* Body */}
+              <div className="flex-1 overflow-y-auto">
+                {historyLoading ? (
+                  <div className="flex items-center justify-center py-20">
+                    <Loader2 size={22} className="animate-spin text-slate-300" />
+                  </div>
+                ) : historyEntries.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center py-20 px-6 text-center">
+                    <div className="w-14 h-14 rounded-2xl bg-slate-100 flex items-center justify-center mb-3">
+                      <History size={22} className="text-slate-300" />
+                    </div>
+                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Sem histórico ainda</p>
+                    <p className="text-[9px] text-slate-300 mt-1">As alterações aparecerão aqui após a próxima edição do produto.</p>
+                  </div>
+                ) : (
+                  <div className="divide-y divide-slate-50">
+                    {historyEntries.map((entry) => {
+                      const dt = new Date(entry.created_at);
+                      const dateStr = dt.toLocaleDateString("pt-BR", { day: "2-digit", month: "short", year: "numeric" });
+                      const timeStr = dt.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+                      return (
+                        <div key={entry.id} className="px-5 py-4">
+                          {/* timestamp */}
+                          <div className="flex items-center gap-1.5 mb-2">
+                            <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest bg-slate-100 px-2 py-0.5 rounded-md">
+                              {dateStr}
+                            </span>
+                            <span className="text-[8px] font-bold text-slate-400">{timeStr}</span>
+                          </div>
+                          {/* field label */}
+                          <p className="text-[10px] font-black text-slate-700 uppercase tracking-wider mb-2">{entry.field}</p>
+                          {/* old → new */}
+                          <div className="flex items-center gap-2">
+                            <span className="flex-1 min-w-0 bg-rose-50 border border-rose-100 rounded-lg px-3 py-1.5 text-[11px] font-mono font-bold text-rose-600 truncate">
+                              {entry.old_value ?? "—"}
+                            </span>
+                            <ArrowRight size={12} className="text-slate-300 shrink-0" />
+                            <span className="flex-1 min-w-0 bg-emerald-50 border border-emerald-100 rounded-lg px-3 py-1.5 text-[11px] font-mono font-bold text-emerald-700 truncate">
+                              {entry.new_value ?? "—"}
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
+              {/* Footer */}
+              <div className="px-6 py-4 border-t border-slate-100">
+                <p className="text-[8px] text-slate-400 text-center">
+                  {historyEntries.length > 0 ? `${historyEntries.length} registro${historyEntries.length !== 1 ? "s" : ""} encontrado${historyEntries.length !== 1 ? "s" : ""}` : ""}
+                </p>
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

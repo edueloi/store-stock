@@ -91,14 +91,49 @@ export async function createProduct(req: Request, res: Response) {
   }
 }
 
+// Fields we track in history with human-readable labels
+const TRACKED_FIELDS: Record<string, string> = {
+  name:           "Nome",
+  price:          "Preço de venda",
+  cost_price:     "Custo unitário",
+  discount_price: "Promoção",
+  stock_quantity: "Estoque",
+  sku:            "SKU",
+  barcode:        "Código de barras",
+  description:    "Descrição",
+  is_active:      "Status ativo",
+  is_featured:    "Destaque na home",
+  category_id:    "Categoria",
+};
+
+function fmtHistoryVal(field: string, val: unknown): string {
+  if (val === null || val === undefined || val === "") return "—";
+  if (field === "price" || field === "cost_price" || field === "discount_price") {
+    return `R$ ${Number(val).toFixed(2)}`;
+  }
+  if (field === "is_active")   return val ? "Ativo" : "Inativo";
+  if (field === "is_featured") return val ? "Sim" : "Não";
+  return String(val);
+}
+
 export async function updateProduct(req: Request, res: Response) {
   try {
     const id = Number(req.params.id);
     const tenantId = getTenantId(req);
 
-    // Delete removed images from disk
-    const existing = await prisma.product.findFirst({ where: { id, tenant_id: tenantId }, select: { image_url: true, images: true } });
+    // Load full existing record for diff
+    const existing = await prisma.product.findFirst({
+      where: { id, tenant_id: tenantId },
+      select: {
+        image_url: true, images: true,
+        name: true, price: true, cost_price: true, discount_price: true,
+        stock_quantity: true, sku: true, barcode: true, description: true,
+        is_active: true, is_featured: true, category_id: true,
+      },
+    });
+
     if (existing) {
+      // Handle removed images from disk
       if (req.body.image_url !== undefined && existing.image_url && existing.image_url !== req.body.image_url) {
         deleteProductImage(existing.image_url);
       }
@@ -111,7 +146,6 @@ export async function updateProduct(req: Request, res: Response) {
 
     const {
       images, variations, attributes, skus,
-      // strip non-column fields
       tenant_id: _tid, id: _id, category, category_name,
       created_at, updated_at,
       ...rest
@@ -128,9 +162,49 @@ export async function updateProduct(req: Request, res: Response) {
       },
     });
 
+    // Record history for changed tracked fields
+    if (existing) {
+      const historyRows: { tenant_id: number; product_id: number; field: string; old_value: string | null; new_value: string | null }[] = [];
+      for (const field of Object.keys(TRACKED_FIELDS)) {
+        const inBody = field in rest ? rest[field] : undefined;
+        if (inBody === undefined) continue;
+        const oldRaw = (existing as Record<string, unknown>)[field];
+        const newRaw = inBody;
+        const oldStr = fmtHistoryVal(field, oldRaw);
+        const newStr = fmtHistoryVal(field, newRaw);
+        if (oldStr !== newStr) {
+          historyRows.push({
+            tenant_id:  tenantId,
+            product_id: id,
+            field:      TRACKED_FIELDS[field],
+            old_value:  oldStr,
+            new_value:  newStr,
+          });
+        }
+      }
+      if (historyRows.length > 0) {
+        await prisma.productHistory.createMany({ data: historyRows });
+      }
+    }
+
     res.json({ success: true });
   } catch {
     res.status(500).json({ error: "Failed to update product" });
+  }
+}
+
+export async function getProductHistory(req: Request, res: Response) {
+  try {
+    const id = Number(req.params.id);
+    const tenantId = getTenantId(req);
+    const history = await prisma.productHistory.findMany({
+      where: { product_id: id, tenant_id: tenantId },
+      orderBy: { created_at: "desc" },
+      take: 100,
+    });
+    res.json(history);
+  } catch {
+    res.status(500).json({ error: "Failed to fetch product history" });
   }
 }
 
