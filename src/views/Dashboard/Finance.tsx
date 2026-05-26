@@ -476,6 +476,15 @@ function exportToPDF(entries: FinanceEntry[], tenant: Partial<Tenant> | null, pe
   setTimeout(() => { win.print(); }, 400);
 }
 
+// Payment keyword map — matches description text produced by sales.controller
+const PAYMENT_KEYWORDS: Record<string, string[]> = {
+  credit:  ["crédito", "credito"],
+  debit:   ["débito", "debito"],
+  pix:     ["pix"],
+  money:   ["dinheiro"],
+  boleto:  ["boleto"],
+};
+
 // ─── PRESET PERIODS ──────────────────────────────────────────────────────────
 type Preset = "today" | "week" | "month" | "quarter" | "year" | "custom";
 
@@ -525,6 +534,7 @@ export default function Finance() {
   const [dateTo, setDateTo] = useState(today());
   const [searchQ, setSearchQ] = useState("");
   const [typeFilter, setTypeFilter] = useState<"all" | "income" | "expense">("all");
+  const [paymentFilter, setPaymentFilter] = useState<Set<string>>(new Set());
   const [showFilters, setShowFilters] = useState(false);
   const [showExport, setShowExport] = useState(false);
   const exportRef = useRef<HTMLDivElement>(null);
@@ -602,9 +612,16 @@ export default function Finance() {
       if (entryDate < dateFrom || entryDate > dateTo) return false;
       if (typeFilter !== "all" && e.type !== typeFilter) return false;
       if (searchQ && !e.description.toLowerCase().includes(searchQ.toLowerCase())) return false;
+      if (paymentFilter.size > 0) {
+        const desc = e.description.toLowerCase();
+        const matched = [...paymentFilter].some((key) =>
+          (PAYMENT_KEYWORDS[key] ?? [key]).some((kw) => desc.includes(kw))
+        );
+        if (!matched) return false;
+      }
       return true;
     });
-  }, [entries, dateFrom, dateTo, typeFilter, searchQ]);
+  }, [entries, dateFrom, dateTo, typeFilter, searchQ, paymentFilter]);
 
   const incomeEntries    = filtered.filter((e) => e.type === "income");
   const expenseEntries   = filtered.filter((e) => e.type === "expense");
@@ -754,14 +771,19 @@ export default function Finance() {
               <button
                 onClick={() => setShowFilters(!showFilters)}
                 className={cn(
-                  "h-8 px-3 rounded-lg flex items-center gap-1.5 text-[9px] font-black uppercase tracking-widest border transition-all",
-                  showFilters
+                  "h-8 px-3 rounded-lg flex items-center gap-1.5 text-[9px] font-black uppercase tracking-widest border transition-all relative",
+                  showFilters || paymentFilter.size > 0
                     ? "bg-blue-600 text-white border-blue-600"
                     : "bg-white text-slate-500 border-slate-200 hover:border-slate-400"
                 )}
               >
                 <SlidersHorizontal size={12} />
                 <span className="hidden sm:block">Filtros</span>
+                {paymentFilter.size > 0 && (
+                  <span className="absolute -top-1 -right-1 w-4 h-4 bg-rose-500 text-white rounded-full text-[8px] font-black flex items-center justify-center">
+                    {paymentFilter.size}
+                  </span>
+                )}
               </button>
 
               {/* Export dropdown */}
@@ -823,58 +845,110 @@ export default function Finance() {
 
           {/* Row 3: expanded filters */}
           {showFilters && (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 pt-2 border-t border-slate-100">
-              {/* Search */}
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={12} />
-                <input
-                  type="text"
-                  placeholder="Pesquisar descrição..."
-                  value={searchQ}
-                  onChange={(e) => setSearchQ(e.target.value)}
-                  className="w-full pl-8 pr-3 h-9 bg-slate-50 border border-slate-200 rounded-lg text-[10px] font-bold uppercase tracking-widest placeholder:text-slate-300 focus:outline-none focus:border-blue-400 transition-all"
-                />
+            <div className="flex flex-col gap-3 pt-2 border-t border-slate-100">
+              {/* Row A: search + type + dates */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                {/* Search */}
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={12} />
+                  <input
+                    type="text"
+                    placeholder="Pesquisar descrição..."
+                    value={searchQ}
+                    onChange={(e) => setSearchQ(e.target.value)}
+                    className="w-full pl-8 pr-3 h-9 bg-slate-50 border border-slate-200 rounded-lg text-[10px] font-bold uppercase tracking-widest placeholder:text-slate-300 focus:outline-none focus:border-blue-400 transition-all"
+                  />
+                </div>
+                {/* Type filter */}
+                <div className="flex gap-1.5">
+                  {(["all", "income", "expense"] as const).map((t) => (
+                    <button
+                      key={t}
+                      onClick={() => setTypeFilter(t)}
+                      className={cn(
+                        "flex-1 h-9 rounded-lg text-[9px] font-black uppercase tracking-widest border transition-all",
+                        typeFilter === t
+                          ? t === "income"
+                            ? "bg-emerald-600 text-white border-emerald-600"
+                            : t === "expense"
+                            ? "bg-rose-600 text-white border-rose-600"
+                            : "bg-slate-900 text-white border-slate-900"
+                          : "bg-white text-slate-400 border-slate-200 hover:border-slate-400"
+                      )}
+                    >
+                      {t === "all" ? "Todos" : t === "income" ? "Receitas" : "Despesas"}
+                    </button>
+                  ))}
+                </div>
+                {/* Date from */}
+                <div className="relative">
+                  <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={12} />
+                  <input
+                    type="date"
+                    value={dateFrom}
+                    onChange={(e) => { setDateFrom(e.target.value); setPreset("custom"); }}
+                    className="w-full pl-8 pr-3 h-9 bg-slate-50 border border-slate-200 rounded-lg text-[10px] font-bold focus:outline-none focus:border-blue-400 transition-all"
+                  />
+                </div>
+                {/* Date to */}
+                <div className="relative">
+                  <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={12} />
+                  <input
+                    type="date"
+                    value={dateTo}
+                    onChange={(e) => { setDateTo(e.target.value); setPreset("custom"); }}
+                    className="w-full pl-8 pr-3 h-9 bg-slate-50 border border-slate-200 rounded-lg text-[10px] font-bold focus:outline-none focus:border-blue-400 transition-all"
+                  />
+                </div>
               </div>
-              {/* Type filter */}
-              <div className="flex gap-1.5">
-                {(["all", "income", "expense"] as const).map((t) => (
+
+              {/* Row B: payment method chips (multi-select) */}
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest shrink-0">
+                  Pagamento:
+                </span>
+                {([
+                  { key: "credit", label: "Crédito",  color: "blue"   },
+                  { key: "debit",  label: "Débito",   color: "violet" },
+                  { key: "pix",    label: "PIX",      color: "emerald"},
+                  { key: "money",  label: "Dinheiro", color: "slate"  },
+                  { key: "boleto", label: "Boleto",   color: "amber"  },
+                ] as const).map(({ key, label, color }) => {
+                  const active = paymentFilter.has(key);
+                  const toggle = () => {
+                    setPaymentFilter((prev) => {
+                      const next = new Set(prev);
+                      if (next.has(key)) next.delete(key); else next.add(key);
+                      return next;
+                    });
+                  };
+                  const activeClass =
+                    color === "blue"    ? "bg-blue-600 text-white border-blue-600" :
+                    color === "violet"  ? "bg-violet-600 text-white border-violet-600" :
+                    color === "emerald" ? "bg-emerald-600 text-white border-emerald-600" :
+                    color === "amber"   ? "bg-amber-500 text-white border-amber-500" :
+                                          "bg-slate-700 text-white border-slate-700";
+                  return (
+                    <button
+                      key={key}
+                      onClick={toggle}
+                      className={cn(
+                        "h-7 px-3 rounded-lg text-[9px] font-black uppercase tracking-widest border transition-all",
+                        active ? activeClass : "bg-white text-slate-400 border-slate-200 hover:border-slate-400"
+                      )}
+                    >
+                      {label}
+                    </button>
+                  );
+                })}
+                {paymentFilter.size > 0 && (
                   <button
-                    key={t}
-                    onClick={() => setTypeFilter(t)}
-                    className={cn(
-                      "flex-1 h-9 rounded-lg text-[9px] font-black uppercase tracking-widest border transition-all",
-                      typeFilter === t
-                        ? t === "income"
-                          ? "bg-emerald-600 text-white border-emerald-600"
-                          : t === "expense"
-                          ? "bg-rose-600 text-white border-rose-600"
-                          : "bg-slate-900 text-white border-slate-900"
-                        : "bg-white text-slate-400 border-slate-200 hover:border-slate-400"
-                    )}
+                    onClick={() => setPaymentFilter(new Set())}
+                    className="h-7 px-2 rounded-lg text-[9px] font-black text-slate-400 hover:text-slate-700 transition-colors flex items-center gap-1"
                   >
-                    {t === "all" ? "Todos" : t === "income" ? "Receitas" : "Despesas"}
+                    <X size={10} /> Limpar
                   </button>
-                ))}
-              </div>
-              {/* Date from */}
-              <div className="relative">
-                <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={12} />
-                <input
-                  type="date"
-                  value={dateFrom}
-                  onChange={(e) => { setDateFrom(e.target.value); setPreset("custom"); }}
-                  className="w-full pl-8 pr-3 h-9 bg-slate-50 border border-slate-200 rounded-lg text-[10px] font-bold focus:outline-none focus:border-blue-400 transition-all"
-                />
-              </div>
-              {/* Date to */}
-              <div className="relative">
-                <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={12} />
-                <input
-                  type="date"
-                  value={dateTo}
-                  onChange={(e) => { setDateTo(e.target.value); setPreset("custom"); }}
-                  className="w-full pl-8 pr-3 h-9 bg-slate-50 border border-slate-200 rounded-lg text-[10px] font-bold focus:outline-none focus:border-blue-400 transition-all"
-                />
+                )}
               </div>
             </div>
           )}
