@@ -22,6 +22,7 @@ import {
   ArrowUpCircle,
   FileText,
   Star,
+  Target,
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { cn } from "../../lib/utils";
@@ -44,6 +45,7 @@ import Analytics from "./Analytics";
 import Loyalty from "./Loyalty";
 import Quotes from "./Quotes";
 import Sellers from "./Sellers";
+import Goals from "./Goals";
 
 export default function AdminDashboard() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(window.innerWidth > 1024);
@@ -91,6 +93,7 @@ export default function AdminDashboard() {
         { icon: Wallet,           label: "Fluxo de Caixa",    path: "/admin/finance" },
         { icon: ArrowDownCircle,  label: "Contas a Receber",  path: "/admin/contas-receber" },
         { icon: ArrowUpCircle,    label: "Contas a Pagar",    path: "/admin/contas-pagar" },
+        { icon: Target,           label: "Metas",             path: "/admin/metas" },
         { icon: LineChart,        label: "Relatórios",        path: "/admin/analytics" },
       ],
     },
@@ -368,6 +371,7 @@ export default function AdminDashboard() {
               <Route path="analytics" element={<Analytics />} />
               <Route path="orcamentos" element={<Quotes />} />
               <Route path="vendedores" element={<Sellers />} />
+              <Route path="metas"      element={<Goals />} />
               <Route path="settings" element={<Settings />} />
               <Route path="loyalty" element={<Loyalty />} />
               <Route path="inventory" element={<Stock />} />

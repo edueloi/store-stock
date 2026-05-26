@@ -21,6 +21,7 @@ import uploadRoutes from "./upload.routes";
 import preferencesRoutes from "./preferences.routes";
 import quotesRoutes from "./quotes.routes";
 import sellersRoutes from "./sellers.routes";
+import goalsRoutes from "./goals.routes";
 
 export function registerRoutes(app: Express) {
   // Serve uploaded images
@@ -43,5 +44,6 @@ export function registerRoutes(app: Express) {
   app.use("/api/preferences", preferencesRoutes);
   app.use("/api/quotes",   quotesRoutes);
   app.use("/api/sellers",  sellersRoutes);
+  app.use("/api/goals",    goalsRoutes);
   app.use("/api/super-admin", superAdminRoutes);
 }

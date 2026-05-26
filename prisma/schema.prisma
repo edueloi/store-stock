@@ -59,6 +59,7 @@ model Tenant {
   setup_invites   SetupInvite[]
   quotes          Quote[]
   sellers         Seller[]
+  goals           Goal[]
 
   @@map("tenants")
 }
@@ -121,6 +122,7 @@ model Product {
   category_id    Int?
   name           String
   sku            String?
+  barcode        String?
   description    String?   @db.Text
   price          Decimal   @db.Decimal(10, 2)
   cost_price     Decimal   @default(0) @db.Decimal(10, 2)
@@ -340,6 +342,27 @@ model QuoteItem {
   quote Quote @relation(fields: [quote_id], references: [id], onDelete: Cascade)
 
   @@map("quote_items")
+}
+
+model Goal {
+  id            Int      @id @default(autoincrement())
+  tenant_id     Int
+  title         String
+  description   String?  @db.Text
+  type          String
+  period        String
+  target_value  Decimal  @db.Decimal(14, 2)
+  current_value Decimal  @default(0) @db.Decimal(14, 2)
+  start_date    DateTime @db.Date
+  end_date      DateTime @db.Date
+  status        String   @default("active")
+  created_at    DateTime @default(now())
+  updated_at    DateTime @updatedAt
+
+  tenant Tenant @relation(fields: [tenant_id], references: [id])
+
+  @@index([tenant_id])
+  @@map("goals")
 }
 
 model UserPreference {
