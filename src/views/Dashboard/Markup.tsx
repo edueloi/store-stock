@@ -1,8 +1,8 @@
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import {
   Calculator, Search, TrendingUp, TrendingDown, DollarSign,
   Download, RefreshCw, ChevronDown, Info, Package,
-  BarChart2, AlertTriangle, CheckCircle2, X, ArrowRight,
+  BarChart2, AlertTriangle, CheckCircle2, X, ArrowRight, Save,
 } from "lucide-react";
 import ExcelJS from "exceljs";
 import { motion, AnimatePresence } from "motion/react";
@@ -59,6 +59,19 @@ const DEFAULT_INPUTS: MarkupInputs = {
   loan_pct:       0,
   desired_margin: 40,
 };
+
+const STORAGE_KEY = "markup_inputs_v1";
+
+function loadSavedInputs(): MarkupInputs {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return DEFAULT_INPUTS;
+    const parsed = JSON.parse(raw);
+    return { ...DEFAULT_INPUTS, ...parsed };
+  } catch {
+    return DEFAULT_INPUTS;
+  }
+}
 
 // ─── Calculator ───────────────────────────────────────────────────────────────
 
@@ -610,13 +623,15 @@ export default function Markup() {
   const [tenant, setTenant]       = useState<Partial<Tenant> | null>(null);
   const [loading, setLoading]     = useState(true);
   const [search, setSearch]       = useState("");
-  const [inputs, setInputs]       = useState<MarkupInputs>(DEFAULT_INPUTS);
+  const [inputs, setInputs]       = useState<MarkupInputs>(loadSavedInputs);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [showProductPicker, setShowProductPicker] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [exportingPdf, setExportingPdf] = useState(false);
   const [applyingPrice, setApplyingPrice] = useState(false);
   const [appliedMsg, setAppliedMsg] = useState(false);
+  const [savedMsg, setSavedMsg] = useState(false);
+  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const fetchAll = useCallback(async () => {
     const h = { Authorization: `Bearer ${localStorage.getItem("token")}` };
@@ -634,6 +649,18 @@ export default function Markup() {
   }, []);
 
   useEffect(() => { fetchAll(); }, [fetchAll]);
+
+  useEffect(() => {
+    return () => { if (saveTimerRef.current) clearTimeout(saveTimerRef.current); };
+  }, []);
+
+  function saveInputs(vals: MarkupInputs) {
+    const { cost_price: _cp, ...toSave } = vals;
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(toSave));
+    setSavedMsg(true);
+    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+    saveTimerRef.current = setTimeout(() => setSavedMsg(false), 2500);
+  }
 
   const set = (key: keyof MarkupInputs) => (v: number) =>
     setInputs((prev) => ({ ...prev, [key]: v }));
@@ -716,6 +743,18 @@ export default function Markup() {
         subtitle="Precificação estratégica com DRE completo e análise de produtos"
         action={
           <div className="flex gap-2">
+            <button
+              onClick={() => saveInputs(inputs)}
+              className={cn(
+                "h-9 px-3 rounded-lg flex items-center gap-2 text-[12px] font-bold transition-all shadow-md",
+                savedMsg
+                  ? "bg-emerald-500 text-white shadow-emerald-500/20"
+                  : "bg-blue-600 text-white hover:bg-blue-700 shadow-blue-500/20"
+              )}
+            >
+              {savedMsg ? <CheckCircle2 size={14} /> : <Save size={14} />}
+              {savedMsg ? "Salvo!" : "Salvar Config."}
+            </button>
             <button
               onClick={handleExportPDF}
               disabled={exportingPdf}
