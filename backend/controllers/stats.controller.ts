@@ -47,19 +47,26 @@ export async function getDashboardStats(req: Request, res: Response) {
   const tenantId = getTenantId(req);
 
   try {
-    const [totalIncome, totalExpenses, products] = await Promise.all([
-      prisma.finance.aggregate({
-        where: { tenant_id: tenantId, type: "income" },
-        _sum: { amount: true },
+    const [totalGross, totalIncome, products, cogsResult] = await Promise.all([
+      prisma.order.aggregate({
+        where: { tenant_id: tenantId, status: "completed" },
+        _sum: { total_amount: true },
       }),
       prisma.finance.aggregate({
-        where: { tenant_id: tenantId, type: "expense" },
+        where: { tenant_id: tenantId, type: "income" },
         _sum: { amount: true },
       }),
       prisma.product.findMany({
         where: { tenant_id: tenantId },
         select: { stock_quantity: true, cost_price: true },
       }),
+      prisma.$queryRaw<{ cogs: number }[]>`
+        SELECT SUM(oi.quantity * p.cost_price) as cogs
+        FROM order_items oi
+        JOIN orders o ON o.id = oi.order_id
+        JOIN products p ON p.id = oi.product_id
+        WHERE o.tenant_id = ${tenantId} AND o.status = 'completed'
+      `,
     ]);
 
     const stockValue = products.reduce(
@@ -77,15 +84,17 @@ export async function getDashboardStats(req: Request, res: Response) {
       LIMIT 7
     `;
 
-    const revenue = Number(totalIncome._sum.amount) || 0;
-    const expenses = Number(totalExpenses._sum.amount) || 0;
+    const grossRevenue = Number(totalGross._sum.total_amount) || 0;
+    const netRevenue   = Number(totalIncome._sum.amount) || 0;
+    const cogs         = Number(cogsResult[0]?.cogs) || 0;
 
     res.json({
       summary: {
-        revenue,
-        expenses,
+        grossRevenue,
+        netRevenue,
+        cogs,
         stockValue,
-        profit: revenue - expenses,
+        profit: netRevenue - cogs,
       },
       salesOverTime,
     });

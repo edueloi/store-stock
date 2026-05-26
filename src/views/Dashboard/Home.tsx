@@ -204,21 +204,22 @@ export default function Home() {
 
   // ── Render ────────────────────────────────────────────────────
 
+  const fmt = (v: number) => `R$ ${v.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`;
   const kpis = stats ? [
     {
-      label: "Faturamento", value: `R$ ${Number(stats.summary.revenue).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`,
+      label: "Faturamento Bruto", value: fmt(Number(stats.summary.grossRevenue)),
       icon: DollarSign, color: "text-blue-600", bg: "bg-blue-50", border: "border-blue-100",
     },
     {
-      label: "Margem Líquida", value: `R$ ${Number(stats.summary.profit).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`,
+      label: "Fat. Líquido", value: fmt(Number(stats.summary.netRevenue)),
       icon: TrendingUp, color: "text-emerald-600", bg: "bg-emerald-50", border: "border-emerald-100",
     },
     {
-      label: "Custos", value: `R$ ${Number(stats.summary.expenses).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`,
+      label: "Custo Mercadoria", value: fmt(Number(stats.summary.cogs)),
       icon: TrendingDown, color: "text-rose-600", bg: "bg-rose-50", border: "border-rose-100",
     },
     {
-      label: "Valor em Estoque", value: `R$ ${Number(stats.summary.stockValue).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`,
+      label: "Lucro Líquido", value: fmt(Number(stats.summary.profit)),
       icon: Package, color: "text-amber-600", bg: "bg-amber-50", border: "border-amber-100",
     },
   ] : [];
