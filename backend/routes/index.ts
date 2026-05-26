@@ -22,6 +22,7 @@ import preferencesRoutes from "./preferences.routes";
 import quotesRoutes from "./quotes.routes";
 import sellersRoutes from "./sellers.routes";
 import goalsRoutes from "./goals.routes";
+import servicesRoutes from "./services.routes";
 
 export function registerRoutes(app: Express) {
   // Serve uploaded images
@@ -45,5 +46,6 @@ export function registerRoutes(app: Express) {
   app.use("/api/quotes",   quotesRoutes);
   app.use("/api/sellers",  sellersRoutes);
   app.use("/api/goals",    goalsRoutes);
+  app.use("/api/services",    servicesRoutes);
   app.use("/api/super-admin", superAdminRoutes);
 }

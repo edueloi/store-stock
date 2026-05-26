@@ -60,6 +60,7 @@ model Tenant {
   quotes          Quote[]
   sellers         Seller[]
   goals           Goal[]
+  services        Service[]
 
   @@map("tenants")
 }
@@ -147,6 +148,22 @@ model Product {
   history         ProductHistory[]
 
   @@map("products")
+}
+
+model Service {
+  id          Int      @id @default(autoincrement())
+  tenant_id   Int
+  name        String
+  description String?  @db.Text
+  price       Decimal  @db.Decimal(10, 2)
+  is_active   Boolean  @default(true)
+  created_at  DateTime @default(now())
+  updated_at  DateTime @updatedAt
+
+  tenant Tenant @relation(fields: [tenant_id], references: [id])
+
+  @@index([tenant_id])
+  @@map("services")
 }
 
 model ProductHistory {

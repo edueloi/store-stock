@@ -4,7 +4,7 @@ import {
   Banknote, Percent, CheckCircle2, Package, X, QrCode, Tag,
   Loader2, ExternalLink, RefreshCw, ChevronRight,
   Printer, FileText, MessageCircle, Phone, Clock, Receipt,
-  ChevronDown, PlusCircle, Users, Barcode,
+  ChevronDown, PlusCircle, Users, Barcode, Wrench, ChevronUp,
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { Product, Category } from "../../types";
@@ -101,10 +101,21 @@ export default function PDV() {
   const [selectedOptions, setSelectedOptions] = useState<Record<string, string>>({});
   const [showCheckout, setShowCheckout] = useState(false);
 
+  // services
+  interface ServiceItem { id: number; name: string; price: number; description?: string }
+  const [services, setServices]         = useState<ServiceItem[]>([]);
+  const [showServicesModal, setShowServicesModal] = useState(false);
+  const [cartServices, setCartServices] = useState<ServiceItem[]>([]);
+
   // checkout fields
   const [customerName, setCustomerName] = useState("");
   const [cardFees, setCardFees]         = useState<Record<string, number[]>>({});
+  // discount
+  const [discountMode, setDiscountMode] = useState<"R$" | "%">("R$");
   const [discount, setDiscount]         = useState("");
+  // surcharge (acréscimo)
+  const [surchargeMode, setSurchargeMode] = useState<"R$" | "%">("R$");
+  const [surcharge, setSurcharge]       = useState("");
   const [payments, setPayments]         = useState<PaymentEntry[]>([newPayment()]);
 
   // receipt modal
@@ -158,6 +169,10 @@ export default function PDV() {
     fetch("/api/sellers", { headers })
       .then((r) => r.json())
       .then((d) => setSellers(Array.isArray(d) ? d.filter((s: any) => s.is_active) : []))
+      .catch(() => {});
+    fetch("/api/services", { headers })
+      .then((r) => r.json())
+      .then((d) => setServices(Array.isArray(d) ? d.filter((s: any) => s.is_active !== false) : []))
       .catch(() => {});
   }, []);
 
@@ -319,9 +334,20 @@ export default function PDV() {
   const removeFromCart = (cartItemId: string) => setCart(cart.filter((i) => i.cartItemId !== cartItemId));
 
   // ── totals ────────────────────────────────────────────────────────────────────
-  const subtotal      = cart.reduce((a, b) => a + b.price * b.quantity, 0);
-  const discountValue = Math.min(Number(discount) || 0, subtotal);
-  const baseTotal     = subtotal - discountValue;
+  const servicesTotal = cartServices.reduce((a, s) => a + s.price, 0);
+  const subtotal      = cart.reduce((a, b) => a + b.price * b.quantity, 0) + servicesTotal;
+
+  const discountRaw   = Number(discount) || 0;
+  const discountValue = discountMode === "%"
+    ? Math.min(subtotal * discountRaw / 100, subtotal)
+    : Math.min(discountRaw, subtotal);
+
+  const surchargeRaw   = Number(surcharge) || 0;
+  const surchargeValue = surchargeMode === "%"
+    ? subtotal * surchargeRaw / 100
+    : surchargeRaw;
+
+  const baseTotal = subtotal - discountValue + surchargeValue;
 
   // taxa interna da maquininha — custo da loja, não cobrado do cliente
   const creditPayments = payments.filter((p) => p.method === "credit");
@@ -332,7 +358,6 @@ export default function PDV() {
     return sum + pAmt * (rate / 100);
   }, 0);
 
-  // cliente paga o valor sem acréscimo de taxa
   const total = baseTotal;
 
   // quanto já foi preenchido nos pagamentos
@@ -360,10 +385,27 @@ export default function PDV() {
   // ao abrir checkout, preenche automaticamente o valor se só tiver 1 pagamento
   const autoFillFirst = () => {
     setPayments((ps) => {
-      if (ps.length === 1 && !ps[0].amount && total > 0) {
+      if (ps.length === 1 && total > 0) {
         return [{ ...ps[0], amount: total.toFixed(2) }];
       }
       return ps;
+    });
+  };
+
+  // ao selecionar método, se só tem 1 pagamento, preenche valor automaticamente (exceto dinheiro que o operador digita)
+  const handleMethodChange = (id: string, method: PaymentMethod) => {
+    setPayments((ps) => {
+      const updated = ps.map((p) => p.id === id ? { ...p, method, installments: 1 } : p);
+      if (updated.length === 1 && method !== "money" && total > 0) {
+        return updated.map((p) => p.id === id ? { ...p, amount: total.toFixed(2) } : p);
+      }
+      // multi-payment: preenche com o restante ao mudar método
+      if (updated.length > 1 && method !== "money") {
+        const others = updated.filter((p) => p.id !== id).reduce((s, p) => s + (Number(p.amount) || 0), 0);
+        const rem = Math.max(0, total - others);
+        if (rem > 0) return updated.map((p) => p.id === id ? { ...p, amount: rem.toFixed(2) } : p);
+      }
+      return updated;
     });
   };
 
@@ -574,10 +616,12 @@ ${change > 0 ? `<hr class="divider"/><div class="row bold"><span>TROCO:</span><s
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify({
           items: cart.map((i) => ({ id: i.id, quantity: i.quantity, price: i.price })),
+          services: cartServices.map((s) => ({ id: s.id, name: s.name, price: s.price })),
           customerName,
           totalAmount: total,
           paymentMethod: pmString,
           discount: discountValue,
+          surcharge: surchargeValue > 0 ? surchargeValue : undefined,
           sellerId: selectedSellerId ?? undefined,
         }),
       });
@@ -608,7 +652,7 @@ ${change > 0 ? `<hr class="divider"/><div class="row bold"><span>TROCO:</span><s
           cardFees,
         };
         setCompletedSale(sale);
-        setCart([]); setCustomerName(""); setDiscount("");
+        setCart([]); setCartServices([]); setCustomerName(""); setDiscount(""); setSurcharge("");
         setPayments([newPayment()]); setSelectedSellerId(null);
         setShowCheckout(false);
         setShowReceipt(true);
@@ -988,12 +1032,62 @@ ${change > 0 ? `<hr class="divider"/><div class="row bold"><span>TROCO:</span><s
                     value={customerName} onChange={(e) => setCustomerName(e.target.value)} />
                 </div>
 
+                {/* serviços */}
+                {services.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setShowServicesModal(true)}
+                    className="w-full flex items-center justify-between h-10 bg-slate-50 border border-slate-200 rounded-xl px-4 text-[11px] font-bold text-slate-600 hover:border-blue-400 hover:bg-blue-50 transition-all"
+                  >
+                    <span className="flex items-center gap-2 text-slate-500">
+                      <Wrench size={14} className="text-blue-500" />
+                      {cartServices.length === 0 ? "Adicionar serviços" : `${cartServices.length} serviço${cartServices.length > 1 ? "s" : ""} — R$ ${servicesTotal.toFixed(2)}`}
+                    </span>
+                    <ChevronRight size={13} className="text-slate-300" />
+                  </button>
+                )}
+
                 {/* desconto */}
-                <div className="relative">
-                  <Percent className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
-                  <input type="number" min="0" placeholder="Desconto (R$)"
-                    className="w-full pl-9 pr-4 h-10 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:border-blue-500 text-[11px] font-medium text-slate-800 placeholder:text-slate-400 transition-all [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none"
-                    value={discount} onChange={(e) => setDiscount(e.target.value)} />
+                <div className="flex gap-1.5">
+                  {/* mode toggle */}
+                  <button
+                    type="button"
+                    onClick={() => { setDiscountMode(m => m === "R$" ? "%" : "R$"); setDiscount(""); }}
+                    className="h-10 w-14 shrink-0 flex items-center justify-center rounded-xl border border-slate-200 bg-slate-50 text-[10px] font-black text-slate-500 hover:border-blue-400 hover:text-blue-600 transition-all"
+                  >
+                    {discountMode}
+                  </button>
+                  <div className="relative flex-1">
+                    <Percent className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={13} />
+                    <input
+                      type="number" min="0" step="0.01"
+                      placeholder={discountMode === "%" ? "Desconto %" : "Desconto R$"}
+                      className="w-full pl-9 pr-3 h-10 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:border-rose-400 text-[11px] font-medium text-slate-800 placeholder:text-slate-400 transition-all [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none"
+                      value={discount}
+                      onChange={(e) => setDiscount(e.target.value)}
+                    />
+                  </div>
+                </div>
+
+                {/* acréscimo */}
+                <div className="flex gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => { setSurchargeMode(m => m === "R$" ? "%" : "R$"); setSurcharge(""); }}
+                    className="h-10 w-14 shrink-0 flex items-center justify-center rounded-xl border border-slate-200 bg-slate-50 text-[10px] font-black text-slate-500 hover:border-blue-400 hover:text-blue-600 transition-all"
+                  >
+                    {surchargeMode}
+                  </button>
+                  <div className="relative flex-1">
+                    <ChevronUp className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={13} />
+                    <input
+                      type="number" min="0" step="0.01"
+                      placeholder={surchargeMode === "%" ? "Acréscimo %" : "Acréscimo R$"}
+                      className="w-full pl-9 pr-3 h-10 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:border-amber-400 text-[11px] font-medium text-slate-800 placeholder:text-slate-400 transition-all [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none"
+                      value={surcharge}
+                      onChange={(e) => setSurcharge(e.target.value)}
+                    />
+                  </div>
                 </div>
 
                 {/* ── VENDEDOR ────────────────────────────────────────────── */}
@@ -1066,7 +1160,7 @@ ${change > 0 ? `<hr class="divider"/><div class="row bold"><span>TROCO:</span><s
                           )}
                           <div className="grid grid-cols-4 gap-1.5 flex-1">
                             {(["money","debit","credit","pix"] as PaymentMethod[]).map((key) => (
-                              <button key={key} onClick={() => updatePayment(p.id, { method: key, installments: 1 })}
+                              <button key={key} onClick={() => handleMethodChange(p.id, key)}
                                 className={cn("h-9 rounded-xl border text-[9px] font-black uppercase tracking-widest transition-all flex flex-col items-center justify-center gap-0.5",
                                   p.method === key
                                     ? key === "credit" ? "bg-emerald-600 border-emerald-500 text-white shadow-sm" : "bg-blue-600 border-blue-500 text-white shadow-sm"
@@ -1173,15 +1267,27 @@ ${change > 0 ? `<hr class="divider"/><div class="row bold"><span>TROCO:</span><s
 
                 {/* totais */}
                 <div className="bg-slate-900 rounded-2xl p-4 space-y-2">
+                  {(discountValue > 0 || surchargeValue > 0 || servicesTotal > 0) && (
+                    <div className="flex justify-between text-[10px] font-bold uppercase tracking-widest text-slate-500">
+                      <span>Subtotal</span><span className="font-mono">R$ {(cart.reduce((a,b)=>a+b.price*b.quantity,0)).toFixed(2)}</span>
+                    </div>
+                  )}
+                  {servicesTotal > 0 && (
+                    <div className="flex justify-between text-[10px] font-bold uppercase tracking-widest text-blue-400">
+                      <span>Serviços ({cartServices.length})</span><span className="font-mono">+ R$ {servicesTotal.toFixed(2)}</span>
+                    </div>
+                  )}
                   {discountValue > 0 && (
-                    <>
-                      <div className="flex justify-between text-[10px] font-bold uppercase tracking-widest text-slate-500">
-                        <span>Subtotal</span><span className="font-mono">R$ {subtotal.toFixed(2)}</span>
-                      </div>
-                      <div className="flex justify-between text-[10px] font-bold uppercase tracking-widest text-emerald-400">
-                        <span>Desconto</span><span className="font-mono">− R$ {discountValue.toFixed(2)}</span>
-                      </div>
-                    </>
+                    <div className="flex justify-between text-[10px] font-bold uppercase tracking-widest text-emerald-400">
+                      <span>Desconto{discountMode === "%" ? ` (${discountRaw}%)` : ""}</span>
+                      <span className="font-mono">− R$ {discountValue.toFixed(2)}</span>
+                    </div>
+                  )}
+                  {surchargeValue > 0 && (
+                    <div className="flex justify-between text-[10px] font-bold uppercase tracking-widest text-amber-400">
+                      <span>Acréscimo{surchargeMode === "%" ? ` (${surchargeRaw}%)` : ""}</span>
+                      <span className="font-mono">+ R$ {surchargeValue.toFixed(2)}</span>
+                    </div>
                   )}
                   {feeAmount > 0 && (
                     <div className="flex justify-between text-[10px] font-bold uppercase tracking-widest text-slate-500">
@@ -1351,6 +1457,83 @@ ${change > 0 ? `<hr class="divider"/><div class="row bold"><span>TROCO:</span><s
                 <button onClick={() => setShowReceipt(false)}
                   className="w-full h-11 border border-slate-200 rounded-2xl text-[11px] font-black text-slate-500 uppercase tracking-widest hover:bg-slate-50 transition-all">
                   Fechar
+                </button>
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+
+      {/* ── SERVICES MODAL ─────────────────────────────────────────────────── */}
+      <AnimatePresence>
+        {showServicesModal && (
+          <>
+            <motion.div
+              key="svc-backdrop"
+              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              className="fixed inset-0 bg-black/50 backdrop-blur-sm z-40"
+              onClick={() => setShowServicesModal(false)}
+            />
+            <motion.div
+              key="svc-panel"
+              initial={{ x: "100%" }} animate={{ x: 0 }} exit={{ x: "100%" }}
+              transition={{ type: "spring", damping: 28, stiffness: 300 }}
+              className="fixed right-0 top-0 h-full w-full max-w-sm bg-white shadow-2xl z-50 flex flex-col"
+            >
+              <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50">
+                <div className="flex items-center gap-2">
+                  <Wrench size={15} className="text-blue-600" />
+                  <span className="text-[11px] font-black text-slate-900 uppercase tracking-widest">Serviços</span>
+                </div>
+                <button onClick={() => setShowServicesModal(false)} className="w-8 h-8 rounded-lg border border-slate-200 bg-white flex items-center justify-center text-slate-400 hover:text-slate-700 transition-all">
+                  <X size={14} />
+                </button>
+              </div>
+
+              <div className="flex-1 overflow-y-auto divide-y divide-slate-50">
+                {services.map((svc) => {
+                  const inCart = cartServices.some((s) => s.id === svc.id);
+                  return (
+                    <div key={svc.id} className="px-5 py-3.5 flex items-center gap-3">
+                      <div className="w-9 h-9 rounded-xl bg-blue-50 flex items-center justify-center shrink-0">
+                        <Wrench size={14} className="text-blue-500" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-[12px] font-bold text-slate-900 uppercase truncate">{svc.name}</p>
+                        {svc.description && <p className="text-[9px] text-slate-400 truncate">{svc.description}</p>}
+                        <p className="text-[11px] font-mono font-black text-blue-600 mt-0.5">R$ {Number(svc.price).toFixed(2)}</p>
+                      </div>
+                      <button
+                        onClick={() => {
+                          if (inCart) setCartServices((prev) => prev.filter((s) => s.id !== svc.id));
+                          else setCartServices((prev) => [...prev, { ...svc, price: Number(svc.price) }]);
+                        }}
+                        className={cn(
+                          "w-8 h-8 rounded-xl border flex items-center justify-center transition-all shrink-0 text-[13px] font-black",
+                          inCart
+                            ? "bg-rose-500 border-rose-500 text-white hover:bg-rose-600"
+                            : "bg-blue-600 border-blue-600 text-white hover:bg-blue-700"
+                        )}
+                      >
+                        {inCart ? <X size={13} /> : <Plus size={13} />}
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+
+              <div className="px-5 py-4 border-t border-slate-100 space-y-2">
+                {cartServices.length > 0 && (
+                  <div className="flex items-center justify-between text-[10px] font-bold text-slate-500 uppercase tracking-widest">
+                    <span>{cartServices.length} serviço{cartServices.length > 1 ? "s" : ""} selecionado{cartServices.length > 1 ? "s" : ""}</span>
+                    <span className="font-mono text-blue-600 font-black">R$ {servicesTotal.toFixed(2)}</span>
+                  </div>
+                )}
+                <button
+                  onClick={() => setShowServicesModal(false)}
+                  className="w-full h-11 bg-slate-900 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-slate-700 transition-colors"
+                >
+                  Confirmar
                 </button>
               </div>
             </motion.div>

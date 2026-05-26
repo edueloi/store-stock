@@ -36,13 +36,17 @@ function buildMethodSummary(pm: string) {
   }).join(" + ");
 }
 
+interface ServiceItemInput { id: number; name: string; price: number }
+
 export async function createSale(req: Request, res: Response) {
-  const { items, customerName, totalAmount, paymentMethod, discount, sellerId } = req.body as {
+  const { items, services, customerName, totalAmount, paymentMethod, discount, surcharge, sellerId } = req.body as {
     items: SaleItemInput[];
+    services?: ServiceItemInput[];
     customerName?: string;
     totalAmount: number;
     paymentMethod?: string;
     discount?: number;
+    surcharge?: number;
     sellerId?: number;
   };
 
@@ -66,8 +70,9 @@ export async function createSale(req: Request, res: Response) {
     }, 0);
 
     const discountVal  = discount && discount > 0 ? Number(discount) : 0;
+    const surchargeVal = surcharge && surcharge > 0 ? Number(surcharge) : 0;
     const roundedFee   = Math.round(machineFee * 100) / 100;
-    const grossAmount  = Math.round((totalAmount + discountVal) * 100) / 100;
+    const grossAmount  = Math.round((totalAmount + discountVal - surchargeVal) * 100) / 100;
 
     // load seller name to denormalize
     let sellerName: string | null = null;
@@ -107,6 +112,7 @@ export async function createSale(req: Request, res: Response) {
 
     const methodSummary  = buildMethodSummary(pmString);
     const discountNote   = discountVal > 0 ? ` (desc. R$ ${discountVal.toFixed(2)})` : "";
+    const surchargeNote  = surchargeVal > 0 ? ` (acrés. R$ ${surchargeVal.toFixed(2)})` : "";
     const now            = new Date();
     const netAmount      = Math.round((totalAmount - roundedFee) * 100) / 100;
 
@@ -115,7 +121,7 @@ export async function createSale(req: Request, res: Response) {
       data: {
         tenant_id:       tenantId,
         type:            "income",
-        description:     `Venda PDV #${order.id} — ${methodSummary}${discountNote}`,
+        description:     `Venda PDV #${order.id} — ${methodSummary}${discountNote}${surchargeNote}`,
         amount:          netAmount,
         gross_amount:    grossAmount,
         fee_amount:      roundedFee > 0 ? roundedFee : null,
