@@ -48,6 +48,24 @@ export async function getProduct(req: Request, res: Response) {
   }
 }
 
+export async function getProductByBarcode(req: Request, res: Response) {
+  try {
+    const code = req.params.code;
+    const tenantId = getTenantId(req);
+    const product = await prisma.product.findFirst({
+      where: { barcode: code, tenant_id: tenantId },
+      include: { category: { select: { name: true } } },
+    });
+    if (!product) {
+      res.status(404).json({ error: "Product not found" });
+      return;
+    }
+    res.json({ ...product, category_name: product.category?.name ?? null });
+  } catch {
+    res.status(500).json({ error: "Failed to fetch product" });
+  }
+}
+
 export async function createProduct(req: Request, res: Response) {
   try {
     const {

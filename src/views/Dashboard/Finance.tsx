@@ -56,14 +56,21 @@ async function exportToExcel(entries: FinanceEntry[], tenant: Partial<Tenant> | 
   const totalExpense = entries.filter(e => e.type === "expense").reduce((a, e) => a + Number(e.amount), 0);
   const balance      = totalIncome - totalExpense;
 
+  const totalGrossExcel = entries.filter(e => e.type === "income").reduce((a, e) => a + Number(e.gross_amount ?? e.amount), 0);
+  const totalDiscExcel  = entries.filter(e => e.type === "income").reduce((a, e) => a + Number(e.discount_amount ?? 0), 0);
+  const totalFeesExcel  = entries.filter(e => e.type === "income").reduce((a, e) => a + Number(e.fee_amount ?? 0), 0);
+
   // ── column widths ──
   ws.columns = [
-    { key: "seq",  width: 6  },
-    { key: "desc", width: 42 },
-    { key: "date", width: 14 },
-    { key: "cat",  width: 20 },
-    { key: "type", width: 14 },
-    { key: "val",  width: 18 },
+    { key: "seq",   width: 6  },
+    { key: "desc",  width: 36 },
+    { key: "date",  width: 14 },
+    { key: "cat",   width: 16 },
+    { key: "type",  width: 12 },
+    { key: "gross", width: 15 },
+    { key: "disc",  width: 14 },
+    { key: "fee",   width: 14 },
+    { key: "val",   width: 16 },
   ];
 
   // ── helper: apply border to a cell ──
@@ -121,7 +128,7 @@ async function exportToExcel(entries: FinanceEntry[], tenant: Partial<Tenant> | 
 
   // ── ROW 4: thin separator line ──
   ws.getRow(4).height = 4;
-  for (let c = 1; c <= 6; c++) {
+  for (let c = 1; c <= 9; c++) {
     ws.getRow(4).getCell(c).border = {
       bottom: { style: "medium", color: { argb: "FF1E3A5F" } },
     };
@@ -131,48 +138,35 @@ async function exportToExcel(entries: FinanceEntry[], tenant: Partial<Tenant> | 
   ws.getRow(5).height = 16;
   ws.getRow(6).height = 28;
 
-  // Card labels (row 5)
-  const cardLabels = [
-    { col: 1, label: "TOTAL ENTRADAS", bg: "D1FAE5", fg: "065F46" },
-    { col: 3, label: "TOTAL SAÍDAS",   bg: "FEE2E2", fg: "991B1B" },
-    { col: 5, label: "SALDO CONSOLIDADO", bg: "1E293B", fg: "94A3B8" },
+  // Card labels (row 5) — 5 cards: Bruto / Descontos / Taxas / Líquido / Saldo
+  // cols 1-2, 3-3, 4-4, 5-6, 7-8, 9 → use spans: [1,1],[2,1],[3,1],[4,2],[6,2],[8,2]
+  // Simpler: 5 cards across 9 cols with varying spans
+  const cardDefs = [
+    { col: 1, span: 2, label: "ENTRADAS BRUTAS",   bg: "ECFDF5", fg: "065F46", val: totalGrossExcel, vfg: "059669" },
+    { col: 3, span: 1, label: "DESCONTOS",         bg: "FFF1F2", fg: "9F1239", val: -totalDiscExcel, vfg: "E11D48" },
+    { col: 4, span: 1, label: "TAXAS",             bg: "FFFBEB", fg: "92400E", val: -totalFeesExcel, vfg: "D97706" },
+    { col: 5, span: 2, label: "ENTRADAS LÍQUIDAS", bg: "D1FAE5", fg: "065F46", val: totalIncome,     vfg: "059669" },
+    { col: 7, span: 3, label: "SALDO CONSOLIDADO", bg: "1E293B", fg: "94A3B8", val: balance,         vfg: balance >= 0 ? "34D399" : "F87171" },
   ];
-  for (const { col, label, bg, fg } of cardLabels) {
-    const cell = ws.getRow(5).getCell(col);
-    cell.value = label;
-    cell.font  = font({ bold: true, size: 8, color: fg });
-    cell.fill  = fill(bg);
-    cell.alignment = { horizontal: "center", vertical: "middle" };
-    cell.border = {
-      top:   { style: "medium", color: { argb: `FF${fg}` } },
-      left:  { style: "medium", color: { argb: `FF${fg}` } },
-      right: { style: "medium", color: { argb: `FF${fg}` } },
-    };
-    // span the next column too
-    ws.mergeCells(5, col, 5, col + 1);
-  }
+  for (const { col, span, label, bg, fg, val, vfg } of cardDefs) {
+    const l5 = ws.getRow(5).getCell(col);
+    l5.value = label;
+    l5.font  = font({ bold: true, size: 8, color: fg });
+    l5.fill  = fill(bg);
+    l5.alignment = { horizontal: "center", vertical: "middle" };
+    l5.border = { top: { style: "medium", color: { argb: `FF${fg}` } }, left: { style: "medium", color: { argb: `FF${fg}` } }, right: { style: "medium", color: { argb: `FF${fg}` } } };
+    if (span > 1) ws.mergeCells(5, col, 5, col + span - 1);
 
-  // Card values (row 6)
-  const balColor = balance >= 0 ? "34D399" : "F87171";
-  const cardValues = [
-    { col: 1, val: totalIncome,  bg: "D1FAE5", fg: "059669" },
-    { col: 3, val: totalExpense, bg: "FEE2E2", fg: "DC2626" },
-    { col: 5, val: balance,      bg: "1E293B", fg: balColor },
-  ];
-  for (const { col, val, bg, fg } of cardValues) {
-    const cell = ws.getRow(6).getCell(col);
-    cell.value      = val;
-    cell.numFmt     = '"R$" #,##0.00';
-    cell.font       = font({ bold: true, size: 16, color: fg });
-    cell.fill       = fill(bg);
-    cell.alignment  = { horizontal: "center", vertical: "middle" };
-    cell.border = {
-      bottom: { style: "medium", color: { argb: `FF${fg}` } },
-      left:   { style: "medium", color: { argb: `FF${fg}` } },
-      right:  { style: "medium", color: { argb: `FF${fg}` } },
-    };
-    ws.mergeCells(6, col, 6, col + 1);
+    const l6 = ws.getRow(6).getCell(col);
+    l6.value     = val;
+    l6.numFmt    = '"R$" #,##0.00';
+    l6.font      = font({ bold: true, size: 13, color: vfg });
+    l6.fill      = fill(bg);
+    l6.alignment = { horizontal: "center", vertical: "middle" };
+    l6.border = { bottom: { style: "medium", color: { argb: `FF${fg}` } }, left: { style: "medium", color: { argb: `FF${fg}` } }, right: { style: "medium", color: { argb: `FF${fg}` } } };
+    if (span > 1) ws.mergeCells(6, col, 6, col + span - 1);
   }
+  const balColor = balance >= 0 ? "34D399" : "F87171";
 
   // ── ROW 7: blank gap ──
   ws.getRow(7).height = 6;
@@ -186,14 +180,14 @@ async function exportToExcel(entries: FinanceEntry[], tenant: Partial<Tenant> | 
 
   // ── ROW 9: table header ──
   ws.getRow(9).height = 22;
-  const HEADERS = ["#", "Descrição", "Data", "Categoria", "Tipo", "Valor (R$)"];
+  const HEADERS = ["#", "Descrição", "Data", "Categoria", "Tipo", "Bruto (R$)", "Desc. (R$)", "Taxa (R$)", "Líquido (R$)"];
   HEADERS.forEach((h, i) => {
     const cell = ws.getRow(9).getCell(i + 1);
     cell.value = h;
     cell.font  = font({ bold: true, size: 10, color: "FFFFFF" });
     cell.fill  = fill("1E3A5F");
     cell.alignment = {
-      horizontal: i === 5 ? "right" : i === 0 ? "center" : "left",
+      horizontal: i >= 5 ? "right" : i === 0 ? "center" : "left",
       vertical: "middle",
     };
     cell.border = border("medium");
@@ -201,7 +195,7 @@ async function exportToExcel(entries: FinanceEntry[], tenant: Partial<Tenant> | 
 
   // ── DATA ROWS (10+) ──
   entries.forEach((e, i) => {
-    const rowNum = 10 + i;
+    const rowNum   = 10 + i;
     const isIncome = e.type === "income";
     const altBg    = i % 2 === 0 ? "FFFFFF" : "F8FAFC";
     const row      = ws.getRow(rowNum);
@@ -225,7 +219,7 @@ async function exportToExcel(entries: FinanceEntry[], tenant: Partial<Tenant> | 
     cDesc.font  = font({ size: 10, bold: true });
     styleCell(cDesc, "left");
 
-    // Data — real Date object so ExcelJS formats it natively
+    // Data
     const cDate = row.getCell(3);
     cDate.value  = new Date(e.date + (e.date.length === 10 ? "T12:00:00" : ""));
     cDate.numFmt = "DD/MM/YYYY";
@@ -238,7 +232,7 @@ async function exportToExcel(entries: FinanceEntry[], tenant: Partial<Tenant> | 
     cCat.font  = font({ size: 9, color: "6366F1" });
     styleCell(cCat, "center");
 
-    // Tipo — coloured badge
+    // Tipo
     const cType = row.getCell(5);
     cType.value = isIncome ? "✦ Receita" : "▼ Despesa";
     cType.font  = font({ bold: true, size: 9, color: isIncome ? "059669" : "DC2626" });
@@ -246,8 +240,46 @@ async function exportToExcel(entries: FinanceEntry[], tenant: Partial<Tenant> | 
     cType.alignment = { horizontal: "center", vertical: "middle" };
     cType.border = border("thin");
 
-    // Valor
-    const cVal = row.getCell(6);
+    // Bruto
+    const cGross = row.getCell(6);
+    if (isIncome && e.gross_amount != null) {
+      cGross.value  = Number(e.gross_amount);
+      cGross.numFmt = '"R$" #,##0.00';
+      cGross.font   = font({ size: 10, color: "475569" });
+    } else {
+      cGross.value = "—";
+      cGross.font  = font({ size: 10, color: "CBD5E1" });
+    }
+    styleCell(cGross, "right");
+
+    // Desconto
+    const cDisc = row.getCell(7);
+    const discVal = e.discount_amount != null ? Number(e.discount_amount) : 0;
+    if (isIncome && discVal > 0) {
+      cDisc.value  = -discVal;
+      cDisc.numFmt = '"R$" #,##0.00;[Red]"R$" -#,##0.00';
+      cDisc.font   = font({ bold: true, size: 10, color: "E11D48" });
+    } else {
+      cDisc.value = "—";
+      cDisc.font  = font({ size: 10, color: "CBD5E1" });
+    }
+    styleCell(cDisc, "right");
+
+    // Taxa
+    const cFee = row.getCell(8);
+    const feeVal = e.fee_amount != null ? Number(e.fee_amount) : 0;
+    if (isIncome && feeVal > 0) {
+      cFee.value  = -feeVal;
+      cFee.numFmt = '"R$" #,##0.00;[Red]"R$" -#,##0.00';
+      cFee.font   = font({ bold: true, size: 10, color: "D97706" });
+    } else {
+      cFee.value = "—";
+      cFee.font  = font({ size: 10, color: "CBD5E1" });
+    }
+    styleCell(cFee, "right");
+
+    // Líquido
+    const cVal = row.getCell(9);
     cVal.value  = isIncome ? Number(e.amount) : -Number(e.amount);
     cVal.numFmt = isIncome ? '"R$" #,##0.00' : '"R$" #,##0.00;[Red]"R$" -#,##0.00';
     cVal.font   = font({ bold: true, size: 11, color: isIncome ? "059669" : "DC2626" });
@@ -261,20 +293,20 @@ async function exportToExcel(entries: FinanceEntry[], tenant: Partial<Tenant> | 
     const row = ws.getRow(rowN);
     row.height = 20;
 
-    for (let c = 1; c <= 4; c++) {
+    for (let c = 1; c <= 7; c++) {
       const cell = row.getCell(c);
       cell.fill = fill(bg);
       cell.border = border("thin");
     }
 
-    const lCell = row.getCell(5);
+    const lCell = row.getCell(8);
     lCell.value = label;
     lCell.font  = font({ bold: true, size: 10, color: fg });
     lCell.fill  = fill(bg);
     lCell.alignment = { horizontal: "right", vertical: "middle" };
     lCell.border = border("thin");
 
-    const vCell = row.getCell(6);
+    const vCell = row.getCell(9);
     vCell.value  = val;
     vCell.numFmt = '"R$" #,##0.00';
     vCell.font   = font({ bold: true, size: 11, color: fg });
@@ -283,9 +315,12 @@ async function exportToExcel(entries: FinanceEntry[], tenant: Partial<Tenant> | 
     vCell.border = border("medium");
   };
 
-  addFooterRow(footerStart,     "TOTAL ENTRADAS", totalIncome,  "D1FAE5", "059669");
-  addFooterRow(footerStart + 1, "TOTAL SAÍDAS",   totalExpense, "FEE2E2", "DC2626");
-  addFooterRow(footerStart + 2, "SALDO FINAL",    balance,      "1E293B", balColor);
+  addFooterRow(footerStart,     "ENTRADAS BRUTAS",   totalGrossExcel,  "ECFDF5", "059669");
+  addFooterRow(footerStart + 1, "DESCONTOS",         -totalDiscExcel,  "FFF1F2", "E11D48");
+  addFooterRow(footerStart + 2, "TAXAS MAQUININHA",  -totalFeesExcel,  "FFFBEB", "D97706");
+  addFooterRow(footerStart + 3, "ENTRADAS LÍQUIDAS", totalIncome,      "D1FAE5", "059669");
+  addFooterRow(footerStart + 4, "TOTAL SAÍDAS",      totalExpense,     "FEE2E2", "DC2626");
+  addFooterRow(footerStart + 5, "SALDO FINAL",       balance,          "1E293B", balColor);
 
   // ── download ──
   const buf  = await wb.xlsx.writeBuffer();
@@ -308,18 +343,28 @@ function exportToPDF(entries: FinanceEntry[], tenant: Partial<Tenant> | null, pe
     .reduce((a, e) => a + Number(e.amount), 0);
   const balance = totalIncome - totalExpense;
 
+  const totalGrossPDF = entries.filter(e => e.type === "income").reduce((a, e) => a + Number(e.gross_amount ?? e.amount), 0);
+  const totalDiscPDF  = entries.filter(e => e.type === "income").reduce((a, e) => a + Number(e.discount_amount ?? 0), 0);
+  const totalFeesPDF  = entries.filter(e => e.type === "income").reduce((a, e) => a + Number(e.fee_amount ?? 0), 0);
+
   const rows = entries
-    .map(
-      (e) => `
+    .map((e) => {
+      const gross    = e.gross_amount    != null ? Number(e.gross_amount)    : null;
+      const discount = e.discount_amount != null ? Number(e.discount_amount) : null;
+      const fee      = e.fee_amount      != null ? Number(e.fee_amount)      : null;
+      return `
       <tr>
         <td>${e.description}</td>
-        <td>${formatDateBR(e.date)}</td>
-        <td>${e.category || "Operacional"}</td>
+        <td style="text-align:center">${formatDateBR(e.date)}</td>
+        <td style="text-align:center">${e.category || "Operacional"}</td>
+        <td style="text-align:right;color:#64748b">${gross != null ? "R$ " + fmt(gross) : "—"}</td>
+        <td style="text-align:right;color:#e11d48;font-weight:700">${discount != null && discount > 0 ? "− R$ " + fmt(discount) : "—"}</td>
+        <td style="text-align:right;color:#d97706;font-weight:700">${fee != null && fee > 0 ? "− R$ " + fmt(fee) : "—"}</td>
         <td class="${e.type === "income" ? "income" : "expense"}">
-          ${e.type === "income" ? "+" : "−"} R$ ${Number(e.amount).toFixed(2)}
+          ${e.type === "income" ? "+" : "−"} R$ ${fmt(Number(e.amount))}
         </td>
-      </tr>`
-    )
+      </tr>`;
+    })
     .join("");
 
   const html = `<!DOCTYPE html>
@@ -337,7 +382,11 @@ function exportToPDF(entries: FinanceEntry[], tenant: Partial<Tenant> | null, pe
   .meta { text-align: right; font-size: 10px; color: #64748b; line-height: 1.8; }
   .meta strong { color: #1e293b; font-size: 11px; }
   .period { background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 8px; padding: 6px 14px; display: inline-block; font-size: 10px; font-weight: 700; color: #1d4ed8; text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 20px; }
-  .summary { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; margin-bottom: 24px; }
+  .summary { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr 1fr; gap: 10px; margin-bottom: 24px; }
+  .card.fees .val { color: #d97706; }
+  .card.fees { background: #fffbeb; border-color: #fde68a; }
+  .card.disc .val { color: #e11d48; }
+  .card.disc { background: #fff1f2; border-color: #fecdd3; }
   .card { padding: 14px 16px; border-radius: 10px; border: 1px solid #e2e8f0; }
   .card label { font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.15em; display: block; margin-bottom: 4px; color: #94a3b8; }
   .card .val { font-size: 18px; font-weight: 900; font-family: monospace; }
@@ -375,12 +424,20 @@ function exportToPDF(entries: FinanceEntry[], tenant: Partial<Tenant> | null, pe
 <div class="period">Período: ${period}</div>
 <div class="summary">
   <div class="card income">
-    <label>Total Entradas</label>
-    <div class="val">R$ ${fmt(totalIncome)}</div>
+    <label>Entradas Brutas</label>
+    <div class="val">R$ ${fmt(totalGrossPDF)}</div>
   </div>
-  <div class="card expense">
-    <label>Total Saídas</label>
-    <div class="val">R$ ${fmt(totalExpense)}</div>
+  <div class="card disc">
+    <label>Descontos</label>
+    <div class="val">− R$ ${fmt(totalDiscPDF)}</div>
+  </div>
+  <div class="card fees">
+    <label>Taxas Maquininha</label>
+    <div class="val">− R$ ${fmt(totalFeesPDF)}</div>
+  </div>
+  <div class="card income">
+    <label>Entradas Líquidas</label>
+    <div class="val">R$ ${fmt(totalIncome)}</div>
   </div>
   <div class="card balance">
     <label>Saldo Consolidado</label>
@@ -391,9 +448,12 @@ function exportToPDF(entries: FinanceEntry[], tenant: Partial<Tenant> | null, pe
   <thead>
     <tr>
       <th>Descrição</th>
-      <th>Data</th>
-      <th>Categoria</th>
-      <th style="text-align:right">Valor</th>
+      <th style="text-align:center">Data</th>
+      <th style="text-align:center">Categoria</th>
+      <th style="text-align:right">Bruto</th>
+      <th style="text-align:right">Desc.</th>
+      <th style="text-align:right">Taxa</th>
+      <th style="text-align:right">Líquido</th>
     </tr>
   </thead>
   <tbody>${rows}</tbody>
@@ -542,9 +602,14 @@ export default function Finance() {
     });
   }, [entries, dateFrom, dateTo, typeFilter, searchQ]);
 
-  const totalIncome = filtered.filter((e) => e.type === "income").reduce((a, e) => a + Number(e.amount), 0);
-  const totalExpense = filtered.filter((e) => e.type === "expense").reduce((a, e) => a + Number(e.amount), 0);
-  const balance = totalIncome - totalExpense;
+  const incomeEntries    = filtered.filter((e) => e.type === "income");
+  const expenseEntries   = filtered.filter((e) => e.type === "expense");
+  const totalIncome      = incomeEntries.reduce((a, e) => a + Number(e.amount), 0);
+  const totalGross       = incomeEntries.reduce((a, e) => a + Number(e.gross_amount ?? e.amount), 0);
+  const totalFees        = incomeEntries.reduce((a, e) => a + Number(e.fee_amount ?? 0), 0);
+  const totalDiscounts   = incomeEntries.reduce((a, e) => a + Number(e.discount_amount ?? 0), 0);
+  const totalExpense     = expenseEntries.reduce((a, e) => a + Number(e.amount), 0);
+  const balance          = totalIncome - totalExpense;
 
   const periodLabel = (() => {
     if (preset === "today") return "Hoje";
@@ -589,22 +654,44 @@ export default function Finance() {
 
       {/* ── SUMMARY CARDS ──────────────────────────────────────────────── */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-        <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm relative overflow-hidden group">
+        {/* Entradas card — shows gross + fee breakdown */}
+        <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm relative overflow-hidden">
           <div className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2">
             Total Entradas
           </div>
           <div className="text-2xl font-mono font-black text-emerald-600">
             R$ {fmt(totalIncome)}
           </div>
-          <div className="mt-2 text-[9px] font-bold text-slate-400 uppercase">
-            {filtered.filter((e) => e.type === "income").length} lançamentos
-          </div>
+          {(totalFees > 0 || totalDiscounts > 0) ? (
+            <div className="mt-2 flex flex-col gap-0.5">
+              <div className="flex items-center justify-between text-[9px] font-bold uppercase">
+                <span className="text-slate-400">Bruto</span>
+                <span className="text-slate-500 font-mono">R$ {fmt(totalGross)}</span>
+              </div>
+              {totalDiscounts > 0 && (
+                <div className="flex items-center justify-between text-[9px] font-bold uppercase">
+                  <span className="text-rose-400">Descontos</span>
+                  <span className="text-rose-400 font-mono">− R$ {fmt(totalDiscounts)}</span>
+                </div>
+              )}
+              {totalFees > 0 && (
+                <div className="flex items-center justify-between text-[9px] font-bold uppercase">
+                  <span className="text-amber-500">Taxas</span>
+                  <span className="text-amber-500 font-mono">− R$ {fmt(totalFees)}</span>
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="mt-2 text-[9px] font-bold text-slate-400 uppercase">
+              {incomeEntries.length} lançamentos
+            </div>
+          )}
           <div className="absolute right-4 top-4 w-10 h-10 rounded-xl bg-emerald-50 flex items-center justify-center text-emerald-400">
             <ArrowUpRight size={20} />
           </div>
         </div>
 
-        <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm relative overflow-hidden group">
+        <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm relative overflow-hidden">
           <div className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2">
             Total Saídas
           </div>
@@ -612,7 +699,7 @@ export default function Finance() {
             R$ {fmt(totalExpense)}
           </div>
           <div className="mt-2 text-[9px] font-bold text-slate-400 uppercase">
-            {filtered.filter((e) => e.type === "expense").length} lançamentos
+            {expenseEntries.length} lançamentos
           </div>
           <div className="absolute right-4 top-4 w-10 h-10 rounded-xl bg-rose-50 flex items-center justify-center text-rose-400">
             <ArrowDownRight size={20} />
@@ -799,7 +886,7 @@ export default function Finance() {
             <table className="w-full text-left border-collapse">
               <thead>
                 <tr className="bg-slate-50/80 border-b border-slate-100">
-                  <th className="px-5 py-3 text-[9px] font-black text-slate-400 uppercase tracking-widest w-1/2">
+                  <th className="px-5 py-3 text-[9px] font-black text-slate-400 uppercase tracking-widest w-2/5">
                     Descrição
                   </th>
                   <th className="px-5 py-3 text-[9px] font-black text-slate-400 uppercase tracking-widest">
@@ -808,65 +895,110 @@ export default function Finance() {
                   <th className="px-5 py-3 text-[9px] font-black text-slate-400 uppercase tracking-widest">
                     Categoria
                   </th>
+                  <th className="px-4 py-3 text-[9px] font-black text-slate-400 uppercase tracking-widest text-right">
+                    Bruto
+                  </th>
+                  <th className="px-4 py-3 text-[9px] font-black text-rose-400 uppercase tracking-widest text-right">
+                    Desc.
+                  </th>
+                  <th className="px-4 py-3 text-[9px] font-black text-amber-400 uppercase tracking-widest text-right">
+                    Taxa
+                  </th>
                   <th className="px-5 py-3 text-[9px] font-black text-slate-400 uppercase tracking-widest text-right">
-                    Valor
+                    Líquido
                   </th>
                 </tr>
               </thead>
               <tbody>
-                {filtered.map((entry, idx) => (
-                  <tr
-                    key={entry.id}
-                    className={cn(
-                      "border-b border-slate-50 hover:bg-slate-50/50 transition-colors",
-                      idx % 2 === 0 ? "" : "bg-slate-50/20"
-                    )}
-                  >
-                    <td className="px-5 py-3">
-                      <div className="flex items-center gap-3">
-                        <div
+                {filtered.map((entry, idx) => {
+                  const gross    = entry.gross_amount    != null ? Number(entry.gross_amount)    : null;
+                  const discount = entry.discount_amount != null ? Number(entry.discount_amount) : null;
+                  const fee      = entry.fee_amount      != null ? Number(entry.fee_amount)      : null;
+                  return (
+                    <tr
+                      key={entry.id}
+                      className={cn(
+                        "border-b border-slate-50 hover:bg-slate-50/50 transition-colors",
+                        idx % 2 === 0 ? "" : "bg-slate-50/20"
+                      )}
+                    >
+                      <td className="px-5 py-3">
+                        <div className="flex items-center gap-3">
+                          <div
+                            className={cn(
+                              "w-7 h-7 rounded-lg flex items-center justify-center shrink-0 text-white",
+                              entry.type === "income" ? "bg-emerald-500" : "bg-rose-500"
+                            )}
+                          >
+                            {entry.type === "income" ? (
+                              <TrendingUp size={12} />
+                            ) : (
+                              <TrendingDown size={12} />
+                            )}
+                          </div>
+                          <span className="text-[11px] font-bold text-slate-800 uppercase truncate max-w-[200px]">
+                            {entry.description}
+                          </span>
+                        </div>
+                      </td>
+                      <td className="px-5 py-3">
+                        <span className="text-[10px] font-mono font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-md">
+                          {formatDateBR(entry.date)}
+                        </span>
+                      </td>
+                      <td className="px-5 py-3">
+                        <span className="text-[9px] font-black uppercase tracking-widest text-slate-400 bg-slate-50 border border-slate-100 px-2 py-0.5 rounded-md">
+                          {entry.category || "Operacional"}
+                        </span>
+                      </td>
+                      {/* Bruto */}
+                      <td className="px-4 py-3 text-right">
+                        {gross != null ? (
+                          <span className="font-mono text-[11px] font-bold text-slate-500">
+                            R$ {fmt(gross)}
+                          </span>
+                        ) : (
+                          <span className="text-[10px] text-slate-200">—</span>
+                        )}
+                      </td>
+                      {/* Desconto */}
+                      <td className="px-4 py-3 text-right">
+                        {discount != null && discount > 0 ? (
+                          <span className="font-mono text-[11px] font-bold text-rose-400">
+                            − R$ {fmt(discount)}
+                          </span>
+                        ) : (
+                          <span className="text-[10px] text-slate-200">—</span>
+                        )}
+                      </td>
+                      {/* Taxa */}
+                      <td className="px-4 py-3 text-right">
+                        {fee != null && fee > 0 ? (
+                          <span className="font-mono text-[11px] font-bold text-amber-500">
+                            − R$ {fmt(fee)}
+                          </span>
+                        ) : (
+                          <span className="text-[10px] text-slate-200">—</span>
+                        )}
+                      </td>
+                      {/* Líquido */}
+                      <td className="px-5 py-3 text-right">
+                        <span
                           className={cn(
-                            "w-7 h-7 rounded-lg flex items-center justify-center shrink-0 text-white",
-                            entry.type === "income" ? "bg-emerald-500" : "bg-rose-500"
+                            "font-mono font-black text-sm",
+                            entry.type === "income" ? "text-emerald-600" : "text-rose-600"
                           )}
                         >
-                          {entry.type === "income" ? (
-                            <TrendingUp size={12} />
-                          ) : (
-                            <TrendingDown size={12} />
-                          )}
-                        </div>
-                        <span className="text-[11px] font-bold text-slate-800 uppercase truncate max-w-[220px]">
-                          {entry.description}
+                          {entry.type === "income" ? "+" : "−"} R$ {fmt(Number(entry.amount))}
                         </span>
-                      </div>
-                    </td>
-                    <td className="px-5 py-3">
-                      <span className="text-[10px] font-mono font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-md">
-                        {formatDateBR(entry.date)}
-                      </span>
-                    </td>
-                    <td className="px-5 py-3">
-                      <span className="text-[9px] font-black uppercase tracking-widest text-slate-400 bg-slate-50 border border-slate-100 px-2 py-0.5 rounded-md">
-                        {entry.category || "Operacional"}
-                      </span>
-                    </td>
-                    <td className="px-5 py-3 text-right">
-                      <span
-                        className={cn(
-                          "font-mono font-black text-sm",
-                          entry.type === "income" ? "text-emerald-600" : "text-rose-600"
-                        )}
-                      >
-                        {entry.type === "income" ? "+" : "−"} R$ {Number(entry.amount).toFixed(2)}
-                      </span>
-                    </td>
-                  </tr>
-                ))}
+                      </td>
+                    </tr>
+                  );
+                })}
                 {filtered.length === 0 && (
                   <tr>
                     <td
-                      colSpan={4}
+                      colSpan={7}
                       className="px-5 py-14 text-center text-[10px] font-black uppercase tracking-widest text-slate-300"
                     >
                       Nenhum lançamento no período selecionado
@@ -880,15 +1012,35 @@ export default function Finance() {
                     <td className="px-5 py-3 text-[9px] font-black uppercase tracking-widest text-slate-400" colSpan={2}>
                       Totais do período
                     </td>
-                    <td className="px-5 py-3 text-right">
-                      <span className="text-[10px] font-black text-emerald-400 font-mono">
-                        + R$ {fmt(totalIncome)}
-                      </span>
+                    <td className="px-5 py-3" />
+                    <td className="px-4 py-3 text-right">
+                      {totalGross > totalIncome && (
+                        <span className="text-[10px] font-black text-slate-400 font-mono">
+                          R$ {fmt(totalGross)}
+                        </span>
+                      )}
+                    </td>
+                    <td className="px-4 py-3 text-right">
+                      {totalDiscounts > 0 && (
+                        <span className="text-[10px] font-black text-rose-400 font-mono">
+                          − R$ {fmt(totalDiscounts)}
+                        </span>
+                      )}
+                    </td>
+                    <td className="px-4 py-3 text-right">
+                      {totalFees > 0 && (
+                        <span className="text-[10px] font-black text-amber-400 font-mono">
+                          − R$ {fmt(totalFees)}
+                        </span>
+                      )}
                     </td>
                     <td className="px-5 py-3 text-right">
+                      <span className="text-[10px] font-black text-emerald-400 font-mono block">
+                        + R$ {fmt(totalIncome)}
+                      </span>
                       <span
                         className={cn(
-                          "text-sm font-mono font-black",
+                          "text-sm font-mono font-black block",
                           balance >= 0 ? "text-white" : "text-rose-400"
                         )}
                       >
@@ -913,34 +1065,46 @@ export default function Finance() {
               Nenhum lançamento no período
             </div>
           ) : (
-            filtered.map((entry) => (
-              <div key={entry.id} className="px-4 py-3.5 flex items-center gap-3">
-                <div
-                  className={cn(
-                    "w-9 h-9 rounded-xl flex items-center justify-center shrink-0 text-white",
-                    entry.type === "income" ? "bg-emerald-500" : "bg-rose-500"
-                  )}
-                >
-                  {entry.type === "income" ? <TrendingUp size={15} /> : <TrendingDown size={15} />}
+            filtered.map((entry) => {
+              const gross    = entry.gross_amount    != null ? Number(entry.gross_amount)    : null;
+              const discount = entry.discount_amount != null ? Number(entry.discount_amount) : null;
+              const fee      = entry.fee_amount      != null ? Number(entry.fee_amount)      : null;
+              return (
+                <div key={entry.id} className="px-4 py-3.5 flex items-center gap-3">
+                  <div
+                    className={cn(
+                      "w-9 h-9 rounded-xl flex items-center justify-center shrink-0 text-white",
+                      entry.type === "income" ? "bg-emerald-500" : "bg-rose-500"
+                    )}
+                  >
+                    {entry.type === "income" ? <TrendingUp size={15} /> : <TrendingDown size={15} />}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-[11px] font-bold text-slate-900 uppercase truncate">
+                      {entry.description}
+                    </p>
+                    <p className="text-[9px] text-slate-400 font-bold uppercase mt-0.5">
+                      {formatDateBR(entry.date)} · {entry.category || "Operacional"}
+                    </p>
+                    {(gross != null || (discount != null && discount > 0) || (fee != null && fee > 0)) && (
+                      <p className="text-[9px] font-bold mt-0.5 flex gap-2 flex-wrap">
+                        {gross != null && <span className="text-slate-400">Bruto R$ {fmt(gross)}</span>}
+                        {discount != null && discount > 0 && <span className="text-rose-400">Desc. − R$ {fmt(discount)}</span>}
+                        {fee != null && fee > 0 && <span className="text-amber-500">Taxa − R$ {fmt(fee)}</span>}
+                      </p>
+                    )}
+                  </div>
+                  <span
+                    className={cn(
+                      "text-sm font-mono font-black shrink-0",
+                      entry.type === "income" ? "text-emerald-600" : "text-rose-600"
+                    )}
+                  >
+                    {entry.type === "income" ? "+" : "−"}R$ {fmt(Number(entry.amount))}
+                  </span>
                 </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-[11px] font-bold text-slate-900 uppercase truncate">
-                    {entry.description}
-                  </p>
-                  <p className="text-[9px] text-slate-400 font-bold uppercase mt-0.5">
-                    {formatDateBR(entry.date)} · {entry.category || "Operacional"}
-                  </p>
-                </div>
-                <span
-                  className={cn(
-                    "text-sm font-mono font-black shrink-0",
-                    entry.type === "income" ? "text-emerald-600" : "text-rose-600"
-                  )}
-                >
-                  {entry.type === "income" ? "+" : "−"}R$ {Number(entry.amount).toFixed(2)}
-                </span>
-              </div>
-            ))
+              );
+            })
           )}
         </div>
       </div>

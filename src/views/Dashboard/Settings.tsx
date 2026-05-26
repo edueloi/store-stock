@@ -3,9 +3,11 @@ import {
   Store, Palette, Share2, Clock, CreditCard, Shield, Settings2,
   Users, Save, Loader2, Search, Check, ChevronRight, Globe,
   Bell, Sun, Moon, Package, AlertTriangle, Lock, Image, Upload, X, FileCheck,
+  Smartphone, Zap,
 } from "lucide-react";
 import PageHeader from "../../components/layout/PageHeader";
 import { cn } from "../../lib/utils";
+import { useToast } from "../../components/ui/Toast";
 import type { Tenant, BusinessHours, PaymentMethods, StorePolicies, CardFees } from "../../types";
 
 // ─── helpers ────────────────────────────────────────────────────────────────
@@ -165,6 +167,7 @@ const NAV = [
 // ─── main component ──────────────────────────────────────────────────────────
 
 export default function Settings() {
+  const toast = useToast();
   const [active, setActive] = useState("identity");
   const [tenant, setTenant] = useState<Partial<Tenant> | null>(null);
   const [loading, setLoading] = useState(true);
@@ -173,6 +176,7 @@ export default function Settings() {
   const [cepLoading, setCepLoading] = useState(false);
   const [logoUploading, setLogoUploading] = useState(false);
   const logoInputRef = useRef<HTMLInputElement>(null);
+  const [activePayType, setActivePayType] = useState<"credit" | "debit" | "pix">("credit");
 
   // system prefs (stored in UserPreference)
   const [panelTheme, setPanelTheme] = useState<"light" | "dark">("light");
@@ -360,7 +364,7 @@ export default function Settings() {
         headers: API_HEADERS(),
         body: JSON.stringify({ ...tenant, card_fees: cardFees }),
       });
-      if (res.ok) showSaved();
+      if (res.ok) toast.success("Taxas salvas com sucesso!");
     } finally {
       setSaving(false);
     }
@@ -372,6 +376,14 @@ export default function Settings() {
       arr[installmentIdx] = value;
       return { ...prev, [brand]: arr };
     });
+  };
+
+  const setDebitRate = (brand: string, value: number) => {
+    setCardFees((prev) => ({ ...prev, [`debit_${brand}`]: [value] }));
+  };
+
+  const setPixRate = (value: number) => {
+    setCardFees((prev) => ({ ...prev, pix: [value] }));
   };
 
   const setHours = (day: string, patch: Partial<{ open: string; close: string; closed: boolean }>) =>
@@ -1012,73 +1024,168 @@ export default function Settings() {
             )}
 
             {/* ── Maquininha & Taxas ──────────────────────────────────── */}
-            {active === "card_fees" && (
-              <div className="space-y-8">
-                <SectionHeader
-                  title="Maquininha & Taxas"
-                  subtitle="Configure as taxas por bandeira e parcelamento. Estes valores são aplicados automaticamente no PDV ao calcular o total."
-                />
+            {active === "card_fees" && (() => {
+              const BRANDS = [
+                { key: "visa",   label: "Visa",             color: "#1A1F71" },
+                { key: "master", label: "Mastercard",       color: "#EB001B" },
+                { key: "elo",    label: "Elo",              color: "#00A4E0" },
+                { key: "amex",   label: "American Express", color: "#2E77BC" },
+                { key: "hiper",  label: "Hipercard",        color: "#B22222" },
+                { key: "other",  label: "Outras Bandeiras", color: "#64748b" },
+              ] as { key: string; label: string; color: string }[];
 
-                {/* info box */}
-                <div className="flex gap-3 p-4 bg-amber-50 border border-amber-100 rounded-xl">
-                  <CreditCard size={16} className="text-amber-600 shrink-0 mt-0.5" />
-                  <p className="text-[10px] text-amber-800 font-medium leading-relaxed">
-                    Informe a taxa (%) que sua maquininha cobra por parcela. Deixe <strong>0</strong> para parcelas não disponíveis. O PDV calculará e exibirá o acréscimo automaticamente ao selecionar crédito parcelado.
-                  </p>
-                </div>
+              return (
+                <div className="space-y-6">
+                  <SectionHeader
+                    title="Maquininha & Taxas"
+                    subtitle="Configure as taxas cobradas pela maquininha por modalidade de pagamento."
+                  />
 
-                {/* table per brand */}
-                {([
-                  { key: "visa",   label: "Visa",       color: "#1A1F71" },
-                  { key: "master", label: "Mastercard", color: "#EB001B" },
-                  { key: "elo",    label: "Elo",        color: "#00A4E0" },
-                  { key: "amex",   label: "American Express", color: "#2E77BC" },
-                  { key: "hiper",  label: "Hipercard",  color: "#B22222" },
-                  { key: "other",  label: "Outras Bandeiras", color: "#64748b" },
-                ] as { key: string; label: string; color: string }[]).map(({ key, label, color }) => {
-                  const fees = cardFees[key] ?? Array(12).fill(0);
-                  return (
-                    <div key={key} className="border border-slate-100 rounded-2xl overflow-hidden">
-                      {/* brand header */}
-                      <div
-                        className="flex items-center gap-3 px-5 py-3"
-                        style={{ backgroundColor: color + "15", borderBottom: `2px solid ${color}30` }}
+                  {/* Payment type tabs */}
+                  <div className="flex gap-2 p-1 bg-slate-100 rounded-2xl w-fit">
+                    {([
+                      { id: "credit", label: "Crédito", icon: CreditCard },
+                      { id: "debit",  label: "Débito",  icon: Smartphone },
+                      { id: "pix",    label: "PIX",     icon: Zap },
+                    ] as { id: "credit"|"debit"|"pix"; label: string; icon: React.ElementType }[]).map(({ id, label, icon: Icon }) => (
+                      <button
+                        key={id}
+                        onClick={() => setActivePayType(id)}
+                        className={cn(
+                          "flex items-center gap-2 px-4 py-2 rounded-xl text-[11px] font-black uppercase tracking-widest transition-all",
+                          activePayType === id
+                            ? "bg-white shadow text-slate-900"
+                            : "text-slate-500 hover:text-slate-700"
+                        )}
                       >
-                        <div className="w-3 h-3 rounded-full" style={{ backgroundColor: color }} />
-                        <span className="text-[10px] font-black uppercase tracking-widest" style={{ color }}>
-                          {label}
-                        </span>
-                      </div>
+                        <Icon size={13} />
+                        {label}
+                      </button>
+                    ))}
+                  </div>
 
-                      {/* installment grid */}
-                      <div className="p-4 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
-                        {[1,2,3,4,5,6,7,8,9,10,11,12].map((n, idx) => (
-                          <div key={n} className="space-y-1">
-                            <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest px-1 block">
-                              {n === 1 ? "À Vista" : `${n}× parcelas`}
-                            </label>
-                            <div className="flex items-center border border-slate-200 rounded-xl overflow-hidden focus-within:ring-2 focus-within:ring-blue-500/10 focus-within:border-blue-500 bg-slate-50 transition-all">
+                  {/* ── Crédito ── */}
+                  {activePayType === "credit" && (
+                    <div className="space-y-5">
+                      <div className="flex gap-3 p-4 bg-amber-50 border border-amber-100 rounded-xl">
+                        <CreditCard size={16} className="text-amber-600 shrink-0 mt-0.5" />
+                        <p className="text-[10px] text-amber-800 font-medium leading-relaxed">
+                          Informe a taxa (%) por parcela. Deixe <strong>0</strong> para parcelas não disponíveis. O PDV calculará o acréscimo automaticamente.
+                        </p>
+                      </div>
+                      {BRANDS.map(({ key, label, color }) => {
+                        const fees = cardFees[key] ?? Array(12).fill(0);
+                        return (
+                          <div key={key} className="border border-slate-100 rounded-2xl overflow-hidden">
+                            <div
+                              className="flex items-center gap-3 px-5 py-3"
+                              style={{ backgroundColor: color + "15", borderBottom: `2px solid ${color}30` }}
+                            >
+                              <div className="w-3 h-3 rounded-full" style={{ backgroundColor: color }} />
+                              <span className="text-[10px] font-black uppercase tracking-widest" style={{ color }}>{label}</span>
+                            </div>
+                            <div className="p-4 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+                              {[1,2,3,4,5,6,7,8,9,10,11,12].map((n, idx) => (
+                                <div key={n} className="space-y-1">
+                                  <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest px-1 block">
+                                    {n === 1 ? "À Vista" : `${n}× parcelas`}
+                                  </label>
+                                  <div className="flex items-center border border-slate-200 rounded-xl overflow-hidden focus-within:ring-2 focus-within:ring-blue-500/10 focus-within:border-blue-500 bg-slate-50 transition-all">
+                                    <input
+                                      type="number" min="0" max="30" step="0.1"
+                                      value={fees[idx] ?? 0}
+                                      onChange={(e) => setFeeRate(key, idx, parseFloat(e.target.value) || 0)}
+                                      className="flex-1 bg-transparent px-2 h-9 text-xs font-mono font-bold outline-none w-0 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none"
+                                    />
+                                    <span className="bg-slate-100 border-l border-slate-200 px-2 h-9 flex items-center text-[10px] font-black text-slate-400 shrink-0">%</span>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  {/* ── Débito ── */}
+                  {activePayType === "debit" && (
+                    <div className="space-y-5">
+                      <div className="flex gap-3 p-4 bg-blue-50 border border-blue-100 rounded-xl">
+                        <Smartphone size={16} className="text-blue-600 shrink-0 mt-0.5" />
+                        <p className="text-[10px] text-blue-800 font-medium leading-relaxed">
+                          Informe a taxa (%) cobrada no débito à vista para cada bandeira.
+                        </p>
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        {BRANDS.map(({ key, label, color }) => {
+                          const rate = (cardFees[`debit_${key}`] ?? [0])[0];
+                          return (
+                            <div key={key} className="border border-slate-100 rounded-2xl overflow-hidden">
+                              <div
+                                className="flex items-center gap-3 px-5 py-3"
+                                style={{ backgroundColor: color + "15", borderBottom: `2px solid ${color}30` }}
+                              >
+                                <div className="w-3 h-3 rounded-full" style={{ backgroundColor: color }} />
+                                <span className="text-[10px] font-black uppercase tracking-widest" style={{ color }}>{label}</span>
+                              </div>
+                              <div className="p-4">
+                                <div className="space-y-1">
+                                  <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest px-1 block">Taxa Débito</label>
+                                  <div className="flex items-center border border-slate-200 rounded-xl overflow-hidden focus-within:ring-2 focus-within:ring-blue-500/10 focus-within:border-blue-500 bg-slate-50 transition-all">
+                                    <input
+                                      type="number" min="0" max="30" step="0.1"
+                                      value={rate}
+                                      onChange={(e) => setDebitRate(key, parseFloat(e.target.value) || 0)}
+                                      className="flex-1 bg-transparent px-2 h-9 text-xs font-mono font-bold outline-none w-0 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none"
+                                    />
+                                    <span className="bg-slate-100 border-l border-slate-200 px-2 h-9 flex items-center text-[10px] font-black text-slate-400 shrink-0">%</span>
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* ── PIX ── */}
+                  {activePayType === "pix" && (
+                    <div className="space-y-5">
+                      <div className="flex gap-3 p-4 bg-emerald-50 border border-emerald-100 rounded-xl">
+                        <Zap size={16} className="text-emerald-600 shrink-0 mt-0.5" />
+                        <p className="text-[10px] text-emerald-800 font-medium leading-relaxed">
+                          Informe a taxa (%) cobrada pela operadora ao receber pagamentos via PIX. Muitas maquininhas cobram 0% no PIX.
+                        </p>
+                      </div>
+                      <div className="border border-slate-100 rounded-2xl overflow-hidden max-w-xs">
+                        <div className="flex items-center gap-3 px-5 py-3 bg-emerald-50 border-b-2 border-emerald-100">
+                          <Zap size={14} className="text-emerald-600" />
+                          <span className="text-[10px] font-black uppercase tracking-widest text-emerald-700">PIX</span>
+                        </div>
+                        <div className="p-4">
+                          <div className="space-y-1">
+                            <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest px-1 block">Taxa PIX</label>
+                            <div className="flex items-center border border-slate-200 rounded-xl overflow-hidden focus-within:ring-2 focus-within:ring-emerald-500/10 focus-within:border-emerald-500 bg-slate-50 transition-all">
                               <input
-                                type="number"
-                                min="0"
-                                max="30"
-                                step="0.1"
-                                value={fees[idx] ?? 0}
-                                onChange={(e) => setFeeRate(key, idx, parseFloat(e.target.value) || 0)}
+                                type="number" min="0" max="30" step="0.01"
+                                value={(cardFees["pix"] ?? [0])[0]}
+                                onChange={(e) => setPixRate(parseFloat(e.target.value) || 0)}
                                 className="flex-1 bg-transparent px-2 h-9 text-xs font-mono font-bold outline-none w-0 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none"
                               />
                               <span className="bg-slate-100 border-l border-slate-200 px-2 h-9 flex items-center text-[10px] font-black text-slate-400 shrink-0">%</span>
                             </div>
                           </div>
-                        ))}
+                        </div>
                       </div>
                     </div>
-                  );
-                })}
+                  )}
 
-                <SaveButton onClick={handleSaveCardFees} label="Salvar Taxas" />
-              </div>
-            )}
+                  <SaveButton onClick={handleSaveCardFees} label="Salvar Taxas" />
+                </div>
+              );
+            })()}
 
             {/* ── Termos de Garantia ──────────────────────────────────── */}
             {active === "warranty" && (() => {

@@ -90,33 +90,28 @@ export async function createSale(req: Request, res: Response) {
       });
     }
 
-    const methodSummary = buildMethodSummary(pmString);
-    const discountNote  = discount && discount > 0 ? ` (desc. R$ ${Number(discount).toFixed(2)})` : "";
-    const now = new Date();
+    const methodSummary  = buildMethodSummary(pmString);
+    const discountVal    = discount && discount > 0 ? Number(discount) : 0;
+    const discountNote   = discountVal > 0 ? ` (desc. R$ ${discountVal.toFixed(2)})` : "";
+    const now            = new Date();
+    const roundedFee     = Math.round(machineFee * 100) / 100;
+    // gross = total before discount; totalAmount is already after discount
+    const grossAmount    = Math.round((totalAmount + discountVal) * 100) / 100;
+    const netAmount      = Math.round((totalAmount - roundedFee) * 100) / 100;
 
-    // Receita: valor total recebido do cliente
+    // Receita: líquido = após desconto e taxa. gross = antes do desconto.
     await prisma.finance.create({
       data: {
-        tenant_id: tenantId,
-        type: "income",
-        description: `Venda PDV #${order.id} — ${methodSummary}${discountNote}`,
-        amount: totalAmount,
-        date: now,
+        tenant_id:       tenantId,
+        type:            "income",
+        description:     `Venda PDV #${order.id} — ${methodSummary}${discountNote}`,
+        amount:          netAmount,
+        gross_amount:    grossAmount,
+        fee_amount:      roundedFee > 0 ? roundedFee : null,
+        discount_amount: discountVal > 0 ? discountVal : null,
+        date:            now,
       },
     });
-
-    // Despesa: taxa da maquininha (custo da loja)
-    if (machineFee > 0.005) {
-      await prisma.finance.create({
-        data: {
-          tenant_id: tenantId,
-          type: "expense",
-          description: `Taxa maquininha — Venda PDV #${order.id} (${methodSummary})`,
-          amount: Math.round(machineFee * 100) / 100,
-          date: now,
-        },
-      });
-    }
 
     res.json({ success: true, orderId: order.id });
   } catch {

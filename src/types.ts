@@ -86,6 +86,7 @@ export interface Product {
   category_id?: number;
   category_name?: string;
   sku?: string;
+  barcode?: string;
   name: string;
   description?: string;
   price: number;
@@ -136,6 +137,9 @@ export interface FinanceEntry {
   type: 'income' | 'expense';
   description: string;
   amount: number;
+  gross_amount?: number | null;
+  fee_amount?: number | null;
+  discount_amount?: number | null;
   date: string;
   category?: string;
 }

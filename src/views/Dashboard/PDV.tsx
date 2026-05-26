@@ -1,10 +1,10 @@
-import React, { useState, useEffect, useMemo, useCallback } from "react";
+import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import {
   Search, ShoppingCart, Plus, Minus, Trash2, User, CreditCard,
   Banknote, Percent, CheckCircle2, Package, X, QrCode, Tag,
   Loader2, ExternalLink, RefreshCw, ChevronRight,
   Printer, FileText, MessageCircle, Phone, Clock, Receipt,
-  ChevronDown, PlusCircle, Users,
+  ChevronDown, PlusCircle, Users, Barcode,
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { Product, Category } from "../../types";
@@ -122,6 +122,11 @@ export default function PDV() {
   const [sellers, setSellers]         = useState<{ id: number; name: string; commission_rate: number }[]>([]);
   const [selectedSellerId, setSelectedSellerId] = useState<number | null>(null);
 
+  // barcode scanner
+  const [scanCode, setScanCode]           = useState("");
+  const [scanFeedback, setScanFeedback]   = useState<"ok" | "err" | null>(null);
+  const scanInputRef = useRef<HTMLInputElement>(null);
+
   // tenant
   const [tenant, setTenant] = useState<TenantInfo>({ name: "BoxSys Store" });
 
@@ -165,6 +170,116 @@ export default function PDV() {
     } catch { /* ignore */ }
     setLoadingOrders(false);
   }, [token]);
+
+  // ── barcode scanner ───────────────────────────────────────────────────────────
+  // helper simples: adiciona 1 unidade sem modal de variação
+  const addToCartDirect = useCallback((product: Product) => {
+    const cartItemId = `${product.id}`;
+    setCart((prev) => {
+      const existing = prev.find((i) => i.cartItemId === cartItemId);
+      if (existing) {
+        if (existing.quantity >= product.stock_quantity) return prev;
+        return prev.map((i) =>
+          i.cartItemId === cartItemId ? { ...i, quantity: i.quantity + 1 } : i
+        );
+      }
+      return [
+        ...prev,
+        { ...product, price: Number(product.price), quantity: 1, cartItemId, variationLabel: "", selectedOptions: undefined },
+      ];
+    });
+  }, []);
+
+  const handleScan = useCallback(async (code: string) => {
+    const trimmed = code.trim();
+    if (!trimmed) return;
+    setScanCode("");
+
+    // 1) tenta encontrar no cache local primeiro (instantâneo)
+    const local = products.find((p) => p.barcode === trimmed);
+    if (local) {
+      addToCartDirect(local);
+      setScanFeedback("ok");
+      setTimeout(() => setScanFeedback(null), 1200);
+      return;
+    }
+
+    // 2) busca na API (produto novo ou cache desatualizado)
+    try {
+      const res = await fetch(`/api/products/by-barcode/${encodeURIComponent(trimmed)}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        const p = await res.json();
+        setProducts((prev) =>
+          prev.some((x) => x.id === p.id) ? prev : [...prev, p]
+        );
+        addToCartDirect(p);
+        setScanFeedback("ok");
+      } else {
+        setScanFeedback("err");
+      }
+    } catch {
+      setScanFeedback("err");
+    }
+    setTimeout(() => setScanFeedback(null), 1200);
+  }, [products, token, addToCartDirect]);
+
+  // ── Captura global do leitor de código de barras ─────────────────────────────
+  // Leitores USB HID simulam teclado: digitam os chars rápido + Enter.
+  // Detectamos sequências rápidas (< 80ms entre chars) e as redirecionamos
+  // para o campo de scan mesmo sem foco, de forma transparente ao operador.
+  useEffect(() => {
+    let lastKeyTime = 0;
+    let buffer = "";
+    let timer: ReturnType<typeof setTimeout> | null = null;
+
+    const flush = (code: string) => {
+      buffer = "";
+      if (timer) { clearTimeout(timer); timer = null; }
+      if (code.trim().length >= 3) handleScan(code.trim());
+    };
+
+    const onKeyDown = (e: KeyboardEvent) => {
+      const tag = (document.activeElement?.tagName ?? "").toLowerCase();
+      const isEditable = tag === "input" || tag === "textarea" || tag === "select";
+      const now = Date.now();
+      const gap = now - lastKeyTime;
+      lastKeyTime = now;
+
+      if (e.key === "Enter") {
+        if (buffer.length >= 3) {
+          e.preventDefault();
+          flush(buffer);
+        }
+        return;
+      }
+
+      if (e.key.length !== 1) return;
+
+      // Campo de scan já focado → deixa o onChange normal cuidar
+      if (document.activeElement === scanInputRef.current) return;
+
+      // Digitação humana lenta em outro campo → ignora
+      if (gap > 80 && isEditable) return;
+
+      // Leitor detectado → captura e redireciona
+      e.preventDefault();
+      buffer += e.key;
+      scanInputRef.current?.focus();
+      setScanCode(buffer);
+
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(() => {
+        const b = buffer;
+        buffer = "";
+        if (b.trim().length >= 3) handleScan(b.trim());
+      }, 300);
+    };
+
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [handleScan]);
 
   // ── cart helpers ──────────────────────────────────────────────────────────────
   const addToCart = (product: Product, options?: Record<string, string>) => {
@@ -328,11 +443,9 @@ ${change > 0 ? `<hr class="divider"/><div class="row bold"><span>TROCO:</span><s
     const now = new Date().toLocaleString("pt-BR");
     const orderId = String(sale.orderId).padStart(5, "0");
     const payLines = sale.payments.map((p) => {
-      const rate  = p.method === "credit" ? (sale.cardFees[p.cardBrand]?.[p.installments - 1] ?? 0) : 0;
       const brand = (p.method === "debit" || p.method === "credit") && p.cardBrand !== "other" ? ` · ${p.cardBrand.toUpperCase()}` : "";
       const inst  = p.method === "credit" && p.installments > 1 ? ` ${p.installments}×` : "";
-      const fee   = rate > 0 ? ` (+${rate}%)` : "";
-      return `<div class="pay-row"><span>${PM_LABEL[p.method]}${brand}${inst}${fee}</span><span>R$ ${Number(p.amount).toFixed(2)}</span></div>`;
+      return `<div class="pay-row"><span>${PM_LABEL[p.method]}${brand}${inst}</span><span>R$ ${Number(p.amount).toFixed(2)}</span></div>`;
     }).join("");
 
     return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Nota PDV #${orderId}</title>
@@ -542,6 +655,39 @@ ${change > 0 ? `<hr class="divider"/><div class="row bold"><span>TROCO:</span><s
 
         {/* TOOLBAR */}
         <div className="shrink-0 flex gap-2 items-center px-4 pt-3 pb-2">
+          {/* ── Scanner de código de barras ── */}
+          <div className="relative shrink-0">
+            <Barcode
+              className={cn(
+                "absolute left-3 top-1/2 -translate-y-1/2 transition-colors",
+                scanFeedback === "ok"  ? "text-emerald-500" :
+                scanFeedback === "err" ? "text-red-500" :
+                "text-slate-400"
+              )}
+              size={13}
+            />
+            <input
+              ref={scanInputRef}
+              type="text"
+              placeholder="ESCANEAR..."
+              className={cn(
+                "w-36 pl-9 pr-2 h-10 border rounded-xl outline-none text-[10px] font-mono font-bold uppercase tracking-widest placeholder:text-slate-300 transition-all",
+                scanFeedback === "ok"  ? "bg-emerald-50 border-emerald-400 text-emerald-700" :
+                scanFeedback === "err" ? "bg-red-50 border-red-400 text-red-600" :
+                "bg-white border-slate-200 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+              )}
+              value={scanCode}
+              onChange={(e) => setScanCode(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  handleScan(scanCode);
+                }
+              }}
+              title="Leitor de código de barras — pressione Enter ou use o leitor USB"
+            />
+          </div>
+
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={13} />
             <input type="text" placeholder="PESQUISAR PRODUTO..."

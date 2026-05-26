@@ -5,6 +5,7 @@ import {
   createProduct,
   deleteProduct,
   getProduct,
+  getProductByBarcode,
   listProductMovements,
   listProducts,
   updateProduct,
@@ -19,6 +20,7 @@ router.get("/", listProducts);
 router.post("/", createProduct);
 router.post("/stock-adjustment", adjustProductStock);
 router.get("/movements", listProductMovements);
+router.get("/by-barcode/:code", getProductByBarcode);
 router.get("/:id", getProduct);
 router.put("/:id", updateProduct);
 router.delete("/:id", deleteProduct);

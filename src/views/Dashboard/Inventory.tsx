@@ -794,6 +794,28 @@ export default function Inventory() {
             </div>
           </div>
 
+          {/* Barcode */}
+          <div className="space-y-1">
+            <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest px-1">Código de Barras (EAN / ISBN / Interno)</label>
+            <div className="flex gap-2">
+              <input type="text" placeholder="Ex: 7891234567890 — deixe vazio para gerar automaticamente"
+                className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs font-mono font-bold outline-none h-10 focus:border-blue-400 focus:ring-2 focus:ring-blue-500/10 transition-all"
+                value={editingProduct?.barcode || ""}
+                onChange={e => setEditingProduct(prev => ({ ...prev!, barcode: e.target.value }))} />
+              <button type="button"
+                className="h-10 px-4 bg-slate-900 text-white rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-slate-700 transition-all shrink-0"
+                onClick={() => {
+                  const code = String(Date.now()).slice(-12).padStart(12, "0");
+                  const digits = code.split("").map(Number);
+                  const check = (10 - (digits.reduce((s, d, i) => s + d * (i % 2 === 0 ? 1 : 3), 0) % 10)) % 10;
+                  setEditingProduct(prev => ({ ...prev!, barcode: code + check }));
+                }}>
+                Gerar
+              </button>
+            </div>
+            <p className="text-[9px] text-slate-400 px-1">Usado no leitor do PDV. Aceita EAN-13, EAN-8, Code128 ou código interno.</p>
+          </div>
+
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-1">
               <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest px-1">Categoria</label>
@@ -917,11 +939,9 @@ export default function Inventory() {
                       </span>
                     ))}
                     {/* inline add value to existing attr */}
-                    <form onSubmit={e => { e.preventDefault(); const inp = (e.currentTarget.elements.namedItem("val") as HTMLInputElement); addAttrValue(attr.name, inp.value); inp.value = ""; }}
-                      className="inline-flex">
-                      <input name="val" type="text" placeholder="+ valor"
-                        className="w-20 bg-slate-50 border border-dashed border-slate-300 rounded-lg px-2 text-[10px] font-bold outline-none h-7 focus:border-blue-400 focus:bg-white transition-all" />
-                    </form>
+                    <input type="text" placeholder="+ valor"
+                      className="w-20 bg-slate-50 border border-dashed border-slate-300 rounded-lg px-2 text-[10px] font-bold outline-none h-7 focus:border-blue-400 focus:bg-white transition-all"
+                      onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); const inp = e.currentTarget; addAttrValue(attr.name, inp.value); inp.value = ""; } }} />
                   </div>
                 </motion.div>
               ))}
