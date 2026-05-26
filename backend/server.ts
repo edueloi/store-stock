@@ -19,7 +19,11 @@ async function attachFrontend(app: express.Express) {
   }
 
   const distPath = path.join(process.cwd(), "dist");
-  app.use(express.static(distPath));
+  app.use(express.static(distPath, { maxAge: "1y", immutable: true }));
+  // Never serve index.html for asset requests — return 404 instead
+  app.get("/assets/*", (_req, res) => {
+    res.status(404).end();
+  });
   app.get("*", (_req, res) => {
     res.sendFile(path.join(distPath, "index.html"));
   });
