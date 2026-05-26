@@ -342,16 +342,16 @@ async function exportMarkupExcel(
 
   const dre: [string, number, string, ExcelJS.Fill?][] = [
     ["Preço de Venda",            res.suggested_price, "100%",                   undefined],
-    ["(-) Imposto",               -res.tax_val,        fmtPct(-inp.tax_pct),     undefined],
-    ["(-) Valor Custos do Produto", -inputs.cost_price, fmtPct(-(inputs.cost_price / res.suggested_price) * 100), YELLOW_FILL],
-    ["(-) Comissão",              -res.commission_val, fmtPct(-inp.commission_pct), undefined],
-    ["(-) Taxa do Cartão",        -res.card_fee_val,   fmtPct(-inp.card_fee_pct),   undefined],
-    ["(-) Outras Despesas Variáveis", -res.other_var_val, fmtPct(-inp.other_var_pct), undefined],
-    ["(-) Frete/Combustível",     -res.freight_val,    fmtPct(-inp.freight_pct),    undefined],
+    ["(-) Imposto",               -res.tax_val,        fmtPct(-inputs.tax_pct),     undefined],
+    ["(-) Valor Custos do Produto", -inputs.cost_price, fmtPct(res.suggested_price > 0 ? -(inputs.cost_price / res.suggested_price) * 100 : 0), YELLOW_FILL],
+    ["(-) Comissão",              -res.commission_val, fmtPct(-inputs.commission_pct), undefined],
+    ["(-) Taxa do Cartão",        -res.card_fee_val,   fmtPct(-inputs.card_fee_pct),   undefined],
+    ["(-) Outras Despesas Variáveis", -res.other_var_val, fmtPct(-inputs.other_var_pct), undefined],
+    ["(-) Frete/Combustível",     -res.freight_val,    fmtPct(-inputs.freight_pct),    undefined],
     ["(=) Margem de Contribuição", res.contribution_margin, fmtPct(res.contribution_pct), GREEN_FILL],
-    ["(-) Despesas Fixas",        -res.fixed_cost_val, fmtPct(-inp.fixed_cost_pct), GRAY_FILL],
+    ["(-) Despesas Fixas",        -res.fixed_cost_val, fmtPct(-inputs.fixed_cost_pct), GRAY_FILL],
     ["Lucro Operacional",         res.operating_profit, fmtPct(res.operating_pct), res.operating_profit >= 0 ? GREEN_FILL : RED_FILL],
-    ["(-) Parcelas de Empréstimos", -res.loan_val,     fmtPct(-inp.loan_pct),       undefined],
+    ["(-) Parcelas de Empréstimos", -res.loan_val,     fmtPct(-inputs.loan_pct),       undefined],
     ["Lucro Líquido com o PREÇO", res.net_profit,      fmtPct(res.net_pct),         res.net_profit >= 0 ? GREEN_FILL : RED_FILL],
   ];
 
@@ -431,6 +431,178 @@ async function exportMarkupExcel(
   URL.revokeObjectURL(url);
 }
 
+// ─── PDF Export ───────────────────────────────────────────────────────────────
+
+async function exportMarkupPDF(
+  inputs: MarkupInputs,
+  res: MarkupResult,
+  tenant: Partial<Tenant> | null,
+  productName?: string,
+) {
+  const { jsPDF } = await import("jspdf");
+  const doc = new jsPDF({ unit: "mm", format: "a4" });
+
+  const pW = 210; const pH = 297;
+  const mg = 16; const cW = pW - mg * 2;
+  const primary = "#1e3a5f";
+  const pc = { r: 30, g: 58, b: 95 };
+
+  // ── Header band
+  doc.setFillColor(pc.r, pc.g, pc.b);
+  doc.rect(0, 0, pW, 38, "F");
+
+  // Logo attempt
+  if (tenant?.logo_url) {
+    try {
+      const abs = tenant.logo_url.startsWith("http") ? tenant.logo_url : `${window.location.origin}${tenant.logo_url}`;
+      const dataUrl = await new Promise<string>((resolve, reject) => {
+        const img = new Image(); img.crossOrigin = "anonymous";
+        img.onload = () => {
+          const c = document.createElement("canvas");
+          c.width = img.naturalWidth; c.height = img.naturalHeight;
+          c.getContext("2d")!.drawImage(img, 0, 0);
+          resolve(c.toDataURL("image/png"));
+        };
+        img.onerror = reject; img.src = abs;
+      });
+      doc.addImage(dataUrl, "PNG", mg, 8, 20, 20);
+    } catch { /* ignore */ }
+  }
+
+  doc.setTextColor(255, 255, 255);
+  doc.setFontSize(16); doc.setFont("helvetica", "bold");
+  doc.text(tenant?.name ?? "Minha Loja", mg + 24, 18);
+  doc.setFontSize(9); doc.setFont("helvetica", "normal");
+  doc.text("Calculadora de Markup — DRE da Precificação", mg + 24, 25);
+  doc.text(`Gerado em ${new Date().toLocaleDateString("pt-BR")} às ${new Date().toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}`, mg + 24, 31);
+
+  // Right: Product / Preço
+  doc.setFontSize(18); doc.setFont("helvetica", "bold");
+  doc.text(fmt(res.suggested_price), pW - mg, 18, { align: "right" });
+  doc.setFontSize(8); doc.setFont("helvetica", "normal");
+  doc.text("PREÇO SUGERIDO", pW - mg, 24, { align: "right" });
+  if (productName) doc.text(productName, pW - mg, 30, { align: "right" });
+
+  let y = 46;
+
+  // ── Parameters block
+  doc.setFillColor(248, 250, 252);
+  doc.setDrawColor(209, 213, 219);
+  doc.roundedRect(mg, y, cW / 2 - 2, 76, 2, 2, "FD");
+
+  doc.setTextColor(pc.r, pc.g, pc.b);
+  doc.setFontSize(8); doc.setFont("helvetica", "bold");
+  doc.text("PARÂMETROS", mg + 4, y + 7);
+
+  const params: [string, string][] = [
+    ["Custo do Produto",         fmt(inputs.cost_price)],
+    ["% Imposto",                `${inputs.tax_pct}%`],
+    ["% Comissão",               `${inputs.commission_pct}%`],
+    ["% Taxa de Cartão",         `${inputs.card_fee_pct}%`],
+    ["% Outras Desp. Variáveis", `${inputs.other_var_pct}%`],
+    ["% Frete",                  `${inputs.freight_pct}%`],
+    ["% Despesas Fixas",         `${inputs.fixed_cost_pct}%`],
+    ["% Empréstimos",            `${inputs.loan_pct}%`],
+    ["% Margem Desejada",        `${inputs.desired_margin}%`],
+  ];
+  doc.setFont("helvetica", "normal"); doc.setFontSize(7.5);
+  let py = y + 13;
+  for (const [label, val] of params) {
+    doc.setTextColor(100, 116, 139); doc.text(label, mg + 4, py);
+    doc.setTextColor(30, 41, 59); doc.setFont("helvetica", "bold");
+    doc.text(val, mg + cW / 2 - 6, py, { align: "right" });
+    doc.setFont("helvetica", "normal");
+    py += 6.5;
+  }
+
+  // ── Key indicators block (right side)
+  const rx = mg + cW / 2 + 2;
+  const rw = cW / 2 - 2;
+
+  const kpis: [string, string, [number,number,number], [number,number,number]][] = [
+    ["Preço de Venda Sugerido", fmt(res.suggested_price), [219,234,254], [30,64,175]],
+    ["Custo Total do Produto",  fmt(res.total_cost),      [254,226,226], [185,28,28]],
+    ["Margem de Contribuição",  `${fmtPct(res.contribution_pct)} · ${fmt(res.contribution_margin)}`, [219,234,254], [29,78,216]],
+    ["Lucro Operacional",       `${fmtPct(res.operating_pct)} · ${fmt(res.operating_profit)}`,
+      res.operating_profit >= 0 ? [220,252,231] : [254,226,226],
+      res.operating_profit >= 0 ? [22,101,52]  : [185,28,28]],
+    ["Lucro Líquido Final",     `${fmtPct(res.net_pct)} · ${fmt(res.net_profit)}`,
+      res.net_profit >= 0 ? [220,252,231] : [254,226,226],
+      res.net_profit >= 0 ? [22,101,52]  : [185,28,28]],
+  ];
+
+  let ky = y;
+  for (const [label, val, bg, fg] of kpis) {
+    const kh = 14;
+    doc.setFillColor(bg[0], bg[1], bg[2]);
+    doc.setDrawColor(209, 213, 219);
+    doc.roundedRect(rx, ky, rw, kh, 2, 2, "FD");
+    doc.setTextColor(100, 116, 139); doc.setFontSize(6.5); doc.setFont("helvetica", "normal");
+    doc.text(label.toUpperCase(), rx + 4, ky + 5);
+    doc.setTextColor(fg[0], fg[1], fg[2]); doc.setFontSize(9); doc.setFont("helvetica", "bold");
+    doc.text(val, rx + 4, ky + 11);
+    ky += kh + 2;
+  }
+
+  y += 82;
+
+  // ── DRE Table
+  doc.setFillColor(pc.r, pc.g, pc.b);
+  doc.rect(mg, y, cW, 8, "F");
+  doc.setTextColor(255, 255, 255); doc.setFontSize(8); doc.setFont("helvetica", "bold");
+  doc.text("DRE DA PRECIFICAÇÃO", mg + 3, y + 5.5);
+  doc.text("VALOR", mg + 120, y + 5.5, { align: "right" });
+  doc.text("%", pW - mg - 3, y + 5.5, { align: "right" });
+
+  y += 8;
+
+  const dreRows: [string, number, number, boolean, [number,number,number]?][] = [
+    ["Preço de Venda",             res.suggested_price,        100,                           true,  [240,249,255]],
+    ["(-) Imposto",               -res.tax_val,               -inputs.tax_pct,               false, undefined],
+    ["(-) Custo do Produto",      -inputs.cost_price,          inputs.cost_price > 0 ? -(inputs.cost_price / (res.suggested_price||1))*100 : 0, true, [255,251,235]],
+    ["(-) Comissão",              -res.commission_val,        -inputs.commission_pct,         false, undefined],
+    ["(-) Taxa do Cartão",        -res.card_fee_val,          -inputs.card_fee_pct,           false, undefined],
+    ["(-) Outras Desp. Variáveis",-res.other_var_val,         -inputs.other_var_pct,          false, undefined],
+    ["(-) Frete/Combustível",     -res.freight_val,           -inputs.freight_pct,            false, undefined],
+    ["(=) Margem de Contribuição", res.contribution_margin,    res.contribution_pct,          true,  [239,246,255]],
+    ["(-) Despesas Fixas",        -res.fixed_cost_val,        -inputs.fixed_cost_pct,         false, [248,250,252]],
+    ["Lucro Operacional",          res.operating_profit,       res.operating_pct,             true,  res.operating_profit>=0 ? [240,253,244] : [254,242,242]],
+    ["(-) Parcelas de Empréstimos",-res.loan_val,             -inputs.loan_pct,               false, undefined],
+    ["Lucro Líquido com o PREÇO",  res.net_profit,             res.net_pct,                   true,  res.net_profit>=0 ? [220,252,231] : [254,226,226]],
+  ];
+
+  for (let i = 0; i < dreRows.length; i++) {
+    const [label, val, pct, isBold, bg] = dreRows[i];
+    const rh = 7;
+    if (bg) { doc.setFillColor(bg[0],bg[1],bg[2]); doc.rect(mg, y, cW, rh, "F"); }
+    else if (i % 2 === 0) { doc.setFillColor(250,250,250); doc.rect(mg, y, cW, rh, "F"); }
+
+    doc.setDrawColor(229,231,235); doc.line(mg, y+rh, mg+cW, y+rh);
+
+    const valColor: [number,number,number] = val < 0 ? [220,38,38] : val > 0 && isBold ? [22,163,74] : [30,41,59];
+    doc.setTextColor(30,41,59); doc.setFontSize(7.5);
+    doc.setFont("helvetica", isBold ? "bold" : "normal");
+    doc.text(label, mg + 3, y + 4.8);
+    doc.setTextColor(...valColor); doc.setFont("helvetica", "bold");
+    doc.text(val !== 0 ? fmt(val) : "R$ —", mg + 120, y + 4.8, { align: "right" });
+    doc.setTextColor(100,116,139); doc.setFont("helvetica", "normal");
+    doc.text(fmtPct(pct), pW - mg - 3, y + 4.8, { align: "right" });
+    y += rh;
+  }
+
+  // ── Footer
+  y += 8;
+  doc.setDrawColor(pc.r, pc.g, pc.b); doc.setLineWidth(0.4);
+  doc.line(mg, y, pW - mg, y);
+  doc.setTextColor(pc.r, pc.g, pc.b); doc.setFontSize(7); doc.setFont("helvetica", "bold");
+  doc.text(tenant?.name ?? "Minha Loja", mg, y + 5);
+  doc.setFont("helvetica", "normal"); doc.setTextColor(150,150,150);
+  doc.text(`Relatório de Markup · BoxSys Store`, pW - mg, y + 5, { align: "right" });
+
+  const storeName = (tenant?.name ?? "loja").replace(/\s+/g, "-").toLowerCase();
+  doc.save(`markup-${storeName}-${new Date().toISOString().split("T")[0]}.pdf`);
+}
+
 // ─── Main Component ───────────────────────────────────────────────────────────
 
 export default function Markup() {
@@ -442,6 +614,7 @@ export default function Markup() {
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [showProductPicker, setShowProductPicker] = useState(false);
   const [exporting, setExporting] = useState(false);
+  const [exportingPdf, setExportingPdf] = useState(false);
   const [applyingPrice, setApplyingPrice] = useState(false);
   const [appliedMsg, setAppliedMsg] = useState(false);
 
@@ -502,6 +675,15 @@ export default function Markup() {
     }
   }
 
+  async function handleExportPDF() {
+    setExportingPdf(true);
+    try {
+      await exportMarkupPDF(inputs, result, tenant, selectedProduct?.name);
+    } finally {
+      setExportingPdf(false);
+    }
+  }
+
   const filteredProducts = products.filter((p) =>
     p.name.toLowerCase().includes(search.toLowerCase())
   );
@@ -533,13 +715,22 @@ export default function Markup() {
         title="Calculadora de Markup"
         subtitle="Precificação estratégica com DRE completo e análise de produtos"
         action={
-          <button
-            onClick={handleExport}
-            disabled={exporting}
-            className="h-9 px-4 bg-emerald-600 text-white rounded-lg flex items-center gap-2 text-[12px] font-bold hover:bg-emerald-700 transition-all shadow-md shadow-emerald-500/20 disabled:opacity-60"
-          >
-            <Download size={14} /> {exporting ? "Gerando…" : "Exportar Excel"}
-          </button>
+          <div className="flex gap-2">
+            <button
+              onClick={handleExportPDF}
+              disabled={exportingPdf}
+              className="h-9 px-3 bg-red-600 text-white rounded-lg flex items-center gap-2 text-[12px] font-bold hover:bg-red-700 transition-all shadow-md shadow-red-500/20 disabled:opacity-60"
+            >
+              <Download size={14} /> {exportingPdf ? "…" : "PDF"}
+            </button>
+            <button
+              onClick={handleExport}
+              disabled={exporting}
+              className="h-9 px-3 bg-emerald-600 text-white rounded-lg flex items-center gap-2 text-[12px] font-bold hover:bg-emerald-700 transition-all shadow-md shadow-emerald-500/20 disabled:opacity-60"
+            >
+              <Download size={14} /> {exporting ? "…" : "Excel"}
+            </button>
+          </div>
         }
       />
 
