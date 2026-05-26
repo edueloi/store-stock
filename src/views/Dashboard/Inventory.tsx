@@ -454,16 +454,16 @@ export default function Inventory() {
   };
 
   const applyPreset = (preset: typeof VARIATION_PRESETS[0]) => {
-    const current = editingProduct?.attributes || [];
-    const oldSkus = editingProduct?.skus || [];
-    const oldMap = Object.fromEntries(oldSkus.map(s => [comboKey(s.combo), s.stock]));
-    const toAdd = preset.variations.filter(pv => !current.some(a => a.name.toLowerCase() === pv.name.toLowerCase()));
-    if (!toAdd.length) { setShowPresets(false); return; }
-    const attrs = [...current, ...toAdd.map(v => ({ name: v.name, values: v.options }))];
+    // Replace all current attributes with the preset (full replace, not merge)
+    const attrs = preset.variations.map(v => ({ name: v.name, values: v.options }));
     const newCombos = generateCombos(attrs);
-    const newSkus = newCombos.map(combo => ({ combo, stock: oldMap[comboKey(combo)] ?? 0 }));
+    const newSkus = newCombos.map(combo => ({ combo, stock: 0 }));
     setEditingProduct(prev => ({ ...prev!, attributes: attrs, skus: newSkus }));
     setShowPresets(false);
+  };
+
+  const clearAttributes = () => {
+    setEditingProduct(prev => ({ ...prev!, attributes: [], skus: [] }));
   };
 
   const filteredProducts = [...products]
@@ -891,11 +891,19 @@ export default function Inventory() {
                 <h4 className="text-[11px] font-black uppercase tracking-widest text-slate-900 border-l-4 border-blue-600 pl-3">Grades & Variações</h4>
                 <p className="text-[9px] text-slate-400 font-medium pl-4 mt-0.5">Tamanho, cor, voltagem, peso, etc.</p>
               </div>
-              {/* Preset picker trigger */}
-              <button type="button" onClick={() => setShowPresets(v => !v)}
-                className="flex items-center gap-1.5 px-3 h-8 rounded-lg bg-blue-50 border border-blue-200 text-blue-700 text-[10px] font-black uppercase tracking-wider hover:bg-blue-100 transition-all">
-                <Zap size={11} /> Modelos rápidos
-              </button>
+                <div className="flex items-center gap-2">
+                {/* Clear button — only when attributes exist */}
+                {(editingProduct?.attributes || []).length > 0 && (
+                  <button type="button" onClick={clearAttributes}
+                    className="flex items-center gap-1.5 px-3 h-8 rounded-lg bg-rose-50 border border-rose-200 text-rose-600 text-[10px] font-black uppercase tracking-wider hover:bg-rose-100 transition-all">
+                    <X size={11} /> Limpar
+                  </button>
+                )}
+                <button type="button" onClick={() => setShowPresets(v => !v)}
+                  className="flex items-center gap-1.5 px-3 h-8 rounded-lg bg-blue-50 border border-blue-200 text-blue-700 text-[10px] font-black uppercase tracking-wider hover:bg-blue-100 transition-all">
+                  <Zap size={11} /> Modelos rápidos
+                </button>
+              </div>
             </div>
 
             {/* Preset panel */}
@@ -905,15 +913,29 @@ export default function Inventory() {
                   <div className="bg-slate-50 border border-slate-200 rounded-xl p-3">
                     <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-2.5">Selecione o segmento para carregar variações pré-definidas:</p>
                     <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
-                      {VARIATION_PRESETS.map(preset => (
-                        <button key={preset.label} type="button" onClick={() => applyPreset(preset)}
-                          className="flex flex-col items-center gap-1 p-2.5 rounded-xl border border-slate-200 bg-white hover:border-blue-400 hover:bg-blue-50 transition-all group">
-                          <span className="text-xl">{preset.icon}</span>
-                          <span className="text-[9px] font-black text-slate-600 uppercase tracking-wider group-hover:text-blue-700">{preset.label}</span>
-                        </button>
-                      ))}
+                      {VARIATION_PRESETS.map(preset => {
+                        const currentAttrs = editingProduct?.attributes || [];
+                        // Preset is "active" when all its attribute names match the current attributes exactly
+                        const isActive = currentAttrs.length === preset.variations.length &&
+                          preset.variations.every(pv => currentAttrs.some(a => a.name.toLowerCase() === pv.name.toLowerCase()));
+                        return (
+                          <button key={preset.label} type="button"
+                            onClick={() => { if (!isActive) applyPreset(preset); }}
+                            disabled={isActive}
+                            className={cn(
+                              "flex flex-col items-center gap-1 p-2.5 rounded-xl border transition-all group",
+                              isActive
+                                ? "border-blue-400 bg-blue-50 cursor-default"
+                                : "border-slate-200 bg-white hover:border-blue-400 hover:bg-blue-50"
+                            )}>
+                            <span className="text-xl">{preset.icon}</span>
+                            <span className={cn("text-[9px] font-black uppercase tracking-wider", isActive ? "text-blue-700" : "text-slate-600 group-hover:text-blue-700")}>{preset.label}</span>
+                            {isActive && <span className="text-[7px] font-black text-blue-500 uppercase tracking-widest">Em uso</span>}
+                          </button>
+                        );
+                      })}
                     </div>
-                    <p className="text-[8px] text-slate-400 mt-2">Você pode editar os valores depois de adicionar.</p>
+                    <p className="text-[8px] text-slate-400 mt-2">Clique em um modelo para substituir as variações atuais. Use "Limpar" para remover tudo.</p>
                   </div>
                 </motion.div>
               )}
