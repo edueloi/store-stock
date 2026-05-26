@@ -23,6 +23,8 @@ import {
   FileText,
   Star,
   Target,
+  Barcode,
+  Calculator,
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { cn } from "../../lib/utils";
@@ -46,6 +48,8 @@ import Loyalty from "./Loyalty";
 import Quotes from "./Quotes";
 import Sellers from "./Sellers";
 import Goals from "./Goals";
+import Barcodes from "./Barcodes";
+import Markup from "./Markup";
 
 export default function AdminDashboard() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(window.innerWidth > 1024);
@@ -81,10 +85,12 @@ export default function AdminDashboard() {
     {
       label: "Catálogo & Estoque",
       items: [
-        { icon: Tags,       label: "Catálogo",      path: "/admin/catalog" },
-        { icon: Box,        label: "Estoque",        path: "/admin/stock" },
-        { icon: FolderOpen, label: "Categorias",     path: "/admin/categories" },
-        { icon: Truck,      label: "Fornecedores",   path: "/admin/suppliers" },
+        { icon: Tags,        label: "Catálogo",      path: "/admin/catalog" },
+        { icon: Box,         label: "Estoque",        path: "/admin/stock" },
+        { icon: Calculator,  label: "Markup",         path: "/admin/markup" },
+        { icon: Barcode,     label: "Etiquetas",      path: "/admin/etiquetas" },
+        { icon: FolderOpen,  label: "Categorias",     path: "/admin/categories" },
+        { icon: Truck,       label: "Fornecedores",   path: "/admin/suppliers" },
       ],
     },
     {
@@ -372,6 +378,8 @@ export default function AdminDashboard() {
               <Route path="orcamentos" element={<Quotes />} />
               <Route path="vendedores" element={<Sellers />} />
               <Route path="metas"      element={<Goals />} />
+              <Route path="markup"     element={<Markup />} />
+              <Route path="etiquetas"  element={<Barcodes />} />
               <Route path="settings" element={<Settings />} />
               <Route path="loyalty" element={<Loyalty />} />
               <Route path="inventory" element={<Stock />} />
