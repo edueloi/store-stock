@@ -13,6 +13,9 @@ import {
   X,
   CreditCard,
   ShieldCheck,
+  User,
+  AlertTriangle,
+  Loader2,
 } from "lucide-react";
 import PageHeader from "../../components/layout/PageHeader";
 import { Order, Product } from "../../types";
@@ -61,6 +64,10 @@ export default function Orders() {
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedOrder, setSelectedOrder] = useState<OrderDetail | null>(null);
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
+  const [showCancelModal, setShowCancelModal] = useState(false);
+  const [cancelReason, setCancelReason] = useState("");
+  const [cancelledBy, setCancelledBy] = useState("");
+  const [cancelling, setCancelling] = useState(false);
 
   const fetchOrders = async () => {
     try {
@@ -391,7 +398,7 @@ ${order.items.map(item => `
     try {
       const res = await fetch(`/api/orders/${id}/status`, {
         method: "PUT",
-        headers: { 
+        headers: {
           "Content-Type": "application/json",
           "Authorization": `Bearer ${localStorage.getItem("token")}`
         },
@@ -404,6 +411,31 @@ ${order.items.map(item => `
     } catch (err) {
       console.error(err);
     }
+  };
+
+  const handleCancelOrder = async () => {
+    if (!selectedOrder) return;
+    setCancelling(true);
+    try {
+      const res = await fetch(`/api/orders/${selectedOrder.id}/cancel`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${localStorage.getItem("token")}`,
+        },
+        body: JSON.stringify({ cancel_reason: cancelReason, cancelled_by: cancelledBy }),
+      });
+      if (res.ok) {
+        setShowCancelModal(false);
+        setIsDetailModalOpen(false);
+        setCancelReason("");
+        setCancelledBy("");
+        fetchOrders();
+      }
+    } catch (err) {
+      console.error(err);
+    }
+    setCancelling(false);
   };
 
   const filteredOrders = orders.filter(o => {
@@ -646,74 +678,139 @@ ${order.items.map(item => `
                      <button onClick={() => setIsDetailModalOpen(false)} className="p-2 hover:bg-slate-200 rounded-full transition-all text-slate-400"><X size={20} /></button>
                   </div>
 
-                  <div className="flex-1 overflow-y-auto p-8 space-y-8 no-scrollbar">
-                     {/* Status Control */}
-                     <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100 flex items-center justify-between">
-                        <div className="flex items-center gap-3">
-                           <div className={cn("w-3 h-3 rounded-full", selectedOrder.status === 'completed' ? 'bg-emerald-500' : selectedOrder.status === 'pending' ? 'bg-amber-500' : 'bg-red-500')}></div>
-                           <span className="text-[10px] font-bold uppercase tracking-widest text-slate-600">Status: {selectedOrder.status === 'completed' ? 'Pago' : selectedOrder.status === 'pending' ? 'Pendente' : 'Cancelado'}</span>
+                  <div className="flex-1 overflow-y-auto p-6 space-y-5 no-scrollbar">
+
+                     {/* Status bar */}
+                     <div className={cn(
+                       "p-4 rounded-2xl border flex items-center justify-between",
+                       selectedOrder.status === 'completed' ? "bg-emerald-50 border-emerald-100" :
+                       selectedOrder.status === 'cancelled' ? "bg-red-50 border-red-100" : "bg-amber-50 border-amber-100"
+                     )}>
+                        <div className="flex items-center gap-2.5">
+                           <div className={cn("w-2.5 h-2.5 rounded-full", selectedOrder.status === 'completed' ? 'bg-emerald-500' : selectedOrder.status === 'pending' ? 'bg-amber-500' : 'bg-red-500')} />
+                           <span className={cn("text-[10px] font-black uppercase tracking-widest", selectedOrder.status === 'completed' ? 'text-emerald-700' : selectedOrder.status === 'cancelled' ? 'text-red-700' : 'text-amber-700')}>
+                             {selectedOrder.status === 'completed' ? 'Pago' : selectedOrder.status === 'pending' ? 'Pendente' : 'Cancelado / Estornado'}
+                           </span>
                         </div>
                         <div className="flex gap-2">
                            {selectedOrder.status === 'pending' && (
-                             <button 
-                               onClick={() => handleUpdateStatus(selectedOrder.id, 'completed')}
-                               className="px-3 h-8 bg-emerald-600 text-white rounded text-[9px] font-bold uppercase tracking-widest shadow-lg shadow-emerald-200"
-                             >Efetivar</button>
+                             <button onClick={() => handleUpdateStatus(selectedOrder.id, 'completed')}
+                               className="px-3 h-8 bg-emerald-600 text-white rounded-lg text-[9px] font-black uppercase tracking-widest shadow-lg shadow-emerald-200 hover:bg-emerald-700 transition-all">
+                               Efetivar
+                             </button>
                            )}
                            {selectedOrder.status !== 'cancelled' && (
-                             <button 
-                               onClick={() => handleUpdateStatus(selectedOrder.id, 'cancelled')}
-                               className="px-3 h-8 bg-red-50 text-red-600 border border-red-100 rounded text-[9px] font-bold uppercase tracking-widest"
-                             >Cancelar</button>
+                             <button onClick={() => setShowCancelModal(true)}
+                               className="px-3 h-8 bg-red-50 text-red-600 border border-red-200 rounded-lg text-[9px] font-black uppercase tracking-widest hover:bg-red-100 transition-all">
+                               Cancelar
+                             </button>
                            )}
                         </div>
                      </div>
 
-                     {/* Customer Info */}
-                     <div className="grid grid-cols-2 gap-6">
-                        <div className="space-y-1">
-                           <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Cliente</p>
-                           <p className="text-xs font-bold text-slate-900 uppercase">{selectedOrder.customer_name || "Consumidor Final"}</p>
+                     {/* Cancelled info */}
+                     {selectedOrder.status === 'cancelled' && (selectedOrder.cancel_reason || selectedOrder.cancelled_by) && (
+                       <div className="p-4 bg-red-50 border border-red-100 rounded-2xl space-y-1.5">
+                         <p className="text-[9px] font-black uppercase tracking-widest text-red-600 flex items-center gap-1.5"><AlertTriangle size={11} /> Motivo do Cancelamento</p>
+                         {selectedOrder.cancelled_by && <p className="text-[10px] font-bold text-red-800">Por: {selectedOrder.cancelled_by}</p>}
+                         {selectedOrder.cancel_reason && <p className="text-[10px] text-red-700">{selectedOrder.cancel_reason}</p>}
+                         {selectedOrder.cancelled_at && <p className="text-[9px] text-red-400 font-mono">{new Date(selectedOrder.cancelled_at).toLocaleString("pt-BR")}</p>}
+                       </div>
+                     )}
+
+                     {/* Customer + Seller */}
+                     <div className="grid grid-cols-2 gap-3">
+                        <div className="p-3 bg-slate-50 rounded-xl space-y-1">
+                           <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1"><User size={9} /> Cliente</p>
+                           <p className="text-xs font-black text-slate-900 uppercase">{selectedOrder.customer_name || "Consumidor Final"}</p>
+                           {selectedOrder.customer_phone && <p className="text-[10px] font-mono text-slate-500">{selectedOrder.customer_phone}</p>}
                         </div>
-                        <div className="space-y-1">
-                           <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Contato</p>
-                           <p className="text-xs font-mono font-bold text-slate-900">{selectedOrder.customer_phone || "--"}</p>
-                        </div>
-                        <div className="space-y-1 col-span-2">
-                           <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Endereço</p>
-                           <p className="text-xs font-medium text-slate-600 leading-relaxed uppercase">{selectedOrder.customer_address || "Retirada em loja / Balcão"}</p>
+                        <div className="p-3 bg-slate-50 rounded-xl space-y-1">
+                           <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Vendedor</p>
+                           <p className="text-xs font-black text-slate-900 uppercase">{selectedOrder.seller_name || "—"}</p>
+                           <p className="text-[9px] font-mono text-slate-400">{new Date(selectedOrder.created_at).toLocaleString("pt-BR")}</p>
                         </div>
                      </div>
 
-                     {/* Items List */}
-                     <div className="space-y-4">
-                        <p className="text-[10px] font-bold text-slate-900 uppercase tracking-widest flex items-center gap-2">
-                           <Package size={14} className="text-slate-400" /> Itens do Pedido ({selectedOrder.items.length})
-                        </p>
+                     {/* Items */}
+                     <div className="space-y-2">
+                        <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1.5"><Package size={10} /> Itens ({selectedOrder.items.length})</p>
                         <div className="border border-slate-100 rounded-xl overflow-hidden divide-y divide-slate-50">
                            {selectedOrder.items.map(item => (
-                             <div key={item.id} className="p-4 flex items-center justify-between text-xs">
-                                <div className="flex flex-col">
-                                   <span className="font-bold text-slate-900 uppercase tracking-tight">{item.product_name}</span>
-                                   <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">{item.quantity} x R$ {Number(item.unit_price).toFixed(2)}</span>
+                             <div key={item.id} className="px-4 py-3 flex items-center justify-between">
+                                <div>
+                                   <p className="text-[11px] font-black text-slate-900 uppercase">{item.product_name}</p>
+                                   <p className="text-[9px] font-bold text-slate-400 uppercase">{item.quantity} × R$ {Number(item.unit_price).toFixed(2)}</p>
                                 </div>
-                                <span className="font-mono font-bold text-slate-900 bg-slate-50 px-2 py-1 rounded">R$ {(item.quantity * Number(item.unit_price)).toFixed(2)}</span>
+                                <span className="font-mono font-black text-sm text-slate-900">R$ {(item.quantity * Number(item.unit_price)).toFixed(2)}</span>
                              </div>
                            ))}
                         </div>
                      </div>
 
-                     {/* Financial Info */}
-                     <div className="p-6 bg-slate-900 rounded-2xl text-white space-y-4">
-                        <div className="flex justify-between items-center text-[10px] font-bold uppercase tracking-widest text-slate-400">
-                           <span>Método</span>
-                           <span className="flex items-center gap-2 text-white"><CreditCard size={12} /> {selectedOrder.payment_method}</span>
-                        </div>
-                        <div className="flex justify-between items-center">
-                           <span className="text-[10px] font-bold uppercase tracking-[0.3em] text-blue-400">Total</span>
-                           <span className="text-2xl font-black font-mono tracking-tighter">R$ {Number(selectedOrder.total_amount).toFixed(2)}</span>
+                     {/* Payment method + installments breakdown */}
+                     {(() => {
+                       const pm = selectedOrder.payment_method ?? "";
+                       const segs = pm.split("|").map(seg => {
+                         const [mp, amt] = seg.split(":");
+                         const toks = mp.split("-");
+                         return { method: toks[0]??"-", brand: toks[1]??null, installments: toks[2] ? parseInt(toks[2]) : 1, amount: parseFloat(amt??"0")||0 };
+                       });
+                       const labels: Record<string,string> = { money:"Dinheiro", pix:"PIX", debit:"Débito", credit:"Crédito" };
+                       return (
+                         <div className="space-y-2">
+                           <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1.5"><CreditCard size={10} /> Pagamento</p>
+                           <div className="space-y-2">
+                             {segs.map((s, i) => {
+                               const perInst = s.installments > 1 ? s.amount / s.installments : 0;
+                               return (
+                                 <div key={i} className="p-3 bg-slate-50 rounded-xl flex items-center justify-between gap-2">
+                                   <div>
+                                     <p className="text-[10px] font-black text-slate-900 uppercase">
+                                       {labels[s.method]??s.method}
+                                       {s.brand && s.brand !== "other" ? ` / ${s.brand.toUpperCase()}` : ""}
+                                       {s.method==="credit" && s.installments>1 ? ` · ${s.installments}×` : ""}
+                                     </p>
+                                     {s.installments > 1 && (
+                                       <p className="text-[9px] font-bold text-slate-500">R$ {perInst.toFixed(2)}/parcela</p>
+                                     )}
+                                   </div>
+                                   <span className="font-mono font-black text-slate-900">R$ {s.amount.toFixed(2)}</span>
+                                 </div>
+                               );
+                             })}
+                           </div>
+                         </div>
+                       );
+                     })()}
+
+                     {/* Financial summary */}
+                     <div className="bg-slate-900 rounded-2xl p-5 space-y-3">
+                        <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Resumo Financeiro</p>
+                        {selectedOrder.gross_amount != null && Number(selectedOrder.gross_amount) !== Number(selectedOrder.total_amount) && (
+                          <div className="flex justify-between text-[10px] font-bold uppercase tracking-widest">
+                            <span className="text-slate-500">Subtotal Bruto</span>
+                            <span className="font-mono text-slate-400">R$ {Number(selectedOrder.gross_amount).toFixed(2)}</span>
+                          </div>
+                        )}
+                        {selectedOrder.discount_amount != null && Number(selectedOrder.discount_amount) > 0 && (
+                          <div className="flex justify-between text-[10px] font-bold uppercase tracking-widest">
+                            <span className="text-rose-400">Desconto</span>
+                            <span className="font-mono text-rose-400">− R$ {Number(selectedOrder.discount_amount).toFixed(2)}</span>
+                          </div>
+                        )}
+                        {selectedOrder.fee_amount != null && Number(selectedOrder.fee_amount) > 0 && (
+                          <div className="flex justify-between text-[10px] font-bold uppercase tracking-widest">
+                            <span className="text-amber-400">Taxa Maquininha</span>
+                            <span className="font-mono text-amber-400">− R$ {Number(selectedOrder.fee_amount).toFixed(2)}</span>
+                          </div>
+                        )}
+                        <div className="flex justify-between items-center pt-2 border-t border-slate-700">
+                          <span className="text-[10px] font-black uppercase tracking-widest text-blue-400">Líquido</span>
+                          <span className="text-2xl font-black font-mono text-white">R$ {Number(selectedOrder.total_amount).toFixed(2)}</span>
                         </div>
                      </div>
+
                   </div>
 
                   <div className="p-6 border-t border-slate-100 bg-slate-50 space-y-2">
@@ -751,6 +848,69 @@ ${order.items.map(item => `
                </motion.div>
             </div>
          )}
+      </AnimatePresence>
+
+      {/* Cancel confirmation modal */}
+      <AnimatePresence>
+        {showCancelModal && selectedOrder && (
+          <div className="fixed inset-0 z-[200] flex items-center justify-center px-4 bg-slate-900/50 backdrop-blur-sm">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.92 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.92 }}
+              className="bg-white rounded-3xl shadow-2xl w-full max-w-sm overflow-hidden"
+            >
+              <div className="px-6 py-5 bg-red-50 border-b border-red-100 flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-red-100 flex items-center justify-center">
+                  <AlertTriangle size={18} className="text-red-600" />
+                </div>
+                <div>
+                  <p className="text-[10px] font-bold text-red-400 uppercase tracking-widest">Cancelar Pedido</p>
+                  <p className="text-sm font-black text-red-900">#{String(selectedOrder.id).padStart(6, "0")}</p>
+                </div>
+              </div>
+              <div className="p-6 space-y-4">
+                <p className="text-[10px] text-slate-500 font-bold leading-relaxed">
+                  Esta ação irá cancelar o pedido, reverter o estoque dos produtos e registrar um estorno no fluxo de caixa.
+                </p>
+                <div className="space-y-1.5">
+                  <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Cancelado por</label>
+                  <input
+                    type="text"
+                    value={cancelledBy}
+                    onChange={e => setCancelledBy(e.target.value)}
+                    placeholder="Nome do responsável"
+                    className="w-full h-10 px-3 border border-slate-200 rounded-xl text-[11px] font-medium outline-none focus:border-red-400 bg-slate-50 transition-all"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Motivo do cancelamento</label>
+                  <textarea
+                    value={cancelReason}
+                    onChange={e => setCancelReason(e.target.value)}
+                    placeholder="Ex: Cliente solicitou estorno, produto com defeito..."
+                    rows={3}
+                    className="w-full px-3 py-2 border border-slate-200 rounded-xl text-[11px] font-medium outline-none focus:border-red-400 bg-slate-50 transition-all resize-none"
+                  />
+                </div>
+                <div className="flex gap-2 pt-2">
+                  <button
+                    onClick={() => setShowCancelModal(false)}
+                    className="flex-1 h-10 border border-slate-200 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-slate-50 transition-all text-slate-500"
+                  >
+                    Voltar
+                  </button>
+                  <button
+                    onClick={handleCancelOrder}
+                    disabled={cancelling}
+                    className="flex-1 h-10 bg-red-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-red-700 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+                  >
+                    {cancelling ? <Loader2 size={14} className="animate-spin" /> : <XCircle size={14} />}
+                    Confirmar Cancelamento
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
       </AnimatePresence>
     </div>
   );

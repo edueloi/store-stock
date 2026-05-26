@@ -149,17 +149,24 @@ model Product {
 }
 
 model Order {
-  id               Int      @id @default(autoincrement())
+  id               Int       @id @default(autoincrement())
   tenant_id        Int
   seller_id        Int?
+  seller_name      String?
   customer_name    String?
   customer_phone   String?
   customer_address String?
-  total_amount     Decimal  @db.Decimal(10, 2)
-  status           String   @default("pending")
+  total_amount     Decimal   @db.Decimal(10, 2)
+  gross_amount     Decimal?  @db.Decimal(10, 2)
+  discount_amount  Decimal?  @db.Decimal(10, 2)
+  fee_amount       Decimal?  @db.Decimal(10, 2)
+  status           String    @default("pending")
   payment_method   String?
-  created_at       DateTime @default(now())
-  updated_at       DateTime @updatedAt
+  cancelled_by     String?
+  cancel_reason    String?
+  cancelled_at     DateTime?
+  created_at       DateTime  @default(now())
+  updated_at       DateTime  @updatedAt
 
   tenant Tenant      @relation(fields: [tenant_id], references: [id])
   seller Seller?     @relation(fields: [seller_id], references: [id], onDelete: SetNull)

@@ -122,12 +122,20 @@ export interface Supplier {
 export interface Order {
   id: number;
   tenant_id: number;
+  seller_id?: number | null;
+  seller_name?: string | null;
   customer_name?: string;
   customer_phone?: string;
   customer_address?: string;
   total_amount: number;
+  gross_amount?: number | null;
+  discount_amount?: number | null;
+  fee_amount?: number | null;
   status: 'pending' | 'completed' | 'cancelled';
   payment_method?: string;
+  cancelled_by?: string | null;
+  cancel_reason?: string | null;
+  cancelled_at?: string | null;
   created_at: string;
 }
 

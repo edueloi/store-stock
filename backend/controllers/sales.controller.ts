@@ -65,14 +65,29 @@ export async function createSale(req: Request, res: Response) {
       return sum + seg.amount * (rate / 100);
     }, 0);
 
+    const discountVal  = discount && discount > 0 ? Number(discount) : 0;
+    const roundedFee   = Math.round(machineFee * 100) / 100;
+    const grossAmount  = Math.round((totalAmount + discountVal) * 100) / 100;
+
+    // load seller name to denormalize
+    let sellerName: string | null = null;
+    if (sellerId) {
+      const seller = await prisma.seller.findUnique({ where: { id: sellerId }, select: { name: true } });
+      sellerName = seller?.name ?? null;
+    }
+
     const order = await prisma.order.create({
       data: {
-        tenant_id: tenantId,
-        seller_id: sellerId ?? null,
-        customer_name: customerName || "Balcão",
-        total_amount: totalAmount,
-        status: "completed",
-        payment_method: pmString,
+        tenant_id:       tenantId,
+        seller_id:       sellerId ?? null,
+        seller_name:     sellerName,
+        customer_name:   customerName || "Balcão",
+        total_amount:    totalAmount,
+        gross_amount:    grossAmount,
+        discount_amount: discountVal > 0 ? discountVal : null,
+        fee_amount:      roundedFee > 0 ? roundedFee : null,
+        status:          "completed",
+        payment_method:  pmString,
         items: {
           create: items.map((item) => ({
             product_id: item.id,
@@ -91,12 +106,8 @@ export async function createSale(req: Request, res: Response) {
     }
 
     const methodSummary  = buildMethodSummary(pmString);
-    const discountVal    = discount && discount > 0 ? Number(discount) : 0;
     const discountNote   = discountVal > 0 ? ` (desc. R$ ${discountVal.toFixed(2)})` : "";
     const now            = new Date();
-    const roundedFee     = Math.round(machineFee * 100) / 100;
-    // gross = total before discount; totalAmount is already after discount
-    const grossAmount    = Math.round((totalAmount + discountVal) * 100) / 100;
     const netAmount      = Math.round((totalAmount - roundedFee) * 100) / 100;
 
     // Receita: líquido = após desconto e taxa. gross = antes do desconto.

@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef } from "react";
 import ExcelJS from "exceljs";
+import { motion, AnimatePresence } from "motion/react";
 import PageHeader from "../../components/layout/PageHeader";
 import {
   Wallet,
@@ -17,6 +18,8 @@ import {
   Loader2,
   SlidersHorizontal,
   FileSpreadsheet,
+  X,
+  Tag,
 } from "lucide-react";
 import { FinanceEntry, Tenant } from "../../types";
 import { cn } from "../../lib/utils";
@@ -525,6 +528,7 @@ export default function Finance() {
   const [showFilters, setShowFilters] = useState(false);
   const [showExport, setShowExport] = useState(false);
   const exportRef = useRef<HTMLDivElement>(null);
+  const [selectedEntry, setSelectedEntry] = useState<FinanceEntry | null>(null);
 
   const token = () => localStorage.getItem("token");
 
@@ -917,8 +921,9 @@ export default function Finance() {
                   return (
                     <tr
                       key={entry.id}
+                      onClick={() => setSelectedEntry(entry)}
                       className={cn(
-                        "border-b border-slate-50 hover:bg-slate-50/50 transition-colors",
+                        "border-b border-slate-50 hover:bg-blue-50/30 transition-colors cursor-pointer",
                         idx % 2 === 0 ? "" : "bg-slate-50/20"
                       )}
                     >
@@ -1070,7 +1075,7 @@ export default function Finance() {
               const discount = entry.discount_amount != null ? Number(entry.discount_amount) : null;
               const fee      = entry.fee_amount      != null ? Number(entry.fee_amount)      : null;
               return (
-                <div key={entry.id} className="px-4 py-3.5 flex items-center gap-3">
+                <div key={entry.id} onClick={() => setSelectedEntry(entry)} className="px-4 py-3.5 flex items-center gap-3 cursor-pointer hover:bg-blue-50/30 transition-colors">
                   <div
                     className={cn(
                       "w-9 h-9 rounded-xl flex items-center justify-center shrink-0 text-white",
@@ -1108,6 +1113,155 @@ export default function Finance() {
           )}
         </div>
       </div>
+
+      {/* ── ENTRY DETAIL PANEL ─────────────────────────────────────────── */}
+      <AnimatePresence>
+        {selectedEntry && (() => {
+          const e = selectedEntry;
+          const gross    = e.gross_amount    != null ? Number(e.gross_amount)    : null;
+          const discount = e.discount_amount != null ? Number(e.discount_amount) : null;
+          const fee      = e.fee_amount      != null ? Number(e.fee_amount)      : null;
+          const net      = Number(e.amount);
+          const isIncome = e.type === "income";
+
+          // Parse date/time
+          const rawDate = e.date;
+          const dateObj = new Date(rawDate.length === 10 ? rawDate + "T12:00:00" : rawDate);
+          const dateFormatted = dateObj.toLocaleDateString("pt-BR", { day: "2-digit", month: "long", year: "numeric" });
+          const timeFormatted = rawDate.length > 10
+            ? dateObj.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })
+            : null;
+
+          return (
+            <>
+              {/* backdrop */}
+              <motion.div
+                key="finance-detail-backdrop"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.2 }}
+                className="fixed inset-0 bg-black/40 backdrop-blur-sm z-40"
+                onClick={() => setSelectedEntry(null)}
+              />
+              {/* panel */}
+              <motion.div
+                key="finance-detail-panel"
+                initial={{ x: "100%" }}
+                animate={{ x: 0 }}
+                exit={{ x: "100%" }}
+                transition={{ type: "spring", damping: 28, stiffness: 300 }}
+                className="fixed right-0 top-0 h-full w-full max-w-md bg-white shadow-2xl z-50 flex flex-col overflow-hidden"
+              >
+                {/* Header */}
+                <div className={cn(
+                  "px-6 py-5 flex items-start justify-between border-b border-slate-100",
+                  isIncome ? "bg-emerald-50" : "bg-rose-50"
+                )}>
+                  <div className="flex-1 min-w-0">
+                    <div className={cn(
+                      "inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[9px] font-black uppercase tracking-widest mb-2",
+                      isIncome ? "bg-emerald-100 text-emerald-700" : "bg-rose-100 text-rose-700"
+                    )}>
+                      {isIncome ? <TrendingUp size={10} /> : <TrendingDown size={10} />}
+                      {isIncome ? "Receita" : "Despesa"}
+                    </div>
+                    <p className="text-[13px] font-black text-slate-900 uppercase leading-tight">
+                      {e.description}
+                    </p>
+                    <p className="text-[10px] text-slate-500 font-bold mt-1">
+                      {dateFormatted}{timeFormatted ? ` · ${timeFormatted}` : ""}
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => setSelectedEntry(null)}
+                    className="ml-4 w-8 h-8 rounded-lg bg-white border border-slate-200 flex items-center justify-center text-slate-400 hover:text-slate-700 hover:border-slate-400 transition-all shrink-0"
+                  >
+                    <X size={14} />
+                  </button>
+                </div>
+
+                {/* Body */}
+                <div className="flex-1 overflow-y-auto px-6 py-5 space-y-5">
+
+                  {/* Category */}
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center text-slate-400 shrink-0">
+                      <Tag size={14} />
+                    </div>
+                    <div>
+                      <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Categoria</p>
+                      <p className="text-[12px] font-bold text-slate-800 uppercase">{e.category || "Operacional"}</p>
+                    </div>
+                  </div>
+
+                  {/* Financial breakdown */}
+                  {(gross != null || discount != null || fee != null) ? (
+                    <div className="bg-slate-50 rounded-2xl border border-slate-100 overflow-hidden">
+                      <div className="px-4 py-2 border-b border-slate-100 bg-slate-100/60">
+                        <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Composição do Valor</p>
+                      </div>
+                      <div className="divide-y divide-slate-100">
+                        {gross != null && (
+                          <div className="flex items-center justify-between px-4 py-3">
+                            <span className="text-[10px] font-bold text-slate-500 uppercase">Bruto</span>
+                            <span className="font-mono text-[12px] font-bold text-slate-700">R$ {fmt(gross)}</span>
+                          </div>
+                        )}
+                        {discount != null && discount > 0 && (
+                          <div className="flex items-center justify-between px-4 py-3">
+                            <span className="text-[10px] font-bold text-rose-400 uppercase">Desconto</span>
+                            <span className="font-mono text-[12px] font-bold text-rose-500">− R$ {fmt(discount)}</span>
+                          </div>
+                        )}
+                        {fee != null && fee > 0 && (
+                          <div className="flex items-center justify-between px-4 py-3">
+                            <span className="text-[10px] font-bold text-amber-500 uppercase">Taxa Maquininha</span>
+                            <span className="font-mono text-[12px] font-bold text-amber-600">− R$ {fmt(fee)}</span>
+                          </div>
+                        )}
+                        <div className={cn(
+                          "flex items-center justify-between px-4 py-3",
+                          isIncome ? "bg-emerald-50" : "bg-rose-50"
+                        )}>
+                          <span className={cn("text-[10px] font-black uppercase tracking-wider", isIncome ? "text-emerald-700" : "text-rose-700")}>
+                            Líquido
+                          </span>
+                          <span className={cn("font-mono text-[15px] font-black", isIncome ? "text-emerald-600" : "text-rose-600")}>
+                            {isIncome ? "+" : "−"} R$ {fmt(net)}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    /* Simple entry — just show the amount big */
+                    <div className={cn(
+                      "rounded-2xl border p-5 text-center",
+                      isIncome ? "bg-emerald-50 border-emerald-100" : "bg-rose-50 border-rose-100"
+                    )}>
+                      <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-1">Valor</p>
+                      <p className={cn("text-3xl font-mono font-black", isIncome ? "text-emerald-600" : "text-rose-600")}>
+                        {isIncome ? "+" : "−"} R$ {fmt(net)}
+                      </p>
+                    </div>
+                  )}
+
+                </div>
+
+                {/* Footer */}
+                <div className="px-6 py-4 border-t border-slate-100">
+                  <button
+                    onClick={() => setSelectedEntry(null)}
+                    className="w-full h-11 bg-slate-900 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-slate-700 transition-colors"
+                  >
+                    Fechar
+                  </button>
+                </div>
+              </motion.div>
+            </>
+          );
+        })()}
+      </AnimatePresence>
 
       {/* ── ADD ENTRY MODAL ─────────────────────────────────────────────── */}
       <Modal

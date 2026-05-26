@@ -1102,14 +1102,35 @@ ${change > 0 ? `<hr class="divider"/><div class="row bold"><span>TROCO:</span><s
                         {p.method === "credit" && (
                           <div className="grid grid-cols-4 gap-1">
                             {[1, 2, 3, 4, 5, 6, 10, 12].map((n) => {
-                              const rate = cardFees[p.cardBrand]?.[n - 1] ?? 0;
+                              const rate      = cardFees[p.cardBrand]?.[n - 1] ?? 0;
+                              const pAmt      = Number(p.amount) || 0;
+                              const totalWFee = pAmt > 0 && rate > 0 ? pAmt * (1 + rate / 100) : pAmt;
+                              const perInst   = n > 1 && pAmt > 0 ? totalWFee / n : 0;
+                              const isActive  = p.installments === n;
                               return (
                                 <button key={n} onClick={() => updatePayment(p.id, { installments: n })}
-                                  className={cn("h-9 rounded-lg border text-[8px] font-black uppercase tracking-widest transition-all flex flex-col items-center justify-center",
-                                    p.installments === n ? "bg-emerald-600 border-emerald-500 text-white shadow-sm"
-                                      : "bg-white border-slate-200 text-slate-500 hover:border-slate-400")}>
-                                  <span>{n === 1 ? "À vista" : `${n}×`}</span>
-                                  {rate > 0 && <span className={cn("text-[7px] font-bold", p.installments === n ? "text-emerald-200" : "text-slate-400")}>+{rate}%</span>}
+                                  className={cn(
+                                    "rounded-lg border transition-all flex flex-col items-center justify-center py-1.5 px-1 gap-0.5",
+                                    isActive
+                                      ? "bg-emerald-600 border-emerald-500 text-white shadow-sm"
+                                      : "bg-white border-slate-200 text-slate-500 hover:border-slate-400"
+                                  )}>
+                                  <span className="text-[8px] font-black uppercase tracking-widest">{n === 1 ? "À vista" : `${n}×`}</span>
+                                  {rate > 0 && (
+                                    <span className={cn("text-[7px] font-bold", isActive ? "text-emerald-200" : "text-amber-500")}>
+                                      +{rate}%
+                                    </span>
+                                  )}
+                                  {pAmt > 0 && rate > 0 && (
+                                    <span className={cn("text-[7px] font-mono font-black", isActive ? "text-emerald-100" : "text-slate-600")}>
+                                      R${totalWFee.toFixed(2)}
+                                    </span>
+                                  )}
+                                  {perInst > 0 && (
+                                    <span className={cn("text-[7px] font-mono", isActive ? "text-emerald-200" : "text-slate-400")}>
+                                      {n}×R${perInst.toFixed(2)}
+                                    </span>
+                                  )}
                                 </button>
                               );
                             })}
@@ -1134,9 +1155,14 @@ ${change > 0 ? `<hr class="divider"/><div class="row bold"><span>TROCO:</span><s
                             </div>
                           )}
                           {pFee > 0.005 && (
-                            <div className="flex items-center gap-1.5 bg-slate-100 border border-slate-200 rounded-xl px-3 shrink-0" title="Taxa da maquininha — custo da loja, não cobrado do cliente">
-                              <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest">taxa {feeRate}%</span>
-                              <span className="text-[10px] font-mono font-black text-slate-500">R$ {pFee.toFixed(2)}</span>
+                            <div className="flex flex-col items-end gap-0.5 bg-amber-50 border border-amber-200 rounded-xl px-3 py-1.5 shrink-0" title="Taxa da maquininha — custo interno da loja">
+                              <span className="text-[8px] font-black text-amber-600 uppercase tracking-widest">Taxa {feeRate}%</span>
+                              <span className="text-[10px] font-mono font-black text-amber-700">− R$ {pFee.toFixed(2)}</span>
+                              {p.installments > 1 && Number(p.amount) > 0 && (
+                                <span className="text-[7px] font-bold text-amber-500">
+                                  {p.installments}× R$ {((Number(p.amount) * (1 + feeRate/100)) / p.installments).toFixed(2)}/parc
+                                </span>
+                              )}
                             </div>
                           )}
                         </div>

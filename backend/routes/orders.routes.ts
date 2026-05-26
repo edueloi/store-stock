@@ -4,6 +4,7 @@ import {
   getOrderById,
   listOrders,
   updateOrderStatus,
+  cancelOrder,
 } from "../controllers/orders.controller";
 import { authenticateToken } from "../middlewares/auth.middleware";
 
@@ -14,5 +15,6 @@ router.use(authenticateToken);
 router.get("/", listOrders);
 router.get("/:id", getOrderById);
 router.put("/:id/status", updateOrderStatus);
+router.post("/:id/cancel", cancelOrder);
 
 export default router;
