@@ -2,7 +2,6 @@ import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
 import path from 'path';
 import { defineConfig, loadEnv } from 'vite';
-import { copyFileSync, mkdirSync } from 'fs';
 
 export default defineConfig(({mode}) => {
   const env = loadEnv(mode, '.', '');
@@ -10,19 +9,6 @@ export default defineConfig(({mode}) => {
     plugins: [
       react(),
       tailwindcss(),
-      // Copy pdfjs worker to dist so it's served locally (no CDN dependency)
-      {
-        name: 'copy-pdfjs-worker',
-        closeBundle() {
-          try {
-            mkdirSync('dist/assets', { recursive: true });
-            copyFileSync(
-              path.resolve(__dirname, 'node_modules/pdfjs-dist/build/pdf.worker.mjs'),
-              'dist/assets/pdf.worker.mjs'
-            );
-          } catch { /* ignore if file doesn't exist yet */ }
-        },
-      },
     ],
     define: {
       'process.env.GEMINI_API_KEY': JSON.stringify(env.GEMINI_API_KEY),

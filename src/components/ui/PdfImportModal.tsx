@@ -2,6 +2,9 @@ import React, { useState, useRef, useCallback } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { X, Upload, FileText, AlertCircle, CheckCircle2, Loader2, Trash2, PackagePlus, RefreshCw } from "lucide-react";
 import Button from "./Button";
+// Vite bundles the worker file and provides the correct versioned URL at build time
+/* @vite-ignore */
+import pdfjsWorkerUrl from "pdfjs-dist/build/pdf.worker.mjs?url";
 
 // ── types ──────────────────────────────────────────────────────────────────
 interface ParsedProduct {
@@ -41,12 +44,8 @@ if (typeof (Promise as unknown as { try?: unknown }).try !== "function") {
 // ── PDF text extraction ─────────────────────────────────────────────────────
 async function extractTextFromPdf(file: File): Promise<string> {
   const pdfjsLib = await import("pdfjs-dist");
-  // Worker is copied to /assets/pdf.worker.mjs by the vite plugin at build time.
-  // In dev, fallback to unpkg so local `npm run dev` also works.
-  /* @vite-ignore */
-  pdfjsLib.GlobalWorkerOptions.workerSrc = import.meta.env.DEV
-    ? `https://unpkg.com/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.mjs`
-    : "/assets/pdf.worker.mjs";
+  // pdfjsWorkerUrl is resolved by Vite at build time — always matches the installed version
+  pdfjsLib.GlobalWorkerOptions.workerSrc = pdfjsWorkerUrl;
 
   const buffer = await file.arrayBuffer();
   const pdf = await pdfjsLib.getDocument({ data: buffer }).promise;
