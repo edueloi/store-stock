@@ -15,6 +15,7 @@ interface ParsedProduct {
   // set after matching against existing catalog
   existingId?: number;
   existingStock?: number;
+  existingCost?: number;
   // import status
   importing?: boolean;
   done?: boolean;
@@ -140,18 +141,21 @@ export default function PdfImportModal({ open, onClose, onImported }: PdfImportM
 
       // Fetch existing products to detect duplicates
       const res = await fetch("/api/products", { headers: authHeader() });
-      const existing: { id: number; sku?: string; barcode?: string; stock_quantity: number }[] = res.ok ? await res.json() : [];
+      const existing: { id: number; sku?: string; barcode?: string; stock_quantity: number; cost_price?: number }[] = res.ok ? await res.json() : [];
 
-      // Build lookup: normalized sku/barcode → { id, stock }
-      const lookup = new Map<string, { id: number; stock: number }>();
+      // Build lookup: normalized sku/barcode → { id, stock, cost }
+      const lookup = new Map<string, { id: number; stock: number; cost: number }>();
       for (const p of existing) {
-        if (p.sku) lookup.set(norm(p.sku), { id: p.id, stock: p.stock_quantity });
-        if (p.barcode) lookup.set(norm(p.barcode), { id: p.id, stock: p.stock_quantity });
+        const entry = { id: p.id, stock: p.stock_quantity, cost: Number(p.cost_price ?? 0) };
+        if (p.sku) lookup.set(norm(p.sku), entry);
+        if (p.barcode) lookup.set(norm(p.barcode), entry);
       }
 
       const enriched = parsed.map(p => {
         const match = lookup.get(norm(p.sku));
-        return match ? { ...p, existingId: match.id, existingStock: match.stock } : p;
+        return match
+          ? { ...p, existingId: match.id, existingStock: match.stock, existingCost: match.cost }
+          : p;
       });
 
       setProducts(enriched);
@@ -196,8 +200,11 @@ export default function PdfImportModal({ open, onClose, onImported }: PdfImportM
 
       try {
         if (p.existingId) {
-          // ── ATUALIZAR: soma estoque via stock-adjustment ──
-          const res = await fetch("/api/products/stock-adjustment", {
+          // ── ATUALIZAR: soma estoque; atualiza custo se PDF trouxer valor maior ──
+          const shouldUpdateCost = p.price > (p.existingCost ?? 0);
+
+          // 1. stock adjustment
+          const adjRes = await fetch("/api/products/stock-adjustment", {
             method: "POST",
             headers: authHeader(),
             body: JSON.stringify({
@@ -207,12 +214,23 @@ export default function PdfImportModal({ open, onClose, onImported }: PdfImportM
               reason: `Importação PDF — +${p.qty} un`,
             }),
           });
-          if (res.ok) {
+
+          // 2. update cost_price if new cost is higher
+          if (shouldUpdateCost) {
+            await fetch(`/api/products/${p.existingId}`, {
+              method: "PUT",
+              headers: authHeader(),
+              body: JSON.stringify({ cost_price: p.price }),
+            });
+          }
+
+          if (adjRes.ok) {
+            const costNote = shouldUpdateCost ? ` · custo R$ ${p.price.toFixed(2)}` : "";
             setProducts(prev => prev.map((x, idx) => idx === i
-              ? { ...x, importing: false, done: true, doneLabel: `Estoque: ${(p.existingStock ?? 0)} → ${(p.existingStock ?? 0) + p.qty}` }
+              ? { ...x, importing: false, done: true, doneLabel: `Estoque: ${p.existingStock ?? 0} → ${(p.existingStock ?? 0) + p.qty}${costNote}` }
               : x));
           } else {
-            const err = await res.json().catch(() => ({}));
+            const err = await adjRes.json().catch(() => ({}));
             setProducts(prev => prev.map((x, idx) => idx === i ? { ...x, importing: false, error: err.error || "Erro ao atualizar" } : x));
           }
         } else {
@@ -391,7 +409,7 @@ export default function PdfImportModal({ open, onClose, onImported }: PdfImportM
                             {/* badge: update vs new */}
                             {!p.done && !p.error && p.existingId && (
                               <span className="shrink-0 text-[9px] font-bold text-amber-600 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded-full">
-                                ATUALIZAR +{p.qty}un
+                                ATUALIZAR +{p.qty}un{p.price > (p.existingCost ?? 0) ? " · novo custo" : ""}
                               </span>
                             )}
                             {!p.done && !p.error && !p.existingId && (

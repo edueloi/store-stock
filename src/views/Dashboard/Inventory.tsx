@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from "react";
 import {
   Plus, Edit2, Trash2, Image as ImageIcon, Save, X, Package,
   TrendingUp, Upload, LayoutGrid, List, Tag, Search, AlertTriangle,
-  Star, ChevronLeft, ChevronRight, GripVertical, Zap, ArrowUpDown, FileUp,
+  Star, ChevronLeft, ChevronRight, GripVertical, Zap, ArrowUpDown, FileUp, CheckSquare,
   History, ArrowRight, Loader2,
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
@@ -297,6 +297,11 @@ export default function Inventory() {
 
   const [isPdfModalOpen, setIsPdfModalOpen] = useState(false);
 
+  // ── bulk selection ──────────────────────────────────────────────────
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
+  const [bulkDeleting, setBulkDeleting] = useState(false);
+  const [showBulkConfirm, setShowBulkConfirm] = useState(false);
+
   // Product history panel
   interface HistoryEntry { id: number; field: string; old_value: string | null; new_value: string | null; created_at: string; }
   const [historyProduct, setHistoryProduct] = useState<Product | null>(null);
@@ -403,6 +408,26 @@ export default function Inventory() {
     } catch { /* noop */ }
     finally { setDeleteLoading(false); setDeleteTarget(null); }
   };
+
+  const confirmBulkDelete = async () => {
+    setBulkDeleting(true);
+    await Promise.all([...selectedIds].map(id =>
+      fetch(`/api/products/${id}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
+      })
+    ));
+    setSelectedIds(new Set());
+    setShowBulkConfirm(false);
+    setBulkDeleting(false);
+    fetchInventory();
+  };
+
+  const toggleSelect = (id: number) => setSelectedIds(prev => {
+    const next = new Set(prev);
+    next.has(id) ? next.delete(id) : next.add(id);
+    return next;
+  });
 
   // ── helpers ────────────────────────────────────────────────────────
   function generateCombos(attrs: { name: string; values: string[] }[]): Record<string, string>[] {
@@ -511,6 +536,16 @@ export default function Inventory() {
       }
     });
 
+  const toggleSelectAll = () => {
+    if (selectedIds.size === filteredProducts.length && filteredProducts.length > 0) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(filteredProducts.map(p => p.id)));
+    }
+  };
+  const allSelected = filteredProducts.length > 0 && selectedIds.size === filteredProducts.length;
+  const someSelected = selectedIds.size > 0 && !allSelected;
+
   const saleProducts = products.filter(p => p.type === "sale");
   const totalCost = saleProducts.reduce((s, p) => s + Number(p.cost_price || 0) * p.stock_quantity, 0);
   const totalRevenue = saleProducts.reduce((s, p) => s + Number(p.price || 0) * p.stock_quantity, 0);
@@ -596,6 +631,26 @@ export default function Inventory() {
         </span>
       </div>
 
+      {/* ── bulk action bar ── */}
+      <AnimatePresence>
+        {selectedIds.size > 0 && (
+          <motion.div
+            initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}
+            className="flex items-center justify-between bg-red-50 border border-red-200 rounded-xl px-4 py-2.5"
+          >
+            <span className="text-xs font-bold text-red-700">
+              {selectedIds.size} produto{selectedIds.size !== 1 ? "s" : ""} selecionado{selectedIds.size !== 1 ? "s" : ""}
+            </span>
+            <div className="flex items-center gap-2">
+              <button onClick={() => setSelectedIds(new Set())} className="text-xs text-slate-500 hover:text-slate-700 font-medium">Limpar</button>
+              <Button variant="danger" icon={<Trash2 size={13} />} onClick={() => setShowBulkConfirm(true)}>
+                Excluir {selectedIds.size}
+              </Button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {filteredProducts.length === 0 ? (
         <EmptyState icon={<Package size={40} strokeWidth={1} />} title="Nenhum produto encontrado"
           description="Ajuste os filtros ou cadastre um novo produto."
@@ -666,6 +721,15 @@ export default function Inventory() {
             <table className="w-full text-left">
               <thead>
                 <tr className="bg-slate-50 border-b border-slate-200">
+                  <th className="pl-4 pr-2 py-4 w-8">
+                    <input
+                      type="checkbox"
+                      checked={allSelected}
+                      ref={el => { if (el) el.indeterminate = someSelected; }}
+                      onChange={toggleSelectAll}
+                      className="w-3.5 h-3.5 accent-blue-500 cursor-pointer"
+                    />
+                  </th>
                   <th className="px-5 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Produto</th>
                   <th className="px-5 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">SKU</th>
                   <th className="px-5 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Categoria</th>
@@ -679,7 +743,16 @@ export default function Inventory() {
               <tbody className="divide-y divide-slate-100">
                 <AnimatePresence>
                   {filteredProducts.map(p => (
-                    <motion.tr key={p.id} layout initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="hover:bg-slate-50/60 transition-colors group">
+                    <motion.tr key={p.id} layout initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                      className={`hover:bg-slate-50/60 transition-colors group ${selectedIds.has(p.id) ? "bg-red-50/40" : ""}`}>
+                      <td className="pl-4 pr-2 py-3.5 w-8">
+                        <input
+                          type="checkbox"
+                          checked={selectedIds.has(p.id)}
+                          onChange={() => toggleSelect(p.id)}
+                          className="w-3.5 h-3.5 accent-blue-500 cursor-pointer"
+                        />
+                      </td>
                       <td className="px-5 py-3.5">
                         <div className="flex items-center gap-3">
                           <div className="relative w-11 h-11 shrink-0">
@@ -1070,6 +1143,11 @@ export default function Inventory() {
         title={`Excluir "${deleteTarget?.name}"?`}
         description="Todas as fotos e dados serão removidos permanentemente."
         variant="danger" confirmLabel="Excluir produto" loading={deleteLoading} />
+
+      <ConfirmDialog open={showBulkConfirm} onClose={() => setShowBulkConfirm(false)} onConfirm={confirmBulkDelete}
+        title={`Excluir ${selectedIds.size} produto${selectedIds.size !== 1 ? "s" : ""}?`}
+        description="Todos os dados e fotos dos produtos selecionados serão removidos permanentemente."
+        variant="danger" confirmLabel={`Excluir ${selectedIds.size} produto${selectedIds.size !== 1 ? "s" : ""}`} loading={bulkDeleting} />
 
       {/* ── HISTORY PANEL ── */}
       <AnimatePresence>
