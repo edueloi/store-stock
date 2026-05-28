@@ -236,7 +236,7 @@ model OrderItem {
   unit_price Decimal @db.Decimal(10, 2)
 
   order   Order   @relation(fields: [order_id], references: [id])
-  product Product @relation(fields: [product_id], references: [id])
+  product Product @relation(fields: [product_id], references: [id], onDelete: Cascade)
 
   @@map("order_items")
 }
@@ -252,7 +252,7 @@ model StockMovement {
   updated_at DateTime @updatedAt
 
   tenant  Tenant  @relation(fields: [tenant_id], references: [id])
-  product Product @relation(fields: [product_id], references: [id])
+  product Product @relation(fields: [product_id], references: [id], onDelete: Cascade)
 
   @@map("stock_movements")
 }
