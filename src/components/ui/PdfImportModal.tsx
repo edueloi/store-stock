@@ -25,15 +25,16 @@ interface PdfImportModalProps {
 
 // ── PDF text extraction ─────────────────────────────────────────────────────
 async function extractTextFromPdf(file: File): Promise<string> {
-  // Dynamic import keeps pdfjs out of the main bundle chunk
   const pdfjsLib = await import("pdfjs-dist");
-  // Disable web worker — avoids the new URL() Vite build issue entirely.
-  // pdfjs runs fine on the main thread for single-file use cases.
+  // Worker is copied to /assets/pdf.worker.mjs by the vite plugin at build time.
+  // In dev, fallback to unpkg so local `npm run dev` also works.
   /* @vite-ignore */
-  pdfjsLib.GlobalWorkerOptions.workerSrc = "";
+  pdfjsLib.GlobalWorkerOptions.workerSrc = import.meta.env.DEV
+    ? `https://unpkg.com/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.mjs`
+    : "/assets/pdf.worker.mjs";
 
   const buffer = await file.arrayBuffer();
-  const pdf = await pdfjsLib.getDocument({ data: buffer, useWorkerFetch: false, isEvalSupported: false, useSystemFonts: true }).promise;
+  const pdf = await pdfjsLib.getDocument({ data: buffer }).promise;
   let fullText = "";
   for (let i = 1; i <= pdf.numPages; i++) {
     const page = await pdf.getPage(i);
