@@ -5,6 +5,7 @@ import {
   getSuperAdminOverview,
   regenerateInvite,
   updateManagedTenant,
+  updateTenantUser,
 } from "../controllers/super-admin.controller";
 import { authenticateToken, requireSuperAdmin } from "../middlewares/auth.middleware";
 
@@ -16,5 +17,6 @@ router.get("/overview", getSuperAdminOverview);
 router.post("/invites", createSetupInvite);
 router.post("/invites/:inviteId/regenerate", regenerateInvite);
 router.patch("/tenants/:tenantId", updateManagedTenant);
+router.patch("/tenants/:tenantId/users/:userId", updateTenantUser);
 
 export default router;

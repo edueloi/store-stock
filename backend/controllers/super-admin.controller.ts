@@ -1,5 +1,6 @@
 import crypto from "crypto";
 
+import bcrypt from "bcryptjs";
 import type { Request, Response } from "express";
 
 import { env } from "../config/env";
@@ -210,6 +211,7 @@ export async function updateManagedTenant(req: Request, res: Response) {
     trialEndsAt,
     subscriptionAmount,
     whatsapp,
+    name,
   } = req.body;
 
   if (!tenantId) {
@@ -221,21 +223,17 @@ export async function updateManagedTenant(req: Request, res: Response) {
     const tenant = await prisma.tenant.update({
       where: { id: tenantId },
       data: {
+        name: name ? String(name).trim() : undefined,
         status: status || undefined,
         trial_days: trialDays !== undefined ? Math.max(1, Number(trialDays) || 30) : undefined,
         trial_ends_at: trialEndsAt ? new Date(trialEndsAt) : undefined,
         subscription_amount: subscriptionAmount !== undefined ? Number(subscriptionAmount) || 0 : undefined,
-        whatsapp: whatsapp ? String(whatsapp).trim() : undefined,
+        whatsapp: whatsapp !== undefined ? String(whatsapp).trim() : undefined,
       },
       include: {
         users: {
           orderBy: { created_at: "asc" },
-          select: {
-            id: true,
-            name: true,
-            email: true,
-            role: true,
-          },
+          select: { id: true, name: true, email: true, role: true },
         },
       },
     });
@@ -243,5 +241,51 @@ export async function updateManagedTenant(req: Request, res: Response) {
     res.json(serializeTenant(tenant));
   } catch {
     res.status(500).json({ error: "Falha ao atualizar o tenant." });
+  }
+}
+
+export async function updateTenantUser(req: Request, res: Response) {
+  const tenantId = Number(req.params.tenantId);
+  const userId = Number(req.params.userId);
+  const { name, email, password } = req.body;
+
+  if (!tenantId || !userId) {
+    res.status(400).json({ error: "Parâmetros inválidos." });
+    return;
+  }
+
+  try {
+    // Confirm the user belongs to this tenant
+    const existing = await prisma.user.findFirst({ where: { id: userId, tenant_id: tenantId } });
+    if (!existing) {
+      res.status(404).json({ error: "Usuário não encontrado nesse tenant." });
+      return;
+    }
+
+    // Check email uniqueness if changing email
+    if (email && email !== existing.email) {
+      const conflict = await prisma.user.findFirst({ where: { email: String(email).trim().toLowerCase() } });
+      if (conflict) {
+        res.status(409).json({ error: "E-mail já está em uso por outro usuário." });
+        return;
+      }
+    }
+
+    const data: Record<string, unknown> = {};
+    if (name) data.name = String(name).trim();
+    if (email) data.email = String(email).trim().toLowerCase();
+    if (password && String(password).length >= 6) {
+      data.password_hash = await bcrypt.hash(String(password), 10);
+    }
+
+    const updated = await prisma.user.update({
+      where: { id: userId },
+      data,
+      select: { id: true, name: true, email: true, role: true },
+    });
+
+    res.json(updated);
+  } catch {
+    res.status(500).json({ error: "Falha ao atualizar o usuário." });
   }
 }

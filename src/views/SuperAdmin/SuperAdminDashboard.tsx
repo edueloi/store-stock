@@ -1,10 +1,10 @@
-import { type FormEvent, useEffect, useMemo, useState } from "react";
+import { type FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   CalendarClock, CreditCard, LogOut, RefreshCcw, ShieldCheck,
   Store, UserPlus2, Copy, Users, Link2, CheckCircle2, AlertCircle,
   X, LayoutDashboard, Settings, Bell, ChevronRight, Phone, Mail,
-  ExternalLink, TrendingUp, Clock, BadgeCheck,
+  ExternalLink, TrendingUp, Clock, BadgeCheck, Pencil, Eye, EyeOff,
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 
@@ -146,6 +146,64 @@ export default function SuperAdminDashboard() {
 
   function setTenantDraft(tenantId: number, patch: Partial<ManagedTenant>) {
     setTenants((c) => c.map((t) => (t.id === tenantId ? { ...t, ...patch } : t)));
+  }
+
+  // ── Edit tenant modal ────────────────────────────────────────────────
+  type EditForm = {
+    tenantName: string; whatsapp: string;
+    userName: string; userEmail: string; userPassword: string;
+  };
+  const [editingTenant, setEditingTenant] = useState<ManagedTenant | null>(null);
+  const [editForm, setEditForm] = useState<EditForm>({ tenantName: "", whatsapp: "", userName: "", userEmail: "", userPassword: "" });
+  const [editSaving, setEditSaving] = useState(false);
+  const [showEditPwd, setShowEditPwd] = useState(false);
+
+  function openEdit(tenant: ManagedTenant) {
+    const user = tenant.users?.[0];
+    setEditForm({
+      tenantName: tenant.name,
+      whatsapp: tenant.whatsapp || "",
+      userName: user?.name || "",
+      userEmail: user?.email || "",
+      userPassword: "",
+    });
+    setShowEditPwd(false);
+    setEditingTenant(tenant);
+  }
+
+  async function handleSaveEdit(e: FormEvent) {
+    e.preventDefault();
+    if (!editingTenant) return;
+    setEditSaving(true);
+    try {
+      // 1. Update tenant (name + whatsapp)
+      const tRes = await fetch(`/api/super-admin/tenants/${editingTenant.id}`, {
+        method: "PATCH", headers: apiHeaders(),
+        body: JSON.stringify({ name: editForm.tenantName, whatsapp: editForm.whatsapp }),
+      });
+      const tData = (await tRes.json()) as ManagedTenant & { error?: string };
+      if (!tRes.ok) { showToast("error", tData.error || "Erro ao salvar loja."); return; }
+
+      // 2. Update user (name, email, password) if user exists
+      const user = editingTenant.users?.[0];
+      if (user) {
+        const uBody: Record<string, string> = { name: editForm.userName, email: editForm.userEmail };
+        if (editForm.userPassword.trim()) uBody.password = editForm.userPassword;
+        const uRes = await fetch(`/api/super-admin/tenants/${editingTenant.id}/users/${user.id}`, {
+          method: "PATCH", headers: apiHeaders(),
+          body: JSON.stringify(uBody),
+        });
+        const uData = (await uRes.json()) as { error?: string };
+        if (!uRes.ok) { showToast("error", uData.error || "Erro ao salvar usuário."); return; }
+        // Patch user in tenant data
+        tData.users = [{ ...user, name: editForm.userName, email: editForm.userEmail }];
+      }
+
+      setTenants((c) => c.map((t) => (t.id === editingTenant.id ? { ...t, ...tData } : t)));
+      showToast("success", "Cliente atualizado com sucesso!");
+      setEditingTenant(null);
+    } catch { showToast("error", "Erro ao salvar alterações."); }
+    finally { setEditSaving(false); }
   }
 
   async function copyText(value: string, msg: string) {
@@ -495,6 +553,10 @@ export default function SuperAdminDashboard() {
                               className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50">
                               <Copy size={13} />
                             </button>
+                            <button onClick={() => openEdit(tenant)}
+                              className="flex h-8 w-8 items-center justify-center rounded-lg border border-[#C9A227]/40 bg-[#C9A227]/10 text-[#C9A227] hover:bg-[#C9A227]/20">
+                              <Pencil size={13} />
+                            </button>
                           </div>
                         </div>
                         <div className="grid grid-cols-3 gap-2 mb-4 text-center">
@@ -572,6 +634,86 @@ export default function SuperAdminDashboard() {
           </AnimatePresence>
         </main>
       </div>
+
+      {/* ── Edit tenant modal ── */}
+      <AnimatePresence>
+        {editingTenant && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setEditingTenant(null)} />
+
+            <motion.div initial={{ opacity: 0, scale: 0.95, y: 16 }} animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 16 }} transition={{ type: "spring", damping: 26, stiffness: 340 }}
+              className="relative w-full max-w-md bg-white rounded-2xl shadow-2xl overflow-hidden">
+
+              {/* header */}
+              <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-xl bg-[#C9A227]/10 flex items-center justify-center font-black text-[#C9A227]">
+                    {editingTenant.name.charAt(0).toUpperCase()}
+                  </div>
+                  <div>
+                    <h2 className="text-sm font-black text-slate-900">Editar Cliente</h2>
+                    <p className="text-[11px] text-slate-400">{editingTenant.name}</p>
+                  </div>
+                </div>
+                <button onClick={() => setEditingTenant(null)} className="w-8 h-8 rounded-lg hover:bg-slate-100 flex items-center justify-center">
+                  <X size={14} className="text-slate-500" />
+                </button>
+              </div>
+
+              <form onSubmit={(e) => void handleSaveEdit(e)}>
+                <div className="px-6 py-5 space-y-4 max-h-[65vh] overflow-y-auto">
+
+                  {/* Loja */}
+                  <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[#C9A227]">Dados da Loja</p>
+                  <InputField label="Nome da Loja" value={editForm.tenantName} onChange={v => setEditForm(f => ({ ...f, tenantName: v }))} placeholder="Nome da loja" />
+                  <InputField label="WhatsApp" value={editForm.whatsapp} onChange={v => setEditForm(f => ({ ...f, whatsapp: maskPhone(v) }))} placeholder="(11) 99999-9999" icon={<Phone size={14} />} />
+
+                  {/* Usuário admin */}
+                  {editingTenant.users?.[0] && (<>
+                    <div className="border-t border-slate-100 pt-4">
+                      <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[#C9A227] mb-4">Usuário Admin</p>
+                    </div>
+                    <InputField label="Nome" value={editForm.userName} onChange={v => setEditForm(f => ({ ...f, userName: v }))} placeholder="Nome completo" />
+                    <InputField label="E-mail" type="email" value={editForm.userEmail} onChange={v => setEditForm(f => ({ ...f, userEmail: v }))} placeholder="email@exemplo.com" icon={<Mail size={14} />} />
+
+                    {/* Password with toggle */}
+                    <div className="space-y-1.5">
+                      <label className="block text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500">Nova Senha <span className="normal-case text-slate-400 font-normal">(deixe em branco para não alterar)</span></label>
+                      <div className="flex h-11 items-center gap-3 rounded-xl border border-slate-200 bg-white px-3.5 transition-all focus-within:border-[#C9A227] focus-within:shadow-[0_0_0_3px_rgba(201,162,39,0.12)]">
+                        <input
+                          type={showEditPwd ? "text" : "password"}
+                          value={editForm.userPassword}
+                          onChange={e => setEditForm(f => ({ ...f, userPassword: e.target.value }))}
+                          placeholder="Mínimo 6 caracteres"
+                          className="h-full w-full bg-transparent text-sm font-medium text-slate-900 placeholder-slate-400 outline-none"
+                        />
+                        <button type="button" onClick={() => setShowEditPwd(v => !v)} className="shrink-0 text-slate-400 hover:text-slate-600">
+                          {showEditPwd ? <EyeOff size={14} /> : <Eye size={14} />}
+                        </button>
+                      </div>
+                    </div>
+                  </>)}
+                </div>
+
+                {/* footer */}
+                <div className="px-6 py-4 border-t border-slate-100 flex items-center justify-end gap-3">
+                  <button type="button" onClick={() => setEditingTenant(null)}
+                    className="px-4 h-10 rounded-xl border border-slate-200 text-xs font-bold text-slate-600 hover:bg-slate-50">
+                    Cancelar
+                  </button>
+                  <button type="submit" disabled={editSaving}
+                    className="px-5 h-10 rounded-xl bg-[#C9A227] text-[11px] font-bold uppercase tracking-wider text-white hover:bg-[#b8911f] disabled:opacity-60 flex items-center gap-2">
+                    {editSaving && <span className="w-3.5 h-3.5 border-2 border-white/40 border-t-white rounded-full animate-spin" />}
+                    Salvar alterações
+                  </button>
+                </div>
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
