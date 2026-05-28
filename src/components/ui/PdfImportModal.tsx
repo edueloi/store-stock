@@ -29,6 +29,15 @@ interface PdfImportModalProps {
   onImported: () => void;
 }
 
+// ── polyfill Promise.try for Safari < 17.4 ────────────────────────────────
+if (typeof (Promise as unknown as { try?: unknown }).try !== "function") {
+  (Promise as unknown as { try: <T>(fn: () => T) => Promise<T> }).try = function <T>(fn: () => T): Promise<T> {
+    return new Promise<T>((resolve, reject) => {
+      try { resolve(fn()); } catch (e) { reject(e); }
+    });
+  };
+}
+
 // ── PDF text extraction ─────────────────────────────────────────────────────
 async function extractTextFromPdf(file: File): Promise<string> {
   const pdfjsLib = await import("pdfjs-dist");
