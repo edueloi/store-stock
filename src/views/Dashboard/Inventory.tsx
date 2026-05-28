@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from "react";
 import {
   Plus, Edit2, Trash2, Image as ImageIcon, Save, X, Package,
   TrendingUp, Upload, LayoutGrid, List, Tag, Search, AlertTriangle,
-  Star, ChevronLeft, ChevronRight, GripVertical, Zap, ArrowUpDown,
+  Star, ChevronLeft, ChevronRight, GripVertical, Zap, ArrowUpDown, FileUp,
   History, ArrowRight, Loader2,
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
@@ -16,6 +16,7 @@ import StatsGrid from "../../components/ui/StatsGrid";
 import { Switch } from "../../components/ui/Switch";
 import ConfirmDialog from "../../components/ui/ConfirmDialog";
 import { DropdownMenu } from "../../components/ui/Dropdown";
+import PdfImportModal from "../../components/ui/PdfImportModal";
 
 // ── helpers ────────────────────────────────────────────────────────────────
 function toSlug(name: string) {
@@ -294,6 +295,8 @@ export default function Inventory() {
   const [newAttrValue, setNewAttrValue] = useState("");
   const [showPresets, setShowPresets] = useState(false);
 
+  const [isPdfModalOpen, setIsPdfModalOpen] = useState(false);
+
   // Product history panel
   interface HistoryEntry { id: number; field: string; old_value: string | null; new_value: string | null; created_at: string; }
   const [historyProduct, setHistoryProduct] = useState<Product | null>(null);
@@ -536,6 +539,9 @@ export default function Inventory() {
               onClick={() => setViewMode(v => v === "table" ? "grid" : "table")}
             >
               {viewMode === "table" ? "Grade" : "Tabela"}
+            </Button>
+            <Button variant="secondary" icon={<FileUp size={14} />} onClick={() => setIsPdfModalOpen(true)}>
+              Importar PDF
             </Button>
             <Button icon={<Plus size={14} />} onClick={openNew}>
               Novo Produto
@@ -1159,6 +1165,12 @@ export default function Inventory() {
           </>
         )}
       </AnimatePresence>
+
+      <PdfImportModal
+        open={isPdfModalOpen}
+        onClose={() => setIsPdfModalOpen(false)}
+        onImported={() => { fetchInventory(); }}
+      />
     </div>
   );
 }
