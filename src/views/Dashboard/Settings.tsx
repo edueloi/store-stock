@@ -737,41 +737,117 @@ export default function Settings() {
                   <p className="text-xs text-slate-500">
                     Selecione um modelo visual para definir o estilo da vitrine, das cores e da sensação da sua loja.
                   </p>
-                  <div className="flex gap-3 overflow-x-auto no-scrollbar pb-2 sm:grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-7 sm:overflow-visible sm:pb-0">
-                    {[
-                      { id: "minimal", name: "Minimalista", desc: "Visual limpo para destacar seus produtos e imagens.", color: "#2563eb", bg: "#f8fafc" },
-                      { id: "cyber",   name: "Neon Escuro", desc: "Estilo marcante com alto contraste, ideal para tecnologia e games.", color: "#00ff7f", bg: "#000" },
-                      { id: "organic", name: "Orgânico",    desc: "Cores suaves e acolhedoras para marcas naturais, leves e artesanais.", color: "#d97706", bg: "#fefaf6" },
-                      { id: "luxury",  name: "Luxo Dourado", desc: "Aparência sofisticada para catálogos premium e produtos exclusivos.", color: "#c5a059", bg: "#0a0a0a" },
-                      { id: "tech",    name: "Tecnologia Pro", desc: "Layout moderno e profissional para eletrônicos, inovação e desempenho.", color: "#0ea5e9", bg: "#f4f6fb" },
-                      { id: "nexus_tech", name: "Nexus Tech", desc: "Tema claro, vibrante e premium para eletrônicos, informática, games e casa inteligente.", color: "#2563eb", bg: "#eef4ff" },
-                      { id: "atelier", name: "Ateliê Chic", desc: "Editorial claro e elegante para lojas de roupas, moda e acessórios.", color: "#a26157", bg: "#fff6ef" },
-                    ].map((t) => (
-                      <button
-                        key={t.id}
-                        onClick={() => setT({ template_id: t.id })}
-                        className={cn(
-                          "min-w-[240px] sm:min-w-0 p-4 sm:p-4 rounded-2xl border-2 text-left transition-all relative overflow-hidden group shrink-0",
-                          tenant?.template_id === t.id
-                            ? "border-blue-600 bg-blue-50/40 shadow-lg shadow-blue-500/8"
-                            : "border-slate-100 hover:border-slate-200 bg-white hover:shadow-md",
-                        )}
-                      >
-                        {tenant?.template_id === t.id && (
-                          <div className="absolute top-2 right-2 text-blue-600">
-                            <Check size={14} strokeWidth={3} />
-                          </div>
-                        )}
-                        <div
-                          className="w-full h-9 rounded-xl mb-3 flex items-center justify-center"
-                          style={{ backgroundColor: t.bg, border: `1px solid ${t.color}30` }}
+                  <div className="flex gap-3 overflow-x-auto no-scrollbar pb-2 sm:grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 sm:overflow-visible sm:pb-0">
+                    {([
+                      {
+                        id: "minimal", name: "Minimalista", tag: "Clean & Moderno",
+                        desc: "Visual limpo para destacar seus produtos e imagens.",
+                        color: "#2563eb", bg: "#f8fafc", cardBg: "#fff", textColor: "#1e293b",
+                        badge: { bg: "#eff6ff", text: "#2563eb" },
+                      },
+                      {
+                        id: "cyber", name: "Neon Escuro", tag: "Bold & Contrastante",
+                        desc: "Estilo marcante com alto contraste, ideal para tecnologia e games.",
+                        color: "#00ff7f", bg: "#000", cardBg: "#0d1117", textColor: "#e2e8f0",
+                        badge: { bg: "#00ff7f22", text: "#00ff7f" },
+                      },
+                      {
+                        id: "organic", name: "Orgânico", tag: "Natural & Artesanal",
+                        desc: "Cores suaves e acolhedoras para marcas naturais, leves e artesanais.",
+                        color: "#d97706", bg: "#fefaf6", cardBg: "#fff8f0", textColor: "#78350f",
+                        badge: { bg: "#fef3c7", text: "#b45309" },
+                      },
+                      {
+                        id: "luxury", name: "Luxo Dourado", tag: "Premium & Exclusivo",
+                        desc: "Aparência sofisticada para catálogos premium e produtos exclusivos.",
+                        color: "#c5a059", bg: "#0a0a0a", cardBg: "#111", textColor: "#e5c98a",
+                        badge: { bg: "#c5a05922", text: "#c5a059" },
+                      },
+                      {
+                        id: "tech", name: "Tecnologia Pro", tag: "Profissional & Leve",
+                        desc: "Layout moderno e profissional para eletrônicos, inovação e desempenho.",
+                        color: "#0ea5e9", bg: "#f4f6fb", cardBg: "#fff", textColor: "#0f172a",
+                        badge: { bg: "#e0f2fe", text: "#0284c7" },
+                      },
+                      {
+                        id: "nexus_tech", name: "Nexus Tech", tag: "Vibrante & Premium",
+                        desc: "Tema claro e sofisticado com tipografia forte para qualquer nicho.",
+                        color: "#2563eb", bg: "#eef4ff", cardBg: "#fff", textColor: "#071426",
+                        badge: { bg: "#dbeafe", text: "#1d4ed8" },
+                      },
+                      {
+                        id: "atelier", name: "Ateliê Chic", tag: "Editorial & Elegante",
+                        desc: "Editorial claro e elegante para lojas de roupas, moda e acessórios.",
+                        color: "#a26157", bg: "#fff6ef", cardBg: "#fff", textColor: "#44201a",
+                        badge: { bg: "#fde8e0", text: "#9f4132" },
+                      },
+                    ] as const).map((t) => {
+                      const isActive = tenant?.template_id === t.id;
+                      return (
+                        <button
+                          key={t.id}
+                          onClick={() => setT({ template_id: t.id })}
+                          className={cn(
+                            "min-w-[200px] sm:min-w-0 rounded-2xl border-2 text-left transition-all relative overflow-hidden group shrink-0 flex flex-col",
+                            isActive
+                              ? "border-blue-600 shadow-lg shadow-blue-500/10 ring-2 ring-blue-200"
+                              : "border-slate-100 hover:border-slate-300 hover:shadow-lg bg-white",
+                          )}
                         >
-                          <div className="w-3 h-3 rounded-full" style={{ backgroundColor: t.color, boxShadow: `0 0 8px ${t.color}` }} />
-                        </div>
-                        <p className="text-[11px] font-black uppercase tracking-wider text-slate-800 group-hover:text-blue-600 transition-colors">{t.name}</p>
-                        <p className="text-[10px] text-slate-500 mt-1 font-medium leading-relaxed">{t.desc}</p>
-                      </button>
-                    ))}
+                          {/* Mini storefront preview */}
+                          <div className="relative w-full h-28 overflow-hidden rounded-t-[14px] flex flex-col" style={{ backgroundColor: t.bg }}>
+                            {/* Fake nav bar */}
+                            <div className="flex items-center justify-between px-3 py-2" style={{ backgroundColor: t.bg }}>
+                              <div className="w-8 h-1.5 rounded-full opacity-60" style={{ backgroundColor: t.color }} />
+                              <div className="flex gap-1">
+                                <div className="w-4 h-1 rounded-full opacity-30" style={{ backgroundColor: t.textColor }} />
+                                <div className="w-4 h-1 rounded-full opacity-30" style={{ backgroundColor: t.textColor }} />
+                                <div className="w-4 h-1 rounded-full opacity-30" style={{ backgroundColor: t.textColor }} />
+                              </div>
+                            </div>
+                            {/* Fake hero */}
+                            <div className="flex-1 flex items-center px-3 gap-2">
+                              <div className="flex flex-col gap-1 flex-1">
+                                <div className="h-1.5 w-14 rounded-full" style={{ backgroundColor: t.color, opacity: 0.9 }} />
+                                <div className="h-2.5 w-20 rounded-sm" style={{ backgroundColor: t.textColor, opacity: 0.85 }} />
+                                <div className="h-1 w-16 rounded-full mt-0.5" style={{ backgroundColor: t.textColor, opacity: 0.25 }} />
+                                <div className="h-1 w-12 rounded-full" style={{ backgroundColor: t.textColor, opacity: 0.18 }} />
+                                <div className="mt-1.5 h-4 w-14 rounded-lg flex items-center justify-center" style={{ backgroundColor: t.color }}>
+                                  <div className="w-8 h-0.5 rounded-full bg-white/80" />
+                                </div>
+                              </div>
+                              {/* Fake product card */}
+                              <div className="w-14 h-16 rounded-xl overflow-hidden border shrink-0 flex flex-col" style={{ backgroundColor: t.cardBg, borderColor: t.color + "30" }}>
+                                <div className="flex-1" style={{ backgroundColor: t.color + "18" }} />
+                                <div className="px-1.5 py-1 space-y-0.5">
+                                  <div className="h-1 rounded-full w-full" style={{ backgroundColor: t.textColor, opacity: 0.35 }} />
+                                  <div className="h-1.5 rounded-full w-8" style={{ backgroundColor: t.color, opacity: 0.8 }} />
+                                </div>
+                              </div>
+                            </div>
+                            {/* Active glow */}
+                            {isActive && (
+                              <div className="absolute inset-0 ring-2 ring-inset ring-blue-400/40 rounded-t-[14px] pointer-events-none" />
+                            )}
+                          </div>
+
+                          {/* Card footer */}
+                          <div className="p-3 flex flex-col gap-1 bg-white flex-1">
+                            <div className="flex items-center justify-between">
+                              <p className="text-[11px] font-black uppercase tracking-wider text-slate-800 group-hover:text-blue-600 transition-colors leading-none">{t.name}</p>
+                              {isActive && <Check size={12} strokeWidth={3} className="text-blue-600 shrink-0" />}
+                            </div>
+                            <span
+                              className="inline-block self-start text-[8px] font-bold uppercase tracking-widest px-1.5 py-0.5 rounded-full"
+                              style={{ backgroundColor: t.badge.bg, color: t.badge.text }}
+                            >
+                              {t.tag}
+                            </span>
+                            <p className="text-[10px] text-slate-400 leading-relaxed mt-0.5">{t.desc}</p>
+                          </div>
+                        </button>
+                      );
+                    })}
                   </div>
                 </div>
 
