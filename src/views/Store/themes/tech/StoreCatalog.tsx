@@ -23,7 +23,7 @@ const gridOverlay = {
 export default function StoreCatalog() {
   const { slug: routeSlug } = useParams();
   const [searchParams, setSearchParams] = useSearchParams();
-  const { categories, products, addToCart, style, tenant } = useStore();
+  const { categories, products, addToCart, style, tenant, wishlist, toggleWishlist } = useStore();
   const slug = resolveStoreSlug(routeSlug);
 
   const [searchTerm, setSearchTerm] = useState(searchParams.get("q") || "");
@@ -33,7 +33,6 @@ export default function StoreCatalog() {
   const [sortBy, setSortBy] = useState<SortKey>("default");
   const [viewMode, setViewMode] = useState<ViewMode>("grid");
   const [showSortMenu, setShowSortMenu] = useState(false);
-  const [wishlist, setWishlist] = useState<number[]>([]);
   const sortRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -69,9 +68,6 @@ export default function StoreCatalog() {
       if (sortBy === "name") return a.name.localeCompare(b.name);
       return (b.is_featured ? 1 : 0) - (a.is_featured ? 1 : 0);
     });
-
-  const toggleWishlist = (id: number) =>
-    setWishlist(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
 
   const sortLabels: Record<SortKey, string> = {
     default: "Relevância",

@@ -76,6 +76,8 @@ interface StoreContextValue {
   style: StoreStyle;
   openCart: () => void;
   isElectronics: boolean;
+  wishlist: number[];
+  toggleWishlist: (id: number) => void;
 }
 
 export interface StoreStyle {
@@ -116,6 +118,9 @@ function StoreLayoutInner() {
   const [loading, setLoading] = useState(true);
   const [accessDenied, setAccessDenied] = useState<string | null>(null);
   const [cart, setCart] = useState<CartItem[]>([]);
+  const [wishlist, setWishlist] = useState<number[]>(() => {
+    try { return JSON.parse(localStorage.getItem("store_wishlist") || "[]"); } catch { return []; }
+  });
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
@@ -166,6 +171,14 @@ function StoreLayoutInner() {
 
   const removeFromCart = (cartItemId: string) => {
     setCart(prev => prev.filter(i => i.cartItemId !== cartItemId));
+  };
+
+  const toggleWishlist = (id: number) => {
+    setWishlist(prev => {
+      const next = prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id];
+      localStorage.setItem("store_wishlist", JSON.stringify(next));
+      return next;
+    });
   };
 
   const total = cart.reduce((acc, i) => acc + Number(i.price) * i.quantity, 0);
@@ -243,7 +256,7 @@ function StoreLayoutInner() {
     }
   };
 
-  const ctx: StoreContextValue = { tenant: storeData.tenant, categories: storeData.categories, products: storeData.products, cart, addToCart, updateQuantity, removeFromCart, style, openCart: () => setIsCartOpen(true), isElectronics };
+  const ctx: StoreContextValue = { tenant: storeData.tenant, categories: storeData.categories, products: storeData.products, cart, addToCart, updateQuantity, removeFromCart, style, openCart: () => setIsCartOpen(true), isElectronics, wishlist, toggleWishlist };
 
   return (
     <StoreContext.Provider value={ctx}>
