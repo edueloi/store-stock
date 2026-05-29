@@ -140,6 +140,15 @@ export default function AdminDashboard() {
     const token = localStorage.getItem("token");
     if (!token) { navigate("/login"); return; }
 
+    // PDV-only users must not access the admin panel
+    try {
+      const stored = localStorage.getItem("user");
+      if (stored) {
+        const u = JSON.parse(stored);
+        if (u?.role === "pdv") { navigate("/pdv", { replace: true }); return; }
+      }
+    } catch { /* ignore */ }
+
     // Fetch tenant info to get the real slug
     fetch("/api/tenant", {
       headers: { Authorization: `Bearer ${token}` },

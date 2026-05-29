@@ -3,7 +3,7 @@ import {
   Store, Palette, Share2, Clock, CreditCard, Shield, Settings2,
   Users, Save, Loader2, Search, Check, ChevronRight, Globe,
   Bell, Sun, Moon, Package, AlertTriangle, Lock, Image, Upload, X, FileCheck,
-  Smartphone, Zap,
+  Smartphone, Zap, UserPlus, Trash2, Edit2, Eye, EyeOff, ShoppingCart, User,
 } from "lucide-react";
 import PageHeader from "../../components/layout/PageHeader";
 import { cn } from "../../lib/utils";
@@ -163,6 +163,310 @@ const NAV = [
     ],
   },
 ];
+
+// ─── TeamSection ─────────────────────────────────────────────────────────────
+
+type TeamMember = { id: number; name: string; email: string; role: string; created_at: string };
+type MemberForm = { name: string; email: string; password: string; role: string; showPass: boolean };
+
+const ROLE_META: Record<string, { label: string; color: string; bg: string; icon: React.ReactNode; desc: string }> = {
+  admin: { label: "Admin",       color: "#2563eb", bg: "#eff6ff", icon: <Shield size={12} />,      desc: "Acesso total ao painel" },
+  staff: { label: "Atendente",   color: "#059669", bg: "#ecfdf5", icon: <User size={12} />,         desc: "Pedidos, clientes, catálogo, estoque e categorias" },
+  pdv:   { label: "Operador PDV",color: "#d97706", bg: "#fffbeb", icon: <ShoppingCart size={12} />, desc: "Acesso somente ao PDV" },
+};
+
+function TeamSection() {
+  const toast = useToast();
+  const [members, setMembers]     = useState<TeamMember[]>([]);
+  const [loading, setLoading]     = useState(true);
+  const [showForm, setShowForm]   = useState(false);
+  const [saving, setSaving]       = useState(false);
+  const [editId, setEditId]       = useState<number | null>(null);
+  const [deletingId, setDeletingId] = useState<number | null>(null);
+  const [form, setForm]           = useState<MemberForm>({ name: "", email: "", password: "", role: "staff", showPass: false });
+
+  const token = localStorage.getItem("token");
+  const headers = { "Content-Type": "application/json", Authorization: `Bearer ${token}` };
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await fetch("/api/team", { headers: { Authorization: `Bearer ${token}` } });
+      if (res.ok) setMembers(await res.json());
+    } finally { setLoading(false); }
+  }, [token]);
+
+  useEffect(() => { load(); }, [load]);
+
+  const openCreate = () => {
+    setEditId(null);
+    setForm({ name: "", email: "", password: "", role: "staff", showPass: false });
+    setShowForm(true);
+  };
+
+  const openEdit = (m: TeamMember) => {
+    setEditId(m.id);
+    setForm({ name: m.name, email: m.email, password: "", role: m.role, showPass: false });
+    setShowForm(true);
+  };
+
+  const handleSave = async () => {
+    if (!form.name.trim() || !form.email.trim()) { toast.error("Nome e e-mail são obrigatórios."); return; }
+    if (!editId && !form.password) { toast.error("Senha é obrigatória para novo membro."); return; }
+
+    setSaving(true);
+    try {
+      const body: Record<string, string> = { name: form.name, email: form.email, role: form.role };
+      if (form.password) body.password = form.password;
+
+      const res = await fetch(editId ? `/api/team/${editId}` : "/api/team", {
+        method: editId ? "PATCH" : "POST",
+        headers,
+        body: JSON.stringify(body),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        toast.success(editId ? "Membro atualizado!" : "Membro criado com sucesso!");
+        setShowForm(false);
+        load();
+      } else {
+        toast.error(data.error || "Erro ao salvar.");
+      }
+    } finally { setSaving(false); }
+  };
+
+  const handleDelete = async (id: number) => {
+    setDeletingId(id);
+    try {
+      const res = await fetch(`/api/team/${id}`, { method: "DELETE", headers });
+      if (res.ok) {
+        toast.success("Membro removido.");
+        setMembers(ms => ms.filter(m => m.id !== id));
+      } else {
+        const data = await res.json();
+        toast.error(data.error || "Erro ao remover.");
+      }
+    } finally { setDeletingId(null); }
+  };
+
+  return (
+    <div className="space-y-6">
+      <SectionHeader title="Time & Acessos" subtitle="Gerencie quem tem acesso ao painel e ao PDV" />
+
+      {/* Role legend */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        {Object.entries(ROLE_META).map(([key, meta]) => (
+          <div key={key} className="flex items-start gap-3 p-4 rounded-2xl border border-slate-100 bg-white">
+            <div className="w-8 h-8 rounded-xl flex items-center justify-center shrink-0" style={{ backgroundColor: meta.bg, color: meta.color }}>
+              {meta.icon}
+            </div>
+            <div>
+              <p className="text-[11px] font-black uppercase tracking-wider" style={{ color: meta.color }}>{meta.label}</p>
+              <p className="text-[10px] text-slate-400 mt-0.5 font-medium leading-relaxed">{meta.desc}</p>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Members list */}
+      <div className="bg-white rounded-2xl border border-slate-100 overflow-hidden">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100">
+          <div className="flex items-center gap-2">
+            <Users size={15} className="text-slate-400" />
+            <p className="text-[11px] font-black uppercase tracking-widest text-slate-700">Membros</p>
+            <span className="bg-slate-100 text-slate-500 text-[9px] font-black px-2 py-0.5 rounded-full">{members.length}</span>
+          </div>
+          <button
+            onClick={openCreate}
+            className="flex items-center gap-2 h-8 px-4 bg-blue-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-blue-700 transition-all active:scale-95 shadow-sm shadow-blue-500/25"
+          >
+            <UserPlus size={12} /> Adicionar
+          </button>
+        </div>
+
+        {loading ? (
+          <div className="flex items-center justify-center py-12">
+            <Loader2 size={20} className="animate-spin text-slate-300" />
+          </div>
+        ) : members.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-12 gap-2 text-slate-300">
+            <Users size={32} strokeWidth={1} />
+            <p className="text-[10px] font-black uppercase tracking-wider">Nenhum membro cadastrado</p>
+          </div>
+        ) : (
+          <div className="divide-y divide-slate-50">
+            {members.map(m => {
+              const meta = ROLE_META[m.role] ?? ROLE_META.staff;
+              return (
+                <div key={m.id} className="flex items-center gap-4 px-5 py-3.5 hover:bg-slate-50/60 transition-colors">
+                  <div
+                    className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0 text-sm font-black"
+                    style={{ backgroundColor: meta.bg, color: meta.color }}
+                  >
+                    {m.name.charAt(0).toUpperCase()}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-[12px] font-bold text-slate-800 leading-tight truncate">{m.name}</p>
+                    <p className="text-[10px] text-slate-400 font-medium truncate">{m.email}</p>
+                  </div>
+                  <span
+                    className="shrink-0 inline-flex items-center gap-1.5 text-[9px] font-black uppercase tracking-wider px-2.5 py-1 rounded-full"
+                    style={{ backgroundColor: meta.bg, color: meta.color }}
+                  >
+                    {meta.icon} {meta.label}
+                  </span>
+                  <div className="flex items-center gap-1 shrink-0">
+                    <button
+                      onClick={() => openEdit(m)}
+                      className="p-1.5 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-all"
+                    >
+                      <Edit2 size={13} />
+                    </button>
+                    <button
+                      onClick={() => handleDelete(m.id)}
+                      disabled={deletingId === m.id}
+                      className="p-1.5 rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 transition-all disabled:opacity-40"
+                    >
+                      {deletingId === m.id ? <Loader2 size={13} className="animate-spin" /> : <Trash2 size={13} />}
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      {/* PDV info banner */}
+      <div className="flex items-start gap-3 p-4 rounded-2xl border border-amber-200 bg-amber-50">
+        <ShoppingCart size={16} className="text-amber-600 mt-0.5 shrink-0" />
+        <div>
+          <p className="text-[11px] font-black text-amber-700 uppercase tracking-wider">Operadores PDV</p>
+          <p className="text-[10px] text-amber-600 font-medium leading-relaxed mt-0.5">
+            Usuários com perfil <strong>Operador PDV</strong> são direcionados automaticamente para o terminal de vendas ao fazer login.
+            Eles não têm acesso ao painel administrativo.
+          </p>
+        </div>
+      </div>
+
+      {/* Modal form */}
+      {showForm && (
+        <div className="fixed inset-0 z-[300] flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm">
+          <div className="bg-white w-full max-w-md rounded-2xl shadow-2xl border border-slate-100 overflow-hidden">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
+              <div>
+                <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+                  {editId ? "Editar membro" : "Novo membro"}
+                </p>
+                <h3 className="text-sm font-black text-slate-800 mt-0.5">
+                  {editId ? "Atualizar dados de acesso" : "Adicionar ao time"}
+                </h3>
+              </div>
+              <button onClick={() => setShowForm(false)} className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-xl transition-all">
+                <X size={16} />
+              </button>
+            </div>
+
+            <div className="p-6 space-y-4">
+              {/* Name */}
+              <div>
+                <label className="text-[10px] font-black uppercase tracking-widest text-slate-500 block mb-1.5">Nome</label>
+                <input
+                  type="text"
+                  value={form.name}
+                  onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
+                  placeholder="Nome completo"
+                  className="w-full h-10 px-3 border border-slate-200 rounded-xl text-sm font-medium text-slate-800 placeholder:text-slate-300 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition-all"
+                />
+              </div>
+
+              {/* Email */}
+              <div>
+                <label className="text-[10px] font-black uppercase tracking-widest text-slate-500 block mb-1.5">E-mail</label>
+                <input
+                  type="email"
+                  value={form.email}
+                  onChange={e => setForm(f => ({ ...f, email: e.target.value }))}
+                  placeholder="email@exemplo.com"
+                  className="w-full h-10 px-3 border border-slate-200 rounded-xl text-sm font-medium text-slate-800 placeholder:text-slate-300 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition-all"
+                />
+              </div>
+
+              {/* Password */}
+              <div>
+                <label className="text-[10px] font-black uppercase tracking-widest text-slate-500 block mb-1.5">
+                  Senha {editId && <span className="normal-case font-medium text-slate-400">(deixe em branco para manter)</span>}
+                </label>
+                <div className="relative">
+                  <input
+                    type={form.showPass ? "text" : "password"}
+                    value={form.password}
+                    onChange={e => setForm(f => ({ ...f, password: e.target.value }))}
+                    placeholder={editId ? "Nova senha (opcional)" : "Senha de acesso"}
+                    className="w-full h-10 px-3 pr-10 border border-slate-200 rounded-xl text-sm font-medium text-slate-800 placeholder:text-slate-300 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition-all"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setForm(f => ({ ...f, showPass: !f.showPass }))}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700"
+                  >
+                    {form.showPass ? <EyeOff size={14} /> : <Eye size={14} />}
+                  </button>
+                </div>
+              </div>
+
+              {/* Role */}
+              <div>
+                <label className="text-[10px] font-black uppercase tracking-widest text-slate-500 block mb-2">Perfil de acesso</label>
+                <div className="grid grid-cols-3 gap-2">
+                  {Object.entries(ROLE_META).map(([key, meta]) => (
+                    <button
+                      key={key}
+                      type="button"
+                      onClick={() => setForm(f => ({ ...f, role: key }))}
+                      className={cn(
+                        "flex flex-col items-center gap-1.5 p-3 rounded-xl border-2 transition-all text-center",
+                        form.role === key
+                          ? "border-current shadow-sm"
+                          : "border-slate-100 hover:border-slate-200 bg-white"
+                      )}
+                      style={form.role === key ? { borderColor: meta.color, backgroundColor: meta.bg } : {}}
+                    >
+                      <div className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ backgroundColor: meta.bg, color: meta.color }}>
+                        {meta.icon}
+                      </div>
+                      <p className="text-[9px] font-black uppercase tracking-wider leading-tight" style={{ color: form.role === key ? meta.color : undefined }}>
+                        {meta.label}
+                      </p>
+                    </button>
+                  ))}
+                </div>
+                <p className="text-[10px] text-slate-400 mt-2 font-medium">{ROLE_META[form.role]?.desc}</p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-3 px-6 pb-6">
+              <button
+                onClick={() => setShowForm(false)}
+                className="flex-1 h-10 border border-slate-200 rounded-xl text-[11px] font-black uppercase tracking-wider text-slate-500 hover:bg-slate-50 transition-all"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleSave}
+                disabled={saving}
+                className="flex-1 h-10 bg-blue-600 text-white rounded-xl text-[11px] font-black uppercase tracking-wider hover:bg-blue-700 transition-all active:scale-95 disabled:opacity-50 flex items-center justify-center gap-2"
+              >
+                {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
+                {editId ? "Salvar" : "Criar"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
 
 // ─── main component ──────────────────────────────────────────────────────────
 
@@ -1597,30 +1901,7 @@ export default function Settings() {
             )}
 
             {/* ── Time & Acessos ──────────────────────────────────────── */}
-            {active === "users" && (
-              <div className="space-y-6">
-                <SectionHeader
-                  title="Time & Acessos"
-                  subtitle="Gestão de usuários e permissões"
-                />
-                <div className="flex flex-col items-center justify-center py-16 gap-5">
-                  <div className="w-16 h-16 bg-slate-100 rounded-2xl flex items-center justify-center">
-                    <Users size={28} strokeWidth={1.5} className="text-slate-300" />
-                  </div>
-                  <div className="text-center max-w-xs space-y-2">
-                    <h4 className="text-xs font-black uppercase tracking-widest text-slate-500">
-                      Módulo Multi-Usuário
-                    </h4>
-                    <p className="text-[10px] text-slate-400 font-medium leading-relaxed">
-                      Gestão avançada de permissões granulares, convite de colaboradores e logs de auditoria estão disponíveis no plano SaaS Premium.
-                    </p>
-                  </div>
-                  <button className="bg-slate-900 text-white px-8 h-10 rounded-xl text-[9px] font-black uppercase tracking-widest shadow-lg hover:bg-slate-800 transition-all active:scale-95">
-                    Explorar Upgrades
-                  </button>
-                </div>
-              </div>
-            )}
+            {active === "users" && <TeamSection />}
           </div>
         </div>
       </div>

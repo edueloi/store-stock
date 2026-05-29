@@ -82,6 +82,11 @@ function PDVLogin({ onLogin }: { onLogin: (token: string) => void }) {
       if (res.ok) {
         localStorage.setItem("token", data.token);
         localStorage.setItem("user", JSON.stringify(data.user));
+        // Non-PDV users who log in via /pdv get redirected to the admin panel
+        if (data.user?.role && data.user.role !== "pdv") {
+          window.location.href = data.user.role === "super_admin" ? "/super-admin" : "/admin";
+          return;
+        }
         onLogin(data.token);
       } else {
         setError(data.error || "Credenciais inválidas.");

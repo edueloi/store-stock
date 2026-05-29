@@ -22,6 +22,10 @@ function HostAwareEntry() {
     return <Navigate to="/super-admin" replace />;
   }
 
+  if (user?.role === "pdv") {
+    return <Navigate to="/pdv" replace />;
+  }
+
   if (user?.role) {
     return <Navigate to="/admin" replace />;
   }
