@@ -3,8 +3,9 @@ import { useNavigate } from "react-router-dom";
 import {
   CalendarClock, CreditCard, LogOut, RefreshCcw, ShieldCheck,
   Store, UserPlus2, Copy, Users, Link2, CheckCircle2, AlertCircle,
-  X, LayoutDashboard, Settings, Bell, ChevronRight, Phone, Mail,
-  ExternalLink, TrendingUp, Clock, BadgeCheck, Pencil, Eye, EyeOff,
+  X, LayoutDashboard, Settings, ChevronRight, Phone, Mail,
+  ExternalLink, Clock, BadgeCheck, Pencil, Eye, EyeOff, PlusCircle,
+  CalendarCheck, Activity, Timer,
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 
@@ -209,6 +210,32 @@ export default function SuperAdminDashboard() {
   async function copyText(value: string, msg: string) {
     try { await navigator.clipboard.writeText(value); showToast("success", msg); }
     catch { showToast("error", "Não foi possível copiar."); }
+  }
+
+  // ── Extend trial ─────────────────────────────────────────────────────
+  const [extendingId, setExtendingId] = useState<number | null>(null);
+  const [extraDays, setExtraDays] = useState<Record<number, string>>({});
+
+  async function handleExtendTrial(tenant: ManagedTenant) {
+    const days = Number(extraDays[tenant.id] || 0);
+    if (!days || days < 1) { showToast("error", "Informe quantos dias adicionar."); return; }
+    setExtendingId(tenant.id);
+    try {
+      const currentEnd = tenant.trial_ends_at ? new Date(tenant.trial_ends_at) : new Date();
+      const base = currentEnd > new Date() ? currentEnd : new Date();
+      const newEnd = new Date(base);
+      newEnd.setDate(newEnd.getDate() + days);
+      const res = await fetch(`/api/super-admin/tenants/${tenant.id}`, {
+        method: "PATCH", headers: apiHeaders(),
+        body: JSON.stringify({ trialEndsAt: newEnd.toISOString() }),
+      });
+      const data = (await res.json()) as ManagedTenant & { error?: string };
+      if (!res.ok) { showToast("error", data.error || "Erro ao estender trial."); return; }
+      setTenants((c) => c.map((t) => (t.id === tenant.id ? data : t)));
+      setExtraDays((c) => ({ ...c, [tenant.id]: "" }));
+      showToast("success", `+${days} dias adicionados ao trial de ${tenant.name}.`);
+    } catch { showToast("error", "Erro ao estender trial."); }
+    finally { setExtendingId(null); }
   }
 
   const navItems: { id: Page; label: string; icon: React.ReactNode; badge?: number }[] = [
@@ -528,68 +555,175 @@ export default function SuperAdminDashboard() {
                   </button>
                 </div>
                 {sortedTenants.length === 0 ? <EmptyState message="Nenhuma conta provisionada" /> : (
-                  <div className="grid gap-4 lg:grid-cols-2">
-                    {sortedTenants.map((tenant) => (
-                      <div key={tenant.id} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-                        <div className="flex items-start justify-between gap-3 mb-4">
-                          <div className="flex items-center gap-3">
-                            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[#C9A227]/10 text-[#C9A227] font-black text-lg">
-                              {tenant.name.charAt(0).toUpperCase()}
+                  <div className="grid gap-5 lg:grid-cols-2">
+                    {sortedTenants.map((tenant) => {
+                      const now = new Date();
+                      const createdAt = tenant.created_at ? new Date(tenant.created_at) : null;
+                      const trialStart = tenant.trial_starts_at ? new Date(tenant.trial_starts_at) : createdAt;
+                      const trialEnd = tenant.trial_ends_at ? new Date(tenant.trial_ends_at) : null;
+                      const setupAt = tenant.setup_completed_at ? new Date(tenant.setup_completed_at) : null;
+
+                      // days active (since setup or creation)
+                      const activeSince = setupAt || createdAt;
+                      const daysActive = activeSince ? Math.max(0, Math.floor((now.getTime() - activeSince.getTime()) / 86400000)) : null;
+
+                      // trial info
+                      const trialTotal = trialEnd && trialStart ? Math.max(1, Math.ceil((trialEnd.getTime() - trialStart.getTime()) / 86400000)) : (tenant.trial_days ?? 30);
+                      const trialRemaining = trialEnd ? Math.ceil((trialEnd.getTime() - now.getTime()) / 86400000) : null;
+                      const trialPct = trialEnd && trialStart
+                        ? Math.min(100, Math.max(0, Math.round(((now.getTime() - trialStart.getTime()) / (trialEnd.getTime() - trialStart.getTime())) * 100)))
+                        : (tenant.status === "active" ? 100 : 0);
+                      const trialExpired = trialEnd ? trialEnd < now : false;
+
+                      const fmtDate = (d: Date | null) => d ? d.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric" }) : "—";
+
+                      const statusColor = tenant.status === "active"
+                        ? { bg: "bg-emerald-50", border: "border-emerald-200", text: "text-emerald-700", bar: "bg-emerald-400" }
+                        : tenant.status === "trial"
+                        ? { bg: "bg-amber-50", border: "border-amber-200", text: "text-amber-700", bar: trialRemaining !== null && trialRemaining <= 5 ? "bg-red-400" : "bg-amber-400" }
+                        : { bg: "bg-red-50", border: "border-red-200", text: "text-red-700", bar: "bg-red-400" };
+
+                      return (
+                        <div key={tenant.id} className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+                          {/* Header */}
+                          <div className={`flex items-start justify-between gap-3 px-5 py-4 ${statusColor.bg} border-b ${statusColor.border}`}>
+                            <div className="flex items-center gap-3 min-w-0">
+                              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-white/80 shadow-sm text-[#C9A227] font-black text-lg border border-white">
+                                {tenant.name.charAt(0).toUpperCase()}
+                              </div>
+                              <div className="min-w-0">
+                                <p className="font-black text-slate-900 truncate">{tenant.name}</p>
+                                <p className="text-xs text-slate-500 truncate">{tenant.users?.[0]?.email || "Sem usuário"}</p>
+                                {tenant.whatsapp && (
+                                  <p className="text-[11px] text-slate-400 flex items-center gap-1 mt-0.5">
+                                    <Phone size={10} /> {tenant.whatsapp}
+                                  </p>
+                                )}
+                              </div>
                             </div>
-                            <div>
-                              <p className="font-bold text-slate-900">{tenant.name}</p>
-                              <p className="text-xs text-slate-400">{tenant.users?.[0]?.email || "Sem usuário"}</p>
-                              {tenant.whatsapp && <p className="text-xs text-slate-400 flex items-center gap-1"><Phone size={10} /> {tenant.whatsapp}</p>}
+                            <div className="flex items-center gap-1.5 shrink-0">
+                              <span className={`rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide border ${statusColor.bg} ${statusColor.border} ${statusColor.text}`}>
+                                {tenant.status === "active" ? "Ativo" : tenant.status === "trial" ? "Trial" : tenant.status === "suspended" ? "Suspenso" : tenant.status}
+                              </span>
+                              {tenant.public_url && (
+                                <a href={tenant.public_url} target="_blank" rel="noopener noreferrer"
+                                  className="flex h-8 w-8 items-center justify-center rounded-lg border border-white/60 bg-white/70 text-slate-500 hover:bg-white">
+                                  <ExternalLink size={13} />
+                                </a>
+                              )}
+                              <button onClick={() => void copyText(tenant.public_url || "", "URL copiada!")}
+                                className="flex h-8 w-8 items-center justify-center rounded-lg border border-white/60 bg-white/70 text-slate-500 hover:bg-white">
+                                <Copy size={13} />
+                              </button>
+                              <button onClick={() => openEdit(tenant)}
+                                className="flex h-8 w-8 items-center justify-center rounded-lg border border-[#C9A227]/40 bg-white/70 text-[#C9A227] hover:bg-[#C9A227]/10">
+                                <Pencil size={13} />
+                              </button>
                             </div>
                           </div>
-                          <div className="flex gap-2">
-                            {tenant.public_url && (
-                              <a href={tenant.public_url} target="_blank" rel="noopener noreferrer"
-                                className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50">
-                                <ExternalLink size={13} />
-                              </a>
-                            )}
-                            <button onClick={() => void copyText(tenant.public_url || "", "URL copiada!")}
-                              className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50">
-                              <Copy size={13} />
-                            </button>
-                            <button onClick={() => openEdit(tenant)}
-                              className="flex h-8 w-8 items-center justify-center rounded-lg border border-[#C9A227]/40 bg-[#C9A227]/10 text-[#C9A227] hover:bg-[#C9A227]/20">
-                              <Pencil size={13} />
-                            </button>
+
+                          <div className="px-5 py-4 space-y-4">
+                            {/* Stats row */}
+                            <div className="grid grid-cols-3 gap-2 text-center">
+                              <div className="rounded-xl bg-slate-50 border border-slate-100 p-2.5">
+                                <div className="flex items-center justify-center gap-1 mb-0.5">
+                                  <Activity size={11} className="text-blue-400" />
+                                </div>
+                                <p className="text-base font-black text-slate-900">{daysActive !== null ? daysActive : "—"}</p>
+                                <p className="text-[9px] text-slate-400 uppercase tracking-wide">dias ativo</p>
+                              </div>
+                              <div className="rounded-xl bg-slate-50 border border-slate-100 p-2.5">
+                                <div className="flex items-center justify-center gap-1 mb-0.5">
+                                  <CreditCard size={11} className="text-emerald-400" />
+                                </div>
+                                <p className="text-base font-black text-slate-900">R${Number(tenant.subscription_amount || 0).toFixed(0)}</p>
+                                <p className="text-[9px] text-slate-400 uppercase tracking-wide">assinatura/mês</p>
+                              </div>
+                              <div className="rounded-xl bg-slate-50 border border-slate-100 p-2.5">
+                                <div className="flex items-center justify-center gap-1 mb-0.5">
+                                  <CalendarCheck size={11} className="text-purple-400" />
+                                </div>
+                                <p className="text-base font-black text-slate-900">{fmtDate(createdAt)}</p>
+                                <p className="text-[9px] text-slate-400 uppercase tracking-wide">criado em</p>
+                              </div>
+                            </div>
+
+                            {/* Trial block */}
+                            <div className="rounded-xl border border-slate-100 bg-slate-50 p-3 space-y-2.5">
+                              <div className="flex items-center justify-between">
+                                <span className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wide text-slate-500">
+                                  <Timer size={12} /> Período Trial
+                                </span>
+                                {trialEnd ? (
+                                  <span className={`text-[11px] font-bold ${trialExpired ? "text-red-500" : trialRemaining !== null && trialRemaining <= 5 ? "text-orange-500" : "text-slate-600"}`}>
+                                    {trialExpired ? "Vencido" : trialRemaining === 0 ? "Vence hoje" : `${trialRemaining}d restantes`}
+                                  </span>
+                                ) : (
+                                  <span className="text-[11px] text-slate-400">Sem data</span>
+                                )}
+                              </div>
+
+                              {/* Progress bar */}
+                              <div className="h-2 w-full rounded-full bg-slate-200 overflow-hidden">
+                                <div
+                                  className={`h-full rounded-full transition-all ${statusColor.bar}`}
+                                  style={{ width: `${trialPct}%` }}
+                                />
+                              </div>
+
+                              <div className="grid grid-cols-2 gap-x-4 text-[10px] text-slate-500">
+                                <span className="flex items-center gap-1">
+                                  <Clock size={9} />
+                                  Início: {fmtDate(trialStart)}
+                                </span>
+                                <span className="flex items-center gap-1">
+                                  <CalendarClock size={9} />
+                                  Vence: {fmtDate(trialEnd)}
+                                </span>
+                              </div>
+
+                              {/* Add days */}
+                              <div className="flex items-center gap-2 pt-0.5">
+                                <input
+                                  type="number" min="1" max="365"
+                                  value={extraDays[tenant.id] || ""}
+                                  onChange={(e) => setExtraDays((c) => ({ ...c, [tenant.id]: e.target.value }))}
+                                  placeholder="+ dias"
+                                  className="h-8 w-24 rounded-lg border border-slate-200 bg-white px-2.5 text-xs font-semibold text-slate-800 placeholder-slate-400 outline-none focus:border-[#C9A227]"
+                                />
+                                <button
+                                  onClick={() => void handleExtendTrial(tenant)}
+                                  disabled={extendingId === tenant.id}
+                                  className="flex flex-1 items-center justify-center gap-1.5 h-8 rounded-lg bg-amber-500 text-[10px] font-bold uppercase tracking-wider text-white hover:bg-amber-600 disabled:opacity-50 transition-colors"
+                                >
+                                  {extendingId === tenant.id
+                                    ? <span className="w-3 h-3 border-2 border-white/40 border-t-white rounded-full animate-spin" />
+                                    : <PlusCircle size={11} />}
+                                  {extendingId === tenant.id ? "Salvando..." : "Adicionar dias"}
+                                </button>
+                              </div>
+                            </div>
+
+                            {/* Status + save */}
+                            <div className="flex items-end gap-2">
+                              <div className="flex-1">
+                                <SelectField label="Status" value={tenant.status || "active"}
+                                  onChange={(v) => setTenantDraft(tenant.id, { status: v as ManagedTenant["status"] })}
+                                  options={[
+                                    { value: "active", label: "Ativo" },
+                                    { value: "trial", label: "Trial" },
+                                    { value: "suspended", label: "Suspenso" },
+                                  ]} />
+                              </div>
+                              <button onClick={() => void handleUpdateTenant(tenant)}
+                                className="h-10 px-5 rounded-xl bg-slate-900 text-[10px] font-bold uppercase tracking-[0.16em] text-white transition-colors hover:bg-slate-700">
+                                Salvar
+                              </button>
+                            </div>
                           </div>
                         </div>
-                        <div className="grid grid-cols-3 gap-2 mb-4 text-center">
-                          <div className="rounded-lg bg-slate-50 border border-slate-100 p-2">
-                            <p className="text-sm font-black text-slate-900">{tenant.trial_days ?? 30}</p>
-                            <p className="text-[9px] text-slate-400 uppercase tracking-wide">dias trial</p>
-                          </div>
-                          <div className="rounded-lg bg-slate-50 border border-slate-100 p-2">
-                            <p className="text-sm font-black text-slate-900">R${Number(tenant.subscription_amount || 0).toFixed(0)}</p>
-                            <p className="text-[9px] text-slate-400 uppercase tracking-wide">assinatura</p>
-                          </div>
-                          <div className="rounded-lg bg-slate-50 border border-slate-100 p-2">
-                            <p className={`text-sm font-black ${tenant.status === "active" ? "text-emerald-600" : tenant.status === "trial" ? "text-amber-600" : "text-red-600"}`}>
-                              {tenant.status === "active" ? "Ativo" : tenant.status === "trial" ? "Trial" : "Suspenso"}
-                            </p>
-                            <p className="text-[9px] text-slate-400 uppercase tracking-wide">status</p>
-                          </div>
-                        </div>
-                        <div className="mb-3">
-                          <SelectField label="Status" value={tenant.status || "active"}
-                            onChange={(v) => setTenantDraft(tenant.id, { status: v as ManagedTenant["status"] })}
-                            options={[
-                              { value: "active", label: "Ativo" },
-                              { value: "trial", label: "Trial" },
-                              { value: "suspended", label: "Suspenso" },
-                            ]} />
-                        </div>
-                        <button onClick={() => void handleUpdateTenant(tenant)}
-                          className="w-full h-10 rounded-xl bg-slate-900 text-[10px] font-bold uppercase tracking-[0.16em] text-white transition-colors hover:bg-slate-800">
-                          Salvar alterações
-                        </button>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 )}
               </motion.div>

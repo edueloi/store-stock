@@ -68,10 +68,12 @@ function serializeTenant(tenant: {
   updated_at: Date;
   users?: { id: number; name: string; email: string; role: string }[];
 }) {
+  const url = buildTenantAccessUrl(tenant.subdomain || tenant.slug);
   return {
     ...tenant,
     subscription_amount: Number(tenant.subscription_amount),
-    access_url: buildTenantAccessUrl(tenant.subdomain || tenant.slug),
+    access_url: url,
+    public_url: url,
   };
 }
 

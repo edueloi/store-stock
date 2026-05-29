@@ -1013,7 +1013,7 @@ export default function PublicStore() {
             </div>
          </div>
          <div className="max-w-7xl mx-auto px-6 mt-20 pt-10 border-t border-slate-100 flex flex-col md:flex-row justify-between items-center gap-6">
-            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">© {new Date().getFullYear()} {storeData.tenant.name} · Infraestrutura Powered by Nexus ERP</p>
+            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">© {new Date().getFullYear()} {storeData.tenant.name} · Infraestrutura Powered by Store BoxSys</p>
             <div className="flex gap-2">
                <div className="w-10 h-1 bg-slate-100 rounded-full overflow-hidden">
                   <div style={{ backgroundColor: style.accent }} className="w-1/2 h-full"></div>

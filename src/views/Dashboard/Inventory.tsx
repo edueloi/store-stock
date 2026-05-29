@@ -337,7 +337,7 @@ export default function Inventory() {
   const resetVarState = () => { setNewAttrName(""); setNewAttrValue(""); setShowPresets(false); };
 
   const openNew = () => {
-    setEditingProduct({ type: "sale", is_active: true, is_featured: false, stock_quantity: 0, attributes: [], skus: [] });
+    setEditingProduct({ type: "sale", is_active: false, is_featured: false, stock_quantity: 0, attributes: [], skus: [] });
     setEditingImages([]);
     resetVarState();
     setIsModalOpen(true);
@@ -372,17 +372,33 @@ export default function Inventory() {
       ? skus.reduce((s, k) => s + k.stock, 0)
       : editingProduct?.stock_quantity ?? 0;
 
+    // Convert attributes+skus → legacy variations format for store display
+    const attrs = editingProduct?.attributes || [];
+    const skuList = editingProduct?.skus || [];
+    const legacyVariations = attrs.length > 0
+      ? attrs.map(attr => ({
+          name: attr.name,
+          options: attr.values.map(val => {
+            const stock = skuList
+              .filter(s => s.combo[attr.name] === val)
+              .reduce((sum, s) => sum + (s.stock ?? 0), 0);
+            return { value: val, stock };
+          }),
+        }))
+      : [];
+
     const payload = {
       ...editingProduct,
       type: editingProduct?.type || "sale",
-      is_active: editingProduct?.is_active ?? true,
+      is_active: editingProduct?.is_active ?? false,
       is_featured: editingProduct?.is_featured ?? false,
       sku: editingProduct?.sku?.trim() || (editingProduct?.name ? toSlug(editingProduct.name) : undefined),
       image_url: editingImages[0] || null,
       images: editingImages,
       stock_quantity: derivedStock,
-      attributes: editingProduct?.attributes || [],
-      skus: editingProduct?.skus || [],
+      attributes: attrs,
+      skus: skuList,
+      variations: legacyVariations.length > 0 ? legacyVariations : [],
     };
 
     try {

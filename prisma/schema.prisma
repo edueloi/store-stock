@@ -133,7 +133,7 @@ model Product {
   images         Json?
   expiry_date    DateTime? @db.Date
   type           String    @default("sale")
-  is_active      Boolean   @default(true)
+  is_active      Boolean   @default(false)
   is_featured    Boolean   @default(false)
   variations     Json?
   attributes     Json?

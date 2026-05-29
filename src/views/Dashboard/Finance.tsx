@@ -421,7 +421,7 @@ function exportToPDF(entries: FinanceEntry[], tenant: Partial<Tenant> | null, pe
   <div class="meta">
     <strong>Relatório Financeiro</strong><br/>
     Gerado em: ${new Date().toLocaleString("pt-BR")}<br/>
-    Sistema: Nexus ERP
+    Sistema: Store BoxSys
   </div>
 </div>
 <div class="period">Período: ${period}</div>
