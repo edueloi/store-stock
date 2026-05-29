@@ -12,6 +12,12 @@ import { lazy, Suspense } from "react";
 
 function themePages(templateId: string | undefined) {
   const t = templateId || "minimal";
+  if (t === "minimal") return {
+    Front: lazy(() => import("./themes/minimal/StoreFront")),
+    Catalog: lazy(() => import("./themes/minimal/StoreCatalog")),
+    Product: lazy(() => import("./themes/minimal/StoreProduct")),
+    About: lazy(() => import("./themes/minimal/StoreAbout")),
+  };
   if (t === "electronics") return {
     Front: lazy(() => import("./themes/electronics/StoreFront")),
     Catalog: lazy(() => import("./themes/electronics/StoreCatalog")),
