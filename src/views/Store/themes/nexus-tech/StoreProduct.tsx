@@ -40,6 +40,9 @@ export default function StoreProduct() {
     }
     return [];
   })();
+  const attrColorsMap: Record<string, Record<string, string>> = Object.fromEntries(
+    (product?.attributes || []).map(a => [a.name, a.colors || {}])
+  );
   const hasVariations = normalizedVariations.length > 0;
   const [selectedOptions, setSelectedOptions] = useState<Record<string, string>>(() => {
     if (!normalizedVariations.length) return {};
@@ -132,9 +135,36 @@ export default function StoreProduct() {
 
   const handleShareWhatsApp = () => {
     const url = window.location.href;
-    const price = Number(product.discount_price || product.price).toFixed(2);
-    const text = `*${product.name}*\nR$ ${price}\n${product.description ? `${product.description.slice(0, 120)}\n` : ""}Ver produto: ${url}`;
-    window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, "_blank");
+    const finalPrice = Number(product.discount_price || product.price).toFixed(2);
+    const originalPrice = Number(product.price).toFixed(2);
+    const hasDiscount = !!product.discount_price;
+    const variations = Object.entries(selectedOptions)
+      .filter(([, v]) => v)
+      .map(([k, v]) => `▸ *${k}:* ${v}`)
+      .join("\n");
+    const lines: string[] = [];
+    lines.push(`🛍️ *Olá! Gostaria de fazer um pedido:*`);
+    lines.push(``);
+    lines.push(`📦 *${product.name}*`);
+    if (product.sku) lines.push(`🔖 Cód: ${product.sku}`);
+    if (category) lines.push(`🏷️ Categoria: ${category.name}`);
+    lines.push(``);
+    if (variations) {
+      lines.push(`✅ *Variações selecionadas:*`);
+      lines.push(variations);
+      lines.push(``);
+    }
+    if (hasDiscount) {
+      lines.push(`💰 *Preço:* ~~R$ ${originalPrice}~~ → *R$ ${finalPrice}*`);
+      lines.push(`🎉 Economia de R$ ${(Number(product.price) - Number(product.discount_price)).toFixed(2)}`);
+    } else {
+      lines.push(`💰 *Preço:* R$ ${finalPrice}`);
+    }
+    lines.push(``);
+    lines.push(`🔗 Ver produto: ${url}`);
+    lines.push(``);
+    lines.push(`_Favor confirmar disponibilidade e prazo de entrega._`);
+    window.open(`https://wa.me/?text=${encodeURIComponent(lines.join("\n"))}`, "_blank");
   };
 
   const productUrl = typeof window !== "undefined" ? window.location.href : "";
@@ -369,66 +399,87 @@ export default function StoreProduct() {
               )}
 
               {/* Variations */}
-              {normalizedVariations.map((v, vi) => (
-                <div key={vi} className="space-y-2.5">
-                  <div className="flex items-center justify-between">
-                    <p className={cn(
-                      "text-[10px] font-bold uppercase tracking-[0.22em] flex items-center gap-1.5",
-                      showVariationError && !selectedOptions[v.name] ? "text-red-500" : "text-[#8baed0]"
-                    )}>
-                      {v.name}
-                      {showVariationError && !selectedOptions[v.name] && (
-                        <AlertCircle size={11} className="text-red-500" />
-                      )}
-                    </p>
-                    {selectedOptions[v.name] && (
-                      <span className="text-[11px] font-semibold text-[#071426]">{selectedOptions[v.name]}</span>
-                    )}
-                  </div>
-                  <AnimatePresence>
-                    {showVariationError && !selectedOptions[v.name] && (
-                      <motion.p
-                        initial={{ opacity: 0, y: -4 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        exit={{ opacity: 0, y: -4 }}
-                        className="text-[10px] text-red-500 font-semibold"
-                      >
-                        Selecione {v.name.toLowerCase()} antes de adicionar ao carrinho
-                      </motion.p>
-                    )}
-                  </AnimatePresence>
-                  <div className="flex flex-wrap gap-2">
-                    {v.options.map((opt, oi) => {
-                      const isSelected = selectedOptions[v.name] === opt.value;
-                      const outOfStock = opt.stock === 0;
-                      return (
-                        <button
-                          key={oi}
-                          disabled={outOfStock}
-                          onClick={() => handleSelectOption(v.name, opt.value)}
-                          className={cn(
-                            "relative px-4 py-2.5 rounded-[1rem] border-2 text-[11px] font-semibold transition-all",
-                            isSelected
-                              ? "text-white shadow-[0_8px_20px_rgba(37,99,235,0.24)] scale-105"
-                              : outOfStock
-                                ? "text-[#c5d8f5] border-[#edf4ff] bg-[#f8fbff] cursor-not-allowed line-through"
-                                : "text-[#4e6c8e] border-[#dbe6ff] hover:border-[#b3caff] bg-white hover:shadow-sm"
+              {normalizedVariations.length > 0 && (
+                <div className="space-y-4 border-t border-[#dbe6ff] pt-4">
+                  {normalizedVariations.map((v, vi) => {
+                    const isColor = /cor|color/i.test(v.name);
+                    const error = showVariationError && !selectedOptions[v.name];
+                    return (
+                      <div key={vi} className="space-y-2.5">
+                        <div className="flex items-center justify-between">
+                          <span className={cn(
+                            "text-[10px] font-bold uppercase tracking-[0.22em] flex items-center gap-1.5",
+                            error ? "text-red-500" : "text-[#8baed0]"
+                          )}>
+                            {error && <AlertCircle size={11} />}
+                            {v.name}
+                          </span>
+                          {selectedOptions[v.name] ? (
+                            <span className="text-[12px] font-semibold text-[#071426] bg-[#edf4ff] px-2.5 py-0.5 rounded-full">
+                              {selectedOptions[v.name]}
+                            </span>
+                          ) : (
+                            <span className="text-[11px] text-[#8baed0] italic">Selecione</span>
                           )}
-                          style={isSelected ? { backgroundColor: style.accent, borderColor: style.accent } : {}}
-                        >
-                          {opt.value}
-                          {opt.stock > 0 && opt.stock <= 5 && !outOfStock && (
-                            <span className="block text-[8px] font-bold mt-0.5 opacity-70">Só {opt.stock}!</span>
+                        </div>
+                        <AnimatePresence>
+                          {error && (
+                            <motion.p initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }}
+                              className="text-[10px] text-red-500 font-semibold">
+                              Escolha {v.name.toLowerCase()} antes de adicionar ao carrinho
+                            </motion.p>
                           )}
-                          {outOfStock && (
-                            <span className="block text-[8px] font-bold mt-0.5 text-red-400">Esgotado</span>
-                          )}
-                        </button>
-                      );
-                    })}
-                  </div>
+                        </AnimatePresence>
+                        <div className="flex flex-wrap gap-2">
+                          {v.options.map((opt, oi) => {
+                            const isSelected = selectedOptions[v.name] === opt.value;
+                            const outOfStock = opt.stock === 0;
+                            if (isColor) {
+                              const COMMON_COLORS: Record<string, string> = {
+                                vermelho: "#e53e3e", red: "#e53e3e", azul: "#3182ce", blue: "#3182ce",
+                                verde: "#38a169", green: "#38a169", amarelo: "#ecc94b", yellow: "#ecc94b",
+                                preto: "#1a202c", black: "#1a202c", branco: "#f7fafc", white: "#f7fafc",
+                                cinza: "#718096", gray: "#718096", grey: "#718096", rosa: "#ed64a6", pink: "#ed64a6",
+                                roxo: "#805ad5", purple: "#805ad5", laranja: "#ed8936", orange: "#ed8936",
+                                marrom: "#7b4f2e", brown: "#7b4f2e",
+                              };
+                              const adminHex = attrColorsMap[v.name]?.[opt.value];
+                              const bgColor = adminHex || COMMON_COLORS[opt.value.toLowerCase()] || "#9ca3af";
+                              const r = parseInt(bgColor.slice(1, 3), 16), g = parseInt(bgColor.slice(3, 5), 16), b = parseInt(bgColor.slice(5, 7), 16);
+                              const isLight = (r * 299 + g * 587 + b * 114) / 1000 > 160;
+                              return (
+                                <button key={oi} disabled={outOfStock} onClick={() => handleSelectOption(v.name, opt.value)} title={opt.value}
+                                  className={cn("relative flex flex-col items-center gap-1 transition-all duration-200", outOfStock ? "opacity-40 cursor-not-allowed" : "cursor-pointer")}>
+                                  <span className={cn("w-9 h-9 rounded-full border-2 flex items-center justify-center transition-all duration-200",
+                                    isSelected ? "scale-110 shadow-lg border-[#2563eb] ring-2 ring-offset-2" : outOfStock ? "border-[#dbe6ff]" : "border-transparent hover:scale-105 hover:border-[#b3caff]")}
+                                    style={{ backgroundColor: bgColor }}>
+                                    {isSelected && <Check size={14} strokeWidth={3} className={isLight ? "text-slate-700" : "text-white"} />}
+                                  </span>
+                                  <span className={cn("text-[9px] font-semibold uppercase tracking-wide", isSelected ? "text-[#071426]" : "text-[#8baed0]")}>{opt.value}</span>
+                                </button>
+                              );
+                            }
+                            return (
+                              <button key={oi} disabled={outOfStock} onClick={() => handleSelectOption(v.name, opt.value)}
+                                className={cn(
+                                  "relative min-w-[3rem] h-11 px-4 rounded-[1rem] border-2 text-sm font-semibold transition-all duration-200 flex flex-col items-center justify-center leading-none",
+                                  isSelected ? "text-white shadow-[0_8px_20px_rgba(37,99,235,0.24)] scale-105"
+                                    : outOfStock ? "text-[#c5d8f5] border-[#edf4ff] bg-[#f8fbff] cursor-not-allowed"
+                                    : "text-[#4e6c8e] border-[#dbe6ff] bg-white hover:border-[#b3caff] hover:shadow-sm hover:scale-105"
+                                )}
+                                style={isSelected ? { backgroundColor: style.accent, borderColor: style.accent } : {}}>
+                                {outOfStock ? <span className="line-through">{opt.value}</span> : opt.value}
+                                {opt.stock > 0 && opt.stock <= 5 && <span className="text-[8px] font-semibold mt-0.5 opacity-75 leading-none">só {opt.stock}!</span>}
+                                {outOfStock && <span className="text-[8px] font-semibold mt-0.5 text-red-400 leading-none">esgot.</span>}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
-              ))}
+              )}
 
               {/* Low stock warning */}
               <AnimatePresence>

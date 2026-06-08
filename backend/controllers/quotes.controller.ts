@@ -11,7 +11,7 @@ export async function listQuotes(req: Request, res: Response) {
     const tenantId = getTenantId(req);
     const quotes = await prisma.quote.findMany({
       where: { tenant_id: tenantId },
-      include: { items: true },
+      include: { items: true, services: true },
       orderBy: { created_at: "desc" },
     });
     res.json(quotes);
@@ -25,7 +25,7 @@ export async function getQuoteById(req: Request, res: Response) {
     const tenantId = getTenantId(req);
     const quote = await prisma.quote.findFirst({
       where: { id: Number(req.params.id), tenant_id: tenantId },
-      include: { items: true },
+      include: { items: true, services: true },
     });
     if (!quote) return res.status(404).json({ error: "Orçamento não encontrado" });
     res.json(quote);
@@ -57,6 +57,7 @@ export async function createQuote(req: Request, res: Response) {
       validity_days,
       notes,
       items,
+      services,
     } = req.body;
 
     const quote = await prisma.quote.create({
@@ -83,8 +84,19 @@ export async function createQuote(req: Request, res: Response) {
             total: i.total,
           })),
         },
+        ...(services && services.length > 0 ? {
+          services: {
+            create: (services as Array<{ id: number; name: string; price: number; quantity?: number }>).map((s) => ({
+              service_id: s.id,
+              name: s.name,
+              unit_price: s.price,
+              quantity: s.quantity ?? 1,
+              total: s.price * (s.quantity ?? 1),
+            })),
+          },
+        } : {}),
       },
-      include: { items: true },
+      include: { items: true, services: true },
     });
 
     res.json(quote);
@@ -150,7 +162,7 @@ export async function convertToOrder(req: Request, res: Response) {
 
     const quote = await prisma.quote.findFirst({
       where: { id: quoteId, tenant_id: tenantId },
-      include: { items: true },
+      include: { items: true, services: true },
     });
     if (!quote) return res.status(404).json({ error: "Orçamento não encontrado" });
     if (quote.status === "converted") return res.status(400).json({ error: "Orçamento já foi convertido em venda" });
@@ -203,12 +215,22 @@ export async function convertToOrder(req: Request, res: Response) {
         status:          "completed",
         payment_method:  pmString,
         items: {
-          create: quote.items.map((i) => ({
+          create: quote.items.filter((i) => i.product_id).map((i) => ({
             product_id: i.product_id!,
             quantity:   i.quantity,
             unit_price: i.unit_price,
           })),
         },
+        ...(quote.services.length > 0 ? {
+          services: {
+            create: quote.services.map((s) => ({
+              service_id: s.service_id,
+              name:       s.name,
+              unit_price: s.unit_price,
+              quantity:   s.quantity,
+            })),
+          },
+        } : {}),
       },
     });
 

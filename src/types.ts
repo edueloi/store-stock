@@ -104,7 +104,7 @@ export interface Product {
   is_active: boolean;
   is_featured: boolean;
   // attribute groups (ex: [{name:"Tamanho", values:["P","M","G"]}, {name:"Cor", values:["Preto","Branco"]}])
-  attributes?: { name: string; values: string[] }[];
+  attributes?: { name: string; values: string[]; colors?: Record<string, string> }[];
   // SKU combinations (ex: [{combo:{"Tamanho":"G","Cor":"Preto"}, stock:3}])
   skus?: { combo: Record<string, string>; stock: number }[];
   /** @deprecated use attributes+skus */
@@ -118,7 +118,14 @@ export interface Supplier {
   category: string;
   contact_person?: string;
   phone?: string;
+  whatsapp?: string;
+  email?: string;
+  website?: string;
+  cnpj?: string;
   address?: string;
+  city?: string;
+  state?: string;
+  payment_terms?: string;
   notes?: string;
   created_at: string;
 }

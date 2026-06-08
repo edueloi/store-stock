@@ -489,13 +489,22 @@ export default function Inventory() {
     if (newVals.length === 0) {
       attrs.splice(attrIdx, 1);
     } else {
-      attrs[attrIdx] = { ...attrs[attrIdx], values: newVals };
+      const removedVal = attrs[attrIdx].values[valIdx];
+      const colors = { ...(attrs[attrIdx].colors || {}) };
+      delete colors[removedVal];
+      attrs[attrIdx] = { ...attrs[attrIdx], values: newVals, colors };
     }
     const oldSkus = editingProduct?.skus || [];
     const oldMap = Object.fromEntries(oldSkus.map(s => [comboKey(s.combo), s.stock]));
     const newCombos = generateCombos(attrs);
     const newSkus = newCombos.map(combo => ({ combo, stock: oldMap[comboKey(combo)] ?? 0 }));
     setEditingProduct(prev => ({ ...prev!, attributes: attrs, skus: newSkus }));
+  };
+
+  const updateAttrColor = (attrIdx: number, val: string, hex: string) => {
+    const attrs = [...(editingProduct?.attributes || [])];
+    attrs[attrIdx] = { ...attrs[attrIdx], colors: { ...(attrs[attrIdx].colors || {}), [val]: hex } };
+    setEditingProduct(prev => ({ ...prev!, attributes: attrs }));
   };
 
   const updateSkuStock = (skuIdx: number, stock: number) => {
@@ -1068,20 +1077,37 @@ export default function Inventory() {
                       <span className="ml-2 text-slate-400 font-medium normal-case tracking-normal text-[9px]">{attr.values.length} valor{attr.values.length !== 1 ? "es" : ""}</span>
                     </p>
                   </div>
-                  <div className="flex flex-wrap gap-1.5">
-                    {attr.values.map((val, valIdx) => (
-                      <span key={valIdx} className="inline-flex items-center gap-1 bg-blue-50 border border-blue-200 text-blue-700 text-[10px] font-bold px-2.5 py-1 rounded-lg">
-                        {val}
-                        <button type="button" onClick={() => removeAttrValue(attrIdx, valIdx)} className="text-blue-300 hover:text-red-500 transition-colors ml-0.5">
-                          <X size={9} strokeWidth={3} />
-                        </button>
-                      </span>
-                    ))}
-                    {/* inline add value to existing attr */}
-                    <input type="text" placeholder="+ valor"
-                      className="w-20 bg-slate-50 border border-dashed border-slate-300 rounded-lg px-2 text-[10px] font-bold outline-none h-7 focus:border-blue-400 focus:bg-white transition-all"
-                      onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); const inp = e.currentTarget; addAttrValue(attr.name, inp.value); inp.value = ""; } }} />
-                  </div>
+                  {/* detect if this is a color attribute */}
+                  {(() => {
+                    const isColorAttr = /^cor$/i.test(attr.name.trim()) || /^colou?r$/i.test(attr.name.trim());
+                    return (
+                      <div className="flex flex-wrap gap-1.5">
+                        {attr.values.map((val, valIdx) => (
+                          <span key={valIdx} className={`inline-flex items-center gap-1.5 border text-[10px] font-bold px-2 py-1 rounded-lg ${isColorAttr ? "bg-white border-slate-200" : "bg-blue-50 border-blue-200 text-blue-700"}`}>
+                            {isColorAttr && (
+                              <label className="relative w-5 h-5 rounded-full overflow-hidden cursor-pointer border border-slate-300 shrink-0" title="Clique para definir a cor">
+                                <span className="absolute inset-0 rounded-full" style={{ backgroundColor: attr.colors?.[val] || "#cccccc" }} />
+                                <input
+                                  type="color"
+                                  value={attr.colors?.[val] || "#cccccc"}
+                                  onChange={e => updateAttrColor(attrIdx, val, e.target.value)}
+                                  className="absolute inset-0 opacity-0 w-full h-full cursor-pointer"
+                                />
+                              </label>
+                            )}
+                            <span className={isColorAttr ? "text-slate-700" : ""}>{val}</span>
+                            <button type="button" onClick={() => removeAttrValue(attrIdx, valIdx)} className="text-slate-300 hover:text-red-500 transition-colors ml-0.5">
+                              <X size={9} strokeWidth={3} />
+                            </button>
+                          </span>
+                        ))}
+                        {/* inline add value to existing attr */}
+                        <input type="text" placeholder="+ valor"
+                          className="w-20 bg-slate-50 border border-dashed border-slate-300 rounded-lg px-2 text-[10px] font-bold outline-none h-7 focus:border-blue-400 focus:bg-white transition-all"
+                          onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); const inp = e.currentTarget; addAttrValue(attr.name, inp.value); inp.value = ""; } }} />
+                      </div>
+                    );
+                  })()}
                 </motion.div>
               ))}
             </div>

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Tag, Plus, FolderOpen, Edit2, Trash2, Save } from "lucide-react";
+import { Tag, Plus, FolderOpen, Edit2, Trash2, Save, AlertTriangle } from "lucide-react";
 import { motion } from "motion/react";
 import Button from "../../components/ui/Button";
 import { Input } from "../../components/ui/Input";
@@ -17,6 +17,8 @@ export default function Categories() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editing, setEditing] = useState<Partial<Category> | null>(null);
   const [saving, setSaving] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<Category | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   const headers = () => ({
     "Content-Type": "application/json",
@@ -53,10 +55,16 @@ export default function Categories() {
     }
   };
 
-  const handleDelete = async (id: number) => {
-    if (!confirm("Excluir esta categoria? Produtos vinculados perderão a categorização.")) return;
-    await fetch(`/api/categories/${id}`, { method: "DELETE", headers: headers() });
-    fetchCategories();
+  const handleDelete = async () => {
+    if (!deleteTarget) return;
+    setDeleting(true);
+    try {
+      await fetch(`/api/categories/${deleteTarget.id}`, { method: "DELETE", headers: headers() });
+      setDeleteTarget(null);
+      fetchCategories();
+    } finally {
+      setDeleting(false);
+    }
   };
 
   const filtered = categories.filter((c) =>
@@ -118,7 +126,7 @@ export default function Categories() {
                   <Edit2 size={10} /> Editar
                 </button>
                 <button
-                  onClick={() => handleDelete(cat.id)}
+                  onClick={() => setDeleteTarget(cat)}
                   className="w-7 h-7 flex items-center justify-center bg-slate-50 hover:bg-red-50 hover:text-red-500 text-slate-400 rounded-lg transition-all border border-slate-200 hover:border-red-200"
                 >
                   <Trash2 size={11} />
@@ -164,6 +172,41 @@ export default function Categories() {
             onChange={(e) => setEditing((prev) => ({ ...prev!, name: e.target.value }))}
           />
         </form>
+      </Modal>
+
+      <Modal
+        open={!!deleteTarget}
+        onClose={() => setDeleteTarget(null)}
+        title="Excluir Categoria"
+        subtitle="Esta ação não pode ser desfeita"
+        size="sm"
+        footer={
+          <>
+            <Button variant="secondary" onClick={() => setDeleteTarget(null)}>Cancelar</Button>
+            <Button
+              variant="danger"
+              loading={deleting}
+              icon={<Trash2 size={13} />}
+              onClick={handleDelete}
+            >
+              Excluir
+            </Button>
+          </>
+        }
+      >
+        <div className="flex gap-3 items-start">
+          <div className="w-10 h-10 bg-red-50 rounded-xl flex items-center justify-center text-red-500 shrink-0">
+            <AlertTriangle size={18} />
+          </div>
+          <div>
+            <p className="text-sm font-semibold text-slate-800">
+              Excluir <span className="text-red-600">"{deleteTarget?.name}"</span>?
+            </p>
+            <p className="text-xs text-slate-500 mt-1">
+              Produtos vinculados a esta categoria perderão a categorização.
+            </p>
+          </div>
+        </div>
       </Modal>
     </div>
   );

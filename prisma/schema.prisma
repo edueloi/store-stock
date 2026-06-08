@@ -165,10 +165,41 @@ model Service {
   created_at  DateTime @default(now())
   updated_at  DateTime @updatedAt
 
-  tenant Tenant @relation(fields: [tenant_id], references: [id])
+  tenant       Tenant        @relation(fields: [tenant_id], references: [id])
+  order_services OrderService[]
+  quote_services QuoteService[]
 
   @@index([tenant_id])
   @@map("services")
+}
+
+model OrderService {
+  id         Int     @id @default(autoincrement())
+  order_id   Int
+  service_id Int
+  name       String
+  unit_price Decimal @db.Decimal(10, 2)
+  quantity   Int     @default(1)
+
+  order   Order   @relation(fields: [order_id], references: [id], onDelete: Cascade)
+  service Service @relation(fields: [service_id], references: [id])
+
+  @@map("order_services")
+}
+
+model QuoteService {
+  id         Int     @id @default(autoincrement())
+  quote_id   Int
+  service_id Int
+  name       String
+  unit_price Decimal @db.Decimal(10, 2)
+  quantity   Int     @default(1)
+  total      Decimal @db.Decimal(10, 2)
+
+  quote   Quote   @relation(fields: [quote_id], references: [id], onDelete: Cascade)
+  service Service @relation(fields: [service_id], references: [id])
+
+  @@map("quote_services")
 }
 
 model ProductHistory {
@@ -208,9 +239,10 @@ model Order {
   created_at       DateTime  @default(now())
   updated_at       DateTime  @updatedAt
 
-  tenant Tenant      @relation(fields: [tenant_id], references: [id])
-  seller Seller?     @relation(fields: [seller_id], references: [id], onDelete: SetNull)
-  items  OrderItem[]
+  tenant   Tenant         @relation(fields: [tenant_id], references: [id])
+  seller   Seller?        @relation(fields: [seller_id], references: [id], onDelete: SetNull)
+  items    OrderItem[]
+  services OrderService[]
 
   @@map("orders")
 }
@@ -384,7 +416,14 @@ model Supplier {
   category       String
   contact_person String?
   phone          String?
+  whatsapp       String?
+  email          String?
+  website        String?
+  cnpj           String?
   address        String?
+  city           String?
+  state          String?
+  payment_terms  String?
   notes          String?  @db.Text
   created_at     DateTime @default(now())
   updated_at     DateTime @updatedAt
@@ -413,8 +452,9 @@ model Quote {
   created_at         DateTime    @default(now())
   updated_at         DateTime    @updatedAt
 
-  tenant Tenant      @relation(fields: [tenant_id], references: [id])
-  items  QuoteItem[]
+  tenant   Tenant         @relation(fields: [tenant_id], references: [id])
+  items    QuoteItem[]
+  services QuoteService[]
 
   @@unique([tenant_id, number])
   @@map("quotes")

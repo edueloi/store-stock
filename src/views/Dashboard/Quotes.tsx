@@ -20,6 +20,7 @@ import {
   QrCode,
   PlusCircle,
   Loader2,
+  Wrench,
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { cn } from "../../lib/utils";
@@ -33,6 +34,15 @@ interface QuoteItem {
   name: string;
   quantity: number;
   unit_price: number;
+  total: number;
+}
+
+interface QuoteServiceRow {
+  id: number;
+  service_id: number;
+  name: string;
+  unit_price: number;
+  quantity: number;
   total: number;
 }
 
@@ -51,6 +61,7 @@ interface Quote {
   status: "open" | "converted" | "cancelled" | "expired";
   created_at: string;
   items: QuoteItem[];
+  services: QuoteServiceRow[];
 }
 
 interface Product {
@@ -61,6 +72,21 @@ interface Product {
   stock_quantity: number;
   image_url?: string;
   is_active?: boolean;
+}
+
+interface ServiceCatalog {
+  id: number;
+  name: string;
+  description?: string;
+  price: number;
+  is_active: boolean;
+}
+
+interface QuoteServiceItem {
+  service_id: number;
+  name: string;
+  price: number;
+  quantity: number;
 }
 
 interface Customer {
@@ -291,26 +317,30 @@ async function generateQuotePDF(quote: Quote, tenant: Tenant) {
   doc.setFont("helvetica", "normal");
   doc.setFontSize(8.5);
 
-  for (let i = 0; i < quote.items.length; i++) {
-    const item = quote.items[i];
+  const allRows: { name: string; qty: number; unit_price: number; total: number; isService?: boolean }[] = [
+    ...quote.items.map((i) => ({ name: i.name, qty: i.quantity, unit_price: Number(i.unit_price), total: Number(i.total) })),
+    ...(quote.services ?? []).map((s) => ({ name: s.name, qty: s.quantity, unit_price: Number(s.unit_price), total: Number(s.unit_price) * s.quantity, isService: true })),
+  ];
+
+  for (let i = 0; i < allRows.length; i++) {
+    const row = allRows[i];
     const rowH = 8;
     if (i % 2 === 0) {
       doc.setFillColor(248, 250, 252);
       doc.rect(margin, y, contentW, rowH, "F");
     }
     doc.setTextColor(30, 41, 59);
-    // Truncate long names
     const maxNameW = 90;
-    let itemName = item.name;
-    while (doc.getTextWidth(itemName) > maxNameW && itemName.length > 3) {
-      itemName = itemName.slice(0, -1);
+    let rowName = (row.isService ? "⚙ " : "") + row.name;
+    while (doc.getTextWidth(rowName) > maxNameW && rowName.length > 3) {
+      rowName = rowName.slice(0, -1);
     }
-    if (itemName !== item.name) itemName += "…";
+    if (rowName !== (row.isService ? "⚙ " : "") + row.name) rowName += "…";
 
-    doc.text(itemName, cols.name, y + 5.5);
-    doc.text(String(item.quantity), cols.qty, y + 5.5, { align: "center" });
-    doc.text(fmt(Number(item.unit_price)), cols.price, y + 5.5, { align: "right" });
-    doc.text(fmt(Number(item.total)), pageW - margin - 3, y + 5.5, { align: "right" });
+    doc.text(rowName, cols.name, y + 5.5);
+    doc.text(String(row.qty), cols.qty, y + 5.5, { align: "center" });
+    doc.text(fmt(row.unit_price), cols.price, y + 5.5, { align: "right" });
+    doc.text(fmt(row.total), pageW - margin - 3, y + 5.5, { align: "right" });
 
     doc.setDrawColor(230, 230, 230);
     doc.line(margin, y + rowH, margin + contentW, y + rowH);
@@ -421,6 +451,7 @@ async function generateQuotePDF(quote: Quote, tenant: Tenant) {
 export default function Quotes() {
   const [quotes, setQuotes] = useState<Quote[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
+  const [services, setServices] = useState<ServiceCatalog[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [tenant, setTenant] = useState<Tenant | null>(null);
   const [loading, setLoading] = useState(true);
@@ -430,9 +461,11 @@ export default function Quotes() {
   // New quote form state
   const [showForm, setShowForm] = useState(false);
   const [productSearch, setProductSearch] = useState("");
+  const [serviceSearch, setServiceSearch] = useState("");
   const [customerSearch, setCustomerSearch] = useState("");
   const [showCustomerDropdown, setShowCustomerDropdown] = useState(false);
   const [formItems, setFormItems] = useState<QuoteItem[]>([]);
+  const [formServices, setFormServices] = useState<QuoteServiceItem[]>([]);
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   const [manualCustomer, setManualCustomer] = useState({ name: "", phone: "", email: "" });
   const [discountType, setDiscountType] = useState<"percent" | "fixed">("percent");
@@ -454,24 +487,27 @@ export default function Quotes() {
   const fetchAll = useCallback(async () => {
     const h = { Authorization: `Bearer ${localStorage.getItem("token")}` };
     try {
-      const [qRes, pRes, cRes, tRes, sRes] = await Promise.all([
+      const [qRes, pRes, cRes, tRes, sRes, svRes] = await Promise.all([
         fetch("/api/quotes",    { headers: h }),
         fetch("/api/products",  { headers: h }),
         fetch("/api/customers", { headers: h }),
         fetch("/api/tenant",    { headers: h }),
         fetch("/api/sellers",   { headers: h }),
+        fetch("/api/services",  { headers: h }),
       ]);
-      const qData = await qRes.json();
-      const pData = await pRes.json();
-      const cData = await cRes.json();
-      const tData = await tRes.json();
-      const sData = await sRes.json();
+      const qData  = await qRes.json();
+      const pData  = await pRes.json();
+      const cData  = await cRes.json();
+      const tData  = await tRes.json();
+      const sData  = await sRes.json();
+      const svData = await svRes.json();
       setQuotes(Array.isArray(qData) ? qData : []);
       setProducts(Array.isArray(pData) ? pData : []);
       setCustomers(Array.isArray(cData) ? cData : []);
       setTenant(tData);
       if (tData?.card_fees) setCardFees(tData.card_fees);
       setSellers(Array.isArray(sData) ? sData.filter((s: any) => s.is_active !== false) : []);
+      setServices(Array.isArray(svData) ? svData.filter((s: any) => s.is_active !== false) : []);
     } finally {
       setLoading(false);
     }
@@ -480,7 +516,9 @@ export default function Quotes() {
   useEffect(() => { fetchAll(); }, [fetchAll]);
 
   // ── Computed totals
-  const subtotal = formItems.reduce((s, i) => s + i.total, 0);
+  const itemsSubtotal    = formItems.reduce((s, i) => s + i.total, 0);
+  const servicesSubtotal = formServices.reduce((s, sv) => s + sv.price * sv.quantity, 0);
+  const subtotal         = itemsSubtotal + servicesSubtotal;
   const discountAmt =
     discountType === "percent"
       ? (subtotal * discountValue) / 100
@@ -524,9 +562,29 @@ export default function Quotes() {
     );
   };
 
+  // ── Service helpers
+  const addService = (s: ServiceCatalog) => {
+    setFormServices((prev) => {
+      const existing = prev.find((fs) => fs.service_id === s.id);
+      if (existing) {
+        return prev.map((fs) => fs.service_id === s.id ? { ...fs, quantity: fs.quantity + 1 } : fs);
+      }
+      return [...prev, { service_id: s.id, name: s.name, price: Number(s.price), quantity: 1 }];
+    });
+    setServiceSearch("");
+  };
+
+  const updateServiceQty = (service_id: number, qty: number) => {
+    if (qty <= 0) {
+      setFormServices((prev) => prev.filter((s) => s.service_id !== service_id));
+      return;
+    }
+    setFormServices((prev) => prev.map((s) => s.service_id === service_id ? { ...s, quantity: qty } : s));
+  };
+
   // ── Save quote
   const handleSave = async () => {
-    if (!formItems.length) return;
+    if (!formItems.length && !formServices.length) return;
     const cName = selectedCustomer?.name ?? manualCustomer.name;
     if (!cName.trim()) return;
 
@@ -550,6 +608,12 @@ export default function Quotes() {
           unit_price: i.unit_price,
           total: i.total,
         })),
+        services: formServices.map((s) => ({
+          id: s.service_id,
+          name: s.name,
+          price: s.price,
+          quantity: s.quantity,
+        })),
       };
       await fetch("/api/quotes", { method: "POST", headers: authHeader(), body: JSON.stringify(body) });
       await fetchAll();
@@ -562,6 +626,7 @@ export default function Quotes() {
   const resetForm = () => {
     setShowForm(false);
     setFormItems([]);
+    setFormServices([]);
     setSelectedCustomer(null);
     setManualCustomer({ name: "", phone: "", email: "" });
     setDiscountType("percent");
@@ -569,6 +634,7 @@ export default function Quotes() {
     setValidityDays(7);
     setNotes("");
     setProductSearch("");
+    setServiceSearch("");
     setCustomerSearch("");
   };
 
@@ -911,7 +977,7 @@ export default function Quotes() {
                 {formItems.length > 0 && (
                   <section>
                     <h3 className="text-[11px] font-black uppercase tracking-wider text-slate-500 mb-2">
-                      Itens do Orçamento
+                      Produtos
                     </h3>
                     <div className="space-y-2">
                       {formItems.map((item, idx) => (
@@ -939,6 +1005,85 @@ export default function Quotes() {
                           </span>
                           <button
                             onClick={() => setFormItems((prev) => prev.filter((_, i) => i !== idx))}
+                            className="text-slate-400 hover:text-red-500"
+                          >
+                            <X size={14} />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </section>
+                )}
+
+                {/* Service search */}
+                {services.length > 0 && (
+                  <section>
+                    <h3 className="text-[11px] font-black uppercase tracking-wider text-slate-500 mb-2 flex items-center gap-1.5">
+                      <Wrench size={12} /> Adicionar Serviços
+                    </h3>
+                    <div className="relative">
+                      <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                      <input
+                        value={serviceSearch}
+                        onChange={(e) => setServiceSearch(e.target.value)}
+                        placeholder="Buscar serviço..."
+                        className="w-full pl-9 h-9 pr-3 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      />
+                    </div>
+                    {serviceSearch && (
+                      <div className="mt-1 border border-slate-200 rounded-lg bg-white shadow-lg max-h-36 overflow-y-auto">
+                        {services.filter((s) => s.name.toLowerCase().includes(serviceSearch.toLowerCase())).length === 0 ? (
+                          <p className="px-3 py-2 text-sm text-slate-400">Nenhum serviço encontrado</p>
+                        ) : (
+                          services
+                            .filter((s) => s.name.toLowerCase().includes(serviceSearch.toLowerCase()))
+                            .slice(0, 8)
+                            .map((s) => (
+                              <button
+                                key={s.id}
+                                onClick={() => addService(s)}
+                                className="w-full px-3 py-2 text-left text-sm hover:bg-slate-50 flex items-center justify-between"
+                              >
+                                <div>
+                                  <span className="font-semibold">{s.name}</span>
+                                  {s.description && <span className="ml-2 text-xs text-slate-400">{s.description}</span>}
+                                </div>
+                                <span className="text-blue-600 font-bold shrink-0">{fmt(Number(s.price))}</span>
+                              </button>
+                            ))
+                        )}
+                      </div>
+                    )}
+                  </section>
+                )}
+
+                {/* Services list */}
+                {formServices.length > 0 && (
+                  <section>
+                    <h3 className="text-[11px] font-black uppercase tracking-wider text-slate-500 mb-2">
+                      Serviços
+                    </h3>
+                    <div className="space-y-2">
+                      {formServices.map((svc) => (
+                        <div key={svc.service_id} className="flex items-center gap-2 bg-blue-50 border border-blue-100 rounded-lg px-3 py-2">
+                          <Wrench size={13} className="text-blue-400 shrink-0" />
+                          <span className="flex-1 text-sm font-medium text-slate-700 truncate">{svc.name}</span>
+                          <div className="flex items-center gap-1 shrink-0">
+                            <button
+                              onClick={() => updateServiceQty(svc.service_id, svc.quantity - 1)}
+                              className="w-6 h-6 rounded-md bg-white border border-blue-200 text-slate-600 font-bold flex items-center justify-center hover:bg-red-50 hover:text-red-500"
+                            >−</button>
+                            <span className="w-6 text-center text-sm font-bold">{svc.quantity}</span>
+                            <button
+                              onClick={() => updateServiceQty(svc.service_id, svc.quantity + 1)}
+                              className="w-6 h-6 rounded-md bg-white border border-blue-200 text-slate-600 font-bold flex items-center justify-center hover:bg-emerald-50 hover:text-emerald-500"
+                            >+</button>
+                          </div>
+                          <span className="w-20 text-right text-sm font-bold text-blue-700 shrink-0">
+                            {fmt(svc.price * svc.quantity)}
+                          </span>
+                          <button
+                            onClick={() => setFormServices((prev) => prev.filter((s) => s.service_id !== svc.service_id))}
                             className="text-slate-400 hover:text-red-500"
                           >
                             <X size={14} />
@@ -1013,6 +1158,18 @@ export default function Quotes() {
               <div className="border-t border-slate-200 px-5 py-4 shrink-0 bg-slate-50">
                 <div className="flex items-end justify-between mb-3">
                   <div className="space-y-0.5">
+                    {itemsSubtotal > 0 && servicesSubtotal > 0 && (
+                      <>
+                        <div className="flex items-center justify-between gap-8 text-xs text-slate-400">
+                          <span>Produtos</span>
+                          <span>{fmt(itemsSubtotal)}</span>
+                        </div>
+                        <div className="flex items-center justify-between gap-8 text-xs text-blue-500">
+                          <span>Serviços</span>
+                          <span>{fmt(servicesSubtotal)}</span>
+                        </div>
+                      </>
+                    )}
                     <div className="flex items-center justify-between gap-8 text-sm text-slate-500">
                       <span>Subtotal</span>
                       <span>{fmt(subtotal)}</span>
@@ -1037,7 +1194,7 @@ export default function Quotes() {
                     </button>
                     <button
                       onClick={handleSave}
-                      disabled={saving || !formItems.length || !(selectedCustomer?.name ?? manualCustomer.name)}
+                      disabled={saving || (!formItems.length && !formServices.length) || !(selectedCustomer?.name ?? manualCustomer.name)}
                       className="h-9 px-5 bg-blue-600 text-white rounded-lg text-sm font-bold hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
                     >
                       {saving ? "Salvando…" : "Salvar Orçamento"}

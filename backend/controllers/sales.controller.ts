@@ -140,6 +140,16 @@ export async function createSale(req: Request, res: Response) {
             unit_price: item.price,
           })),
         },
+        ...(services && services.length > 0 ? {
+          services: {
+            create: services.map((svc) => ({
+              service_id: svc.id,
+              name: svc.name,
+              unit_price: svc.price,
+              quantity: 1,
+            })),
+          },
+        } : {}),
       },
     });
 

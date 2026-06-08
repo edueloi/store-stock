@@ -22,6 +22,7 @@ export async function listOrders(req: Request, res: Response) {
             },
           },
         },
+        services: true,
       },
     });
 
@@ -33,6 +34,13 @@ export async function listOrders(req: Request, res: Response) {
         image_url: item.product.image_url,
         quantity: item.quantity,
         unit_price: item.unit_price,
+      })),
+      services: order.services.map((svc) => ({
+        id: svc.id,
+        service_id: svc.service_id,
+        name: svc.name,
+        unit_price: svc.unit_price,
+        quantity: svc.quantity,
       })),
     })));
   } catch {
@@ -55,6 +63,7 @@ export async function getOrderById(req: Request, res: Response) {
             },
           },
         },
+        services: true,
       },
     });
 
@@ -68,6 +77,13 @@ export async function getOrderById(req: Request, res: Response) {
       items: order.items.map((item) => ({
         ...item,
         product_name: item.product.name,
+      })),
+      services: order.services.map((svc) => ({
+        id: svc.id,
+        service_id: svc.service_id,
+        name: svc.name,
+        unit_price: svc.unit_price,
+        quantity: svc.quantity,
       })),
     });
   } catch {
