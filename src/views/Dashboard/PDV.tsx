@@ -5,10 +5,23 @@ import {
   Loader2, ExternalLink, RefreshCw, ChevronRight,
   Printer, FileText, MessageCircle, Phone, Clock, Receipt,
   ChevronDown, PlusCircle, Users, Barcode, Wrench, ChevronUp,
+  Star, Gift, UserPlus,
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { Product, Category } from "../../types";
 import { cn } from "../../lib/utils";
+import Combobox from "../../components/ui/Combobox";
+
+function maskPhone(v: string) {
+  const d = v.replace(/\D/g, "").slice(0, 11);
+  if (d.length <= 10) return d.replace(/(\d{2})(\d{4})(\d{0,4})/, "($1) $2-$3").replace(/-$/, "");
+  return d.replace(/(\d{2})(\d{5})(\d{0,4})/, "($1) $2-$3").replace(/-$/, "");
+}
+function maskDoc(v: string) {
+  const d = v.replace(/\D/g, "");
+  if (d.length <= 11) return d.replace(/(\d{3})(\d{3})(\d{3})(\d{0,2})/, "$1.$2.$3-$4").replace(/-$/, "").replace(/\.{1,}$/, "");
+  return d.slice(0, 14).replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{0,2})/, "$1.$2.$3/$4-$5").replace(/-$/, "").replace(/\/$/, "");
+}
 
 type PaymentMethod = "money" | "debit" | "credit" | "pix";
 type CardBrand    = "visa" | "master" | "elo" | "amex" | "hiper" | "other";
@@ -55,6 +68,8 @@ interface CompletedSale {
   tenantLogo: string;
   tenantColor: string;
   cardFees: Record<string, number[]>;
+  pointsEarned?: number;
+  rewardApplied?: string;
 }
 
 interface RecentOrder {
@@ -107,8 +122,28 @@ export default function PDV() {
   const [showServicesModal, setShowServicesModal] = useState(false);
   const [cartServices, setCartServices] = useState<ServiceItem[]>([]);
 
-  // checkout fields
-  const [customerName, setCustomerName] = useState("");
+  // checkout fields — customer
+  interface CustomerOption { id: number; name: string; phone?: string; document?: string }
+  const [customers, setCustomers]                   = useState<CustomerOption[]>([]);
+  const [selectedCustomerId, setSelectedCustomerId] = useState<number | null>(null);
+  const [customerName, setCustomerName]             = useState("");
+  const [customerPoints, setCustomerPoints]         = useState(0);
+  const [loyaltyProgram, setLoyaltyProgram]         = useState<{ spend_per_point: number; is_active: boolean } | null>(null);
+  const [loyaltyRewards, setLoyaltyRewards]         = useState<{ id: number; name: string; points_cost: number; type: string; discount_value?: number; discount_type?: string }[]>([]);
+  const [appliedReward, setAppliedReward]           = useState<{ id: number; name: string; points_cost: number; type: string; discount_value?: number; discount_type?: string } | null>(null);
+  // new customer quick-form
+  const [showNewCustomer, setShowNewCustomer] = useState(false);
+  const [ncName, setNcName]       = useState("");
+  const [ncPhone, setNcPhone]     = useState("");
+  const [ncDoc, setNcDoc]         = useState("");
+  const [ncEmail, setNcEmail]     = useState("");
+  const [ncAddr, setNcAddr]       = useState("");
+  const [ncBirth, setNcBirth]     = useState("");
+  const [ncCredit, setNcCredit]   = useState("");
+  const [ncNotes, setNcNotes]     = useState("");
+  const [ncRisk, setNcRisk]       = useState(false);
+  const [ncRiskReason, setNcRiskReason] = useState("");
+  const [savingNC, setSavingNC]   = useState(false);
   const [cardFees, setCardFees]         = useState<Record<string, number[]>>({});
   const [passFeeToCustomer, setPassFeeToCustomer] = useState(false);
   const [passFeeByMethod, setPassFeeByMethod]     = useState<Record<string, boolean>>({});
@@ -182,6 +217,17 @@ export default function PDV() {
       .then((r) => r.json())
       .then((d) => setServices(Array.isArray(d) ? d.filter((s: any) => s.is_active !== false) : []))
       .catch(() => {});
+    fetch("/api/customers", { headers })
+      .then((r) => r.json())
+      .then((d) => setCustomers(Array.isArray(d) ? d : []))
+      .catch(() => {});
+    Promise.all([
+      fetch("/api/loyalty/program", { headers }).then((r) => r.json()),
+      fetch("/api/loyalty/rewards", { headers }).then((r) => r.json()),
+    ]).then(([pg, rw]) => {
+      setLoyaltyProgram({ spend_per_point: Number(pg.spend_per_point ?? 10), is_active: pg.is_active ?? false });
+      setLoyaltyRewards(Array.isArray(rw) ? rw.filter((r: { is_active: boolean }) => r.is_active) : []);
+    }).catch(() => {});
   }, []);
 
   const fetchRecentOrders = useCallback(async () => {
@@ -639,9 +685,10 @@ ${change > 0 ? `<hr class="divider"/><div class="row bold"><span>TROCO:</span><s
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify({
-          items: cart.map((i) => ({ id: i.id, quantity: i.quantity, price: i.price })),
+          items: cart.map((i) => ({ id: i.id, quantity: i.quantity, price: i.price, selectedOptions: i.selectedOptions ?? null })),
           services: cartServices.map((s) => ({ id: s.id, name: s.name, price: s.price })),
           customerName,
+          customerId: selectedCustomerId ?? undefined,
           totalAmount: total,
           paymentMethod: pmString,
           discount: discountValue,
@@ -653,6 +700,26 @@ ${change > 0 ? `<hr class="divider"/><div class="row bold"><span>TROCO:</span><s
       });
       if (res.ok) {
         const data = await res.json();
+
+        // redeem reward if applied
+        let rewardApplied: string | undefined;
+        if (selectedCustomerId && appliedReward) {
+          try {
+            await fetch(`/api/loyalty/customers/${selectedCustomerId}/redeem`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+              body: JSON.stringify({ reward_id: appliedReward.id, order_id: data.orderId }),
+            });
+            rewardApplied = appliedReward.name;
+          } catch (e) { console.error(e); }
+        }
+
+        let pointsEarned: number | undefined;
+        if (selectedCustomerId && loyaltyProgram?.is_active && loyaltyProgram.spend_per_point > 0) {
+          pointsEarned = Math.floor(total / loyaltyProgram.spend_per_point);
+          if (pointsEarned <= 0) pointsEarned = undefined;
+        }
+
         const sale: CompletedSale = {
           orderId: data.orderId,
           customerName,
@@ -675,10 +742,11 @@ ${change > 0 ? `<hr class="divider"/><div class="row bold"><span>TROCO:</span><s
           tenantWhatsapp: tenant.whatsapp ?? "",
           tenantLogo:     tenant.logo_url ?? "",
           tenantColor:    tenant.primary_color ?? "#2563eb",
-          cardFees,
+          cardFees, pointsEarned, rewardApplied,
         };
         setCompletedSale(sale);
-        setCart([]); setCartServices([]); setCustomerName(""); setDiscount(""); setSurcharge("");
+        setCart([]); setCartServices([]); setCustomerName(""); setSelectedCustomerId(null);
+        setCustomerPoints(0); setAppliedReward(null); setDiscount(""); setSurcharge("");
         setPayments([newPayment()]); setSelectedSellerId(null);
         setShowCheckout(false);
         setShowReceipt(true);
@@ -1051,11 +1119,107 @@ ${change > 0 ? `<hr class="divider"/><div class="row bold"><span>TROCO:</span><s
                 </div>
 
                 {/* cliente */}
-                <div className="relative">
-                  <User className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
-                  <input type="text" placeholder="Nome do cliente (opcional)"
-                    className="w-full pl-9 pr-4 h-10 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:border-blue-500 text-[11px] font-medium text-slate-800 placeholder:text-slate-400 transition-all"
-                    value={customerName} onChange={(e) => setCustomerName(e.target.value)} />
+                <div>
+                  <label className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400 mb-1.5 block">Cliente</label>
+                  <div className="flex gap-2">
+                    <div className="flex-1 min-w-0">
+                      <Combobox
+                        placeholder="Buscar por nome, CPF ou telefone…"
+                        searchPlaceholder="Nome, CPF/CNPJ ou telefone…"
+                        clearable
+                        freeInput
+                        value={selectedCustomerId !== null ? String(selectedCustomerId) : customerName}
+                        onChange={(v) => {
+                          if (!v) {
+                            setSelectedCustomerId(null); setCustomerName(""); setCustomerPoints(0); setAppliedReward(null);
+                            setDiscount(""); setDiscountMode("R$");
+                          } else {
+                            const cust = customers.find((c) => String(c.id) === v);
+                            if (cust) {
+                              setSelectedCustomerId(cust.id); setCustomerName(cust.name);
+                              fetch(`/api/loyalty/customers/${cust.id}/points`, { headers: { Authorization: `Bearer ${token}` } })
+                                .then((r) => r.json()).then((d) => setCustomerPoints(d.balance ?? 0)).catch(() => {});
+                            } else {
+                              setSelectedCustomerId(null); setCustomerName(v); setCustomerPoints(0); setAppliedReward(null);
+                              setDiscount(""); setDiscountMode("R$");
+                            }
+                          }
+                        }}
+                        options={customers.map((c) => ({
+                          value: String(c.id),
+                          label: c.name,
+                          description: [c.phone, c.document].filter(Boolean).join(" · "),
+                        }))}
+                        onAddNew={(q) => {
+                          setNcName(q); setNcPhone(""); setNcDoc(""); setNcEmail(""); setNcAddr(""); setNcBirth(""); setNcCredit(""); setNcNotes(""); setNcRisk(false); setNcRiskReason("");
+                          setShowNewCustomer(true);
+                        }}
+                      />
+                    </div>
+                    <button type="button"
+                      onClick={() => { setNcName(""); setNcPhone(""); setNcDoc(""); setNcEmail(""); setNcAddr(""); setNcBirth(""); setNcCredit(""); setNcNotes(""); setNcRisk(false); setNcRiskReason(""); setShowNewCustomer(true); }}
+                      className="h-10 w-10 rounded-xl bg-blue-50 border border-blue-200 text-blue-600 hover:bg-blue-100 flex items-center justify-center shrink-0 transition-colors"
+                      title="Cadastrar novo cliente">
+                      <UserPlus size={14} />
+                    </button>
+                  </div>
+
+                  {/* Loyalty panel */}
+                  {selectedCustomerId && loyaltyProgram?.is_active && (
+                    <div className="mt-2 bg-amber-50 border border-amber-200 rounded-xl p-3 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-1.5">
+                          <Star size={12} className="text-amber-500" fill="currentColor" />
+                          <span className="text-[11px] font-bold text-amber-700">{customerPoints.toLocaleString("pt-BR")} pontos</span>
+                        </div>
+                        {appliedReward ? (
+                          <button onClick={() => { if (appliedReward.type === "discount") { setDiscount(""); setDiscountMode("R$"); } setAppliedReward(null); }}
+                            className="text-[10px] text-rose-500 font-bold hover:underline">Remover resgate</button>
+                        ) : loyaltyRewards.filter((r) => customerPoints >= r.points_cost).length > 0 ? (
+                          <span className="text-[10px] text-amber-600 font-bold">Pode resgatar!</span>
+                        ) : null}
+                      </div>
+                      {loyaltyProgram.spend_per_point > 0 && (() => {
+                        const willEarn = Math.floor(total / loyaltyProgram.spend_per_point);
+                        return willEarn > 0 ? (
+                          <p className="text-[10px] text-amber-600 font-medium">+{willEarn} ponto{willEarn !== 1 ? "s" : ""} ao finalizar</p>
+                        ) : null;
+                      })()}
+                      {!appliedReward && loyaltyRewards.filter((r) => customerPoints >= r.points_cost).length > 0 && (
+                        <div className="space-y-1 pt-1 border-t border-amber-200">
+                          <p className="text-[9px] font-black uppercase tracking-widest text-amber-600 mb-1">Recompensas disponíveis</p>
+                          {loyaltyRewards.filter((r) => customerPoints >= r.points_cost).map((r) => (
+                            <button key={r.id} onClick={() => {
+                              setAppliedReward(r);
+                              if (r.type === "discount") {
+                                if (r.discount_type === "percent") { setDiscountMode("%"); setDiscount(String(r.discount_value ?? 0)); }
+                                else { setDiscountMode("R$"); setDiscount(String(r.discount_value ?? 0)); }
+                              }
+                            }}
+                              className="w-full flex items-center justify-between p-2 bg-white rounded-lg border border-amber-200 text-[11px] hover:bg-amber-50 transition-colors">
+                              <span className="flex items-center gap-1.5 font-bold text-slate-700">
+                                {r.type === "product"
+                                  ? <><Gift size={11} className="text-violet-500" /><span>{r.name}</span><span className="text-[9px] font-black text-violet-500 bg-violet-50 px-1.5 py-0.5 rounded-md border border-violet-200 ml-1">brinde</span></>
+                                  : <><Gift size={11} className="text-amber-500" /><span>{r.name}</span>{r.discount_value && <span className="text-[9px] font-black text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded-md border border-emerald-200 ml-1">{r.discount_type === "percent" ? `${r.discount_value}% off` : `R$ ${r.discount_value} off`}</span>}</>
+                                }
+                              </span>
+                              <span className="text-amber-600 font-bold shrink-0 ml-2">{r.points_cost} pts</span>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                      {appliedReward && (
+                        <div className={cn("flex items-center gap-2 p-2 rounded-lg border", appliedReward.type === "product" ? "bg-violet-50 border-violet-200" : "bg-emerald-50 border-emerald-200")}>
+                          <Gift size={12} className={appliedReward.type === "product" ? "text-violet-500" : "text-emerald-500"} />
+                          <div className="flex-1 min-w-0">
+                            <p className={cn("text-[11px] font-bold", appliedReward.type === "product" ? "text-violet-700" : "text-emerald-700")}>{appliedReward.name} aplicado!</p>
+                            {appliedReward.type === "product" && <p className="text-[10px] text-violet-500 font-medium">Brinde sairá do estoque ao confirmar</p>}
+                          </div>
+                          <span className="text-[10px] font-bold text-rose-500 shrink-0">−{appliedReward.points_cost} pts</span>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
 
                 {/* serviços */}
@@ -1403,6 +1567,18 @@ ${change > 0 ? `<hr class="divider"/><div class="row bold"><span>TROCO:</span><s
                         <span className="text-[11px] font-black text-white">Troco: R$ {completedSale.change.toFixed(2)}</span>
                       </div>
                     )}
+                    {completedSale.pointsEarned != null && completedSale.pointsEarned > 0 && (
+                      <div className="mt-2 inline-flex items-center gap-1.5 bg-amber-400/20 rounded-lg px-3 py-1.5">
+                        <Star size={13} className="text-amber-300" fill="currentColor" />
+                        <span className="text-[11px] font-black text-amber-200">+{completedSale.pointsEarned} pontos ganhos!</span>
+                      </div>
+                    )}
+                    {completedSale.rewardApplied && (
+                      <div className="mt-2 inline-flex items-center gap-1.5 bg-violet-400/20 rounded-lg px-3 py-1.5">
+                        <Gift size={13} className="text-violet-300" />
+                        <span className="text-[11px] font-black text-violet-200">{completedSale.rewardApplied} resgatado!</span>
+                      </div>
+                    )}
                     {/* pagamentos */}
                     <div className="mt-3 flex flex-wrap gap-1.5">
                       {completedSale.payments.map((p, i) => {
@@ -1571,6 +1747,111 @@ ${change > 0 ? `<hr class="divider"/><div class="row bold"><span>TROCO:</span><s
                   className="w-full h-11 bg-slate-900 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-slate-700 transition-colors"
                 >
                   Confirmar
+                </button>
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+
+      {/* New Customer Drawer */}
+      <AnimatePresence>
+        {showNewCustomer && (
+          <>
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              onClick={() => setShowNewCustomer(false)}
+              className="fixed inset-0 bg-slate-900/60 z-[500] backdrop-blur-sm" />
+            <motion.div
+              initial={{ x: "100%" }} animate={{ x: 0 }} exit={{ x: "100%" }}
+              transition={{ type: "spring", damping: 26, stiffness: 200 }}
+              className="fixed inset-y-0 right-0 w-full max-w-sm bg-white z-[510] shadow-2xl flex flex-col">
+              <div className="flex items-center justify-between px-5 py-4 border-b border-slate-200 shrink-0">
+                <div>
+                  <h2 className="font-black text-slate-900 text-[15px]">Novo Cliente</h2>
+                  <p className="text-[11px] text-slate-500">Cadastro CRM</p>
+                </div>
+                <button onClick={() => setShowNewCustomer(false)} className="p-2 hover:bg-slate-100 rounded-lg text-slate-500"><X size={18} /></button>
+              </div>
+              <div className="flex-1 overflow-y-auto p-5 space-y-3">
+                <div>
+                  <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block mb-1">Nome *</label>
+                  <input value={ncName} onChange={(e) => setNcName(e.target.value)} placeholder="Nome completo"
+                    className="w-full h-9 px-3 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block mb-1">Telefone</label>
+                    <input value={ncPhone} onChange={(e) => setNcPhone(maskPhone(e.target.value))} inputMode="numeric" placeholder="(11) 99999-9999"
+                      className="w-full h-9 px-3 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block mb-1">CPF/CNPJ</label>
+                    <input value={ncDoc} onChange={(e) => setNcDoc(maskDoc(e.target.value))} inputMode="numeric" placeholder="000.000.000-00"
+                      className="w-full h-9 px-3 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                  </div>
+                </div>
+                <div>
+                  <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block mb-1">E-mail</label>
+                  <input type="email" value={ncEmail} onChange={(e) => setNcEmail(e.target.value)} placeholder="email@exemplo.com"
+                    className="w-full h-9 px-3 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                </div>
+                <div>
+                  <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block mb-1">Endereço</label>
+                  <input value={ncAddr} onChange={(e) => setNcAddr(e.target.value)} placeholder="Rua, Cidade - UF"
+                    className="w-full h-9 px-3 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                </div>
+                <div>
+                  <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block mb-1">Data de Aniversário</label>
+                  <input type="date" value={ncBirth} onChange={(e) => setNcBirth(e.target.value)}
+                    className="w-full h-9 px-3 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                </div>
+                <div>
+                  <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block mb-1">Limite de Crédito (R$)</label>
+                  <input type="number" min={0} value={ncCredit} onChange={(e) => setNcCredit(e.target.value)} placeholder="0,00"
+                    className="w-full h-9 px-3 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                </div>
+                <div>
+                  <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block mb-1">Observações</label>
+                  <textarea value={ncNotes} onChange={(e) => setNcNotes(e.target.value)} rows={2} placeholder="Preferências, anotações gerais…"
+                    className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none" />
+                </div>
+                <div className={cn("rounded-xl border p-3 space-y-2 transition-colors", ncRisk ? "bg-rose-50 border-rose-200" : "bg-slate-50 border-slate-200")}>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input type="checkbox" checked={ncRisk} onChange={(e) => setNcRisk(e.target.checked)} className="w-4 h-4 accent-rose-500" />
+                    <span className={cn("text-[12px] font-black", ncRisk ? "text-rose-600" : "text-slate-600")}>⚠ Marcar como Cliente de Risco</span>
+                  </label>
+                  {ncRisk && (
+                    <textarea value={ncRiskReason} onChange={(e) => setNcRiskReason(e.target.value)} rows={2} placeholder="Motivo do risco…"
+                      className="w-full px-3 py-2 rounded-lg border border-rose-200 text-sm focus:outline-none focus:ring-2 focus:ring-rose-400 resize-none bg-white" />
+                  )}
+                </div>
+              </div>
+              <div className="border-t border-slate-200 px-5 py-4 shrink-0 bg-slate-50 flex gap-2">
+                <button onClick={() => setShowNewCustomer(false)}
+                  className="flex-1 h-9 rounded-lg border border-slate-200 text-sm font-semibold text-slate-600 hover:bg-slate-100">Cancelar</button>
+                <button disabled={savingNC || !ncName.trim()} onClick={async () => {
+                  if (!ncName.trim()) return;
+                  setSavingNC(true);
+                  try {
+                    const res = await fetch("/api/customers", {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+                      body: JSON.stringify({
+                        name: ncName, phone: ncPhone.replace(/\D/g, "") || null, document: ncDoc.replace(/\D/g, "") || null,
+                        email: ncEmail || null, address: ncAddr || null, birth_date: ncBirth || null,
+                        credit_limit: ncCredit ? Number(ncCredit) : null, notes: ncNotes || null,
+                        risk_flag: ncRisk, risk_reason: ncRiskReason || null,
+                      }),
+                    });
+                    const newCust = await res.json();
+                    fetch("/api/customers", { headers: { Authorization: `Bearer ${token}` } })
+                      .then((r) => r.json()).then((d) => setCustomers(Array.isArray(d) ? d : [])).catch(() => {});
+                    setSelectedCustomerId(newCust.id); setCustomerName(newCust.name); setCustomerPoints(0);
+                    setShowNewCustomer(false);
+                  } finally { setSavingNC(false); }
+                }}
+                  className="flex-1 h-9 bg-blue-600 text-white rounded-lg text-sm font-bold hover:bg-blue-700 disabled:opacity-50 transition-all">
+                  {savingNC ? "Cadastrando…" : "Criar Cliente"}
                 </button>
               </div>
             </motion.div>

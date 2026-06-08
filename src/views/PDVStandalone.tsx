@@ -4,7 +4,7 @@ import {
   Banknote, Percent, CheckCircle2, Package, X, QrCode, Tag,
   Loader2, Lock, Mail, LogOut, Store,
   Printer, FileText, MessageCircle, Phone, ChevronRight, ChevronDown,
-  PlusCircle, Barcode, Users, Scan,
+  PlusCircle, Barcode, Users, Scan, Star, Gift, UserPlus, Download,
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { Product, Category } from "../types";
@@ -68,12 +68,26 @@ interface CompletedSale {
   tenantColor: string;
   tenantWhatsapp: string;
   cardFees: Record<string, number[]>;
+  pointsEarned?: number;
+  rewardApplied?: string;
 }
 
 interface SellerEntry { id: number; name: string; commission_rate: number }
 
 function newPayment(): PaymentEntry {
   return { id: Math.random().toString(36).slice(2), method: "money", cardBrand: "visa", installments: 1, amount: "" };
+}
+
+// ─── Masks ────────────────────────────────────────────────────────────────────
+function maskPhone(v: string) {
+  const d = v.replace(/\D/g, "").slice(0, 11);
+  if (d.length <= 10) return d.replace(/(\d{2})(\d{4})(\d{0,4})/, "($1) $2-$3").replace(/-$/, "");
+  return d.replace(/(\d{2})(\d{5})(\d{0,4})/, "($1) $2-$3").replace(/-$/, "");
+}
+function maskDoc(v: string) {
+  const d = v.replace(/\D/g, "");
+  if (d.length <= 11) return d.replace(/(\d{3})(\d{3})(\d{3})(\d{0,2})/, "$1.$2.$3-$4").replace(/-$/, "").replace(/\.{1,}$/, "");
+  return d.slice(0, 14).replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{0,2})/, "$1.$2.$3/$4-$5").replace(/-$/, "").replace(/\/$/, "");
 }
 
 // ─── LOGIN ────────────────────────────────────────────────────────────────────
@@ -175,8 +189,28 @@ export default function PDVStandalone() {
   const [tenantName, setTenantName]   = useState("PDV");
   const [tenantAddress, setTenantAddress] = useState("");
 
-  // checkout fields
-  const [customerName, setCustomerName]   = useState("");
+  // checkout fields — customer
+  interface CustomerOption { id: number; name: string; phone?: string; document?: string; }
+  const [customers, setCustomers]           = useState<CustomerOption[]>([]);
+  const [selectedCustomerId, setSelectedCustomerId] = useState<number | null>(null);
+  const [customerName, setCustomerName]     = useState("");
+  const [customerPoints, setCustomerPoints] = useState<number>(0);
+  const [loyaltyRewards, setLoyaltyRewards] = useState<{ id: number; name: string; points_cost: number; type: string; discount_value?: number; discount_type?: string }[]>([]);
+  const [loyaltyProgram, setLoyaltyProgram] = useState<{ spend_per_point: number; is_active: boolean } | null>(null);
+  const [appliedReward, setAppliedReward]   = useState<{ id: number; name: string; points_cost: number; type: string; discount_value?: number; discount_type?: string } | null>(null);
+  // new customer full-form
+  const [showNewCustomer, setShowNewCustomer] = useState(false);
+  const [ncName, setNcName]       = useState("");
+  const [ncPhone, setNcPhone]     = useState("");
+  const [ncDoc, setNcDoc]         = useState("");
+  const [ncEmail, setNcEmail]     = useState("");
+  const [ncAddr, setNcAddr]       = useState("");
+  const [ncBirth, setNcBirth]     = useState("");
+  const [ncCredit, setNcCredit]   = useState("");
+  const [ncNotes, setNcNotes]     = useState("");
+  const [ncRisk, setNcRisk]       = useState(false);
+  const [ncRiskReason, setNcRiskReason] = useState("");
+  const [savingNC, setSavingNC]   = useState(false);
   const [sellers, setSellers]             = useState<SellerEntry[]>([]);
   const [selectedSellerId, setSelectedSellerId] = useState<number | null>(null);
   const [discount, setDiscount]           = useState("");
@@ -198,6 +232,57 @@ export default function PDVStandalone() {
   const [scanCode, setScanCode]         = useState("");
   const [scanFeedback, setScanFeedback] = useState<"ok" | "err" | null>(null);
   const scanInputRef = useRef<HTMLInputElement>(null);
+
+  // ── PWA install prompt ───────────────────────────────────────────────────────
+  const [installPrompt, setInstallPrompt]   = useState<Event | null>(null);
+  const [pwaInstalled, setPwaInstalled]     = useState(false);
+  const [showInstallModal, setShowInstallModal] = useState(false);
+
+  const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
+  const isIos    = /iphone|ipad|ipod/i.test(navigator.userAgent);
+  const isStandalone = window.matchMedia("(display-mode: standalone)").matches
+    || ("standalone" in window.navigator && (window.navigator as { standalone?: boolean }).standalone === true);
+
+  const [isFullscreen, setIsFullscreen] = useState(false);
+
+  useEffect(() => {
+    if (isStandalone) {
+      setPwaInstalled(true);
+      // auto fullscreen when running as installed PWA
+      document.documentElement.requestFullscreen?.().catch(() => {});
+      setIsFullscreen(true);
+    }
+    const handler = (e: Event) => { e.preventDefault(); setInstallPrompt(e); };
+    window.addEventListener("beforeinstallprompt", handler);
+    window.addEventListener("appinstalled", () => { setInstallPrompt(null); setPwaInstalled(true); });
+    const onFsChange = () => setIsFullscreen(!!document.fullscreenElement);
+    document.addEventListener("fullscreenchange", onFsChange);
+    return () => {
+      window.removeEventListener("beforeinstallprompt", handler);
+      document.removeEventListener("fullscreenchange", onFsChange);
+    };
+  }, []);
+
+  const toggleFullscreen = () => {
+    if (!document.fullscreenElement) {
+      document.documentElement.requestFullscreen?.().catch(() => {});
+    } else {
+      document.exitFullscreen?.();
+    }
+  };
+
+  // Opens our custom modal — NOT the browser prompt directly
+  const handleInstallPwa = () => setShowInstallModal(true);
+
+  // Called when user confirms inside our modal
+  const confirmInstall = async () => {
+    setShowInstallModal(false);
+    if (isSafari || isIos) return; // Safari: modal already shows instructions
+    if (!installPrompt) return;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await (installPrompt as any).prompt();
+    setInstallPrompt(null); setPwaInstalled(true);
+  };
 
   const handleLogin  = (t: string) => setToken(t);
   const handleLogout = () => {
@@ -248,6 +333,19 @@ export default function PDVStandalone() {
       .then((r) => r.json())
       .then((d) => setSellers(Array.isArray(d) ? d.filter((s: SellerEntry & { is_active?: boolean }) => s.is_active !== false) : []))
       .catch(() => {});
+
+    fetch("/api/customers", { headers })
+      .then((r) => r.json())
+      .then((d) => setCustomers(Array.isArray(d) ? d : []))
+      .catch(() => {});
+
+    Promise.all([
+      fetch("/api/loyalty/program", { headers }).then((r) => r.json()),
+      fetch("/api/loyalty/rewards", { headers }).then((r) => r.json()),
+    ]).then(([pg, rw]) => {
+      setLoyaltyProgram({ spend_per_point: Number(pg.spend_per_point ?? 10), is_active: pg.is_active ?? false });
+      setLoyaltyRewards(Array.isArray(rw) ? rw.filter((r: { is_active: boolean }) => r.is_active) : []);
+    }).catch(() => {});
   }, [token]);
 
   // ── barcode scanner ──────────────────────────────────────────────────────────
@@ -647,8 +745,9 @@ ${sale.change > 0 ? `<hr class="divider"/><div class="row bold"><span>TROCO:</sp
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify({
-          items: cart.map((i) => ({ id: i.id, quantity: i.quantity, price: i.price })),
+          items: cart.map((i) => ({ id: i.id, quantity: i.quantity, price: i.price, selectedOptions: i.selectedOptions ?? null })),
           customerName,
+          customerId: selectedCustomerId ?? undefined,
           sellerId: selectedSellerId,
           totalAmount: total,
           paymentMethod: pmString,
@@ -660,6 +759,27 @@ ${sale.change > 0 ? `<hr class="divider"/><div class="row bold"><span>TROCO:</sp
       });
       if (res.ok) {
         const data = await res.json();
+
+        // register redemption if reward was applied (await so stock/points are updated before receipt)
+        let rewardApplied: string | undefined;
+        if (selectedCustomerId && appliedReward) {
+          try {
+            await fetch(`/api/loyalty/customers/${selectedCustomerId}/redeem`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+              body: JSON.stringify({ reward_id: appliedReward.id, order_id: data.orderId }),
+            });
+            rewardApplied = appliedReward.name;
+          } catch (e) { console.error(e); }
+        }
+
+        // compute points that will be earned for this sale
+        let pointsEarned: number | undefined;
+        if (selectedCustomerId && loyaltyProgram?.is_active && loyaltyProgram.spend_per_point > 0) {
+          pointsEarned = Math.floor(total / loyaltyProgram.spend_per_point);
+          if (pointsEarned <= 0) pointsEarned = undefined;
+        }
+
         const sale: CompletedSale = {
           orderId: data.orderId,
           customerName,
@@ -669,10 +789,11 @@ ${sale.change > 0 ? `<hr class="divider"/><div class="row bold"><span>TROCO:</sp
           subtotal, discountValue, surchargeValue, feeAmount, total,
           change: change > 0 ? change : 0,
           tenantName, tenantAddress, tenantLogo, tenantColor, tenantWhatsapp,
-          cardFees,
+          cardFees, pointsEarned, rewardApplied,
         };
         setCompletedSale(sale);
-        setCart([]); setCustomerName(""); setDiscount(""); setSurcharge(""); setSelectedSellerId(null);
+        setCart([]); setCustomerName(""); setSelectedCustomerId(null); setCustomerPoints(0); setAppliedReward(null);
+        setDiscount(""); setSurcharge(""); setSelectedSellerId(null);
         setPayments([newPayment()]);
         setShowCartMobile(false);
         setShowCheckoutModal(false);
@@ -740,12 +861,132 @@ ${sale.change > 0 ? `<hr class="divider"/><div class="row bold"><span>TROCO:</sp
           </div>
         </div>
 
-        {/* Sair */}
-        <button onClick={handleLogout}
-          className="flex items-center gap-1.5 px-3 h-8 rounded-xl text-[10px] font-bold uppercase tracking-widest text-slate-400 hover:text-red-500 transition-all border border-slate-200 hover:border-red-200 hover:bg-red-50">
-          <LogOut size={11} /> Sair
-        </button>
+        {/* Instalar PWA */}
+        <div className="flex items-center gap-2">
+          {!pwaInstalled && (installPrompt || isSafari || isIos) && (
+            <button onClick={handleInstallPwa}
+              className="flex items-center gap-1.5 px-3 h-8 rounded-xl text-[10px] font-bold uppercase tracking-widest text-blue-600 border border-blue-200 bg-blue-50 hover:bg-blue-100 transition-all">
+              <Download size={11} /> Instalar App
+            </button>
+          )}
+          {pwaInstalled && (
+            <span className="flex items-center gap-1.5 px-3 h-8 rounded-xl text-[10px] font-bold uppercase tracking-widest text-emerald-600 border border-emerald-200 bg-emerald-50">
+              <CheckCircle2 size={11} /> Instalado
+            </span>
+          )}
+          {/* Sair */}
+          <button onClick={handleLogout}
+            className="flex items-center gap-1.5 px-3 h-8 rounded-xl text-[10px] font-bold uppercase tracking-widest text-slate-400 hover:text-red-500 transition-all border border-slate-200 hover:border-red-200 hover:bg-red-50">
+            <LogOut size={11} /> Sair
+          </button>
+        </div>
       </header>
+
+      {/* ── PWA Install Modal ─────────────────────────────────────────────────── */}
+      <AnimatePresence>
+        {showInstallModal && (
+          <>
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              onClick={() => setShowInstallModal(false)}
+              className="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-[600]" />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.92, y: 24 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.92, y: 24 }}
+              transition={{ type: "spring", damping: 26, stiffness: 300 }}
+              className="fixed z-[601] left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-md bg-white rounded-3xl shadow-2xl overflow-hidden">
+
+              {/* Header */}
+              <div className="relative bg-gradient-to-br from-slate-900 to-slate-800 px-7 pt-7 pb-8 overflow-hidden">
+                <div className="absolute -top-6 -right-6 w-32 h-32 bg-blue-500/10 rounded-full" />
+                <div className="absolute -bottom-8 -left-4 w-40 h-40 bg-blue-500/5 rounded-full" />
+                <button onClick={() => setShowInstallModal(false)}
+                  className="absolute top-4 right-4 w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center transition-all">
+                  <X size={14} className="text-white/60" />
+                </button>
+                <div className="relative flex items-center gap-4">
+                  <div className="w-16 h-16 bg-gradient-to-br from-blue-500 to-blue-700 rounded-2xl flex items-center justify-center shadow-xl shadow-blue-500/30">
+                    <Store size={28} className="text-white" />
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-black uppercase tracking-[0.25em] text-blue-400 mb-0.5">Terminal de Vendas</p>
+                    <h2 className="text-[22px] font-black text-white leading-none">BoxSys PDV</h2>
+                    <p className="text-[11px] text-slate-400 font-medium mt-1">Instale na área de trabalho para acesso rápido</p>
+                  </div>
+                </div>
+                {/* Vantagens */}
+                <div className="relative mt-5 grid grid-cols-3 gap-2">
+                  {[
+                    { icon: "⚡", label: "Acesso rápido", sub: "1 clique na Dock" },
+                    { icon: "📶", label: "Cache inteligente", sub: "Abre mesmo com net lenta" },
+                    { icon: "🖥️", label: "Tela cheia", sub: "Sem barra do browser" },
+                  ].map((v) => (
+                    <div key={v.label} className="bg-white/5 border border-white/10 rounded-xl p-2.5 text-center">
+                      <p className="text-lg mb-0.5">{v.icon}</p>
+                      <p className="text-[10px] font-black text-white leading-tight">{v.label}</p>
+                      <p className="text-[9px] text-slate-500 font-medium mt-0.5">{v.sub}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Body */}
+              <div className="p-6">
+                {(isSafari || isIos) ? (
+                  /* Safari / iOS — instrução manual */
+                  <div className="space-y-3">
+                    <p className="text-[12px] font-black text-slate-500 uppercase tracking-widest mb-4">
+                      {isIos ? "Como instalar no iPhone / iPad" : "Como instalar no Mac (Safari)"}
+                    </p>
+                    {(isIos
+                      ? [
+                          { n: 1, icon: "↑", text: "Toque no botão Compartilhar", sub: "Ícone □↑ na barra inferior do Safari" },
+                          { n: 2, icon: "+", text: "\"Adicionar à Tela de Início\"", sub: "Role para baixo na lista de opções" },
+                          { n: 3, icon: "✓", text: "Toque em \"Adicionar\"", sub: "O PDV aparece na tela de início" },
+                        ]
+                      : [
+                          { n: 1, icon: "☰", text: "Menu \"Arquivo\" no Safari", sub: "Ou ícone de compartilhar na barra de endereço" },
+                          { n: 2, icon: "+", text: "\"Adicionar à Dock…\"", sub: "Requer Safari 17+ / macOS Sonoma ou superior" },
+                          { n: 3, icon: "✓", text: "Confirme clicando em \"Adicionar\"", sub: "O PDV abrirá como app independente na Dock" },
+                        ]
+                    ).map((s) => (
+                      <div key={s.n} className="flex items-start gap-3 p-3 bg-slate-50 rounded-2xl border border-slate-100">
+                        <span className="w-7 h-7 rounded-xl bg-blue-600 text-white text-[11px] font-black flex items-center justify-center shrink-0">{s.n}</span>
+                        <div>
+                          <p className="text-[13px] font-bold text-slate-800">{s.text}</p>
+                          <p className="text-[11px] text-slate-400 font-medium mt-0.5">{s.sub}</p>
+                        </div>
+                      </div>
+                    ))}
+                    <button onClick={() => setShowInstallModal(false)}
+                      className="w-full mt-2 h-12 bg-slate-900 text-white rounded-2xl text-[12px] font-black hover:bg-slate-800 transition-all">
+                      Entendido
+                    </button>
+                  </div>
+                ) : (
+                  /* Chrome / Edge — 1 clique */
+                  <div className="space-y-3">
+                    <p className="text-[12px] text-slate-500 font-medium text-center">
+                      Clique em <strong className="text-slate-800">Instalar Agora</strong> para adicionar o PDV à área de trabalho.
+                      Ele abrirá como um aplicativo independente, sem barra do navegador.
+                    </p>
+                    <div className="flex gap-3 mt-4">
+                      <button onClick={() => setShowInstallModal(false)}
+                        className="flex-1 h-12 border border-slate-200 rounded-2xl text-[12px] font-bold text-slate-500 hover:bg-slate-50 transition-all">
+                        Agora não
+                      </button>
+                      <button onClick={confirmInstall}
+                        className="flex-1 h-12 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-2xl text-[12px] font-black hover:from-blue-500 hover:to-blue-600 transition-all shadow-lg shadow-blue-500/30 flex items-center justify-center gap-2">
+                        <Download size={15} /> Instalar Agora
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
 
       {/* ── Body ─────────────────────────────────────────────────────────────── */}
       <div className="flex-1 flex overflow-hidden">
@@ -1216,12 +1457,166 @@ ${sale.change > 0 ? `<hr class="divider"/><div class="row bold"><span>TROCO:</sp
                     {/* Cliente */}
                     <div>
                       <label className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400 mb-1.5 block">Cliente</label>
-                      <div className="relative">
-                        <User className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={13} />
-                        <input type="text" placeholder="Nome do cliente (opcional)" value={customerName}
-                          onChange={(e) => setCustomerName(e.target.value)}
-                          className="w-full pl-9 pr-3 h-10 rounded-xl text-[12px] font-medium text-slate-700 placeholder:text-slate-300 bg-white border border-slate-200 focus:outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 transition-all" />
+                      <div className="flex gap-2">
+                        <div className="flex-1 min-w-0">
+                          <Combobox
+                            placeholder="Buscar por nome, CPF ou telefone…"
+                            searchPlaceholder="Nome, CPF/CNPJ ou telefone…"
+                            clearable
+                            freeInput
+                            value={selectedCustomerId !== null ? String(selectedCustomerId) : customerName}
+                            onChange={(v) => {
+                              if (!v) {
+                                setSelectedCustomerId(null);
+                                setCustomerName("");
+                                setCustomerPoints(0);
+                                setAppliedReward(null);
+                                setDiscount(""); setDiscountMode("R$");
+                              } else {
+                                const cust = customers.find((c) => String(c.id) === v);
+                                if (cust) {
+                                  setSelectedCustomerId(cust.id);
+                                  setCustomerName(cust.name);
+                                  fetch(`/api/loyalty/customers/${cust.id}/points`, { headers: { Authorization: `Bearer ${token}` } })
+                                    .then((r) => r.json()).then((d) => setCustomerPoints(d.balance ?? 0)).catch(() => {});
+                                } else {
+                                  setSelectedCustomerId(null);
+                                  setCustomerName(v);
+                                  setCustomerPoints(0);
+                                  setAppliedReward(null);
+                                  setDiscount(""); setDiscountMode("R$");
+                                }
+                              }
+                            }}
+                            options={customers.map((c) => ({
+                              value: String(c.id),
+                              label: c.name,
+                              description: [c.phone, c.document].filter(Boolean).join(" · "),
+                            }))}
+                            onAddNew={(q) => {
+                              setNcName(q); setNcPhone(""); setNcDoc(""); setNcEmail(""); setNcAddr(""); setNcBirth(""); setNcCredit(""); setNcNotes(""); setNcRisk(false); setNcRiskReason("");
+                              setShowNewCustomer(true);
+                            }}
+                          />
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => { setNcName(""); setNcPhone(""); setNcDoc(""); setNcEmail(""); setNcAddr(""); setNcBirth(""); setNcCredit(""); setNcNotes(""); setNcRisk(false); setNcRiskReason(""); setShowNewCustomer(true); }}
+                          className="h-10 w-10 rounded-xl bg-blue-50 border border-blue-200 text-blue-600 hover:bg-blue-100 flex items-center justify-center shrink-0 transition-colors"
+                          title="Cadastrar novo cliente"
+                        >
+                          <UserPlus size={15} />
+                        </button>
                       </div>
+
+                      {/* Points badge */}
+                      {selectedCustomerId && loyaltyProgram?.is_active && (
+                        <div className="mt-2 bg-amber-50 border border-amber-200 rounded-xl p-3 space-y-2">
+                          {/* Saldo + pontos que irá ganhar */}
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-1.5">
+                              <Star size={12} className="text-amber-500" fill="currentColor" />
+                              <span className="text-[11px] font-bold text-amber-700">{customerPoints.toLocaleString("pt-BR")} pontos</span>
+                            </div>
+                            {appliedReward ? (
+                              <button
+                                onClick={() => {
+                                  if (appliedReward.type === "discount") { setDiscount(""); setDiscountMode("R$"); }
+                                  setAppliedReward(null);
+                                }}
+                                className="text-[10px] text-rose-500 font-bold hover:underline"
+                              >
+                                Remover resgate
+                              </button>
+                            ) : loyaltyRewards.filter((r) => customerPoints >= r.points_cost).length > 0 ? (
+                              <span className="text-[10px] text-amber-600 font-bold">Pode resgatar!</span>
+                            ) : null}
+                          </div>
+
+                          {/* Pontos que vai ganhar nesta compra */}
+                          {loyaltyProgram.spend_per_point > 0 && (
+                            (() => {
+                              const willEarn = Math.floor(total / loyaltyProgram.spend_per_point);
+                              return willEarn > 0 ? (
+                                <p className="text-[10px] text-amber-600 font-medium">
+                                  +{willEarn} ponto{willEarn !== 1 ? "s" : ""} ao finalizar esta compra
+                                </p>
+                              ) : null;
+                            })()
+                          )}
+
+                          {/* Lista de recompensas disponíveis */}
+                          {!appliedReward && loyaltyRewards.filter((r) => customerPoints >= r.points_cost).length > 0 && (
+                            <div className="space-y-1 pt-1 border-t border-amber-200">
+                              <p className="text-[9px] font-black uppercase tracking-widest text-amber-600 mb-1">Recompensas disponíveis</p>
+                              {loyaltyRewards.filter((r) => customerPoints >= r.points_cost).map((r) => (
+                                <button
+                                  key={r.id}
+                                  onClick={() => {
+                                    setAppliedReward(r);
+                                    if (r.type === "discount") {
+                                      if (r.discount_type === "percent") {
+                                        setDiscountMode("%");
+                                        setDiscount(String(r.discount_value ?? 0));
+                                      } else {
+                                        setDiscountMode("R$");
+                                        setDiscount(String(r.discount_value ?? 0));
+                                      }
+                                    }
+                                    // product reward: no discount applied — handled on backend
+                                  }}
+                                  className="w-full flex items-center justify-between p-2 bg-white rounded-lg border border-amber-200 text-[11px] hover:bg-amber-50 transition-colors"
+                                >
+                                  <span className="flex items-center gap-1.5 font-bold text-slate-700">
+                                    {r.type === "product"
+                                      ? <Gift size={11} className="text-violet-500" />
+                                      : <Gift size={11} className="text-amber-500" />}
+                                    <span>{r.name}</span>
+                                    {r.type === "product" && (
+                                      <span className="text-[9px] font-black text-violet-500 uppercase tracking-wide bg-violet-50 px-1.5 py-0.5 rounded-md border border-violet-200 ml-1">brinde</span>
+                                    )}
+                                    {r.type === "discount" && r.discount_value && (
+                                      <span className="text-[9px] font-black text-emerald-600 uppercase tracking-wide bg-emerald-50 px-1.5 py-0.5 rounded-md border border-emerald-200 ml-1">
+                                        {r.discount_type === "percent" ? `${r.discount_value}% off` : `R$ ${r.discount_value} off`}
+                                      </span>
+                                    )}
+                                  </span>
+                                  <span className="text-amber-600 font-bold shrink-0 ml-2">{r.points_cost} pts</span>
+                                </button>
+                              ))}
+                            </div>
+                          )}
+
+                          {/* Recompensa aplicada */}
+                          {appliedReward && (
+                            <div className={cn(
+                              "flex items-center gap-2 p-2 rounded-lg border",
+                              appliedReward.type === "product"
+                                ? "bg-violet-50 border-violet-200"
+                                : "bg-emerald-50 border-emerald-200"
+                            )}>
+                              <Gift size={12} className={appliedReward.type === "product" ? "text-violet-500" : "text-emerald-500"} />
+                              <div className="flex-1 min-w-0">
+                                <p className={cn("text-[11px] font-bold", appliedReward.type === "product" ? "text-violet-700" : "text-emerald-700")}>
+                                  {appliedReward.name} aplicado!
+                                </p>
+                                {appliedReward.type === "product" && (
+                                  <p className="text-[10px] text-violet-500 font-medium">Brinde sairá do estoque ao confirmar</p>
+                                )}
+                              </div>
+                              <span className="text-[10px] font-bold text-rose-500 shrink-0">−{appliedReward.points_cost} pts</span>
+                            </div>
+                          )}
+
+                          {/* Recompensas insuficientes */}
+                          {!appliedReward && loyaltyRewards.filter((r) => customerPoints < r.points_cost).length > 0 &&
+                            loyaltyRewards.filter((r) => customerPoints >= r.points_cost).length === 0 && (
+                            <p className="text-[10px] text-slate-500 font-medium">
+                              Acumule mais pontos para resgatar recompensas.
+                            </p>
+                          )}
+                        </div>
+                      )}
                     </div>
 
                     {/* Vendedor */}
@@ -1348,6 +1743,155 @@ ${sale.change > 0 ? `<hr class="divider"/><div class="row bold"><span>TROCO:</sp
         )}
       </AnimatePresence>
 
+      {/* New Customer Full-Form Drawer */}
+      <AnimatePresence>
+        {showNewCustomer && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              onClick={() => setShowNewCustomer(false)}
+              className="fixed inset-0 bg-slate-900/60 z-[400] backdrop-blur-sm"
+            />
+            <motion.div
+              initial={{ x: "100%" }} animate={{ x: 0 }} exit={{ x: "100%" }}
+              transition={{ type: "spring", damping: 26, stiffness: 200 }}
+              className="fixed inset-y-0 right-0 w-full max-w-sm bg-white z-[410] shadow-2xl flex flex-col"
+            >
+              {/* Header */}
+              <div className="flex items-center justify-between px-5 py-4 border-b border-slate-200 shrink-0">
+                <div>
+                  <h2 className="font-black text-slate-900 text-[15px]">Novo Cliente</h2>
+                  <p className="text-[11px] text-slate-500">Cadastro CRM</p>
+                </div>
+                <button onClick={() => setShowNewCustomer(false)} className="p-2 hover:bg-slate-100 rounded-lg text-slate-500">
+                  <X size={18} />
+                </button>
+              </div>
+
+              {/* Body — scrollable */}
+              <div className="flex-1 overflow-y-auto p-5 space-y-3">
+                {/* Nome */}
+                <div>
+                  <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block mb-1">Nome *</label>
+                  <input value={ncName} onChange={(e) => setNcName(e.target.value)} placeholder="Nome completo"
+                    className="w-full h-9 px-3 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                </div>
+
+                {/* Telefone + CPF/CNPJ */}
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block mb-1">Telefone</label>
+                    <input value={ncPhone} onChange={(e) => setNcPhone(maskPhone(e.target.value))} inputMode="numeric"
+                      placeholder="(11) 99999-9999"
+                      className="w-full h-9 px-3 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block mb-1">CPF/CNPJ</label>
+                    <input value={ncDoc} onChange={(e) => setNcDoc(maskDoc(e.target.value))} inputMode="numeric"
+                      placeholder="000.000.000-00"
+                      className="w-full h-9 px-3 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                  </div>
+                </div>
+
+                {/* E-mail */}
+                <div>
+                  <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block mb-1">E-mail</label>
+                  <input type="email" value={ncEmail} onChange={(e) => setNcEmail(e.target.value)} placeholder="email@exemplo.com"
+                    className="w-full h-9 px-3 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                </div>
+
+                {/* Endereço */}
+                <div>
+                  <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block mb-1">Endereço</label>
+                  <input value={ncAddr} onChange={(e) => setNcAddr(e.target.value)} placeholder="Rua, Cidade - UF"
+                    className="w-full h-9 px-3 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                </div>
+
+                {/* Data de Aniversário */}
+                <div>
+                  <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block mb-1">Data de Aniversário</label>
+                  <input type="date" value={ncBirth} onChange={(e) => setNcBirth(e.target.value)}
+                    className="w-full h-9 px-3 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                </div>
+
+                {/* Limite de Crédito */}
+                <div>
+                  <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block mb-1">Limite de Crédito (R$)</label>
+                  <input type="number" min={0} value={ncCredit} onChange={(e) => setNcCredit(e.target.value)} placeholder="0,00"
+                    className="w-full h-9 px-3 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                </div>
+
+                {/* Observações */}
+                <div>
+                  <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block mb-1">Observações</label>
+                  <textarea value={ncNotes} onChange={(e) => setNcNotes(e.target.value)} rows={2}
+                    placeholder="Preferências, anotações gerais…"
+                    className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none" />
+                </div>
+
+                {/* Cliente de Risco */}
+                <div className={cn("rounded-xl border p-3 space-y-2 transition-colors", ncRisk ? "bg-rose-50 border-rose-200" : "bg-slate-50 border-slate-200")}>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input type="checkbox" checked={ncRisk} onChange={(e) => setNcRisk(e.target.checked)} className="w-4 h-4 accent-rose-500" />
+                    <span className={cn("text-[12px] font-black", ncRisk ? "text-rose-600" : "text-slate-600")}>
+                      ⚠ Marcar como Cliente de Risco
+                    </span>
+                  </label>
+                  {ncRisk && (
+                    <textarea value={ncRiskReason} onChange={(e) => setNcRiskReason(e.target.value)} rows={2}
+                      placeholder="Motivo do risco…"
+                      className="w-full px-3 py-2 rounded-lg border border-rose-200 text-sm focus:outline-none focus:ring-2 focus:ring-rose-400 resize-none bg-white" />
+                  )}
+                </div>
+              </div>
+
+              {/* Footer */}
+              <div className="border-t border-slate-200 px-5 py-4 shrink-0 bg-slate-50 flex gap-2">
+                <button onClick={() => setShowNewCustomer(false)}
+                  className="flex-1 h-9 rounded-lg border border-slate-200 text-sm font-semibold text-slate-600 hover:bg-slate-100">
+                  Cancelar
+                </button>
+                <button
+                  disabled={savingNC || !ncName.trim()}
+                  onClick={async () => {
+                    if (!ncName.trim()) return;
+                    setSavingNC(true);
+                    try {
+                      const res = await fetch("/api/customers", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+                        body: JSON.stringify({
+                          name: ncName,
+                          phone: ncPhone.replace(/\D/g, "") || null,
+                          document: ncDoc.replace(/\D/g, "") || null,
+                          email: ncEmail || null,
+                          address: ncAddr || null,
+                          birth_date: ncBirth || null,
+                          credit_limit: ncCredit ? Number(ncCredit) : null,
+                          notes: ncNotes || null,
+                          risk_flag: ncRisk,
+                          risk_reason: ncRiskReason || null,
+                        }),
+                      });
+                      const newCust = await res.json();
+                      fetch("/api/customers", { headers: { Authorization: `Bearer ${token}` } })
+                        .then((r) => r.json()).then((d) => setCustomers(Array.isArray(d) ? d : [])).catch(() => {});
+                      setSelectedCustomerId(newCust.id);
+                      setCustomerName(newCust.name);
+                      setCustomerPoints(0);
+                      setShowNewCustomer(false);
+                    } finally { setSavingNC(false); }
+                  }}
+                  className="flex-1 h-9 bg-blue-600 text-white rounded-lg text-sm font-bold hover:bg-blue-700 disabled:opacity-50 transition-all"
+                >
+                  {savingNC ? "Cadastrando…" : "Criar Cliente"}
+                </button>
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+
       {/* Receipt Modal */}
       <AnimatePresence>
         {showReceipt && completedSale && (
@@ -1384,6 +1928,20 @@ ${sale.change > 0 ? `<hr class="divider"/><div class="row bold"><span>TROCO:</sp
                       <div className="mt-2 inline-flex items-center gap-1.5 bg-white/20 rounded-xl px-3 py-1.5">
                         <Banknote size={13} className="text-emerald-200" />
                         <span className="text-[12px] font-black text-white">Troco: R$ {completedSale.change.toFixed(2)}</span>
+                      </div>
+                    )}
+                    {/* Pontos ganhos na venda */}
+                    {completedSale.pointsEarned != null && completedSale.pointsEarned > 0 && (
+                      <div className="mt-2 inline-flex items-center gap-1.5 bg-amber-400/20 rounded-xl px-3 py-1.5">
+                        <Star size={13} className="text-amber-300" fill="currentColor" />
+                        <span className="text-[12px] font-black text-amber-200">+{completedSale.pointsEarned} pontos ganhos!</span>
+                      </div>
+                    )}
+                    {/* Recompensa resgatada */}
+                    {completedSale.rewardApplied && (
+                      <div className="mt-2 inline-flex items-center gap-1.5 bg-violet-400/20 rounded-xl px-3 py-1.5">
+                        <Gift size={13} className="text-violet-300" />
+                        <span className="text-[12px] font-black text-violet-200">{completedSale.rewardApplied} resgatado!</span>
                       </div>
                     )}
                     <div className="mt-3 flex flex-wrap gap-1.5">

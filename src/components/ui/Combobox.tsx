@@ -26,6 +26,8 @@ interface ComboboxProps {
   clearable?: boolean;
   /** Allow typing a value not in the options list */
   freeInput?: boolean;
+  /** Called when user clicks "Adicionar X" — receives the typed query. If provided, overrides the default freeInput behaviour. */
+  onAddNew?: (query: string) => void;
   className?: string;
 }
 
@@ -43,6 +45,7 @@ export default function Combobox({
   disabled = false,
   clearable = false,
   freeInput = false,
+  onAddNew,
   className,
 }: ComboboxProps) {
   const [open, setOpen] = useState(false);
@@ -94,7 +97,10 @@ export default function Combobox({
     } else if (e.key === "Enter") {
       e.preventDefault();
       if (filtered[focusedIndex]) select(filtered[focusedIndex]);
-      else if (freeInput && query) { onChange(query); close(); }
+      else if (freeInput && query) {
+        if (onAddNew) { onAddNew(query); close(); }
+        else { onChange(query); close(); }
+      }
     } else if (e.key === "Escape") {
       close();
     }
@@ -155,8 +161,8 @@ export default function Combobox({
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -6 }}
             transition={{ type: "spring", damping: 28, stiffness: 380 }}
-            className="absolute z-[200] mt-1 w-full bg-white border border-slate-200 rounded-2xl shadow-xl overflow-hidden"
-            style={{ minWidth: containerRef.current?.offsetWidth }}
+            className="absolute z-[200] mt-1 bg-white border border-slate-200 rounded-2xl shadow-xl overflow-hidden"
+            style={{ width: containerRef.current?.offsetWidth, minWidth: 200, maxWidth: "100vw" }}
           >
             {/* Search */}
             <div className="flex items-center gap-2 px-3 py-2.5 border-b border-slate-100">
@@ -182,7 +188,10 @@ export default function Combobox({
                 <li className="px-4 py-3 text-[11px] text-slate-400 text-center font-medium">
                   {freeInput && query ? (
                     <button
-                      onClick={() => { onChange(query); close(); }}
+                      onClick={() => {
+                        if (onAddNew) { onAddNew(query); close(); }
+                        else { onChange(query); close(); }
+                      }}
                       className="text-blue-600 font-bold hover:underline"
                     >
                       Adicionar "{query}"

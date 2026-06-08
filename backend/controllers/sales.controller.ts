@@ -2,6 +2,7 @@ import type { Request, Response } from "express";
 
 import { prisma } from "../config/prisma";
 import type { AuthenticatedRequest } from "../types/auth";
+import { awardPointsForOrder } from "./loyalty.controller";
 
 function getTenantId(req: Request) {
   return (req as AuthenticatedRequest).user.tenantId;
@@ -11,6 +12,7 @@ interface SaleItemInput {
   id: number;
   quantity: number;
   price: number;
+  selectedOptions?: Record<string, string> | null;
 }
 
 // Parses "credit-visa-2x:120.00|money:30.00" into structured segments
@@ -39,10 +41,11 @@ function buildMethodSummary(pm: string) {
 interface ServiceItemInput { id: number; name: string; price: number }
 
 export async function createSale(req: Request, res: Response) {
-  const { items, services, customerName, totalAmount, paymentMethod, discount, surcharge, sellerId, passFeeToCustomer, passFeeByMethod } = req.body as {
+  const { items, services, customerName, customerId, totalAmount, paymentMethod, discount, surcharge, sellerId, passFeeToCustomer, passFeeByMethod } = req.body as {
     items: SaleItemInput[];
     services?: ServiceItemInput[];
     customerName?: string;
+    customerId?: number;
     totalAmount: number;
     paymentMethod?: string;
     discount?: number;
@@ -110,12 +113,20 @@ export async function createSale(req: Request, res: Response) {
       sellerName = seller?.name ?? null;
     }
 
+    // resolve customer name from id if provided
+    let resolvedCustomerName = customerName || "Balcão";
+    if (customerId) {
+      const cust = await prisma.customer.findFirst({ where: { id: customerId, tenant_id: tenantId }, select: { name: true } });
+      if (cust) resolvedCustomerName = cust.name;
+    }
+
     const order = await prisma.order.create({
       data: {
         tenant_id:       tenantId,
         seller_id:       sellerId ?? null,
         seller_name:     sellerName,
-        customer_name:   customerName || "Balcão",
+        customer_name:   resolvedCustomerName,
+        customer_id:     customerId ?? null,
         total_amount:    totalAmount,
         gross_amount:    grossAmount,
         discount_amount: discountVal > 0 ? discountVal : null,
@@ -133,10 +144,49 @@ export async function createSale(req: Request, res: Response) {
     });
 
     for (const item of items) {
+      // decrement total product stock
       await prisma.product.update({
         where: { id: item.id },
         data: { stock_quantity: { decrement: item.quantity } },
       });
+
+      // if item has specific variation options, also decrement the matching SKU in the JSON
+      if (item.selectedOptions && Object.keys(item.selectedOptions).length > 0) {
+        const product = await prisma.product.findUnique({
+          where: { id: item.id },
+          select: { skus: true, variations: true },
+        });
+        if (product?.skus) {
+          type SkuEntry = { combo: Record<string, string>; stock: number };
+          const skus = product.skus as SkuEntry[];
+          const opts = item.selectedOptions;
+          const updated = skus.map((sku) => {
+            const matches = Object.entries(opts).every(([k, v]) => sku.combo[k] === v);
+            if (matches) return { ...sku, stock: Math.max(0, sku.stock - item.quantity) };
+            return sku;
+          });
+          await prisma.product.update({
+            where: { id: item.id },
+            data: { skus: updated },
+          });
+        } else if (product?.variations) {
+          // legacy variations format: [{ name, options: [{ value, stock }] }]
+          type LegacyVariation = { name: string; options: { value: string; stock: number }[] };
+          const variations = product.variations as LegacyVariation[];
+          const opts = item.selectedOptions;
+          const updated = variations.map((v) => ({
+            ...v,
+            options: v.options.map((o) => {
+              const matches = opts[v.name] === o.value;
+              return matches ? { ...o, stock: Math.max(0, o.stock - item.quantity) } : o;
+            }),
+          }));
+          await prisma.product.update({
+            where: { id: item.id },
+            data: { variations: updated },
+          });
+        }
+      }
     }
 
     const methodSummary  = buildMethodSummary(pmString);
@@ -159,6 +209,11 @@ export async function createSale(req: Request, res: Response) {
         date:            now,
       },
     });
+
+    // award loyalty points if customer is identified
+    if (customerId) {
+      awardPointsForOrder(tenantId, customerId, order.id, totalAmount).catch(console.error);
+    }
 
     res.json({ success: true, orderId: order.id });
   } catch {

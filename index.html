@@ -12,10 +12,25 @@
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
-    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="BoxSys PDV" />
     <link rel="icon" type="image/png" href="/system/logo.png" />
     <link rel="apple-touch-icon" href="/system/logo.png" />
+    <link rel="apple-touch-icon" sizes="152x152" href="/system/logo.png" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/system/logo.png" />
+    <link rel="apple-touch-icon" sizes="167x167" href="/system/logo.png" />
     <title>BoxSys Store</title>
+    <!-- PWA manifest injected for /pdv route -->
+    <script>
+      if (window.location.pathname.startsWith('/pdv')) {
+        var l = document.createElement('link');
+        l.rel = 'manifest'; l.href = '/pdv-manifest.json';
+        document.head.appendChild(l);
+        document.title = 'BoxSys PDV';
+        var t = document.querySelector('meta[name="theme-color"]');
+        if (t) t.content = '#0f172a';
+      }
+    </script>
   </head>
   <body>
     <div id="root"></div>

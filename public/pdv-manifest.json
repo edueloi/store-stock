@@ -1,0 +1,27 @@
+{
+  "name": "BoxSys PDV",
+  "short_name": "PDV",
+  "description": "Terminal de Vendas BoxSys — acesso rápido ao ponto de venda",
+  "start_url": "/pdv",
+  "scope": "/pdv",
+  "display": "standalone",
+  "orientation": "landscape",
+  "background_color": "#0f172a",
+  "theme_color": "#0f172a",
+  "categories": ["business", "productivity"],
+  "lang": "pt-BR",
+  "icons": [
+    {
+      "src": "/system/logo.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/system/logo.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

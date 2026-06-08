@@ -65,6 +65,7 @@ model Tenant {
   sellers         Seller[]
   goals           Goal[]
   services        Service[]
+  loyalty_program LoyaltyProgram?
 
   @@map("tenants")
 }
@@ -191,6 +192,7 @@ model Order {
   tenant_id        Int
   seller_id        Int?
   seller_name      String?
+  customer_id      Int?
   customer_name    String?
   customer_phone   String?
   customer_address String?
@@ -337,6 +339,8 @@ model Customer {
   tenant         Tenant          @relation(fields: [tenant_id], references: [id])
   debts          CustomerDebt[]
   customer_notes CustomerNote[]
+  point_entries  CustomerPoint[]
+  redemptions    PointRedemption[]
 
   @@map("customers")
 }
@@ -476,4 +480,90 @@ model PasswordResetToken {
   user User @relation(fields: [user_id], references: [id])
 
   @@map("password_reset_tokens")
+}
+
+// ─── Loyalty / Fidelidade ─────────────────────────────────────────────────────
+
+model LoyaltyProgram {
+  id                  Int      @id @default(autoincrement())
+  tenant_id           Int      @unique
+  is_active           Boolean  @default(true)
+  name                String   @default("Programa de Fidelidade")
+  // quantos reais equivalem a 1 ponto  (ex: 10.00 → a cada R$10 ganha 1 ponto)
+  spend_per_point     Decimal  @db.Decimal(10, 2) @default(10)
+  // validade dos pontos em dias (0 = sem validade)
+  points_expiry_days  Int      @default(0)
+  // data de início da temporada atual
+  season_start        DateTime?
+  // data de fim da temporada atual (null = sem fim definido)
+  season_end          DateTime?
+  created_at          DateTime @default(now())
+  updated_at          DateTime @updatedAt
+
+  tenant  Tenant           @relation(fields: [tenant_id], references: [id])
+  rewards LoyaltyReward[]
+
+  @@map("loyalty_programs")
+}
+
+model LoyaltyReward {
+  id          Int      @id @default(autoincrement())
+  program_id  Int
+  tenant_id   Int
+  name        String
+  // tipo: "discount" | "product"
+  type        String
+  // se discount: valor do desconto em R$ ou %
+  discount_value   Decimal? @db.Decimal(10, 2)
+  discount_type    String?  // "fixed" | "percent"
+  // se product: produto do estoque que será deduzido
+  product_id       Int?
+  product_qty      Int?     @default(1)
+  // custo em pontos para resgatar
+  points_cost Int
+  is_active   Boolean  @default(true)
+  created_at  DateTime @default(now())
+  updated_at  DateTime @updatedAt
+
+  program     LoyaltyProgram    @relation(fields: [program_id], references: [id], onDelete: Cascade)
+  redemptions PointRedemption[]
+
+  @@index([tenant_id])
+  @@map("loyalty_rewards")
+}
+
+model CustomerPoint {
+  id          Int      @id @default(autoincrement())
+  tenant_id   Int
+  customer_id Int
+  order_id    Int?
+  // positivo = ganhou pontos; negativo = resgatou pontos
+  delta       Int
+  balance_after Int
+  description String?
+  expires_at  DateTime?
+  created_at  DateTime @default(now())
+
+  customer Customer @relation(fields: [customer_id], references: [id], onDelete: Cascade)
+
+  @@index([customer_id])
+  @@index([tenant_id])
+  @@map("customer_points")
+}
+
+model PointRedemption {
+  id          Int      @id @default(autoincrement())
+  tenant_id   Int
+  customer_id Int
+  reward_id   Int
+  order_id    Int?
+  points_used Int
+  created_at  DateTime @default(now())
+
+  customer Customer       @relation(fields: [customer_id], references: [id], onDelete: Cascade)
+  reward   LoyaltyReward  @relation(fields: [reward_id], references: [id])
+
+  @@index([customer_id])
+  @@index([tenant_id])
+  @@map("point_redemptions")
 }

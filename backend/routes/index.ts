@@ -24,6 +24,7 @@ import sellersRoutes from "./sellers.routes";
 import goalsRoutes from "./goals.routes";
 import servicesRoutes from "./services.routes";
 import teamRoutes from "./team.routes";
+import loyaltyRoutes from "./loyalty.routes";
 
 export function registerRoutes(app: Express) {
   // Serve uploaded images
@@ -50,4 +51,5 @@ export function registerRoutes(app: Express) {
   app.use("/api/services",    servicesRoutes);
   app.use("/api/super-admin", superAdminRoutes);
   app.use("/api/team", teamRoutes);
+  app.use("/api/loyalty", loyaltyRoutes);
 }

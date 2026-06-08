@@ -4,7 +4,7 @@ import {
   AlertTriangle, X, Plus, ChevronRight, Trash2,
   DollarSign, Clock, CheckCircle2, FileText,
   ShoppingBag, StickyNote, Edit2, Save, XCircle,
-  TrendingDown, AlertCircle, Shield,
+  TrendingDown, AlertCircle, Shield, Star, Gift, Award,
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { cn } from "../../lib/utils";
@@ -115,7 +115,7 @@ function maskDoc(v: string) {
 // ─── Main Component ───────────────────────────────────────────────────────────
 
 type MainTab = "customers" | "debtors";
-type DetailTab = "summary" | "fiado" | "history" | "notes";
+type DetailTab = "summary" | "fiado" | "history" | "notes" | "loyalty";
 
 export default function Customers() {
   const [mainTab, setMainTab] = useState<MainTab>("customers");
@@ -155,6 +155,18 @@ export default function Customers() {
   const [noteBody, setNoteBody]   = useState("");
   const [savingNote, setSavingNote] = useState(false);
 
+  // Loyalty
+  interface PointEntry { id: number; delta: number; balance_after: number; description?: string; created_at: string; }
+  interface LoyaltyReward { id: number; name: string; type: string; discount_value?: number; discount_type?: string; product_id?: number; points_cost: number; is_active: boolean; }
+  const [loyaltyBalance, setLoyaltyBalance] = useState<number>(0);
+  const [loyaltyEntries, setLoyaltyEntries] = useState<PointEntry[]>([]);
+  const [loyaltyRewards, setLoyaltyRewards] = useState<LoyaltyReward[]>([]);
+  const [loyaltyProgram, setLoyaltyProgram] = useState<{ spend_per_point: number; is_active: boolean } | null>(null);
+  const [pointAdj, setPointAdj]   = useState("");
+  const [pointDesc, setPointDesc] = useState("");
+  const [savingPoints, setSavingPoints] = useState(false);
+  const [redeemingId, setRedeemingId]  = useState<number | null>(null);
+
   // ── fetch
 
   const fetchAll = useCallback(async () => {
@@ -185,6 +197,22 @@ export default function Customers() {
     } finally {
       setLoadingDetail(false);
     }
+  }, []);
+
+  const fetchLoyalty = useCallback(async (customerId: number) => {
+    const h = { Authorization: `Bearer ${localStorage.getItem("token")}` };
+    const [ptRes, pgRes, rwRes] = await Promise.all([
+      fetch(`/api/loyalty/customers/${customerId}/points`, { headers: h }),
+      fetch("/api/loyalty/program", { headers: h }),
+      fetch("/api/loyalty/rewards", { headers: h }),
+    ]);
+    const pt = await ptRes.json();
+    const pg = await pgRes.json();
+    const rw = await rwRes.json();
+    setLoyaltyBalance(pt.balance ?? 0);
+    setLoyaltyEntries(pt.entries ?? []);
+    setLoyaltyProgram({ spend_per_point: Number(pg.spend_per_point ?? 10), is_active: pg.is_active ?? false });
+    setLoyaltyRewards(Array.isArray(rw) ? rw.filter((r: LoyaltyReward) => r.is_active) : []);
   }, []);
 
   // ── form helpers
@@ -620,10 +648,14 @@ export default function Customers() {
                       { value: "fiado",   label: `Fiado (${detail.debts.filter(d => d.status === "open").length})`, icon: DollarSign },
                       { value: "history", label: `Compras (${detail.orders.length})`, icon: ShoppingBag },
                       { value: "notes",   label: `Notas (${detail.customer_notes.length})`, icon: StickyNote },
+                      { value: "loyalty", label: "Pontos", icon: Star },
                     ] as { value: DetailTab; label: string; icon: React.FC<{size: number}> }[]).map((t) => (
                       <button
                         key={t.value}
-                        onClick={() => setDetailTab(t.value)}
+                        onClick={() => {
+                          setDetailTab(t.value);
+                          if (t.value === "loyalty") fetchLoyalty(detail.id);
+                        }}
                         className={cn(
                           "flex items-center gap-1.5 px-4 py-2.5 text-[11px] font-bold whitespace-nowrap border-b-2 transition-all",
                           detailTab === t.value
@@ -890,6 +922,141 @@ export default function Customers() {
                             ))}
                           </div>
                         )}
+                      </div>
+                    )}
+
+                    {/* ─ LOYALTY ─ */}
+                    {detailTab === "loyalty" && (
+                      <div className="space-y-4">
+                        {/* Balance card */}
+                        <div className="bg-gradient-to-br from-amber-400 to-orange-400 rounded-2xl p-5 text-white">
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <p className="text-[11px] font-bold opacity-80 uppercase tracking-wider">Saldo de Pontos</p>
+                              <p className="text-3xl font-black mt-1">{loyaltyBalance.toLocaleString("pt-BR")} pts</p>
+                              {loyaltyProgram && (
+                                <p className="text-[11px] opacity-70 mt-1">
+                                  A cada {fmt(loyaltyProgram.spend_per_point)} gastos = 1 ponto
+                                </p>
+                              )}
+                            </div>
+                            <Award size={40} className="opacity-30" />
+                          </div>
+                        </div>
+
+                        {/* Adjust points */}
+                        <div className="bg-white rounded-xl border border-slate-200 p-4 space-y-3">
+                          <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Ajuste Manual de Pontos</p>
+                          <div className="grid grid-cols-2 gap-2">
+                            <div>
+                              <label className="text-[9px] text-slate-400 block mb-0.5">Delta (+ ou -)</label>
+                              <input
+                                type="number"
+                                value={pointAdj}
+                                onChange={(e) => setPointAdj(e.target.value)}
+                                placeholder="Ex: 50 ou -20"
+                                className="w-full h-8 px-2 rounded-lg border border-slate-200 text-[12px] focus:outline-none focus:ring-2 focus:ring-amber-400"
+                              />
+                            </div>
+                            <div>
+                              <label className="text-[9px] text-slate-400 block mb-0.5">Motivo</label>
+                              <input
+                                value={pointDesc}
+                                onChange={(e) => setPointDesc(e.target.value)}
+                                placeholder="Ex: Correção"
+                                className="w-full h-8 px-2 rounded-lg border border-slate-200 text-[12px] focus:outline-none focus:ring-2 focus:ring-amber-400"
+                              />
+                            </div>
+                          </div>
+                          <button
+                            disabled={savingPoints || !pointAdj}
+                            onClick={async () => {
+                              if (!pointAdj) return;
+                              setSavingPoints(true);
+                              try {
+                                await fetch(`/api/loyalty/customers/${detail.id}/points`, {
+                                  method: "POST", headers: authH(),
+                                  body: JSON.stringify({ delta: Number(pointAdj), description: pointDesc || null }),
+                                });
+                                setPointAdj(""); setPointDesc("");
+                                fetchLoyalty(detail.id);
+                              } finally { setSavingPoints(false); }
+                            }}
+                            className="h-8 px-4 bg-amber-500 text-white rounded-lg text-[12px] font-bold hover:bg-amber-600 disabled:opacity-50 transition-all"
+                          >
+                            {savingPoints ? "Salvando…" : "Aplicar Ajuste"}
+                          </button>
+                        </div>
+
+                        {/* Rewards available */}
+                        {loyaltyRewards.length > 0 && (
+                          <div className="space-y-2">
+                            <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Resgatar Recompensa</p>
+                            {loyaltyRewards.map((r) => {
+                              const canRedeem = loyaltyBalance >= r.points_cost;
+                              return (
+                                <div key={r.id} className={cn(
+                                  "flex items-center gap-3 p-3 rounded-xl border transition-all",
+                                  canRedeem ? "border-amber-200 bg-amber-50" : "border-slate-100 bg-slate-50 opacity-60"
+                                )}>
+                                  <div className="w-8 h-8 bg-white rounded-lg flex items-center justify-center border border-slate-100 shrink-0">
+                                    {r.type === "discount" ? <DollarSign size={14} className="text-blue-500" /> : <Gift size={14} className="text-purple-500" />}
+                                  </div>
+                                  <div className="flex-1 min-w-0">
+                                    <p className="text-[12px] font-bold text-slate-900">{r.name}</p>
+                                    <div className="flex items-center gap-1 mt-0.5">
+                                      <Star size={10} className="text-amber-400" fill="currentColor" />
+                                      <span className="text-[10px] text-amber-600 font-bold">{r.points_cost} pts</span>
+                                    </div>
+                                  </div>
+                                  <button
+                                    disabled={!canRedeem || redeemingId === r.id}
+                                    onClick={async () => {
+                                      setRedeemingId(r.id);
+                                      try {
+                                        await fetch(`/api/loyalty/customers/${detail.id}/redeem`, {
+                                          method: "POST", headers: authH(),
+                                          body: JSON.stringify({ reward_id: r.id }),
+                                        });
+                                        fetchLoyalty(detail.id);
+                                      } finally { setRedeemingId(null); }
+                                    }}
+                                    className="h-7 px-3 bg-amber-500 text-white rounded-lg text-[11px] font-bold hover:bg-amber-600 disabled:opacity-40 transition-all"
+                                  >
+                                    {redeemingId === r.id ? "…" : "Resgatar"}
+                                  </button>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+
+                        {/* History */}
+                        <div className="space-y-2">
+                          <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Histórico de Pontos</p>
+                          {loyaltyEntries.length === 0 ? (
+                            <p className="text-center text-sm text-slate-400 py-6">Sem movimentações ainda</p>
+                          ) : (
+                            <div className="space-y-1.5">
+                              {loyaltyEntries.map((e) => (
+                                <div key={e.id} className="flex items-center gap-3 p-3 bg-white rounded-xl border border-slate-100">
+                                  <div className={cn(
+                                    "w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-black shrink-0",
+                                    e.delta > 0 ? "bg-emerald-100 text-emerald-600" : "bg-rose-100 text-rose-600"
+                                  )}>
+                                    {e.delta > 0 ? "+" : ""}
+                                    {e.delta}
+                                  </div>
+                                  <div className="flex-1 min-w-0">
+                                    <p className="text-[12px] font-medium text-slate-700 truncate">{e.description ?? "—"}</p>
+                                    <p className="text-[10px] text-slate-400">{fmtDate(e.created_at)}</p>
+                                  </div>
+                                  <span className="text-[11px] font-bold text-slate-500 shrink-0">{e.balance_after} pts</span>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
                       </div>
                     )}
                   </div>
