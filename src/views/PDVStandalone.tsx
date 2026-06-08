@@ -5,6 +5,7 @@ import {
   Loader2, Lock, Mail, LogOut, Store,
   Printer, FileText, MessageCircle, Phone, ChevronRight, ChevronDown,
   PlusCircle, Barcode, Users, Scan, Star, Gift, UserPlus, Download,
+  Maximize2, Minimize2,
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { Product, Category } from "../types";
@@ -861,8 +862,16 @@ ${sale.change > 0 ? `<hr class="divider"/><div class="row bold"><span>TROCO:</sp
           </div>
         </div>
 
-        {/* Instalar PWA */}
+        {/* Ações direita */}
         <div className="flex items-center gap-2">
+          {/* Fullscreen toggle */}
+          <button onClick={toggleFullscreen} title={isFullscreen ? "Sair de tela cheia" : "Tela cheia"}
+            className="flex items-center gap-1.5 px-3 h-8 rounded-xl text-[10px] font-bold uppercase tracking-widest text-slate-500 border border-slate-200 hover:bg-slate-50 hover:text-slate-700 transition-all">
+            {isFullscreen ? <Minimize2 size={11} /> : <Maximize2 size={11} />}
+            {isFullscreen ? "Sair" : "Tela Cheia"}
+          </button>
+
+          {/* Instalar PWA */}
           {!pwaInstalled && (installPrompt || isSafari || isIos) && (
             <button onClick={handleInstallPwa}
               className="flex items-center gap-1.5 px-3 h-8 rounded-xl text-[10px] font-bold uppercase tracking-widest text-blue-600 border border-blue-200 bg-blue-50 hover:bg-blue-100 transition-all">
