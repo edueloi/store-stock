@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from "react";
-import { useParams, useSearchParams, Link } from "react-router-dom";
+import { useParams, useSearchParams, Link, useNavigate } from "react-router-dom";
 import StoreSEO from "../../../../components/store/StoreSEO";
 import { motion, AnimatePresence } from "motion/react";
 import {
@@ -25,9 +25,12 @@ export default function StoreCatalog() {
   const [selectedCategory, setSelectedCategory] = useState<number | null>(
     searchParams.get("cat") ? Number(searchParams.get("cat")) : null
   );
+  const [priceRange, setPriceRange] = useState<[number, number] | null>(null);
   const [sortBy, setSortBy] = useState<SortKey>("default");
   const [viewMode, setViewMode] = useState<ViewMode>("grid");
   const [showSortMenu, setShowSortMenu] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const PAGE_SIZE = 20;
   const sortRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -35,7 +38,10 @@ export default function StoreCatalog() {
     const cat = searchParams.get("cat") ? Number(searchParams.get("cat")) : null;
     setSearchTerm(q);
     setSelectedCategory(cat);
+    setCurrentPage(1);
   }, [searchParams]);
+
+  useEffect(() => { setCurrentPage(1); }, [priceRange, sortBy]);
 
   useEffect(() => {
     const h = (e: MouseEvent) => {
@@ -55,7 +61,8 @@ export default function StoreCatalog() {
     .filter(p => p.is_active)
     .filter(p =>
       (searchTerm === "" || p.name.toLowerCase().includes(searchTerm.toLowerCase())) &&
-      (selectedCategory === null || p.category_id === selectedCategory)
+      (selectedCategory === null || p.category_id === selectedCategory) &&
+      (priceRange === null || (Number(p.price) >= priceRange[0] && Number(p.price) < priceRange[1]))
     )
     .sort((a, b) => {
       if (sortBy === "price_asc") return Number(a.price) - Number(b.price);
@@ -63,6 +70,9 @@ export default function StoreCatalog() {
       if (sortBy === "name") return a.name.localeCompare(b.name);
       return (b.is_featured ? 1 : 0) - (a.is_featured ? 1 : 0);
     });
+
+  const totalPages = Math.ceil(filtered.length / PAGE_SIZE);
+  const paginated = filtered.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
 
   const sortLabels: Record<SortKey, string> = {
     default: "Relevância",
@@ -211,24 +221,34 @@ export default function StoreCatalog() {
               <div className="mt-5 pt-5 border-t border-[#e2ecff]">
                 <p className="text-[9px] font-bold uppercase tracking-[0.26em] px-3 mb-3 text-[#8baed0]">Faixa de preço</p>
                 <div className="px-1 space-y-1">
-                  {[
+                  {([
                     ["Até R$ 50", 0, 50],
                     ["R$ 50 – 200", 50, 200],
                     ["R$ 200 – 500", 200, 500],
                     ["Acima de R$ 500", 500, Infinity],
-                  ].map(([label, min, max]) => {
-                    const count = products.filter(p => p.is_active && Number(p.price) >= (min as number) && Number(p.price) < (max as number)).length;
+                  ] as [string, number, number][]).map(([label, min, max]) => {
+                    const count = products.filter(p => p.is_active && Number(p.price) >= min && Number(p.price) < max).length;
                     if (count === 0) return null;
+                    const active = priceRange !== null && priceRange[0] === min && priceRange[1] === max;
                     return (
                       <button
-                        key={label as string}
-                        className="flex items-center justify-between w-full text-[11px] font-medium py-1.5 px-3 rounded-xl text-[#4e6c8e] hover:text-[#071426] hover:bg-white/80 transition-all"
+                        key={label}
+                        onClick={() => { setPriceRange(active ? null : [min, max]); setCurrentPage(1); }}
+                        className={cn("flex items-center justify-between w-full text-[11px] font-medium py-1.5 px-3 rounded-xl transition-all",
+                          active ? "text-[#071426] bg-white/80 font-bold" : "text-[#4e6c8e] hover:text-[#071426] hover:bg-white/80")}
                       >
-                        <span>{label as string}</span>
-                        <span className="text-[9px] px-2 py-0.5 rounded-full font-bold bg-[#edf4ff] text-[#5b7898]">{count}</span>
+                        <span>{label}</span>
+                        <span className={cn("text-[9px] px-2 py-0.5 rounded-full font-bold",
+                          active ? "text-white" : "bg-[#edf4ff] text-[#5b7898]")}
+                          style={active ? { backgroundColor: style.accent } : {}}>{count}</span>
                       </button>
                     );
                   })}
+                  {priceRange !== null && (
+                    <button onClick={() => setPriceRange(null)} className="text-[9px] font-bold text-[#5b7898] hover:text-[#071426] px-3 mt-1">
+                      Limpar faixa ×
+                    </button>
+                  )}
                 </div>
               </div>
             )}
@@ -344,7 +364,7 @@ export default function StoreCatalog() {
 
             {/* Active filters */}
             <AnimatePresence>
-              {(selectedCategory !== null || searchTerm) && (
+              {(selectedCategory !== null || searchTerm || priceRange !== null) && (
                 <motion.div
                   initial={{ opacity: 0, height: 0 }}
                   animate={{ opacity: 1, height: "auto" }}
@@ -364,8 +384,14 @@ export default function StoreCatalog() {
                       <button onClick={() => { setSearchTerm(""); updateParams("q", null); }} className="ml-0.5 hover:opacity-70"><X size={9} /></button>
                     </span>
                   )}
+                  {priceRange !== null && (
+                    <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] font-semibold bg-white/90 border border-[#dbe6ff] shadow-sm" style={{ color: style.accent }}>
+                      {priceRange[1] === Infinity ? `Acima de R$ ${priceRange[0]}` : `R$ ${priceRange[0]}–${priceRange[1]}`}
+                      <button onClick={() => setPriceRange(null)} className="ml-0.5 hover:opacity-70"><X size={9} /></button>
+                    </span>
+                  )}
                   <button
-                    onClick={() => { setSelectedCategory(null); setSearchTerm(""); setSearchParams({}); }}
+                    onClick={() => { setSelectedCategory(null); setSearchTerm(""); setPriceRange(null); setSearchParams({}); }}
                     className="text-[10px] font-semibold text-red-400 hover:text-red-600 uppercase tracking-wider transition-colors"
                   >
                     Limpar tudo
@@ -395,7 +421,7 @@ export default function StoreCatalog() {
                     <p className="text-[13px] text-[#6a85a8] mt-1">Tente outros filtros ou termos de busca</p>
                   </div>
                   <button
-                    onClick={() => { setSearchTerm(""); setSelectedCategory(null); setSearchParams({}); }}
+                    onClick={() => { setSearchTerm(""); setSelectedCategory(null); setPriceRange(null); setSearchParams({}); }}
                     style={{ backgroundColor: style.accent }}
                     className="text-white px-7 h-10 rounded-full text-[11px] font-semibold uppercase tracking-[0.18em] shadow-[0_10px_24px_rgba(37,99,235,0.24)] hover:-translate-y-0.5 transition-all"
                   >
@@ -408,7 +434,7 @@ export default function StoreCatalog() {
             {/* ── GRID ── */}
             {viewMode === "grid" && filtered.length > 0 && (
               <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-4 md:gap-5">
-                {filtered.map((product, i) => (
+                {paginated.map((product, i) => (
                   <ProductCard
                     key={product.id}
                     product={product}
@@ -426,7 +452,7 @@ export default function StoreCatalog() {
             {/* ── LIST ── */}
             {viewMode === "list" && filtered.length > 0 && (
               <div className="flex flex-col gap-3">
-                {filtered.map((product, i) => (
+                {paginated.map((product, i) => (
                   <ProductRow
                     key={product.id}
                     product={product}
@@ -438,6 +464,48 @@ export default function StoreCatalog() {
                     onAddToCart={addToCart}
                   />
                 ))}
+              </div>
+            )}
+
+            {/* PAGINATION */}
+            {totalPages > 1 && (
+              <div className="flex items-center justify-center gap-1 pt-4">
+                <button
+                  onClick={() => { setCurrentPage(p => Math.max(1, p - 1)); window.scrollTo({ top: 0, behavior: "smooth" }); }}
+                  disabled={currentPage === 1}
+                  className="w-9 h-9 rounded-full border border-[#dbe6ff] bg-white text-[#4e6c8e] text-sm font-bold disabled:opacity-30 hover:border-[#7aa2ff] hover:text-[#071426] transition-all"
+                >
+                  ‹
+                </button>
+                {Array.from({ length: totalPages }, (_, i) => i + 1)
+                  .filter(p => p === 1 || p === totalPages || Math.abs(p - currentPage) <= 1)
+                  .reduce<(number | "…")[]>((acc, p, idx, arr) => {
+                    if (idx > 0 && p - (arr[idx - 1] as number) > 1) acc.push("…");
+                    acc.push(p);
+                    return acc;
+                  }, [])
+                  .map((p, i) =>
+                    p === "…"
+                      ? <span key={`e${i}`} className="w-9 h-9 flex items-center justify-center text-[#8baed0] text-sm">…</span>
+                      : <button
+                          key={p}
+                          onClick={() => { setCurrentPage(p as number); window.scrollTo({ top: 0, behavior: "smooth" }); }}
+                          className={cn("w-9 h-9 rounded-full border text-sm font-bold transition-all",
+                            currentPage === p
+                              ? "text-white border-transparent"
+                              : "border-[#dbe6ff] bg-white text-[#4e6c8e] hover:border-[#7aa2ff] hover:text-[#071426]")}
+                          style={currentPage === p ? { backgroundColor: style.accent } : {}}
+                        >
+                          {p}
+                        </button>
+                  )}
+                <button
+                  onClick={() => { setCurrentPage(p => Math.min(totalPages, p + 1)); window.scrollTo({ top: 0, behavior: "smooth" }); }}
+                  disabled={currentPage === totalPages}
+                  className="w-9 h-9 rounded-full border border-[#dbe6ff] bg-white text-[#4e6c8e] text-sm font-bold disabled:opacity-30 hover:border-[#7aa2ff] hover:text-[#071426] transition-all"
+                >
+                  ›
+                </button>
               </div>
             )}
           </div>
@@ -462,6 +530,7 @@ interface CardProps {
 // ── Product Card (Grid) ────────────────────────────────────────────────────────
 
 function ProductCard({ product, index, slug, style, wishlist, onWishlist, onAddToCart }: CardProps) {
+  const navigate = useNavigate();
   const discountPct = product.discount_price
     ? Math.round((1 - Number(product.discount_price) / Number(product.price)) * 100)
     : 0;
@@ -525,13 +594,12 @@ function ProductCard({ product, index, slug, style, wishlist, onWishlist, onAddT
             >
               <Heart size={11} fill={inWishlist ? "currentColor" : "none"} />
             </button>
-            <Link
-              to={buildStorePath(slug, `/produto/${product.id}`)}
-              onClick={e => e.stopPropagation()}
+            <button
+              onClick={e => { e.preventDefault(); e.stopPropagation(); navigate(buildStorePath(slug, `/produto/${product.id}`)); }}
               className="w-8 h-8 rounded-full bg-white border border-[#dbe6ff] flex items-center justify-center shadow-md text-[#8baed0] hover:text-[#2563eb] hover:border-[#b3caff] transition-all"
             >
               <Eye size={11} />
-            </Link>
+            </button>
           </div>
 
           {/* Quick add on hover */}

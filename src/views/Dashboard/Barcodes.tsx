@@ -52,7 +52,7 @@ function LabelCard({
   labelSize: "small" | "medium" | "large";
 }) {
   const svgRef = useRef<SVGSVGElement>(null);
-  const code   = product.barcode || "";
+  const code   = product.barcode || product.sku || "";
 
   useEffect(() => {
     if (!code) return;
@@ -134,9 +134,10 @@ export default function Barcodes() {
   }, []);
 
   const filtered = products.filter((p) => {
-    if (showOnly === "with"    && !p.barcode) return false;
-    if (showOnly === "without" && p.barcode)  return false;
-    if (search && !p.name.toLowerCase().includes(search.toLowerCase()) && !(p.barcode || "").includes(search)) return false;
+    const code = p.barcode || p.sku || "";
+    if (showOnly === "with"    && !code) return false;
+    if (showOnly === "without" && code)  return false;
+    if (search && !p.name.toLowerCase().includes(search.toLowerCase()) && !code.toLowerCase().includes(search.toLowerCase())) return false;
     return true;
   });
 
@@ -156,7 +157,7 @@ export default function Barcodes() {
     );
 
   const selectAll = () =>
-    setSelected(filtered.filter((p) => p.barcode).map((p) => ({ product: p, qty: 1 })));
+    setSelected(filtered.filter((p) => p.barcode || p.sku).map((p) => ({ product: p, qty: 1 })));
 
   const clearAll = () => setSelected([]);
 
@@ -321,9 +322,9 @@ ${labelItems.map(({ product }, idx) => `
                       <div className="flex-1 min-w-0">
                         <p className="text-xs font-bold text-slate-800 truncate">{p.name}</p>
                         <div className="flex items-center gap-2 mt-0.5">
-                          {p.barcode ? (
+                          {(p.barcode || p.sku) ? (
                             <span className="text-[9px] font-mono text-slate-500 bg-slate-50 px-1.5 py-0.5 rounded border border-slate-100">
-                              {p.barcode}
+                              {p.barcode || p.sku}
                             </span>
                           ) : (
                             <span className="text-[9px] text-amber-500 font-bold uppercase tracking-wide">
@@ -358,9 +359,9 @@ ${labelItems.map(({ product }, idx) => `
                       )}
 
                       {/* barcode mini-preview */}
-                      {p.barcode && jsBarcodeReady && (
+                      {(p.barcode || p.sku) && jsBarcodeReady && (
                         <div className="w-20 shrink-0">
-                          <BarcodePreview code={p.barcode} />
+                          <BarcodePreview code={p.barcode || p.sku || ""} />
                         </div>
                       )}
                     </div>

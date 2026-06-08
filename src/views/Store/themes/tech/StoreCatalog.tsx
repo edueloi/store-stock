@@ -30,9 +30,12 @@ export default function StoreCatalog() {
   const [selectedCategory, setSelectedCategory] = useState<number | null>(
     searchParams.get("cat") ? Number(searchParams.get("cat")) : null
   );
+  const [priceRange, setPriceRange] = useState<[number, number] | null>(null);
   const [sortBy, setSortBy] = useState<SortKey>("default");
   const [viewMode, setViewMode] = useState<ViewMode>("grid");
   const [showSortMenu, setShowSortMenu] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const PAGE_SIZE = 20;
   const sortRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -40,7 +43,10 @@ export default function StoreCatalog() {
     const cat = searchParams.get("cat") ? Number(searchParams.get("cat")) : null;
     setSearchTerm(q);
     setSelectedCategory(cat);
+    setCurrentPage(1);
   }, [searchParams]);
+
+  useEffect(() => { setCurrentPage(1); }, [priceRange, sortBy]);
 
   useEffect(() => {
     const h = (e: MouseEvent) => {
@@ -60,7 +66,8 @@ export default function StoreCatalog() {
     .filter(p => p.is_active)
     .filter(p =>
       (searchTerm === "" || p.name.toLowerCase().includes(searchTerm.toLowerCase())) &&
-      (selectedCategory === null || p.category_id === selectedCategory)
+      (selectedCategory === null || p.category_id === selectedCategory) &&
+      (priceRange === null || (Number(p.price) >= priceRange[0] && Number(p.price) < priceRange[1]))
     )
     .sort((a, b) => {
       if (sortBy === "price_asc") return Number(a.price) - Number(b.price);
@@ -68,6 +75,9 @@ export default function StoreCatalog() {
       if (sortBy === "name") return a.name.localeCompare(b.name);
       return (b.is_featured ? 1 : 0) - (a.is_featured ? 1 : 0);
     });
+
+  const totalPages = Math.ceil(filtered.length / PAGE_SIZE);
+  const paginated = filtered.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
 
   const sortLabels: Record<SortKey, string> = {
     default: "Relevância",
@@ -195,21 +205,35 @@ export default function StoreCatalog() {
               <div className="mt-4 pt-4 border-t border-slate-200">
                 <p className="text-[10px] font-black uppercase tracking-widest px-3 mb-2" style={{ color: style.accent }}>Faixa de preço</p>
                 <div className="px-3 space-y-1.5">
-                  {[
+                  {([
                     ["Até R$ 50", 0, 50],
                     ["R$ 50–200", 50, 200],
                     ["R$ 200–500", 200, 500],
                     ["Acima de R$ 500", 500, Infinity],
-                  ].map(([label, min, max]) => {
-                    const count = products.filter(p => p.is_active && Number(p.price) >= (min as number) && Number(p.price) < (max as number)).length;
+                  ] as [string, number, number][]).map(([label, min, max]) => {
+                    const count = products.filter(p => p.is_active && Number(p.price) >= min && Number(p.price) < max).length;
                     if (count === 0) return null;
+                    const active = priceRange !== null && priceRange[0] === min && priceRange[1] === max;
                     return (
-                      <div key={label as string} className="flex items-center justify-between w-full text-[10px] py-0.5 text-slate-500">
-                        <span className="font-medium">{label as string}</span>
-                        <span className="text-[9px] px-1.5 py-0.5 rounded-full font-bold bg-slate-100 text-slate-500 border border-slate-200">{count}</span>
-                      </div>
+                      <button
+                        key={label}
+                        onClick={() => { setPriceRange(active ? null : [min, max]); setCurrentPage(1); }}
+                        className={cn("flex items-center justify-between w-full text-[10px] py-0.5 rounded px-1 transition-colors",
+                          active ? "font-black" : "text-slate-500 hover:text-slate-800")}
+                        style={active ? { color: style.accent } : {}}
+                      >
+                        <span className="font-medium">{label}</span>
+                        <span className={cn("text-[9px] px-1.5 py-0.5 rounded-full font-bold border",
+                          active ? "text-white border-transparent" : "bg-slate-100 text-slate-500 border-slate-200")}
+                          style={active ? { backgroundColor: style.accent } : {}}>{count}</span>
+                      </button>
                     );
                   })}
+                  {priceRange !== null && (
+                    <button onClick={() => setPriceRange(null)} className="text-[9px] font-bold px-1 mt-1" style={{ color: style.accent }}>
+                      Limpar faixa ×
+                    </button>
+                  )}
                 </div>
               </div>
             )}
@@ -317,7 +341,7 @@ export default function StoreCatalog() {
             </div>
 
             {/* Active filters */}
-            {(selectedCategory !== null || searchTerm) && (
+            {(selectedCategory !== null || searchTerm || priceRange !== null) && (
               <div className="flex flex-wrap items-center gap-2">
                 <span className="text-[10px] font-black uppercase tracking-wider" style={{ color: style.accent }}>Filtros:</span>
                 {catName && (
@@ -332,8 +356,14 @@ export default function StoreCatalog() {
                     <button onClick={() => { setSearchTerm(""); updateParams("q", null); }}><X size={10} /></button>
                   </span>
                 )}
+                {priceRange !== null && (
+                  <span className="flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-bold border" style={{ backgroundColor: style.accent + "12", borderColor: style.accent + "30", color: style.accent }}>
+                    {priceRange[1] === Infinity ? `Acima de R$ ${priceRange[0]}` : `R$ ${priceRange[0]}–${priceRange[1]}`}
+                    <button onClick={() => setPriceRange(null)}><X size={10} /></button>
+                  </span>
+                )}
                 <button
-                  onClick={() => { setSelectedCategory(null); setSearchTerm(""); setSearchParams({}); }}
+                  onClick={() => { setSelectedCategory(null); setSearchTerm(""); setPriceRange(null); setSearchParams({}); }}
                   className="text-[10px] font-bold text-red-500 hover:text-red-600 uppercase tracking-wider"
                 >
                   Limpar tudo
@@ -355,7 +385,7 @@ export default function StoreCatalog() {
                   <p className="text-xs text-slate-400 mt-1">Tente outros filtros ou termos</p>
                 </div>
                 <button
-                  onClick={() => { setSearchTerm(""); setSelectedCategory(null); setSearchParams({}); }}
+                  onClick={() => { setSearchTerm(""); setSelectedCategory(null); setPriceRange(null); setSearchParams({}); }}
                   style={{ backgroundColor: style.accent }}
                   className="text-white px-6 h-9 rounded-xl text-[11px] font-black uppercase tracking-wider"
                 >
@@ -367,7 +397,7 @@ export default function StoreCatalog() {
             {/* Grid */}
             {viewMode === "grid" && filtered.length > 0 && (
               <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-4">
-                {filtered.map((product, i) => (
+                {paginated.map((product, i) => (
                   <TechProductCard key={product.id} product={product} index={i} slug={slug} style={style} wishlist={wishlist} onWishlist={toggleWishlist} onAddToCart={addToCart} />
                 ))}
               </div>
@@ -376,9 +406,51 @@ export default function StoreCatalog() {
             {/* List */}
             {viewMode === "list" && filtered.length > 0 && (
               <div className="flex flex-col gap-3">
-                {filtered.map((product, i) => (
+                {paginated.map((product, i) => (
                   <TechProductRow key={product.id} product={product} index={i} slug={slug} style={style} wishlist={wishlist} onWishlist={toggleWishlist} onAddToCart={addToCart} />
                 ))}
+              </div>
+            )}
+
+            {/* PAGINATION */}
+            {totalPages > 1 && (
+              <div className="flex items-center justify-center gap-1 pt-4">
+                <button
+                  onClick={() => { setCurrentPage(p => Math.max(1, p - 1)); window.scrollTo({ top: 0, behavior: "smooth" }); }}
+                  disabled={currentPage === 1}
+                  className="w-9 h-9 rounded-xl border border-slate-200 bg-white text-slate-500 text-sm font-bold disabled:opacity-30 hover:border-slate-300 transition-all"
+                >
+                  ‹
+                </button>
+                {Array.from({ length: totalPages }, (_, i) => i + 1)
+                  .filter(p => p === 1 || p === totalPages || Math.abs(p - currentPage) <= 1)
+                  .reduce<(number | "…")[]>((acc, p, idx, arr) => {
+                    if (idx > 0 && p - (arr[idx - 1] as number) > 1) acc.push("…");
+                    acc.push(p);
+                    return acc;
+                  }, [])
+                  .map((p, i) =>
+                    p === "…"
+                      ? <span key={`e${i}`} className="w-9 h-9 flex items-center justify-center text-slate-400 text-sm">…</span>
+                      : <button
+                          key={p}
+                          onClick={() => { setCurrentPage(p as number); window.scrollTo({ top: 0, behavior: "smooth" }); }}
+                          className={cn("w-9 h-9 rounded-xl border text-sm font-bold transition-all",
+                            currentPage === p
+                              ? "text-white border-transparent"
+                              : "border-slate-200 bg-white text-slate-500 hover:border-slate-300")}
+                          style={currentPage === p ? { backgroundColor: style.accent } : {}}
+                        >
+                          {p}
+                        </button>
+                  )}
+                <button
+                  onClick={() => { setCurrentPage(p => Math.min(totalPages, p + 1)); window.scrollTo({ top: 0, behavior: "smooth" }); }}
+                  disabled={currentPage === totalPages}
+                  className="w-9 h-9 rounded-xl border border-slate-200 bg-white text-slate-500 text-sm font-bold disabled:opacity-30 hover:border-slate-300 transition-all"
+                >
+                  ›
+                </button>
               </div>
             )}
           </div>

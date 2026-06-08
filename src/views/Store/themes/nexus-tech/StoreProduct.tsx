@@ -23,11 +23,28 @@ export default function StoreProduct() {
   const [activeImg, setActiveImg] = useState(0);
   const [imgDirection, setImgDirection] = useState(0);
 
-  const hasVariations = Array.isArray(product?.variations) && product.variations.length > 0;
+  const normalizedVariations = (() => {
+    if (Array.isArray(product?.variations) && product.variations.length > 0) {
+      return product.variations;
+    }
+    if (Array.isArray(product?.attributes) && product.attributes.length > 0 && Array.isArray(product?.skus)) {
+      return product.attributes.map(attr => ({
+        name: attr.name,
+        options: attr.values.map(val => {
+          const totalStock = (product.skus ?? [])
+            .filter(sku => sku.combo[attr.name] === val)
+            .reduce((sum, sku) => sum + (sku.stock ?? 0), 0);
+          return { value: val, stock: totalStock };
+        }),
+      }));
+    }
+    return [];
+  })();
+  const hasVariations = normalizedVariations.length > 0;
   const [selectedOptions, setSelectedOptions] = useState<Record<string, string>>(() => {
-    if (!product?.variations) return {};
+    if (!normalizedVariations.length) return {};
     return Object.fromEntries(
-      product.variations.map(v => {
+      normalizedVariations.map(v => {
         const available = v.options.filter(o => o.stock > 0);
         return [v.name, available.length === 1 ? available[0].value : ""];
       })
@@ -67,17 +84,12 @@ export default function StoreProduct() {
     .filter(p => p.is_active && p.category_id === product.category_id && p.id !== product.id)
     .slice(0, 4);
 
-  const allVariationsSelected = !hasVariations || (
-    Array.isArray(product.variations) &&
-    product.variations.every(v => !!selectedOptions[v.name])
-  );
+  const allVariationsSelected = !hasVariations || normalizedVariations.every(v => !!selectedOptions[v.name]);
 
-  const selectedStocks = Array.isArray(product.variations)
-    ? product.variations.map(v => {
-        const opt = v.options.find(o => o.value === selectedOptions[v.name]);
-        return opt?.stock ?? 0;
-      })
-    : [];
+  const selectedStocks = normalizedVariations.map(v => {
+    const opt = v.options.find(o => o.value === selectedOptions[v.name]);
+    return opt?.stock ?? 0;
+  });
   const minStock = selectedStocks.length > 0
     ? (allVariationsSelected ? Math.min(...selectedStocks) : 99)
     : (product.stock_quantity ?? 99);
@@ -357,7 +369,7 @@ export default function StoreProduct() {
               )}
 
               {/* Variations */}
-              {Array.isArray(product.variations) && product.variations.map((v, vi) => (
+              {normalizedVariations.map((v, vi) => (
                 <div key={vi} className="space-y-2.5">
                   <div className="flex items-center justify-between">
                     <p className={cn(

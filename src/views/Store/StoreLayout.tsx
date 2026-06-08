@@ -1,4 +1,4 @@
-import React, { useState, useEffect, createContext, useContext, useMemo } from "react";
+import React, { useState, useEffect, createContext, useContext, useMemo, useRef } from "react";
 import { Routes, Route, Link, useParams, useNavigate, useLocation } from "react-router-dom";
 import { ShoppingCart, Menu, X, Search, Home, Grid3X3, Info, Phone } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
@@ -129,11 +129,14 @@ function StoreLayoutInner() {
   const storeSlug = resolveStoreSlug(routeSlug);
   const storePath = (suffix = "") => buildStorePath(storeSlug, suffix);
 
-  const { Front: StoreFront, Catalog: StoreCatalog, Product: StoreProduct, About: StoreAbout } = useMemo(
-    () => themePages(storeData?.tenant.template_id),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [storeData?.tenant.template_id]
-  );
+  const pagesRef = useRef<ReturnType<typeof themePages> | null>(null);
+  const lastTemplateRef = useRef<string | undefined>(undefined);
+  const templateId = storeData?.tenant.template_id;
+  if (templateId !== lastTemplateRef.current || pagesRef.current === null) {
+    pagesRef.current = themePages(templateId);
+    lastTemplateRef.current = templateId;
+  }
+  const { Front: StoreFront, Catalog: StoreCatalog, Product: StoreProduct, About: StoreAbout } = pagesRef.current;
 
   useEffect(() => {
     const endpoint = storeSlug ? `/api/public/store/${storeSlug}` : "/api/public/store";
@@ -346,23 +349,6 @@ function StoreLayoutInner() {
                   style={isActive(l.path) ? { backgroundColor: style.accent } : {}}
                 >
                   {l.icon} {l.label}
-                </Link>
-              ))}
-              {/* Category quick links */}
-              {storeData.categories.slice(0, 3).map(cat => (
-                <Link
-                  key={cat.id}
-                  to={storePath(`/catalogo?cat=${cat.id}`)}
-                  className={cn(
-                    "transition-all",
-                    isFashion
-                      ? "px-3 py-2 rounded-full text-[11px] font-medium tracking-[0.02em] text-[#8c6c63] hover:text-[#2d221f] hover:bg-white"
-                      : isTechNova
-                        ? "px-3 py-2 rounded-full border border-transparent text-[10px] font-semibold uppercase tracking-[0.16em] text-[#557197] hover:border-[#d8e4ff] hover:bg-white/82 hover:text-[#071426]"
-                      : "px-3 py-2 rounded-xl text-[11px] font-bold uppercase tracking-wider text-slate-400 hover:text-slate-700 hover:bg-slate-50"
-                  )}
-                >
-                  {cat.name}
                 </Link>
               ))}
             </nav>
