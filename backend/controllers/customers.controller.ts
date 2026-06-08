@@ -75,7 +75,7 @@ export async function getCustomer(req: Request, res: Response) {
 
 export async function createCustomer(req: Request, res: Response) {
   try {
-    const { name, email, phone, document, address, notes, credit_limit, risk_flag, risk_reason } = req.body;
+    const { name, email, phone, document, address, notes, credit_limit, risk_flag, risk_reason, birth_date } = req.body;
     const customer = await prisma.customer.create({
       data: {
         tenant_id: getTenantId(req),
@@ -88,6 +88,7 @@ export async function createCustomer(req: Request, res: Response) {
         credit_limit: credit_limit || null,
         risk_flag: risk_flag ?? false,
         risk_reason: risk_reason || null,
+        birth_date: birth_date ? new Date(birth_date) : null,
       },
     });
     res.json(customer);
@@ -101,7 +102,7 @@ export async function updateCustomer(req: Request, res: Response) {
   try {
     const tenantId = getTenantId(req);
     const id = Number(req.params.id);
-    const { name, email, phone, document, address, notes, credit_limit, risk_flag, risk_reason } = req.body;
+    const { name, email, phone, document, address, notes, credit_limit, risk_flag, risk_reason, birth_date } = req.body;
 
     await prisma.customer.updateMany({
       where: { id, tenant_id: tenantId },
@@ -115,6 +116,7 @@ export async function updateCustomer(req: Request, res: Response) {
         ...(credit_limit !== undefined && { credit_limit: credit_limit || null }),
         ...(risk_flag !== undefined && { risk_flag }),
         ...(risk_reason !== undefined && { risk_reason: risk_reason || null }),
+        ...(birth_date !== undefined && { birth_date: birth_date ? new Date(birth_date) : null }),
       },
     });
 

@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useCallback, useRef } from "react";
+import React, { useState, useEffect, useCallback, useRef, useMemo } from "react";
+import { useSearchParams } from "react-router-dom";
 import {
   Store, Palette, Share2, Clock, CreditCard, Shield, Settings2,
   Users, Save, Loader2, Search, Check, ChevronRight, Globe,
@@ -472,7 +473,20 @@ function TeamSection() {
 
 export default function Settings() {
   const toast = useToast();
-  const [active, setActive] = useState("identity");
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  // tab ativa sincronizada com ?tab=xxx na URL
+  const active = searchParams.get("tab") ?? "identity";
+  const setActive = useCallback((id: string) => {
+    setSearchParams((prev) => { const n = new URLSearchParams(prev); n.set("tab", id); return n; }, { replace: true });
+  }, [setSearchParams]);
+
+  // sub-tab de maquininha sincronizada com ?payType=xxx
+  const activePayType = (searchParams.get("payType") ?? "credit") as "credit" | "debit" | "pix";
+  const setActivePayType = useCallback((id: "credit" | "debit" | "pix") => {
+    setSearchParams((prev) => { const n = new URLSearchParams(prev); n.set("payType", id); return n; }, { replace: true });
+  }, [setSearchParams]);
+
   const [tenant, setTenant] = useState<Partial<Tenant> | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -480,8 +494,6 @@ export default function Settings() {
   const [cepLoading, setCepLoading] = useState(false);
   const [logoUploading, setLogoUploading] = useState(false);
   const logoInputRef = useRef<HTMLInputElement>(null);
-  const [activePayType, setActivePayType] = useState<"credit" | "debit" | "pix">("credit");
-
   // system prefs (stored in UserPreference)
   const [panelTheme, setPanelTheme] = useState<"light" | "dark">("light");
   const [lowStockAlert, setLowStockAlert] = useState(5);
@@ -501,6 +513,16 @@ export default function Settings() {
     other:  [2.5, 3.0, 3.5, 4.0, 4.5, 5.0, 0, 0, 0, 0, 0, 0],
   };
   const [cardFees, setCardFees] = useState<CardFees>(DEFAULT_CARD_FEES);
+  const [passFeeToCustomer, setPassFeeToCustomer] = useState(false);
+  const [maxInstallments, setMaxInstallments] = useState(12);
+  // Bandeiras habilitadas: { visa: true, master: true, ... }
+  const [enabledBrands, setEnabledBrands] = useState<Record<string, boolean>>({
+    visa: true, master: true, elo: true, amex: true, hiper: true, other: true,
+  });
+  // Repasse de taxa por método: { credit: false, debit: false, pix: false }
+  const [passFeeByMethod, setPassFeeByMethod] = useState<Record<string, boolean>>({
+    credit: false, debit: false, pix: false,
+  });
 
   useEffect(() => {
     fetch("/api/tenant", { headers: API_HEADERS() })
@@ -508,6 +530,10 @@ export default function Settings() {
       .then((d) => {
         setTenant(d);
         if (d?.card_fees) setCardFees(d.card_fees);
+        if (d?.pass_fee_to_customer !== undefined) setPassFeeToCustomer(Boolean(d.pass_fee_to_customer));
+        if (d?.max_installments) setMaxInstallments(Number(d.max_installments));
+        if (d?.enabled_brands) setEnabledBrands(d.enabled_brands as Record<string, boolean>);
+        if (d?.pass_fee_by_method) setPassFeeByMethod(d.pass_fee_by_method as Record<string, boolean>);
         setLoading(false);
       });
 
@@ -666,9 +692,22 @@ export default function Settings() {
       const res = await fetch("/api/tenant", {
         method: "PUT",
         headers: API_HEADERS(),
-        body: JSON.stringify({ ...tenant, card_fees: cardFees }),
+        body: JSON.stringify({
+          card_fees: cardFees,
+          pass_fee_to_customer: passFeeToCustomer,
+          max_installments: maxInstallments,
+          enabled_brands: enabledBrands,
+          pass_fee_by_method: passFeeByMethod,
+        }),
       });
-      if (res.ok) toast.success("Taxas salvas com sucesso!");
+      if (res.ok) {
+        toast.success("Taxas salvas com sucesso!");
+      } else {
+        const err = await res.json().catch(() => ({}));
+        toast.error("Erro ao salvar: " + (err?.error ?? res.status));
+      }
+    } catch {
+      toast.error("Erro de conexão ao salvar taxas.");
     } finally {
       setSaving(false);
     }
@@ -676,7 +715,10 @@ export default function Settings() {
 
   const setFeeRate = (brand: string, installmentIdx: number, value: number) => {
     setCardFees((prev) => {
-      const arr = [...(prev[brand] ?? Array(12).fill(0))];
+      const existing = prev[brand] ?? [];
+      // expande o array se necessário
+      const arr = [...existing];
+      while (arr.length <= installmentIdx) arr.push(0);
       arr[installmentIdx] = value;
       return { ...prev, [brand]: arr };
     });
@@ -1414,12 +1456,72 @@ export default function Settings() {
                 { key: "other",  label: "Outras Bandeiras", color: "#64748b" },
               ] as { key: string; label: string; color: string }[];
 
+              const activeBrands = BRANDS.filter((b) => enabledBrands[b.key] !== false);
+
+              const toggleBrand = (key: string) =>
+                setEnabledBrands((prev) => ({ ...prev, [key]: !prev[key] }));
+
+              const togglePassFee = (method: string) =>
+                setPassFeeByMethod((prev) => ({ ...prev, [method]: !prev[method] }));
+
+              // toggle component reutilizável
+              const Toggle = ({ on, onChange }: { on: boolean; onChange: () => void }) => (
+                <button onClick={onChange}
+                  className={`relative shrink-0 flex items-center rounded-full transition-all duration-200 border ${on ? "bg-blue-600 border-blue-600" : "bg-white border-slate-300"}`}
+                  style={{ width: 72, height: 32 }}>
+                  {/* label Não */}
+                  <span className={`absolute right-2 text-[9px] font-black uppercase tracking-wider transition-opacity duration-150 ${on ? "opacity-0" : "opacity-100 text-slate-400"}`}>Não</span>
+                  {/* label Sim */}
+                  <span className={`absolute left-2 text-[9px] font-black uppercase tracking-wider transition-opacity duration-150 ${on ? "opacity-100 text-white" : "opacity-0"}`}>Sim</span>
+                  {/* knob */}
+                  <span
+                    className="absolute bg-white rounded-full shadow-md transition-transform duration-200"
+                    style={{
+                      width: 24, height: 24,
+                      top: 3,
+                      left: 4,
+                      transform: on ? "translateX(40px)" : "translateX(0px)",
+                      boxShadow: "0 1px 4px rgba(0,0,0,0.18)",
+                    }}
+                  />
+                </button>
+              );
+
               return (
                 <div className="space-y-6">
                   <SectionHeader
                     title="Maquininha & Taxas"
-                    subtitle="Configure as taxas cobradas pela maquininha por modalidade de pagamento."
+                    subtitle="Configure as taxas, bandeiras e regras de repasse por modalidade de pagamento."
                   />
+
+                  {/* ── Bandeiras ativas ── */}
+                  <div className="border border-slate-100 rounded-2xl overflow-hidden">
+                    <div className="px-5 py-3 bg-slate-50 border-b border-slate-100 flex items-center justify-between">
+                      <span className="text-[10px] font-black uppercase tracking-widest text-slate-600">Bandeiras Ativas</span>
+                      <span className="text-[9px] text-slate-400 font-medium">{activeBrands.length} de {BRANDS.length} ativas</span>
+                    </div>
+                    <div className="p-4 grid grid-cols-2 sm:grid-cols-3 gap-3">
+                      {BRANDS.map(({ key, label, color }) => {
+                        const on = enabledBrands[key] !== false;
+                        return (
+                          <button key={key} onClick={() => toggleBrand(key)}
+                            className={cn(
+                              "flex items-center gap-3 px-4 py-3 rounded-xl border transition-all",
+                              on ? "border-transparent shadow-sm" : "bg-slate-50 border-slate-200 opacity-50"
+                            )}
+                            style={on ? { backgroundColor: color + "15", borderColor: color + "40" } : {}}>
+                            <div className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: on ? color : "#cbd5e1" }} />
+                            <span className="text-[11px] font-black uppercase tracking-widest flex-1 text-left"
+                              style={{ color: on ? color : "#94a3b8" }}>{label}</span>
+                            <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center shrink-0 transition-all ${on ? "bg-white border-white" : "bg-transparent border-slate-300"}`}
+                              style={on ? { boxShadow: `0 0 0 3px ${color}40` } : {}}>
+                              {on && <div className="w-2 h-2 rounded-full" style={{ backgroundColor: color }} />}
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
 
                   {/* Payment type tabs */}
                   <div className="flex gap-2 p-1 bg-slate-100 rounded-2xl w-fit">
@@ -1428,16 +1530,11 @@ export default function Settings() {
                       { id: "debit",  label: "Débito",  icon: Smartphone },
                       { id: "pix",    label: "PIX",     icon: Zap },
                     ] as { id: "credit"|"debit"|"pix"; label: string; icon: React.ElementType }[]).map(({ id, label, icon: Icon }) => (
-                      <button
-                        key={id}
-                        onClick={() => setActivePayType(id)}
+                      <button key={id} onClick={() => setActivePayType(id)}
                         className={cn(
                           "flex items-center gap-2 px-4 py-2 rounded-xl text-[11px] font-black uppercase tracking-widest transition-all",
-                          activePayType === id
-                            ? "bg-white shadow text-slate-900"
-                            : "text-slate-500 hover:text-slate-700"
-                        )}
-                      >
+                          activePayType === id ? "bg-white shadow text-slate-900" : "text-slate-500 hover:text-slate-700"
+                        )}>
                         <Icon size={13} />
                         {label}
                       </button>
@@ -1447,40 +1544,78 @@ export default function Settings() {
                   {/* ── Crédito ── */}
                   {activePayType === "credit" && (
                     <div className="space-y-5">
-                      <div className="flex gap-3 p-4 bg-amber-50 border border-amber-100 rounded-xl">
-                        <CreditCard size={16} className="text-amber-600 shrink-0 mt-0.5" />
-                        <p className="text-[10px] text-amber-800 font-medium leading-relaxed">
-                          Informe a taxa (%) por parcela. Deixe <strong>0</strong> para parcelas não disponíveis. O PDV calculará o acréscimo automaticamente.
-                        </p>
+                      {/* Repassar taxa — crédito */}
+                      <div className="flex items-center justify-between gap-4 p-4 bg-amber-50 border border-amber-100 rounded-xl">
+                        <div className="flex items-start gap-3">
+                          <CreditCard size={16} className="text-amber-600 shrink-0 mt-0.5" />
+                          <div>
+                            <p className="text-[11px] font-black text-amber-800 uppercase tracking-wider">Repassar taxa ao cliente — Crédito</p>
+                            <p className="text-[10px] text-amber-700 mt-0.5 leading-relaxed">
+                              Ativo: taxa somada ao total cobrado. Ex: R$ 30 + 2,5% → R$ 30,75 para o cliente.
+                            </p>
+                          </div>
+                        </div>
+                        <Toggle on={!!passFeeByMethod["credit"]} onChange={() => togglePassFee("credit")} />
                       </div>
-                      {BRANDS.map(({ key, label, color }) => {
-                        const fees = cardFees[key] ?? Array(12).fill(0);
+
+                      {/* Máximo de parcelas */}
+                      <div className="flex items-center justify-between gap-4 p-4 bg-white border border-slate-200 rounded-xl">
+                        <div>
+                          <p className="text-[12px] font-bold text-slate-700">Máximo de parcelas</p>
+                          <p className="text-[10px] text-slate-400 mt-0.5">Quantas opções aparecem no PDV (1 a 12).</p>
+                        </div>
+                        <div className="flex items-center gap-2 shrink-0">
+                          <button onClick={() => setMaxInstallments((v) => Math.max(1, v - 1))}
+                            className="w-8 h-8 rounded-lg bg-slate-100 hover:bg-slate-200 border border-slate-200 text-slate-600 font-black text-lg flex items-center justify-center transition-all">−</button>
+                          <span className="w-10 text-center font-mono font-black text-[16px] text-slate-800">{maxInstallments}×</span>
+                          <button onClick={() => setMaxInstallments((v) => Math.min(24, v + 1))}
+                            className="w-8 h-8 rounded-lg bg-slate-100 hover:bg-slate-200 border border-slate-200 text-slate-600 font-black text-lg flex items-center justify-center transition-all">+</button>
+                        </div>
+                      </div>
+
+                      {/* Preview das parcelas ativas */}
+                      <div className="flex flex-wrap gap-2 px-1">
+                        {Array.from({ length: 24 }, (_, i) => i + 1).map((n) => (
+                          <span key={n}
+                            className={cn("px-3 py-1 rounded-lg text-[10px] font-black border transition-all",
+                              n <= maxInstallments
+                                ? "bg-blue-50 border-blue-200 text-blue-700"
+                                : "bg-slate-50 border-slate-200 text-slate-300 line-through"
+                            )}>
+                            {n === 1 ? "À vista" : `${n}×`}
+                          </span>
+                        ))}
+                      </div>
+
+                      {/* Taxas por bandeira */}
+                      {activeBrands.map(({ key, label, color }) => {
+                        const fees = cardFees[key] ?? Array(maxInstallments).fill(0);
                         return (
                           <div key={key} className="border border-slate-100 rounded-2xl overflow-hidden">
-                            <div
-                              className="flex items-center gap-3 px-5 py-3"
-                              style={{ backgroundColor: color + "15", borderBottom: `2px solid ${color}30` }}
-                            >
+                            <div className="flex items-center gap-3 px-5 py-3"
+                              style={{ backgroundColor: color + "15", borderBottom: `2px solid ${color}30` }}>
                               <div className="w-3 h-3 rounded-full" style={{ backgroundColor: color }} />
                               <span className="text-[10px] font-black uppercase tracking-widest" style={{ color }}>{label}</span>
                             </div>
                             <div className="p-4 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
-                              {[1,2,3,4,5,6,7,8,9,10,11,12].map((n, idx) => (
-                                <div key={n} className="space-y-1">
-                                  <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest px-1 block">
-                                    {n === 1 ? "À Vista" : `${n}× parcelas`}
-                                  </label>
-                                  <div className="flex items-center border border-slate-200 rounded-xl overflow-hidden focus-within:ring-2 focus-within:ring-blue-500/10 focus-within:border-blue-500 bg-slate-50 transition-all">
-                                    <input
-                                      type="number" min="0" max="30" step="0.1"
-                                      value={fees[idx] ?? 0}
-                                      onChange={(e) => setFeeRate(key, idx, parseFloat(e.target.value) || 0)}
-                                      className="flex-1 bg-transparent px-2 h-9 text-xs font-mono font-bold outline-none w-0 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none"
-                                    />
-                                    <span className="bg-slate-100 border-l border-slate-200 px-2 h-9 flex items-center text-[10px] font-black text-slate-400 shrink-0">%</span>
+                              {Array.from({ length: maxInstallments }, (_, i) => i + 1).map((n) => {
+                                const idx = n - 1;
+                                return (
+                                  <div key={n} className="space-y-1">
+                                    <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest px-1 block">
+                                      {n === 1 ? "À Vista" : `${n}× parcelas`}
+                                    </label>
+                                    <div className="flex items-center border border-slate-200 rounded-xl overflow-hidden focus-within:ring-2 focus-within:ring-blue-500/10 focus-within:border-blue-500 bg-slate-50 transition-all">
+                                      <input type="number" min="0" max="30" step="0.1"
+                                        value={fees[idx] ?? 0}
+                                        onChange={(e) => setFeeRate(key, idx, parseFloat(e.target.value) || 0)}
+                                        className="flex-1 bg-transparent px-2 h-9 text-xs font-mono font-bold outline-none w-0 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none"
+                                      />
+                                      <span className="bg-slate-100 border-l border-slate-200 px-2 h-9 flex items-center text-[10px] font-black text-slate-400 shrink-0">%</span>
+                                    </div>
                                   </div>
-                                </div>
-                              ))}
+                                );
+                              })}
                             </div>
                           </div>
                         );
@@ -1491,36 +1626,39 @@ export default function Settings() {
                   {/* ── Débito ── */}
                   {activePayType === "debit" && (
                     <div className="space-y-5">
-                      <div className="flex gap-3 p-4 bg-blue-50 border border-blue-100 rounded-xl">
-                        <Smartphone size={16} className="text-blue-600 shrink-0 mt-0.5" />
-                        <p className="text-[10px] text-blue-800 font-medium leading-relaxed">
-                          Informe a taxa (%) cobrada no débito à vista para cada bandeira.
-                        </p>
+                      {/* Repassar taxa — débito */}
+                      <div className="flex items-center justify-between gap-4 p-4 bg-blue-50 border border-blue-100 rounded-xl">
+                        <div className="flex items-start gap-3">
+                          <Smartphone size={16} className="text-blue-600 shrink-0 mt-0.5" />
+                          <div>
+                            <p className="text-[11px] font-black text-blue-800 uppercase tracking-wider">Repassar taxa ao cliente — Débito</p>
+                            <p className="text-[10px] text-blue-700 mt-0.5 leading-relaxed">
+                              Ativo: taxa somada ao total cobrado no débito.
+                            </p>
+                          </div>
+                        </div>
+                        <Toggle on={!!passFeeByMethod["debit"]} onChange={() => togglePassFee("debit")} />
                       </div>
+
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        {BRANDS.map(({ key, label, color }) => {
+                        {activeBrands.map(({ key, label, color }) => {
                           const rate = (cardFees[`debit_${key}`] ?? [0])[0];
                           return (
                             <div key={key} className="border border-slate-100 rounded-2xl overflow-hidden">
-                              <div
-                                className="flex items-center gap-3 px-5 py-3"
-                                style={{ backgroundColor: color + "15", borderBottom: `2px solid ${color}30` }}
-                              >
+                              <div className="flex items-center gap-3 px-5 py-3"
+                                style={{ backgroundColor: color + "15", borderBottom: `2px solid ${color}30` }}>
                                 <div className="w-3 h-3 rounded-full" style={{ backgroundColor: color }} />
                                 <span className="text-[10px] font-black uppercase tracking-widest" style={{ color }}>{label}</span>
                               </div>
                               <div className="p-4">
-                                <div className="space-y-1">
-                                  <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest px-1 block">Taxa Débito</label>
-                                  <div className="flex items-center border border-slate-200 rounded-xl overflow-hidden focus-within:ring-2 focus-within:ring-blue-500/10 focus-within:border-blue-500 bg-slate-50 transition-all">
-                                    <input
-                                      type="number" min="0" max="30" step="0.1"
-                                      value={rate}
-                                      onChange={(e) => setDebitRate(key, parseFloat(e.target.value) || 0)}
-                                      className="flex-1 bg-transparent px-2 h-9 text-xs font-mono font-bold outline-none w-0 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none"
-                                    />
-                                    <span className="bg-slate-100 border-l border-slate-200 px-2 h-9 flex items-center text-[10px] font-black text-slate-400 shrink-0">%</span>
-                                  </div>
+                                <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest px-1 block mb-1">Taxa Débito</label>
+                                <div className="flex items-center border border-slate-200 rounded-xl overflow-hidden focus-within:ring-2 focus-within:ring-blue-500/10 focus-within:border-blue-500 bg-slate-50 transition-all">
+                                  <input type="number" min="0" max="30" step="0.1"
+                                    value={rate}
+                                    onChange={(e) => setDebitRate(key, parseFloat(e.target.value) || 0)}
+                                    className="flex-1 bg-transparent px-2 h-9 text-xs font-mono font-bold outline-none w-0 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none"
+                                  />
+                                  <span className="bg-slate-100 border-l border-slate-200 px-2 h-9 flex items-center text-[10px] font-black text-slate-400 shrink-0">%</span>
                                 </div>
                               </div>
                             </div>
@@ -1533,29 +1671,33 @@ export default function Settings() {
                   {/* ── PIX ── */}
                   {activePayType === "pix" && (
                     <div className="space-y-5">
-                      <div className="flex gap-3 p-4 bg-emerald-50 border border-emerald-100 rounded-xl">
-                        <Zap size={16} className="text-emerald-600 shrink-0 mt-0.5" />
-                        <p className="text-[10px] text-emerald-800 font-medium leading-relaxed">
-                          Informe a taxa (%) cobrada pela operadora ao receber pagamentos via PIX. Muitas maquininhas cobram 0% no PIX.
-                        </p>
+                      {/* Repassar taxa — PIX */}
+                      <div className="flex items-center justify-between gap-4 p-4 bg-emerald-50 border border-emerald-100 rounded-xl">
+                        <div className="flex items-start gap-3">
+                          <Zap size={16} className="text-emerald-600 shrink-0 mt-0.5" />
+                          <div>
+                            <p className="text-[11px] font-black text-emerald-800 uppercase tracking-wider">Repassar taxa ao cliente — PIX</p>
+                            <p className="text-[10px] text-emerald-700 mt-0.5 leading-relaxed">
+                              Ativo: taxa PIX somada ao total cobrado. Muitas maquininhas cobram 0% no PIX.
+                            </p>
+                          </div>
+                        </div>
+                        <Toggle on={!!passFeeByMethod["pix"]} onChange={() => togglePassFee("pix")} />
                       </div>
+
                       <div className="border border-slate-100 rounded-2xl overflow-hidden max-w-xs">
                         <div className="flex items-center gap-3 px-5 py-3 bg-emerald-50 border-b-2 border-emerald-100">
                           <Zap size={14} className="text-emerald-600" />
-                          <span className="text-[10px] font-black uppercase tracking-widest text-emerald-700">PIX</span>
+                          <span className="text-[10px] font-black uppercase tracking-widest text-emerald-700">Taxa PIX</span>
                         </div>
                         <div className="p-4">
-                          <div className="space-y-1">
-                            <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest px-1 block">Taxa PIX</label>
-                            <div className="flex items-center border border-slate-200 rounded-xl overflow-hidden focus-within:ring-2 focus-within:ring-emerald-500/10 focus-within:border-emerald-500 bg-slate-50 transition-all">
-                              <input
-                                type="number" min="0" max="30" step="0.01"
-                                value={(cardFees["pix"] ?? [0])[0]}
-                                onChange={(e) => setPixRate(parseFloat(e.target.value) || 0)}
-                                className="flex-1 bg-transparent px-2 h-9 text-xs font-mono font-bold outline-none w-0 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none"
-                              />
-                              <span className="bg-slate-100 border-l border-slate-200 px-2 h-9 flex items-center text-[10px] font-black text-slate-400 shrink-0">%</span>
-                            </div>
+                          <div className="flex items-center border border-slate-200 rounded-xl overflow-hidden focus-within:ring-2 focus-within:ring-emerald-500/10 focus-within:border-emerald-500 bg-slate-50 transition-all">
+                            <input type="number" min="0" max="30" step="0.01"
+                              value={(cardFees["pix"] ?? [0])[0]}
+                              onChange={(e) => setPixRate(parseFloat(e.target.value) || 0)}
+                              className="flex-1 bg-transparent px-2 h-9 text-xs font-mono font-bold outline-none w-0 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none"
+                            />
+                            <span className="bg-slate-100 border-l border-slate-200 px-2 h-9 flex items-center text-[10px] font-black text-slate-400 shrink-0">%</span>
                           </div>
                         </div>
                       </div>

@@ -39,7 +39,7 @@ function buildMethodSummary(pm: string) {
 interface ServiceItemInput { id: number; name: string; price: number }
 
 export async function createSale(req: Request, res: Response) {
-  const { items, services, customerName, totalAmount, paymentMethod, discount, surcharge, sellerId } = req.body as {
+  const { items, services, customerName, totalAmount, paymentMethod, discount, surcharge, sellerId, passFeeToCustomer, passFeeByMethod } = req.body as {
     items: SaleItemInput[];
     services?: ServiceItemInput[];
     customerName?: string;
@@ -48,6 +48,14 @@ export async function createSale(req: Request, res: Response) {
     discount?: number;
     surcharge?: number;
     sellerId?: number;
+    passFeeToCustomer?: boolean;
+    passFeeByMethod?: Record<string, boolean>;
+  };
+
+  // Resolve se um segmento de pagamento repassa taxa ao cliente
+  const isPassFeeForSegment = (method: string): boolean => {
+    if (passFeeByMethod && passFeeByMethod[method] !== undefined) return !!passFeeByMethod[method];
+    return !!passFeeToCustomer;
   };
 
   try {
@@ -60,19 +68,40 @@ export async function createSale(req: Request, res: Response) {
     });
     const cardFees = (tenantData?.card_fees ?? {}) as Record<string, number[]>;
 
-    // Calculate machine fee from credit payments
+    // Calculate machine fee for all payment methods (credit, debit, pix)
     const pmString    = paymentMethod || "money";
     const pmSegments  = parsePaymentMethod(pmString);
     const machineFee  = pmSegments.reduce((sum, seg) => {
-      if (seg.method !== "credit" || seg.amount <= 0) return sum;
-      const rate = cardFees[seg.brand]?.[seg.installments - 1] ?? 0;
+      if (seg.amount <= 0) return sum;
+      let rate = 0;
+      if (seg.method === "credit") rate = cardFees[seg.brand]?.[seg.installments - 1] ?? 0;
+      else if (seg.method === "debit") rate = cardFees[`debit_${seg.brand}`]?.[0] ?? 0;
+      else if (seg.method === "pix")   rate = cardFees["pix"]?.[0] ?? 0;
       return sum + seg.amount * (rate / 100);
     }, 0);
 
     const discountVal  = discount && discount > 0 ? Number(discount) : 0;
     const surchargeVal = surcharge && surcharge > 0 ? Number(surcharge) : 0;
     const roundedFee   = Math.round(machineFee * 100) / 100;
+
+    // gross = valor dos itens sem desconto nem acréscimo
     const grossAmount  = Math.round((totalAmount + discountVal - surchargeVal) * 100) / 100;
+
+    // Taxa repassada ao cliente (soma dos segmentos com repasse ativo)
+    const passedFee = pmSegments.reduce((sum, seg) => {
+      if (!isPassFeeForSegment(seg.method) || seg.amount <= 0) return sum;
+      let rate = 0;
+      if (seg.method === "credit") rate = cardFees[seg.brand]?.[seg.installments - 1] ?? 0;
+      else if (seg.method === "debit") rate = cardFees[`debit_${seg.brand}`]?.[0] ?? 0;
+      else if (seg.method === "pix")   rate = cardFees["pix"]?.[0] ?? 0;
+      return sum + seg.amount * (rate / 100);
+    }, 0);
+    const roundedPassedFee = Math.round(passedFee * 100) / 100;
+
+    // Líquido: se taxa repassada ao cliente, a loja fica com o totalAmount inteiro menos apenas a taxa absorvida
+    // (totalAmount já inclui o passedFee, então subtrai só a taxa que a loja absorve = roundedFee - roundedPassedFee)
+    const absorbedFee = Math.round((roundedFee - roundedPassedFee) * 100) / 100;
+    const netAmount = Math.round((totalAmount - absorbedFee) * 100) / 100;
 
     // load seller name to denormalize
     let sellerName: string | null = null;
@@ -113,15 +142,16 @@ export async function createSale(req: Request, res: Response) {
     const methodSummary  = buildMethodSummary(pmString);
     const discountNote   = discountVal > 0 ? ` (desc. R$ ${discountVal.toFixed(2)})` : "";
     const surchargeNote  = surchargeVal > 0 ? ` (acrés. R$ ${surchargeVal.toFixed(2)})` : "";
+    const feeNote        = roundedPassedFee > 0 ? ` (taxa repassada R$ ${roundedPassedFee.toFixed(2)})` : "";
     const now            = new Date();
-    const netAmount      = Math.round((totalAmount - roundedFee) * 100) / 100;
 
-    // Receita: líquido = após desconto e taxa. gross = antes do desconto.
+    // Quando taxa é repassada ao cliente: gross = totalAmount (inclui taxa), net = totalAmount, fee aparece como informativo
+    // Quando loja absorve: gross = valor dos itens, net = totalAmount - taxa
     await prisma.finance.create({
       data: {
         tenant_id:       tenantId,
         type:            "income",
-        description:     `Venda PDV #${order.id} — ${methodSummary}${discountNote}${surchargeNote}`,
+        description:     `Venda PDV #${order.id} — ${methodSummary}${discountNote}${surchargeNote}${feeNote}`,
         amount:          netAmount,
         gross_amount:    grossAmount,
         fee_amount:      roundedFee > 0 ? roundedFee : null,

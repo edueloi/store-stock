@@ -1,14 +1,15 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import {
   Search, ShoppingCart, Plus, Minus, Trash2, User, CreditCard,
   Banknote, Percent, CheckCircle2, Package, X, QrCode, Tag,
   Loader2, Lock, Mail, LogOut, Store,
   Printer, FileText, MessageCircle, Phone, ChevronRight, ChevronDown,
-  PlusCircle,
+  PlusCircle, Barcode, Users, Scan,
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { Product, Category } from "../types";
 import { cn } from "../lib/utils";
+import Combobox from "../components/ui/Combobox";
 
 type PaymentMethod = "money" | "debit" | "credit" | "pix";
 type CardBrand = "visa" | "master" | "elo" | "amex" | "hiper" | "other";
@@ -24,6 +25,13 @@ const CARD_BRANDS: { key: CardBrand; label: string; color: string }[] = [
 
 const PM_LABEL: Record<PaymentMethod, string> = {
   money: "Dinheiro", debit: "Débito", credit: "Crédito", pix: "PIX",
+};
+
+const PM_ICON: Record<PaymentMethod, React.ReactNode> = {
+  money:  <Banknote  size={16} />,
+  debit:  <CreditCard size={16} />,
+  credit: <CreditCard size={16} />,
+  pix:    <QrCode    size={16} />,
 };
 
 interface CartItem extends Product {
@@ -45,17 +53,24 @@ interface PaymentEntry {
 interface CompletedSale {
   orderId: number;
   customerName: string;
+  sellerName: string;
   payments: PaymentEntry[];
   items: { name: string; quantity: number; price: number; image_url?: string }[];
   subtotal: number;
   discountValue: number;
+  surchargeValue: number;
   feeAmount: number;
   total: number;
   change: number;
   tenantName: string;
   tenantAddress: string;
+  tenantLogo: string;
+  tenantColor: string;
+  tenantWhatsapp: string;
   cardFees: Record<string, number[]>;
 }
+
+interface SellerEntry { id: number; name: string; commission_rate: number }
 
 function newPayment(): PaymentEntry {
   return { id: Math.random().toString(36).slice(2), method: "money", cardBrand: "visa", installments: 1, amount: "" };
@@ -82,7 +97,6 @@ function PDVLogin({ onLogin }: { onLogin: (token: string) => void }) {
       if (res.ok) {
         localStorage.setItem("token", data.token);
         localStorage.setItem("user", JSON.stringify(data.user));
-        // Non-PDV users who log in via /pdv get redirected to the admin panel
         if (data.user?.role && data.user.role !== "pdv") {
           window.location.href = data.user.role === "super_admin" ? "/super-admin" : "/admin";
           return;
@@ -100,34 +114,35 @@ function PDVLogin({ onLogin }: { onLogin: (token: string) => void }) {
 
   return (
     <div className="min-h-screen bg-slate-950 flex items-center justify-center p-6 font-sans">
-      <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} className="w-full max-w-sm">
+      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="w-full max-w-sm">
         <div className="text-center mb-10">
-          <div className="w-16 h-16 bg-blue-600 rounded-2xl flex items-center justify-center mx-auto mb-5 shadow-2xl shadow-blue-500/40">
-            <Store size={28} className="text-white" />
+          <div className="w-20 h-20 bg-gradient-to-br from-blue-600 to-blue-800 rounded-3xl flex items-center justify-center mx-auto mb-6 shadow-2xl shadow-blue-500/40 ring-1 ring-blue-500/30">
+            <Store size={32} className="text-white" />
           </div>
-          <h1 className="text-xl font-black text-white uppercase tracking-[0.2em]">PDV Nexus</h1>
-          <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mt-1">Terminal de Vendas · Acesso Seguro</p>
+          <h1 className="text-2xl font-black text-white uppercase tracking-[0.2em]">PDV Nexus</h1>
+          <p className="text-[11px] font-bold text-slate-500 uppercase tracking-widest mt-2">Terminal de Vendas · Acesso Seguro</p>
         </div>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="relative">
             <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" size={15} />
             <input type="email" placeholder="E-MAIL" value={email} onChange={(e) => setEmail(e.target.value)} required
-              className="w-full pl-11 pr-4 h-12 bg-slate-900 border border-slate-700 rounded-xl text-[11px] font-bold uppercase tracking-widest text-white placeholder:text-slate-600 focus:outline-none focus:border-blue-500 transition-all" />
+              className="w-full pl-11 pr-4 h-13 bg-slate-900 border border-slate-700 rounded-2xl text-[12px] font-bold uppercase tracking-widest text-white placeholder:text-slate-600 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition-all" />
           </div>
           <div className="relative">
             <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" size={15} />
             <input type="password" placeholder="SENHA" value={password} onChange={(e) => setPassword(e.target.value)} required
-              className="w-full pl-11 pr-4 h-12 bg-slate-900 border border-slate-700 rounded-xl text-[11px] font-bold uppercase tracking-widest text-white placeholder:text-slate-600 focus:outline-none focus:border-blue-500 transition-all" />
+              className="w-full pl-11 pr-4 h-13 bg-slate-900 border border-slate-700 rounded-2xl text-[12px] font-bold uppercase tracking-widest text-white placeholder:text-slate-600 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition-all" />
           </div>
           {error && (
-            <div className="bg-red-500/10 border border-red-500/20 px-4 py-3 rounded-xl flex items-center gap-3">
+            <motion.div initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }}
+              className="bg-red-500/10 border border-red-500/20 px-4 py-3 rounded-xl flex items-center gap-3">
               <div className="w-1.5 h-1.5 rounded-full bg-red-500 shrink-0" />
-              <p className="text-[10px] font-bold text-red-400 uppercase tracking-widest">{error}</p>
-            </div>
+              <p className="text-[11px] font-bold text-red-400 uppercase tracking-widest">{error}</p>
+            </motion.div>
           )}
           <button type="submit" disabled={loading}
-            className="w-full h-12 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-[11px] font-black uppercase tracking-[0.2em] shadow-xl shadow-blue-500/30 transition-all active:scale-[0.98] disabled:opacity-40 flex items-center justify-center gap-2">
-            {loading ? <Loader2 size={16} className="animate-spin" /> : "Acessar PDV"}
+            className="w-full h-13 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-500 hover:to-blue-600 text-white rounded-2xl text-[12px] font-black uppercase tracking-[0.2em] shadow-xl shadow-blue-500/30 transition-all active:scale-[0.98] disabled:opacity-40 flex items-center justify-center gap-2 mt-2">
+            {loading ? <Loader2 size={17} className="animate-spin" /> : "Acessar PDV"}
           </button>
         </form>
         <p className="mt-8 text-center text-[10px] text-slate-600 font-bold uppercase tracking-widest">
@@ -146,17 +161,32 @@ export default function PDVStandalone() {
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<number | null>(null);
   const [cart, setCart]             = useState<CartItem[]>([]);
-  const [customerName, setCustomerName] = useState("");
   const [cardFees, setCardFees]     = useState<Record<string, number[]>>({});
-  const [discount, setDiscount]     = useState("");
-  const [payments, setPayments]     = useState<PaymentEntry[]>([newPayment()]);
+  const [passFeeToCustomer, setPassFeeToCustomer] = useState(false);
+  const [passFeeByMethod, setPassFeeByMethod]     = useState<Record<string, boolean>>({});
+  const [maxInstallments, setMaxInstallments]     = useState(12);
+  const [enabledBrands, setEnabledBrands]         = useState<Record<string, boolean>>({ visa: true, master: true, elo: true, amex: true, hiper: true, other: true });
   const [loading, setLoading]       = useState(false);
   const [finishing, setFinishing]   = useState(false);
   const [showCartMobile, setShowCartMobile] = useState(false);
+  const [showCheckoutModal, setShowCheckoutModal] = useState(false);
   const [configProduct, setConfigProduct] = useState<Product | null>(null);
   const [selectedOptions, setSelectedOptions] = useState<Record<string, string>>({});
   const [tenantName, setTenantName]   = useState("PDV");
   const [tenantAddress, setTenantAddress] = useState("");
+
+  // checkout fields
+  const [customerName, setCustomerName]   = useState("");
+  const [sellers, setSellers]             = useState<SellerEntry[]>([]);
+  const [selectedSellerId, setSelectedSellerId] = useState<number | null>(null);
+  const [discount, setDiscount]           = useState("");
+  const [discountMode, setDiscountMode]   = useState<"R$" | "%">("R$");
+  const [surcharge, setSurcharge]         = useState("");
+  const [surchargeMode, setSurchargeMode] = useState<"R$" | "%">("R$");
+  const [payments, setPayments]           = useState<PaymentEntry[]>([newPayment()]);
+  const [tenantLogo, setTenantLogo]       = useState("");
+  const [tenantColor, setTenantColor]     = useState("#2563eb");
+  const [tenantWhatsapp, setTenantWhatsapp] = useState("");
 
   // receipt modal
   const [completedSale, setCompletedSale]   = useState<CompletedSale | null>(null);
@@ -164,8 +194,16 @@ export default function PDVStandalone() {
   const [whatsappPhone, setWhatsappPhone]   = useState("");
   const [showPhoneInput, setShowPhoneInput] = useState(false);
 
+  // barcode scanner
+  const [scanCode, setScanCode]         = useState("");
+  const [scanFeedback, setScanFeedback] = useState<"ok" | "err" | null>(null);
+  const scanInputRef = useRef<HTMLInputElement>(null);
+
   const handleLogin  = (t: string) => setToken(t);
-  const handleLogout = () => { localStorage.removeItem("token"); localStorage.removeItem("user"); setToken(null); setCart([]); };
+  const handleLogout = () => {
+    localStorage.removeItem("token"); localStorage.removeItem("user");
+    setToken(null); setCart([]);
+  };
 
   useEffect(() => {
     if (!token) return;
@@ -195,12 +233,110 @@ export default function PDVStandalone() {
           setTenantAddress(tenant.address);
         }
         if (tenant?.card_fees) setCardFees(tenant.card_fees);
+        if (tenant?.pass_fee_to_customer !== undefined) setPassFeeToCustomer(Boolean(tenant.pass_fee_to_customer));
+        if (tenant?.pass_fee_by_method) setPassFeeByMethod(tenant.pass_fee_by_method as Record<string, boolean>);
+        if (tenant?.max_installments) setMaxInstallments(Number(tenant.max_installments));
+        if (tenant?.enabled_brands) setEnabledBrands(tenant.enabled_brands as Record<string, boolean>);
+        if (tenant?.logo_url) setTenantLogo(tenant.logo_url);
+        if (tenant?.primary_color) setTenantColor(tenant.primary_color);
+        if (tenant?.whatsapp) setTenantWhatsapp(tenant.whatsapp);
       })
       .catch(() => {})
       .finally(() => setLoading(false));
+
+    fetch("/api/sellers", { headers })
+      .then((r) => r.json())
+      .then((d) => setSellers(Array.isArray(d) ? d.filter((s: SellerEntry & { is_active?: boolean }) => s.is_active !== false) : []))
+      .catch(() => {});
   }, [token]);
 
-  // cart
+  // ── barcode scanner ──────────────────────────────────────────────────────────
+  const addToCartDirect = useCallback((product: Product) => {
+    const cartItemId = `${product.id}`;
+    setCart((prev) => {
+      const existing = prev.find((i) => i.cartItemId === cartItemId);
+      if (existing) {
+        if (existing.quantity >= product.stock_quantity) return prev;
+        return prev.map((i) => i.cartItemId === cartItemId ? { ...i, quantity: i.quantity + 1 } : i);
+      }
+      return [...prev, { ...product, price: Number(product.price), quantity: 1, cartItemId, variationLabel: "", selectedOptions: undefined }];
+    });
+  }, []);
+
+  const handleScan = useCallback(async (code: string) => {
+    const trimmed = code.trim();
+    if (!trimmed) return;
+    setScanCode("");
+
+    const local = products.find((p) => p.barcode === trimmed);
+    if (local) {
+      addToCartDirect(local);
+      setScanFeedback("ok");
+      setTimeout(() => setScanFeedback(null), 1200);
+      return;
+    }
+
+    try {
+      const res = await fetch(`/api/products/by-barcode/${encodeURIComponent(trimmed)}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        const p = await res.json();
+        setProducts((prev) => prev.some((x) => x.id === p.id) ? prev : [...prev, p]);
+        addToCartDirect(p);
+        setScanFeedback("ok");
+      } else {
+        setScanFeedback("err");
+      }
+    } catch {
+      setScanFeedback("err");
+    }
+    setTimeout(() => setScanFeedback(null), 1200);
+  }, [products, token, addToCartDirect]);
+
+  useEffect(() => {
+    let lastKeyTime = 0;
+    let buffer = "";
+    let timer: ReturnType<typeof setTimeout> | null = null;
+
+    const flush = (code: string) => {
+      buffer = "";
+      if (timer) { clearTimeout(timer); timer = null; }
+      if (code.trim().length >= 3) handleScan(code.trim());
+    };
+
+    const onKeyDown = (e: KeyboardEvent) => {
+      const tag = (document.activeElement?.tagName ?? "").toLowerCase();
+      const isEditable = tag === "input" || tag === "textarea" || tag === "select";
+      const now = Date.now();
+      const gap = now - lastKeyTime;
+      lastKeyTime = now;
+
+      if (e.key === "Enter") {
+        if (buffer.length >= 3) { e.preventDefault(); flush(buffer); }
+        return;
+      }
+      if (e.key.length !== 1) return;
+      if (document.activeElement === scanInputRef.current) return;
+      if (gap > 80 && isEditable) return;
+
+      e.preventDefault();
+      buffer += e.key;
+      scanInputRef.current?.focus();
+      setScanCode(buffer);
+
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(() => {
+        const b = buffer; buffer = "";
+        if (b.trim().length >= 3) handleScan(b.trim());
+      }, 300);
+    };
+
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [handleScan]);
+
+  // ── cart helpers ─────────────────────────────────────────────────────────────
   const addToCart = (product: Product, options?: Record<string, string>) => {
     const hasAttr = Array.isArray(product.attributes) && product.attributes.length > 0;
     const hasLeg  = !hasAttr && Array.isArray(product.variations) && product.variations.length > 0;
@@ -235,40 +371,90 @@ export default function PDVStandalone() {
   };
   const removeFromCart = (id: string) => setCart(cart.filter((i) => i.cartItemId !== id));
 
-  // totals
-  const subtotal      = cart.reduce((a, b) => a + b.price * b.quantity, 0);
-  const discountValue = Math.min(Number(discount) || 0, subtotal);
-  const baseTotal     = subtotal - discountValue;
-  const creditPayments = payments.filter((p) => p.method === "credit");
-  const creditTotal    = creditPayments.reduce((s, p) => s + (Number(p.amount) || 0), 0);
-  const feeAmount      = creditPayments.reduce((sum, p) => {
-    const rate = cardFees[p.cardBrand]?.[p.installments - 1] ?? 0;
+  // ── totals ───────────────────────────────────────────────────────────────────
+  const subtotal       = cart.reduce((a, b) => a + b.price * b.quantity, 0);
+  const discountRaw    = Number(discount) || 0;
+  const discountValue  = discountMode === "%"
+    ? Math.min(subtotal * discountRaw / 100, subtotal)
+    : Math.min(discountRaw, subtotal);
+  const surchargeRaw   = Number(surcharge) || 0;
+  const surchargeValue = surchargeMode === "%"
+    ? subtotal * surchargeRaw / 100
+    : surchargeRaw;
+  const baseTotal      = subtotal - discountValue + surchargeValue;
+  const getFeeRate = (p: PaymentEntry) => {
+    if (p.method === "credit") return cardFees[p.cardBrand]?.[p.installments - 1] ?? 0;
+    if (p.method === "debit")  return cardFees[`debit_${p.cardBrand}`]?.[0] ?? 0;
+    if (p.method === "pix")    return cardFees["pix"]?.[0] ?? 0;
+    return 0;
+  };
+  // isPassFee: true se qualquer método ativo tem repasse configurado
+  const isPassFee = (p: PaymentEntry) => !!(passFeeByMethod[p.method] ?? passFeeToCustomer);
+
+  // feeAmount total (considerando repasse por método)
+  const feeAmount = payments.reduce((sum, p) => {
+    const rate = getFeeRate(p);
     if (!rate) return sum;
     const pAmt = Number(p.amount) || 0;
-    const base = creditTotal > 0 ? baseTotal * (pAmt / creditTotal) : 0;
-    return sum + base * (rate / 100);
+    const ref  = pAmt > 0 ? pAmt : baseTotal;
+    return sum + ref * (rate / 100);
   }, 0);
-  const total       = baseTotal + feeAmount;
+
+  // Taxa que é repassada ao cliente (soma só dos métodos com repasse ativo)
+  const passedFeeAmount = payments.reduce((sum, p) => {
+    if (!isPassFee(p)) return sum;
+    const rate = getFeeRate(p);
+    if (!rate) return sum;
+    const pAmt = Number(p.amount) || 0;
+    const ref  = pAmt > 0 ? pAmt : baseTotal;
+    return sum + ref * (rate / 100);
+  }, 0);
+
+  const total = Math.round((baseTotal + passedFeeAmount) * 100) / 100;
   const paidAmount  = payments.reduce((s, p) => s + (Number(p.amount) || 0), 0);
   const remaining   = Math.max(0, total - paidAmount);
   const moneyPmt    = payments.find((p) => p.method === "money");
   const moneyAmt    = Number(moneyPmt?.amount) || 0;
   const change      = moneyAmt > 0 && paidAmount >= total ? moneyAmt - (total - (paidAmount - moneyAmt)) : 0;
   const cartQty     = cart.reduce((a, b) => a + b.quantity, 0);
-  // permite confirmar com saldo devedor (apenas avisa)
   const canFinish   = cart.length > 0 && total > 0;
 
-  // payment helpers
-  const updatePayment = (id: string, patch: Partial<PaymentEntry>) =>
-    setPayments((ps) => ps.map((p) => p.id === id ? { ...p, ...patch } : p));
-  const removePayment = (id: string) =>
-    setPayments((ps) => ps.length > 1 ? ps.filter((p) => p.id !== id) : ps);
-  const addPayment = () => {
-    const rem = Math.max(0, total - paidAmount);
-    setPayments((ps) => [...ps, { ...newPayment(), amount: rem > 0 ? rem.toFixed(2) : "" }]);
+  // ── payment helpers ──────────────────────────────────────────────────────────
+  const updatePayment = useCallback((id: string, patch: Partial<PaymentEntry>) =>
+    setPayments((ps) => ps.map((p) => p.id === id ? { ...p, ...patch } : p)), []);
+  const removePayment = useCallback((id: string) =>
+    setPayments((ps) => ps.length > 1 ? ps.filter((p) => p.id !== id) : ps), []);
+  const addPayment = useCallback(() => {
+    setPayments((ps) => {
+      const rem = ps.reduce((s, p) => s - (Number(p.amount) || 0), Math.max(0, total - paidAmount + (ps.reduce((s,p)=>s+(Number(p.amount)||0),0))));
+      return [...ps, { ...newPayment(), amount: rem > 0 ? rem.toFixed(2) : "" }];
+    });
+  }, [total, paidAmount]);
+
+  const handleMethodChange = useCallback((id: string, method: PaymentMethod) => {
+    setPayments((ps) => {
+      const updated = ps.map((p) => p.id === id ? { ...p, method, installments: 1 } : p);
+      if (updated.length === 1 && method !== "money" && total > 0) {
+        return updated.map((p) => p.id === id ? { ...p, amount: total.toFixed(2) } : p);
+      }
+      if (updated.length > 1 && method !== "money") {
+        const others = updated.filter((p) => p.id !== id).reduce((s, p) => s + (Number(p.amount) || 0), 0);
+        const rem = Math.max(0, total - others);
+        if (rem > 0) return updated.map((p) => p.id === id ? { ...p, amount: rem.toFixed(2) } : p);
+      }
+      return updated;
+    });
+  }, [total]);
+
+  const openCheckout = () => {
+    setPayments((ps) => {
+      if (ps.length === 1 && total > 0) return [{ ...ps[0], amount: total.toFixed(2) }];
+      return ps;
+    });
+    setShowCheckoutModal(true);
   };
 
-  // receipt helpers
+  // ── receipt helpers ──────────────────────────────────────────────────────────
   const buildThermalHtml = (sale: CompletedSale) => {
     const now = new Date().toLocaleString("pt-BR");
     const orderId = String(sale.orderId).padStart(6, "0");
@@ -296,6 +482,7 @@ ${sale.tenantAddress ? `<div class="center" style="font-size:10px;color:#555;mar
 <hr class="divider"/>
 <div class="bold" style="font-size:11px">CLIENTE</div>
 <div style="font-size:11px;margin:2px 0">${sale.customerName || "CONSUMIDOR FINAL"}</div>
+${sale.sellerName ? `<div style="font-size:11px;margin:2px 0">VENDEDOR: ${sale.sellerName}</div>` : ""}
 <hr class="divider"/>
 <div class="center bold" style="font-size:11px;letter-spacing:2px;margin-bottom:4px">ITENS</div>
 ${sale.items.map((item) => `
@@ -305,17 +492,17 @@ ${sale.items.map((item) => `
 </div>`).join("")}
 <hr class="divider"/>
 <div class="row"><span class="bold">QTD DE ITENS:</span><span>${sale.items.reduce((a, b) => a + b.quantity, 0)}</span></div>
-${sale.discountValue > 0 ? `<div class="row"><span>SUBTOTAL</span><span>R$ ${sale.subtotal.toFixed(2)}</span></div><div class="row"><span>DESCONTO</span><span>- R$ ${sale.discountValue.toFixed(2)}</span></div>` : ""}
-${sale.feeAmount > 0 ? `<div class="row"><span>JUROS</span><span>+ R$ ${sale.feeAmount.toFixed(2)}</span></div>` : ""}
+${(sale.discountValue > 0 || sale.surchargeValue > 0) ? `<div class="row"><span>SUBTOTAL</span><span>R$ ${sale.subtotal.toFixed(2)}</span></div>` : ""}
+${sale.discountValue > 0 ? `<div class="row"><span>DESCONTO</span><span>- R$ ${sale.discountValue.toFixed(2)}</span></div>` : ""}
+${sale.surchargeValue > 0 ? `<div class="row"><span>ACRÉSCIMO</span><span>+ R$ ${sale.surchargeValue.toFixed(2)}</span></div>` : ""}
+${sale.feeAmount > 0 ? `<div class="row"><span>JUROS MÁQUINA</span><span>+ R$ ${sale.feeAmount.toFixed(2)}</span></div>` : ""}
 <hr class="divider-solid"/>
 <div class="row-total"><span>TOTAL R$:</span><span>R$ ${sale.total.toFixed(2)}</span></div>
 <hr class="divider-solid"/>
 ${sale.payments.map((p) => {
-  const rate  = p.method === "credit" ? (sale.cardFees[p.cardBrand]?.[p.installments - 1] ?? 0) : 0;
   const brand = (p.method === "debit" || p.method === "credit") && p.cardBrand !== "other" ? `/${p.cardBrand.toUpperCase()}` : "";
   const inst  = p.method === "credit" && p.installments > 1 ? ` ${p.installments}X` : "";
-  const fee   = rate > 0 ? ` (+${rate}%)` : "";
-  const label = `${PM_LABEL[p.method]}${brand}${inst}${fee}`.toUpperCase();
+  const label = `${PM_LABEL[p.method]}${brand}${inst}`.toUpperCase();
   return `<div class="row"><span class="bold">PAGAMENTO:</span><span>${label}</span></div><div class="row"><span></span><span class="bold">R$ ${Number(p.amount).toFixed(2)}</span></div>`;
 }).join('<hr class="divider"/>')}
 ${sale.change > 0 ? `<hr class="divider"/><div class="row bold"><span>TROCO:</span><span>R$ ${sale.change.toFixed(2)}</span></div>` : ""}
@@ -330,11 +517,9 @@ ${sale.change > 0 ? `<hr class="divider"/><div class="row bold"><span>TROCO:</sp
     const now = new Date().toLocaleString("pt-BR");
     const orderId = String(sale.orderId).padStart(5, "0");
     const payLines = sale.payments.map((p) => {
-      const rate  = p.method === "credit" ? (sale.cardFees[p.cardBrand]?.[p.installments - 1] ?? 0) : 0;
       const brand = (p.method === "debit" || p.method === "credit") && p.cardBrand !== "other" ? ` · ${p.cardBrand.toUpperCase()}` : "";
       const inst  = p.method === "credit" && p.installments > 1 ? ` ${p.installments}×` : "";
-      const fee   = rate > 0 ? ` (+${rate}%)` : "";
-      return `<div style="display:flex;justify-content:space-between;font-size:13px;color:#93c5fd;padding:3px 0"><span>${PM_LABEL[p.method]}${brand}${inst}${fee}</span><span>R$ ${Number(p.amount).toFixed(2)}</span></div>`;
+      return `<div style="display:flex;justify-content:space-between;font-size:13px;color:#93c5fd;padding:3px 0"><span>${PM_LABEL[p.method]}${brand}${inst}</span><span>R$ ${Number(p.amount).toFixed(2)}</span></div>`;
     }).join("");
     return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Nota PDV #${orderId}</title>
 <style>
@@ -361,6 +546,7 @@ ${sale.change > 0 ? `<hr class="divider"/><div class="row bold"><span>TROCO:</sp
 </style></head><body>
 <div class="header">
   <div>
+    ${sale.tenantLogo ? `<img src="${sale.tenantLogo}" style="max-height:56px;max-width:140px;object-fit:contain;margin-bottom:8px;display:block" alt="logo"/>` : ""}
     <div class="store-name">${sale.tenantName}</div>
     ${sale.tenantAddress ? `<div class="store-addr">${sale.tenantAddress}</div>` : ""}
   </div>
@@ -372,7 +558,10 @@ ${sale.change > 0 ? `<hr class="divider"/><div class="row bold"><span>TROCO:</sp
 </div>
 <div class="section">
   <div class="section-title">Cliente</div>
-  <div class="customer-box"><div style="font-size:16px;font-weight:700">${sale.customerName || "Consumidor Final"}</div></div>
+  <div class="customer-box">
+    <div style="font-size:16px;font-weight:700">${sale.customerName || "Consumidor Final"}</div>
+    ${sale.sellerName ? `<div style="font-size:13px;color:#64748b;margin-top:4px">Vendedor: ${sale.sellerName}</div>` : ""}
+  </div>
 </div>
 <div class="section">
   <div class="section-title">Itens da Venda</div>
@@ -389,8 +578,10 @@ ${sale.change > 0 ? `<hr class="divider"/><div class="row bold"><span>TROCO:</sp
   </table>
 </div>
 <div class="totals-box">
-  ${sale.discountValue > 0 ? `<div class="totals-row"><span>Subtotal</span><span>R$ ${sale.subtotal.toFixed(2)}</span></div><div class="totals-row" style="color:#34d399"><span>Desconto</span><span>− R$ ${sale.discountValue.toFixed(2)}</span></div>` : ""}
-  ${sale.feeAmount > 0 ? `<div class="totals-row" style="color:#fbbf24"><span>Juros</span><span>+ R$ ${sale.feeAmount.toFixed(2)}</span></div>` : ""}
+  ${(sale.discountValue > 0 || sale.surchargeValue > 0) ? `<div class="totals-row"><span>Subtotal</span><span>R$ ${sale.subtotal.toFixed(2)}</span></div>` : ""}
+  ${sale.discountValue > 0 ? `<div class="totals-row" style="color:#34d399"><span>Desconto</span><span>− R$ ${sale.discountValue.toFixed(2)}</span></div>` : ""}
+  ${sale.surchargeValue > 0 ? `<div class="totals-row" style="color:#fbbf24"><span>Acréscimo</span><span>+ R$ ${sale.surchargeValue.toFixed(2)}</span></div>` : ""}
+  ${sale.feeAmount > 0 ? `<div class="totals-row" style="color:#fb923c"><span>Juros máquina</span><span>+ R$ ${sale.feeAmount.toFixed(2)}</span></div>` : ""}
   <div class="totals-row main"><span>TOTAL</span><span>R$ ${sale.total.toFixed(2)}</span></div>
   ${sale.change > 0 ? `<div class="totals-row" style="color:#34d399;font-weight:700"><span>Troco devolvido</span><span>R$ ${sale.change.toFixed(2)}</span></div>` : ""}
   <div style="margin-top:16px;padding-top:12px;border-top:1px solid #1e293b">${payLines}</div>
@@ -411,6 +602,7 @@ ${sale.change > 0 ? `<hr class="divider"/><div class="row bold"><span>TROCO:</sp
       `Comprovante #${String(sale.orderId).padStart(5,"0")} — ${now}`,
       ``,
       `*Cliente:* ${sale.customerName || "Consumidor Final"}`,
+      sale.sellerName ? `*Vendedor:* ${sale.sellerName}` : null,
       ``,
       `*Itens:*`,
       ...sale.items.map((i) => `• ${i.name} × ${i.quantity}  →  R$ ${(i.price * i.quantity).toFixed(2)}`),
@@ -449,15 +641,21 @@ ${sale.change > 0 ? `<hr class="divider"/><div class="row bold"><span>TROCO:</sp
         return `${p.method}${brand}${inst}:${Number(p.amount).toFixed(2)}`;
       }).join("|");
 
+      const selectedSeller = sellers.find((s) => s.id === selectedSellerId);
+
       const res = await fetch("/api/sales", {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify({
           items: cart.map((i) => ({ id: i.id, quantity: i.quantity, price: i.price })),
           customerName,
+          sellerId: selectedSellerId,
           totalAmount: total,
           paymentMethod: pmString,
           discount: discountValue,
+          surcharge: surchargeValue > 0 ? surchargeValue : undefined,
+          passFeeToCustomer,
+          passFeeByMethod,
         }),
       });
       if (res.ok) {
@@ -465,17 +663,19 @@ ${sale.change > 0 ? `<hr class="divider"/><div class="row bold"><span>TROCO:</sp
         const sale: CompletedSale = {
           orderId: data.orderId,
           customerName,
+          sellerName: selectedSeller?.name || "",
           payments: payments.map((p) => ({ ...p })),
           items: cart.map((i) => ({ name: i.name, quantity: i.quantity, price: i.price, image_url: i.image_url })),
-          subtotal, discountValue, feeAmount, total,
+          subtotal, discountValue, surchargeValue, feeAmount, total,
           change: change > 0 ? change : 0,
-          tenantName, tenantAddress,
+          tenantName, tenantAddress, tenantLogo, tenantColor, tenantWhatsapp,
           cardFees,
         };
         setCompletedSale(sale);
-        setCart([]); setCustomerName(""); setDiscount("");
+        setCart([]); setCustomerName(""); setDiscount(""); setSurcharge(""); setSelectedSellerId(null);
         setPayments([newPayment()]);
         setShowCartMobile(false);
+        setShowCheckoutModal(false);
         setShowReceipt(true);
         setWhatsappPhone(""); setShowPhoneInput(false);
         fetch("/api/products", { headers: { Authorization: `Bearer ${token}` } })
@@ -487,106 +687,180 @@ ${sale.change > 0 ? `<hr class="divider"/><div class="row bold"><span>TROCO:</sp
 
   const filteredProducts = useMemo(() => products.filter((p) => {
     if (!p.is_active || p.stock_quantity <= 0) return false;
+    if (searchTerm) {
+      return p.name.toLowerCase().includes(searchTerm.toLowerCase());
+    }
     if (selectedCategory && p.category_id !== selectedCategory) return false;
-    if (searchTerm && !p.name.toLowerCase().includes(searchTerm.toLowerCase())) return false;
     return true;
   }), [products, searchTerm, selectedCategory]);
 
   if (!token) return <PDVLogin onLogin={handleLogin} />;
 
-  // shared cart panel props
-  const cartPanelProps = {
-    cart, updateQuantity, removeFromCart,
-    customerName, setCustomerName,
-    cardFees, payments, setPayments, updatePayment, removePayment, addPayment,
-    discount, setDiscount,
-    subtotal, discountValue, feeAmount, total, paidAmount, remaining, change,
-    finishing, canFinish, handleFinishSale,
-  };
-
   return (
-    <div className="h-screen bg-slate-950 flex flex-col overflow-hidden font-sans">
-      {/* Top Bar */}
-      <header className="h-12 bg-slate-900 border-b border-slate-800 flex items-center justify-between px-4 shrink-0">
+    <div className="h-screen flex flex-col overflow-hidden font-sans bg-slate-100">
+
+      {/* ── Top Bar ──────────────────────────────────────────────────────────── */}
+      <header className="h-14 flex items-center justify-between px-5 shrink-0 bg-white border-b border-slate-200 shadow-sm">
+
+        {/* Logo + nome */}
         <div className="flex items-center gap-3">
-          <div className="w-6 h-6 bg-blue-600 rounded flex items-center justify-center text-white font-black text-[10px]">N</div>
-          <span className="text-[11px] font-black text-white uppercase tracking-[0.15em]">{tenantName}</span>
-          <div className="h-3 w-px bg-slate-700" />
-          <span className="text-[9px] font-bold text-slate-500 uppercase tracking-widest">Terminal PDV</span>
+          {tenantLogo ? (
+            <img src={tenantLogo} alt={tenantName} className="h-8 w-auto max-w-[72px] object-contain rounded-xl" />
+          ) : (
+            <div className="w-9 h-9 rounded-xl flex items-center justify-center text-white font-black text-[13px] shadow"
+              style={{ background: "linear-gradient(135deg, #3b82f6, #1d4ed8)" }}>
+              {tenantName.charAt(0).toUpperCase()}
+            </div>
+          )}
+          <div>
+            <p className="text-[13px] font-black text-slate-800 tracking-wide leading-none">{tenantName}</p>
+            <div className="flex items-center gap-1.5 mt-0.5">
+              <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+              <span className="text-[9px] font-semibold text-slate-400 uppercase tracking-widest">Terminal PDV</span>
+            </div>
+          </div>
         </div>
-        <div className="flex items-center gap-2">
-          <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-          <span className="text-[9px] font-bold text-slate-500 uppercase tracking-widest hidden sm:block">Online</span>
-          <button onClick={handleLogout}
-            className="ml-2 flex items-center gap-1.5 px-3 h-7 rounded-lg bg-slate-800 border border-slate-700 text-slate-400 hover:text-red-400 hover:border-red-500/30 transition-all text-[10px] font-bold uppercase tracking-widest">
-            <LogOut size={11} /> Sair
-          </button>
+
+        {/* Scanner status — centro */}
+        <div className="flex-1 flex justify-center px-6">
+          <div className={cn(
+            "flex items-center gap-2 px-3 h-7 rounded-xl border text-[10px] font-bold uppercase tracking-widest transition-all duration-300",
+            scanFeedback === "ok"
+              ? "bg-emerald-50 border-emerald-300 text-emerald-600"
+              : scanFeedback === "err"
+              ? "bg-red-50 border-red-300 text-red-500"
+              : "bg-slate-100 border-slate-200 text-slate-400"
+          )}>
+            <Scan size={11} />
+            {scanFeedback === "ok" ? "Adicionado!" : scanFeedback === "err" ? "Não encontrado" : "Scanner pronto"}
+            <input ref={scanInputRef} value={scanCode}
+              onChange={(e) => setScanCode(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter") { handleScan(scanCode); e.preventDefault(); } }}
+              className="absolute opacity-0 w-0 h-0 pointer-events-none" readOnly={false} />
+          </div>
         </div>
+
+        {/* Sair */}
+        <button onClick={handleLogout}
+          className="flex items-center gap-1.5 px-3 h-8 rounded-xl text-[10px] font-bold uppercase tracking-widest text-slate-400 hover:text-red-500 transition-all border border-slate-200 hover:border-red-200 hover:bg-red-50">
+          <LogOut size={11} /> Sair
+        </button>
       </header>
 
-      {/* Body */}
+      {/* ── Body ─────────────────────────────────────────────────────────────── */}
       <div className="flex-1 flex overflow-hidden">
-        {/* Products */}
-        <div className="flex-1 flex flex-col gap-3 overflow-hidden p-4">
+
+        {/* ── Produtos ─────────────────────────────────────────────────────── */}
+        <div className="flex-1 flex flex-col gap-2.5 overflow-hidden p-4">
+
+          {/* Barra de busca */}
           <div className="flex gap-2 items-center">
             <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-600" size={13} />
-              <input type="text" placeholder="PESQUISAR PRODUTO..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-9 pr-4 h-10 bg-slate-900 border border-slate-800 rounded-xl text-[10px] font-bold uppercase tracking-widest text-white placeholder:text-slate-700 focus:outline-none focus:border-blue-500 transition-all" />
+              <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
+              <input type="text" placeholder="Buscar produto..." value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full pl-10 pr-4 h-10 bg-white rounded-xl text-[13px] font-medium text-slate-700 placeholder:text-slate-400 focus:outline-none transition-all border border-slate-200 focus:border-blue-400 focus:ring-2 focus:ring-blue-100 shadow-sm" />
             </div>
             <button onClick={() => setShowCartMobile(true)}
-              className="lg:hidden relative h-10 px-4 bg-blue-600 text-white rounded-xl flex items-center gap-2 text-[10px] font-black uppercase tracking-widest">
+              className="lg:hidden relative h-10 px-4 rounded-xl flex items-center gap-2 text-[11px] font-black text-white shadow"
+              style={{ background: "linear-gradient(135deg, #3b82f6, #1d4ed8)" }}>
               <ShoppingCart size={14} />
-              {cartQty > 0 && <span className="absolute -top-1 -right-1 w-4 h-4 bg-white text-blue-600 rounded-full text-[9px] font-black flex items-center justify-center">{cartQty}</span>}
+              {cartQty > 0 && (
+                <span className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-white text-blue-600 rounded-full text-[9px] font-black flex items-center justify-center shadow">{cartQty}</span>
+              )}
             </button>
           </div>
 
+          {/* Categorias */}
           {categories.length > 0 && (
-            <div className="flex gap-2 overflow-x-auto pb-1 shrink-0 scrollbar-none">
-              <button onClick={() => setSelectedCategory(null)}
-                className={cn("shrink-0 h-7 px-3 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all border",
-                  selectedCategory === null ? "bg-blue-600 text-white border-blue-600" : "bg-slate-900 text-slate-500 border-slate-800 hover:border-slate-600")}>
-                Todos
-              </button>
-              {categories.map((cat) => (
-                <button key={cat.id} onClick={() => setSelectedCategory(cat.id === selectedCategory ? null : cat.id)}
-                  className={cn("shrink-0 h-7 px-3 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all border flex items-center gap-1",
-                    selectedCategory === cat.id ? "bg-blue-600 text-white border-blue-600" : "bg-slate-900 text-slate-500 border-slate-800 hover:border-slate-600")}>
-                  <Tag size={9} /> {cat.name}
+            <div className="flex gap-1.5 overflow-x-auto pb-0.5 shrink-0 scrollbar-none">
+              {[{ id: null, name: "Todos" }, ...categories.map(c => ({ id: c.id as number | null, name: c.name }))].map((cat) => (
+                <button key={cat.id ?? "all"} onClick={() => setSelectedCategory(cat.id)}
+                  className={cn(
+                    "shrink-0 h-7 px-3 rounded-lg text-[10px] font-bold tracking-wide transition-all border flex items-center gap-1",
+                    selectedCategory === cat.id
+                      ? "text-white border-blue-500 shadow"
+                      : "bg-white text-slate-500 border-slate-200 hover:border-blue-300 hover:text-blue-600"
+                  )}
+                  style={selectedCategory === cat.id ? { background: "linear-gradient(135deg,#3b82f6,#1d4ed8)" } : {}}>
+                  {cat.id !== null && <Tag size={9} />} {cat.name}
                 </button>
               ))}
             </div>
           )}
 
-          <div className="flex-1 overflow-y-auto pr-1 pb-4">
+          {/* Grid de produtos */}
+          <div className="flex-1 overflow-y-auto pr-1 pb-2 pdv-scroll-light">
             {loading ? (
-              <div className="h-full flex items-center justify-center"><Loader2 size={24} className="animate-spin text-slate-700" /></div>
+              <div className="h-full flex items-center justify-center">
+                <Loader2 size={28} className="animate-spin text-slate-300" />
+              </div>
             ) : filteredProducts.length === 0 ? (
               <div className="h-full flex flex-col items-center justify-center gap-3">
-                <Package size={36} className="text-slate-800" strokeWidth={1} />
-                <p className="text-[10px] font-black uppercase tracking-widest text-slate-700">Nenhum produto encontrado</p>
+                <Package size={44} className="text-slate-300" strokeWidth={1} />
+                <p className="text-[11px] font-black uppercase tracking-widest text-slate-400">Nenhum produto encontrado</p>
               </div>
             ) : (
-              <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-3">
+              <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-2.5">
                 {filteredProducts.map((product) => {
                   const qtyInCart = cart.filter((i) => i.id === product.id).reduce((a, b) => a + b.quantity, 0);
                   const atLimit   = qtyInCart >= product.stock_quantity;
+                  const hasVariations = (Array.isArray(product.attributes) && product.attributes.length > 0) ||
+                    (Array.isArray(product.variations) && product.variations.length > 0);
                   return (
-                    <motion.button layout key={product.id} onClick={() => !atLimit && addToCart(product)}
-                      className={cn("bg-slate-900 p-3 rounded-2xl border transition-all flex flex-col items-start group relative text-left",
-                        atLimit ? "border-slate-800 opacity-40 cursor-not-allowed" : "border-slate-800 hover:border-blue-500 hover:bg-slate-800/80 cursor-pointer")}>
-                      <div className="w-full aspect-square bg-slate-800 rounded-xl border border-slate-700 mb-3 overflow-hidden flex items-center justify-center relative">
+                    <motion.button layout key={product.id}
+                      onClick={() => !atLimit && addToCart(product)}
+                      whileTap={atLimit ? {} : { scale: 0.97 }}
+                      className={cn(
+                        "bg-white rounded-2xl border flex flex-col items-start group relative text-left overflow-hidden transition-all duration-200",
+                        atLimit
+                          ? "opacity-40 cursor-not-allowed border-slate-200"
+                          : qtyInCart > 0
+                          ? "cursor-pointer border-blue-400 shadow-md shadow-blue-100"
+                          : "cursor-pointer border-slate-200 hover:border-blue-300 hover:shadow-md hover:shadow-blue-50"
+                      )}>
+
+                      {/* Imagem */}
+                      <div className="w-full aspect-[4/3] overflow-hidden relative flex items-center justify-center bg-slate-50">
                         {product.image_url
-                          ? <img src={product.image_url} alt={product.name} className="object-cover w-full h-full group-hover:scale-105 transition-transform" />
-                          : <Package size={22} className="text-slate-700" />}
-                        <div className="absolute top-1.5 right-1.5 bg-slate-950/80 border border-slate-700 text-slate-400 px-1.5 py-0.5 rounded text-[8px] font-mono font-bold">{product.stock_quantity}</div>
-                        {qtyInCart > 0 && <div className="absolute top-1.5 left-1.5 bg-blue-600 text-white w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-black">{qtyInCart}</div>}
+                          ? <img src={product.image_url} alt={product.name} className="object-contain w-full h-full group-hover:scale-105 transition-transform duration-500 p-1" />
+                          : <div className="w-full h-full flex items-center justify-center"><Package size={24} className="text-slate-300" /></div>}
+
+                        {/* Badge estoque */}
+                        <div className="absolute top-2 right-2 px-1.5 py-0.5 rounded-md text-[8px] font-mono font-bold bg-white/90 border border-slate-200 text-slate-500 shadow-sm">
+                          {product.stock_quantity}
+                        </div>
+
+                        {/* Badge carrinho */}
+                        {qtyInCart > 0 && (
+                          <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }}
+                            className="absolute top-2 left-2 w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-black text-white shadow"
+                            style={{ background: "linear-gradient(135deg,#3b82f6,#1d4ed8)" }}>
+                            {qtyInCart}
+                          </motion.div>
+                        )}
+
+                        {/* Overlay hover */}
+                        {!atLimit && (
+                          <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all duration-200 bg-blue-500/10">
+                            <div className="w-9 h-9 rounded-full flex items-center justify-center text-white scale-75 group-hover:scale-100 transition-transform shadow-lg"
+                              style={{ background: "linear-gradient(135deg,#3b82f6,#1d4ed8)" }}>
+                              <Plus size={16} strokeWidth={2.5} />
+                            </div>
+                          </div>
+                        )}
                       </div>
-                      <p className="text-[10px] font-bold text-slate-300 uppercase truncate w-full mb-1">{product.name}</p>
-                      {((Array.isArray(product.attributes) && product.attributes.length > 0) || (Array.isArray(product.variations) && product.variations.length > 0)) && (
-                        <p className="text-[8px] font-black text-blue-500 uppercase tracking-widest mb-1">C/ Variações</p>
-                      )}
-                      <p className="text-xs font-mono font-black text-blue-400">R$ {Number(product.price).toFixed(2)}</p>
+
+                      {/* Info */}
+                      <div className="p-2.5 w-full">
+                        <p className="text-[11px] font-semibold text-slate-700 leading-tight line-clamp-2 mb-1.5 min-h-[2.2em]">{product.name}</p>
+                        {hasVariations && (
+                          <p className="text-[8px] font-black text-blue-500 uppercase tracking-widest mb-1">variações</p>
+                        )}
+                        <p className="text-[14px] font-mono font-black text-blue-600">
+                          R$ {Number(product.price).toFixed(2)}
+                        </p>
+                      </div>
                     </motion.button>
                   );
                 })}
@@ -595,42 +869,123 @@ ${sale.change > 0 ? `<hr class="divider"/><div class="row bold"><span>TROCO:</sp
           </div>
         </div>
 
-        {/* Cart — Desktop */}
-        <div className="hidden lg:flex w-[400px] bg-slate-900 border-l border-slate-800 flex-col overflow-hidden shrink-0">
-          <StandaloneCart {...cartPanelProps} />
+        {/* ── Carrinho Desktop ──────────────────────────────────────────────── */}
+        <div className="hidden lg:flex w-[360px] flex-col overflow-hidden shrink-0 border-l border-slate-200 bg-white">
+          <CartPanel
+            cart={cart}
+            updateQuantity={updateQuantity}
+            removeFromCart={removeFromCart}
+            subtotal={subtotal}
+            discountValue={discountValue}
+            surchargeValue={surchargeValue}
+            feeAmount={feeAmount}
+            total={total}
+            cartQty={cartQty}
+            onCheckout={openCheckout}
+            canFinish={canFinish}
+          />
         </div>
       </div>
 
-      {/* Variation Modal */}
+      {/* ── Variation Modal ────────────────────────────────────────────────── */}
       <AnimatePresence>
         {configProduct && (
-          <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm">
-            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }}
-              className="bg-slate-900 w-full max-w-sm rounded-[28px] overflow-hidden shadow-2xl border border-slate-700">
-              <div className="p-5 border-b border-slate-800 flex items-center justify-between">
-                <div>
-                  <p className="text-[9px] font-black text-blue-500 uppercase tracking-[0.2em] mb-1">Configurar Produto</p>
-                  <h3 className="text-xs font-black uppercase text-white">{configProduct.name}</h3>
+          <motion.div
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[200] flex items-end sm:items-center justify-center sm:p-4"
+            style={{ background: "rgba(5,8,20,0.88)", backdropFilter: "blur(16px)" }}>
+            <motion.div
+              initial={{ opacity: 0, y: 40, scale: 0.97 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 30, scale: 0.97 }}
+              transition={{ type: "spring", damping: 28, stiffness: 260 }}
+              className="w-full sm:max-w-md rounded-t-[28px] sm:rounded-3xl overflow-hidden shadow-2xl"
+              style={{ background: "#0f1623", border: "1px solid rgba(255,255,255,0.07)" }}>
+
+              {/* Imagem + header */}
+              <div className="relative">
+                {/* Imagem de fundo */}
+                <div className="h-36 overflow-hidden relative" style={{ background: "rgba(255,255,255,0.05)" }}>
+                  {configProduct.image_url ? (
+                    <img src={configProduct.image_url} alt={configProduct.name}
+                      className="w-full h-full object-cover opacity-40" />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center">
+                      <Package size={40} className="text-white/10" strokeWidth={1} />
+                    </div>
+                  )}
+                  {/* Gradient overlay */}
+                  <div className="absolute inset-0" style={{ background: "linear-gradient(to bottom, transparent 20%, #0f1623 100%)" }} />
                 </div>
-                <button onClick={() => setConfigProduct(null)} className="p-2 hover:bg-slate-800 rounded-full text-slate-500"><X size={18} /></button>
+
+                {/* Thumbnail + nome flutuando sobre a imagem */}
+                <div className="absolute bottom-0 left-0 right-0 flex items-end gap-3 px-5 pb-4">
+                  {/* Thumbnail */}
+                  <div className="w-16 h-16 rounded-2xl overflow-hidden shrink-0 shadow-xl"
+                    style={{ border: "2px solid rgba(255,255,255,0.12)", background: "rgba(255,255,255,0.08)" }}>
+                    {configProduct.image_url
+                      ? <img src={configProduct.image_url} alt={configProduct.name} className="w-full h-full object-contain p-1" />
+                      : <div className="w-full h-full flex items-center justify-center"><Package size={22} className="text-white/30" /></div>}
+                  </div>
+                  <div className="flex-1 pb-0.5">
+                    <p className="text-[9px] font-black uppercase tracking-[0.25em] mb-0.5" style={{ color: "#60a5fa" }}>Selecionar variação</p>
+                    <h3 className="text-[15px] font-black text-white leading-tight line-clamp-2">{configProduct.name}</h3>
+                    <p className="text-[13px] font-mono font-black mt-0.5" style={{ color: "#34d399" }}>
+                      R$ {Number(configProduct.price).toFixed(2)}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Fechar */}
+                <button onClick={() => setConfigProduct(null)}
+                  className="absolute top-3 right-3 w-8 h-8 rounded-full flex items-center justify-center transition-all"
+                  style={{ background: "rgba(0,0,0,0.5)", border: "1px solid rgba(255,255,255,0.1)" }}>
+                  <X size={15} className="text-white/60" />
+                </button>
               </div>
-              <div className="p-5 space-y-5">
+
+              {/* Opções */}
+              <div className="px-5 pt-2 pb-4 space-y-5 max-h-[50vh] overflow-y-auto pdv-scroll-dark">
                 {Array.isArray(configProduct.attributes) && configProduct.attributes.length > 0
                   ? configProduct.attributes.map((attr, aIdx) => (
-                      <div key={aIdx} className="space-y-3">
-                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">{attr.name}</label>
+                      <div key={aIdx}>
+                        <div className="flex items-center gap-2 mb-3">
+                          <p className="text-[9px] font-black uppercase tracking-[0.2em] text-white/35">{attr.name}</p>
+                          <div className="flex-1 h-px" style={{ background: "rgba(255,255,255,0.06)" }} />
+                        </div>
                         <div className="flex flex-wrap gap-2">
                           {attr.values.map((val, vIdx) => {
                             const currentOptions = { ...selectedOptions, [attr.name]: val };
-                            const sku = configProduct.skus?.find((s) => Object.entries(s.combo).every(([k, v]) => currentOptions[k] === v));
-                            const hasStock = !sku || sku.stock > 0;
+                            const sku = configProduct.skus?.find((s) =>
+                              Object.entries(s.combo).every(([k, v]) => currentOptions[k] === v));
+                            const stockQty = sku ? sku.stock : null;
+                            const hasStock = stockQty === null || stockQty > 0;
+                            const isSelected = selectedOptions[attr.name] === val;
                             return (
-                              <button key={vIdx} disabled={!hasStock} onClick={() => setSelectedOptions({ ...selectedOptions, [attr.name]: val })}
-                                className={cn("px-4 h-9 rounded-xl text-[10px] font-bold uppercase tracking-widest transition-all border",
-                                  !hasStock ? "opacity-30 cursor-not-allowed line-through bg-slate-800 border-slate-700 text-slate-600"
-                                    : selectedOptions[attr.name] === val ? "bg-blue-600 text-white border-blue-600"
-                                    : "bg-slate-800 text-slate-400 border-slate-700 hover:border-slate-500")}>
-                                {val}
+                              <button key={vIdx} disabled={!hasStock}
+                                onClick={() => setSelectedOptions({ ...selectedOptions, [attr.name]: val })}
+                                className={cn("flex flex-col items-center px-3 py-2 rounded-xl transition-all border min-w-[64px]",
+                                  !hasStock
+                                    ? "opacity-30 cursor-not-allowed"
+                                    : isSelected
+                                    ? "shadow-lg shadow-blue-500/25"
+                                    : "hover:border-white/20"
+                                )}
+                                style={isSelected
+                                  ? { background: "rgba(59,130,246,0.2)", border: "1px solid rgba(59,130,246,0.6)" }
+                                  : { background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.08)" }}>
+                                <span className={cn("text-[12px] font-bold tracking-wide", !hasStock && "line-through",
+                                  isSelected ? "text-blue-300" : "text-white/70")}>
+                                  {val}
+                                </span>
+                                {stockQty !== null && (
+                                  <span className={cn("text-[9px] font-semibold mt-0.5",
+                                    stockQty === 0 ? "text-red-400/60"
+                                    : stockQty <= 3 ? "text-amber-400/80"
+                                    : "text-white/30")}>
+                                    {stockQty === 0 ? "esgotado" : `${stockQty} un`}
+                                  </span>
+                                )}
                               </button>
                             );
                           })}
@@ -638,30 +993,90 @@ ${sale.change > 0 ? `<hr class="divider"/><div class="row bold"><span>TROCO:</sp
                       </div>
                     ))
                   : configProduct.variations?.map((variation, vIdx) => (
-                      <div key={vIdx} className="space-y-3">
-                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">{variation.name}</label>
+                      <div key={vIdx}>
+                        <div className="flex items-center gap-2 mb-3">
+                          <p className="text-[9px] font-black uppercase tracking-[0.2em] text-white/35">{variation.name}</p>
+                          <div className="flex-1 h-px" style={{ background: "rgba(255,255,255,0.06)" }} />
+                        </div>
                         <div className="flex flex-wrap gap-2">
-                          {variation.options.map((opt, oIdx) => (
-                            <button key={oIdx} disabled={opt.stock === 0} onClick={() => setSelectedOptions({ ...selectedOptions, [variation.name]: opt.value })}
-                              className={cn("px-4 h-9 rounded-xl text-[10px] font-bold uppercase tracking-widest transition-all border",
-                                opt.stock === 0 ? "opacity-30 cursor-not-allowed line-through bg-slate-800 border-slate-700 text-slate-600"
-                                  : selectedOptions[variation.name] === opt.value ? "bg-blue-600 text-white border-blue-600"
-                                  : "bg-slate-800 text-slate-400 border-slate-700 hover:border-slate-500")}>
-                              {opt.value}
-                            </button>
-                          ))}
+                          {variation.options.map((opt, oIdx) => {
+                            const isSelected = selectedOptions[variation.name] === opt.value;
+                            return (
+                              <button key={oIdx} disabled={opt.stock === 0}
+                                onClick={() => setSelectedOptions({ ...selectedOptions, [variation.name]: opt.value })}
+                                className={cn("flex flex-col items-center px-3 py-2 rounded-xl transition-all border min-w-[64px]",
+                                  opt.stock === 0
+                                    ? "opacity-30 cursor-not-allowed"
+                                    : isSelected
+                                    ? "shadow-lg shadow-blue-500/25"
+                                    : "hover:border-white/20"
+                                )}
+                                style={isSelected
+                                  ? { background: "rgba(59,130,246,0.2)", border: "1px solid rgba(59,130,246,0.6)" }
+                                  : { background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.08)" }}>
+                                <span className={cn("text-[12px] font-bold tracking-wide", opt.stock === 0 && "line-through",
+                                  isSelected ? "text-blue-300" : "text-white/70")}>
+                                  {opt.value}
+                                </span>
+                                <span className={cn("text-[9px] font-semibold mt-0.5",
+                                  opt.stock === 0 ? "text-red-400/60"
+                                  : opt.stock <= 3 ? "text-amber-400/80"
+                                  : "text-white/30")}>
+                                  {opt.stock === 0 ? "esgotado" : `${opt.stock} un`}
+                                </span>
+                              </button>
+                            );
+                          })}
                         </div>
                       </div>
                     ))}
+
+                {/* Tabela resumo de estoque por combinação */}
+                {configProduct.skus && configProduct.skus.length > 0 && (
+                  <div>
+                    <div className="flex items-center gap-2 mb-3">
+                      <p className="text-[9px] font-black uppercase tracking-[0.2em] text-white/35">Estoque disponível</p>
+                      <div className="flex-1 h-px" style={{ background: "rgba(255,255,255,0.06)" }} />
+                    </div>
+                    <div className="rounded-xl overflow-hidden" style={{ border: "1px solid rgba(255,255,255,0.07)" }}>
+                      {configProduct.skus.map((sku, sIdx) => {
+                        const label = Object.values(sku.combo).join(" · ");
+                        const isCurrentSelection = Object.entries(sku.combo).every(([k, v]) => selectedOptions[k] === v);
+                        return (
+                          <div key={sIdx}
+                            className={cn("flex items-center justify-between px-3 py-2 transition-all", sIdx > 0 && "border-t")}
+                            style={{
+                              borderColor: "rgba(255,255,255,0.05)",
+                              background: isCurrentSelection ? "rgba(59,130,246,0.12)" : "rgba(255,255,255,0.02)"
+                            }}>
+                            <div className="flex items-center gap-2">
+                              {isCurrentSelection && <div className="w-1 h-4 rounded-full bg-blue-500" />}
+                              <span className="text-[11px] font-medium text-white/60">{label}</span>
+                            </div>
+                            <span className={cn("text-[11px] font-black",
+                              sku.stock === 0 ? "text-red-400/70"
+                              : sku.stock <= 3 ? "text-amber-400"
+                              : "text-emerald-400")}>
+                              {sku.stock === 0 ? "Esgotado" : `${sku.stock} un`}
+                            </span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
               </div>
-              <div className="p-5 border-t border-slate-800">
+
+              {/* Botão confirmar */}
+              <div className="px-5 pb-6 pt-3" style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }}>
                 <button onClick={() => addToCart(configProduct, selectedOptions)}
-                  className="w-full h-12 bg-blue-600 text-white rounded-2xl text-[10px] font-black uppercase tracking-[0.2em] hover:bg-blue-500 transition-all flex items-center justify-center gap-2">
-                  Confirmar <Plus size={14} strokeWidth={3} />
+                  className="w-full h-13 rounded-2xl text-[12px] font-black uppercase tracking-[0.15em] text-white flex items-center justify-center gap-2 transition-all active:scale-98 shadow-xl shadow-blue-500/25"
+                  style={{ background: "linear-gradient(135deg, #3b82f6, #1d4ed8)", height: "52px" }}>
+                  <Plus size={16} strokeWidth={3} /> Adicionar ao Carrinho
                 </button>
               </div>
             </motion.div>
-          </div>
+          </motion.div>
         )}
       </AnimatePresence>
 
@@ -672,12 +1087,261 @@ ${sale.change > 0 ? `<hr class="divider"/><div class="row bold"><span>TROCO:</sp
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
               onClick={() => setShowCartMobile(false)}
               className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-[150] lg:hidden" />
-            <motion.div initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }}
+            <motion.div
+              initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }}
               transition={{ type: "spring", damping: 25, stiffness: 200 }}
-              className="fixed inset-x-0 bottom-0 h-[90vh] bg-slate-900 rounded-t-[28px] shadow-2xl z-[151] lg:hidden flex flex-col overflow-hidden border-t border-slate-800">
-              <div className="w-10 h-1 bg-slate-700 rounded-full mx-auto my-4 shrink-0" />
+              className="fixed inset-x-0 bottom-0 h-[92vh] bg-white rounded-t-[28px] shadow-2xl z-[151] lg:hidden flex flex-col overflow-hidden border-t border-slate-200">
+              <div className="w-12 h-1.5 bg-slate-200 rounded-full mx-auto my-4 shrink-0" />
               <div className="flex-1 overflow-hidden flex flex-col">
-                <StandaloneCart {...cartPanelProps} onClose={() => setShowCartMobile(false)} />
+                <CartPanel
+                  cart={cart}
+                  updateQuantity={updateQuantity}
+                  removeFromCart={removeFromCart}
+                  subtotal={subtotal}
+                  discountValue={discountValue}
+                  surchargeValue={surchargeValue}
+                  feeAmount={feeAmount}
+                  total={total}
+                  cartQty={cartQty}
+                  onCheckout={() => { setShowCartMobile(false); openCheckout(); }}
+                  canFinish={canFinish}
+                  onClose={() => setShowCartMobile(false)}
+                />
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+
+      {/* ── Checkout Modal ────────────────────────────────────────────────────── */}
+      <AnimatePresence>
+        {showCheckoutModal && (
+          <>
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[250]"
+              onClick={() => !finishing && setShowCheckoutModal(false)} />
+            <motion.div
+              initial={{ opacity: 0, y: 16, scale: 0.98 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 12, scale: 0.98 }}
+              transition={{ type: "spring", damping: 32, stiffness: 300 }}
+              className="fixed inset-0 z-[251] flex flex-col m-auto bg-white"
+              style={{
+                width: "min(980px, 96vw)", height: "min(700px, 92vh)",
+                borderRadius: "24px",
+                boxShadow: "0 24px 80px rgba(0,0,0,0.18), 0 4px 16px rgba(0,0,0,0.08)",
+                overflow: "hidden",
+                border: "1px solid #e2e8f0",
+              }}>
+
+              {/* ── Header ─────────────────────────────────────────────────── */}
+              <div className="shrink-0 flex items-center justify-between px-6 py-4 bg-white border-b border-slate-100">
+                <div className="flex items-center gap-3">
+                  {tenantLogo ? (
+                    <img src={tenantLogo} alt={tenantName} className="h-10 w-auto max-w-[100px] object-contain rounded-xl shrink-0" />
+                  ) : (
+                    <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 shadow-sm"
+                      style={{ background: "linear-gradient(135deg,#3b82f6,#1d4ed8)" }}>
+                      <Store size={18} className="text-white" />
+                    </div>
+                  )}
+                  <div>
+                    <p className="text-[9px] font-bold uppercase tracking-[0.25em] text-blue-500">Finalizar Venda</p>
+                    <h2 className="text-[16px] font-black text-slate-800 leading-tight">{tenantName}</h2>
+                  </div>
+                </div>
+                <div className="flex items-center gap-4">
+                  <div className="text-right">
+                    <p className="text-[9px] font-bold uppercase tracking-widest text-slate-400">{cartQty} {cartQty === 1 ? "item" : "itens"}</p>
+                    <p className="text-[24px] font-mono font-black text-slate-800 leading-none">R$ {total.toFixed(2)}</p>
+                  </div>
+                  <button onClick={() => setShowCheckoutModal(false)} disabled={finishing}
+                    className="w-9 h-9 rounded-xl bg-slate-100 hover:bg-slate-200 flex items-center justify-center transition-all disabled:opacity-30 border border-slate-200">
+                    <X size={16} className="text-slate-500" />
+                  </button>
+                </div>
+              </div>
+
+              {/* ── Corpo em duas colunas ──────────────────────────────────── */}
+              <div className="flex-1 flex overflow-hidden">
+
+                {/* COLUNA ESQUERDA */}
+                <div className="w-[340px] shrink-0 flex flex-col overflow-y-auto pdv-scroll-light border-r border-slate-100 bg-slate-50">
+
+                  {/* Itens do pedido */}
+                  <div className="p-4 border-b border-slate-100">
+                    <p className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400 mb-3">Itens do pedido</p>
+                    <div className="space-y-2">
+                      {cart.map((item) => (
+                        <div key={item.cartItemId} className="flex items-center gap-2.5 bg-white rounded-xl px-3 py-2 border border-slate-100 shadow-sm">
+                          <span className="w-6 h-6 rounded-lg flex items-center justify-center text-[10px] font-black text-white shrink-0"
+                            style={{ background: "linear-gradient(135deg,#3b82f6,#1d4ed8)" }}>{item.quantity}</span>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-[12px] font-semibold text-slate-700 truncate leading-tight">{item.name}</p>
+                            {item.variationLabel && <p className="text-[9px] font-bold text-blue-500">{item.variationLabel}</p>}
+                          </div>
+                          <span className="text-[12px] font-mono font-black text-slate-700 shrink-0">R$ {(item.price * item.quantity).toFixed(2)}</span>
+                        </div>
+                      ))}
+                    </div>
+                    {/* Mini totais */}
+                    <div className="mt-3 pt-3 border-t border-slate-200 space-y-1">
+                      {discountValue > 0 && (
+                        <div className="flex justify-between text-[10px]">
+                          <span className="text-slate-400">Desconto</span>
+                          <span className="font-mono font-bold text-emerald-600">− R$ {discountValue.toFixed(2)}</span>
+                        </div>
+                      )}
+                      {surchargeValue > 0 && (
+                        <div className="flex justify-between text-[10px]">
+                          <span className="text-slate-400">Acréscimo</span>
+                          <span className="font-mono font-bold text-amber-500">+ R$ {surchargeValue.toFixed(2)}</span>
+                        </div>
+                      )}
+                      {feeAmount > 0 && (
+                        <div className="flex justify-between text-[10px]">
+                          <span className="text-slate-400">Juros máquina</span>
+                          <span className="font-mono font-bold text-orange-500">+ R$ {feeAmount.toFixed(2)}</span>
+                        </div>
+                      )}
+                      <div className="flex justify-between items-baseline pt-1 border-t border-slate-200">
+                        <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Total</span>
+                        <span className="text-[17px] font-mono font-black text-slate-800">R$ {total.toFixed(2)}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Cliente + Vendedor + Descontos */}
+                  <div className="p-4 space-y-4 flex-1">
+                    {/* Cliente */}
+                    <div>
+                      <label className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400 mb-1.5 block">Cliente</label>
+                      <div className="relative">
+                        <User className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={13} />
+                        <input type="text" placeholder="Nome do cliente (opcional)" value={customerName}
+                          onChange={(e) => setCustomerName(e.target.value)}
+                          className="w-full pl-9 pr-3 h-10 rounded-xl text-[12px] font-medium text-slate-700 placeholder:text-slate-300 bg-white border border-slate-200 focus:outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 transition-all" />
+                      </div>
+                    </div>
+
+                    {/* Vendedor */}
+                    <div className="relative">
+                      <label className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400 mb-1.5 block">Vendedor</label>
+                      <Combobox
+                        placeholder="Sem vendedor"
+                        searchPlaceholder="Buscar vendedor..."
+                        clearable
+                        value={selectedSellerId !== null ? String(selectedSellerId) : ""}
+                        onChange={(v) => setSelectedSellerId(v ? Number(v) : null)}
+                        options={sellers.map((s) => ({ value: String(s.id), label: s.name }))}
+                      />
+                    </div>
+
+                    {/* Desconto + Acréscimo */}
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400 mb-1.5 block">Desconto</label>
+                        <div className="flex gap-1.5">
+                          <div className="flex bg-slate-100 border border-slate-200 rounded-xl p-0.5 gap-0.5 shrink-0">
+                            {(["R$", "%"] as const).map((m) => (
+                              <button key={m} onClick={() => setDiscountMode(m)}
+                                className="h-7 px-2 rounded-lg text-[9px] font-black transition-all"
+                                style={discountMode === m ? { background: "#2563eb", color: "white" } : { color: "#94a3b8" }}>
+                                {m}
+                              </button>
+                            ))}
+                          </div>
+                          <input type="number" min="0" step="0.01" placeholder="0"
+                            value={discount} onChange={(e) => setDiscount(e.target.value)}
+                            className="flex-1 min-w-0 h-9 px-2 rounded-xl text-[13px] font-mono font-bold text-slate-700 placeholder:text-slate-300 bg-white border border-slate-200 focus:outline-none focus:border-emerald-400 text-center [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none transition-all" />
+                        </div>
+                        {discountValue > 0 && <p className="text-[10px] font-mono font-black mt-1 text-center text-emerald-600">− R$ {discountValue.toFixed(2)}</p>}
+                      </div>
+                      <div>
+                        <label className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400 mb-1.5 block">Acréscimo</label>
+                        <div className="flex gap-1.5">
+                          <div className="flex bg-slate-100 border border-slate-200 rounded-xl p-0.5 gap-0.5 shrink-0">
+                            {(["R$", "%"] as const).map((m) => (
+                              <button key={m} onClick={() => setSurchargeMode(m)}
+                                className="h-7 px-2 rounded-lg text-[9px] font-black transition-all"
+                                style={surchargeMode === m ? { background: "#d97706", color: "white" } : { color: "#94a3b8" }}>
+                                {m}
+                              </button>
+                            ))}
+                          </div>
+                          <input type="number" min="0" step="0.01" placeholder="0"
+                            value={surcharge} onChange={(e) => setSurcharge(e.target.value)}
+                            className="flex-1 min-w-0 h-9 px-2 rounded-xl text-[13px] font-mono font-bold text-slate-700 placeholder:text-slate-300 bg-white border border-slate-200 focus:outline-none focus:border-amber-400 text-center [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none transition-all" />
+                        </div>
+                        {surchargeValue > 0 && <p className="text-[10px] font-mono font-black mt-1 text-center text-amber-500">+ R$ {surchargeValue.toFixed(2)}</p>}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* COLUNA DIREITA — pagamentos */}
+                <div className="flex-1 flex flex-col overflow-hidden bg-white">
+                  <div className="flex-1 overflow-y-auto p-5 space-y-3 pdv-scroll-light">
+
+                    {/* Label + adicionar */}
+                    <div className="flex items-center justify-between mb-1">
+                      <p className="text-[9px] font-black uppercase tracking-[0.25em] text-slate-400">Formas de pagamento</p>
+                      <button onClick={addPayment}
+                        className="flex items-center gap-1.5 h-7 px-3 rounded-lg text-[9px] font-black uppercase tracking-wider bg-blue-50 border border-blue-200 text-blue-600 hover:bg-blue-100 transition-all">
+                        <PlusCircle size={11} /> Adicionar forma
+                      </button>
+                    </div>
+
+                    {payments.map((p, idx) => (
+                      <PaymentRow
+                        key={p.id}
+                        payment={p}
+                        idx={idx}
+                        total={total}
+                        paidAmount={paidAmount}
+                        showRemove={payments.length > 1}
+                        cardFees={cardFees}
+                        maxInstallments={maxInstallments}
+                        passFeeByMethod={passFeeByMethod}
+                        enabledBrands={enabledBrands}
+                        onMethodChange={handleMethodChange}
+                        onUpdate={updatePayment}
+                        onRemove={removePayment}
+                      />
+                    ))}
+
+                    {/* Resumo total */}
+                    <div className="rounded-2xl px-4 py-3 flex items-center justify-between bg-slate-50 border border-slate-200 shadow-sm">
+                      <div>
+                        <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-0.5">Total a pagar</p>
+                        {remaining > 0.009 && (
+                          <p className="text-[10px] font-bold text-amber-500">⚠ Faltam R$ {remaining.toFixed(2)}</p>
+                        )}
+                        {change > 0 && (
+                          <p className="text-[10px] font-bold text-emerald-600">Troco R$ {change.toFixed(2)}</p>
+                        )}
+                      </div>
+                      <span className="text-[28px] font-mono font-black text-slate-800">R$ {total.toFixed(2)}</span>
+                    </div>
+                  </div>
+
+                  {/* Botão confirmar */}
+                  <div className="shrink-0 px-5 pb-5 pt-4 border-t border-slate-100 bg-white">
+                    <button onClick={handleFinishSale} disabled={!canFinish || finishing}
+                      className="w-full h-13 rounded-2xl text-[13px] font-black uppercase tracking-widest text-white transition-all disabled:opacity-30 active:scale-[0.98] flex items-center justify-center gap-2.5 shadow-lg"
+                      style={{
+                        height: "52px",
+                        background: remaining > 0.009
+                          ? "linear-gradient(135deg,#f59e0b,#d97706)"
+                          : "linear-gradient(135deg,#3b82f6,#1d4ed8)",
+                        boxShadow: remaining > 0.009
+                          ? "0 8px 24px rgba(245,158,11,0.35)"
+                          : "0 8px 24px rgba(59,130,246,0.35)",
+                      }}>
+                      {finishing ? <Loader2 size={17} className="animate-spin" /> : <><CheckCircle2 size={17} /> Confirmar Venda</>}
+                    </button>
+                  </div>
+                </div>
               </div>
             </motion.div>
           </>
@@ -689,12 +1353,15 @@ ${sale.change > 0 ? `<hr class="divider"/><div class="row bold"><span>TROCO:</sp
         {showReceipt && completedSale && (
           <>
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-              className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-[300]" />
+              className="fixed inset-0 bg-slate-950/85 backdrop-blur-md z-[300]" />
             <motion.div
-              initial={{ opacity: 0, scale: 0.92, y: 32 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.92, y: 32 }}
+              initial={{ opacity: 0, scale: 0.92, y: 32 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.92, y: 32 }}
               transition={{ type: "spring", damping: 28, stiffness: 260 }}
-              className="fixed inset-x-0 bottom-0 sm:inset-auto sm:top-1/2 sm:left-1/2 sm:-translate-x-1/2 sm:-translate-y-1/2 z-[301] w-full sm:w-[440px] bg-slate-900 border border-slate-700 sm:rounded-3xl rounded-t-3xl shadow-2xl flex flex-col overflow-hidden max-h-[90vh]">
+              className="fixed inset-x-4 bottom-4 sm:inset-auto sm:top-1/2 sm:left-1/2 sm:-translate-x-1/2 sm:-translate-y-1/2 z-[301] sm:w-[460px] bg-slate-900 border border-slate-700 sm:rounded-3xl rounded-3xl shadow-2xl flex flex-col overflow-hidden max-h-[90vh]">
 
+              {/* Success header */}
               <div className="shrink-0 bg-gradient-to-br from-emerald-600 to-emerald-800 px-6 pt-6 pb-5 text-white relative overflow-hidden">
                 <div className="absolute inset-0 opacity-10">
                   <div className="absolute -top-4 -right-4 w-32 h-32 bg-white rounded-full" />
@@ -704,37 +1371,44 @@ ${sale.change > 0 ? `<hr class="divider"/><div class="row bold"><span>TROCO:</sp
                   <div>
                     <div className="flex items-center gap-2 mb-2">
                       <CheckCircle2 size={20} className="text-emerald-200" />
-                      <span className="text-[10px] font-black uppercase tracking-[0.2em] text-emerald-200">Venda Confirmada</span>
+                      <span className="text-[11px] font-black uppercase tracking-[0.2em] text-emerald-200">Venda Confirmada</span>
                     </div>
-                    <p className="text-2xl font-mono font-black">R$ {completedSale.total.toFixed(2)}</p>
-                    <p className="text-[11px] text-emerald-200 font-bold mt-1">
-                      #{String(completedSale.orderId).padStart(5,"0")} · {completedSale.customerName || "Consumidor Final"}
+                    <p className="text-3xl font-mono font-black">R$ {completedSale.total.toFixed(2)}</p>
+                    <p className="text-[12px] text-emerald-200 font-bold mt-1">
+                      #{String(completedSale.orderId).padStart(5, "0")} · {completedSale.customerName || "Consumidor Final"}
                     </p>
+                    {completedSale.sellerName && (
+                      <p className="text-[11px] text-emerald-300 font-medium mt-0.5">Vendedor: {completedSale.sellerName}</p>
+                    )}
                     {completedSale.change > 0 && (
-                      <div className="mt-2 inline-flex items-center gap-1.5 bg-white/20 rounded-lg px-3 py-1.5">
+                      <div className="mt-2 inline-flex items-center gap-1.5 bg-white/20 rounded-xl px-3 py-1.5">
                         <Banknote size={13} className="text-emerald-200" />
-                        <span className="text-[11px] font-black text-white">Troco: R$ {completedSale.change.toFixed(2)}</span>
+                        <span className="text-[12px] font-black text-white">Troco: R$ {completedSale.change.toFixed(2)}</span>
                       </div>
                     )}
                     <div className="mt-3 flex flex-wrap gap-1.5">
                       {completedSale.payments.map((p, i) => {
-                        const brand = (p.method==="debit"||p.method==="credit") && p.cardBrand!=="other" ? ` ${p.cardBrand.toUpperCase()}` : "";
-                        const inst  = p.method==="credit" && p.installments>1 ? ` ${p.installments}×` : "";
+                        const brand = (p.method === "debit" || p.method === "credit") && p.cardBrand !== "other" ? ` ${p.cardBrand.toUpperCase()}` : "";
+                        const inst  = p.method === "credit" && p.installments > 1 ? ` ${p.installments}×` : "";
                         return (
-                          <div key={i} className="inline-flex items-center gap-1 bg-white/15 rounded-lg px-2 py-1">
-                            <span className="text-[9px] font-black text-emerald-100">{PM_LABEL[p.method]}{brand}{inst}</span>
-                            <span className="text-[9px] font-mono font-black text-white">R$ {Number(p.amount).toFixed(2)}</span>
+                          <div key={i} className="inline-flex items-center gap-1.5 bg-white/15 rounded-xl px-2.5 py-1.5">
+                            <span className="text-[10px] font-black text-emerald-100">{PM_LABEL[p.method]}{brand}{inst}</span>
+                            <span className="text-[10px] font-mono font-black text-white">R$ {Number(p.amount).toFixed(2)}</span>
                           </div>
                         );
                       })}
                     </div>
                   </div>
-                  <button onClick={() => setShowReceipt(false)} className="p-1.5 hover:bg-white/20 rounded-xl transition-all text-emerald-200"><X size={18} /></button>
+                  <button onClick={() => setShowReceipt(false)} className="p-2 hover:bg-white/20 rounded-xl transition-all text-emerald-200">
+                    <X size={18} />
+                  </button>
                 </div>
                 <div className="relative mt-3 flex gap-2 overflow-x-auto scrollbar-none pb-0.5">
                   {completedSale.items.map((item, idx) => (
                     <div key={idx} className="shrink-0 flex items-center gap-1.5 bg-white/15 rounded-xl px-2.5 py-1.5">
-                      {item.image_url ? <img src={item.image_url} className="w-5 h-5 rounded object-cover shrink-0" alt={item.name} /> : <Package size={14} className="text-emerald-200 shrink-0" />}
+                      {item.image_url
+                        ? <img src={item.image_url} className="w-5 h-5 rounded object-cover shrink-0" alt={item.name} />
+                        : <Package size={14} className="text-emerald-200 shrink-0" />}
                       <span className="text-[10px] font-bold text-white truncate max-w-[80px]">{item.name}</span>
                       <span className="text-[10px] font-black text-emerald-200">×{item.quantity}</span>
                     </div>
@@ -742,35 +1416,44 @@ ${sale.change > 0 ? `<hr class="divider"/><div class="row bold"><span>TROCO:</sp
                 </div>
               </div>
 
+              {/* Receipt actions */}
               <div className="shrink-0 p-5 space-y-2.5">
                 <p className="text-[9px] font-black text-slate-500 uppercase tracking-[0.2em] mb-3">Emitir Comprovante</p>
                 <button onClick={() => printViaIframe(buildThermalHtml(completedSale))}
-                  className="w-full flex items-center gap-4 h-14 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-2xl px-5 transition-all group">
-                  <div className="w-9 h-9 bg-white rounded-xl flex items-center justify-center shrink-0"><Printer size={16} className="text-slate-900" /></div>
-                  <div className="text-left">
-                    <p className="text-[11px] font-black text-white uppercase tracking-widest">Nota Térmica</p>
-                    <p className="text-[9px] text-slate-500 font-medium">Impressão 80mm para bobina</p>
+                  className="w-full flex items-center gap-4 h-14 bg-slate-800 hover:bg-slate-750 border border-slate-700 hover:border-slate-600 rounded-2xl px-5 transition-all group">
+                  <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
+                    <Printer size={17} className="text-slate-900" />
                   </div>
-                  <ChevronRight size={14} className="ml-auto text-slate-600 group-hover:text-slate-400" />
+                  <div className="text-left">
+                    <p className="text-[12px] font-black text-white uppercase tracking-widest">Nota Térmica</p>
+                    <p className="text-[10px] text-slate-500 font-medium">Impressão 80mm para bobina</p>
+                  </div>
+                  <ChevronRight size={15} className="ml-auto text-slate-600 group-hover:text-slate-400 group-hover:translate-x-0.5 transition-all" />
                 </button>
                 <button onClick={() => printViaIframe(buildPDFHtml(completedSale), 600)}
-                  className="w-full flex items-center gap-4 h-14 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-2xl px-5 transition-all group">
-                  <div className="w-9 h-9 bg-blue-600 rounded-xl flex items-center justify-center shrink-0"><FileText size={16} className="text-white" /></div>
-                  <div className="text-left">
-                    <p className="text-[11px] font-black text-white uppercase tracking-widest">PDF Completo</p>
-                    <p className="text-[9px] text-slate-500 font-medium">Nota detalhada em A4</p>
+                  className="w-full flex items-center gap-4 h-14 bg-slate-800 hover:bg-slate-750 border border-slate-700 hover:border-slate-600 rounded-2xl px-5 transition-all group">
+                  <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform shadow-lg shadow-blue-500/20">
+                    <FileText size={17} className="text-white" />
                   </div>
-                  <ChevronRight size={14} className="ml-auto text-slate-600 group-hover:text-slate-400" />
+                  <div className="text-left">
+                    <p className="text-[12px] font-black text-white uppercase tracking-widest">PDF Completo</p>
+                    <p className="text-[10px] text-slate-500 font-medium">Nota detalhada em A4</p>
+                  </div>
+                  <ChevronRight size={15} className="ml-auto text-slate-600 group-hover:text-slate-400 group-hover:translate-x-0.5 transition-all" />
                 </button>
                 <button onClick={() => setShowPhoneInput(!showPhoneInput)}
-                  className={cn("w-full flex items-center gap-4 h-14 border rounded-2xl px-5 transition-all group",
-                    showPhoneInput ? "bg-emerald-900/30 border-emerald-600" : "bg-slate-800 hover:bg-slate-700 border-slate-700")}>
-                  <div className={cn("w-9 h-9 rounded-xl flex items-center justify-center shrink-0", showPhoneInput ? "bg-emerald-600" : "bg-emerald-700")}><MessageCircle size={16} className="text-white" /></div>
-                  <div className="text-left">
-                    <p className="text-[11px] font-black text-white uppercase tracking-widest">Enviar WhatsApp</p>
-                    <p className="text-[9px] text-slate-500 font-medium">Abre WhatsApp Web com comprovante</p>
+                  className={cn(
+                    "w-full flex items-center gap-4 h-14 border rounded-2xl px-5 transition-all group",
+                    showPhoneInput ? "bg-emerald-900/30 border-emerald-600/50" : "bg-slate-800 hover:bg-slate-750 border-slate-700 hover:border-slate-600"
+                  )}>
+                  <div className={cn("w-10 h-10 rounded-xl flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform", showPhoneInput ? "bg-emerald-600" : "bg-emerald-700")}>
+                    <MessageCircle size={17} className="text-white" />
                   </div>
-                  <ChevronDown size={14} className={cn("ml-auto transition-transform text-slate-600", showPhoneInput ? "rotate-180 text-emerald-400" : "")} />
+                  <div className="text-left">
+                    <p className="text-[12px] font-black text-white uppercase tracking-widest">Enviar WhatsApp</p>
+                    <p className="text-[10px] text-slate-500 font-medium">Abre WhatsApp Web com comprovante</p>
+                  </div>
+                  <ChevronDown size={15} className={cn("ml-auto transition-transform text-slate-600", showPhoneInput ? "rotate-180 text-emerald-400" : "")} />
                 </button>
                 <AnimatePresence>
                   {showPhoneInput && (
@@ -779,7 +1462,7 @@ ${sale.change > 0 ? `<hr class="divider"/><div class="row bold"><span>TROCO:</sp
                         <div className="relative flex-1">
                           <Phone className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-600" size={14} />
                           <input type="tel" placeholder="(11) 99999-9999"
-                            className="w-full pl-9 pr-4 h-11 bg-slate-800 border border-emerald-600 rounded-xl focus:outline-none text-[12px] font-medium text-white placeholder:text-slate-600 transition-all"
+                            className="w-full pl-9 pr-4 h-11 bg-slate-800 border border-emerald-600/60 rounded-xl focus:outline-none text-[13px] font-medium text-white placeholder:text-slate-600 transition-all"
                             value={whatsappPhone} onChange={(e) => setWhatsappPhone(e.target.value)} />
                         </div>
                         <button onClick={() => {
@@ -799,8 +1482,8 @@ ${sale.change > 0 ? `<hr class="divider"/><div class="row bold"><span>TROCO:</sp
 
               <div className="shrink-0 px-5 pb-5">
                 <button onClick={() => setShowReceipt(false)}
-                  className="w-full h-11 border border-slate-700 rounded-2xl text-[11px] font-black text-slate-500 uppercase tracking-widest hover:bg-slate-800 transition-all">
-                  Fechar
+                  className="w-full h-11 border border-slate-700 rounded-2xl text-[12px] font-black text-slate-500 uppercase tracking-widest hover:bg-slate-800 transition-all">
+                  Fechar · Nova Venda
                 </button>
               </div>
             </motion.div>
@@ -811,233 +1494,275 @@ ${sale.change > 0 ? `<hr class="divider"/><div class="row bold"><span>TROCO:</sp
   );
 }
 
-// ─── CART PANEL ───────────────────────────────────────────────────────────────
-function StandaloneCart({
+// ─── PAYMENT ROW (memoizado para não perder foco no input) ───────────────────
+const PaymentRow = React.memo(function PaymentRow({
+  payment: p, idx, total, paidAmount, showRemove, cardFees, maxInstallments, passFeeByMethod, enabledBrands, onMethodChange, onUpdate, onRemove,
+}: {
+  payment: PaymentEntry; idx: number; total: number; paidAmount: number;
+  showRemove: boolean; cardFees: Record<string, number[]>;
+  maxInstallments: number;
+  passFeeByMethod: Record<string, boolean>;
+  enabledBrands: Record<string, boolean>;
+  onMethodChange: (id: string, m: PaymentMethod) => void;
+  onUpdate: (id: string, patch: Partial<PaymentEntry>) => void;
+  onRemove: (id: string) => void;
+}) {
+  const passFeeToCustomer = !!(passFeeByMethod[p.method]);
+  const feeRate = p.method === "credit" ? (cardFees[p.cardBrand]?.[p.installments - 1] ?? 0)
+               : p.method === "debit"  ? (cardFees[`debit_${p.cardBrand}`]?.[0] ?? 0)
+               : p.method === "pix"    ? (cardFees["pix"]?.[0] ?? 0)
+               : 0;
+  const pAmt    = Number(p.amount) || 0;
+  const othersPaid = paidAmount - pAmt;
+  const installmentOptions = Array.from({ length: maxInstallments }, (_, i) => i + 1);
+  // Filtra bandeiras habilitadas
+  const activeBrands = CARD_BRANDS.filter((b) => enabledBrands[b.key] !== false);
+
+  return (
+    <div className="rounded-2xl p-4 space-y-3 bg-white border border-slate-200 shadow-sm">
+
+      {/* Método */}
+      <div className="flex items-center gap-2">
+        {showRemove && (
+          <span className="w-6 h-6 rounded-full flex items-center justify-center text-[9px] font-black shrink-0 bg-slate-100 text-slate-400 border border-slate-200">{idx + 1}</span>
+        )}
+        <div className="grid grid-cols-4 gap-1.5 flex-1">
+          {(["money", "debit", "credit", "pix"] as PaymentMethod[]).map((key) => (
+            <button key={key} onClick={() => onMethodChange(p.id, key)}
+              className="h-11 rounded-xl border text-[9px] font-black uppercase tracking-wider transition-all flex flex-col items-center justify-center gap-1"
+              style={p.method === key
+                ? key === "credit"
+                  ? { background: "#059669", border: "1px solid rgba(16,185,129,0.5)", color: "white", boxShadow: "0 4px 10px rgba(16,185,129,0.25)" }
+                  : key === "money"
+                  ? { background: "#0284c7", border: "1px solid rgba(2,132,199,0.5)", color: "white", boxShadow: "0 4px 10px rgba(2,132,199,0.25)" }
+                  : { background: "#2563eb", border: "1px solid rgba(59,130,246,0.5)", color: "white", boxShadow: "0 4px 10px rgba(59,130,246,0.25)" }
+                : { background: "#f8fafc", border: "1px solid #e2e8f0", color: "#94a3b8" }}>
+              <span className="[&>svg]:w-3.5 [&>svg]:h-3.5">{PM_ICON[key]}</span>
+              <span className="text-[8px]">{PM_LABEL[key]}</span>
+            </button>
+          ))}
+        </div>
+        {showRemove && (
+          <button onClick={() => onRemove(p.id)} className="p-1.5 rounded-lg transition-all shrink-0 text-slate-300 hover:text-red-500 hover:bg-red-50">
+            <X size={14} />
+          </button>
+        )}
+      </div>
+
+      {/* Bandeira */}
+      {(p.method === "debit" || p.method === "credit") && activeBrands.length > 0 && (
+        <div className={`grid gap-1.5 ${activeBrands.length <= 3 ? "grid-cols-3" : activeBrands.length <= 4 ? "grid-cols-4" : "grid-cols-6"}`}>
+          {activeBrands.map(({ key, label, color }) => (
+            <button key={key} onClick={() => onUpdate(p.id, { cardBrand: key })}
+              className="h-8 rounded-lg text-[8px] font-bold uppercase tracking-wide transition-all"
+              style={p.cardBrand === key
+                ? { backgroundColor: color, color: "white", border: "1px solid transparent", boxShadow: "0 2px 8px rgba(0,0,0,0.15)" }
+                : { background: "#f8fafc", border: "1px solid #e2e8f0", color: "#94a3b8" }}>
+              {label}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* Parcelamento */}
+      {p.method === "credit" && (
+        <div className={`grid gap-1.5 ${installmentOptions.length <= 4 ? "grid-cols-4" : installmentOptions.length <= 6 ? "grid-cols-6" : "grid-cols-4"}`}>
+          {installmentOptions.map((n) => {
+            const rate    = cardFees[p.cardBrand]?.[n - 1] ?? 0;
+            const refAmt  = Number(p.amount) || total;
+            // Se repassa taxa ao cliente: total com taxa / parcelas
+            const totalWithFee = passFeeToCustomer && rate > 0 ? refAmt * (1 + rate / 100) : refAmt;
+            const perInst = refAmt > 0 ? totalWithFee / n : 0;
+            const isSel   = p.installments === n;
+            return (
+              <button key={n} onClick={() => onUpdate(p.id, { installments: n })}
+                className="rounded-xl border transition-all flex flex-col items-center justify-center py-2 gap-0.5"
+                style={isSel
+                  ? { background: "#059669", border: "1px solid rgba(16,185,129,0.5)", color: "white", boxShadow: "0 3px 8px rgba(16,185,129,0.2)" }
+                  : { background: "#f8fafc", border: "1px solid #e2e8f0", color: "#64748b" }}>
+                <span className="text-[11px] font-black leading-none">{n === 1 ? "1×" : `${n}×`}</span>
+                {perInst > 0 && <span className="text-[8px] font-semibold leading-none mt-0.5" style={{ color: isSel ? "rgba(167,243,208,0.95)" : "#94a3b8" }}>{perInst.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}</span>}
+                {rate > 0 && <span className="text-[7px] font-bold leading-none" style={{ color: isSel ? "rgba(167,243,208,0.8)" : passFeeToCustomer ? "#3b82f6" : "#cbd5e1" }}>{passFeeToCustomer ? `c/ ${rate}%` : `+${rate}%`}</span>}
+              </button>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Valor + indicadores */}
+      <div className="flex gap-2 items-center">
+        <div className="relative flex-1">
+          <Banknote className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
+          <input type="number" min="0" step="0.01"
+            placeholder={idx === 0 ? (total > 0 ? total.toFixed(2) : "0,00") : "Valor"}
+            className="w-full pl-10 pr-3 h-11 rounded-xl text-[15px] font-mono font-bold text-slate-800 placeholder:text-slate-300 bg-white focus:outline-none focus:ring-2 focus:ring-blue-100 transition-all [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none"
+            style={{
+              border: p.method === "money" && pAmt > 0 && pAmt < (total - othersPaid)
+                ? "1px solid #fca5a5" : "1px solid #e2e8f0"
+            }}
+            value={p.amount}
+            onChange={(e) => onUpdate(p.id, { amount: e.target.value })} />
+        </div>
+        {p.method === "money" && pAmt > 0 && pAmt >= (total - othersPaid) && (
+          <div className="rounded-xl px-3 py-2 shrink-0 text-center bg-emerald-50 border border-emerald-200">
+            <p className="text-[8px] font-black uppercase text-emerald-600">Troco</p>
+            <p className="text-[12px] font-mono font-black text-emerald-700">R$ {Math.max(0, pAmt - (total - othersPaid)).toFixed(2)}</p>
+          </div>
+        )}
+        {feeRate > 0 && pAmt > 0 && (
+          <div className="rounded-xl px-3 py-2 shrink-0 text-center bg-amber-50 border border-amber-200">
+            <p className="text-[8px] font-black uppercase text-amber-600">Taxa</p>
+            <p className="text-[12px] font-mono font-black text-amber-700">+R$ {(pAmt * feeRate / 100).toFixed(2)}</p>
+          </div>
+        )}
+        {p.method === "credit" && p.installments > 1 && pAmt > 0 && (
+          <div className="rounded-xl px-3 py-2 shrink-0 text-center bg-blue-50 border border-blue-200">
+            <p className="text-[8px] font-black uppercase text-blue-600">{p.installments}×</p>
+            <p className="text-[12px] font-mono font-black text-blue-700">R$ {(pAmt / p.installments).toFixed(2)}</p>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+});
+
+// ─── CART PANEL (apenas lista + botão ir para pagamento) ──────────────────────
+function CartPanel({
   cart, updateQuantity, removeFromCart,
-  customerName, setCustomerName,
-  cardFees, payments, updatePayment, removePayment, addPayment,
-  discount, setDiscount,
-  subtotal, discountValue, feeAmount, total, paidAmount, remaining, change,
-  finishing, canFinish, handleFinishSale,
-  onClose,
+  subtotal, discountValue, surchargeValue, feeAmount, total, cartQty,
+  onCheckout, canFinish, onClose,
 }: {
   cart: CartItem[];
   updateQuantity: (id: string, delta: number) => void;
   removeFromCart: (id: string) => void;
-  customerName: string;
-  setCustomerName: (v: string) => void;
-  cardFees: Record<string, number[]>;
-  payments: PaymentEntry[];
-  setPayments: (ps: PaymentEntry[]) => void;
-  updatePayment: (id: string, patch: Partial<PaymentEntry>) => void;
-  removePayment: (id: string) => void;
-  addPayment: () => void;
-  discount: string;
-  setDiscount: (v: string) => void;
   subtotal: number;
   discountValue: number;
+  surchargeValue: number;
   feeAmount: number;
   total: number;
-  paidAmount: number;
-  remaining: number;
-  change: number;
-  finishing: boolean;
+  cartQty: number;
+  onCheckout: () => void;
   canFinish: boolean;
-  handleFinishSale: () => void;
   onClose?: () => void;
 }) {
-  const totalQty = cart.reduce((a, b) => a + b.quantity, 0);
-
   return (
     <>
       {/* Header */}
-      <div className="px-5 py-4 border-b border-slate-800 flex items-center justify-between shrink-0">
-        <div>
-          <h3 className="text-[11px] font-black uppercase tracking-widest text-white flex items-center gap-2">
-            <ShoppingCart size={13} className="text-blue-500" /> Carrinho
-          </h3>
-          <span className="text-[9px] text-slate-600 font-bold uppercase tracking-widest">{totalQty} {totalQty === 1 ? "item" : "itens"}</span>
+      <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between shrink-0 bg-white">
+        <div className="flex items-center gap-2.5">
+          <div className="w-7 h-7 bg-blue-50 border border-blue-100 rounded-xl flex items-center justify-center">
+            <ShoppingCart size={14} className="text-blue-500" />
+          </div>
+          <div>
+            <h3 className="text-[12px] font-black uppercase tracking-widest text-slate-800">Carrinho</h3>
+            <span className="text-[9px] text-slate-400 font-bold uppercase tracking-widest">{cartQty} {cartQty === 1 ? "item" : "itens"}</span>
+          </div>
         </div>
-        {onClose && <button onClick={onClose} className="p-1.5 hover:bg-slate-800 rounded-full text-slate-600"><X size={18} /></button>}
+        {onClose && (
+          <button onClick={onClose} className="p-1.5 hover:bg-slate-100 rounded-xl text-slate-400 transition-colors">
+            <X size={18} />
+          </button>
+        )}
       </div>
 
       {/* Items */}
-      <div className="flex-1 overflow-y-auto p-3 space-y-2">
+      <div className="flex-1 overflow-y-auto p-3 space-y-2 bg-slate-50 pdv-scroll-light">
         <AnimatePresence initial={false}>
           {cart.map((item) => (
-            <motion.div key={item.cartItemId} initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }} transition={{ duration: 0.15 }}>
-              <div className="flex items-center gap-2 p-3 rounded-xl border border-slate-800 bg-slate-800/30">
+            <motion.div
+              key={item.cartItemId}
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -20, height: 0 }}
+              transition={{ duration: 0.18 }}>
+              <div className="flex items-center gap-3 p-3 rounded-2xl border border-slate-200 bg-white hover:border-blue-200 transition-colors group shadow-sm">
+                {/* Thumbnail */}
+                {item.image_url ? (
+                  <img src={item.image_url} alt={item.name} className="w-10 h-10 rounded-xl object-contain shrink-0 border border-slate-200 p-0.5 bg-slate-50" />
+                ) : (
+                  <div className="w-10 h-10 rounded-xl bg-slate-100 border border-slate-200 flex items-center justify-center shrink-0">
+                    <Package size={14} className="text-slate-400" />
+                  </div>
+                )}
                 <div className="flex-1 min-w-0">
-                  <p className="text-[10px] font-black text-slate-200 uppercase truncate">{item.name}</p>
-                  {item.variationLabel && <p className="text-[8px] font-bold text-blue-500 uppercase tracking-widest">{item.variationLabel}</p>}
+                  <p className="text-[11px] font-bold text-slate-700 truncate leading-tight">{item.name}</p>
+                  {item.variationLabel && (
+                    <p className="text-[9px] font-bold text-blue-500 uppercase tracking-widest">{item.variationLabel}</p>
+                  )}
                   <div className="flex items-center justify-between mt-1">
-                    <p className="text-[9px] font-mono text-slate-600">R$ {item.price.toFixed(2)} × {item.quantity}</p>
-                    <p className="text-[10px] font-mono font-black text-white">R$ {(item.price * item.quantity).toFixed(2)}</p>
+                    <p className="text-[10px] font-mono text-slate-400">R$ {item.price.toFixed(2)}</p>
+                    <p className="text-[12px] font-mono font-black text-slate-800">R$ {(item.price * item.quantity).toFixed(2)}</p>
                   </div>
                 </div>
                 <div className="flex flex-col items-center gap-1 shrink-0">
-                  <div className="flex items-center gap-0.5 bg-slate-900 border border-slate-700 rounded-lg p-0.5">
-                    <button onClick={() => updateQuantity(item.cartItemId, -1)} className="p-1 hover:bg-slate-700 rounded text-slate-500 transition-all"><Minus size={10} /></button>
-                    <span className="w-5 text-center font-mono font-black text-[11px] text-white">{item.quantity}</span>
-                    <button onClick={() => updateQuantity(item.cartItemId, 1)} disabled={item.quantity >= item.stock_quantity} className="p-1 hover:bg-slate-700 rounded text-slate-500 transition-all disabled:opacity-20"><Plus size={10} /></button>
+                  <div className="flex items-center gap-1 bg-slate-100 border border-slate-200 rounded-xl overflow-hidden">
+                    <button onClick={() => updateQuantity(item.cartItemId, -1)} className="p-1.5 hover:bg-slate-200 text-slate-400 hover:text-slate-700 transition-all">
+                      <Minus size={11} />
+                    </button>
+                    <span className="w-6 text-center font-mono font-black text-[12px] text-slate-700">{item.quantity}</span>
+                    <button onClick={() => updateQuantity(item.cartItemId, 1)} disabled={item.quantity >= item.stock_quantity} className="p-1.5 hover:bg-slate-200 text-slate-400 hover:text-slate-700 transition-all disabled:opacity-20">
+                      <Plus size={11} />
+                    </button>
                   </div>
-                  <button onClick={() => removeFromCart(item.cartItemId)} className="p-1 text-slate-700 hover:text-red-500 transition-all"><Trash2 size={11} /></button>
+                  <button onClick={() => removeFromCart(item.cartItemId)} className="p-1 text-slate-300 hover:text-red-500 transition-colors rounded">
+                    <Trash2 size={12} />
+                  </button>
                 </div>
               </div>
             </motion.div>
           ))}
         </AnimatePresence>
         {cart.length === 0 && (
-          <div className="h-full flex flex-col items-center justify-center text-slate-700 gap-3 py-12">
-            <ShoppingCart size={32} strokeWidth={1} />
-            <p className="text-[9px] font-black uppercase tracking-[0.2em]">Carrinho Vazio</p>
+          <div className="h-full flex flex-col items-center justify-center text-slate-300 gap-4 py-16">
+            <ShoppingCart size={40} strokeWidth={1} />
+            <div className="text-center">
+              <p className="text-[11px] font-black uppercase tracking-[0.2em] mb-1 text-slate-400">Carrinho Vazio</p>
+              <p className="text-[10px] text-slate-400">Selecione produtos ao lado</p>
+            </div>
           </div>
         )}
       </div>
 
-      {/* Checkout */}
-      <div className="shrink-0 border-t border-slate-800 space-y-3 p-4 overflow-y-auto max-h-[55vh]">
-        {/* Cliente */}
-        <div className="relative">
-          <User className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-700" size={13} />
-          <input type="text" placeholder="CLIENTE (OPCIONAL)" value={customerName} onChange={(e) => setCustomerName(e.target.value)}
-            className="w-full pl-9 pr-3 h-9 bg-slate-800/50 border border-slate-700/50 rounded-lg focus:outline-none focus:border-blue-500 text-[9px] font-bold uppercase tracking-widest text-white placeholder:text-slate-700 transition-all" />
-        </div>
-
-        {/* Desconto */}
-        <div className="relative">
-          <Percent className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-700" size={13} />
-          <input type="number" min="0" placeholder="DESCONTO (R$)" value={discount} onChange={(e) => setDiscount(e.target.value)}
-            className="w-full pl-9 pr-3 h-9 bg-slate-800/50 border border-slate-700/50 rounded-lg focus:outline-none focus:border-blue-500 text-[9px] font-bold uppercase tracking-widest text-white placeholder:text-slate-700 transition-all [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none" />
-        </div>
-
-        {/* Payments */}
-        <div className="space-y-2">
-          <div className="flex items-center justify-between">
-            <p className="text-[8px] font-black text-slate-600 uppercase tracking-[0.2em]">Pagamentos</p>
-            <button onClick={addPayment}
-              className="flex items-center gap-1 h-6 px-2 bg-blue-600/20 border border-blue-500/30 rounded-lg text-[8px] font-black text-blue-400 uppercase tracking-widest hover:bg-blue-600/30 transition-all">
-              <PlusCircle size={10} /> Adicionar
-            </button>
-          </div>
-
-          {payments.map((p, idx) => {
-            const feeRate = p.method === "credit" ? (cardFees[p.cardBrand]?.[p.installments - 1] ?? 0) : 0;
-            const pAmt = Number(p.amount) || 0;
-            const pFee = pAmt > 0 && feeRate > 0 ? pAmt * (feeRate / 100) : 0;
-            return (
-              <div key={p.id} className="bg-slate-800/40 rounded-xl border border-slate-700/50 p-2.5 space-y-2">
-                {/* method */}
-                <div className="flex items-center gap-1.5">
-                  {payments.length > 1 && <span className="w-4 h-4 bg-slate-700 rounded-full flex items-center justify-center text-[8px] font-black text-slate-400 shrink-0">{idx+1}</span>}
-                  <div className="grid grid-cols-4 gap-1 flex-1">
-                    {(["money","debit","credit","pix"] as PaymentMethod[]).map((key) => (
-                      <button key={key} onClick={() => updatePayment(p.id, { method: key, installments: 1 })}
-                        className={cn("h-8 rounded-lg border text-[8px] font-black uppercase tracking-widest transition-all flex flex-col items-center justify-center gap-0.5",
-                          p.method === key
-                            ? key === "credit" ? "bg-emerald-600 border-emerald-500 text-white" : "bg-blue-600 border-blue-600 text-white"
-                            : "bg-slate-800/50 border-slate-700/50 text-slate-600 hover:border-slate-500 hover:text-slate-400")}>
-                        {key === "money" && <Banknote size={10} />}
-                        {key === "debit" && <CreditCard size={10} />}
-                        {key === "credit" && <CreditCard size={10} />}
-                        {key === "pix" && <QrCode size={10} />}
-                        {PM_LABEL[key]}
-                      </button>
-                    ))}
-                  </div>
-                  {payments.length > 1 && <button onClick={() => removePayment(p.id)} className="text-slate-700 hover:text-red-500 transition-colors shrink-0"><X size={12} /></button>}
-                </div>
-
-                {/* bandeira */}
-                {(p.method === "debit" || p.method === "credit") && (
-                  <div className="grid grid-cols-3 gap-1">
-                    {CARD_BRANDS.map(({ key, label, color }) => (
-                      <button key={key} onClick={() => updatePayment(p.id, { cardBrand: key })}
-                        className={cn("h-6 rounded-md border text-[7px] font-black uppercase tracking-widest transition-all",
-                          p.cardBrand === key ? "text-white border-transparent" : "bg-slate-800/40 border-slate-700/50 text-slate-500 hover:border-slate-500")}
-                        style={p.cardBrand === key ? { backgroundColor: color } : {}}>
-                        {label}
-                      </button>
-                    ))}
-                  </div>
-                )}
-
-                {/* parcelamento */}
-                {p.method === "credit" && (
-                  <div className="grid grid-cols-4 gap-1">
-                    {[1,2,3,4,5,6,10,12].map((n) => {
-                      const rate = cardFees[p.cardBrand]?.[n-1] ?? 0;
-                      return (
-                        <button key={n} onClick={() => updatePayment(p.id, { installments: n })}
-                          className={cn("h-8 rounded-lg border text-[7px] font-black uppercase tracking-widest transition-all flex flex-col items-center justify-center",
-                            p.installments === n ? "bg-emerald-600 border-emerald-500 text-white" : "bg-slate-800/40 border-slate-700/50 text-slate-500 hover:border-slate-500")}>
-                          <span>{n === 1 ? "À vista" : `${n}×`}</span>
-                          {rate > 0 && <span className={cn("text-[6px] font-bold", p.installments === n ? "text-emerald-200" : "text-slate-600")}>+{rate}%</span>}
-                        </button>
-                      );
-                    })}
-                  </div>
-                )}
-
-                {/* valor */}
-                <div className="flex gap-1.5">
-                  <div className="relative flex-1">
-                    <Banknote className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-700" size={11} />
-                    <input type="number" min="0" step="0.01"
-                      placeholder={idx === 0 ? `R$ ${total > 0 ? total.toFixed(2) : "0,00"}` : "Valor (R$)"}
-                      className={cn("w-full pl-7 pr-2 h-8 bg-slate-800 border rounded-lg focus:outline-none text-[10px] font-medium text-white placeholder:text-slate-700 transition-all [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none",
-                        p.method === "money" && pAmt > 0 && pAmt < (total - (paidAmount - pAmt)) ? "border-red-500" : "border-slate-700 focus:border-blue-500")}
-                      value={p.amount} onChange={(e) => updatePayment(p.id, { amount: e.target.value })} />
-                  </div>
-                  {p.method === "money" && pAmt > 0 && pAmt >= (total - (paidAmount - pAmt)) && (
-                    <div className="flex items-center gap-1 bg-emerald-900/30 border border-emerald-700/40 rounded-lg px-2 shrink-0">
-                      <span className="text-[8px] font-black text-emerald-400">Troco</span>
-                      <span className="text-[9px] font-mono font-black text-emerald-400">R$ {Math.max(0, pAmt - (total - (paidAmount - pAmt))).toFixed(2)}</span>
-                    </div>
-                  )}
-                  {pFee > 0 && (
-                    <div className="flex items-center gap-1 bg-amber-900/20 border border-amber-700/30 rounded-lg px-2 shrink-0">
-                      <span className="text-[8px] font-black text-amber-400">+{feeRate}%</span>
-                    </div>
-                  )}
-                </div>
+      {/* Footer summary + checkout button */}
+      <div className="shrink-0 border-t border-slate-200 p-4 space-y-3 bg-white">
+        {cart.length > 0 && (
+          <div className="space-y-1.5">
+            {(discountValue > 0 || surchargeValue > 0) && (
+              <div className="flex justify-between text-[10px] font-medium text-slate-400">
+                <span>Subtotal</span><span className="font-mono">R$ {subtotal.toFixed(2)}</span>
               </div>
-            );
-          })}
-        </div>
-
-        {/* Totais */}
-        <div className="space-y-1 pt-1">
-          {discountValue > 0 && (
-            <>
-              <div className="flex justify-between text-[9px] font-bold uppercase tracking-widest text-slate-600"><span>Subtotal</span><span className="font-mono">R$ {subtotal.toFixed(2)}</span></div>
-              <div className="flex justify-between text-[9px] font-bold uppercase tracking-widest text-emerald-500"><span>Desconto</span><span className="font-mono">− R$ {discountValue.toFixed(2)}</span></div>
-            </>
-          )}
-          {feeAmount > 0 && (
-            <div className="flex justify-between text-[9px] font-bold uppercase tracking-widest text-amber-400"><span>Juros</span><span className="font-mono">+ R$ {feeAmount.toFixed(2)}</span></div>
-          )}
-          <div className="flex justify-between items-center">
-            <span className="text-[9px] font-black uppercase tracking-widest text-slate-500">Total</span>
-            <span className="text-2xl font-mono font-black text-white tracking-tight">R$ {total.toFixed(2)}</span>
+            )}
+            {discountValue > 0 && (
+              <div className="flex justify-between text-[10px] font-bold text-emerald-600">
+                <span>Desconto</span><span className="font-mono">− R$ {discountValue.toFixed(2)}</span>
+              </div>
+            )}
+            {surchargeValue > 0 && (
+              <div className="flex justify-between text-[10px] font-bold text-amber-500">
+                <span>Acréscimo</span><span className="font-mono">+ R$ {surchargeValue.toFixed(2)}</span>
+              </div>
+            )}
+            {feeAmount > 0 && (
+              <div className="flex justify-between text-[10px] font-bold text-orange-500">
+                <span>Juros máquina</span><span className="font-mono">+ R$ {feeAmount.toFixed(2)}</span>
+              </div>
+            )}
+            <div className="flex justify-between items-baseline pt-1.5 border-t border-slate-100">
+              <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Total</span>
+              <span className="text-2xl font-mono font-black text-slate-800">R$ {total.toFixed(2)}</span>
+            </div>
           </div>
-          {remaining > 0.009 && (
-            <div className="flex justify-between text-[9px] font-black uppercase tracking-widest text-red-400 pt-1 border-t border-slate-800"><span>Saldo devedor</span><span className="font-mono">R$ {remaining.toFixed(2)}</span></div>
-          )}
-          {change > 0 && (
-            <div className="flex justify-between text-[9px] font-black uppercase tracking-widest text-emerald-400 pt-1.5 border-t border-slate-800"><span>Troco</span><span className="font-mono">R$ {change.toFixed(2)}</span></div>
-          )}
-        </div>
-
-        {/* Botão */}
-        {remaining > 0.009 && (
-          <p className="text-[8px] text-center text-amber-500 font-bold uppercase tracking-widest pb-1">
-            ⚠ Saldo devedor de R$ {remaining.toFixed(2)}
-          </p>
         )}
-        <button onClick={handleFinishSale} disabled={!canFinish || finishing}
-          className={`w-full h-12 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all disabled:opacity-20 active:scale-[0.98] flex items-center justify-center gap-2 ${remaining > 0.009 ? "bg-amber-500 hover:bg-amber-400 shadow-xl shadow-amber-500/20" : "bg-blue-600 hover:bg-blue-500 shadow-xl shadow-blue-500/20"}`}>
-          {finishing ? <Loader2 size={16} className="animate-spin" /> : <><CreditCard size={16} /> Finalizar Venda</>}
+
+        <button
+          onClick={onCheckout}
+          disabled={!canFinish}
+          className="w-full h-13 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-500 hover:to-blue-600 disabled:opacity-25 text-white rounded-2xl text-[12px] font-black uppercase tracking-widest transition-all active:scale-[0.98] flex items-center justify-center gap-2.5 shadow-lg shadow-blue-200">
+          <CreditCard size={17} />
+          Ir para Pagamento
+          {cartQty > 0 && (
+            <span className="ml-1 bg-white/20 rounded-lg px-2 py-0.5 text-[10px] font-black">{cartQty}</span>
+          )}
         </button>
       </div>
     </>

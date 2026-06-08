@@ -110,6 +110,10 @@ export default function PDV() {
   // checkout fields
   const [customerName, setCustomerName] = useState("");
   const [cardFees, setCardFees]         = useState<Record<string, number[]>>({});
+  const [passFeeToCustomer, setPassFeeToCustomer] = useState(false);
+  const [passFeeByMethod, setPassFeeByMethod]     = useState<Record<string, boolean>>({});
+  const [maxInstallments, setMaxInstallments]     = useState(12);
+  const [enabledBrands, setEnabledBrands]         = useState<Record<string, boolean>>({ visa: true, master: true, elo: true, amex: true, hiper: true, other: true });
   // discount
   const [discountMode, setDiscountMode] = useState<"R$" | "%">("R$");
   const [discount, setDiscount]         = useState("");
@@ -157,6 +161,10 @@ export default function PDV() {
       .then((r) => r.json())
       .then((d) => {
         if (d?.card_fees) setCardFees(d.card_fees);
+        if (d?.pass_fee_to_customer !== undefined) setPassFeeToCustomer(Boolean(d.pass_fee_to_customer));
+        if (d?.pass_fee_by_method) setPassFeeByMethod(d.pass_fee_by_method as Record<string, boolean>);
+        if (d?.max_installments) setMaxInstallments(Number(d.max_installments));
+        if (d?.enabled_brands) setEnabledBrands(d.enabled_brands as Record<string, boolean>);
         setTenant({
           name:          d?.name          || "BoxSys Store",
           address:       d?.address       || "",
@@ -349,16 +357,32 @@ export default function PDV() {
 
   const baseTotal = subtotal - discountValue + surchargeValue;
 
-  // taxa interna da maquininha — custo da loja, não cobrado do cliente
-  const creditPayments = payments.filter((p) => p.method === "credit");
-  const feeAmount      = creditPayments.reduce((sum, p) => {
-    const rate = cardFees[p.cardBrand]?.[p.installments - 1] ?? 0;
+  const getFeeRate = (p: PaymentEntry) => {
+    if (p.method === "credit") return cardFees[p.cardBrand]?.[p.installments - 1] ?? 0;
+    if (p.method === "debit")  return cardFees[`debit_${p.cardBrand}`]?.[0] ?? 0;
+    if (p.method === "pix")    return cardFees["pix"]?.[0] ?? 0;
+    return 0;
+  };
+  const isPassFee = (p: PaymentEntry) => !!(passFeeByMethod[p.method] ?? passFeeToCustomer);
+
+  const feeAmount = payments.reduce((sum, p) => {
+    const rate = getFeeRate(p);
     if (!rate) return sum;
     const pAmt = Number(p.amount) || 0;
-    return sum + pAmt * (rate / 100);
+    const ref  = pAmt > 0 ? pAmt : baseTotal;
+    return sum + ref * (rate / 100);
   }, 0);
 
-  const total = baseTotal;
+  const passedFeeAmount = payments.reduce((sum, p) => {
+    if (!isPassFee(p)) return sum;
+    const rate = getFeeRate(p);
+    if (!rate) return sum;
+    const pAmt = Number(p.amount) || 0;
+    const ref  = pAmt > 0 ? pAmt : baseTotal;
+    return sum + ref * (rate / 100);
+  }, 0);
+
+  const total = Math.round((baseTotal + passedFeeAmount) * 100) / 100;
 
   // quanto já foi preenchido nos pagamentos
   const paidAmount   = payments.reduce((s, p) => s + (Number(p.amount) || 0), 0);
@@ -623,6 +647,8 @@ ${change > 0 ? `<hr class="divider"/><div class="row bold"><span>TROCO:</span><s
           discount: discountValue,
           surcharge: surchargeValue > 0 ? surchargeValue : undefined,
           sellerId: selectedSellerId ?? undefined,
+          passFeeToCustomer,
+          passFeeByMethod,
         }),
       });
       if (res.ok) {
@@ -1144,10 +1170,10 @@ ${change > 0 ? `<hr class="divider"/><div class="row bold"><span>TROCO:</span><s
                   </div>
 
                   {payments.map((p, idx) => {
-                    const feeRate = p.method === "credit" ? (cardFees[p.cardBrand]?.[p.installments - 1] ?? 0) : 0;
+                    const feeRate = getFeeRate(p);
                     const pAmt    = Number(p.amount) || 0;
                     // taxa interna da maquininha (não é cobrada do cliente)
-                    const pFee    = p.method === "credit" && feeRate > 0 && pAmt > 0 ? pAmt * (feeRate / 100) : 0;
+                    const pFee    = feeRate > 0 && pAmt > 0 ? pAmt * (feeRate / 100) : 0;
                     // troco desse pagamento específico: quanto dinheiro sobra apenas desse item
                     const otherPayments = paidAmount - pAmt;
                     const thisMoneyChange = p.method === "money" && pAmt > 0 ? Math.max(0, pAmt - Math.max(0, total - otherPayments)) : 0;
@@ -1179,9 +1205,12 @@ ${change > 0 ? `<hr class="divider"/><div class="row bold"><span>TROCO:</span><s
                         </div>
 
                         {/* bandeira */}
-                        {(p.method === "debit" || p.method === "credit") && (
-                          <div className="grid grid-cols-3 gap-1">
-                            {CARD_BRANDS.map(({ key, label, color }) => (
+                        {(p.method === "debit" || p.method === "credit") && (() => {
+                          const activeB = CARD_BRANDS.filter((b) => enabledBrands[b.key] !== false);
+                          const cols = activeB.length <= 3 ? "grid-cols-3" : activeB.length <= 4 ? "grid-cols-4" : "grid-cols-3";
+                          return (
+                          <div className={`grid ${cols} gap-1`}>
+                            {activeB.map(({ key, label, color }) => (
                               <button key={key} onClick={() => updatePayment(p.id, { cardBrand: key })}
                                 className={cn("h-7 rounded-lg border text-[8px] font-black uppercase tracking-widest transition-all",
                                   p.cardBrand === key ? "text-white border-transparent shadow-sm" : "bg-white border-slate-200 text-slate-500 hover:border-slate-400")}
@@ -1190,46 +1219,54 @@ ${change > 0 ? `<hr class="divider"/><div class="row bold"><span>TROCO:</span><s
                               </button>
                             ))}
                           </div>
-                        )}
+                          );
+                        })()
+                        /* bandeira end */}
 
                         {/* parcelamento */}
-                        {p.method === "credit" && (
-                          <div className="grid grid-cols-4 gap-1">
-                            {[1, 2, 3, 4, 5, 6, 10, 12].map((n) => {
-                              const rate      = cardFees[p.cardBrand]?.[n - 1] ?? 0;
-                              const pAmt      = Number(p.amount) || 0;
-                              const totalWFee = pAmt > 0 && rate > 0 ? pAmt * (1 + rate / 100) : pAmt;
-                              const perInst   = n > 1 && pAmt > 0 ? totalWFee / n : 0;
-                              const isActive  = p.installments === n;
-                              return (
-                                <button key={n} onClick={() => updatePayment(p.id, { installments: n })}
-                                  className={cn(
-                                    "rounded-lg border transition-all flex flex-col items-center justify-center py-1.5 px-1 gap-0.5",
-                                    isActive
-                                      ? "bg-emerald-600 border-emerald-500 text-white shadow-sm"
-                                      : "bg-white border-slate-200 text-slate-500 hover:border-slate-400"
-                                  )}>
-                                  <span className="text-[8px] font-black uppercase tracking-widest">{n === 1 ? "À vista" : `${n}×`}</span>
-                                  {rate > 0 && (
-                                    <span className={cn("text-[7px] font-bold", isActive ? "text-emerald-200" : "text-amber-500")}>
-                                      +{rate}%
-                                    </span>
-                                  )}
-                                  {pAmt > 0 && rate > 0 && (
-                                    <span className={cn("text-[7px] font-mono font-black", isActive ? "text-emerald-100" : "text-slate-600")}>
-                                      R${totalWFee.toFixed(2)}
-                                    </span>
-                                  )}
-                                  {perInst > 0 && (
-                                    <span className={cn("text-[7px] font-mono", isActive ? "text-emerald-200" : "text-slate-400")}>
-                                      {n}×R${perInst.toFixed(2)}
-                                    </span>
-                                  )}
-                                </button>
-                              );
-                            })}
-                          </div>
-                        )}
+                        {p.method === "credit" && (() => {
+                          const installOpts = Array.from({ length: maxInstallments }, (_, i) => i + 1);
+                          const cols = installOpts.length <= 4 ? "grid-cols-4" : installOpts.length <= 6 ? "grid-cols-6" : "grid-cols-4";
+                          return (
+                            <div className={`grid ${cols} gap-1`}>
+                              {installOpts.map((n) => {
+                                const rate      = cardFees[p.cardBrand]?.[n - 1] ?? 0;
+                                const pAmt      = Number(p.amount) || 0;
+                                const totalWFee = pAmt > 0 && rate > 0
+                                  ? (passFeeToCustomer ? pAmt * (1 + rate / 100) : pAmt)
+                                  : pAmt;
+                                const perInst   = n > 1 && pAmt > 0 ? totalWFee / n : 0;
+                                const isActive  = p.installments === n;
+                                return (
+                                  <button key={n} onClick={() => updatePayment(p.id, { installments: n })}
+                                    className={cn(
+                                      "rounded-lg border transition-all flex flex-col items-center justify-center py-1.5 px-1 gap-0.5",
+                                      isActive
+                                        ? "bg-emerald-600 border-emerald-500 text-white shadow-sm"
+                                        : "bg-white border-slate-200 text-slate-500 hover:border-slate-400"
+                                    )}>
+                                    <span className="text-[8px] font-black uppercase tracking-widest">{n === 1 ? "À vista" : `${n}×`}</span>
+                                    {rate > 0 && (
+                                      <span className={cn("text-[7px] font-bold", isActive ? "text-emerald-200" : passFeeToCustomer ? "text-blue-500" : "text-amber-500")}>
+                                        {passFeeToCustomer ? `c/ ${rate}%` : `+${rate}%`}
+                                      </span>
+                                    )}
+                                    {pAmt > 0 && rate > 0 && passFeeToCustomer && (
+                                      <span className={cn("text-[7px] font-mono font-black", isActive ? "text-emerald-100" : "text-slate-600")}>
+                                        R${totalWFee.toFixed(2)}
+                                      </span>
+                                    )}
+                                    {perInst > 0 && (
+                                      <span className={cn("text-[7px] font-mono", isActive ? "text-emerald-200" : "text-slate-400")}>
+                                        {n}×R${perInst.toFixed(2)}
+                                      </span>
+                                    )}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          );
+                        })()}
 
                         {/* valor + troco/restante */}
                         <div className="flex gap-2">
@@ -1490,7 +1527,7 @@ ${change > 0 ? `<hr class="divider"/><div class="row bold"><span>TROCO:</span><s
                 </button>
               </div>
 
-              <div className="flex-1 overflow-y-auto divide-y divide-slate-50">
+              <div className="flex-1 overflow-y-auto divide-y divide-slate-50 admin-scroll">
                 {services.map((svc) => {
                   const inCart = cartServices.some((s) => s.id === svc.id);
                   return (

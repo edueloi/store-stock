@@ -21,6 +21,7 @@ interface Customer {
   address?: string;
   notes?: string;
   credit_limit?: number;
+  birth_date?: string;
   risk_flag: boolean;
   risk_reason?: string;
   created_at: string;
@@ -97,6 +98,20 @@ const PAY_LABELS: Record<string, string> = {
   money: "Dinheiro", card: "Cartão", pix: "PIX",
 };
 
+function maskPhone(v: string) {
+  const d = v.replace(/\D/g, "").slice(0, 11);
+  if (d.length <= 10) return d.replace(/(\d{2})(\d{4})(\d{0,4})/, "($1) $2-$3").replace(/-$/, "");
+  return d.replace(/(\d{2})(\d{5})(\d{0,4})/, "($1) $2-$3").replace(/-$/, "");
+}
+
+function maskDoc(v: string) {
+  const d = v.replace(/\D/g, "");
+  if (d.length <= 11) {
+    return d.replace(/(\d{3})(\d{3})(\d{3})(\d{0,2})/, "$1.$2.$3-$4").replace(/-$/, "").replace(/\.{1,}$/, "");
+  }
+  return d.slice(0, 14).replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{0,2})/, "$1.$2.$3/$4-$5").replace(/-$/, "").replace(/\/$/, "");
+}
+
 // ─── Main Component ───────────────────────────────────────────────────────────
 
 type MainTab = "customers" | "debtors";
@@ -119,6 +134,7 @@ export default function Customers() {
   const [fAddr, setFAddr]         = useState("");
   const [fNotes, setFNotes]       = useState("");
   const [fCredit, setFCredit]     = useState("");
+  const [fBirth, setFBirth]       = useState("");
   const [fRisk, setFRisk]         = useState(false);
   const [fRiskReason, setFRiskReason] = useState("");
   const [saving, setSaving]       = useState(false);
@@ -176,15 +192,16 @@ export default function Customers() {
   function openCreate() {
     setEditCust(null);
     setFName(""); setFEmail(""); setFPhone(""); setFDoc("");
-    setFAddr(""); setFNotes(""); setFCredit(""); setFRisk(false); setFRiskReason("");
+    setFAddr(""); setFNotes(""); setFCredit(""); setFBirth(""); setFRisk(false); setFRiskReason("");
     setShowForm(true);
   }
 
   function openEdit(c: Customer) {
     setEditCust(c);
-    setFName(c.name); setFEmail(c.email ?? ""); setFPhone(c.phone ?? "");
-    setFDoc(c.document ?? ""); setFAddr(c.address ?? ""); setFNotes(c.notes ?? "");
+    setFName(c.name); setFEmail(c.email ?? ""); setFPhone(maskPhone(c.phone ?? ""));
+    setFDoc(maskDoc(c.document ?? "")); setFAddr(c.address ?? ""); setFNotes(c.notes ?? "");
     setFCredit(c.credit_limit ? String(c.credit_limit) : "");
+    setFBirth(c.birth_date ? c.birth_date.slice(0, 10) : "");
     setFRisk(c.risk_flag); setFRiskReason(c.risk_reason ?? "");
     setShowForm(true);
   }
@@ -196,9 +213,12 @@ export default function Customers() {
     setSaving(true);
     try {
       const body = {
-        name: fName, email: fEmail, phone: fPhone, document: fDoc,
+        name: fName, email: fEmail,
+        phone: fPhone.replace(/\D/g, "") || null,
+        document: fDoc.replace(/\D/g, "") || null,
         address: fAddr, notes: fNotes,
         credit_limit: fCredit ? Number(fCredit) : null,
+        birth_date: fBirth || null,
         risk_flag: fRisk,
         risk_reason: fRiskReason || null,
       };
@@ -912,12 +932,33 @@ export default function Customers() {
                 <div className="grid grid-cols-2 gap-2">
                   <div>
                     <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block mb-1">Telefone</label>
-                    <input value={fPhone} onChange={(e) => setFPhone(e.target.value)} placeholder="(11) 99999-9999" className="w-full h-9 px-3 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                    <input
+                      value={fPhone}
+                      onChange={(e) => setFPhone(maskPhone(e.target.value))}
+                      placeholder="(11) 99999-9999"
+                      inputMode="numeric"
+                      className="w-full h-9 px-3 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
                   </div>
                   <div>
                     <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block mb-1">CPF/CNPJ</label>
-                    <input value={fDoc} onChange={(e) => setFDoc(e.target.value)} placeholder="000.000.000-00" className="w-full h-9 px-3 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                    <input
+                      value={fDoc}
+                      onChange={(e) => setFDoc(maskDoc(e.target.value))}
+                      placeholder="000.000.000-00"
+                      inputMode="numeric"
+                      className="w-full h-9 px-3 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
                   </div>
+                </div>
+                <div>
+                  <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block mb-1">Data de Aniversário</label>
+                  <input
+                    type="date"
+                    value={fBirth}
+                    onChange={(e) => setFBirth(e.target.value)}
+                    className="w-full h-9 px-3 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
                 </div>
                 <div>
                   <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block mb-1">E-mail</label>

@@ -54,6 +54,10 @@ export interface Tenant {
   payment_methods?: PaymentMethods;
   policies?: StorePolicies;
   card_fees?: Record<string, number[]>;
+  pass_fee_to_customer?: boolean;
+  max_installments?: number;
+  enabled_brands?: Record<string, boolean>;
+  pass_fee_by_method?: Record<string, boolean>;
   status?: 'pending_setup' | 'trial' | 'active' | 'suspended';
   trial_days?: number;
   trial_starts_at?: string;

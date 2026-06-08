@@ -36,8 +36,12 @@ model Tenant {
   business_hours   Json?
   payment_methods  Json?
   policies         Json?
-  card_fees        Json?
-  status           String   @default("active")
+  card_fees              Json?
+  pass_fee_to_customer   Boolean  @default(false)
+  max_installments       Int      @default(12)
+  enabled_brands         Json?
+  pass_fee_by_method     Json?
+  status                 String   @default("active")
   trial_days       Int      @default(30)
   trial_starts_at  DateTime?
   trial_ends_at    DateTime?
@@ -324,6 +328,7 @@ model Customer {
   address      String?
   notes        String?  @db.Text
   credit_limit Decimal? @db.Decimal(10, 2)
+  birth_date   DateTime?
   risk_flag    Boolean  @default(false)
   risk_reason  String?  @db.Text
   created_at   DateTime @default(now())
