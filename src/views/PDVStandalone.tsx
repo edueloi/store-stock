@@ -5,7 +5,7 @@ import {
   Loader2, Lock, Mail, LogOut, Store,
   Printer, FileText, MessageCircle, Phone, ChevronRight, ChevronDown,
   PlusCircle, Barcode, Users, Scan, Star, Gift, UserPlus, Download,
-  Maximize2, Minimize2,
+  Maximize2, Minimize2, Wrench,
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { Product, Category } from "../types";
@@ -74,6 +74,7 @@ interface CompletedSale {
 }
 
 interface SellerEntry { id: number; name: string; commission_rate: number }
+interface ServiceItem  { id: number; name: string; price: number; description?: string }
 
 function newPayment(): PaymentEntry {
   return { id: Math.random().toString(36).slice(2), method: "money", cardBrand: "visa", installments: 1, amount: "" };
@@ -223,6 +224,11 @@ export default function PDVStandalone() {
   const [tenantColor, setTenantColor]     = useState("#2563eb");
   const [tenantWhatsapp, setTenantWhatsapp] = useState("");
 
+  // services
+  const [services, setServices]               = useState<ServiceItem[]>([]);
+  const [cartServices, setCartServices]       = useState<ServiceItem[]>([]);
+  const [showServicesModal, setShowServicesModal] = useState(false);
+
   // receipt modal
   const [completedSale, setCompletedSale]   = useState<CompletedSale | null>(null);
   const [showReceipt, setShowReceipt]       = useState(false);
@@ -338,6 +344,11 @@ export default function PDVStandalone() {
     fetch("/api/customers", { headers })
       .then((r) => r.json())
       .then((d) => setCustomers(Array.isArray(d) ? d : []))
+      .catch(() => {});
+
+    fetch("/api/services", { headers })
+      .then((r) => r.json())
+      .then((d) => setServices(Array.isArray(d) ? d.filter((s: ServiceItem & { is_active?: boolean }) => s.is_active !== false) : []))
       .catch(() => {});
 
     Promise.all([
@@ -471,7 +482,8 @@ export default function PDVStandalone() {
   const removeFromCart = (id: string) => setCart(cart.filter((i) => i.cartItemId !== id));
 
   // ── totals ───────────────────────────────────────────────────────────────────
-  const subtotal       = cart.reduce((a, b) => a + b.price * b.quantity, 0);
+  const servicesTotal  = cartServices.reduce((a, s) => a + Number(s.price), 0);
+  const subtotal       = cart.reduce((a, b) => a + b.price * b.quantity, 0) + servicesTotal;
   const discountRaw    = Number(discount) || 0;
   const discountValue  = discountMode === "%"
     ? Math.min(subtotal * discountRaw / 100, subtotal)
@@ -747,6 +759,7 @@ ${sale.change > 0 ? `<hr class="divider"/><div class="row bold"><span>TROCO:</sp
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify({
           items: cart.map((i) => ({ id: i.id, quantity: i.quantity, price: i.price, selectedOptions: i.selectedOptions ?? null })),
+          services: cartServices.map((s) => ({ id: s.id, name: s.name, price: s.price })),
           customerName,
           customerId: selectedCustomerId ?? undefined,
           sellerId: selectedSellerId,
@@ -793,7 +806,7 @@ ${sale.change > 0 ? `<hr class="divider"/><div class="row bold"><span>TROCO:</sp
           cardFees, pointsEarned, rewardApplied,
         };
         setCompletedSale(sale);
-        setCart([]); setCustomerName(""); setSelectedCustomerId(null); setCustomerPoints(0); setAppliedReward(null);
+        setCart([]); setCartServices([]); setCustomerName(""); setSelectedCustomerId(null); setCustomerPoints(0); setAppliedReward(null);
         setDiscount(""); setSurcharge(""); setSelectedSellerId(null);
         setPayments([newPayment()]);
         setShowCartMobile(false);
@@ -1436,6 +1449,12 @@ ${sale.change > 0 ? `<hr class="divider"/><div class="row bold"><span>TROCO:</sp
                     </div>
                     {/* Mini totais */}
                     <div className="mt-3 pt-3 border-t border-slate-200 space-y-1">
+                      {servicesTotal > 0 && (
+                        <div className="flex justify-between text-[10px]">
+                          <span className="flex items-center gap-1 text-slate-400"><Wrench size={9} /> Serviços</span>
+                          <span className="font-mono font-bold text-blue-600">+ R$ {servicesTotal.toFixed(2)}</span>
+                        </div>
+                      )}
                       {discountValue > 0 && (
                         <div className="flex justify-between text-[10px]">
                           <span className="text-slate-400">Desconto</span>
@@ -1641,6 +1660,44 @@ ${sale.change > 0 ? `<hr class="divider"/><div class="row bold"><span>TROCO:</sp
                       />
                     </div>
 
+                    {/* Serviços */}
+                    {services.length > 0 && (
+                      <div>
+                        <label className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400 mb-1.5 block">Serviços</label>
+                        <button
+                          type="button"
+                          onClick={() => setShowServicesModal(true)}
+                          className="w-full flex items-center justify-between h-10 bg-slate-50 border border-slate-200 rounded-xl px-3 hover:border-blue-400 hover:bg-blue-50 transition-all"
+                        >
+                          <span className="flex items-center gap-2 text-[11px] font-bold text-slate-500">
+                            <Wrench size={13} className="text-blue-500" />
+                            {cartServices.length === 0
+                              ? "Adicionar serviços"
+                              : `${cartServices.length} serviço${cartServices.length > 1 ? "s" : ""} — R$ ${servicesTotal.toFixed(2)}`}
+                          </span>
+                          <ChevronRight size={12} className="text-slate-300" />
+                        </button>
+                        {cartServices.length > 0 && (
+                          <div className="mt-1.5 space-y-1">
+                            {cartServices.map((s) => (
+                              <div key={s.id} className="flex items-center justify-between bg-blue-50 border border-blue-100 rounded-lg px-2.5 py-1.5">
+                                <span className="flex items-center gap-1.5 text-[10px] font-bold text-slate-700">
+                                  <Wrench size={10} className="text-blue-400" /> {s.name}
+                                </span>
+                                <div className="flex items-center gap-2">
+                                  <span className="text-[10px] font-mono font-black text-blue-600">R$ {Number(s.price).toFixed(2)}</span>
+                                  <button onClick={() => setCartServices((prev) => prev.filter((x) => x.id !== s.id))}
+                                    className="text-slate-300 hover:text-red-400 transition-colors">
+                                    <X size={11} />
+                                  </button>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )}
+
                     {/* Desconto + Acréscimo */}
                     <div className="grid grid-cols-2 gap-3">
                       <div>
@@ -1746,6 +1803,84 @@ ${sale.change > 0 ? `<hr class="divider"/><div class="row bold"><span>TROCO:</sp
                     </button>
                   </div>
                 </div>
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+
+      {/* ── SERVICES MODAL ─────────────────────────────────────────────────── */}
+      <AnimatePresence>
+        {showServicesModal && (
+          <>
+            <motion.div
+              key="svc-backdrop-sa"
+              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[310]"
+              onClick={() => setShowServicesModal(false)}
+            />
+            <motion.div
+              key="svc-panel-sa"
+              initial={{ x: "100%" }} animate={{ x: 0 }} exit={{ x: "100%" }}
+              transition={{ type: "spring", damping: 28, stiffness: 300 }}
+              className="fixed right-0 top-0 h-full w-full max-w-sm bg-white shadow-2xl z-[320] flex flex-col"
+            >
+              <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50 shrink-0">
+                <div className="flex items-center gap-2">
+                  <Wrench size={15} className="text-blue-600" />
+                  <span className="text-[11px] font-black text-slate-900 uppercase tracking-widest">Serviços</span>
+                </div>
+                <button onClick={() => setShowServicesModal(false)}
+                  className="w-8 h-8 rounded-lg border border-slate-200 bg-white flex items-center justify-center text-slate-400 hover:text-slate-700 transition-all">
+                  <X size={14} />
+                </button>
+              </div>
+
+              <div className="flex-1 overflow-y-auto divide-y divide-slate-50">
+                {services.map((svc) => {
+                  const inCart = cartServices.some((s) => s.id === svc.id);
+                  return (
+                    <div key={svc.id} className="px-5 py-3.5 flex items-center gap-3">
+                      <div className="w-9 h-9 rounded-xl bg-blue-50 flex items-center justify-center shrink-0">
+                        <Wrench size={14} className="text-blue-500" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-[12px] font-bold text-slate-900 uppercase truncate">{svc.name}</p>
+                        {svc.description && <p className="text-[9px] text-slate-400 truncate">{svc.description}</p>}
+                        <p className="text-[11px] font-mono font-black text-blue-600 mt-0.5">R$ {Number(svc.price).toFixed(2)}</p>
+                      </div>
+                      <button
+                        onClick={() => {
+                          if (inCart) setCartServices((prev) => prev.filter((s) => s.id !== svc.id));
+                          else setCartServices((prev) => [...prev, { ...svc, price: Number(svc.price) }]);
+                        }}
+                        className={cn(
+                          "w-8 h-8 rounded-xl border flex items-center justify-center transition-all shrink-0",
+                          inCart
+                            ? "bg-rose-500 border-rose-500 text-white hover:bg-rose-600"
+                            : "bg-blue-600 border-blue-600 text-white hover:bg-blue-700"
+                        )}
+                      >
+                        {inCart ? <X size={13} /> : <Plus size={13} />}
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+
+              <div className="px-5 py-4 border-t border-slate-100 space-y-2 shrink-0">
+                {cartServices.length > 0 && (
+                  <div className="flex items-center justify-between text-[10px] font-bold text-slate-500 uppercase tracking-widest">
+                    <span>{cartServices.length} serviço{cartServices.length > 1 ? "s" : ""} selecionado{cartServices.length > 1 ? "s" : ""}</span>
+                    <span className="font-mono text-blue-600 font-black">R$ {servicesTotal.toFixed(2)}</span>
+                  </div>
+                )}
+                <button
+                  onClick={() => setShowServicesModal(false)}
+                  className="w-full h-11 bg-slate-900 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-slate-700 transition-colors"
+                >
+                  Confirmar
+                </button>
               </div>
             </motion.div>
           </>
