@@ -59,6 +59,7 @@ export default function Orders() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [topProducts, setTopProducts] = useState<any[]>([]);
   const [tenant, setTenant] = useState<TenantBasic | null>(null);
+  const [printerSize, setPrinterSize] = useState<"58mm" | "80mm" | "A4">("58mm");
   const [loading, setLoading] = useState(true);
   const [selectedStatus, setSelectedStatus] = useState<string>("all");
   const [searchTerm, setSearchTerm] = useState("");
@@ -99,6 +100,10 @@ export default function Orders() {
     fetch("/api/tenant", { headers: { Authorization: `Bearer ${localStorage.getItem("token")}` } })
       .then((r) => r.json())
       .then((d) => setTenant(d))
+      .catch(() => {});
+    fetch("/api/preferences/receipt_printer_size", { headers: { Authorization: `Bearer ${localStorage.getItem("token")}` } })
+      .then((r) => r.json())
+      .then((v) => { if (v) setPrinterSize(v as "58mm" | "80mm" | "A4"); })
       .catch(() => {});
   }, []);
 
@@ -348,15 +353,15 @@ export default function Orders() {
     return `<!DOCTYPE html>
 <html><head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=58mm,initial-scale=1">
+<meta name="viewport" content="width=${printerSize === 'A4' ? 'device-width' : printerSize},initial-scale=1">
 <title>Comprovante #${String(order.id).padStart(5,'0')}</title>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
-  html, body { width: 58mm; background: #fff; color: #000; }
+  html, body { width: ${printerSize === 'A4' ? '100%' : printerSize}; background: #fff; color: #000; }
   body {
     font-family: 'Courier New', Courier, monospace;
-    font-size: 9pt;
-    padding: 3mm 3mm 6mm;
+    font-size: ${printerSize === 'A4' ? '11pt' : printerSize === '80mm' ? '10pt' : '9pt'};
+    padding: ${printerSize === 'A4' ? '0' : '3mm 3mm 6mm'};
     line-height: 1.35;
   }
   /* ── layout helpers ── */
@@ -403,8 +408,8 @@ export default function Orders() {
   .footer .thanks { font-size: 9pt; font-weight: bold; color: #000; display: block; margin-bottom: 1mm; }
   /* ── PRINT ── fill 100% of whatever paper the printer uses ── */
   @media print {
-    @page { size: 58mm auto; margin: 2mm 2mm; }
-    html, body { width: 58mm; }
+    @page { size: ${printerSize === 'A4' ? 'A4' : printerSize + ' auto'}; margin: ${printerSize === 'A4' ? '15mm 12mm' : '2mm 2mm'}; }
+    html, body { width: ${printerSize === 'A4' ? '100%' : printerSize}; }
   }
 </style></head><body>
 

@@ -498,6 +498,7 @@ export default function Settings() {
   const [panelTheme, setPanelTheme] = useState<"light" | "dark">("light");
   const [lowStockAlert, setLowStockAlert] = useState(5);
   const [panelLang, setPanelLang] = useState("pt-BR");
+  const [printerSize, setPrinterSize] = useState<"58mm" | "80mm" | "A4">("58mm");
 
   // password fields
   const [newPass, setNewPass] = useState("");
@@ -542,10 +543,12 @@ export default function Settings() {
       fetch("/api/preferences/panel_theme", { headers: API_HEADERS() }).then((r) => r.json()),
       fetch("/api/preferences/low_stock_alert", { headers: API_HEADERS() }).then((r) => r.json()),
       fetch("/api/preferences/panel_lang", { headers: API_HEADERS() }).then((r) => r.json()),
-    ]).then(([theme, alert, lang]) => {
+      fetch("/api/preferences/receipt_printer_size", { headers: API_HEADERS() }).then((r) => r.json()).catch(() => null),
+    ]).then(([theme, alert, lang, printer]) => {
       if (theme) setPanelTheme(theme as "light" | "dark");
       if (alert !== null) setLowStockAlert(Number(alert));
       if (lang) setPanelLang(lang as string);
+      if (printer) setPrinterSize(printer as "58mm" | "80mm" | "A4");
     }).catch(() => { /* prefs optional */ });
   }, []);
 
@@ -592,6 +595,10 @@ export default function Settings() {
         fetch("/api/preferences/panel_lang", {
           method: "PUT", headers: API_HEADERS(),
           body: JSON.stringify({ value: panelLang }),
+        }),
+        fetch("/api/preferences/receipt_printer_size", {
+          method: "PUT", headers: API_HEADERS(),
+          body: JSON.stringify({ value: printerSize }),
         }),
       ]);
       showSaved();
@@ -1966,6 +1973,53 @@ export default function Settings() {
                   <p className="text-[9px] text-slate-400 font-medium px-1">
                     Suporte multilíngue completo em breve.
                   </p>
+                </div>
+
+                {/* printer size */}
+                <div className="space-y-3">
+                  <p className="text-[10px] font-black uppercase tracking-widest text-slate-700 border-l-4 border-violet-500 pl-3">
+                    Impressora de Comprovantes
+                  </p>
+                  <p className="text-[9px] text-slate-400 font-medium px-1">
+                    Selecione o modelo da sua impressora para que o comprovante seja gerado no tamanho correto.
+                  </p>
+                  <div className="grid grid-cols-3 gap-3 max-w-sm">
+                    {([
+                      { value: "58mm", label: "58mm", desc: "Térmica pequena", example: "KNUP, Bematech 55" },
+                      { value: "80mm", label: "80mm", desc: "Térmica padrão", example: "Epson TM, Elgin" },
+                      { value: "A4",   label: "A4",   desc: "Laser / Jato", example: "Impressora comum" },
+                    ] as const).map((opt) => (
+                      <button
+                        key={opt.value}
+                        onClick={() => setPrinterSize(opt.value)}
+                        className={cn(
+                          "flex flex-col items-center gap-1.5 p-4 rounded-2xl border-2 transition-all text-center",
+                          printerSize === opt.value
+                            ? "border-violet-600 bg-violet-50"
+                            : "border-slate-100 hover:border-slate-200 bg-white",
+                        )}
+                      >
+                        {/* mini receipt icon */}
+                        <div className={cn(
+                          "rounded flex items-end justify-center shrink-0 border",
+                          opt.value === "58mm" ? "w-5 h-7" : opt.value === "80mm" ? "w-6 h-7" : "w-7 h-7",
+                          printerSize === opt.value ? "border-violet-400 bg-violet-100" : "border-slate-200 bg-slate-50",
+                        )}>
+                          <div className={cn("w-full mb-1 space-y-0.5 px-0.5")}>
+                            <div className={cn("h-px rounded", printerSize === opt.value ? "bg-violet-400" : "bg-slate-300")} />
+                            <div className={cn("h-px rounded", printerSize === opt.value ? "bg-violet-400" : "bg-slate-300")} />
+                            <div className={cn("h-px rounded w-2/3", printerSize === opt.value ? "bg-violet-400" : "bg-slate-300")} />
+                          </div>
+                        </div>
+                        <span className={cn("text-[11px] font-black", printerSize === opt.value ? "text-violet-700" : "text-slate-700")}>
+                          {opt.label}
+                        </span>
+                        <span className="text-[8px] font-medium text-slate-400 leading-tight">{opt.desc}</span>
+                        <span className="text-[7.5px] text-slate-300 leading-tight">{opt.example}</span>
+                        {printerSize === opt.value && <Check size={10} strokeWidth={3} className="text-violet-600" />}
+                      </button>
+                    ))}
+                  </div>
                 </div>
 
                 <div className="flex items-center gap-3 p-4 bg-amber-50 border border-amber-100 rounded-xl">
