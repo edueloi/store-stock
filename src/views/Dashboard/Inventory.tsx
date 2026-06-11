@@ -1004,7 +1004,7 @@ export default function Inventory() {
           )}
 
           <div className="flex flex-wrap gap-6 border-t border-slate-100 pt-4">
-            <Switch label="Ativo no catálogo" checked={editingProduct?.is_active ?? true}
+            <Switch label="Ativo no site" checked={editingProduct?.is_active ?? true}
               onChange={v => setEditingProduct(prev => ({ ...prev!, is_active: v }))} accent="emerald" />
             <Switch label="Destaque na home" checked={editingProduct?.is_featured ?? false}
               onChange={v => setEditingProduct(prev => ({ ...prev!, is_featured: v }))} accent="amber" />

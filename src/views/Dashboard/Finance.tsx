@@ -20,6 +20,8 @@ import {
   FileSpreadsheet,
   X,
   Tag,
+  Trash2,
+  Pencil,
 } from "lucide-react";
 import { FinanceEntry, Tenant } from "../../types";
 import { cn } from "../../lib/utils";
@@ -30,7 +32,10 @@ import Modal from "../../components/ui/Modal";
 const fmt = (v: number) =>
   v.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
-const today = () => new Date().toISOString().split("T")[0];
+const today = () => {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+};
 
 const monthStart = () => {
   const d = new Date();
@@ -539,6 +544,11 @@ export default function Finance() {
   const [showExport, setShowExport] = useState(false);
   const exportRef = useRef<HTMLDivElement>(null);
   const [selectedEntry, setSelectedEntry] = useState<FinanceEntry | null>(null);
+  const [checkedIds, setCheckedIds] = useState<Set<number>>(new Set());
+  const [deleting, setDeleting] = useState(false);
+  const [editingEntry, setEditingEntry] = useState<FinanceEntry | null>(null);
+  const [editForm, setEditForm] = useState<Partial<FinanceEntry>>({});
+  const [editSaving, setEditSaving] = useState(false);
 
   const token = () => localStorage.getItem("token");
 
@@ -603,6 +613,81 @@ export default function Finance() {
       }
     } catch {}
     setSaving(false);
+  };
+
+  const handleDeleteOne = async (id: number) => {
+    if (!confirm("Excluir este lançamento?")) return;
+    setDeleting(true);
+    try {
+      const res = await fetch(`/api/finance/${id}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token()}` },
+      });
+      if (res.ok) {
+        setSelectedEntry(null);
+        setCheckedIds((prev) => { const s = new Set(prev); s.delete(id); return s; });
+        fetchFinance();
+      }
+    } catch {}
+    setDeleting(false);
+  };
+
+  const handleDeleteBulk = async () => {
+    if (checkedIds.size === 0) return;
+    if (!confirm(`Excluir ${checkedIds.size} lançamento(s) selecionado(s)?`)) return;
+    setDeleting(true);
+    try {
+      const res = await fetch("/api/finance/bulk", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token()}` },
+        body: JSON.stringify({ ids: [...checkedIds] }),
+      });
+      if (res.ok) {
+        setCheckedIds(new Set());
+        fetchFinance();
+      }
+    } catch {}
+    setDeleting(false);
+  };
+
+  const openEdit = (entry: FinanceEntry) => {
+    setEditingEntry(entry);
+    setEditForm({ ...entry });
+    setSelectedEntry(null);
+  };
+
+  const handleEditSave = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingEntry) return;
+    setEditSaving(true);
+    try {
+      const res = await fetch(`/api/finance/${editingEntry.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token()}` },
+        body: JSON.stringify(editForm),
+      });
+      if (res.ok) {
+        setEditingEntry(null);
+        fetchFinance();
+      }
+    } catch {}
+    setEditSaving(false);
+  };
+
+  const toggleCheck = (id: number) => {
+    setCheckedIds((prev) => {
+      const s = new Set(prev);
+      if (s.has(id)) s.delete(id); else s.add(id);
+      return s;
+    });
+  };
+
+  const toggleCheckAll = () => {
+    if (checkedIds.size === filtered.length) {
+      setCheckedIds(new Set());
+    } else {
+      setCheckedIds(new Set(filtered.map((e) => e.id)));
+    }
   };
 
   // Filtered entries
@@ -954,6 +1039,29 @@ export default function Finance() {
           )}
         </div>
 
+        {/* Bulk action bar */}
+        {checkedIds.size > 0 && (
+          <div className="flex items-center gap-3 px-4 py-2 bg-rose-50 border border-rose-200 rounded-xl mx-0">
+            <span className="text-[10px] font-black text-rose-700 uppercase tracking-widest">
+              {checkedIds.size} selecionado(s)
+            </span>
+            <button
+              onClick={handleDeleteBulk}
+              disabled={deleting}
+              className="ml-auto flex items-center gap-1.5 h-8 px-3 bg-rose-600 text-white rounded-lg text-[10px] font-black uppercase tracking-widest hover:bg-rose-500 transition-colors disabled:opacity-50"
+            >
+              {deleting ? <Loader2 size={12} className="animate-spin" /> : <Trash2 size={12} />}
+              Excluir selecionados
+            </button>
+            <button
+              onClick={() => setCheckedIds(new Set())}
+              className="h-8 px-2 text-rose-500 hover:text-rose-700 transition-colors"
+            >
+              <X size={14} />
+            </button>
+          </div>
+        )}
+
         {/* Desktop Table */}
         <div className="hidden sm:block overflow-x-auto">
           {loading ? (
@@ -964,6 +1072,14 @@ export default function Finance() {
             <table className="w-full text-left border-collapse">
               <thead>
                 <tr className="bg-slate-50/80 border-b border-slate-100">
+                  <th className="px-3 py-3 w-8">
+                    <input
+                      type="checkbox"
+                      checked={filtered.length > 0 && checkedIds.size === filtered.length}
+                      onChange={toggleCheckAll}
+                      className="w-3.5 h-3.5 rounded accent-slate-700 cursor-pointer"
+                    />
+                  </th>
                   <th className="px-5 py-3 text-[9px] font-black text-slate-400 uppercase tracking-widest w-2/5">
                     Descrição
                   </th>
@@ -985,6 +1101,7 @@ export default function Finance() {
                   <th className="px-5 py-3 text-[9px] font-black text-slate-400 uppercase tracking-widest text-right">
                     Líquido
                   </th>
+                  <th className="px-3 py-3 w-16" />
                 </tr>
               </thead>
               <tbody>
@@ -992,16 +1109,25 @@ export default function Finance() {
                   const gross    = entry.gross_amount    != null ? Number(entry.gross_amount)    : null;
                   const discount = entry.discount_amount != null ? Number(entry.discount_amount) : null;
                   const fee      = entry.fee_amount      != null ? Number(entry.fee_amount)      : null;
+                  const checked  = checkedIds.has(entry.id);
                   return (
                     <tr
                       key={entry.id}
-                      onClick={() => setSelectedEntry(entry)}
                       className={cn(
-                        "border-b border-slate-50 hover:bg-blue-50/30 transition-colors cursor-pointer",
-                        idx % 2 === 0 ? "" : "bg-slate-50/20"
+                        "border-b border-slate-50 hover:bg-blue-50/30 transition-colors",
+                        idx % 2 === 0 ? "" : "bg-slate-50/20",
+                        checked ? "bg-blue-50/40" : ""
                       )}
                     >
-                      <td className="px-5 py-3">
+                      <td className="px-3 py-3" onClick={(ev) => ev.stopPropagation()}>
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={() => toggleCheck(entry.id)}
+                          className="w-3.5 h-3.5 rounded accent-slate-700 cursor-pointer"
+                        />
+                      </td>
+                      <td className="px-5 py-3 cursor-pointer" onClick={() => setSelectedEntry(entry)}>
                         <div className="flex items-center gap-3">
                           <div
                             className={cn(
@@ -1020,18 +1146,18 @@ export default function Finance() {
                           </span>
                         </div>
                       </td>
-                      <td className="px-5 py-3">
+                      <td className="px-5 py-3 cursor-pointer" onClick={() => setSelectedEntry(entry)}>
                         <span className="text-[10px] font-mono font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-md">
                           {formatDateBR(entry.date)}
                         </span>
                       </td>
-                      <td className="px-5 py-3">
+                      <td className="px-5 py-3 cursor-pointer" onClick={() => setSelectedEntry(entry)}>
                         <span className="text-[9px] font-black uppercase tracking-widest text-slate-400 bg-slate-50 border border-slate-100 px-2 py-0.5 rounded-md">
                           {entry.category || "Operacional"}
                         </span>
                       </td>
                       {/* Bruto */}
-                      <td className="px-4 py-3 text-right">
+                      <td className="px-4 py-3 text-right cursor-pointer" onClick={() => setSelectedEntry(entry)}>
                         {gross != null ? (
                           <span className="font-mono text-[11px] font-bold text-slate-500">
                             R$ {fmt(gross)}
@@ -1041,7 +1167,7 @@ export default function Finance() {
                         )}
                       </td>
                       {/* Desconto */}
-                      <td className="px-4 py-3 text-right">
+                      <td className="px-4 py-3 text-right cursor-pointer" onClick={() => setSelectedEntry(entry)}>
                         {discount != null && discount > 0 ? (
                           <span className="font-mono text-[11px] font-bold text-rose-400">
                             − R$ {fmt(discount)}
@@ -1051,7 +1177,7 @@ export default function Finance() {
                         )}
                       </td>
                       {/* Taxa */}
-                      <td className="px-4 py-3 text-right">
+                      <td className="px-4 py-3 text-right cursor-pointer" onClick={() => setSelectedEntry(entry)}>
                         {fee != null && fee > 0 ? (
                           <span className="font-mono text-[11px] font-bold text-amber-500">
                             − R$ {fmt(fee)}
@@ -1061,7 +1187,7 @@ export default function Finance() {
                         )}
                       </td>
                       {/* Líquido */}
-                      <td className="px-5 py-3 text-right">
+                      <td className="px-5 py-3 text-right cursor-pointer" onClick={() => setSelectedEntry(entry)}>
                         <span
                           className={cn(
                             "font-mono font-black text-sm",
@@ -1071,13 +1197,33 @@ export default function Finance() {
                           {entry.type === "income" ? "+" : "−"} R$ {fmt(Number(entry.amount))}
                         </span>
                       </td>
+                      {/* Ações */}
+                      <td className="px-3 py-3">
+                        <div className="flex items-center gap-1">
+                          <button
+                            onClick={(ev) => { ev.stopPropagation(); openEdit(entry); }}
+                            className="w-7 h-7 rounded-lg bg-slate-100 flex items-center justify-center text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-all"
+                            title="Editar"
+                          >
+                            <Pencil size={11} />
+                          </button>
+                          <button
+                            onClick={(ev) => { ev.stopPropagation(); handleDeleteOne(entry.id); }}
+                            disabled={deleting}
+                            className="w-7 h-7 rounded-lg bg-slate-100 flex items-center justify-center text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-all disabled:opacity-40"
+                            title="Excluir"
+                          >
+                            <Trash2 size={11} />
+                          </button>
+                        </div>
+                      </td>
                     </tr>
                   );
                 })}
                 {filtered.length === 0 && (
                   <tr>
                     <td
-                      colSpan={7}
+                      colSpan={9}
                       className="px-5 py-14 text-center text-[10px] font-black uppercase tracking-widest text-slate-300"
                     >
                       Nenhum lançamento no período selecionado
@@ -1088,6 +1234,7 @@ export default function Finance() {
               {filtered.length > 0 && (
                 <tfoot>
                   <tr className="bg-slate-900 text-white">
+                    <td className="px-3 py-3" />
                     <td className="px-5 py-3 text-[9px] font-black uppercase tracking-widest text-slate-400" colSpan={2}>
                       Totais do período
                     </td>
@@ -1126,6 +1273,7 @@ export default function Finance() {
                         R$ {fmt(balance)}
                       </span>
                     </td>
+                    <td className="px-3 py-3" />
                   </tr>
                 </tfoot>
               )}
@@ -1148,17 +1296,25 @@ export default function Finance() {
               const gross    = entry.gross_amount    != null ? Number(entry.gross_amount)    : null;
               const discount = entry.discount_amount != null ? Number(entry.discount_amount) : null;
               const fee      = entry.fee_amount      != null ? Number(entry.fee_amount)      : null;
+              const checked  = checkedIds.has(entry.id);
               return (
-                <div key={entry.id} onClick={() => setSelectedEntry(entry)} className="px-4 py-3.5 flex items-center gap-3 cursor-pointer hover:bg-blue-50/30 transition-colors">
+                <div key={entry.id} className={cn("px-4 py-3.5 flex items-center gap-3 hover:bg-blue-50/30 transition-colors", checked ? "bg-blue-50/40" : "")}>
+                  <input
+                    type="checkbox"
+                    checked={checked}
+                    onChange={() => toggleCheck(entry.id)}
+                    className="w-4 h-4 rounded accent-slate-700 cursor-pointer shrink-0"
+                  />
                   <div
+                    onClick={() => setSelectedEntry(entry)}
                     className={cn(
-                      "w-9 h-9 rounded-xl flex items-center justify-center shrink-0 text-white",
+                      "w-9 h-9 rounded-xl flex items-center justify-center shrink-0 text-white cursor-pointer",
                       entry.type === "income" ? "bg-emerald-500" : "bg-rose-500"
                     )}
                   >
                     {entry.type === "income" ? <TrendingUp size={15} /> : <TrendingDown size={15} />}
                   </div>
-                  <div className="flex-1 min-w-0">
+                  <div className="flex-1 min-w-0 cursor-pointer" onClick={() => setSelectedEntry(entry)}>
                     <p className="text-[11px] font-bold text-slate-900 uppercase truncate">
                       {entry.description}
                     </p>
@@ -1173,14 +1329,31 @@ export default function Finance() {
                       </p>
                     )}
                   </div>
-                  <span
-                    className={cn(
-                      "text-sm font-mono font-black shrink-0",
-                      entry.type === "income" ? "text-emerald-600" : "text-rose-600"
-                    )}
-                  >
-                    {entry.type === "income" ? "+" : "−"}R$ {fmt(Number(entry.amount))}
-                  </span>
+                  <div className="flex flex-col items-end gap-1 shrink-0">
+                    <span
+                      className={cn(
+                        "text-sm font-mono font-black",
+                        entry.type === "income" ? "text-emerald-600" : "text-rose-600"
+                      )}
+                    >
+                      {entry.type === "income" ? "+" : "−"}R$ {fmt(Number(entry.amount))}
+                    </span>
+                    <div className="flex gap-1">
+                      <button
+                        onClick={() => openEdit(entry)}
+                        className="w-6 h-6 rounded-md bg-slate-100 flex items-center justify-center text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-all"
+                      >
+                        <Pencil size={10} />
+                      </button>
+                      <button
+                        onClick={() => handleDeleteOne(entry.id)}
+                        disabled={deleting}
+                        className="w-6 h-6 rounded-md bg-slate-100 flex items-center justify-center text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-all disabled:opacity-40"
+                      >
+                        <Trash2 size={10} />
+                      </button>
+                    </div>
+                  </div>
                 </div>
               );
             })
@@ -1323,12 +1496,25 @@ export default function Finance() {
                 </div>
 
                 {/* Footer */}
-                <div className="px-6 py-4 border-t border-slate-100">
+                <div className="px-6 py-4 border-t border-slate-100 flex gap-2">
+                  <button
+                    onClick={() => openEdit(e)}
+                    className="flex-1 h-11 bg-blue-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-blue-500 transition-colors flex items-center justify-center gap-2"
+                  >
+                    <Pencil size={13} /> Editar
+                  </button>
+                  <button
+                    onClick={() => handleDeleteOne(e.id)}
+                    disabled={deleting}
+                    className="flex-1 h-11 bg-rose-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-rose-500 transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
+                  >
+                    <Trash2 size={13} /> Excluir
+                  </button>
                   <button
                     onClick={() => setSelectedEntry(null)}
-                    className="w-full h-11 bg-slate-900 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-slate-700 transition-colors"
+                    className="h-11 px-4 border border-slate-200 text-slate-500 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-slate-50 transition-colors"
                   >
-                    Fechar
+                    <X size={14} />
                   </button>
                 </div>
               </motion.div>
@@ -1336,6 +1522,119 @@ export default function Finance() {
           );
         })()}
       </AnimatePresence>
+
+      {/* ── EDIT ENTRY MODAL ─────────────────────────────────────────────── */}
+      <Modal
+        open={!!editingEntry}
+        onClose={() => setEditingEntry(null)}
+        title="Editar Lançamento"
+        size="sm"
+        footer={
+          <>
+            <button
+              type="button"
+              onClick={() => setEditingEntry(null)}
+              className="flex-1 h-10 border border-slate-200 text-[10px] font-black uppercase tracking-widest rounded-xl hover:bg-slate-50 transition-colors"
+            >
+              Cancelar
+            </button>
+            <button
+              form="edit-finance-form"
+              type="submit"
+              disabled={editSaving}
+              className="flex-1 h-10 text-white rounded-xl text-[10px] font-black uppercase tracking-widest bg-blue-600 hover:bg-blue-500 transition-all shadow-lg shadow-blue-200 flex items-center justify-center gap-2"
+            >
+              {editSaving ? <Loader2 size={14} className="animate-spin" /> : "Salvar"}
+            </button>
+          </>
+        }
+      >
+        <form id="edit-finance-form" onSubmit={handleEditSave} className="space-y-4">
+          <div className="space-y-1.5">
+            <label className="text-[9px] font-black text-slate-400 uppercase tracking-[0.18em] px-1 block">
+              Descrição
+            </label>
+            <input
+              type="text"
+              required
+              className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 h-11 text-xs font-bold focus:ring-2 focus:ring-blue-500/10 focus:border-blue-400 outline-none transition-all"
+              value={editForm.description || ""}
+              onChange={(e) => setEditForm({ ...editForm, description: e.target.value })}
+            />
+          </div>
+          <div className="space-y-1.5">
+            <label className="text-[9px] font-black text-slate-400 uppercase tracking-[0.18em] px-1 block">
+              Valor (R$)
+            </label>
+            <input
+              type="number"
+              step="0.01"
+              min="0.01"
+              required
+              className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 h-11 text-sm font-mono font-bold focus:ring-2 focus:ring-blue-500/10 focus:border-blue-400 outline-none transition-all"
+              value={editForm.amount || ""}
+              onChange={(e) => setEditForm({ ...editForm, amount: Number(e.target.value) })}
+            />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <label className="text-[9px] font-black text-slate-400 uppercase tracking-[0.18em] px-1 block">
+                Data
+              </label>
+              <input
+                type="date"
+                required
+                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 h-11 text-xs font-bold focus:ring-2 focus:ring-blue-500/10 focus:border-blue-400 outline-none transition-all"
+                value={editForm.date ? editForm.date.substring(0, 10) : ""}
+                onChange={(e) => setEditForm({ ...editForm, date: e.target.value })}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-[9px] font-black text-slate-400 uppercase tracking-[0.18em] px-1 block">
+                Categoria
+              </label>
+              <input
+                type="text"
+                placeholder="Operacional"
+                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 h-11 text-xs font-bold focus:ring-2 focus:ring-blue-500/10 focus:border-blue-400 outline-none transition-all"
+                value={editForm.category || ""}
+                onChange={(e) => setEditForm({ ...editForm, category: e.target.value })}
+              />
+            </div>
+          </div>
+          <div className="space-y-1.5">
+            <label className="text-[9px] font-black text-slate-400 uppercase tracking-[0.18em] px-1 block">
+              Tipo
+            </label>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => setEditForm({ ...editForm, type: "income" })}
+                className={cn(
+                  "h-10 rounded-xl text-[10px] font-black uppercase tracking-widest border transition-all",
+                  editForm.type === "income"
+                    ? "bg-emerald-600 text-white border-emerald-600"
+                    : "bg-white text-slate-400 border-slate-200 hover:border-emerald-300"
+                )}
+              >
+                + Receita
+              </button>
+              <button
+                type="button"
+                onClick={() => setEditForm({ ...editForm, type: "expense" })}
+                className={cn(
+                  "h-10 rounded-xl text-[10px] font-black uppercase tracking-widest border transition-all",
+                  editForm.type === "expense"
+                    ? "bg-rose-600 text-white border-rose-600"
+                    : "bg-white text-slate-400 border-slate-200 hover:border-rose-300"
+                )}
+              >
+                − Despesa
+              </button>
+            </div>
+          </div>
+        </form>
+      </Modal>
 
       {/* ── ADD ENTRY MODAL ─────────────────────────────────────────────── */}
       <Modal
