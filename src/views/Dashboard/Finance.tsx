@@ -545,6 +545,7 @@ export default function Finance() {
   const [selectedEntry, setSelectedEntry] = useState<FinanceEntry | null>(null);
   const [checkedIds, setCheckedIds] = useState<Set<number>>(new Set());
   const [deleting, setDeleting] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState<{ ids: number[]; bulk: boolean } | null>(null);
   const [editingEntry, setEditingEntry] = useState<FinanceEntry | null>(null);
   const [editForm, setEditForm] = useState<Partial<FinanceEntry>>({});
   const [editSaving, setEditSaving] = useState(false);
@@ -614,39 +615,43 @@ export default function Finance() {
     setSaving(false);
   };
 
-  const handleDeleteOne = async (id: number) => {
-    if (!confirm("Excluir este lançamento?")) return;
-    setDeleting(true);
-    try {
-      const res = await fetch(`/api/finance/${id}`, {
-        method: "DELETE",
-        headers: { Authorization: `Bearer ${token()}` },
-      });
-      if (res.ok) {
-        setSelectedEntry(null);
-        setCheckedIds((prev) => { const s = new Set(prev); s.delete(id); return s; });
-        fetchFinance();
-      }
-    } catch {}
-    setDeleting(false);
+  const handleDeleteOne = (id: number) => {
+    setConfirmDelete({ ids: [id], bulk: false });
   };
 
-  const handleDeleteBulk = async () => {
+  const handleDeleteBulk = () => {
     if (checkedIds.size === 0) return;
-    if (!confirm(`Excluir ${checkedIds.size} lançamento(s) selecionado(s)?`)) return;
+    setConfirmDelete({ ids: [...checkedIds], bulk: true });
+  };
+
+  const executeDelete = async () => {
+    if (!confirmDelete) return;
     setDeleting(true);
     try {
-      const res = await fetch("/api/finance/bulk", {
-        method: "DELETE",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token()}` },
-        body: JSON.stringify({ ids: [...checkedIds] }),
-      });
-      if (res.ok) {
-        setCheckedIds(new Set());
-        fetchFinance();
+      if (confirmDelete.bulk || confirmDelete.ids.length > 1) {
+        const res = await fetch("/api/finance/bulk", {
+          method: "DELETE",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token()}` },
+          body: JSON.stringify({ ids: confirmDelete.ids }),
+        });
+        if (res.ok) {
+          setCheckedIds(new Set());
+          fetchFinance();
+        }
+      } else {
+        const res = await fetch(`/api/finance/${confirmDelete.ids[0]}`, {
+          method: "DELETE",
+          headers: { Authorization: `Bearer ${token()}` },
+        });
+        if (res.ok) {
+          setSelectedEntry(null);
+          setCheckedIds((prev) => { const s = new Set(prev); s.delete(confirmDelete.ids[0]); return s; });
+          fetchFinance();
+        }
       }
     } catch {}
     setDeleting(false);
+    setConfirmDelete(null);
   };
 
   const openEdit = (entry: FinanceEntry) => {
@@ -1518,6 +1523,63 @@ export default function Finance() {
             </>
           );
         })()}
+      </AnimatePresence>
+
+      {/* ── CONFIRM DELETE MODAL ─────────────────────────────────────────── */}
+      <AnimatePresence>
+        {confirmDelete && (
+          <>
+            <motion.div
+              key="confirm-delete-backdrop"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[60]"
+              onClick={() => !deleting && setConfirmDelete(null)}
+            />
+            <motion.div
+              key="confirm-delete-modal"
+              initial={{ opacity: 0, scale: 0.95, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 10 }}
+              transition={{ type: "spring", damping: 25, stiffness: 350 }}
+              className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-[61] w-full max-w-sm bg-white rounded-2xl shadow-2xl overflow-hidden"
+            >
+              <div className="px-6 pt-6 pb-2 flex items-start gap-4">
+                <div className="w-11 h-11 rounded-xl bg-rose-100 flex items-center justify-center shrink-0">
+                  <Trash2 size={20} className="text-rose-600" />
+                </div>
+                <div>
+                  <p className="text-[13px] font-black text-slate-900 uppercase tracking-wide">
+                    {confirmDelete.ids.length > 1 ? `Excluir ${confirmDelete.ids.length} lançamentos?` : "Excluir lançamento?"}
+                  </p>
+                  <p className="text-[11px] text-slate-500 mt-1">
+                    {confirmDelete.ids.length > 1
+                      ? "Essa ação não pode ser desfeita. Os registros serão removidos permanentemente."
+                      : "Essa ação não pode ser desfeita. O registro será removido permanentemente."}
+                  </p>
+                </div>
+              </div>
+              <div className="px-6 py-5 flex gap-2">
+                <button
+                  onClick={() => setConfirmDelete(null)}
+                  disabled={deleting}
+                  className="flex-1 h-11 border border-slate-200 rounded-xl text-[10px] font-black uppercase tracking-widest text-slate-600 hover:bg-slate-50 transition-colors disabled:opacity-50"
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={executeDelete}
+                  disabled={deleting}
+                  className="flex-1 h-11 bg-rose-600 hover:bg-rose-500 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
+                >
+                  {deleting ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={13} />}
+                  {deleting ? "Excluindo..." : "Excluir"}
+                </button>
+              </div>
+            </motion.div>
+          </>
+        )}
       </AnimatePresence>
 
       {/* ── EDIT ENTRY MODAL ─────────────────────────────────────────────── */}
