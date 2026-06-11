@@ -346,85 +346,121 @@ export default function Orders() {
     const grossAmount  = order.gross_amount ? Number(order.gross_amount) : Number(order.total_amount);
 
     return `<!DOCTYPE html>
-<html><head><meta charset="utf-8">
+<html><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=58mm,initial-scale=1">
 <title>Comprovante #${String(order.id).padStart(5,'0')}</title>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { font-family: 'Courier New', monospace; font-size: 12px; width: 80mm; margin: 0 auto; padding: 8px 6px 16px; color: #000; background: #fff; }
-  .store-name { font-size: 15px; font-weight: bold; text-align: center; text-transform: uppercase; letter-spacing: 1px; }
-  .store-info { font-size: 10px; text-align: center; color: #333; line-height: 1.6; margin-top: 2px; }
-  .doc-title { font-size: 13px; font-weight: bold; text-align: center; text-transform: uppercase; letter-spacing: 2px; margin: 8px 0 2px; }
-  .doc-sub { font-size: 10px; text-align: center; color: #555; margin-bottom: 2px; }
-  .divider { border: none; border-top: 1px dashed #000; margin: 6px 0; }
-  .section-title { font-size: 10px; font-weight: bold; text-transform: uppercase; letter-spacing: 1px; margin: 4px 0 3px; }
-  .row { display: flex; justify-content: space-between; align-items: flex-start; margin: 3px 0; font-size: 11px; }
-  .row .lbl { color: #444; white-space: nowrap; margin-right: 6px; }
-  .row .val { text-align: right; }
-  .item-wrap { margin: 4px 0; }
-  .item-name { font-weight: bold; font-size: 11px; }
-  .item-qty  { font-size: 10px; color: #555; }
-  .item-price { font-weight: bold; text-align: right; white-space: nowrap; font-size: 11px; }
-  .total-row { display: flex; justify-content: space-between; font-size: 15px; font-weight: bold; margin: 5px 0; border-top: 1px solid #000; padding-top: 4px; }
-  .status-box { text-align: center; font-weight: bold; font-size: 12px; padding: 3px 10px; border: 2px solid #000; display: inline-block; letter-spacing: 2px; }
-  .status-wrap { text-align: center; margin: 6px 0 4px; }
-  .pay-row { display: flex; justify-content: space-between; font-size: 11px; margin: 3px 0; }
-  .pay-label { color: #222; }
-  .pay-amount { font-weight: bold; }
-  .footer { text-align: center; font-size: 10px; color: #555; margin-top: 12px; line-height: 1.7; }
-  .footer strong { display: block; font-size: 11px; color: #000; margin-bottom: 2px; }
-  @media print { @page { margin: 0; size: 80mm auto; } body { padding: 6px 4px 12px; } }
+  html, body { width: 58mm; background: #fff; color: #000; }
+  body {
+    font-family: 'Courier New', Courier, monospace;
+    font-size: 9pt;
+    padding: 3mm 3mm 6mm;
+    line-height: 1.35;
+  }
+  /* ── layout helpers ── */
+  .center  { text-align: center; }
+  .bold    { font-weight: bold; }
+  .small   { font-size: 9pt; }
+  .xsmall  { font-size: 8pt; color: #555; }
+  .divider { border: none; border-top: 1px dashed #000; margin: 4mm 0; }
+  .solid   { border-top-style: solid; }
+  /* ── store header ── */
+  .store-name { font-size: 11pt; font-weight: bold; text-align: center; text-transform: uppercase; letter-spacing: 0.5px; }
+  .store-info { font-size: 7pt; text-align: center; color: #222; line-height: 1.6; margin-top: 1mm; }
+  /* ── doc title ── */
+  .doc-title { font-size: 10pt; font-weight: bold; text-align: center; text-transform: uppercase; letter-spacing: 1.5px; margin: 2mm 0 1mm; }
+  .doc-sub   { font-size: 7.5pt; text-align: center; color: #555; }
+  /* ── status badge ── */
+  .status-wrap { text-align: center; margin: 1.5mm 0 1mm; }
+  .status-box  { display: inline-block; font-weight: bold; font-size: 9pt; padding: 0.5mm 4mm; border: 1.5px solid #000; letter-spacing: 2px; }
+  /* ── section label ── */
+  .section { font-size: 7.5pt; font-weight: bold; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 1mm; }
+  /* ── row (label + value side-by-side) ── */
+  .row      { display: table; width: 100%; margin: 0.8mm 0; font-size: 8pt; }
+  .row .lbl { display: table-cell; color: #444; white-space: nowrap; padding-right: 2mm; }
+  .row .val { display: table-cell; text-align: right; font-weight: bold; }
+  /* ── items ── */
+  .item       { margin: 1.5mm 0; }
+  .item-line  { display: table; width: 100%; }
+  .item-name  { display: table-cell; font-weight: bold; font-size: 8.5pt; padding-right: 2mm; word-break: break-word; }
+  .item-price { display: table-cell; text-align: right; font-weight: bold; font-size: 8.5pt; white-space: nowrap; }
+  .item-qty   { font-size: 7pt; color: #555; padding-top: 0.3mm; }
+  /* ── totals ── */
+  .subtotal-row { display: table; width: 100%; font-size: 8pt; margin: 0.8mm 0; }
+  .subtotal-row .lbl { display: table-cell; color: #555; }
+  .subtotal-row .val { display: table-cell; text-align: right; }
+  .total-line { display: table; width: 100%; margin: 1.5mm 0 0; border-top: 1.5px solid #000; padding-top: 1.5mm; }
+  .total-lbl  { display: table-cell; font-size: 12pt; font-weight: bold; }
+  .total-val  { display: table-cell; text-align: right; font-size: 12pt; font-weight: bold; }
+  /* ── payment ── */
+  .pay-row      { display: table; width: 100%; margin: 1mm 0; font-size: 8pt; }
+  .pay-label    { display: table-cell; }
+  .pay-amount   { display: table-cell; text-align: right; font-weight: bold; }
+  /* ── footer ── */
+  .footer { text-align: center; font-size: 7pt; color: #555; margin-top: 4mm; line-height: 1.7; }
+  .footer .thanks { font-size: 9pt; font-weight: bold; color: #000; display: block; margin-bottom: 1mm; }
+  /* ── PRINT ── fill 100% of whatever paper the printer uses ── */
+  @media print {
+    @page { size: 58mm auto; margin: 2mm 2mm; }
+    html, body { width: 58mm; }
+  }
 </style></head><body>
 
 <div class="store-name">${storeName}</div>
 <div class="store-info">
-  ${storeDoc ? storeDoc + '<br/>' : ''}
-  ${storeAddr ? storeAddr + '<br/>' : ''}
-  ${storePhone ? storePhone : ''}
+  ${storeDoc ? storeDoc + '<br>' : ''}${storeAddr ? storeAddr + '<br>' : ''}${storePhone || ''}
 </div>
 
 <hr class="divider"/>
+
 <div class="doc-title">Comprovante de Venda</div>
-<div class="doc-sub">Pedido #${String(order.id).padStart(5,'0')}</div>
-<div class="doc-sub">${new Date(order.created_at).toLocaleString('pt-BR')}</div>
-<div class="status-wrap"><div class="status-box">${statusLabel}</div></div>
+<div class="doc-sub">Pedido #${String(order.id).padStart(5,'0')} &nbsp;|&nbsp; ${new Date(order.created_at).toLocaleString('pt-BR')}</div>
+<div class="status-wrap"><span class="status-box">${statusLabel}</span></div>
 
 <hr class="divider"/>
-<div class="section-title">Dados do Cliente</div>
-<div class="row"><span class="lbl">Cliente:</span><span class="val"><strong>${order.customer_name || 'Consumidor Final'}</strong></span></div>
+
+<div class="section">Cliente</div>
+<div class="row"><span class="lbl">Nome:</span><span class="val">${order.customer_name || 'Consumidor Final'}</span></div>
 ${order.customer_phone ? `<div class="row"><span class="lbl">Telefone:</span><span class="val">${order.customer_phone}</span></div>` : ''}
 ${order.customer_address ? `<div class="row"><span class="lbl">Endereço:</span><span class="val">${order.customer_address}</span></div>` : ''}
 ${order.seller_name ? `<div class="row"><span class="lbl">Vendedor:</span><span class="val">${order.seller_name}</span></div>` : ''}
 
 <hr class="divider"/>
-<div class="section-title">Itens do Pedido</div>
-${order.items.map(item => `
-<div class="item-wrap">
-  <div class="row">
+
+<div class="section">Itens do Pedido</div>
+${order.items.map(item => `<div class="item">
+  <div class="item-line">
     <span class="item-name">${item.product_name}</span>
     <span class="item-price">R$ ${(item.quantity * Number(item.unit_price)).toFixed(2)}</span>
   </div>
-  <div class="item-qty">${item.quantity} un × R$ ${Number(item.unit_price).toFixed(2)}</div>
+  <div class="item-qty">${item.quantity} un &times; R$ ${Number(item.unit_price).toFixed(2)}</div>
 </div>`).join('')}
 
 <hr class="divider"/>
+
 ${hasDiscount || hasFee ? `
-<div class="row"><span class="lbl">Subtotal:</span><span class="val">R$ ${grossAmount.toFixed(2)}</span></div>
-${hasDiscount ? `<div class="row"><span class="lbl">Desconto:</span><span class="val">- R$ ${Number(order.discount_amount).toFixed(2)}</span></div>` : ''}
-${hasFee ? `<div class="row"><span class="lbl">Acréscimo:</span><span class="val">+ R$ ${Number(order.fee_amount).toFixed(2)}</span></div>` : ''}
-<hr class="divider"/>` : ''}
-<div class="total-row"><span>TOTAL</span><span>R$ ${Number(order.total_amount).toFixed(2)}</span></div>
+<div class="subtotal-row"><span class="lbl">Subtotal</span><span class="val">R$ ${grossAmount.toFixed(2)}</span></div>
+${hasDiscount ? `<div class="subtotal-row"><span class="lbl">Desconto</span><span class="val">- R$ ${Number(order.discount_amount).toFixed(2)}</span></div>` : ''}
+${hasFee ? `<div class="subtotal-row"><span class="lbl">Acréscimo</span><span class="val">+ R$ ${Number(order.fee_amount).toFixed(2)}</span></div>` : ''}
+` : ''}
+<div class="total-line">
+  <span class="total-lbl">TOTAL</span>
+  <span class="total-val">R$ ${Number(order.total_amount).toFixed(2)}</span>
+</div>
 
 <hr class="divider"/>
-<div class="section-title">Pagamento</div>
-${payments.map(p => `
-<div class="pay-row">
+
+<div class="section">Pagamento</div>
+${payments.map(p => `<div class="pay-row">
   <span class="pay-label">${p.label}</span>
   <span class="pay-amount">${p.amount}</span>
 </div>`).join('')}
 
 <div class="footer">
-  <strong>Obrigado pela preferência!</strong>
-  Documento gerado em ${new Date().toLocaleString('pt-BR')}<br/>
+  <span class="thanks">Obrigado pela preferência!</span>
+  Emitido em ${new Date().toLocaleString('pt-BR')}<br>
   Este documento não tem valor fiscal.
 </div>
 </body></html>`;
@@ -756,192 +792,236 @@ ${payments.map(p => `
 
       {/* Details Modal */}
       <AnimatePresence>
-         {isDetailModalOpen && selectedOrder && (
-            <div className="fixed inset-0 z-50 flex items-end sm:items-center sm:justify-end bg-slate-900/40 backdrop-blur-xs">
-               <motion.div
-                 initial={{ y: "100%", x: 0 }}
-                 animate={{ y: 0, x: 0 }}
-                 exit={{ y: "100%", x: 0 }}
-                 className="bg-white w-full max-h-[92dvh] sm:max-h-full sm:h-full sm:max-w-lg shadow-2xl flex flex-col rounded-t-2xl sm:rounded-none sm:border-l border-slate-200 overflow-hidden"
-               >
-                  <div className="px-8 py-6 bg-slate-50 border-b border-slate-200 flex justify-between items-center">
-                     <div>
-                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Detalhes do Pedido</p>
-                        <h4 className="text-xl font-black text-slate-900 tracking-tighter">ORD #{String(selectedOrder.id).padStart(5, '0')}</h4>
-                     </div>
-                     <button onClick={() => setIsDetailModalOpen(false)} className="p-2 hover:bg-slate-200 rounded-full transition-all text-slate-400"><X size={20} /></button>
+        {isDetailModalOpen && selectedOrder && (
+          <>
+            {/* backdrop */}
+            <motion.div
+              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              onClick={() => setIsDetailModalOpen(false)}
+              className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-sm"
+            />
+            {/* sheet */}
+            <motion.div
+              initial={{ y: "100%" }}
+              animate={{ y: 0 }}
+              exit={{ y: "100%" }}
+              transition={{ type: "spring", damping: 32, stiffness: 300 }}
+              className="fixed inset-x-0 bottom-0 z-50 flex flex-col bg-white rounded-t-3xl shadow-2xl max-h-[94dvh] sm:inset-auto sm:right-0 sm:top-0 sm:bottom-0 sm:w-[420px] sm:rounded-none sm:rounded-l-3xl sm:max-h-full sm:border-l border-slate-200"
+            >
+              {/* drag handle (mobile only) */}
+              <div className="shrink-0 flex justify-center pt-3 pb-1 sm:hidden">
+                <div className="w-10 h-1 rounded-full bg-slate-200" />
+              </div>
+
+              {/* header */}
+              <div className="shrink-0 px-5 py-4 flex items-center justify-between border-b border-slate-100">
+                <div className="flex items-center gap-3">
+                  <div className={cn(
+                    "w-9 h-9 rounded-2xl flex items-center justify-center shrink-0",
+                    selectedOrder.status === 'completed' ? "bg-emerald-100" :
+                    selectedOrder.status === 'cancelled' ? "bg-red-100" : "bg-amber-100"
+                  )}>
+                    {selectedOrder.status === 'completed'
+                      ? <CheckCircle2 size={18} className="text-emerald-600" />
+                      : selectedOrder.status === 'cancelled'
+                      ? <XCircle size={18} className="text-red-600" />
+                      : <Clock size={18} className="text-amber-600" />
+                    }
                   </div>
+                  <div>
+                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest leading-none mb-0.5">Pedido</p>
+                    <h4 className="text-lg font-black text-slate-900 leading-none">#{String(selectedOrder.id).padStart(5, '0')}</h4>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  {selectedOrder.status === 'pending' && (
+                    <button onClick={() => handleUpdateStatus(selectedOrder.id, 'completed')}
+                      className="h-9 px-4 bg-emerald-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg shadow-emerald-200/50 hover:bg-emerald-700 active:scale-95 transition-all">
+                      Efetivar
+                    </button>
+                  )}
+                  {selectedOrder.status !== 'cancelled' && (
+                    <button onClick={() => setShowCancelModal(true)}
+                      className="h-9 px-3 bg-red-50 text-red-600 border border-red-200 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-red-100 active:scale-95 transition-all">
+                      Cancelar
+                    </button>
+                  )}
+                  <button onClick={() => setIsDetailModalOpen(false)}
+                    className="w-9 h-9 flex items-center justify-center bg-slate-100 hover:bg-slate-200 rounded-xl transition-all text-slate-500 shrink-0">
+                    <X size={16} />
+                  </button>
+                </div>
+              </div>
 
-                  <div className="flex-1 overflow-y-auto p-6 space-y-5 no-scrollbar">
+              {/* scrollable body */}
+              <div className="flex-1 overflow-y-auto overscroll-contain">
 
-                     {/* Status bar */}
-                     <div className={cn(
-                       "p-4 rounded-2xl border flex items-center justify-between",
-                       selectedOrder.status === 'completed' ? "bg-emerald-50 border-emerald-100" :
-                       selectedOrder.status === 'cancelled' ? "bg-red-50 border-red-100" : "bg-amber-50 border-amber-100"
-                     )}>
-                        <div className="flex items-center gap-2.5">
-                           <div className={cn("w-2.5 h-2.5 rounded-full", selectedOrder.status === 'completed' ? 'bg-emerald-500' : selectedOrder.status === 'pending' ? 'bg-amber-500' : 'bg-red-500')} />
-                           <span className={cn("text-[10px] font-black uppercase tracking-widest", selectedOrder.status === 'completed' ? 'text-emerald-700' : selectedOrder.status === 'cancelled' ? 'text-red-700' : 'text-amber-700')}>
-                             {selectedOrder.status === 'completed' ? 'Pago' : selectedOrder.status === 'pending' ? 'Pendente' : 'Cancelado / Estornado'}
-                           </span>
+                {/* total hero */}
+                <div className={cn(
+                  "mx-4 mt-4 rounded-2xl p-4 flex items-center justify-between",
+                  selectedOrder.status === 'completed' ? "bg-emerald-600" :
+                  selectedOrder.status === 'cancelled' ? "bg-slate-800" : "bg-amber-500"
+                )}>
+                  <div>
+                    <p className="text-[10px] font-bold text-white/70 uppercase tracking-widest mb-0.5">
+                      {selectedOrder.status === 'completed' ? 'Total Pago' : selectedOrder.status === 'cancelled' ? 'Cancelado' : 'Valor Pendente'}
+                    </p>
+                    <p className="text-2xl font-black font-mono text-white">R$ {Number(selectedOrder.total_amount).toFixed(2)}</p>
+                    <p className="text-[10px] text-white/70 font-medium mt-0.5">{new Date(selectedOrder.created_at).toLocaleString("pt-BR")}</p>
+                  </div>
+                  <div className={cn(
+                    "w-12 h-12 rounded-2xl flex items-center justify-center",
+                    selectedOrder.status === 'completed' ? "bg-white/20" :
+                    selectedOrder.status === 'cancelled' ? "bg-white/10" : "bg-white/20"
+                  )}>
+                    {selectedOrder.status === 'completed'
+                      ? <CheckCircle2 size={24} className="text-white" />
+                      : selectedOrder.status === 'cancelled'
+                      ? <XCircle size={24} className="text-white" />
+                      : <Clock size={24} className="text-white" />
+                    }
+                  </div>
+                </div>
+
+                {/* Cancelled info */}
+                {selectedOrder.status === 'cancelled' && (selectedOrder.cancel_reason || selectedOrder.cancelled_by) && (
+                  <div className="mx-4 mt-3 p-4 bg-red-50 border border-red-100 rounded-2xl space-y-1">
+                    <p className="text-[10px] font-black uppercase tracking-widest text-red-600 flex items-center gap-1.5"><AlertTriangle size={11} /> Motivo do Cancelamento</p>
+                    {selectedOrder.cancelled_by && <p className="text-[11px] font-bold text-red-800">Por: {selectedOrder.cancelled_by}</p>}
+                    {selectedOrder.cancel_reason && <p className="text-[11px] text-red-700">{selectedOrder.cancel_reason}</p>}
+                    {selectedOrder.cancelled_at && <p className="text-[10px] text-red-400 font-mono">{new Date(selectedOrder.cancelled_at).toLocaleString("pt-BR")}</p>}
+                  </div>
+                )}
+
+                {/* Customer + Seller */}
+                <div className="mx-4 mt-3 grid grid-cols-2 gap-2">
+                  <div className="p-3.5 bg-slate-50 rounded-2xl space-y-1">
+                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1"><User size={9} /> Cliente</p>
+                    <p className="text-[11px] font-black text-slate-900">{selectedOrder.customer_name || "Consumidor Final"}</p>
+                    {selectedOrder.customer_phone && <p className="text-[10px] font-mono text-slate-500">{selectedOrder.customer_phone}</p>}
+                  </div>
+                  <div className="p-3.5 bg-slate-50 rounded-2xl space-y-1">
+                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Vendedor</p>
+                    <p className="text-[11px] font-black text-slate-900">{selectedOrder.seller_name || "—"}</p>
+                    <p className="text-[10px] text-slate-400">{selectedOrder.seller_name ? "Responsável" : "Não atribuído"}</p>
+                  </div>
+                </div>
+
+                {/* Items */}
+                <div className="mx-4 mt-3 space-y-2">
+                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1.5"><Package size={10} /> Itens do Pedido ({selectedOrder.items.length})</p>
+                  <div className="bg-slate-50 rounded-2xl overflow-hidden divide-y divide-slate-100">
+                    {selectedOrder.items.map(item => (
+                      <div key={item.id} className="px-4 py-3.5 flex items-center justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="text-[12px] font-black text-slate-900 truncate">{item.product_name}</p>
+                          <p className="text-[10px] font-bold text-slate-400">{item.quantity} un × R$ {Number(item.unit_price).toFixed(2)}</p>
                         </div>
-                        <div className="flex gap-2">
-                           {selectedOrder.status === 'pending' && (
-                             <button onClick={() => handleUpdateStatus(selectedOrder.id, 'completed')}
-                               className="px-3 h-8 bg-emerald-600 text-white rounded-lg text-[9px] font-black uppercase tracking-widest shadow-lg shadow-emerald-200 hover:bg-emerald-700 transition-all">
-                               Efetivar
-                             </button>
-                           )}
-                           {selectedOrder.status !== 'cancelled' && (
-                             <button onClick={() => setShowCancelModal(true)}
-                               className="px-3 h-8 bg-red-50 text-red-600 border border-red-200 rounded-lg text-[9px] font-black uppercase tracking-widest hover:bg-red-100 transition-all">
-                               Cancelar
-                             </button>
-                           )}
-                        </div>
-                     </div>
+                        <span className="font-mono font-black text-sm text-slate-900 shrink-0">R$ {(item.quantity * Number(item.unit_price)).toFixed(2)}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
 
-                     {/* Cancelled info */}
-                     {selectedOrder.status === 'cancelled' && (selectedOrder.cancel_reason || selectedOrder.cancelled_by) && (
-                       <div className="p-4 bg-red-50 border border-red-100 rounded-2xl space-y-1.5">
-                         <p className="text-[9px] font-black uppercase tracking-widest text-red-600 flex items-center gap-1.5"><AlertTriangle size={11} /> Motivo do Cancelamento</p>
-                         {selectedOrder.cancelled_by && <p className="text-[10px] font-bold text-red-800">Por: {selectedOrder.cancelled_by}</p>}
-                         {selectedOrder.cancel_reason && <p className="text-[10px] text-red-700">{selectedOrder.cancel_reason}</p>}
-                         {selectedOrder.cancelled_at && <p className="text-[9px] text-red-400 font-mono">{new Date(selectedOrder.cancelled_at).toLocaleString("pt-BR")}</p>}
-                       </div>
-                     )}
+                {/* Financial summary */}
+                {(selectedOrder.gross_amount != null && Number(selectedOrder.gross_amount) !== Number(selectedOrder.total_amount)) ||
+                 (selectedOrder.discount_amount != null && Number(selectedOrder.discount_amount) > 0) ||
+                 (selectedOrder.fee_amount != null && Number(selectedOrder.fee_amount) > 0) ? (
+                  <div className="mx-4 mt-3 bg-slate-50 rounded-2xl overflow-hidden divide-y divide-slate-100">
+                    {selectedOrder.gross_amount != null && Number(selectedOrder.gross_amount) !== Number(selectedOrder.total_amount) && (
+                      <div className="px-4 py-3 flex justify-between text-[11px]">
+                        <span className="text-slate-500 font-bold">Subtotal</span>
+                        <span className="font-mono font-bold text-slate-700">R$ {Number(selectedOrder.gross_amount).toFixed(2)}</span>
+                      </div>
+                    )}
+                    {selectedOrder.discount_amount != null && Number(selectedOrder.discount_amount) > 0 && (
+                      <div className="px-4 py-3 flex justify-between text-[11px]">
+                        <span className="text-rose-500 font-bold">Desconto</span>
+                        <span className="font-mono font-bold text-rose-500">− R$ {Number(selectedOrder.discount_amount).toFixed(2)}</span>
+                      </div>
+                    )}
+                    {selectedOrder.fee_amount != null && Number(selectedOrder.fee_amount) > 0 && (
+                      <div className="px-4 py-3 flex justify-between text-[11px]">
+                        <span className="text-amber-600 font-bold">Taxa Maquininha</span>
+                        <span className="font-mono font-bold text-amber-600">+ R$ {Number(selectedOrder.fee_amount).toFixed(2)}</span>
+                      </div>
+                    )}
+                  </div>
+                ) : null}
 
-                     {/* Customer + Seller */}
-                     <div className="grid grid-cols-2 gap-3">
-                        <div className="p-3 bg-slate-50 rounded-xl space-y-1">
-                           <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1"><User size={9} /> Cliente</p>
-                           <p className="text-xs font-black text-slate-900 uppercase">{selectedOrder.customer_name || "Consumidor Final"}</p>
-                           {selectedOrder.customer_phone && <p className="text-[10px] font-mono text-slate-500">{selectedOrder.customer_phone}</p>}
-                        </div>
-                        <div className="p-3 bg-slate-50 rounded-xl space-y-1">
-                           <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Vendedor</p>
-                           <p className="text-xs font-black text-slate-900 uppercase">{selectedOrder.seller_name || "—"}</p>
-                           <p className="text-[9px] font-mono text-slate-400">{new Date(selectedOrder.created_at).toLocaleString("pt-BR")}</p>
-                        </div>
-                     </div>
-
-                     {/* Items */}
-                     <div className="space-y-2">
-                        <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1.5"><Package size={10} /> Itens ({selectedOrder.items.length})</p>
-                        <div className="border border-slate-100 rounded-xl overflow-hidden divide-y divide-slate-50">
-                           {selectedOrder.items.map(item => (
-                             <div key={item.id} className="px-4 py-3 flex items-center justify-between">
+                {/* Payment method */}
+                {(() => {
+                  const pm = selectedOrder.payment_method ?? "";
+                  if (!pm) return null;
+                  const segs = pm.split("|").map(seg => {
+                    const [mp, amt] = seg.split(":");
+                    const toks = mp.split("-");
+                    return { method: toks[0]??"-", brand: toks[1]??null, installments: toks[2] ? parseInt(toks[2]) : 1, amount: parseFloat(amt??"0")||0 };
+                  });
+                  const labels: Record<string,string> = { money:"Dinheiro", pix:"PIX", debit:"Débito", credit:"Crédito" };
+                  const icons: Record<string,string> = { money:"💵", pix:"⚡", debit:"💳", credit:"💳" };
+                  return (
+                    <div className="mx-4 mt-3 space-y-2">
+                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1.5"><CreditCard size={10} /> Pagamento</p>
+                      <div className="space-y-2">
+                        {segs.map((s, i) => {
+                          const perInst = s.installments > 1 ? s.amount / s.installments : 0;
+                          return (
+                            <div key={i} className="bg-slate-50 rounded-2xl px-4 py-3.5 flex items-center justify-between gap-3">
+                              <div className="flex items-center gap-3">
+                                <span className="text-xl">{icons[s.method]??"💰"}</span>
                                 <div>
-                                   <p className="text-[11px] font-black text-slate-900 uppercase">{item.product_name}</p>
-                                   <p className="text-[9px] font-bold text-slate-400 uppercase">{item.quantity} × R$ {Number(item.unit_price).toFixed(2)}</p>
+                                  <p className="text-[12px] font-black text-slate-900">
+                                    {labels[s.method]??s.method}
+                                    {s.brand && s.brand !== "other" ? ` · ${s.brand.toUpperCase()}` : ""}
+                                  </p>
+                                  {s.method === "credit" && s.installments > 1
+                                    ? <p className="text-[10px] font-bold text-slate-500">{s.installments}× de R$ {perInst.toFixed(2)}</p>
+                                    : <p className="text-[10px] font-bold text-slate-400">À vista</p>
+                                  }
                                 </div>
-                                <span className="font-mono font-black text-sm text-slate-900">R$ {(item.quantity * Number(item.unit_price)).toFixed(2)}</span>
-                             </div>
-                           ))}
-                        </div>
-                     </div>
+                              </div>
+                              <span className="font-mono font-black text-slate-900 text-sm shrink-0">R$ {s.amount.toFixed(2)}</span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                })()}
 
-                     {/* Payment method + installments breakdown */}
-                     {(() => {
-                       const pm = selectedOrder.payment_method ?? "";
-                       const segs = pm.split("|").map(seg => {
-                         const [mp, amt] = seg.split(":");
-                         const toks = mp.split("-");
-                         return { method: toks[0]??"-", brand: toks[1]??null, installments: toks[2] ? parseInt(toks[2]) : 1, amount: parseFloat(amt??"0")||0 };
-                       });
-                       const labels: Record<string,string> = { money:"Dinheiro", pix:"PIX", debit:"Débito", credit:"Crédito" };
-                       return (
-                         <div className="space-y-2">
-                           <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1.5"><CreditCard size={10} /> Pagamento</p>
-                           <div className="space-y-2">
-                             {segs.map((s, i) => {
-                               const perInst = s.installments > 1 ? s.amount / s.installments : 0;
-                               return (
-                                 <div key={i} className="p-3 bg-slate-50 rounded-xl flex items-center justify-between gap-2">
-                                   <div>
-                                     <p className="text-[10px] font-black text-slate-900 uppercase">
-                                       {labels[s.method]??s.method}
-                                       {s.brand && s.brand !== "other" ? ` / ${s.brand.toUpperCase()}` : ""}
-                                       {s.method==="credit" && s.installments>1 ? ` · ${s.installments}×` : ""}
-                                     </p>
-                                     {s.installments > 1 && (
-                                       <p className="text-[9px] font-bold text-slate-500">R$ {perInst.toFixed(2)}/parcela</p>
-                                     )}
-                                   </div>
-                                   <span className="font-mono font-black text-slate-900">R$ {s.amount.toFixed(2)}</span>
-                                 </div>
-                               );
-                             })}
-                           </div>
-                         </div>
-                       );
-                     })()}
+                {/* bottom padding */}
+                <div className="h-4" />
+              </div>
 
-                     {/* Financial summary */}
-                     <div className="bg-slate-900 rounded-2xl p-5 space-y-3">
-                        <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Resumo Financeiro</p>
-                        {selectedOrder.gross_amount != null && Number(selectedOrder.gross_amount) !== Number(selectedOrder.total_amount) && (
-                          <div className="flex justify-between text-[10px] font-bold uppercase tracking-widest">
-                            <span className="text-slate-500">Subtotal Bruto</span>
-                            <span className="font-mono text-slate-400">R$ {Number(selectedOrder.gross_amount).toFixed(2)}</span>
-                          </div>
-                        )}
-                        {selectedOrder.discount_amount != null && Number(selectedOrder.discount_amount) > 0 && (
-                          <div className="flex justify-between text-[10px] font-bold uppercase tracking-widest">
-                            <span className="text-rose-400">Desconto</span>
-                            <span className="font-mono text-rose-400">− R$ {Number(selectedOrder.discount_amount).toFixed(2)}</span>
-                          </div>
-                        )}
-                        {selectedOrder.fee_amount != null && Number(selectedOrder.fee_amount) > 0 && (
-                          <div className="flex justify-between text-[10px] font-bold uppercase tracking-widest">
-                            <span className="text-amber-400">Taxa Maquininha</span>
-                            <span className="font-mono text-amber-400">− R$ {Number(selectedOrder.fee_amount).toFixed(2)}</span>
-                          </div>
-                        )}
-                        <div className="flex justify-between items-center pt-2 border-t border-slate-700">
-                          <span className="text-[10px] font-black uppercase tracking-widest text-blue-400">Líquido</span>
-                          <span className="text-2xl font-black font-mono text-white">R$ {Number(selectedOrder.total_amount).toFixed(2)}</span>
-                        </div>
-                     </div>
-
-                  </div>
-
-                  <div className="p-6 border-t border-slate-100 bg-slate-50 space-y-2">
-                     {/* Comprovante row */}
-                     <div className="flex gap-2">
-                       <button
-                         onClick={handleDownloadReceipt}
-                         className="flex-1 h-10 bg-white border border-slate-200 rounded-xl text-[9px] font-bold uppercase tracking-widest flex items-center justify-center gap-2 hover:bg-slate-50 transition-all text-slate-600 shadow-sm"
-                       >
-                         <Download size={13} /> Comprovante
-                       </button>
-                       <button
-                         onClick={handlePrintReceipt}
-                         className="flex-1 h-10 bg-slate-900 text-white rounded-xl text-[9px] font-bold uppercase tracking-widest flex items-center justify-center gap-2 hover:bg-slate-800 transition-all shadow-lg"
-                       >
-                         <Receipt size={13} /> Imprimir
-                       </button>
-                     </div>
-                     {/* Garantia row */}
-                     <div className="flex gap-2">
-                       <button
-                         onClick={handleDownloadWarranty}
-                         className="flex-1 h-10 bg-emerald-50 border border-emerald-200 rounded-xl text-[9px] font-bold uppercase tracking-widest flex items-center justify-center gap-2 hover:bg-emerald-100 transition-all text-emerald-700 shadow-sm"
-                       >
-                         <Download size={13} /> Baixar Garantia
-                       </button>
-                       <button
-                         onClick={handlePrintWarranty}
-                         className="flex-1 h-10 bg-emerald-600 text-white rounded-xl text-[9px] font-bold uppercase tracking-widest flex items-center justify-center gap-2 hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-200"
-                       >
-                         <ShieldCheck size={13} /> Imprimir Garantia
-                       </button>
-                     </div>
-                  </div>
-               </motion.div>
-            </div>
-         )}
+              {/* action buttons */}
+              <div className="shrink-0 px-4 pt-3 pb-4 border-t border-slate-100 bg-white space-y-2.5 safe-area-bottom">
+                {/* Comprovante */}
+                <div className="flex gap-2">
+                  <button onClick={handleDownloadReceipt}
+                    className="flex-1 h-12 bg-slate-100 hover:bg-slate-200 active:scale-95 rounded-2xl text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-all text-slate-700">
+                    <Download size={14} /> Baixar
+                  </button>
+                  <button onClick={handlePrintReceipt}
+                    className="flex-1 h-12 bg-slate-900 hover:bg-slate-800 active:scale-95 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-all shadow-lg shadow-slate-900/20">
+                    <Receipt size={14} /> Imprimir Comprovante
+                  </button>
+                </div>
+                {/* Garantia */}
+                <div className="flex gap-2">
+                  <button onClick={handleDownloadWarranty}
+                    className="flex-1 h-12 bg-emerald-50 hover:bg-emerald-100 active:scale-95 border border-emerald-200 rounded-2xl text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-all text-emerald-700">
+                    <Download size={14} /> Garantia
+                  </button>
+                  <button onClick={handlePrintWarranty}
+                    className="flex-1 h-12 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-all shadow-lg shadow-emerald-500/30">
+                    <ShieldCheck size={14} /> Imprimir Garantia
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </>
+        )}
       </AnimatePresence>
 
       {/* Cancel confirmation modal */}

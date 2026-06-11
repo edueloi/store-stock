@@ -1823,48 +1823,61 @@ ${change > 0 ? `<hr class="divider"/><div class="row bold"><span>TROCO:</span><s
         {showReceipt && completedSale && (
           <>
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-              className="fixed inset-0 bg-slate-900/70 backdrop-blur-sm z-[400]" />
+              className="fixed inset-0 bg-slate-900/70 backdrop-blur-sm z-[400]"
+              onClick={() => setShowReceipt(false)} />
             <motion.div
-              initial={{ opacity: 0, scale: 0.92, y: 32 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.92, y: 32 }}
-              transition={{ type: "spring", damping: 28, stiffness: 260 }}
-              className="fixed inset-x-0 bottom-0 sm:inset-auto sm:top-1/2 sm:left-1/2 sm:-translate-x-1/2 sm:-translate-y-1/2 z-[401] w-full sm:w-[440px] bg-white sm:rounded-3xl rounded-t-3xl shadow-2xl flex flex-col overflow-hidden max-h-[90vh]">
+              initial={{ y: "100%", opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              exit={{ y: "100%", opacity: 0 }}
+              transition={{ type: "spring", damping: 32, stiffness: 300 }}
+              className="fixed inset-x-0 bottom-0 sm:inset-auto sm:top-1/2 sm:left-1/2 sm:-translate-x-1/2 sm:-translate-y-1/2 z-[401] w-full sm:w-[440px] bg-white sm:rounded-3xl rounded-t-3xl shadow-2xl flex flex-col overflow-hidden max-h-[92dvh] sm:max-h-[90vh]">
+
+              {/* drag handle */}
+              <div className="shrink-0 flex justify-center pt-3 pb-0 sm:hidden">
+                <div className="w-10 h-1 rounded-full bg-emerald-300/60" />
+              </div>
 
               {/* success header */}
-              <div className="shrink-0 bg-gradient-to-br from-emerald-500 to-emerald-700 px-6 pt-6 pb-5 text-white relative overflow-hidden">
-                <div className="absolute inset-0 opacity-10">
-                  <div className="absolute -top-4 -right-4 w-32 h-32 bg-white rounded-full" />
-                  <div className="absolute -bottom-8 -left-4 w-48 h-48 bg-white rounded-full" />
+              <div className="shrink-0 bg-gradient-to-br from-emerald-500 to-emerald-700 px-5 pt-4 pb-5 text-white relative overflow-hidden">
+                <div className="absolute inset-0 opacity-[0.07]">
+                  <div className="absolute -top-6 -right-6 w-40 h-40 bg-white rounded-full" />
+                  <div className="absolute -bottom-10 -left-6 w-56 h-56 bg-white rounded-full" />
                 </div>
                 <div className="relative flex items-start justify-between">
-                  <div>
-                    <div className="flex items-center gap-2 mb-2">
-                      <CheckCircle2 size={20} className="text-emerald-200" />
-                      <span className="text-[10px] font-black uppercase tracking-[0.2em] text-emerald-200">Venda Confirmada</span>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-1.5">
+                      <div className="w-5 h-5 rounded-full bg-white/20 flex items-center justify-center">
+                        <CheckCircle2 size={14} className="text-white" />
+                      </div>
+                      <span className="text-[10px] font-black uppercase tracking-[0.2em] text-emerald-100">Venda Confirmada</span>
                     </div>
-                    <p className="text-2xl font-mono font-black">R$ {completedSale.total.toFixed(2)}</p>
-                    <p className="text-[11px] text-emerald-200 font-bold mt-1">
+                    <p className="text-3xl font-mono font-black leading-none">R$ {completedSale.total.toFixed(2)}</p>
+                    <p className="text-[11px] text-emerald-200 font-bold mt-1.5">
                       #{String(completedSale.orderId).padStart(5,"0")} · {completedSale.customerName || "Consumidor Final"}
                     </p>
-                    {completedSale.change > 0 && (
-                      <div className="mt-2 inline-flex items-center gap-1.5 bg-white/20 rounded-lg px-3 py-1.5">
-                        <Banknote size={13} className="text-emerald-200" />
-                        <span className="text-[11px] font-black text-white">Troco: R$ {completedSale.change.toFixed(2)}</span>
-                      </div>
-                    )}
-                    {completedSale.pointsEarned != null && completedSale.pointsEarned > 0 && (
-                      <div className="mt-2 inline-flex items-center gap-1.5 bg-amber-400/20 rounded-lg px-3 py-1.5">
-                        <Star size={13} className="text-amber-300" fill="currentColor" />
-                        <span className="text-[11px] font-black text-amber-200">+{completedSale.pointsEarned} pontos ganhos!</span>
-                      </div>
-                    )}
-                    {completedSale.rewardApplied && (
-                      <div className="mt-2 inline-flex items-center gap-1.5 bg-violet-400/20 rounded-lg px-3 py-1.5">
-                        <Gift size={13} className="text-violet-300" />
-                        <span className="text-[11px] font-black text-violet-200">{completedSale.rewardApplied} resgatado!</span>
-                      </div>
-                    )}
-                    {/* pagamentos */}
-                    <div className="mt-3 flex flex-wrap gap-1.5">
+                    {/* badges */}
+                    <div className="mt-2.5 flex flex-wrap gap-1.5">
+                      {completedSale.change > 0 && (
+                        <div className="inline-flex items-center gap-1 bg-white/20 rounded-lg px-2.5 py-1">
+                          <Banknote size={11} className="text-emerald-200" />
+                          <span className="text-[10px] font-black text-white">Troco R$ {completedSale.change.toFixed(2)}</span>
+                        </div>
+                      )}
+                      {completedSale.pointsEarned != null && completedSale.pointsEarned > 0 && (
+                        <div className="inline-flex items-center gap-1 bg-amber-400/20 rounded-lg px-2.5 py-1">
+                          <Star size={11} className="text-amber-300" fill="currentColor" />
+                          <span className="text-[10px] font-black text-amber-200">+{completedSale.pointsEarned} pts</span>
+                        </div>
+                      )}
+                      {completedSale.rewardApplied && (
+                        <div className="inline-flex items-center gap-1 bg-violet-400/20 rounded-lg px-2.5 py-1">
+                          <Gift size={11} className="text-violet-300" />
+                          <span className="text-[10px] font-black text-violet-200">{completedSale.rewardApplied}</span>
+                        </div>
+                      )}
+                    </div>
+                    {/* payments */}
+                    <div className="mt-2 flex flex-wrap gap-1.5">
                       {completedSale.payments.map((p, i) => {
                         const brand = (p.method==="debit"||p.method==="credit") && p.cardBrand!=="other" ? ` ${p.cardBrand.toUpperCase()}` : "";
                         const inst  = p.method==="credit" && p.installments>1 ? ` ${p.installments}×` : "";
@@ -1877,12 +1890,16 @@ ${change > 0 ? `<hr class="divider"/><div class="row bold"><span>TROCO:</span><s
                       })}
                     </div>
                   </div>
-                  <button onClick={() => setShowReceipt(false)} className="p-1.5 hover:bg-white/20 rounded-xl transition-all text-emerald-200 hover:text-white"><X size={18} /></button>
+                  <button onClick={() => setShowReceipt(false)}
+                    className="ml-3 shrink-0 w-8 h-8 flex items-center justify-center bg-white/15 hover:bg-white/25 rounded-xl transition-all text-white">
+                    <X size={16} />
+                  </button>
                 </div>
-                <div className="relative mt-3 flex gap-2 overflow-x-auto scrollbar-none pb-0.5">
+                {/* items strip */}
+                <div className="relative mt-3 flex gap-2 overflow-x-auto scrollbar-none pb-0.5 -mx-1 px-1">
                   {completedSale.items.map((item, idx) => (
                     <div key={idx} className="shrink-0 flex items-center gap-1.5 bg-white/15 rounded-xl px-2.5 py-1.5">
-                      {item.image_url ? <img src={item.image_url} className="w-5 h-5 rounded object-cover shrink-0" alt={item.name} /> : <Package size={14} className="text-emerald-200 shrink-0" />}
+                      {item.image_url ? <img src={item.image_url} className="w-5 h-5 rounded object-cover shrink-0" alt={item.name} /> : <Package size={12} className="text-emerald-200 shrink-0" />}
                       <span className="text-[10px] font-bold text-white truncate max-w-[80px]">{item.name}</span>
                       <span className="text-[10px] font-black text-emerald-200">×{item.quantity}</span>
                     </div>
@@ -1891,38 +1908,44 @@ ${change > 0 ? `<hr class="divider"/><div class="row bold"><span>TROCO:</span><s
               </div>
 
               {/* actions */}
-              <div className="shrink-0 p-5 space-y-2.5">
-                <p className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] mb-3">Emitir Comprovante</p>
+              <div className="flex-1 overflow-y-auto overscroll-contain p-4 space-y-2">
+                <p className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] pb-1">Emitir Comprovante</p>
 
                 <button onClick={() => printViaIframe(buildThermalHtml(completedSale))}
-                  className="w-full flex items-center gap-4 h-14 bg-slate-50 hover:bg-slate-100 border border-slate-200 hover:border-slate-300 rounded-2xl px-5 transition-all group">
-                  <div className="w-9 h-9 bg-slate-900 rounded-xl flex items-center justify-center shrink-0 group-hover:bg-blue-600 transition-colors"><Printer size={16} className="text-white" /></div>
-                  <div className="text-left">
-                    <p className="text-[11px] font-black text-slate-900 uppercase tracking-widest">Nota Térmica</p>
-                    <p className="text-[9px] text-slate-400 font-medium">Impressão 80mm para bobina</p>
+                  className="w-full flex items-center gap-3.5 h-16 bg-slate-50 hover:bg-slate-100 active:scale-[0.98] border border-slate-200 rounded-2xl px-4 transition-all group">
+                  <div className="w-10 h-10 bg-slate-900 rounded-xl flex items-center justify-center shrink-0 group-hover:bg-blue-600 transition-colors">
+                    <Printer size={17} className="text-white" />
                   </div>
-                  <ChevronRight size={14} className="ml-auto text-slate-300 group-hover:text-slate-500" />
+                  <div className="text-left flex-1 min-w-0">
+                    <p className="text-[12px] font-black text-slate-900 uppercase tracking-wide">Nota Térmica</p>
+                    <p className="text-[10px] text-slate-400 font-medium">Impressora 80mm · Cupom fiscal</p>
+                  </div>
+                  <ChevronRight size={15} className="text-slate-300 group-hover:text-slate-500 shrink-0" />
                 </button>
 
                 <button onClick={() => printViaIframe(buildPDFHtml(completedSale), 600)}
-                  className="w-full flex items-center gap-4 h-14 bg-slate-50 hover:bg-slate-100 border border-slate-200 hover:border-slate-300 rounded-2xl px-5 transition-all group">
-                  <div className="w-9 h-9 bg-blue-600 rounded-xl flex items-center justify-center shrink-0 group-hover:bg-blue-700 transition-colors"><FileText size={16} className="text-white" /></div>
-                  <div className="text-left">
-                    <p className="text-[11px] font-black text-slate-900 uppercase tracking-widest">PDF Completo</p>
-                    <p className="text-[9px] text-slate-400 font-medium">Nota detalhada em A4 — imprimir ou salvar</p>
+                  className="w-full flex items-center gap-3.5 h-16 bg-slate-50 hover:bg-slate-100 active:scale-[0.98] border border-slate-200 rounded-2xl px-4 transition-all group">
+                  <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center shrink-0 group-hover:bg-blue-700 transition-colors">
+                    <FileText size={17} className="text-white" />
                   </div>
-                  <ChevronRight size={14} className="ml-auto text-slate-300 group-hover:text-slate-500" />
+                  <div className="text-left flex-1 min-w-0">
+                    <p className="text-[12px] font-black text-slate-900 uppercase tracking-wide">PDF Completo</p>
+                    <p className="text-[10px] text-slate-400 font-medium">Nota detalhada A4 · Imprimir ou salvar</p>
+                  </div>
+                  <ChevronRight size={15} className="text-slate-300 group-hover:text-slate-500 shrink-0" />
                 </button>
 
                 <button onClick={() => setShowPhoneInput(!showPhoneInput)}
-                  className={cn("w-full flex items-center gap-4 h-14 border rounded-2xl px-5 transition-all group",
+                  className={cn("w-full flex items-center gap-3.5 h-16 border rounded-2xl px-4 transition-all group active:scale-[0.98]",
                     showPhoneInput ? "bg-emerald-50 border-emerald-300" : "bg-slate-50 hover:bg-slate-100 border-slate-200 hover:border-slate-300")}>
-                  <div className={cn("w-9 h-9 rounded-xl flex items-center justify-center shrink-0 transition-colors", showPhoneInput ? "bg-emerald-600" : "bg-emerald-500 group-hover:bg-emerald-600")}><MessageCircle size={16} className="text-white" /></div>
-                  <div className="text-left">
-                    <p className="text-[11px] font-black text-slate-900 uppercase tracking-widest">Enviar WhatsApp</p>
-                    <p className="text-[9px] text-slate-400 font-medium">Abre WhatsApp Web com o comprovante</p>
+                  <div className={cn("w-10 h-10 rounded-xl flex items-center justify-center shrink-0 transition-colors", showPhoneInput ? "bg-emerald-600" : "bg-emerald-500 group-hover:bg-emerald-600")}>
+                    <MessageCircle size={17} className="text-white" />
                   </div>
-                  <ChevronDown size={14} className={cn("ml-auto transition-transform text-slate-300", showPhoneInput ? "rotate-180 text-emerald-500" : "group-hover:text-slate-500")} />
+                  <div className="text-left flex-1 min-w-0">
+                    <p className="text-[12px] font-black text-slate-900 uppercase tracking-wide">WhatsApp</p>
+                    <p className="text-[10px] text-slate-400 font-medium">Enviar comprovante por mensagem</p>
+                  </div>
+                  <ChevronDown size={15} className={cn("transition-transform shrink-0", showPhoneInput ? "rotate-180 text-emerald-500" : "text-slate-300 group-hover:text-slate-500")} />
                 </button>
 
                 <AnimatePresence>
@@ -1932,7 +1955,7 @@ ${change > 0 ? `<hr class="divider"/><div class="row bold"><span>TROCO:</span><s
                         <div className="relative flex-1">
                           <Phone className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
                           <input type="tel" placeholder="(11) 99999-9999"
-                            className="w-full pl-9 pr-4 h-11 bg-white border border-emerald-300 rounded-xl focus:outline-none focus:border-emerald-500 text-[12px] font-medium text-slate-800 placeholder:text-slate-400 transition-all"
+                            className="w-full pl-9 pr-4 h-12 bg-white border border-emerald-300 rounded-xl focus:outline-none focus:border-emerald-500 text-[13px] font-medium text-slate-800 placeholder:text-slate-400 transition-all"
                             value={whatsappPhone} onChange={(e) => setWhatsappPhone(e.target.value)} />
                         </div>
                         <button onClick={() => {
@@ -1941,7 +1964,7 @@ ${change > 0 ? `<hr class="divider"/><div class="row bold"><span>TROCO:</span><s
                           window.open(`https://wa.me/${full}?text=${encodeURIComponent(buildWhatsAppText(completedSale))}`, "_blank", "noopener,noreferrer");
                         }}
                           disabled={whatsappPhone.replace(/\D/g, "").length < 10}
-                          className="h-11 px-4 bg-emerald-600 disabled:bg-slate-200 disabled:text-slate-400 text-white rounded-xl font-black text-[11px] uppercase tracking-widest flex items-center gap-2 transition-all hover:bg-emerald-700 disabled:cursor-not-allowed shrink-0 shadow-lg shadow-emerald-500/25">
+                          className="h-12 px-5 bg-emerald-600 disabled:bg-slate-200 disabled:text-slate-400 text-white rounded-xl font-black text-[11px] uppercase tracking-widest flex items-center gap-2 transition-all hover:bg-emerald-700 disabled:cursor-not-allowed shrink-0 shadow-lg shadow-emerald-500/25 active:scale-95">
                           <MessageCircle size={14} /> Enviar
                         </button>
                       </div>
@@ -1950,9 +1973,9 @@ ${change > 0 ? `<hr class="divider"/><div class="row bold"><span>TROCO:</span><s
                 </AnimatePresence>
               </div>
 
-              <div className="shrink-0 px-5 pb-5">
+              <div className="shrink-0 px-4 pb-5 pt-2">
                 <button onClick={() => setShowReceipt(false)}
-                  className="w-full h-11 border border-slate-200 rounded-2xl text-[11px] font-black text-slate-500 uppercase tracking-widest hover:bg-slate-50 transition-all">
+                  className="w-full h-12 border border-slate-200 rounded-2xl text-[11px] font-black text-slate-500 uppercase tracking-widest hover:bg-slate-50 active:scale-[0.98] transition-all">
                   Fechar
                 </button>
               </div>
