@@ -292,47 +292,141 @@ export default function Orders() {
   };
 
   const buildReceiptHtml = (order: OrderDetail) => {
+    const storeName  = tenant?.name ?? 'Estabelecimento';
+    const storeDoc   = tenant?.document ? `CNPJ/CPF: ${tenant.document}` : '';
+    const storePhone = tenant?.whatsapp ? `Tel/WhatsApp: ${tenant.whatsapp}` : '';
+    const storeAddr  = (() => {
+      if (tenant?.address_street) {
+        const parts = [
+          `${tenant.address_street}${tenant.address_number ? ', ' + tenant.address_number : ''}`,
+          tenant.address_complement,
+          tenant.address_district,
+          tenant.address_city && tenant.address_state
+            ? `${tenant.address_city} - ${tenant.address_state}`
+            : (tenant?.address_city ?? tenant?.address_state ?? ''),
+          tenant.address_zip ? `CEP: ${tenant.address_zip}` : '',
+        ].filter(Boolean);
+        return parts.join(' | ');
+      }
+      return tenant?.address ?? '';
+    })();
+
     const statusLabel = order.status === 'completed' ? 'PAGO' : order.status === 'pending' ? 'PENDENTE' : 'CANCELADO';
-    const paymentLabel = order.payment_method || 'Não informado';
-    return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Comprovante #${String(order.id).padStart(5,'0')}</title>
+
+    // Parse payment_method field (format: "method:amount" or "method:amount:installments:brand")
+    const parsePayments = (raw?: string) => {
+      if (!raw) return [{ label: 'Não informado', amount: '' }];
+      return raw.split('|').map(seg => {
+        const parts = seg.trim().split(':');
+        const method = parts[0]?.toLowerCase() ?? '';
+        const amount = parts[1] ? `R$ ${Number(parts[1]).toFixed(2)}` : '';
+        const installments = parts[2] ? Number(parts[2]) : 1;
+        const brand = parts[3] ?? '';
+        let label = '';
+        if (method === 'money' || method === 'dinheiro') {
+          label = 'Dinheiro';
+        } else if (method === 'pix') {
+          label = 'PIX';
+        } else if (method === 'debit' || method === 'debito') {
+          label = brand ? `Débito (${brand})` : 'Cartão de Débito';
+        } else if (method === 'credit' || method === 'credito') {
+          label = installments > 1
+            ? `Crédito ${brand ? '(' + brand + ') ' : ''}– ${installments}x de R$ ${(Number(parts[1]) / installments).toFixed(2)}`
+            : brand ? `Crédito (${brand})` : 'Cartão de Crédito';
+        } else {
+          label = method.charAt(0).toUpperCase() + method.slice(1);
+        }
+        return { label, amount };
+      });
+    };
+
+    const payments = parsePayments(order.payment_method);
+    const hasDiscount  = order.discount_amount && Number(order.discount_amount) > 0;
+    const hasFee       = order.fee_amount && Number(order.fee_amount) > 0;
+    const grossAmount  = order.gross_amount ? Number(order.gross_amount) : Number(order.total_amount);
+
+    return `<!DOCTYPE html>
+<html><head><meta charset="utf-8">
+<title>Comprovante #${String(order.id).padStart(5,'0')}</title>
 <style>
-  * { box-sizing: border-box; }
-  body { font-family: 'Courier New', monospace; font-size: 13px; max-width: 320px; margin: 0 auto; padding: 20px 16px; color: #000; background: #fff; }
-  h1 { font-size: 15px; text-align: center; margin: 0 0 2px; text-transform: uppercase; letter-spacing: 2px; }
-  .subtitle { text-align: center; font-size: 11px; color: #555; margin: 0 0 4px; }
-  .center { text-align: center; }
-  .divider { border: none; border-top: 1px dashed #000; margin: 10px 0; }
-  .row { display: flex; justify-content: space-between; align-items: flex-start; margin: 4px 0; font-size: 12px; }
-  .row .label { color: #555; }
-  .item-name { font-weight: bold; font-size: 12px; }
-  .item-sub { font-size: 11px; color: #555; }
-  .item-price { font-weight: bold; text-align: right; white-space: nowrap; }
-  .total-row { display: flex; justify-content: space-between; font-size: 15px; font-weight: bold; margin: 6px 0; }
-  .status-box { text-align: center; font-weight: bold; font-size: 13px; padding: 5px 10px; border: 2px solid #000; display: inline-block; margin: 6px auto; }
-  .status-wrap { text-align: center; margin: 8px 0; }
-  .footer { text-align: center; font-size: 10px; color: #777; margin-top: 18px; line-height: 1.6; }
-  @media print { @page { margin: 0; size: 80mm auto; } body { padding: 10px 8px; } }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Courier New', monospace; font-size: 12px; width: 80mm; margin: 0 auto; padding: 8px 6px 16px; color: #000; background: #fff; }
+  .store-name { font-size: 15px; font-weight: bold; text-align: center; text-transform: uppercase; letter-spacing: 1px; }
+  .store-info { font-size: 10px; text-align: center; color: #333; line-height: 1.6; margin-top: 2px; }
+  .doc-title { font-size: 13px; font-weight: bold; text-align: center; text-transform: uppercase; letter-spacing: 2px; margin: 8px 0 2px; }
+  .doc-sub { font-size: 10px; text-align: center; color: #555; margin-bottom: 2px; }
+  .divider { border: none; border-top: 1px dashed #000; margin: 6px 0; }
+  .section-title { font-size: 10px; font-weight: bold; text-transform: uppercase; letter-spacing: 1px; margin: 4px 0 3px; }
+  .row { display: flex; justify-content: space-between; align-items: flex-start; margin: 3px 0; font-size: 11px; }
+  .row .lbl { color: #444; white-space: nowrap; margin-right: 6px; }
+  .row .val { text-align: right; }
+  .item-wrap { margin: 4px 0; }
+  .item-name { font-weight: bold; font-size: 11px; }
+  .item-qty  { font-size: 10px; color: #555; }
+  .item-price { font-weight: bold; text-align: right; white-space: nowrap; font-size: 11px; }
+  .total-row { display: flex; justify-content: space-between; font-size: 15px; font-weight: bold; margin: 5px 0; border-top: 1px solid #000; padding-top: 4px; }
+  .status-box { text-align: center; font-weight: bold; font-size: 12px; padding: 3px 10px; border: 2px solid #000; display: inline-block; letter-spacing: 2px; }
+  .status-wrap { text-align: center; margin: 6px 0 4px; }
+  .pay-row { display: flex; justify-content: space-between; font-size: 11px; margin: 3px 0; }
+  .pay-label { color: #222; }
+  .pay-amount { font-weight: bold; }
+  .footer { text-align: center; font-size: 10px; color: #555; margin-top: 12px; line-height: 1.7; }
+  .footer strong { display: block; font-size: 11px; color: #000; margin-bottom: 2px; }
+  @media print { @page { margin: 0; size: 80mm auto; } body { padding: 6px 4px 12px; } }
 </style></head><body>
-<h1>Comprovante de Venda</h1>
-<p class="subtitle">Pedido #${String(order.id).padStart(5,'0')}</p>
-<p class="subtitle">${new Date(order.created_at).toLocaleString('pt-BR')}</p>
+
+<div class="store-name">${storeName}</div>
+<div class="store-info">
+  ${storeDoc ? storeDoc + '<br/>' : ''}
+  ${storeAddr ? storeAddr + '<br/>' : ''}
+  ${storePhone ? storePhone : ''}
+</div>
+
+<hr class="divider"/>
+<div class="doc-title">Comprovante de Venda</div>
+<div class="doc-sub">Pedido #${String(order.id).padStart(5,'0')}</div>
+<div class="doc-sub">${new Date(order.created_at).toLocaleString('pt-BR')}</div>
 <div class="status-wrap"><div class="status-box">${statusLabel}</div></div>
+
 <hr class="divider"/>
-<div class="row"><span class="label">Cliente:</span><span><strong>${order.customer_name || 'Consumidor Final'}</strong></span></div>
-${order.customer_phone ? `<div class="row"><span class="label">Telefone:</span><span>${order.customer_phone}</span></div>` : ''}
-${order.customer_address ? `<div class="row"><span class="label">Endereço:</span><span>${order.customer_address}</span></div>` : ''}
+<div class="section-title">Dados do Cliente</div>
+<div class="row"><span class="lbl">Cliente:</span><span class="val"><strong>${order.customer_name || 'Consumidor Final'}</strong></span></div>
+${order.customer_phone ? `<div class="row"><span class="lbl">Telefone:</span><span class="val">${order.customer_phone}</span></div>` : ''}
+${order.customer_address ? `<div class="row"><span class="lbl">Endereço:</span><span class="val">${order.customer_address}</span></div>` : ''}
+${order.seller_name ? `<div class="row"><span class="lbl">Vendedor:</span><span class="val">${order.seller_name}</span></div>` : ''}
+
 <hr class="divider"/>
-<p style="font-weight:bold;margin:4px 0;font-size:11px;text-transform:uppercase;letter-spacing:1px">Itens do Pedido</p>
+<div class="section-title">Itens do Pedido</div>
 ${order.items.map(item => `
-<div style="margin:6px 0">
-  <div class="row"><span class="item-name">${item.product_name}</span><span class="item-price">R$ ${(item.quantity * Number(item.unit_price)).toFixed(2)}</span></div>
-  <div class="item-sub">${item.quantity} un × R$ ${Number(item.unit_price).toFixed(2)}</div>
+<div class="item-wrap">
+  <div class="row">
+    <span class="item-name">${item.product_name}</span>
+    <span class="item-price">R$ ${(item.quantity * Number(item.unit_price)).toFixed(2)}</span>
+  </div>
+  <div class="item-qty">${item.quantity} un × R$ ${Number(item.unit_price).toFixed(2)}</div>
 </div>`).join('')}
+
 <hr class="divider"/>
-<div class="row"><span class="label">Pagamento:</span><span><strong>${paymentLabel}</strong></span></div>
-<hr class="divider"/>
+${hasDiscount || hasFee ? `
+<div class="row"><span class="lbl">Subtotal:</span><span class="val">R$ ${grossAmount.toFixed(2)}</span></div>
+${hasDiscount ? `<div class="row"><span class="lbl">Desconto:</span><span class="val">- R$ ${Number(order.discount_amount).toFixed(2)}</span></div>` : ''}
+${hasFee ? `<div class="row"><span class="lbl">Acréscimo:</span><span class="val">+ R$ ${Number(order.fee_amount).toFixed(2)}</span></div>` : ''}
+<hr class="divider"/>` : ''}
 <div class="total-row"><span>TOTAL</span><span>R$ ${Number(order.total_amount).toFixed(2)}</span></div>
-<p class="footer">Obrigado pela preferência!<br/>Documento gerado em ${new Date().toLocaleString('pt-BR')}</p>
+
+<hr class="divider"/>
+<div class="section-title">Pagamento</div>
+${payments.map(p => `
+<div class="pay-row">
+  <span class="pay-label">${p.label}</span>
+  <span class="pay-amount">${p.amount}</span>
+</div>`).join('')}
+
+<div class="footer">
+  <strong>Obrigado pela preferência!</strong>
+  Documento gerado em ${new Date().toLocaleString('pt-BR')}<br/>
+  Este documento não tem valor fiscal.
+</div>
 </body></html>`;
   };
 
