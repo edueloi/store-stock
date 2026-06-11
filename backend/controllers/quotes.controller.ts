@@ -1,6 +1,7 @@
 import type { Request, Response } from "express";
 import { prisma } from "../config/prisma";
 import type { AuthenticatedRequest } from "../types/auth";
+import { localDateString } from "../utils/date";
 
 function getTenantId(req: Request) {
   return (req as AuthenticatedRequest).user.tenantId;
@@ -253,7 +254,7 @@ export async function convertToOrder(req: Request, res: Response) {
         gross_amount:    grossAmount,
         fee_amount:      roundedFee > 0 ? roundedFee : null,
         discount_amount: discountVal > 0 ? discountVal : null,
-        date:            new Date(),
+        date:            localDateString(),
       },
     });
 

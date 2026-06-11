@@ -3,6 +3,7 @@ import type { Request, Response } from "express";
 import { prisma } from "../config/prisma";
 import type { AuthenticatedRequest } from "../types/auth";
 import { awardPointsForOrder } from "./loyalty.controller";
+import { localDateString } from "../utils/date";
 
 function getTenantId(req: Request) {
   return (req as AuthenticatedRequest).user.tenantId;
@@ -203,8 +204,6 @@ export async function createSale(req: Request, res: Response) {
     const discountNote   = discountVal > 0 ? ` (desc. R$ ${discountVal.toFixed(2)})` : "";
     const surchargeNote  = surchargeVal > 0 ? ` (acrés. R$ ${surchargeVal.toFixed(2)})` : "";
     const feeNote        = roundedPassedFee > 0 ? ` (taxa repassada R$ ${roundedPassedFee.toFixed(2)})` : "";
-    const now            = new Date();
-
     // Quando taxa é repassada ao cliente: gross = totalAmount (inclui taxa), net = totalAmount, fee aparece como informativo
     // Quando loja absorve: gross = valor dos itens, net = totalAmount - taxa
     await prisma.finance.create({
@@ -216,7 +215,7 @@ export async function createSale(req: Request, res: Response) {
         gross_amount:    grossAmount,
         fee_amount:      roundedFee > 0 ? roundedFee : null,
         discount_amount: discountVal > 0 ? discountVal : null,
-        date:            now,
+        date:            localDateString(),
       },
     });
 

@@ -44,8 +44,7 @@ const monthStart = () => {
 
 function formatDateBR(dateStr: string) {
   if (!dateStr) return "";
-  // ISO string or "YYYY-MM-DD"
-  const d = new Date(dateStr + (dateStr.length === 10 ? "T12:00:00" : ""));
+  const d = new Date(dateStr.substring(0, 10) + "T12:00:00");
   return d.toLocaleDateString("pt-BR");
 }
 
@@ -1371,13 +1370,11 @@ export default function Finance() {
           const net      = Number(e.amount);
           const isIncome = e.type === "income";
 
-          // Parse date/time
+          // Parse date — always use only YYYY-MM-DD to avoid UTC conversion shifting the day
           const rawDate = e.date;
-          const dateObj = new Date(rawDate.length === 10 ? rawDate + "T12:00:00" : rawDate);
+          const dateObj = new Date(rawDate.substring(0, 10) + "T12:00:00");
           const dateFormatted = dateObj.toLocaleDateString("pt-BR", { day: "2-digit", month: "long", year: "numeric" });
-          const timeFormatted = rawDate.length > 10
-            ? dateObj.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })
-            : null;
+          const timeFormatted = null;
 
           return (
             <>

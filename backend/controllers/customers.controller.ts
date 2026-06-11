@@ -1,6 +1,7 @@
 import type { Request, Response } from "express";
 import { prisma } from "../config/prisma";
 import type { AuthenticatedRequest } from "../types/auth";
+import { localDateString } from "../utils/date";
 
 function getTenantId(req: Request) {
   return (req as AuthenticatedRequest).user.tenantId;
@@ -203,7 +204,7 @@ export async function payDebt(req: Request, res: Response) {
         type: "income",
         description: `Pagamento fiado — ${customer?.name ?? "Cliente"}: ${debt.description}`,
         amount: debt.amount,
-        date: new Date(),
+        date: localDateString(),
       },
     });
 

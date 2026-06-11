@@ -1,6 +1,7 @@
 import type { Request, Response } from "express";
 
 import { prisma } from "../config/prisma";
+import { localDateString } from "../utils/date";
 import type { AuthenticatedRequest } from "../types/auth";
 
 function getTenantId(req: Request) {
@@ -43,6 +44,10 @@ export async function updateFinanceEntry(req: Request, res: Response) {
     if (!existing) return res.status(404).json({ error: "Not found" });
 
     const { tenant_id, id: _id, created_at, updated_at, ...data } = req.body;
+    // Normaliza a data para YYYY-MM-DD usando fuso local, evitando conversão UTC
+    if (data.date) {
+      data.date = data.date.toString().substring(0, 10);
+    }
     await prisma.finance.update({ where: { id: Number(id) }, data });
     res.json({ ok: true });
   } catch {

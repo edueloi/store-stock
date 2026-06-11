@@ -2,6 +2,7 @@ import type { Request, Response } from "express";
 
 import { prisma } from "../config/prisma";
 import type { AuthenticatedRequest } from "../types/auth";
+import { localDateString } from "../utils/date";
 
 function getTenantId(req: Request) {
   return (req as AuthenticatedRequest).user.tenantId;
@@ -161,7 +162,7 @@ export async function cancelOrder(req: Request, res: Response) {
         type:        "expense",
         description: `Estorno Pedido #${orderId}${cancel_reason ? ` — ${cancel_reason}` : ""}${cancelled_by ? ` (por: ${cancelled_by})` : ""}`,
         amount:      net,
-        date:        new Date(),
+        date:        localDateString(),
         category:    "Estorno",
       },
     });
