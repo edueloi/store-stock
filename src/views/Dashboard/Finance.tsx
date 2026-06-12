@@ -37,10 +37,6 @@ const today = () => {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 };
 
-const monthStart = () => {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-01`;
-};
 
 function formatDateBR(dateStr: string) {
   if (!dateStr) return "";
@@ -489,35 +485,23 @@ const PAYMENT_KEYWORDS: Record<string, string[]> = {
   boleto:  ["boleto"],
 };
 
-// ─── PRESET PERIODS ──────────────────────────────────────────────────────────
-type Preset = "today" | "week" | "month" | "quarter" | "year" | "custom";
+// ─── MONTH NAVIGATION ────────────────────────────────────────────────────────
+type Preset = "month" | "custom";
 
-function getPresetRange(preset: Preset): { from: string; to: string } {
-  const now = new Date();
+function monthRange(year: number, month: number): { from: string; to: string } {
   const pad = (n: number) => String(n).padStart(2, "0");
-  const iso = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
-  const t = iso(now);
-
-  if (preset === "today") return { from: t, to: t };
-  if (preset === "week") {
-    const day = now.getDay();
-    const mon = new Date(now);
-    mon.setDate(now.getDate() - (day === 0 ? 6 : day - 1));
-    return { from: iso(mon), to: t };
-  }
-  if (preset === "month") {
-    return { from: `${now.getFullYear()}-${pad(now.getMonth() + 1)}-01`, to: t };
-  }
-  if (preset === "quarter") {
-    const q = Math.floor(now.getMonth() / 3);
-    const qStart = new Date(now.getFullYear(), q * 3, 1);
-    return { from: iso(qStart), to: t };
-  }
-  if (preset === "year") {
-    return { from: `${now.getFullYear()}-01-01`, to: t };
-  }
-  return { from: monthStart(), to: t };
+  const lastDay = new Date(year, month + 1, 0).getDate();
+  return {
+    from: `${year}-${pad(month + 1)}-01`,
+    to:   `${year}-${pad(month + 1)}-${pad(lastDay)}`,
+  };
 }
+
+
+const MONTH_NAMES = [
+  "Janeiro","Fevereiro","Março","Abril","Maio","Junho",
+  "Julho","Agosto","Setembro","Outubro","Novembro","Dezembro",
+];
 
 // ─── MAIN COMPONENT ──────────────────────────────────────────────────────────
 export default function Finance() {
@@ -534,8 +518,12 @@ export default function Finance() {
 
   // Filters
   const [preset, setPreset] = useState<Preset>("month");
-  const [dateFrom, setDateFrom] = useState(monthStart());
-  const [dateTo, setDateTo] = useState(today());
+  // current month navigation
+  const nowRef = new Date();
+  const [navYear, setNavYear]   = useState(nowRef.getFullYear());
+  const [navMonth, setNavMonth] = useState(nowRef.getMonth()); // 0-based
+  const [dateFrom, setDateFrom] = useState(() => monthRange(nowRef.getFullYear(), nowRef.getMonth()).from);
+  const [dateTo,   setDateTo]   = useState(() => monthRange(nowRef.getFullYear(), nowRef.getMonth()).to);
   const [searchQ, setSearchQ] = useState("");
   const [typeFilter, setTypeFilter] = useState<"all" | "income" | "expense">("all");
   const [paymentFilter, setPaymentFilter] = useState<Set<string>>(new Set());
@@ -585,11 +573,24 @@ export default function Finance() {
 
   const applyPreset = (p: Preset) => {
     setPreset(p);
-    if (p !== "custom") {
-      const range = getPresetRange(p);
+    if (p === "month") {
+      const range = monthRange(navYear, navMonth);
       setDateFrom(range.from);
       setDateTo(range.to);
     }
+  };
+
+  const navigateMonth = (delta: number) => {
+    let m = navMonth + delta;
+    let y = navYear;
+    if (m > 11) { m = 0;  y++; }
+    if (m < 0)  { m = 11; y--; }
+    setNavMonth(m);
+    setNavYear(y);
+    setPreset("month");
+    const range = monthRange(y, m);
+    setDateFrom(range.from);
+    setDateTo(range.to);
   };
 
   const openModal = (type: "income" | "expense") => {
@@ -721,23 +722,9 @@ export default function Finance() {
   const totalExpense     = expenseEntries.reduce((a, e) => a + Number(e.amount), 0);
   const balance          = totalIncome - totalExpense;
 
-  const periodLabel = (() => {
-    if (preset === "today") return "Hoje";
-    if (preset === "week") return "Esta Semana";
-    if (preset === "month") return `${new Date(dateFrom + "T12:00:00").toLocaleString("pt-BR", { month: "long", year: "numeric" })}`;
-    if (preset === "quarter") return "Este Trimestre";
-    if (preset === "year") return `Ano ${new Date().getFullYear()}`;
-    return `${formatDateBR(dateFrom)} a ${formatDateBR(dateTo)}`;
-  })();
-
-  const PRESETS: { key: Preset; label: string }[] = [
-    { key: "today", label: "Hoje" },
-    { key: "week", label: "Semana" },
-    { key: "month", label: "Mês" },
-    { key: "quarter", label: "Trimestre" },
-    { key: "year", label: "Ano" },
-    { key: "custom", label: "Personalizado" },
-  ];
+  const periodLabel = preset === "month"
+    ? `${MONTH_NAMES[navMonth]} ${navYear}`
+    : `${formatDateBR(dateFrom)} a ${formatDateBR(dateTo)}`;
 
   return (
     <div className="space-y-6">
@@ -914,29 +901,77 @@ export default function Finance() {
             </div>
           </div>
 
-          {/* Row 2: preset pills */}
-          <div className="flex items-center gap-2 overflow-x-auto scrollbar-none">
-            {PRESETS.map((p) => (
+          {/* Row 2: month navigator + mode toggle */}
+          <div className="flex items-center gap-3 flex-wrap">
+            {/* ← Mês → navigator */}
+            <div className="flex items-center gap-1 bg-slate-50 border border-slate-200 rounded-xl p-1">
               <button
-                key={p.key}
-                onClick={() => applyPreset(p.key)}
+                onClick={() => navigateMonth(-1)}
+                className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-500 hover:bg-white hover:text-slate-900 transition-all"
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+              </button>
+              <button
+                onClick={() => setPreset("month")}
                 className={cn(
-                  "shrink-0 h-7 px-3 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all border",
-                  preset === p.key
-                    ? "bg-slate-900 text-white border-slate-900"
-                    : "bg-white text-slate-400 border-slate-200 hover:border-slate-400"
+                  "px-4 h-7 rounded-lg text-[11px] font-black uppercase tracking-widest transition-all min-w-[160px] text-center",
+                  preset === "month"
+                    ? "bg-slate-900 text-white"
+                    : "text-slate-600 hover:bg-white"
                 )}
               >
-                {p.label}
+                {MONTH_NAMES[navMonth]} {navYear}
               </button>
-            ))}
+              <button
+                onClick={() => navigateMonth(1)}
+                className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-500 hover:bg-white hover:text-slate-900 transition-all"
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+              </button>
+            </div>
+
+            {/* Custom range toggle */}
+            <button
+              onClick={() => setPreset(preset === "custom" ? "month" : "custom")}
+              className={cn(
+                "h-9 px-3 rounded-xl flex items-center gap-1.5 text-[9px] font-black uppercase tracking-widest border transition-all",
+                preset === "custom"
+                  ? "bg-blue-600 text-white border-blue-600"
+                  : "bg-white text-slate-400 border-slate-200 hover:border-slate-400"
+              )}
+            >
+              <Calendar size={12} /> Período Livre
+            </button>
+
+            {/* Custom date inputs (only visible when custom) */}
+            {preset === "custom" && (
+              <div className="flex items-center gap-2">
+                <div className="relative">
+                  <input
+                    type="date"
+                    value={dateFrom}
+                    onChange={(e) => setDateFrom(e.target.value)}
+                    className="pl-3 pr-3 h-9 bg-slate-50 border border-slate-200 rounded-xl text-[11px] font-bold focus:outline-none focus:border-blue-400 transition-all w-[148px]"
+                  />
+                </div>
+                <span className="text-[10px] font-black text-slate-300 uppercase">até</span>
+                <div className="relative">
+                  <input
+                    type="date"
+                    value={dateTo}
+                    onChange={(e) => setDateTo(e.target.value)}
+                    className="pl-3 pr-3 h-9 bg-slate-50 border border-slate-200 rounded-xl text-[11px] font-bold focus:outline-none focus:border-blue-400 transition-all w-[148px]"
+                  />
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Row 3: expanded filters */}
           {showFilters && (
             <div className="flex flex-col gap-3 pt-2 border-t border-slate-100">
-              {/* Row A: search + type + dates */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+              {/* Row A: search + type */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 {/* Search */}
                 <div className="relative">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={12} />
@@ -968,26 +1003,6 @@ export default function Finance() {
                       {t === "all" ? "Todos" : t === "income" ? "Receitas" : "Despesas"}
                     </button>
                   ))}
-                </div>
-                {/* Date from */}
-                <div className="relative">
-                  <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={12} />
-                  <input
-                    type="date"
-                    value={dateFrom}
-                    onChange={(e) => { setDateFrom(e.target.value); setPreset("custom"); }}
-                    className="w-full pl-8 pr-3 h-9 bg-slate-50 border border-slate-200 rounded-lg text-[10px] font-bold focus:outline-none focus:border-blue-400 transition-all"
-                  />
-                </div>
-                {/* Date to */}
-                <div className="relative">
-                  <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={12} />
-                  <input
-                    type="date"
-                    value={dateTo}
-                    onChange={(e) => { setDateTo(e.target.value); setPreset("custom"); }}
-                    className="w-full pl-8 pr-3 h-9 bg-slate-50 border border-slate-200 rounded-lg text-[10px] font-bold focus:outline-none focus:border-blue-400 transition-all"
-                  />
                 </div>
               </div>
 

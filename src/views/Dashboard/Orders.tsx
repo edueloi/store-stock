@@ -16,6 +16,8 @@ import {
   User,
   AlertTriangle,
   Loader2,
+  Trash2,
+  CheckSquare,
 } from "lucide-react";
 import PageHeader from "../../components/layout/PageHeader";
 import { Order, Product } from "../../types";
@@ -70,23 +72,31 @@ export default function Orders() {
   const [cancelledBy, setCancelledBy] = useState("");
   const [cancelling, setCancelling] = useState(false);
 
+  // Bulk selection state
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+
+  const token = () => localStorage.getItem("token");
+
   const fetchOrders = async () => {
     try {
       const res = await fetch("/api/orders", {
-        headers: { "Authorization": `Bearer ${localStorage.getItem("token")}` }
+        headers: { Authorization: `Bearer ${token()}` },
       });
       const data = await res.json();
       setOrders(Array.isArray(data) ? data : []);
-      setLoading(false);
     } catch (err) {
-       console.error(err);
+      console.error(err);
+    } finally {
+      setLoading(false);
     }
   };
 
   const fetchTopSelling = async () => {
     try {
       const res = await fetch("/api/stats/top-selling", {
-        headers: { "Authorization": `Bearer ${localStorage.getItem("token")}` }
+        headers: { Authorization: `Bearer ${token()}` },
       });
       setTopProducts(await res.json());
     } catch (err) {
@@ -97,20 +107,24 @@ export default function Orders() {
   useEffect(() => {
     fetchOrders();
     fetchTopSelling();
-    fetch("/api/tenant", { headers: { Authorization: `Bearer ${localStorage.getItem("token")}` } })
+    fetch("/api/tenant", { headers: { Authorization: `Bearer ${token()}` } })
       .then((r) => r.json())
       .then((d) => setTenant(d))
       .catch(() => {});
-    fetch("/api/preferences/receipt_printer_size", { headers: { Authorization: `Bearer ${localStorage.getItem("token")}` } })
+    fetch("/api/preferences/receipt_printer_size", {
+      headers: { Authorization: `Bearer ${token()}` },
+    })
       .then((r) => r.json())
-      .then((v) => { if (v) setPrinterSize(v as "58mm" | "80mm" | "A4"); })
+      .then((v) => {
+        if (v) setPrinterSize(v as "58mm" | "80mm" | "A4");
+      })
       .catch(() => {});
   }, []);
 
   const fetchOrderDetails = async (id: number) => {
     try {
       const res = await fetch(`/api/orders/${id}`, {
-        headers: { "Authorization": `Bearer ${localStorage.getItem("token")}` }
+        headers: { Authorization: `Bearer ${token()}` },
       });
       const data = await res.json();
       setSelectedOrder(data);
@@ -120,10 +134,103 @@ export default function Orders() {
     }
   };
 
+  // ── Bulk selection helpers ──────────────────────────────────────────────────
+
+  const filteredOrders = orders.filter((o) => {
+    if (selectedStatus !== "all" && o.status !== selectedStatus) return false;
+    if (searchTerm === "") return true;
+    const q = searchTerm.replace(/^#/, "").toLowerCase().trim();
+    return (
+      String(o.id).padStart(6, "0").includes(q) ||
+      String(o.id).includes(q) ||
+      (o.customer_name?.toLowerCase().includes(q) ?? false) ||
+      (o.customer_phone?.toLowerCase().includes(q) ?? false) ||
+      (o.payment_method?.toLowerCase().includes(q) ?? false)
+    );
+  });
+
+  const allFilteredSelected =
+    filteredOrders.length > 0 &&
+    filteredOrders.every((o) => selectedIds.has(o.id));
+
+  const toggleSelectAll = () => {
+    if (allFilteredSelected) {
+      setSelectedIds((prev) => {
+        const next = new Set(prev);
+        filteredOrders.forEach((o) => next.delete(o.id));
+        return next;
+      });
+    } else {
+      setSelectedIds((prev) => {
+        const next = new Set(prev);
+        filteredOrders.forEach((o) => next.add(o.id));
+        return next;
+      });
+    }
+  };
+
+  const toggleSelect = (id: number, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const clearSelection = () => setSelectedIds(new Set());
+
+  // ── Delete handlers ─────────────────────────────────────────────────────────
+
+  const handleBulkDelete = async () => {
+    if (selectedIds.size === 0) return;
+    setDeleting(true);
+    try {
+      const res = await fetch("/api/orders/bulk", {
+        method: "DELETE",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token()}`,
+        },
+        body: JSON.stringify({ ids: Array.from(selectedIds) }),
+      });
+      if (res.ok) {
+        setShowDeleteModal(false);
+        clearSelection();
+        fetchOrders();
+      }
+    } catch (err) {
+      console.error(err);
+    }
+    setDeleting(false);
+  };
+
+  const handleDeleteSingle = async (id: number) => {
+    setDeleting(true);
+    try {
+      const res = await fetch(`/api/orders/${id}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token()}` },
+      });
+      if (res.ok) {
+        setShowDeleteModal(false);
+        setIsDetailModalOpen(false);
+        setSelectedOrder(null);
+        fetchOrders();
+      }
+    } catch (err) {
+      console.error(err);
+    }
+    setDeleting(false);
+  };
+
+  // ── Warranty / Receipt builders (unchanged) ─────────────────────────────────
+
   const buildWarrantyHtml = (order: OrderDetail) => {
-    const storeName   = tenant?.name ?? "Estabelecimento";
-    const storeDoc    = tenant?.document ? `CPF/CNPJ: ${tenant.document}` : "";
-    const storeAddr   = (() => {
+    const storeName = tenant?.name ?? "Estabelecimento";
+    const storeDoc = tenant?.document ? `CPF/CNPJ: ${tenant.document}` : "";
+    const storeAddr = (() => {
       if (tenant?.address_street) {
         const parts = [
           `${tenant.address_street}${tenant.address_number ? ", " + tenant.address_number : ""}`,
@@ -131,24 +238,25 @@ export default function Orders() {
           tenant.address_district,
           tenant.address_city && tenant.address_state
             ? `${tenant.address_city} - ${tenant.address_state}`
-            : (tenant?.address_city ?? tenant?.address_state ?? ""),
+            : tenant?.address_city ?? tenant?.address_state ?? "",
           tenant?.address_zip,
         ].filter(Boolean);
         return parts.join(", ");
       }
       return tenant?.address ?? "";
     })();
-    const storePhone  = tenant?.whatsapp ? `WhatsApp: ${tenant.whatsapp}` : "";
-    const rawLogo     = tenant?.logo_url ?? "";
-    const storeLogo   = rawLogo && !rawLogo.startsWith("http")
-      ? `${window.location.origin}${rawLogo}`
-      : rawLogo;
+    const storePhone = tenant?.whatsapp ? `WhatsApp: ${tenant.whatsapp}` : "";
+    const rawLogo = tenant?.logo_url ?? "";
+    const storeLogo =
+      rawLogo && !rawLogo.startsWith("http")
+        ? `${window.location.origin}${rawLogo}`
+        : rawLogo;
 
     const wp = tenant?.policies ?? {};
-    const warrantyDays     = wp.warranty_days ?? 90;
-    const resolutionDays   = wp.warranty_resolution_days ?? 30;
-    const warrantyTitle    = wp.warranty_title ?? "Termos e Condições de Garantia";
-    const defaultClauses   = [
+    const warrantyDays = wp.warranty_days ?? 90;
+    const resolutionDays = wp.warranty_resolution_days ?? 30;
+    const warrantyTitle = wp.warranty_title ?? "Termos e Condições de Garantia";
+    const defaultClauses = [
       `A garantia cobre defeitos de fabricação pelo período de <strong>${warrantyDays} dias</strong> a partir da data de emissão deste termo, conforme art. 26 do Código de Defesa do Consumidor (Lei 8.078/90).`,
       "Para acionar a garantia, o cliente deverá apresentar este documento juntamente com comprovante de compra e identificação pessoal.",
       "A garantia não cobre danos causados por uso inadequado, queda, umidade, mau uso, tentativa de conserto por terceiros não autorizados ou desgaste natural do produto.",
@@ -157,27 +265,33 @@ export default function Orders() {
       "Esta garantia é intransferível e válida somente para o comprador original identificado neste documento.",
     ];
     const rawClauses = wp.warranty_clauses ?? [];
-    const clauses = rawClauses.length > 0
-      ? rawClauses.map((c) =>
-          c.replace(/\{\{warranty_days\}\}/g, String(warrantyDays))
-           .replace(/\{\{resolution_days\}\}/g, String(resolutionDays))
-        )
-      : defaultClauses;
+    const clauses =
+      rawClauses.length > 0
+        ? rawClauses.map((c) =>
+            c
+              .replace(/\{\{warranty_days\}\}/g, String(warrantyDays))
+              .replace(/\{\{resolution_days\}\}/g, String(resolutionDays))
+          )
+        : defaultClauses;
     const warrantyClausesHtml = clauses
       .map((c) => `<div class="warranty-item">${c}</div>`)
       .join("\n  ");
 
-    const orderNum    = String(order.id).padStart(6, "0");
-    const orderDate   = new Date(order.created_at).toLocaleDateString("pt-BR");
-    const clientName  = order.customer_name || "Consumidor Final";
+    const orderNum = String(order.id).padStart(6, "0");
+    const orderDate = new Date(order.created_at).toLocaleDateString("pt-BR");
+    const clientName = order.customer_name || "Consumidor Final";
     const clientPhone = order.customer_phone || "";
 
-    const itemsHtml = order.items.map(item => `
+    const itemsHtml = order.items
+      .map(
+        (item) => `
       <tr>
         <td style="padding:8px 10px;border-bottom:1px solid #f0f0f0">${item.product_name}</td>
         <td style="padding:8px 10px;border-bottom:1px solid #f0f0f0;text-align:center">${item.quantity}</td>
         <td style="padding:8px 10px;border-bottom:1px solid #f0f0f0;text-align:right">R$ ${Number(item.unit_price).toFixed(2)}</td>
-      </tr>`).join("");
+      </tr>`
+      )
+      .join("");
 
     return `<!DOCTYPE html>
 <html lang="pt-BR">
@@ -219,9 +333,11 @@ export default function Orders() {
 <body>
 
 <div class="header">
-  ${storeLogo
-    ? `<img src="${storeLogo}" class="logo" alt="Logo"/>`
-    : `<div class="logo-placeholder">LOGO</div>`}
+  ${
+    storeLogo
+      ? `<img src="${storeLogo}" class="logo" alt="Logo"/>`
+      : `<div class="logo-placeholder">LOGO</div>`
+  }
   <div class="store-info">
     <div class="store-name">${storeName}</div>
     <div class="store-meta">
@@ -297,47 +413,54 @@ export default function Orders() {
   };
 
   const buildReceiptHtml = (order: OrderDetail) => {
-    const storeName  = tenant?.name ?? 'Estabelecimento';
-    const storeDoc   = tenant?.document ? `CNPJ/CPF: ${tenant.document}` : '';
-    const storePhone = tenant?.whatsapp ? `Tel/WhatsApp: ${tenant.whatsapp}` : '';
-    const storeAddr  = (() => {
+    const storeName = tenant?.name ?? "Estabelecimento";
+    const storeDoc = tenant?.document ? `CNPJ/CPF: ${tenant.document}` : "";
+    const storePhone = tenant?.whatsapp ? `Tel/WhatsApp: ${tenant.whatsapp}` : "";
+    const storeAddr = (() => {
       if (tenant?.address_street) {
         const parts = [
-          `${tenant.address_street}${tenant.address_number ? ', ' + tenant.address_number : ''}`,
+          `${tenant.address_street}${tenant.address_number ? ", " + tenant.address_number : ""}`,
           tenant.address_complement,
           tenant.address_district,
           tenant.address_city && tenant.address_state
             ? `${tenant.address_city} - ${tenant.address_state}`
-            : (tenant?.address_city ?? tenant?.address_state ?? ''),
-          tenant.address_zip ? `CEP: ${tenant.address_zip}` : '',
+            : tenant?.address_city ?? tenant?.address_state ?? "",
+          tenant.address_zip ? `CEP: ${tenant.address_zip}` : "",
         ].filter(Boolean);
-        return parts.join(' | ');
+        return parts.join(" | ");
       }
-      return tenant?.address ?? '';
+      return tenant?.address ?? "";
     })();
 
-    const statusLabel = order.status === 'completed' ? 'PAGO' : order.status === 'pending' ? 'PENDENTE' : 'CANCELADO';
+    const statusLabel =
+      order.status === "completed"
+        ? "PAGO"
+        : order.status === "pending"
+        ? "PENDENTE"
+        : "CANCELADO";
 
-    // Parse payment_method field (format: "method:amount" or "method:amount:installments:brand")
     const parsePayments = (raw?: string) => {
-      if (!raw) return [{ label: 'Não informado', amount: '' }];
-      return raw.split('|').map(seg => {
-        const parts = seg.trim().split(':');
-        const method = parts[0]?.toLowerCase() ?? '';
-        const amount = parts[1] ? `R$ ${Number(parts[1]).toFixed(2)}` : '';
+      if (!raw) return [{ label: "Não informado", amount: "" }];
+      return raw.split("|").map((seg) => {
+        const parts = seg.trim().split(":");
+        const method = parts[0]?.toLowerCase() ?? "";
+        const amount = parts[1] ? `R$ ${Number(parts[1]).toFixed(2)}` : "";
         const installments = parts[2] ? Number(parts[2]) : 1;
-        const brand = parts[3] ?? '';
-        let label = '';
-        if (method === 'money' || method === 'dinheiro') {
-          label = 'Dinheiro';
-        } else if (method === 'pix') {
-          label = 'PIX';
-        } else if (method === 'debit' || method === 'debito') {
-          label = brand ? `Débito (${brand})` : 'Cartão de Débito';
-        } else if (method === 'credit' || method === 'credito') {
-          label = installments > 1
-            ? `Crédito ${brand ? '(' + brand + ') ' : ''}– ${installments}x de R$ ${(Number(parts[1]) / installments).toFixed(2)}`
-            : brand ? `Crédito (${brand})` : 'Cartão de Crédito';
+        const brand = parts[3] ?? "";
+        let label = "";
+        if (method === "money" || method === "dinheiro") {
+          label = "Dinheiro";
+        } else if (method === "pix") {
+          label = "PIX";
+        } else if (method === "debit" || method === "debito") {
+          label = brand ? `Débito (${brand})` : "Cartão de Débito";
+        } else if (method === "credit" || method === "credito") {
+          label =
+            installments > 1
+              ? `Crédito ${brand ? "(" + brand + ") " : ""}– ${installments}x de R$ ${(Number(parts[1]) / installments).toFixed(2)}`
+              : brand
+              ? `Crédito (${brand})`
+              : "Cartão de Crédito";
         } else {
           label = method.charAt(0).toUpperCase() + method.slice(1);
         }
@@ -346,110 +469,109 @@ export default function Orders() {
     };
 
     const payments = parsePayments(order.payment_method);
-    const hasDiscount  = order.discount_amount && Number(order.discount_amount) > 0;
-    const hasFee       = order.fee_amount && Number(order.fee_amount) > 0;
-    const grossAmount  = order.gross_amount ? Number(order.gross_amount) : Number(order.total_amount);
+    const hasDiscount = order.discount_amount && Number(order.discount_amount) > 0;
+    const hasFee = order.fee_amount && Number(order.fee_amount) > 0;
+    const grossAmount = order.gross_amount
+      ? Number(order.gross_amount)
+      : Number(order.total_amount);
 
     return `<!DOCTYPE html>
 <html><head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=${printerSize === 'A4' ? 'device-width' : printerSize},initial-scale=1">
-<title>Comprovante #${String(order.id).padStart(5,'0')}</title>
+<meta name="viewport" content="width=${printerSize === "A4" ? "device-width" : printerSize},initial-scale=1">
+<title>Comprovante #${String(order.id).padStart(5, "0")}</title>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
-  html, body { width: ${printerSize === 'A4' ? '100%' : printerSize}; background: #fff; color: #000; }
+  html, body { width: ${printerSize === "A4" ? "100%" : printerSize}; background: #fff; color: #000; }
   body {
     font-family: 'Courier New', Courier, monospace;
-    font-size: ${printerSize === 'A4' ? '11pt' : printerSize === '80mm' ? '10pt' : '9pt'};
-    padding: ${printerSize === 'A4' ? '0' : '3mm 3mm 6mm'};
+    font-size: ${printerSize === "A4" ? "11pt" : printerSize === "80mm" ? "10pt" : "9pt"};
+    padding: ${printerSize === "A4" ? "0" : "3mm 3mm 6mm"};
     line-height: 1.35;
   }
-  /* ── layout helpers ── */
   .center  { text-align: center; }
   .bold    { font-weight: bold; }
   .small   { font-size: 9pt; }
   .xsmall  { font-size: 8pt; color: #555; }
   .divider { border: none; border-top: 1px dashed #000; margin: 4mm 0; }
   .solid   { border-top-style: solid; }
-  /* ── store header ── */
   .store-name { font-size: 11pt; font-weight: bold; text-align: center; text-transform: uppercase; letter-spacing: 0.5px; }
   .store-info { font-size: 7pt; text-align: center; color: #222; line-height: 1.6; margin-top: 1mm; }
-  /* ── doc title ── */
   .doc-title { font-size: 10pt; font-weight: bold; text-align: center; text-transform: uppercase; letter-spacing: 1.5px; margin: 2mm 0 1mm; }
   .doc-sub   { font-size: 7.5pt; text-align: center; color: #555; }
-  /* ── status badge ── */
   .status-wrap { text-align: center; margin: 1.5mm 0 1mm; }
   .status-box  { display: inline-block; font-weight: bold; font-size: 9pt; padding: 0.5mm 4mm; border: 1.5px solid #000; letter-spacing: 2px; }
-  /* ── section label ── */
   .section { font-size: 7.5pt; font-weight: bold; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 1mm; }
-  /* ── row (label + value side-by-side) ── */
   .row      { display: table; width: 100%; margin: 0.8mm 0; font-size: 8pt; }
   .row .lbl { display: table-cell; color: #444; white-space: nowrap; padding-right: 2mm; }
   .row .val { display: table-cell; text-align: right; font-weight: bold; }
-  /* ── items ── */
   .item       { margin: 1.5mm 0; }
   .item-line  { display: table; width: 100%; }
   .item-name  { display: table-cell; font-weight: bold; font-size: 8.5pt; padding-right: 2mm; word-break: break-word; }
   .item-price { display: table-cell; text-align: right; font-weight: bold; font-size: 8.5pt; white-space: nowrap; }
   .item-qty   { font-size: 7pt; color: #555; padding-top: 0.3mm; }
-  /* ── totals ── */
   .subtotal-row { display: table; width: 100%; font-size: 8pt; margin: 0.8mm 0; }
   .subtotal-row .lbl { display: table-cell; color: #555; }
   .subtotal-row .val { display: table-cell; text-align: right; }
   .total-line { display: table; width: 100%; margin: 1.5mm 0 0; border-top: 1.5px solid #000; padding-top: 1.5mm; }
   .total-lbl  { display: table-cell; font-size: 12pt; font-weight: bold; }
   .total-val  { display: table-cell; text-align: right; font-size: 12pt; font-weight: bold; }
-  /* ── payment ── */
   .pay-row      { display: table; width: 100%; margin: 1mm 0; font-size: 8pt; }
   .pay-label    { display: table-cell; }
   .pay-amount   { display: table-cell; text-align: right; font-weight: bold; }
-  /* ── footer ── */
   .footer { text-align: center; font-size: 7pt; color: #555; margin-top: 4mm; line-height: 1.7; }
   .footer .thanks { font-size: 9pt; font-weight: bold; color: #000; display: block; margin-bottom: 1mm; }
-  /* ── PRINT ── fill 100% of whatever paper the printer uses ── */
   @media print {
-    @page { size: ${printerSize === 'A4' ? 'A4' : printerSize + ' auto'}; margin: ${printerSize === 'A4' ? '15mm 12mm' : '2mm 2mm'}; }
-    html, body { width: ${printerSize === 'A4' ? '100%' : printerSize}; }
+    @page { size: ${printerSize === "A4" ? "A4" : printerSize + " auto"}; margin: ${printerSize === "A4" ? "15mm 12mm" : "2mm 2mm"}; }
+    html, body { width: ${printerSize === "A4" ? "100%" : printerSize}; }
   }
 </style></head><body>
 
 <div class="store-name">${storeName}</div>
 <div class="store-info">
-  ${storeDoc ? storeDoc + '<br>' : ''}${storeAddr ? storeAddr + '<br>' : ''}${storePhone || ''}
+  ${storeDoc ? storeDoc + "<br>" : ""}${storeAddr ? storeAddr + "<br>" : ""}${storePhone || ""}
 </div>
 
 <hr class="divider"/>
 
 <div class="doc-title">Comprovante de Venda</div>
-<div class="doc-sub">Pedido #${String(order.id).padStart(5,'0')} &nbsp;|&nbsp; ${new Date(order.created_at).toLocaleString('pt-BR')}</div>
+<div class="doc-sub">Pedido #${String(order.id).padStart(5, "0")} &nbsp;|&nbsp; ${new Date(order.created_at).toLocaleString("pt-BR")}</div>
 <div class="status-wrap"><span class="status-box">${statusLabel}</span></div>
 
 <hr class="divider"/>
 
 <div class="section">Cliente</div>
-<div class="row"><span class="lbl">Nome:</span><span class="val">${order.customer_name || 'Consumidor Final'}</span></div>
-${order.customer_phone ? `<div class="row"><span class="lbl">Telefone:</span><span class="val">${order.customer_phone}</span></div>` : ''}
-${order.customer_address ? `<div class="row"><span class="lbl">Endereço:</span><span class="val">${order.customer_address}</span></div>` : ''}
-${order.seller_name ? `<div class="row"><span class="lbl">Vendedor:</span><span class="val">${order.seller_name}</span></div>` : ''}
+<div class="row"><span class="lbl">Nome:</span><span class="val">${order.customer_name || "Consumidor Final"}</span></div>
+${order.customer_phone ? `<div class="row"><span class="lbl">Telefone:</span><span class="val">${order.customer_phone}</span></div>` : ""}
+${order.customer_address ? `<div class="row"><span class="lbl">Endereço:</span><span class="val">${order.customer_address}</span></div>` : ""}
+${order.seller_name ? `<div class="row"><span class="lbl">Vendedor:</span><span class="val">${order.seller_name}</span></div>` : ""}
 
 <hr class="divider"/>
 
 <div class="section">Itens do Pedido</div>
-${order.items.map(item => `<div class="item">
+${order.items
+  .map(
+    (item) => `<div class="item">
   <div class="item-line">
     <span class="item-name">${item.product_name}</span>
     <span class="item-price">R$ ${(item.quantity * Number(item.unit_price)).toFixed(2)}</span>
   </div>
   <div class="item-qty">${item.quantity} un &times; R$ ${Number(item.unit_price).toFixed(2)}</div>
-</div>`).join('')}
+</div>`
+  )
+  .join("")}
 
 <hr class="divider"/>
 
-${hasDiscount || hasFee ? `
+${
+  hasDiscount || hasFee
+    ? `
 <div class="subtotal-row"><span class="lbl">Subtotal</span><span class="val">R$ ${grossAmount.toFixed(2)}</span></div>
-${hasDiscount ? `<div class="subtotal-row"><span class="lbl">Desconto</span><span class="val">- R$ ${Number(order.discount_amount).toFixed(2)}</span></div>` : ''}
-${hasFee ? `<div class="subtotal-row"><span class="lbl">Acréscimo</span><span class="val">+ R$ ${Number(order.fee_amount).toFixed(2)}</span></div>` : ''}
-` : ''}
+${hasDiscount ? `<div class="subtotal-row"><span class="lbl">Desconto</span><span class="val">- R$ ${Number(order.discount_amount).toFixed(2)}</span></div>` : ""}
+${hasFee ? `<div class="subtotal-row"><span class="lbl">Acréscimo</span><span class="val">+ R$ ${Number(order.fee_amount).toFixed(2)}</span></div>` : ""}
+`
+    : ""
+}
 <div class="total-line">
   <span class="total-lbl">TOTAL</span>
   <span class="total-val">R$ ${Number(order.total_amount).toFixed(2)}</span>
@@ -458,14 +580,18 @@ ${hasFee ? `<div class="subtotal-row"><span class="lbl">Acréscimo</span><span c
 <hr class="divider"/>
 
 <div class="section">Pagamento</div>
-${payments.map(p => `<div class="pay-row">
+${payments
+  .map(
+    (p) => `<div class="pay-row">
   <span class="pay-label">${p.label}</span>
   <span class="pay-amount">${p.amount}</span>
-</div>`).join('')}
+</div>`
+  )
+  .join("")}
 
 <div class="footer">
   <span class="thanks">Obrigado pela preferência!</span>
-  Emitido em ${new Date().toLocaleString('pt-BR')}<br>
+  Emitido em ${new Date().toLocaleString("pt-BR")}<br>
   Este documento não tem valor fiscal.
 </div>
 </body></html>`;
@@ -474,13 +600,8 @@ ${payments.map(p => `<div class="pay-row">
   const handlePrintReceipt = () => {
     if (!selectedOrder) return;
     const html = buildReceiptHtml(selectedOrder);
-    const iframe = document.createElement('iframe');
-    iframe.style.position = 'fixed';
-    iframe.style.right = '0';
-    iframe.style.bottom = '0';
-    iframe.style.width = '0';
-    iframe.style.height = '0';
-    iframe.style.border = 'none';
+    const iframe = document.createElement("iframe");
+    iframe.style.cssText = "position:fixed;right:0;bottom:0;width:0;height:0;border:none";
     document.body.appendChild(iframe);
     const doc = iframe.contentDocument || iframe.contentWindow?.document;
     if (!doc) return;
@@ -497,11 +618,11 @@ ${payments.map(p => `<div class="pay-row">
   const handleDownloadReceipt = () => {
     if (!selectedOrder) return;
     const html = buildReceiptHtml(selectedOrder);
-    const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
+    const blob = new Blob([html], { type: "text/html;charset=utf-8" });
     const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
+    const a = document.createElement("a");
     a.href = url;
-    a.download = `comprovante-pedido-${String(selectedOrder.id).padStart(6,'0')}.html`;
+    a.download = `comprovante-pedido-${String(selectedOrder.id).padStart(6, "0")}.html`;
     a.click();
     URL.revokeObjectURL(url);
   };
@@ -509,11 +630,11 @@ ${payments.map(p => `<div class="pay-row">
   const handleDownloadWarranty = () => {
     if (!selectedOrder) return;
     const html = buildWarrantyHtml(selectedOrder);
-    const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
+    const blob = new Blob([html], { type: "text/html;charset=utf-8" });
     const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
+    const a = document.createElement("a");
     a.href = url;
-    a.download = `garantia-pedido-${String(selectedOrder.id).padStart(6,'0')}.html`;
+    a.download = `garantia-pedido-${String(selectedOrder.id).padStart(6, "0")}.html`;
     a.click();
     URL.revokeObjectURL(url);
   };
@@ -521,12 +642,15 @@ ${payments.map(p => `<div class="pay-row">
   const handlePrintWarranty = () => {
     if (!selectedOrder) return;
     const html = buildWarrantyHtml(selectedOrder);
-    const win = window.open('', '_blank', 'width=850,height=1100');
+    const win = window.open("", "_blank", "width=850,height=1100");
     if (!win) return;
     win.document.open();
     win.document.write(html);
     win.document.close();
-    win.onload = () => { win.focus(); win.print(); };
+    win.onload = () => {
+      win.focus();
+      win.print();
+    };
   };
 
   const handleUpdateStatus = async (id: number, status: string) => {
@@ -535,9 +659,9 @@ ${payments.map(p => `<div class="pay-row">
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
-          "Authorization": `Bearer ${localStorage.getItem("token")}`
+          Authorization: `Bearer ${token()}`,
         },
-        body: JSON.stringify({ status })
+        body: JSON.stringify({ status }),
       });
       if (res.ok) {
         setIsDetailModalOpen(false);
@@ -556,7 +680,7 @@ ${payments.map(p => `<div class="pay-row">
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "Authorization": `Bearer ${localStorage.getItem("token")}`,
+          Authorization: `Bearer ${token()}`,
         },
         body: JSON.stringify({ cancel_reason: cancelReason, cancelled_by: cancelledBy }),
       });
@@ -573,38 +697,38 @@ ${payments.map(p => `<div class="pay-row">
     setCancelling(false);
   };
 
-  const filteredOrders = orders.filter(o => {
-    if (selectedStatus !== "all" && o.status !== selectedStatus) return false;
-    if (searchTerm === "") return true;
-    const q = searchTerm.replace(/^#/, "").toLowerCase().trim();
-    return (
-      String(o.id).padStart(6, "0").includes(q) ||
-      String(o.id).includes(q) ||
-      (o.customer_name?.toLowerCase().includes(q) ?? false) ||
-      (o.customer_phone?.toLowerCase().includes(q) ?? false) ||
-      (o.payment_method?.toLowerCase().includes(q) ?? false)
-    );
-  });
-
   const getStatusStyle = (status: string) => {
-    switch(status) {
-      case 'completed': return "bg-emerald-50 text-emerald-600 border-emerald-100";
-      case 'pending': return "bg-amber-50 text-amber-600 border-amber-100";
-      case 'cancelled': return "bg-red-50 text-red-600 border-red-100";
-      default: return "bg-gray-50 text-gray-600 border-gray-100";
+    switch (status) {
+      case "completed":
+        return "bg-emerald-50 text-emerald-600 border-emerald-100";
+      case "pending":
+        return "bg-amber-50 text-amber-600 border-amber-100";
+      case "cancelled":
+        return "bg-red-50 text-red-600 border-red-100";
+      default:
+        return "bg-gray-50 text-gray-600 border-gray-100";
     }
   };
 
   const getStatusIcon = (status: string) => {
-    switch(status) {
-      case 'completed': return <CheckCircle2 size={14} />;
-      case 'pending': return <Clock size={14} />;
-      case 'cancelled': return <XCircle size={14} />;
-      default: return null;
+    switch (status) {
+      case "completed":
+        return <CheckCircle2 size={14} />;
+      case "pending":
+        return <Clock size={14} />;
+      case "cancelled":
+        return <XCircle size={14} />;
+      default:
+        return null;
     }
   };
 
-  if (loading) return <div className="p-8 text-center text-xs font-bold uppercase tracking-widest text-slate-400">Puxando Fluxo de Pedidos...</div>;
+  if (loading)
+    return (
+      <div className="p-8 text-center text-xs font-bold uppercase tracking-widest text-slate-400">
+        Puxando Fluxo de Pedidos...
+      </div>
+    );
 
   return (
     <div className="space-y-6">
@@ -620,133 +744,258 @@ ${payments.map(p => `<div class="pay-row">
 
       {/* Analytics Summary */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 lg:gap-6">
-         <div className="md:col-span-2 bg-white rounded-[32px] border border-slate-200 p-6 lg:p-8 shadow-sm flex flex-col justify-between overflow-hidden relative group">
-            <div className="absolute right-0 top-0 p-8 text-slate-50 opacity-10 group-hover:opacity-20 transition-opacity hidden sm:block">
-               <TrendingUp size={120} strokeWidth={1.5} />
+        <div className="md:col-span-2 bg-white rounded-[32px] border border-slate-200 p-6 lg:p-8 shadow-sm flex flex-col justify-between overflow-hidden relative group">
+          <div className="absolute right-0 top-0 p-8 text-slate-50 opacity-10 group-hover:opacity-20 transition-opacity hidden sm:block">
+            <TrendingUp size={120} strokeWidth={1.5} />
+          </div>
+          <div>
+            <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-6">
+              Resumo de Pedidos
+            </p>
+            <div className="grid grid-cols-3 gap-4 sm:gap-12">
+              <div className="space-y-1">
+                <h3 className="text-2xl sm:text-4xl font-black text-slate-900 tracking-tighter">
+                  {orders.length}
+                </h3>
+                <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">
+                  Total
+                </p>
+              </div>
+              <div className="space-y-1">
+                <h3 className="text-2xl sm:text-4xl font-black text-amber-500 tracking-tighter">
+                  {orders.filter((o) => o.status === "pending").length}
+                </h3>
+                <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">
+                  Pendente
+                </p>
+              </div>
+              <div className="space-y-1">
+                <h3 className="text-2xl sm:text-4xl font-black text-emerald-500 tracking-tighter">
+                  {orders.filter((o) => o.status === "completed").length}
+                </h3>
+                <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">
+                  Pago
+                </p>
+              </div>
             </div>
-            <div>
-               <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-6">Resumo de Pedidos</p>
-               <div className="grid grid-cols-3 gap-4 sm:gap-12">
-                  <div className="space-y-1">
-                     <h3 className="text-2xl sm:text-4xl font-black text-slate-900 tracking-tighter">{orders.length}</h3>
-                     <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Total</p>
-                  </div>
-                  <div className="space-y-1">
-                     <h3 className="text-2xl sm:text-4xl font-black text-amber-500 tracking-tighter">{orders.filter(o => o.status === 'pending').length}</h3>
-                     <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Pendente</p>
-                  </div>
-                  <div className="space-y-1">
-                     <h3 className="text-2xl sm:text-4xl font-black text-emerald-500 tracking-tighter">{orders.filter(o => o.status === 'completed').length}</h3>
-                     <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Pago</p>
-                  </div>
-               </div>
-            </div>
-            <div className="mt-8 flex flex-wrap gap-2">
-               {['all', 'pending', 'completed', 'cancelled'].map(status => (
-                  <button 
-                    key={status}
-                    onClick={() => setSelectedStatus(status)}
-                    className={cn(
-                      "px-4 h-9 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all border shrink-0",
-                      selectedStatus === status ? "bg-slate-900 text-white border-slate-900 shadow-xl shadow-slate-200" : "bg-white text-slate-500 border-slate-200 hover:border-slate-300"
-                    )}
-                  >
-                    {status === 'all' ? 'Tudo' : status === 'pending' ? 'Pendentes' : status === 'completed' ? 'Efetivados' : 'Cancelados'}
-                  </button>
-               ))}
-            </div>
-         </div>
+          </div>
+          <div className="mt-8 flex flex-wrap gap-2">
+            {["all", "pending", "completed", "cancelled"].map((status) => (
+              <button
+                key={status}
+                onClick={() => setSelectedStatus(status)}
+                className={cn(
+                  "px-4 h-9 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all border shrink-0",
+                  selectedStatus === status
+                    ? "bg-slate-900 text-white border-slate-900 shadow-xl shadow-slate-200"
+                    : "bg-white text-slate-500 border-slate-200 hover:border-slate-300"
+                )}
+              >
+                {status === "all"
+                  ? "Tudo"
+                  : status === "pending"
+                  ? "Pendentes"
+                  : status === "completed"
+                  ? "Efetivados"
+                  : "Cancelados"}
+              </button>
+            ))}
+          </div>
+        </div>
 
-         <div className="bg-slate-900 rounded-[32px] p-6 lg:p-8 text-white shadow-2xl shadow-slate-200 flex flex-col justify-between">
-            <div>
-               <div className="flex items-center justify-between mb-6">
-                  <p className="text-[10px] font-black text-blue-400 uppercase tracking-[0.2em]">Mais Vendidos</p>
-                  <CartIcon size={16} className="text-blue-400" />
-               </div>
-               <div className="space-y-4">
-                  {topProducts.map((p, i) => (
-                    <div key={i} className="flex items-center justify-between group">
-                       <div className="flex items-center gap-3">
-                          <span className="text-[8px] font-black text-slate-500 w-4">0{i+1}</span>
-                          <span className="text-[11px] font-bold uppercase truncate max-w-[120px] text-slate-300 group-hover:text-white transition-colors">{p.name}</span>
-                       </div>
-                       <span className="text-[10px] font-mono font-black text-blue-400 px-2.5 py-1 rounded-lg bg-blue-400/10 leading-none">{p.total_sold} UN</span>
-                    </div>
-                  ))}
-                  {topProducts.length === 0 && (
-                     <p className="text-[10px] text-slate-600 py-6 uppercase font-black tracking-widest text-center border border-dashed border-slate-800 rounded-2xl">Nenhuma venda ainda</p>
-                  )}
-               </div>
+        <div className="bg-slate-900 rounded-[32px] p-6 lg:p-8 text-white shadow-2xl shadow-slate-200 flex flex-col justify-between">
+          <div>
+            <div className="flex items-center justify-between mb-6">
+              <p className="text-[10px] font-black text-blue-400 uppercase tracking-[0.2em]">
+                Mais Vendidos
+              </p>
+              <CartIcon size={16} className="text-blue-400" />
             </div>
-            <button className="mt-8 w-full h-10 bg-white/5 hover:bg-white/10 text-white rounded-xl text-[9px] font-black uppercase tracking-widest transition-all border border-white/10">Ver Relatório</button>
-         </div>
+            <div className="space-y-4">
+              {topProducts.map((p, i) => (
+                <div key={i} className="flex items-center justify-between group">
+                  <div className="flex items-center gap-3">
+                    <span className="text-[8px] font-black text-slate-500 w-4">0{i + 1}</span>
+                    <span className="text-[11px] font-bold uppercase truncate max-w-[120px] text-slate-300 group-hover:text-white transition-colors">
+                      {p.name}
+                    </span>
+                  </div>
+                  <span className="text-[10px] font-mono font-black text-blue-400 px-2.5 py-1 rounded-lg bg-blue-400/10 leading-none">
+                    {p.total_sold} UN
+                  </span>
+                </div>
+              ))}
+              {topProducts.length === 0 && (
+                <p className="text-[10px] text-slate-600 py-6 uppercase font-black tracking-widest text-center border border-dashed border-slate-800 rounded-2xl">
+                  Nenhuma venda ainda
+                </p>
+              )}
+            </div>
+          </div>
+          <button className="mt-8 w-full h-10 bg-white/5 hover:bg-white/10 text-white rounded-xl text-[9px] font-black uppercase tracking-widest transition-all border border-white/10">
+            Ver Relatório
+          </button>
+        </div>
       </div>
 
       <div className="relative">
         <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
-        <input 
-          type="text" 
-          placeholder="Buscar Transação por ID ou Nome do Destinatário..." 
+        <input
+          type="text"
+          placeholder="Buscar Transação por ID ou Nome do Destinatário..."
           className="w-full pl-12 pr-4 h-12 bg-white border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 text-[10px] font-bold uppercase tracking-widest placeholder:text-slate-300 shadow-sm"
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
         />
       </div>
 
+      {/* Bulk action bar */}
+      <AnimatePresence>
+        {selectedIds.size > 0 && (
+          <motion.div
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 8 }}
+            className="flex items-center justify-between bg-slate-900 text-white rounded-2xl px-5 py-3 shadow-xl shadow-slate-900/20"
+          >
+            <div className="flex items-center gap-3">
+              <CheckSquare size={16} className="text-blue-400" />
+              <span className="text-[11px] font-black uppercase tracking-widest">
+                {selectedIds.size} pedido{selectedIds.size !== 1 ? "s" : ""} selecionado
+                {selectedIds.size !== 1 ? "s" : ""}
+              </span>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={clearSelection}
+                className="h-8 px-3 rounded-xl bg-white/10 hover:bg-white/20 text-[10px] font-black uppercase tracking-widest transition-all"
+              >
+                Limpar
+              </button>
+              <button
+                onClick={() => setShowDeleteModal(true)}
+                className="h-8 px-4 rounded-xl bg-red-500 hover:bg-red-600 text-[10px] font-black uppercase tracking-widest flex items-center gap-2 transition-all shadow-lg shadow-red-500/30"
+              >
+                <Trash2 size={13} /> Deletar
+              </button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Desktop View Table */}
-      <div className="hidden lg:block bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden flex flex-col transition-all hover:shadow-md">
+      <div className="hidden lg:block bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden transition-all hover:shadow-md">
         <div className="overflow-x-auto no-scrollbar">
           <table className="w-full text-left border-collapse">
             <thead>
               <tr className="bg-slate-50 border-b border-slate-100">
-                <th className="px-8 py-5 text-[10px] font-black text-slate-500 uppercase tracking-[0.2em]">Pedido</th>
-                <th className="px-8 py-5 text-[10px] font-black text-slate-500 uppercase tracking-[0.2em]">Cliente</th>
-                <th className="px-8 py-5 text-[10px] font-black text-slate-500 uppercase tracking-[0.2em]">Data</th>
-                <th className="px-8 py-5 text-[10px] font-black text-slate-500 uppercase tracking-[0.2em]">Total</th>
-                <th className="px-8 py-5 text-[10px] font-black text-slate-500 uppercase tracking-[0.2em]">Status</th>
-                <th className="px-8 py-5 text-right"></th>
+                <th className="px-5 py-5 w-12">
+                  <input
+                    type="checkbox"
+                    checked={allFilteredSelected}
+                    onChange={toggleSelectAll}
+                    className="w-4 h-4 rounded accent-slate-900 cursor-pointer"
+                  />
+                </th>
+                <th className="px-4 py-5 text-[10px] font-black text-slate-500 uppercase tracking-[0.2em]">
+                  Pedido
+                </th>
+                <th className="px-4 py-5 text-[10px] font-black text-slate-500 uppercase tracking-[0.2em]">
+                  Cliente
+                </th>
+                <th className="px-4 py-5 text-[10px] font-black text-slate-500 uppercase tracking-[0.2em]">
+                  Data
+                </th>
+                <th className="px-4 py-5 text-[10px] font-black text-slate-500 uppercase tracking-[0.2em]">
+                  Total
+                </th>
+                <th className="px-4 py-5 text-[10px] font-black text-slate-500 uppercase tracking-[0.2em]">
+                  Status
+                </th>
+                <th className="px-4 py-5 text-right"></th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-50 text-slate-700">
-              {filteredOrders.map((order) => (
-                <tr 
-                  key={order.id} 
-                  onClick={() => fetchOrderDetails(order.id)}
-                  className="hover:bg-blue-50/30 transition-colors group cursor-pointer"
-                >
-                  <td className="px-8 py-6">
-                    <span className="font-mono font-black text-xs text-slate-400 group-hover:text-blue-600 transition-colors">#{String(order.id).padStart(6, '0')}</span>
-                  </td>
-                  <td className="px-8 py-6">
-                    <div className="flex flex-col">
-                       <span className="font-black text-xs text-slate-900 uppercase tracking-tight">{order.customer_name || "Consumidor Final"}</span>
-                       <span className="text-[9px] text-slate-400 font-bold uppercase mt-1 tracking-widest bg-slate-100 px-1.5 py-0.5 rounded w-fit">{order.customer_phone || "VENDA BALCÃO"}</span>
-                    </div>
-                  </td>
-                  <td className="px-8 py-6 text-[10px] font-mono font-black text-slate-500 uppercase">
-                    {new Date(order.created_at).toLocaleDateString('pt-BR')}
-                  </td>
-                  <td className="px-8 py-6">
-                    <span className="font-mono font-black text-sm text-slate-900 tracking-tighter">R$ {Number(order.total_amount).toFixed(2)}</span>
-                  </td>
-                  <td className="px-8 py-6">
-                    <div className={cn(
-                      "flex items-center gap-2 px-3 py-1.5 rounded-xl text-[9px] font-black uppercase tracking-widest border w-fit shadow-sm",
-                      getStatusStyle(order.status)
-                    )}>
-                      {getStatusIcon(order.status)}
-                      <span>{order.status === 'completed' ? 'PAGO' : order.status === 'pending' ? 'PENDENTE' : 'ESTORNO'}</span>
-                    </div>
-                  </td>
-                  <td className="px-8 py-6 text-right">
-                     <div className="flex justify-end opacity-0 group-hover:opacity-100 transition-all translate-x-2 group-hover:translate-x-0">
-                        <div className="w-10 h-10 rounded-xl bg-slate-900 text-white flex items-center justify-center shadow-lg">
-                           <ChevronRight size={18} strokeWidth={3} />
+              {filteredOrders.map((order) => {
+                const isChecked = selectedIds.has(order.id);
+                return (
+                  <tr
+                    key={order.id}
+                    onClick={() => fetchOrderDetails(order.id)}
+                    className={cn(
+                      "hover:bg-blue-50/30 transition-colors group cursor-pointer",
+                      isChecked && "bg-blue-50/50"
+                    )}
+                  >
+                    <td className="px-5 py-6" onClick={(e) => toggleSelect(order.id, e)}>
+                      <input
+                        type="checkbox"
+                        checked={isChecked}
+                        onChange={() => {}}
+                        className="w-4 h-4 rounded accent-slate-900 cursor-pointer"
+                      />
+                    </td>
+                    <td className="px-4 py-6">
+                      <span className="font-mono font-black text-xs text-slate-400 group-hover:text-blue-600 transition-colors">
+                        #{String(order.id).padStart(6, "0")}
+                      </span>
+                    </td>
+                    <td className="px-4 py-6">
+                      <div className="flex flex-col">
+                        <span className="font-black text-xs text-slate-900 uppercase tracking-tight">
+                          {order.customer_name || "Consumidor Final"}
+                        </span>
+                        <span className="text-[9px] text-slate-400 font-bold uppercase mt-1 tracking-widest bg-slate-100 px-1.5 py-0.5 rounded w-fit">
+                          {order.customer_phone || "VENDA BALCÃO"}
+                        </span>
+                      </div>
+                    </td>
+                    <td className="px-4 py-6 text-[10px] font-mono font-black text-slate-500 uppercase">
+                      {new Date(order.created_at).toLocaleDateString("pt-BR")}
+                    </td>
+                    <td className="px-4 py-6">
+                      <span className="font-mono font-black text-sm text-slate-900 tracking-tighter">
+                        R$ {Number(order.total_amount).toFixed(2)}
+                      </span>
+                    </td>
+                    <td className="px-4 py-6">
+                      <div
+                        className={cn(
+                          "flex items-center gap-2 px-3 py-1.5 rounded-xl text-[9px] font-black uppercase tracking-widest border w-fit shadow-sm",
+                          getStatusStyle(order.status)
+                        )}
+                      >
+                        {getStatusIcon(order.status)}
+                        <span>
+                          {order.status === "completed"
+                            ? "PAGO"
+                            : order.status === "pending"
+                            ? "PENDENTE"
+                            : "ESTORNO"}
+                        </span>
+                      </div>
+                    </td>
+                    <td className="px-4 py-6 text-right">
+                      <div className="flex justify-end items-center gap-2 opacity-0 group-hover:opacity-100 transition-all translate-x-2 group-hover:translate-x-0">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSelectedIds(new Set([order.id]));
+                            setShowDeleteModal(true);
+                          }}
+                          className="w-9 h-9 rounded-xl bg-red-50 border border-red-100 text-red-500 flex items-center justify-center hover:bg-red-100 transition-all"
+                          title="Deletar pedido"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                        <div className="w-9 h-9 rounded-xl bg-slate-900 text-white flex items-center justify-center shadow-lg">
+                          <ChevronRight size={18} strokeWidth={3} />
                         </div>
-                     </div>
-                  </td>
-                </tr>
-              ))}
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
@@ -754,58 +1003,105 @@ ${payments.map(p => `<div class="pay-row">
 
       {/* Mobile Card-Based List */}
       <div className="lg:hidden space-y-4 pb-12">
-        {filteredOrders.map((order) => (
-          <motion.div 
-            layout
-            key={order.id}
-            onClick={() => fetchOrderDetails(order.id)}
-            className="bg-white p-5 rounded-[28px] border border-slate-200 shadow-sm active:scale-95 transition-all"
-          >
-            <div className="flex justify-between items-start mb-4">
-              <div className="space-y-1">
-                <span className="text-[10px] font-mono font-black text-slate-300">#{String(order.id).padStart(6, '0')}</span>
-                <h4 className="text-xs font-black text-slate-900 uppercase tracking-tight">{order.customer_name || "Cliente Balcão"}</h4>
+        {filteredOrders.map((order) => {
+          const isChecked = selectedIds.has(order.id);
+          return (
+            <motion.div
+              layout
+              key={order.id}
+              className={cn(
+                "bg-white p-5 rounded-[28px] border border-slate-200 shadow-sm transition-all",
+                isChecked && "border-blue-300 ring-2 ring-blue-100"
+              )}
+            >
+              <div className="flex justify-between items-start mb-4">
+                <div
+                  className="flex items-center gap-3 flex-1 cursor-pointer"
+                  onClick={() => fetchOrderDetails(order.id)}
+                >
+                  <div className="space-y-1">
+                    <span className="text-[10px] font-mono font-black text-slate-300">
+                      #{String(order.id).padStart(6, "0")}
+                    </span>
+                    <h4 className="text-xs font-black text-slate-900 uppercase tracking-tight">
+                      {order.customer_name || "Cliente Balcão"}
+                    </h4>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  <div
+                    className={cn(
+                      "px-3 py-1.5 rounded-xl text-[8px] font-black uppercase tracking-widest border shadow-sm flex items-center gap-1.5",
+                      getStatusStyle(order.status)
+                    )}
+                  >
+                    {getStatusIcon(order.status)}
+                    {order.status === "completed"
+                      ? "PAGO"
+                      : order.status === "pending"
+                      ? "PEND"
+                      : "CANCL"}
+                  </div>
+                  <input
+                    type="checkbox"
+                    checked={isChecked}
+                    onChange={(e) => {
+                      e.stopPropagation();
+                      setSelectedIds((prev) => {
+                        const next = new Set(prev);
+                        if (next.has(order.id)) next.delete(order.id);
+                        else next.add(order.id);
+                        return next;
+                      });
+                    }}
+                    className="w-4 h-4 rounded accent-slate-900 cursor-pointer"
+                  />
+                </div>
               </div>
-              <div className={cn(
-                "px-3 py-1.5 rounded-xl text-[8px] font-black uppercase tracking-widest border shadow-sm flex items-center gap-1.5",
-                getStatusStyle(order.status)
-              )}>
-                {getStatusIcon(order.status)}
-                {order.status === 'completed' ? 'PAGO' : order.status === 'pending' ? 'PEND' : 'CANCL'}
-              </div>
-            </div>
 
-            <div className="flex justify-between items-end pt-4 border-t border-slate-50">
-               <div className="space-y-1">
+              <div
+                className="flex justify-between items-end pt-4 border-t border-slate-50 cursor-pointer"
+                onClick={() => fetchOrderDetails(order.id)}
+              >
+                <div className="space-y-1">
                   <div className="flex items-center gap-2 text-slate-400">
                     <Clock size={10} />
-                    <span className="text-[9px] font-mono font-bold uppercase">{new Date(order.created_at).toLocaleDateString('pt-BR')}</span>
+                    <span className="text-[9px] font-mono font-bold uppercase">
+                      {new Date(order.created_at).toLocaleDateString("pt-BR")}
+                    </span>
                   </div>
                   <div className="flex items-center gap-2 text-slate-400">
                     <CreditCard size={10} />
-                    <span className="text-[9px] font-black uppercase tracking-tighter">{order.payment_method || 'Cartão'}</span>
+                    <span className="text-[9px] font-black uppercase tracking-tighter">
+                      {order.payment_method || "Cartão"}
+                    </span>
                   </div>
-               </div>
-               <div className="text-right">
-                  <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Montante Líquido</p>
-                  <p className="text-xl font-mono font-black text-slate-900 tracking-tighter">R$ {Number(order.total_amount).toFixed(2)}</p>
-               </div>
-            </div>
-          </motion.div>
-        ))}
+                </div>
+                <div className="text-right">
+                  <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">
+                    Montante Líquido
+                  </p>
+                  <p className="text-xl font-mono font-black text-slate-900 tracking-tighter">
+                    R$ {Number(order.total_amount).toFixed(2)}
+                  </p>
+                </div>
+              </div>
+            </motion.div>
+          );
+        })}
       </div>
 
       {/* Details Modal */}
       <AnimatePresence>
         {isDetailModalOpen && selectedOrder && (
           <>
-            {/* backdrop */}
             <motion.div
-              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
               onClick={() => setIsDetailModalOpen(false)}
               className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-sm"
             />
-            {/* sheet */}
             <motion.div
               initial={{ y: "100%" }}
               animate={{ y: 0 }}
@@ -813,180 +1109,287 @@ ${payments.map(p => `<div class="pay-row">
               transition={{ type: "spring", damping: 32, stiffness: 300 }}
               className="fixed inset-x-0 bottom-0 z-50 flex flex-col bg-white rounded-t-3xl shadow-2xl max-h-[94dvh] sm:inset-auto sm:right-0 sm:top-0 sm:bottom-0 sm:w-[420px] sm:rounded-none sm:rounded-l-3xl sm:max-h-full sm:border-l border-slate-200"
             >
-              {/* drag handle (mobile only) */}
               <div className="shrink-0 flex justify-center pt-3 pb-1 sm:hidden">
                 <div className="w-10 h-1 rounded-full bg-slate-200" />
               </div>
 
-              {/* header */}
               <div className="shrink-0 px-5 py-4 flex items-center justify-between border-b border-slate-100">
                 <div className="flex items-center gap-3">
-                  <div className={cn(
-                    "w-9 h-9 rounded-2xl flex items-center justify-center shrink-0",
-                    selectedOrder.status === 'completed' ? "bg-emerald-100" :
-                    selectedOrder.status === 'cancelled' ? "bg-red-100" : "bg-amber-100"
-                  )}>
-                    {selectedOrder.status === 'completed'
-                      ? <CheckCircle2 size={18} className="text-emerald-600" />
-                      : selectedOrder.status === 'cancelled'
-                      ? <XCircle size={18} className="text-red-600" />
-                      : <Clock size={18} className="text-amber-600" />
-                    }
+                  <div
+                    className={cn(
+                      "w-9 h-9 rounded-2xl flex items-center justify-center shrink-0",
+                      selectedOrder.status === "completed"
+                        ? "bg-emerald-100"
+                        : selectedOrder.status === "cancelled"
+                        ? "bg-red-100"
+                        : "bg-amber-100"
+                    )}
+                  >
+                    {selectedOrder.status === "completed" ? (
+                      <CheckCircle2 size={18} className="text-emerald-600" />
+                    ) : selectedOrder.status === "cancelled" ? (
+                      <XCircle size={18} className="text-red-600" />
+                    ) : (
+                      <Clock size={18} className="text-amber-600" />
+                    )}
                   </div>
                   <div>
-                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest leading-none mb-0.5">Pedido</p>
-                    <h4 className="text-lg font-black text-slate-900 leading-none">#{String(selectedOrder.id).padStart(5, '0')}</h4>
+                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest leading-none mb-0.5">
+                      Pedido
+                    </p>
+                    <h4 className="text-lg font-black text-slate-900 leading-none">
+                      #{String(selectedOrder.id).padStart(5, "0")}
+                    </h4>
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
-                  {selectedOrder.status === 'pending' && (
-                    <button onClick={() => handleUpdateStatus(selectedOrder.id, 'completed')}
-                      className="h-9 px-4 bg-emerald-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg shadow-emerald-200/50 hover:bg-emerald-700 active:scale-95 transition-all">
+                  {selectedOrder.status === "pending" && (
+                    <button
+                      onClick={() => handleUpdateStatus(selectedOrder.id, "completed")}
+                      className="h-9 px-4 bg-emerald-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg shadow-emerald-200/50 hover:bg-emerald-700 active:scale-95 transition-all"
+                    >
                       Efetivar
                     </button>
                   )}
-                  {selectedOrder.status !== 'cancelled' && (
-                    <button onClick={() => setShowCancelModal(true)}
-                      className="h-9 px-3 bg-red-50 text-red-600 border border-red-200 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-red-100 active:scale-95 transition-all">
+                  {selectedOrder.status !== "cancelled" && (
+                    <button
+                      onClick={() => setShowCancelModal(true)}
+                      className="h-9 px-3 bg-red-50 text-red-600 border border-red-200 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-red-100 active:scale-95 transition-all"
+                    >
                       Cancelar
                     </button>
                   )}
-                  <button onClick={() => setIsDetailModalOpen(false)}
-                    className="w-9 h-9 flex items-center justify-center bg-slate-100 hover:bg-slate-200 rounded-xl transition-all text-slate-500 shrink-0">
+                  <button
+                    onClick={() => {
+                      setSelectedIds(new Set([selectedOrder.id]));
+                      setShowDeleteModal(true);
+                    }}
+                    className="w-9 h-9 flex items-center justify-center bg-red-50 border border-red-100 hover:bg-red-100 rounded-xl transition-all text-red-500 shrink-0"
+                    title="Deletar pedido"
+                  >
+                    <Trash2 size={15} />
+                  </button>
+                  <button
+                    onClick={() => setIsDetailModalOpen(false)}
+                    className="w-9 h-9 flex items-center justify-center bg-slate-100 hover:bg-slate-200 rounded-xl transition-all text-slate-500 shrink-0"
+                  >
                     <X size={16} />
                   </button>
                 </div>
               </div>
 
-              {/* scrollable body */}
               <div className="flex-1 overflow-y-auto overscroll-contain">
-
-                {/* total hero */}
-                <div className={cn(
-                  "mx-4 mt-4 rounded-2xl p-4 flex items-center justify-between",
-                  selectedOrder.status === 'completed' ? "bg-emerald-600" :
-                  selectedOrder.status === 'cancelled' ? "bg-slate-800" : "bg-amber-500"
-                )}>
+                <div
+                  className={cn(
+                    "mx-4 mt-4 rounded-2xl p-4 flex items-center justify-between",
+                    selectedOrder.status === "completed"
+                      ? "bg-emerald-600"
+                      : selectedOrder.status === "cancelled"
+                      ? "bg-slate-800"
+                      : "bg-amber-500"
+                  )}
+                >
                   <div>
                     <p className="text-[10px] font-bold text-white/70 uppercase tracking-widest mb-0.5">
-                      {selectedOrder.status === 'completed' ? 'Total Pago' : selectedOrder.status === 'cancelled' ? 'Cancelado' : 'Valor Pendente'}
+                      {selectedOrder.status === "completed"
+                        ? "Total Pago"
+                        : selectedOrder.status === "cancelled"
+                        ? "Cancelado"
+                        : "Valor Pendente"}
                     </p>
-                    <p className="text-2xl font-black font-mono text-white">R$ {Number(selectedOrder.total_amount).toFixed(2)}</p>
-                    <p className="text-[10px] text-white/70 font-medium mt-0.5">{new Date(selectedOrder.created_at).toLocaleString("pt-BR")}</p>
+                    <p className="text-2xl font-black font-mono text-white">
+                      R$ {Number(selectedOrder.total_amount).toFixed(2)}
+                    </p>
+                    <p className="text-[10px] text-white/70 font-medium mt-0.5">
+                      {new Date(selectedOrder.created_at).toLocaleString("pt-BR")}
+                    </p>
                   </div>
-                  <div className={cn(
-                    "w-12 h-12 rounded-2xl flex items-center justify-center",
-                    selectedOrder.status === 'completed' ? "bg-white/20" :
-                    selectedOrder.status === 'cancelled' ? "bg-white/10" : "bg-white/20"
-                  )}>
-                    {selectedOrder.status === 'completed'
-                      ? <CheckCircle2 size={24} className="text-white" />
-                      : selectedOrder.status === 'cancelled'
-                      ? <XCircle size={24} className="text-white" />
-                      : <Clock size={24} className="text-white" />
-                    }
+                  <div
+                    className={cn(
+                      "w-12 h-12 rounded-2xl flex items-center justify-center",
+                      selectedOrder.status === "completed"
+                        ? "bg-white/20"
+                        : selectedOrder.status === "cancelled"
+                        ? "bg-white/10"
+                        : "bg-white/20"
+                    )}
+                  >
+                    {selectedOrder.status === "completed" ? (
+                      <CheckCircle2 size={24} className="text-white" />
+                    ) : selectedOrder.status === "cancelled" ? (
+                      <XCircle size={24} className="text-white" />
+                    ) : (
+                      <Clock size={24} className="text-white" />
+                    )}
                   </div>
                 </div>
 
-                {/* Cancelled info */}
-                {selectedOrder.status === 'cancelled' && (selectedOrder.cancel_reason || selectedOrder.cancelled_by) && (
-                  <div className="mx-4 mt-3 p-4 bg-red-50 border border-red-100 rounded-2xl space-y-1">
-                    <p className="text-[10px] font-black uppercase tracking-widest text-red-600 flex items-center gap-1.5"><AlertTriangle size={11} /> Motivo do Cancelamento</p>
-                    {selectedOrder.cancelled_by && <p className="text-[11px] font-bold text-red-800">Por: {selectedOrder.cancelled_by}</p>}
-                    {selectedOrder.cancel_reason && <p className="text-[11px] text-red-700">{selectedOrder.cancel_reason}</p>}
-                    {selectedOrder.cancelled_at && <p className="text-[10px] text-red-400 font-mono">{new Date(selectedOrder.cancelled_at).toLocaleString("pt-BR")}</p>}
-                  </div>
-                )}
+                {selectedOrder.status === "cancelled" &&
+                  (selectedOrder.cancel_reason || selectedOrder.cancelled_by) && (
+                    <div className="mx-4 mt-3 p-4 bg-red-50 border border-red-100 rounded-2xl space-y-1">
+                      <p className="text-[10px] font-black uppercase tracking-widest text-red-600 flex items-center gap-1.5">
+                        <AlertTriangle size={11} /> Motivo do Cancelamento
+                      </p>
+                      {selectedOrder.cancelled_by && (
+                        <p className="text-[11px] font-bold text-red-800">
+                          Por: {selectedOrder.cancelled_by}
+                        </p>
+                      )}
+                      {selectedOrder.cancel_reason && (
+                        <p className="text-[11px] text-red-700">{selectedOrder.cancel_reason}</p>
+                      )}
+                      {selectedOrder.cancelled_at && (
+                        <p className="text-[10px] text-red-400 font-mono">
+                          {new Date(selectedOrder.cancelled_at).toLocaleString("pt-BR")}
+                        </p>
+                      )}
+                    </div>
+                  )}
 
-                {/* Customer + Seller */}
                 <div className="mx-4 mt-3 grid grid-cols-2 gap-2">
                   <div className="p-3.5 bg-slate-50 rounded-2xl space-y-1">
-                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1"><User size={9} /> Cliente</p>
-                    <p className="text-[11px] font-black text-slate-900">{selectedOrder.customer_name || "Consumidor Final"}</p>
-                    {selectedOrder.customer_phone && <p className="text-[10px] font-mono text-slate-500">{selectedOrder.customer_phone}</p>}
+                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1">
+                      <User size={9} /> Cliente
+                    </p>
+                    <p className="text-[11px] font-black text-slate-900">
+                      {selectedOrder.customer_name || "Consumidor Final"}
+                    </p>
+                    {selectedOrder.customer_phone && (
+                      <p className="text-[10px] font-mono text-slate-500">
+                        {selectedOrder.customer_phone}
+                      </p>
+                    )}
                   </div>
                   <div className="p-3.5 bg-slate-50 rounded-2xl space-y-1">
-                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Vendedor</p>
-                    <p className="text-[11px] font-black text-slate-900">{selectedOrder.seller_name || "—"}</p>
-                    <p className="text-[10px] text-slate-400">{selectedOrder.seller_name ? "Responsável" : "Não atribuído"}</p>
+                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">
+                      Vendedor
+                    </p>
+                    <p className="text-[11px] font-black text-slate-900">
+                      {selectedOrder.seller_name || "—"}
+                    </p>
+                    <p className="text-[10px] text-slate-400">
+                      {selectedOrder.seller_name ? "Responsável" : "Não atribuído"}
+                    </p>
                   </div>
                 </div>
 
-                {/* Items */}
                 <div className="mx-4 mt-3 space-y-2">
-                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1.5"><Package size={10} /> Itens do Pedido ({selectedOrder.items.length})</p>
+                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
+                    <Package size={10} /> Itens do Pedido ({selectedOrder.items.length})
+                  </p>
                   <div className="bg-slate-50 rounded-2xl overflow-hidden divide-y divide-slate-100">
-                    {selectedOrder.items.map(item => (
+                    {selectedOrder.items.map((item) => (
                       <div key={item.id} className="px-4 py-3.5 flex items-center justify-between gap-3">
                         <div className="min-w-0">
-                          <p className="text-[12px] font-black text-slate-900 truncate">{item.product_name}</p>
-                          <p className="text-[10px] font-bold text-slate-400">{item.quantity} un × R$ {Number(item.unit_price).toFixed(2)}</p>
+                          <p className="text-[12px] font-black text-slate-900 truncate">
+                            {item.product_name}
+                          </p>
+                          <p className="text-[10px] font-bold text-slate-400">
+                            {item.quantity} un × R$ {Number(item.unit_price).toFixed(2)}
+                          </p>
                         </div>
-                        <span className="font-mono font-black text-sm text-slate-900 shrink-0">R$ {(item.quantity * Number(item.unit_price)).toFixed(2)}</span>
+                        <span className="font-mono font-black text-sm text-slate-900 shrink-0">
+                          R$ {(item.quantity * Number(item.unit_price)).toFixed(2)}
+                        </span>
                       </div>
                     ))}
                   </div>
                 </div>
 
-                {/* Financial summary */}
-                {(selectedOrder.gross_amount != null && Number(selectedOrder.gross_amount) !== Number(selectedOrder.total_amount)) ||
-                 (selectedOrder.discount_amount != null && Number(selectedOrder.discount_amount) > 0) ||
-                 (selectedOrder.fee_amount != null && Number(selectedOrder.fee_amount) > 0) ? (
+                {(selectedOrder.gross_amount != null &&
+                  Number(selectedOrder.gross_amount) !== Number(selectedOrder.total_amount)) ||
+                (selectedOrder.discount_amount != null &&
+                  Number(selectedOrder.discount_amount) > 0) ||
+                (selectedOrder.fee_amount != null && Number(selectedOrder.fee_amount) > 0) ? (
                   <div className="mx-4 mt-3 bg-slate-50 rounded-2xl overflow-hidden divide-y divide-slate-100">
-                    {selectedOrder.gross_amount != null && Number(selectedOrder.gross_amount) !== Number(selectedOrder.total_amount) && (
-                      <div className="px-4 py-3 flex justify-between text-[11px]">
-                        <span className="text-slate-500 font-bold">Subtotal</span>
-                        <span className="font-mono font-bold text-slate-700">R$ {Number(selectedOrder.gross_amount).toFixed(2)}</span>
-                      </div>
-                    )}
-                    {selectedOrder.discount_amount != null && Number(selectedOrder.discount_amount) > 0 && (
-                      <div className="px-4 py-3 flex justify-between text-[11px]">
-                        <span className="text-rose-500 font-bold">Desconto</span>
-                        <span className="font-mono font-bold text-rose-500">− R$ {Number(selectedOrder.discount_amount).toFixed(2)}</span>
-                      </div>
-                    )}
+                    {selectedOrder.gross_amount != null &&
+                      Number(selectedOrder.gross_amount) !== Number(selectedOrder.total_amount) && (
+                        <div className="px-4 py-3 flex justify-between text-[11px]">
+                          <span className="text-slate-500 font-bold">Subtotal</span>
+                          <span className="font-mono font-bold text-slate-700">
+                            R$ {Number(selectedOrder.gross_amount).toFixed(2)}
+                          </span>
+                        </div>
+                      )}
+                    {selectedOrder.discount_amount != null &&
+                      Number(selectedOrder.discount_amount) > 0 && (
+                        <div className="px-4 py-3 flex justify-between text-[11px]">
+                          <span className="text-rose-500 font-bold">Desconto</span>
+                          <span className="font-mono font-bold text-rose-500">
+                            − R$ {Number(selectedOrder.discount_amount).toFixed(2)}
+                          </span>
+                        </div>
+                      )}
                     {selectedOrder.fee_amount != null && Number(selectedOrder.fee_amount) > 0 && (
                       <div className="px-4 py-3 flex justify-between text-[11px]">
                         <span className="text-amber-600 font-bold">Taxa Maquininha</span>
-                        <span className="font-mono font-bold text-amber-600">+ R$ {Number(selectedOrder.fee_amount).toFixed(2)}</span>
+                        <span className="font-mono font-bold text-amber-600">
+                          + R$ {Number(selectedOrder.fee_amount).toFixed(2)}
+                        </span>
                       </div>
                     )}
                   </div>
                 ) : null}
 
-                {/* Payment method */}
                 {(() => {
                   const pm = selectedOrder.payment_method ?? "";
                   if (!pm) return null;
-                  const segs = pm.split("|").map(seg => {
+                  const segs = pm.split("|").map((seg) => {
                     const [mp, amt] = seg.split(":");
                     const toks = mp.split("-");
-                    return { method: toks[0]??"-", brand: toks[1]??null, installments: toks[2] ? parseInt(toks[2]) : 1, amount: parseFloat(amt??"0")||0 };
+                    return {
+                      method: toks[0] ?? "-",
+                      brand: toks[1] ?? null,
+                      installments: toks[2] ? parseInt(toks[2]) : 1,
+                      amount: parseFloat(amt ?? "0") || 0,
+                    };
                   });
-                  const labels: Record<string,string> = { money:"Dinheiro", pix:"PIX", debit:"Débito", credit:"Crédito" };
-                  const icons: Record<string,string> = { money:"💵", pix:"⚡", debit:"💳", credit:"💳" };
+                  const labels: Record<string, string> = {
+                    money: "Dinheiro",
+                    pix: "PIX",
+                    debit: "Débito",
+                    credit: "Crédito",
+                  };
+                  const icons: Record<string, string> = {
+                    money: "💵",
+                    pix: "⚡",
+                    debit: "💳",
+                    credit: "💳",
+                  };
                   return (
                     <div className="mx-4 mt-3 space-y-2">
-                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1.5"><CreditCard size={10} /> Pagamento</p>
+                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
+                        <CreditCard size={10} /> Pagamento
+                      </p>
                       <div className="space-y-2">
                         {segs.map((s, i) => {
                           const perInst = s.installments > 1 ? s.amount / s.installments : 0;
                           return (
-                            <div key={i} className="bg-slate-50 rounded-2xl px-4 py-3.5 flex items-center justify-between gap-3">
+                            <div
+                              key={i}
+                              className="bg-slate-50 rounded-2xl px-4 py-3.5 flex items-center justify-between gap-3"
+                            >
                               <div className="flex items-center gap-3">
-                                <span className="text-xl">{icons[s.method]??"💰"}</span>
+                                <span className="text-xl">{icons[s.method] ?? "💰"}</span>
                                 <div>
                                   <p className="text-[12px] font-black text-slate-900">
-                                    {labels[s.method]??s.method}
-                                    {s.brand && s.brand !== "other" ? ` · ${s.brand.toUpperCase()}` : ""}
+                                    {labels[s.method] ?? s.method}
+                                    {s.brand && s.brand !== "other"
+                                      ? ` · ${s.brand.toUpperCase()}`
+                                      : ""}
                                   </p>
-                                  {s.method === "credit" && s.installments > 1
-                                    ? <p className="text-[10px] font-bold text-slate-500">{s.installments}× de R$ {perInst.toFixed(2)}</p>
-                                    : <p className="text-[10px] font-bold text-slate-400">À vista</p>
-                                  }
+                                  {s.method === "credit" && s.installments > 1 ? (
+                                    <p className="text-[10px] font-bold text-slate-500">
+                                      {s.installments}× de R$ {perInst.toFixed(2)}
+                                    </p>
+                                  ) : (
+                                    <p className="text-[10px] font-bold text-slate-400">À vista</p>
+                                  )}
                                 </div>
                               </div>
-                              <span className="font-mono font-black text-slate-900 text-sm shrink-0">R$ {s.amount.toFixed(2)}</span>
+                              <span className="font-mono font-black text-slate-900 text-sm shrink-0">
+                                R$ {s.amount.toFixed(2)}
+                              </span>
                             </div>
                           );
                         })}
@@ -995,31 +1398,35 @@ ${payments.map(p => `<div class="pay-row">
                   );
                 })()}
 
-                {/* bottom padding */}
                 <div className="h-4" />
               </div>
 
-              {/* action buttons */}
               <div className="shrink-0 px-4 pt-3 pb-4 border-t border-slate-100 bg-white space-y-2.5 safe-area-bottom">
-                {/* Comprovante */}
                 <div className="flex gap-2">
-                  <button onClick={handleDownloadReceipt}
-                    className="flex-1 h-12 bg-slate-100 hover:bg-slate-200 active:scale-95 rounded-2xl text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-all text-slate-700">
+                  <button
+                    onClick={handleDownloadReceipt}
+                    className="flex-1 h-12 bg-slate-100 hover:bg-slate-200 active:scale-95 rounded-2xl text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-all text-slate-700"
+                  >
                     <Download size={14} /> Baixar
                   </button>
-                  <button onClick={handlePrintReceipt}
-                    className="flex-1 h-12 bg-slate-900 hover:bg-slate-800 active:scale-95 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-all shadow-lg shadow-slate-900/20">
+                  <button
+                    onClick={handlePrintReceipt}
+                    className="flex-1 h-12 bg-slate-900 hover:bg-slate-800 active:scale-95 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-all shadow-lg shadow-slate-900/20"
+                  >
                     <Receipt size={14} /> Imprimir Comprovante
                   </button>
                 </div>
-                {/* Garantia */}
                 <div className="flex gap-2">
-                  <button onClick={handleDownloadWarranty}
-                    className="flex-1 h-12 bg-emerald-50 hover:bg-emerald-100 active:scale-95 border border-emerald-200 rounded-2xl text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-all text-emerald-700">
+                  <button
+                    onClick={handleDownloadWarranty}
+                    className="flex-1 h-12 bg-emerald-50 hover:bg-emerald-100 active:scale-95 border border-emerald-200 rounded-2xl text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-all text-emerald-700"
+                  >
                     <Download size={14} /> Garantia
                   </button>
-                  <button onClick={handlePrintWarranty}
-                    className="flex-1 h-12 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-all shadow-lg shadow-emerald-500/30">
+                  <button
+                    onClick={handlePrintWarranty}
+                    className="flex-1 h-12 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-all shadow-lg shadow-emerald-500/30"
+                  >
                     <ShieldCheck size={14} /> Imprimir Garantia
                   </button>
                 </div>
@@ -1034,7 +1441,9 @@ ${payments.map(p => `<div class="pay-row">
         {showCancelModal && selectedOrder && (
           <div className="fixed inset-0 z-[200] flex items-center justify-center px-4 bg-slate-900/50 backdrop-blur-sm">
             <motion.div
-              initial={{ opacity: 0, scale: 0.92 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.92 }}
+              initial={{ opacity: 0, scale: 0.92 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.92 }}
               className="bg-white rounded-3xl shadow-2xl w-full max-w-sm overflow-hidden"
             >
               <div className="px-6 py-5 bg-red-50 border-b border-red-100 flex items-center gap-3">
@@ -1042,29 +1451,38 @@ ${payments.map(p => `<div class="pay-row">
                   <AlertTriangle size={18} className="text-red-600" />
                 </div>
                 <div>
-                  <p className="text-[10px] font-bold text-red-400 uppercase tracking-widest">Cancelar Pedido</p>
-                  <p className="text-sm font-black text-red-900">#{String(selectedOrder.id).padStart(6, "0")}</p>
+                  <p className="text-[10px] font-bold text-red-400 uppercase tracking-widest">
+                    Cancelar Pedido
+                  </p>
+                  <p className="text-sm font-black text-red-900">
+                    #{String(selectedOrder.id).padStart(6, "0")}
+                  </p>
                 </div>
               </div>
               <div className="p-6 space-y-4">
                 <p className="text-[10px] text-slate-500 font-bold leading-relaxed">
-                  Esta ação irá cancelar o pedido, reverter o estoque dos produtos e registrar um estorno no fluxo de caixa.
+                  Esta ação irá cancelar o pedido, reverter o estoque dos produtos e registrar um
+                  estorno no fluxo de caixa.
                 </p>
                 <div className="space-y-1.5">
-                  <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Cancelado por</label>
+                  <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest">
+                    Cancelado por
+                  </label>
                   <input
                     type="text"
                     value={cancelledBy}
-                    onChange={e => setCancelledBy(e.target.value)}
+                    onChange={(e) => setCancelledBy(e.target.value)}
                     placeholder="Nome do responsável"
                     className="w-full h-10 px-3 border border-slate-200 rounded-xl text-[11px] font-medium outline-none focus:border-red-400 bg-slate-50 transition-all"
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Motivo do cancelamento</label>
+                  <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest">
+                    Motivo do cancelamento
+                  </label>
                   <textarea
                     value={cancelReason}
-                    onChange={e => setCancelReason(e.target.value)}
+                    onChange={(e) => setCancelReason(e.target.value)}
                     placeholder="Ex: Cliente solicitou estorno, produto com defeito..."
                     rows={3}
                     className="w-full px-3 py-2 border border-slate-200 rounded-xl text-[11px] font-medium outline-none focus:border-red-400 bg-slate-50 transition-all resize-none"
@@ -1082,8 +1500,86 @@ ${payments.map(p => `<div class="pay-row">
                     disabled={cancelling}
                     className="flex-1 h-10 bg-red-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-red-700 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
                   >
-                    {cancelling ? <Loader2 size={14} className="animate-spin" /> : <XCircle size={14} />}
+                    {cancelling ? (
+                      <Loader2 size={14} className="animate-spin" />
+                    ) : (
+                      <XCircle size={14} />
+                    )}
                     Confirmar Cancelamento
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Delete confirmation modal */}
+      <AnimatePresence>
+        {showDeleteModal && (
+          <div className="fixed inset-0 z-[200] flex items-center justify-center px-4 bg-slate-900/60 backdrop-blur-sm">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.92 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.92 }}
+              className="bg-white rounded-3xl shadow-2xl w-full max-w-sm overflow-hidden"
+            >
+              <div className="px-6 py-5 bg-red-50 border-b border-red-100 flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-red-100 flex items-center justify-center">
+                  <Trash2 size={18} className="text-red-600" />
+                </div>
+                <div>
+                  <p className="text-[10px] font-bold text-red-400 uppercase tracking-widest">
+                    Deletar Pedido{selectedIds.size > 1 ? "s" : ""}
+                  </p>
+                  <p className="text-sm font-black text-red-900">
+                    {selectedIds.size === 1
+                      ? `#${String(Array.from(selectedIds)[0]).padStart(6, "0")}`
+                      : `${selectedIds.size} pedidos selecionados`}
+                  </p>
+                </div>
+              </div>
+              <div className="p-6 space-y-4">
+                <p className="text-[10px] text-slate-500 font-bold leading-relaxed">
+                  Esta ação é <span className="text-red-600">permanente e irreversível</span>.{" "}
+                  {selectedIds.size === 1
+                    ? "O pedido será removido completamente do sistema."
+                    : `Os ${selectedIds.size} pedidos selecionados serão removidos completamente do sistema.`}
+                </p>
+                <div className="bg-amber-50 border border-amber-200 rounded-2xl px-4 py-3 flex items-start gap-2.5">
+                  <AlertTriangle size={14} className="text-amber-600 mt-0.5 shrink-0" />
+                  <p className="text-[10px] text-amber-700 font-bold leading-relaxed">
+                    Diferente do cancelamento, a deleção não reverte estoque nem gera estorno no
+                    financeiro.
+                  </p>
+                </div>
+                <div className="flex gap-2 pt-2">
+                  <button
+                    onClick={() => {
+                      setShowDeleteModal(false);
+                      if (!isDetailModalOpen) clearSelection();
+                    }}
+                    className="flex-1 h-10 border border-slate-200 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-slate-50 transition-all text-slate-500"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    onClick={() => {
+                      if (selectedIds.size === 1 && isDetailModalOpen) {
+                        handleDeleteSingle(Array.from(selectedIds)[0]);
+                      } else {
+                        handleBulkDelete();
+                      }
+                    }}
+                    disabled={deleting}
+                    className="flex-1 h-10 bg-red-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-red-700 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+                  >
+                    {deleting ? (
+                      <Loader2 size={14} className="animate-spin" />
+                    ) : (
+                      <Trash2 size={14} />
+                    )}
+                    Confirmar Deleção
                   </button>
                 </div>
               </div>

@@ -173,3 +173,62 @@ export async function cancelOrder(req: Request, res: Response) {
     res.status(500).json({ error: "Falha ao cancelar pedido" });
   }
 }
+
+export async function deleteOrder(req: Request, res: Response) {
+  try {
+    const tenantId = getTenantId(req);
+    const orderId  = Number(req.params.id);
+
+    const order = await prisma.order.findFirst({
+      where: { id: orderId, tenant_id: tenantId },
+    });
+
+    if (!order) {
+      res.status(404).json({ error: "Pedido não encontrado" });
+      return;
+    }
+
+    await prisma.orderItem.deleteMany({ where: { order_id: orderId } });
+    await prisma.orderService.deleteMany({ where: { order_id: orderId } });
+    await prisma.order.delete({ where: { id: orderId } });
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Falha ao deletar pedido" });
+  }
+}
+
+export async function bulkDeleteOrders(req: Request, res: Response) {
+  try {
+    const tenantId = getTenantId(req);
+    const { ids } = req.body as { ids: number[] };
+
+    if (!Array.isArray(ids) || ids.length === 0) {
+      res.status(400).json({ error: "IDs inválidos" });
+      return;
+    }
+
+    // Ensure all orders belong to this tenant
+    const orders = await prisma.order.findMany({
+      where: { id: { in: ids }, tenant_id: tenantId },
+      select: { id: true },
+    });
+
+    const validIds = orders.map((o) => o.id);
+
+    if (validIds.length === 0) {
+      res.status(404).json({ error: "Nenhum pedido encontrado" });
+      return;
+    }
+
+    await prisma.orderItem.deleteMany({ where: { order_id: { in: validIds } } });
+    await prisma.orderService.deleteMany({ where: { order_id: { in: validIds } } });
+    await prisma.order.deleteMany({ where: { id: { in: validIds } } });
+
+    res.json({ success: true, deleted: validIds.length });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Falha ao deletar pedidos" });
+  }
+}
