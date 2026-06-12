@@ -363,7 +363,7 @@ export default function PDVStandalone() {
         setSyncToast(`${syncedCount} venda${syncedCount > 1 ? "s" : ""} sincronizada${syncedCount > 1 ? "s" : ""}!`);
         setTimeout(() => setSyncToast(null), 4000);
         // refresh stock after syncing
-        fetch("/api/products?active=true", { headers: { Authorization: `Bearer ${token}` } })
+        fetch("/api/products", { headers: { Authorization: `Bearer ${token}` } })
           .then((r) => r.json())
           .then((d) => {
             if (Array.isArray(d)) { setProducts(d); cacheSet("products", d); }
@@ -422,7 +422,7 @@ export default function PDVStandalone() {
     };
 
     Promise.all([
-      fetch("/api/products?active=true",   { headers }).then((r) => { if (r.status === 401) { handleLogout(); throw new Error("unauth"); } return r.json(); }),
+      fetch("/api/products",   { headers }).then((r) => { if (r.status === 401) { handleLogout(); throw new Error("unauth"); } return r.json(); }),
       fetch("/api/categories", { headers }).then((r) => r.json()),
       fetch("/api/tenant",     { headers }).then((r) => r.json()),
     ])
@@ -492,7 +492,6 @@ export default function PDVStandalone() {
     setCart((prev) => {
       const existing = prev.find((i) => i.cartItemId === cartItemId);
       if (existing) {
-        if (existing.quantity >= product.stock_quantity) return prev;
         return prev.map((i) => i.cartItemId === cartItemId ? { ...i, quantity: i.quantity + 1 } : i);
       }
       return [...prev, { ...product, price: Number(product.price), quantity: 1, cartItemId, variationLabel: "", selectedOptions: undefined }];
@@ -588,7 +587,6 @@ export default function PDVStandalone() {
     const cartItemId     = options ? `${product.id}-${variationLabel}` : `${product.id}`;
     const existing       = cart.find((i) => i.cartItemId === cartItemId);
     if (existing) {
-      if (existing.quantity >= product.stock_quantity) return;
       setCart(cart.map((i) => i.cartItemId === cartItemId ? { ...i, quantity: i.quantity + 1 } : i));
     } else {
       setCart([...cart, { ...product, price: Number(product.price), quantity: 1, cartItemId, selectedOptions: options, variationLabel }]);
@@ -601,7 +599,6 @@ export default function PDVStandalone() {
       if (item.cartItemId !== cartItemId) return item;
       const nq = item.quantity + delta;
       if (nq <= 0) return null as unknown as CartItem;
-      if (nq > item.stock_quantity) return item;
       return { ...item, quantity: nq };
     }).filter(Boolean));
   };
@@ -981,7 +978,7 @@ ${sale.change > 0 ? `<hr class="divider"/><div class="row bold"><span>TROCO:</sp
         }
 
         completeSale(data.orderId, false, rewardApplied);
-        fetch("/api/products?active=true", { headers: { Authorization: `Bearer ${token}` } })
+        fetch("/api/products", { headers: { Authorization: `Bearer ${token}` } })
           .then((r) => r.json())
           .then((d) => {
             if (Array.isArray(d)) { setProducts(d); cacheSet("products", d); }
@@ -996,7 +993,6 @@ ${sale.change > 0 ? `<hr class="divider"/><div class="row bold"><span>TROCO:</sp
   };
 
   const filteredProducts = useMemo(() => products.filter((p) => {
-    if (!p.is_active) return false;
     if (searchTerm) {
       return p.name.toLowerCase().includes(searchTerm.toLowerCase());
     }
@@ -1265,18 +1261,15 @@ ${sale.change > 0 ? `<hr class="divider"/><div class="row bold"><span>TROCO:</sp
               <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-2.5">
                 {filteredProducts.map((product) => {
                   const qtyInCart = cart.filter((i) => i.id === product.id).reduce((a, b) => a + b.quantity, 0);
-                  const atLimit   = qtyInCart >= product.stock_quantity;
                   const hasVariations = (Array.isArray(product.attributes) && product.attributes.length > 0) ||
                     (Array.isArray(product.variations) && product.variations.length > 0);
                   return (
                     <motion.button layout key={product.id}
-                      onClick={() => !atLimit && addToCart(product)}
-                      whileTap={atLimit ? {} : { scale: 0.97 }}
+                      onClick={() => addToCart(product)}
+                      whileTap={{ scale: 0.97 }}
                       className={cn(
                         "bg-white rounded-2xl border flex flex-col items-start group relative text-left overflow-hidden transition-all duration-200",
-                        atLimit
-                          ? "opacity-40 cursor-not-allowed border-slate-200"
-                          : qtyInCart > 0
+                        qtyInCart > 0
                           ? "cursor-pointer border-blue-400 shadow-md shadow-blue-100"
                           : "cursor-pointer border-slate-200 hover:border-blue-300 hover:shadow-md hover:shadow-blue-50"
                       )}>
@@ -1302,7 +1295,7 @@ ${sale.change > 0 ? `<hr class="divider"/><div class="row bold"><span>TROCO:</sp
                         )}
 
                         {/* Overlay hover */}
-                        {!atLimit && (
+                        {(
                           <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all duration-200 bg-blue-500/10">
                             <div className="w-9 h-9 rounded-full flex items-center justify-center text-white scale-75 group-hover:scale-100 transition-transform shadow-lg"
                               style={{ background: "linear-gradient(135deg,#3b82f6,#1d4ed8)" }}>
@@ -2726,7 +2719,7 @@ function CartPanel({
                       <Minus size={11} />
                     </button>
                     <span className="w-6 text-center font-mono font-black text-[12px] text-slate-700">{item.quantity}</span>
-                    <button onClick={() => updateQuantity(item.cartItemId, 1)} disabled={item.quantity >= item.stock_quantity} className="p-1.5 hover:bg-slate-200 text-slate-400 hover:text-slate-700 transition-all disabled:opacity-20">
+                    <button onClick={() => updateQuantity(item.cartItemId, 1)} className="p-1.5 hover:bg-slate-200 text-slate-400 hover:text-slate-700 transition-all">
                       <Plus size={11} />
                     </button>
                   </div>

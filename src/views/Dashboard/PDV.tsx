@@ -186,7 +186,7 @@ export default function PDV() {
   useEffect(() => {
     const headers = { Authorization: `Bearer ${token}` };
     Promise.all([
-      fetch("/api/products?active=true",   { headers }).then((r) => r.json()),
+      fetch("/api/products",   { headers }).then((r) => r.json()),
       fetch("/api/categories", { headers }).then((r) => r.json()),
     ]).then(([prods, cats]) => {
       setProducts(Array.isArray(prods) ? prods : []);
@@ -248,7 +248,6 @@ export default function PDV() {
     setCart((prev) => {
       const existing = prev.find((i) => i.cartItemId === cartItemId);
       if (existing) {
-        if (existing.quantity >= product.stock_quantity) return prev;
         return prev.map((i) =>
           i.cartItemId === cartItemId ? { ...i, quantity: i.quantity + 1 } : i
         );
@@ -367,7 +366,6 @@ export default function PDV() {
     const cartItemId     = options ? `${product.id}-${variationLabel}` : `${product.id}`;
     const existing       = cart.find((i) => i.cartItemId === cartItemId);
     if (existing) {
-      if (existing.quantity >= product.stock_quantity) return;
       setCart(cart.map((i) => i.cartItemId === cartItemId ? { ...i, quantity: i.quantity + 1 } : i));
     } else {
       setCart([...cart, { ...product, price: Number(product.price), quantity: 1, cartItemId, selectedOptions: options, variationLabel }]);
@@ -381,7 +379,6 @@ export default function PDV() {
       if (item.cartItemId !== cartItemId) return item;
       const nq = item.quantity + delta;
       if (nq <= 0) return null as unknown as CartItem;
-      if (nq > item.stock_quantity) return item;
       return { ...item, quantity: nq };
     }).filter(Boolean));
   };
@@ -758,7 +755,7 @@ ${change > 0 ? `<hr class="divider"/><div class="row bold"><span>TROCO:</span><s
         setShowCheckout(false);
         setShowReceipt(true);
         setWhatsappPhone(""); setShowPhoneInput(false);
-        fetch("/api/products?active=true", { headers: { Authorization: `Bearer ${token}` } })
+        fetch("/api/products", { headers: { Authorization: `Bearer ${token}` } })
           .then((r) => r.json()).then((d) => setProducts(Array.isArray(d) ? d : []));
         fetchRecentOrders();
     } catch (e) {
@@ -772,7 +769,7 @@ ${change > 0 ? `<hr class="divider"/><div class="row bold"><span>TROCO:</span><s
     setLoading(true);
     const headers = { Authorization: `Bearer ${token}` };
     Promise.all([
-      fetch("/api/products?active=true",   { headers }).then((r) => r.json()),
+      fetch("/api/products",   { headers }).then((r) => r.json()),
       fetch("/api/categories", { headers }).then((r) => r.json()),
     ]).then(([prods, cats]) => {
       setProducts(Array.isArray(prods) ? prods : []);
@@ -782,7 +779,6 @@ ${change > 0 ? `<hr class="divider"/><div class="row bold"><span>TROCO:</span><s
   };
 
   const filteredProducts = useMemo(() => products.filter((p) => {
-    if (!p.is_active) return false;
     if (selectedCategory && p.category_id !== selectedCategory) return false;
     if (searchTerm && !p.name.toLowerCase().includes(searchTerm.toLowerCase())) return false;
     return true;
