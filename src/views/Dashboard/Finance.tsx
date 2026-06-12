@@ -79,6 +79,111 @@ function PaymentBadges({ pm }: { pm: string }) {
   );
 }
 
+// ─── Payment method picker (modal use) ───────────────────────────────────────
+const BRANDS = ["visa", "master", "elo", "amex", "hipercard"];
+const BRAND_DISPLAY: Record<string, string> = { visa: "Visa", master: "Master", elo: "Elo", amex: "Amex", hipercard: "Hiper" };
+
+function PaymentMethodPicker({
+  value, onChange,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+}) {
+  // Parse current value into segments
+  const segs = value ? parsePmString(value) : [];
+  const primarySeg = segs[0] ?? { method: "money", brand: "other", installments: 1, amount: 0 };
+  const method = primarySeg.method;
+  const brand  = primarySeg.brand === "other" ? "" : primarySeg.brand;
+  const inst   = primarySeg.installments ?? 1;
+
+  const build = (m: string, b: string, i: number) => {
+    const brandPart = (m === "credit" || m === "debit") && b ? `-${b}` : "";
+    const instPart  = m === "credit" && i > 1 ? `-${i}x` : "";
+    return `${m}${brandPart}${instPart}`;
+  };
+
+  const setMethod = (m: string) => onChange(build(m, brand, inst));
+  const setBrand  = (b: string) => onChange(build(method, b, inst));
+  const setInst   = (i: number) => onChange(build(method, brand, i));
+
+  const needsBrand = method === "credit" || method === "debit";
+  const needsInst  = method === "credit";
+
+  const methodBtns: { key: string; label: string; color: string }[] = [
+    { key: "money",  label: "Dinheiro", color: "slate"   },
+    { key: "pix",    label: "PIX",      color: "violet"  },
+    { key: "debit",  label: "Débito",   color: "blue"    },
+    { key: "credit", label: "Crédito",  color: "emerald" },
+  ];
+
+  const activeColor: Record<string, string> = {
+    slate:   "bg-slate-700 text-white border-slate-700",
+    violet:  "bg-violet-600 text-white border-violet-600",
+    blue:    "bg-blue-600 text-white border-blue-600",
+    emerald: "bg-emerald-600 text-white border-emerald-600",
+  };
+
+  return (
+    <div className="space-y-2">
+      {/* Method buttons */}
+      <div className="grid grid-cols-4 gap-1.5">
+        {methodBtns.map(({ key, label, color }) => (
+          <button
+            key={key} type="button"
+            onClick={() => setMethod(key)}
+            className={cn(
+              "h-9 rounded-xl text-[9px] font-black uppercase tracking-widest border transition-all",
+              method === key ? activeColor[color] : "bg-white text-slate-400 border-slate-200 hover:border-slate-400"
+            )}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {/* Brand (card only) */}
+      {needsBrand && (
+        <div className="flex gap-1.5 flex-wrap">
+          {BRANDS.map((b) => (
+            <button
+              key={b} type="button"
+              onClick={() => setBrand(b)}
+              className={cn(
+                "h-7 px-2.5 rounded-lg text-[9px] font-black uppercase tracking-widest border transition-all",
+                brand === b
+                  ? "bg-slate-900 text-white border-slate-900"
+                  : "bg-white text-slate-400 border-slate-200 hover:border-slate-400"
+              )}
+            >
+              {BRAND_DISPLAY[b]}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* Installments (credit only) */}
+      {needsInst && (
+        <div className="flex gap-1.5 flex-wrap">
+          {[1,2,3,4,5,6,7,8,9,10,11,12].map((n) => (
+            <button
+              key={n} type="button"
+              onClick={() => setInst(n)}
+              className={cn(
+                "h-7 w-9 rounded-lg text-[9px] font-black border transition-all",
+                inst === n
+                  ? "bg-slate-900 text-white border-slate-900"
+                  : "bg-white text-slate-400 border-slate-200 hover:border-slate-400"
+              )}
+            >
+              {n}x
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 const today = () => {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
@@ -642,7 +747,7 @@ export default function Finance() {
 
   const openModal = (type: "income" | "expense") => {
     setModalType(type);
-    setNewEntry({ type, date: today() });
+    setNewEntry({ type, date: today(), payment_method: "money" } as any);
     setIsModalOpen(true);
   };
 
@@ -1777,6 +1882,17 @@ export default function Finance() {
               </button>
             </div>
           </div>
+
+          {/* Payment method picker */}
+          <div className="space-y-1.5">
+            <label className="text-[9px] font-black text-slate-400 uppercase tracking-[0.18em] px-1 block">
+              Forma de Pagamento
+            </label>
+            <PaymentMethodPicker
+              value={editForm.payment_method ?? "money"}
+              onChange={(v) => setEditForm({ ...editForm, payment_method: v })}
+            />
+          </div>
         </form>
       </Modal>
 
@@ -1897,6 +2013,17 @@ export default function Finance() {
                 − Despesa
               </button>
             </div>
+          </div>
+
+          {/* Payment method picker */}
+          <div className="space-y-1.5">
+            <label className="text-[9px] font-black text-slate-400 uppercase tracking-[0.18em] px-1 block">
+              Forma de Pagamento
+            </label>
+            <PaymentMethodPicker
+              value={(newEntry as any).payment_method ?? "money"}
+              onChange={(v) => setNewEntry({ ...newEntry, payment_method: v } as any)}
+            />
           </div>
         </form>
       </Modal>
