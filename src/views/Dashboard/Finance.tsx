@@ -855,10 +855,18 @@ export default function Finance() {
       if (typeFilter !== "all" && e.type !== typeFilter) return false;
       if (searchQ && !e.description.toLowerCase().includes(searchQ.toLowerCase())) return false;
       if (paymentFilter.size > 0) {
-        const desc = e.description.toLowerCase();
-        const matched = [...paymentFilter].some((key) =>
-          (PAYMENT_KEYWORDS[key] ?? [key]).some((kw) => desc.includes(kw))
-        );
+        let matched = false;
+        if (e.payment_method) {
+          // Use payment_method field (source of truth after edits)
+          const segs = parsePmString(e.payment_method);
+          matched = [...paymentFilter].some((key) => segs.some((s) => s.method === key));
+        } else {
+          // Fallback: scan description text
+          const desc = e.description.toLowerCase();
+          matched = [...paymentFilter].some((key) =>
+            (PAYMENT_KEYWORDS[key] ?? [key]).some((kw) => desc.includes(kw))
+          );
+        }
         if (!matched) return false;
       }
       return true;
