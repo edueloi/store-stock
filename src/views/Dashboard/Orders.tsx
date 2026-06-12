@@ -21,6 +21,9 @@ import {
   Trash2,
   CheckSquare,
   Calendar,
+  ArrowUpDown,
+  ArrowUp,
+  ArrowDown,
 } from "lucide-react";
 import PageHeader from "../../components/layout/PageHeader";
 import { Order, Product } from "../../types";
@@ -365,6 +368,17 @@ export default function Orders() {
   const [dateFrom, setDateFrom] = useState(firstOfMonthStr());
   const [dateTo,   setDateTo]   = useState(lastOfMonthStr());
 
+  // Sort
+  type SortField = "id" | "date" | "total";
+  type SortDir = "asc" | "desc";
+  const [sortField, setSortField] = useState<SortField>("date");
+  const [sortDir,   setSortDir]   = useState<SortDir>("desc");
+
+  const toggleSort = (field: SortField) => {
+    if (sortField === field) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    else { setSortField(field); setSortDir("desc"); }
+  };
+
   // Pagination
   const PAGE_SIZE = 15;
   const [currentPage, setCurrentPage] = useState(1);
@@ -396,7 +410,7 @@ export default function Orders() {
     }
   };
 
-  useEffect(() => { setCurrentPage(1); }, [selectedStatus, searchTerm, dateFrom, dateTo]);
+  useEffect(() => { setCurrentPage(1); }, [selectedStatus, searchTerm, dateFrom, dateTo, sortField, sortDir]);
 
   useEffect(() => {
     fetchOrders();
@@ -447,27 +461,35 @@ export default function Orders() {
     );
   });
 
-  const totalPages = Math.max(1, Math.ceil(filteredOrders.length / PAGE_SIZE));
+  const sortedOrders = [...filteredOrders].sort((a, b) => {
+    let cmp = 0;
+    if (sortField === "id")    cmp = a.id - b.id;
+    if (sortField === "date")  cmp = new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+    if (sortField === "total") cmp = Number(a.total_amount) - Number(b.total_amount);
+    return sortDir === "asc" ? cmp : -cmp;
+  });
+
+  const totalPages = Math.max(1, Math.ceil(sortedOrders.length / PAGE_SIZE));
   const safePage = Math.min(currentPage, totalPages);
-  const pagedOrders = filteredOrders.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
+  const pagedOrders = sortedOrders.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
 
   const goToPage = (p: number) => setCurrentPage(Math.max(1, Math.min(p, totalPages)));
 
   const allFilteredSelected =
-    filteredOrders.length > 0 &&
-    filteredOrders.every((o) => selectedIds.has(o.id));
+    sortedOrders.length > 0 &&
+    sortedOrders.every((o) => selectedIds.has(o.id));
 
   const toggleSelectAll = () => {
     if (allFilteredSelected) {
       setSelectedIds((prev) => {
         const next = new Set(prev);
-        filteredOrders.forEach((o) => next.delete(o.id));
+        sortedOrders.forEach((o) => next.delete(o.id));
         return next;
       });
     } else {
       setSelectedIds((prev) => {
         const next = new Set(prev);
-        filteredOrders.forEach((o) => next.add(o.id));
+        sortedOrders.forEach((o) => next.add(o.id));
         return next;
       });
     }
@@ -1046,7 +1068,7 @@ ${payments
               try { await exportOrdersToExcel(filteredOrders, tenant?.name ?? "BoxSys Store"); }
               finally { setExporting(false); }
             }}
-            disabled={exporting || filteredOrders.length === 0}
+            disabled={exporting || sortedOrders.length === 0}
             className="h-9 bg-white border border-slate-200 px-4 rounded-xl flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest hover:bg-slate-50 transition-all text-slate-600 shadow-sm disabled:opacity-40">
             {exporting ? <Loader2 size={13} className="animate-spin" /> : <Download size={13} />} Exportar
           </button>
@@ -1256,11 +1278,23 @@ ${payments
                   <input type="checkbox" checked={allFilteredSelected} onChange={toggleSelectAll}
                     className="w-3.5 h-3.5 rounded accent-slate-900 cursor-pointer" />
                 </th>
-                <th className="px-3 py-2.5 text-[9px] font-black text-slate-400 uppercase tracking-[0.18em] w-24">Pedido</th>
+                <th className="px-3 py-2.5 w-24">
+                  <button onClick={() => toggleSort("id")} className="flex items-center gap-1 text-[9px] font-black text-slate-400 uppercase tracking-[0.18em] hover:text-slate-700 transition-colors">
+                    Pedido {sortField === "id" ? (sortDir === "asc" ? <ArrowUp size={10} /> : <ArrowDown size={10} />) : <ArrowUpDown size={10} className="opacity-30" />}
+                  </button>
+                </th>
                 <th className="px-3 py-2.5 text-[9px] font-black text-slate-400 uppercase tracking-[0.18em]">Cliente</th>
                 <th className="px-3 py-2.5 text-[9px] font-black text-slate-400 uppercase tracking-[0.18em]">Pagamento</th>
-                <th className="px-3 py-2.5 text-[9px] font-black text-slate-400 uppercase tracking-[0.18em] w-28">Data</th>
-                <th className="px-3 py-2.5 text-[9px] font-black text-slate-400 uppercase tracking-[0.18em] text-right w-32">Total</th>
+                <th className="px-3 py-2.5 w-28">
+                  <button onClick={() => toggleSort("date")} className="flex items-center gap-1 text-[9px] font-black text-slate-400 uppercase tracking-[0.18em] hover:text-slate-700 transition-colors">
+                    Data {sortField === "date" ? (sortDir === "asc" ? <ArrowUp size={10} /> : <ArrowDown size={10} />) : <ArrowUpDown size={10} className="opacity-30" />}
+                  </button>
+                </th>
+                <th className="px-3 py-2.5 w-32 text-right">
+                  <button onClick={() => toggleSort("total")} className="flex items-center gap-1 text-[9px] font-black text-slate-400 uppercase tracking-[0.18em] hover:text-slate-700 transition-colors ml-auto">
+                    Total {sortField === "total" ? (sortDir === "asc" ? <ArrowUp size={10} /> : <ArrowDown size={10} />) : <ArrowUpDown size={10} className="opacity-30" />}
+                  </button>
+                </th>
                 <th className="px-3 py-2.5 text-[9px] font-black text-slate-400 uppercase tracking-[0.18em] text-center w-28">Status</th>
                 <th className="px-3 py-2.5 w-20 text-[9px] font-black text-slate-400 uppercase tracking-[0.18em] text-center">Ações</th>
               </tr>
@@ -1369,7 +1403,7 @@ ${payments
                   </tr>
                 );
               })}
-              {filteredOrders.length === 0 && (
+              {sortedOrders.length === 0 && (
                 <tr>
                   <td colSpan={8} className="px-4 py-12 text-center text-[11px] font-bold text-slate-400 uppercase tracking-widest">
                     Nenhum pedido encontrado
@@ -1379,14 +1413,14 @@ ${payments
             </tbody>
           </table>
         </div>
-        {filteredOrders.length > 0 && (
+        {sortedOrders.length > 0 && (
           <div className="px-5 py-2.5 border-t border-slate-100 flex items-center justify-between bg-slate-50/50 gap-4">
             {/* info */}
             <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest shrink-0">
-              {filteredOrders.length} pedido{filteredOrders.length !== 1 ? "s" : ""}
+              {sortedOrders.length} pedido{sortedOrders.length !== 1 ? "s" : ""}
               {totalPages > 1 && (
                 <span className="ml-1 text-slate-300">
-                  · {(safePage - 1) * PAGE_SIZE + 1}–{Math.min(safePage * PAGE_SIZE, filteredOrders.length)}
+                  · {(safePage - 1) * PAGE_SIZE + 1}–{Math.min(safePage * PAGE_SIZE, sortedOrders.length)}
                 </span>
               )}
             </span>
@@ -1453,7 +1487,7 @@ ${payments
 
             {/* total */}
             <span className="text-[10px] font-black font-mono text-slate-600 shrink-0">
-              Total: R$ {filteredOrders.reduce((a, o) => a + (o.status !== "cancelled" ? Number(o.total_amount) : 0), 0).toFixed(2)}
+              Total: R$ {sortedOrders.reduce((a, o) => a + (o.status !== "cancelled" ? Number(o.total_amount) : 0), 0).toFixed(2)}
             </span>
           </div>
         )}
@@ -1461,7 +1495,7 @@ ${payments
 
       {/* Mobile Card-Based List */}
       <div className="lg:hidden space-y-4 pb-12">
-        {filteredOrders.map((order) => {
+        {pagedOrders.map((order) => {
           const isChecked = selectedIds.has(order.id);
           return (
             <motion.div
