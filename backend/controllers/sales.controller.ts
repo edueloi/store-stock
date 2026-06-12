@@ -250,7 +250,7 @@ export async function createSale(req: Request, res: Response) {
         fee_amount:      roundedFee > 0 ? roundedFee : null,
         discount_amount: discountVal > 0 ? discountVal : null,
         // offline sales synced later carry the original sale date
-        date:            soldAtDate && /^\d{4}-\d{2}-\d{2}$/.test(soldAtDate) ? soldAtDate : localDateString(),
+        date:            soldAtDate && /^\d{4}-\d{2}-\d{2}$/.test(soldAtDate) ? new Date(soldAtDate + "T00:00:00Z") : localDateString(),
       },
     });
 

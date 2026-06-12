@@ -94,15 +94,53 @@ export async function getOrderById(req: Request, res: Response) {
 
 export async function updateOrderStatus(req: Request, res: Response) {
   try {
-    await prisma.order.updateMany({
-      where: {
-        id: Number(req.params.id),
-        tenant_id: getTenantId(req),
-      },
-      data: {
-        status: req.body.status,
-      },
+    const tenantId = getTenantId(req);
+    const orderId  = Number(req.params.id);
+    const newStatus: string = req.body.status;
+
+    const order = await prisma.order.findFirst({
+      where: { id: orderId, tenant_id: tenantId },
     });
+
+    if (!order) {
+      res.status(404).json({ error: "Order not found" });
+      return;
+    }
+
+    await prisma.order.update({
+      where: { id: orderId },
+      data: { status: newStatus },
+    });
+
+    // When a pending order is manually marked as completed, create the finance entry
+    if (newStatus === "completed" && order.status !== "completed") {
+      const total    = Number(order.total_amount);
+      const fee      = Number(order.fee_amount ?? 0);
+      const discount = Number(order.discount_amount ?? 0);
+      const gross    = Number(order.gross_amount ?? total);
+      const net      = Math.round((total - fee) * 100) / 100;
+
+      const pm = order.payment_method ?? "money";
+      const methodLabel: Record<string, string> = { money: "Dinheiro", pix: "PIX", debit: "Débito", credit: "Crédito" };
+      const methodSummary = pm.split("|").map(seg => {
+        const method = seg.split(":")[0].split("-")[0];
+        return methodLabel[method] ?? method;
+      }).join(" + ");
+      const discountNote = discount > 0 ? ` (desc. R$ ${discount.toFixed(2)})` : "";
+
+      await prisma.finance.create({
+        data: {
+          tenant_id:       tenantId,
+          type:            "income",
+          description:     `Venda PDV #${orderId} — ${methodSummary}${discountNote}`,
+          amount:          net,
+          gross_amount:    gross,
+          fee_amount:      fee > 0 ? fee : null,
+          discount_amount: discount > 0 ? discount : null,
+          date:            localDateString(),
+        },
+      });
+    }
 
     res.json({ success: true });
   } catch {
