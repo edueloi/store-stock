@@ -161,6 +161,7 @@ export interface FinanceEntry {
   discount_amount?: number | null;
   date: string;
   category?: string;
+  payment_method?: string | null;
 }
 
 export type AccountStatus = 'pending' | 'received' | 'paid' | 'overdue' | 'cancelled';

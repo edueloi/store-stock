@@ -137,6 +137,7 @@ export async function updateOrderStatus(req: Request, res: Response) {
           gross_amount:    gross,
           fee_amount:      fee > 0 ? fee : null,
           discount_amount: discount > 0 ? discount : null,
+          payment_method:  pm,
           date:            localDateString(),
         },
       });

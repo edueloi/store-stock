@@ -22,6 +22,7 @@ import {
   Tag,
   Trash2,
   Pencil,
+  CreditCard,
 } from "lucide-react";
 import { FinanceEntry, Tenant } from "../../types";
 import { cn } from "../../lib/utils";
@@ -31,6 +32,52 @@ import Modal from "../../components/ui/Modal";
 
 const fmt = (v: number) =>
   v.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+// ─── Payment badges ───────────────────────────────────────────────────────────
+interface PmSeg { method: string; brand: string; installments: number; amount: number }
+
+function parsePmString(pm: string): PmSeg[] {
+  return pm.split("|").map((seg) => {
+    const [methodPart, amtStr] = seg.split(":");
+    const tokens = methodPart.split("-");
+    return {
+      method:       tokens[0] ?? "money",
+      brand:        tokens[1] ?? "other",
+      installments: tokens[2] ? parseInt(tokens[2].replace("x",""), 10) : 1,
+      amount:       parseFloat(amtStr ?? "0") || 0,
+    };
+  });
+}
+
+const PM_STYLE: Record<string, { bg: string; text: string; dot: string }> = {
+  money:  { bg: "bg-slate-100",   text: "text-slate-600",  dot: "bg-slate-400"  },
+  pix:    { bg: "bg-violet-50",   text: "text-violet-700", dot: "bg-violet-500" },
+  debit:  { bg: "bg-blue-50",     text: "text-blue-700",   dot: "bg-blue-500"   },
+  credit: { bg: "bg-emerald-50",  text: "text-emerald-700",dot: "bg-emerald-500"},
+};
+const PM_LABEL: Record<string, string> = { money: "Dinheiro", pix: "PIX", debit: "Débito", credit: "Crédito" };
+const BRAND_LABEL: Record<string, string> = { visa: "Visa", master: "Master", elo: "Elo", amex: "Amex", hipercard: "Hiper" };
+
+function PaymentBadges({ pm }: { pm: string }) {
+  const segs = parsePmString(pm);
+  return (
+    <div className="flex flex-wrap gap-1">
+      {segs.map((s, i) => {
+        const st = PM_STYLE[s.method] ?? PM_STYLE.money;
+        const brand = s.brand && s.brand !== "other" ? BRAND_LABEL[s.brand] ?? s.brand.toUpperCase() : null;
+        const inst  = s.method === "credit" && s.installments > 1 ? `${s.installments}x` : null;
+        return (
+          <span key={i} className={cn("inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[9px] font-black uppercase tracking-wide", st.bg, st.text)}>
+            <span className={cn("w-1.5 h-1.5 rounded-full shrink-0", st.dot)} />
+            {PM_LABEL[s.method] ?? s.method}
+            {brand && <span className="opacity-70">/{brand}</span>}
+            {inst  && <span className="opacity-70">{inst}</span>}
+          </span>
+        );
+      })}
+    </div>
+  );
+}
 
 const today = () => {
   const d = new Date();
@@ -1160,9 +1207,19 @@ export default function Finance() {
                               <TrendingDown size={12} />
                             )}
                           </div>
-                          <span className="text-[11px] font-bold text-slate-800 uppercase truncate max-w-[200px]">
-                            {entry.description}
-                          </span>
+                          <div className="flex flex-col gap-1 min-w-0">
+                            <span className="text-[11px] font-bold text-slate-800 uppercase truncate max-w-[280px]">
+                              {entry.description.split(" — ")[0]}
+                            </span>
+                            {entry.payment_method
+                              ? <PaymentBadges pm={entry.payment_method} />
+                              : entry.description.includes(" — ") && (
+                                  <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wide truncate max-w-[280px]">
+                                    {entry.description.split(" — ").slice(1).join(" — ")}
+                                  </span>
+                                )
+                            }
+                          </div>
                         </div>
                       </td>
                       <td className="px-5 py-3 cursor-pointer" onClick={() => setSelectedEntry(entry)}>
@@ -1458,6 +1515,19 @@ export default function Finance() {
                       <p className="text-[12px] font-bold text-slate-800 uppercase">{e.category || "Operacional"}</p>
                     </div>
                   </div>
+
+                  {/* Payment method */}
+                  {e.payment_method && (
+                    <div className="flex items-start gap-3">
+                      <div className="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center text-slate-400 shrink-0">
+                        <CreditCard size={14} />
+                      </div>
+                      <div>
+                        <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Pagamento</p>
+                        <PaymentBadges pm={e.payment_method} />
+                      </div>
+                    </div>
+                  )}
 
                   {/* Financial breakdown */}
                   {(gross != null || discount != null || fee != null) ? (
