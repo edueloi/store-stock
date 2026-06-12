@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import ExcelJS from "exceljs";
 import {
   Receipt,
@@ -332,6 +333,7 @@ async function exportOrdersToExcel(orders: Order[], tenantName: string) {
 }
 
 export default function Orders() {
+  const navigate = useNavigate();
   const [orders, setOrders] = useState<Order[]>([]);
   const [topProducts, setTopProducts] = useState<any[]>([]);
   const [tenant, setTenant] = useState<TenantBasic | null>(null);
@@ -1141,7 +1143,9 @@ ${payments
               )}
             </div>
           </div>
-          <button className="mt-8 w-full h-10 bg-white/5 hover:bg-white/10 text-white rounded-xl text-[9px] font-black uppercase tracking-widest transition-all border border-white/10">
+          <button
+            onClick={() => navigate("/admin/analytics")}
+            className="mt-8 w-full h-10 bg-white/5 hover:bg-white/10 text-white rounded-xl text-[9px] font-black uppercase tracking-widest transition-all border border-white/10">
             Ver Relatório
           </button>
         </div>
