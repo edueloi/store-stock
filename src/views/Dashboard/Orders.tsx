@@ -446,8 +446,9 @@ export default function Orders() {
 
   const filteredOrders = orders.filter((o) => {
     if (selectedStatus !== "all" && o.status !== selectedStatus) return false;
-    // date range filter
-    const oDate = o.created_at.slice(0, 10);
+    // Convert to local date string to avoid UTC offset shifting the day
+    const d = new Date(o.created_at);
+    const oDate = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
     if (dateFrom && oDate < dateFrom) return false;
     if (dateTo   && oDate > dateTo)   return false;
     if (searchTerm === "") return true;
