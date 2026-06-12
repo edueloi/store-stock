@@ -19,6 +19,7 @@ import {
   Loader2,
   Trash2,
   CheckSquare,
+  Calendar,
 } from "lucide-react";
 import PageHeader from "../../components/layout/PageHeader";
 import { Order, Product } from "../../types";
@@ -351,6 +352,21 @@ export default function Orders() {
   const [deleting, setDeleting] = useState(false);
   const [exporting, setExporting] = useState(false);
 
+  // Date filter — default: first → last day of current month
+  const todayStr = () => new Date().toISOString().slice(0, 10);
+  const firstOfMonthStr = (d = new Date()) =>
+    `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-01`;
+  const lastOfMonthStr = (d = new Date()) => {
+    const last = new Date(d.getFullYear(), d.getMonth() + 1, 0);
+    return `${last.getFullYear()}-${String(last.getMonth() + 1).padStart(2, "0")}-${String(last.getDate()).padStart(2, "0")}`;
+  };
+  const [dateFrom, setDateFrom] = useState(firstOfMonthStr());
+  const [dateTo,   setDateTo]   = useState(lastOfMonthStr());
+
+  // Pagination
+  const PAGE_SIZE = 15;
+  const [currentPage, setCurrentPage] = useState(1);
+
   const token = () => localStorage.getItem("token");
 
   const fetchOrders = async () => {
@@ -377,6 +393,8 @@ export default function Orders() {
       console.error(err);
     }
   };
+
+  useEffect(() => { setCurrentPage(1); }, [selectedStatus, searchTerm, dateFrom, dateTo]);
 
   useEffect(() => {
     fetchOrders();
@@ -412,6 +430,10 @@ export default function Orders() {
 
   const filteredOrders = orders.filter((o) => {
     if (selectedStatus !== "all" && o.status !== selectedStatus) return false;
+    // date range filter
+    const oDate = o.created_at.slice(0, 10);
+    if (dateFrom && oDate < dateFrom) return false;
+    if (dateTo   && oDate > dateTo)   return false;
     if (searchTerm === "") return true;
     const q = searchTerm.replace(/^#/, "").toLowerCase().trim();
     return (
@@ -422,6 +444,12 @@ export default function Orders() {
       (o.payment_method?.toLowerCase().includes(q) ?? false)
     );
   });
+
+  const totalPages = Math.max(1, Math.ceil(filteredOrders.length / PAGE_SIZE));
+  const safePage = Math.min(currentPage, totalPages);
+  const pagedOrders = filteredOrders.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
+
+  const goToPage = (p: number) => setCurrentPage(Math.max(1, Math.min(p, totalPages)));
 
   const allFilteredSelected =
     filteredOrders.length > 0 &&
@@ -1036,7 +1064,7 @@ ${payments
             <div className="grid grid-cols-3 gap-4 sm:gap-12">
               <div className="space-y-1">
                 <h3 className="text-2xl sm:text-4xl font-black text-slate-900 tracking-tighter">
-                  {orders.length}
+                  {filteredOrders.length}
                 </h3>
                 <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">
                   Total
@@ -1044,7 +1072,7 @@ ${payments
               </div>
               <div className="space-y-1">
                 <h3 className="text-2xl sm:text-4xl font-black text-amber-500 tracking-tighter">
-                  {orders.filter((o) => o.status === "pending").length}
+                  {filteredOrders.filter((o) => o.status === "pending").length}
                 </h3>
                 <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">
                   Pendente
@@ -1052,7 +1080,7 @@ ${payments
               </div>
               <div className="space-y-1">
                 <h3 className="text-2xl sm:text-4xl font-black text-emerald-500 tracking-tighter">
-                  {orders.filter((o) => o.status === "completed").length}
+                  {filteredOrders.filter((o) => o.status === "completed").length}
                 </h3>
                 <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">
                   Pago
@@ -1119,15 +1147,65 @@ ${payments
         </div>
       </div>
 
-      <div className="relative">
-        <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
-        <input
-          type="text"
-          placeholder="Buscar Transação por ID ou Nome do Destinatário..."
-          className="w-full pl-12 pr-4 h-12 bg-white border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 text-[10px] font-bold uppercase tracking-widest placeholder:text-slate-300 shadow-sm"
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-        />
+      {/* Search + Date filters */}
+      <div className="flex flex-col sm:flex-row gap-2">
+        {/* Search */}
+        <div className="relative flex-1">
+          <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={15} />
+          <input
+            type="text"
+            placeholder="Buscar por ID, cliente, telefone..."
+            className="w-full pl-11 pr-4 h-10 bg-white border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-400 text-[11px] font-medium placeholder:text-slate-300 shadow-sm"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+          />
+        </div>
+
+        {/* Date range */}
+        <div className="flex items-center gap-2 bg-white border border-slate-200 rounded-xl px-3 h-10 shadow-sm shrink-0">
+          <Calendar size={14} className="text-slate-400 shrink-0" />
+          <input
+            type="date"
+            value={dateFrom}
+            onChange={(e) => setDateFrom(e.target.value)}
+            className="text-[11px] font-medium text-slate-700 outline-none bg-transparent cursor-pointer w-[110px]"
+            title="De"
+          />
+          <span className="text-slate-300 font-bold text-[11px] shrink-0">—</span>
+          <input
+            type="date"
+            value={dateTo}
+            onChange={(e) => setDateTo(e.target.value)}
+            className="text-[11px] font-medium text-slate-700 outline-none bg-transparent cursor-pointer w-[110px]"
+            title="Até"
+          />
+        </div>
+
+        {/* Quick presets */}
+        <div className="flex items-center gap-1 shrink-0">
+          {[
+            { label: "Hoje", from: todayStr(),        to: todayStr() },
+            { label: "7d",   from: (() => { const d = new Date(); d.setDate(d.getDate() - 6); return d.toISOString().slice(0,10); })(), to: todayStr() },
+            { label: "Mês",  from: firstOfMonthStr(), to: lastOfMonthStr() },
+            { label: "Tudo", from: "",                to: "" },
+          ].map((p) => {
+            const active = dateFrom === p.from && dateTo === p.to;
+            return (
+              <button
+                key={p.label}
+                onClick={() => { setDateFrom(p.from); setDateTo(p.to); }}
+                className={cn(
+                  "h-10 px-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all border shrink-0",
+                  active
+                    ? "bg-slate-900 text-white border-slate-900 shadow-sm"
+                    : "bg-white text-slate-500 border-slate-200 hover:border-slate-300 hover:bg-slate-50"
+                )}
+              >
+                {p.label}
+              </button>
+            );
+          })}
+        </div>
       </div>
 
       {/* Bulk action bar */}
@@ -1169,81 +1247,81 @@ ${payments
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse">
             <thead>
-              <tr className="border-b border-slate-100">
-                <th className="px-4 py-3 w-10">
+              <tr className="bg-slate-50 border-b border-slate-100">
+                <th className="px-3 py-2.5 w-9">
                   <input type="checkbox" checked={allFilteredSelected} onChange={toggleSelectAll}
                     className="w-3.5 h-3.5 rounded accent-slate-900 cursor-pointer" />
                 </th>
-                <th className="px-4 py-3 text-[9px] font-black text-slate-400 uppercase tracking-[0.18em]">Pedido</th>
-                <th className="px-4 py-3 text-[9px] font-black text-slate-400 uppercase tracking-[0.18em]">Cliente</th>
-                <th className="px-4 py-3 text-[9px] font-black text-slate-400 uppercase tracking-[0.18em]">Pagamento</th>
-                <th className="px-4 py-3 text-[9px] font-black text-slate-400 uppercase tracking-[0.18em]">Data</th>
-                <th className="px-4 py-3 text-[9px] font-black text-slate-400 uppercase tracking-[0.18em] text-right">Total</th>
-                <th className="px-4 py-3 text-[9px] font-black text-slate-400 uppercase tracking-[0.18em] text-center">Status</th>
-                <th className="px-4 py-3 w-16"></th>
+                <th className="px-3 py-2.5 text-[9px] font-black text-slate-400 uppercase tracking-[0.18em] w-24">Pedido</th>
+                <th className="px-3 py-2.5 text-[9px] font-black text-slate-400 uppercase tracking-[0.18em]">Cliente</th>
+                <th className="px-3 py-2.5 text-[9px] font-black text-slate-400 uppercase tracking-[0.18em]">Pagamento</th>
+                <th className="px-3 py-2.5 text-[9px] font-black text-slate-400 uppercase tracking-[0.18em] w-28">Data</th>
+                <th className="px-3 py-2.5 text-[9px] font-black text-slate-400 uppercase tracking-[0.18em] text-right w-32">Total</th>
+                <th className="px-3 py-2.5 text-[9px] font-black text-slate-400 uppercase tracking-[0.18em] text-center w-28">Status</th>
+                <th className="px-3 py-2.5 w-20 text-[9px] font-black text-slate-400 uppercase tracking-[0.18em] text-center">Ações</th>
               </tr>
             </thead>
             <tbody>
-              {filteredOrders.map((order, idx) => {
+              {pagedOrders.map((order) => {
                 const isChecked = selectedIds.has(order.id);
                 const pm = order.payment_method || "";
-                const pmLabel = pm ? pm.split("|").map((seg) => {
-                  const method = seg.split(":")[0].split("-")[0];
-                  const map: Record<string, string> = { money: "Dinheiro", pix: "PIX", debit: "Débito", credit: "Crédito" };
-                  return map[method] ?? method;
-                }).join(" + ") : "—";
                 const pmDot: Record<string, string> = { money: "bg-slate-400", pix: "bg-violet-500", debit: "bg-blue-500", credit: "bg-emerald-500" };
-                const firstMethod = pm.split("|")[0].split(":")[0].split("-")[0];
+                const pmBadge: Record<string, string> = { money: "bg-slate-100 text-slate-600", pix: "bg-violet-50 text-violet-700", debit: "bg-blue-50 text-blue-700", credit: "bg-emerald-50 text-emerald-700" };
+                const pmLabel: Record<string, string> = { money: "Dinheiro", pix: "PIX", debit: "Débito", credit: "Crédito" };
+                const segs = pm ? pm.split("|").map(seg => {
+                  const method = seg.split(":")[0].split("-")[0];
+                  return { method, label: pmLabel[method] ?? method };
+                }) : [];
+                const firstMethod = segs[0]?.method ?? "money";
+                const d = new Date(order.created_at);
+                const dateStr = d.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "2-digit" });
+                const timeStr = d.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
                 return (
                   <tr key={order.id} onClick={() => fetchOrderDetails(order.id)}
                     className={cn(
-                      "border-b border-slate-50 last:border-0 group cursor-pointer transition-colors duration-100",
-                      isChecked ? "bg-blue-50/60" : idx % 2 === 0 ? "bg-white hover:bg-slate-50/70" : "bg-slate-50/30 hover:bg-slate-50/70"
+                      "border-b border-slate-50 last:border-0 cursor-pointer transition-colors duration-100",
+                      isChecked ? "bg-blue-50/60 hover:bg-blue-50" : "bg-white hover:bg-slate-50/80"
                     )}>
                     {/* checkbox */}
-                    <td className="px-4 py-3" onClick={(e) => toggleSelect(order.id, e)}>
+                    <td className="px-3 py-2" onClick={(e) => toggleSelect(order.id, e)}>
                       <input type="checkbox" checked={isChecked} onChange={() => {}}
                         className="w-3.5 h-3.5 rounded accent-slate-900 cursor-pointer" />
                     </td>
                     {/* pedido */}
-                    <td className="px-4 py-3">
-                      <span className="font-mono font-bold text-[11px] text-slate-400 group-hover:text-blue-500 transition-colors">
+                    <td className="px-3 py-2">
+                      <span className="font-mono font-bold text-[11px] text-blue-500">
                         #{String(order.id).padStart(6, "0")}
                       </span>
                     </td>
                     {/* cliente */}
-                    <td className="px-4 py-3">
-                      <div className="flex items-center gap-2.5">
-                        <div className="w-7 h-7 rounded-full bg-gradient-to-br from-slate-100 to-slate-200 border border-slate-200 flex items-center justify-center shrink-0">
-                          <User size={12} className="text-slate-500" />
-                        </div>
-                        <div>
-                          <p className="text-[11px] font-bold text-slate-800 leading-tight">
-                            {order.customer_name || "Balcão"}
-                          </p>
-                          {order.seller_name && (
-                            <p className="text-[9px] text-slate-400 font-medium leading-tight mt-0.5">
-                              via {order.seller_name}
-                            </p>
-                          )}
-                        </div>
-                      </div>
+                    <td className="px-3 py-2">
+                      <p className="text-[12px] font-bold text-slate-800 leading-tight">
+                        {order.customer_name || "Balcão"}
+                      </p>
+                      {order.seller_name && (
+                        <p className="text-[10px] text-slate-400 leading-tight mt-0.5">
+                          Vendedor: {order.seller_name}
+                        </p>
+                      )}
                     </td>
                     {/* pagamento */}
-                    <td className="px-4 py-3">
-                      <div className="flex items-center gap-1.5">
-                        <span className={cn("w-1.5 h-1.5 rounded-full shrink-0", pmDot[firstMethod] ?? "bg-slate-400")} />
-                        <span className="text-[11px] text-slate-600 font-medium">{pmLabel}</span>
+                    <td className="px-3 py-2">
+                      <div className="flex flex-wrap gap-1">
+                        {segs.length > 0 ? segs.map((s, i) => (
+                          <span key={i} className={cn("inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold", pmBadge[s.method] ?? "bg-slate-100 text-slate-600")}>
+                            <span className={cn("w-1.5 h-1.5 rounded-full shrink-0", pmDot[s.method] ?? "bg-slate-400")} />
+                            {s.label}
+                          </span>
+                        )) : <span className="text-[10px] text-slate-400">—</span>}
                       </div>
                     </td>
                     {/* data */}
-                    <td className="px-4 py-3">
-                      <span className="text-[11px] font-medium text-slate-500">
-                        {new Date(order.created_at).toLocaleDateString("pt-BR")}
-                      </span>
+                    <td className="px-3 py-2">
+                      <p className="text-[11px] font-bold text-slate-700">{dateStr}</p>
+                      <p className="text-[10px] text-slate-400">{timeStr}</p>
                     </td>
                     {/* total */}
-                    <td className="px-4 py-3 text-right">
+                    <td className="px-3 py-2 text-right">
                       <span className={cn(
                         "font-mono font-black text-[13px] tracking-tight",
                         order.status === "cancelled" ? "text-slate-300 line-through" : "text-slate-900"
@@ -1252,7 +1330,7 @@ ${payments
                       </span>
                     </td>
                     {/* status */}
-                    <td className="px-4 py-3 text-center">
+                    <td className="px-3 py-2 text-center">
                       {order.status === "completed" && (
                         <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-wider bg-emerald-50 text-emerald-600 border border-emerald-100">
                           <CheckCircle2 size={10} /> Pago
@@ -1269,17 +1347,19 @@ ${payments
                         </span>
                       )}
                     </td>
-                    {/* ações */}
-                    <td className="px-4 py-3 text-right">
-                      <div className="flex justify-end items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-all">
+                    {/* ações — sempre visíveis */}
+                    <td className="px-3 py-2">
+                      <div className="flex justify-center items-center gap-1.5">
                         <button onClick={(e) => { e.stopPropagation(); setSelectedIds(new Set([order.id])); setShowDeleteModal(true); }}
-                          className="w-7 h-7 rounded-lg bg-red-50 border border-red-100 text-red-400 flex items-center justify-center hover:bg-red-100 transition-all"
+                          className="w-7 h-7 rounded-lg bg-red-50 border border-red-100 text-red-400 flex items-center justify-center hover:bg-red-100 hover:text-red-600 transition-all"
                           title="Deletar">
                           <Trash2 size={12} />
                         </button>
-                        <div className="w-7 h-7 rounded-lg bg-slate-900 text-white flex items-center justify-center">
+                        <button onClick={() => fetchOrderDetails(order.id)}
+                          className="w-7 h-7 rounded-lg bg-slate-900 text-white flex items-center justify-center hover:bg-slate-700 transition-all"
+                          title="Ver detalhes">
                           <ChevronRight size={14} strokeWidth={2.5} />
-                        </div>
+                        </button>
                       </div>
                     </td>
                   </tr>
@@ -1287,7 +1367,7 @@ ${payments
               })}
               {filteredOrders.length === 0 && (
                 <tr>
-                  <td colSpan={8} className="px-4 py-16 text-center text-[11px] font-bold text-slate-400 uppercase tracking-widest">
+                  <td colSpan={8} className="px-4 py-12 text-center text-[11px] font-bold text-slate-400 uppercase tracking-widest">
                     Nenhum pedido encontrado
                   </td>
                 </tr>
@@ -1296,11 +1376,79 @@ ${payments
           </table>
         </div>
         {filteredOrders.length > 0 && (
-          <div className="px-5 py-3 border-t border-slate-100 flex items-center justify-between bg-slate-50/50">
-            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+          <div className="px-5 py-2.5 border-t border-slate-100 flex items-center justify-between bg-slate-50/50 gap-4">
+            {/* info */}
+            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest shrink-0">
               {filteredOrders.length} pedido{filteredOrders.length !== 1 ? "s" : ""}
+              {totalPages > 1 && (
+                <span className="ml-1 text-slate-300">
+                  · {(safePage - 1) * PAGE_SIZE + 1}–{Math.min(safePage * PAGE_SIZE, filteredOrders.length)}
+                </span>
+              )}
             </span>
-            <span className="text-[10px] font-black font-mono text-slate-600">
+
+            {/* pagination */}
+            {totalPages > 1 && (
+              <div className="flex items-center gap-1">
+                <button
+                  onClick={() => goToPage(1)}
+                  disabled={safePage === 1}
+                  className="w-7 h-7 rounded-lg text-[10px] font-black text-slate-500 hover:bg-slate-100 disabled:opacity-30 disabled:cursor-default flex items-center justify-center transition-all"
+                  title="Primeira página">
+                  «
+                </button>
+                <button
+                  onClick={() => goToPage(safePage - 1)}
+                  disabled={safePage === 1}
+                  className="w-7 h-7 rounded-lg text-[10px] font-black text-slate-500 hover:bg-slate-100 disabled:opacity-30 disabled:cursor-default flex items-center justify-center transition-all"
+                  title="Anterior">
+                  ‹
+                </button>
+
+                {Array.from({ length: totalPages }, (_, i) => i + 1)
+                  .filter(p => p === 1 || p === totalPages || Math.abs(p - safePage) <= 1)
+                  .reduce<(number | "…")[]>((acc, p, i, arr) => {
+                    if (i > 0 && p - (arr[i - 1] as number) > 1) acc.push("…");
+                    acc.push(p);
+                    return acc;
+                  }, [])
+                  .map((p, i) =>
+                    p === "…" ? (
+                      <span key={`e${i}`} className="w-7 h-7 flex items-center justify-center text-[10px] text-slate-300">…</span>
+                    ) : (
+                      <button
+                        key={p}
+                        onClick={() => goToPage(p as number)}
+                        className={cn(
+                          "w-7 h-7 rounded-lg text-[10px] font-black transition-all",
+                          safePage === p
+                            ? "bg-slate-900 text-white shadow-sm"
+                            : "text-slate-500 hover:bg-slate-100"
+                        )}>
+                        {p}
+                      </button>
+                    )
+                  )}
+
+                <button
+                  onClick={() => goToPage(safePage + 1)}
+                  disabled={safePage === totalPages}
+                  className="w-7 h-7 rounded-lg text-[10px] font-black text-slate-500 hover:bg-slate-100 disabled:opacity-30 disabled:cursor-default flex items-center justify-center transition-all"
+                  title="Próxima">
+                  ›
+                </button>
+                <button
+                  onClick={() => goToPage(totalPages)}
+                  disabled={safePage === totalPages}
+                  className="w-7 h-7 rounded-lg text-[10px] font-black text-slate-500 hover:bg-slate-100 disabled:opacity-30 disabled:cursor-default flex items-center justify-center transition-all"
+                  title="Última página">
+                  »
+                </button>
+              </div>
+            )}
+
+            {/* total */}
+            <span className="text-[10px] font-black font-mono text-slate-600 shrink-0">
               Total: R$ {filteredOrders.reduce((a, o) => a + (o.status !== "cancelled" ? Number(o.total_amount) : 0), 0).toFixed(2)}
             </span>
           </div>
@@ -1401,200 +1549,175 @@ ${payments
       <AnimatePresence>
         {isDetailModalOpen && selectedOrder && (
           <>
+            {/* Backdrop */}
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               onClick={() => setIsDetailModalOpen(false)}
-              className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-sm"
+              className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm"
             />
+
+            {/* Panel — bottom sheet on mobile, side drawer on desktop */}
             <motion.div
-              initial={{ y: "100%" }}
-              animate={{ y: 0 }}
-              exit={{ y: "100%" }}
-              transition={{ type: "spring", damping: 32, stiffness: 300 }}
-              className="fixed inset-x-0 bottom-0 z-50 flex flex-col bg-white rounded-t-3xl shadow-2xl max-h-[94dvh] sm:inset-auto sm:right-0 sm:top-0 sm:bottom-0 sm:w-[420px] sm:rounded-none sm:rounded-l-3xl sm:max-h-full sm:border-l border-slate-200"
+              initial={{ y: "100%", opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              exit={{ y: "100%", opacity: 0 }}
+              transition={{ type: "spring", damping: 30, stiffness: 280 }}
+              className="fixed inset-x-0 bottom-0 z-50 flex flex-col bg-white rounded-t-[28px] shadow-2xl max-h-[92dvh]
+                         sm:inset-auto sm:right-0 sm:top-0 sm:bottom-0 sm:w-[460px] sm:rounded-none sm:rounded-l-[28px] sm:max-h-full sm:border-l border-slate-200"
             >
-              <div className="shrink-0 flex justify-center pt-3 pb-1 sm:hidden">
-                <div className="w-10 h-1 rounded-full bg-slate-200" />
+              {/* Drag handle — mobile only */}
+              <div className="sm:hidden flex justify-center pt-2.5 pb-1 shrink-0">
+                <div className="w-8 h-1 rounded-full bg-slate-200" />
               </div>
 
-              <div className="shrink-0 px-5 py-4 flex items-center justify-between border-b border-slate-100">
-                <div className="flex items-center gap-3">
-                  <div
-                    className={cn(
-                      "w-9 h-9 rounded-2xl flex items-center justify-center shrink-0",
-                      selectedOrder.status === "completed"
-                        ? "bg-emerald-100"
-                        : selectedOrder.status === "cancelled"
-                        ? "bg-red-100"
-                        : "bg-amber-100"
-                    )}
-                  >
-                    {selectedOrder.status === "completed" ? (
-                      <CheckCircle2 size={18} className="text-emerald-600" />
-                    ) : selectedOrder.status === "cancelled" ? (
-                      <XCircle size={18} className="text-red-600" />
-                    ) : (
-                      <Clock size={18} className="text-amber-600" />
-                    )}
+              {/* ── Header ── */}
+              <div className="shrink-0 px-5 pt-4 pb-3 flex items-center justify-between gap-3 border-b border-slate-100">
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className={cn(
+                    "w-10 h-10 rounded-2xl flex items-center justify-center shrink-0",
+                    selectedOrder.status === "completed" ? "bg-emerald-100" :
+                    selectedOrder.status === "cancelled"  ? "bg-red-100"     : "bg-amber-100"
+                  )}>
+                    {selectedOrder.status === "completed" ? <CheckCircle2 size={20} className="text-emerald-600" /> :
+                     selectedOrder.status === "cancelled"  ? <XCircle      size={20} className="text-red-600"     /> :
+                                                             <Clock        size={20} className="text-amber-600"   />}
                   </div>
-                  <div>
-                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest leading-none mb-0.5">
-                      Pedido
-                    </p>
-                    <h4 className="text-lg font-black text-slate-900 leading-none">
-                      #{String(selectedOrder.id).padStart(5, "0")}
+                  <div className="min-w-0">
+                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] leading-none mb-1">Pedido</p>
+                    <h4 className="text-xl font-black text-slate-900 leading-none tracking-tight">
+                      #{String(selectedOrder.id).padStart(6, "0")}
                     </h4>
                   </div>
+                  <span className={cn(
+                    "ml-1 inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-wider border shrink-0",
+                    selectedOrder.status === "completed" ? "bg-emerald-50 text-emerald-600 border-emerald-100" :
+                    selectedOrder.status === "cancelled"  ? "bg-red-50 text-red-500 border-red-100"             :
+                                                           "bg-amber-50 text-amber-600 border-amber-100"
+                  )}>
+                    {selectedOrder.status === "completed" ? <><CheckCircle2 size={9} /> Pago</> :
+                     selectedOrder.status === "cancelled"  ? <><XCircle      size={9} /> Cancelado</> :
+                                                             <><Clock        size={9} /> Pendente</>}
+                  </span>
                 </div>
-                <div className="flex items-center gap-2">
+
+                <div className="flex items-center gap-1.5 shrink-0">
                   {selectedOrder.status === "pending" && (
-                    <button
-                      onClick={() => handleUpdateStatus(selectedOrder.id, "completed")}
-                      className="h-9 px-4 bg-emerald-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg shadow-emerald-200/50 hover:bg-emerald-700 active:scale-95 transition-all"
-                    >
+                    <button onClick={() => handleUpdateStatus(selectedOrder.id, "completed")}
+                      className="h-8 px-3 bg-emerald-600 text-white rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-emerald-700 active:scale-95 transition-all shadow-md shadow-emerald-200">
                       Efetivar
                     </button>
                   )}
                   {selectedOrder.status !== "cancelled" && (
-                    <button
-                      onClick={() => setShowCancelModal(true)}
-                      className="h-9 px-3 bg-red-50 text-red-600 border border-red-200 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-red-100 active:scale-95 transition-all"
-                    >
+                    <button onClick={() => setShowCancelModal(true)}
+                      className="h-8 px-3 bg-red-50 text-red-500 border border-red-100 rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-red-100 active:scale-95 transition-all">
                       Cancelar
                     </button>
                   )}
-                  <button
-                    onClick={() => {
-                      setSelectedIds(new Set([selectedOrder.id]));
-                      setShowDeleteModal(true);
-                    }}
-                    className="w-9 h-9 flex items-center justify-center bg-red-50 border border-red-100 hover:bg-red-100 rounded-xl transition-all text-red-500 shrink-0"
-                    title="Deletar pedido"
-                  >
-                    <Trash2 size={15} />
+                  <button onClick={() => { setSelectedIds(new Set([selectedOrder.id])); setShowDeleteModal(true); }}
+                    className="w-8 h-8 flex items-center justify-center rounded-xl bg-red-50 border border-red-100 text-red-400 hover:bg-red-100 hover:text-red-600 transition-all" title="Deletar">
+                    <Trash2 size={14} />
                   </button>
-                  <button
-                    onClick={() => setIsDetailModalOpen(false)}
-                    className="w-9 h-9 flex items-center justify-center bg-slate-100 hover:bg-slate-200 rounded-xl transition-all text-slate-500 shrink-0"
-                  >
-                    <X size={16} />
+                  <button onClick={() => setIsDetailModalOpen(false)}
+                    className="w-8 h-8 flex items-center justify-center rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-500 transition-all">
+                    <X size={15} />
                   </button>
                 </div>
               </div>
 
+              {/* ── Scrollable body ── */}
               <div className="flex-1 overflow-y-auto overscroll-contain">
-                <div
-                  className={cn(
-                    "mx-4 mt-4 rounded-2xl p-4 flex items-center justify-between",
-                    selectedOrder.status === "completed"
-                      ? "bg-emerald-600"
-                      : selectedOrder.status === "cancelled"
-                      ? "bg-slate-800"
-                      : "bg-amber-500"
-                  )}
-                >
+
+                {/* Hero value card */}
+                <div className={cn(
+                  "mx-4 mt-4 rounded-2xl px-5 py-4 flex items-center justify-between gap-4",
+                  selectedOrder.status === "completed" ? "bg-emerald-600" :
+                  selectedOrder.status === "cancelled"  ? "bg-slate-800"   : "bg-amber-500"
+                )}>
                   <div>
-                    <p className="text-[10px] font-bold text-white/70 uppercase tracking-widest mb-0.5">
-                      {selectedOrder.status === "completed"
-                        ? "Total Pago"
-                        : selectedOrder.status === "cancelled"
-                        ? "Cancelado"
-                        : "Valor Pendente"}
+                    <p className="text-[9px] font-black text-white/60 uppercase tracking-[0.2em] mb-1">
+                      {selectedOrder.status === "completed" ? "Total Pago" :
+                       selectedOrder.status === "cancelled"  ? "Valor Cancelado" : "Valor Pendente"}
                     </p>
-                    <p className="text-2xl font-black font-mono text-white">
+                    <p className="text-3xl font-black font-mono text-white leading-none tracking-tight">
                       R$ {Number(selectedOrder.total_amount).toFixed(2)}
                     </p>
-                    <p className="text-[10px] text-white/70 font-medium mt-0.5">
+                    <p className="text-[10px] text-white/60 mt-1.5 font-medium">
                       {new Date(selectedOrder.created_at).toLocaleString("pt-BR")}
                     </p>
                   </div>
-                  <div
-                    className={cn(
-                      "w-12 h-12 rounded-2xl flex items-center justify-center",
-                      selectedOrder.status === "completed"
-                        ? "bg-white/20"
-                        : selectedOrder.status === "cancelled"
-                        ? "bg-white/10"
-                        : "bg-white/20"
-                    )}
-                  >
-                    {selectedOrder.status === "completed" ? (
-                      <CheckCircle2 size={24} className="text-white" />
-                    ) : selectedOrder.status === "cancelled" ? (
-                      <XCircle size={24} className="text-white" />
-                    ) : (
-                      <Clock size={24} className="text-white" />
-                    )}
+                  <div className="w-14 h-14 rounded-2xl bg-white/15 flex items-center justify-center shrink-0">
+                    {selectedOrder.status === "completed" ? <CheckCircle2 size={28} className="text-white" /> :
+                     selectedOrder.status === "cancelled"  ? <XCircle      size={28} className="text-white" /> :
+                                                             <Clock        size={28} className="text-white" />}
                   </div>
                 </div>
 
+                {/* Cancel reason */}
                 {selectedOrder.status === "cancelled" &&
                   (selectedOrder.cancel_reason || selectedOrder.cancelled_by) && (
-                    <div className="mx-4 mt-3 p-4 bg-red-50 border border-red-100 rounded-2xl space-y-1">
-                      <p className="text-[10px] font-black uppercase tracking-widest text-red-600 flex items-center gap-1.5">
-                        <AlertTriangle size={11} /> Motivo do Cancelamento
+                    <div className="mx-4 mt-3 p-4 bg-red-50 border border-red-100 rounded-2xl">
+                      <p className="text-[9px] font-black text-red-500 uppercase tracking-[0.18em] flex items-center gap-1.5 mb-2">
+                        <AlertTriangle size={10} /> Motivo do Cancelamento
                       </p>
                       {selectedOrder.cancelled_by && (
-                        <p className="text-[11px] font-bold text-red-800">
-                          Por: {selectedOrder.cancelled_by}
-                        </p>
+                        <p className="text-[11px] font-bold text-red-700">Por: {selectedOrder.cancelled_by}</p>
                       )}
                       {selectedOrder.cancel_reason && (
-                        <p className="text-[11px] text-red-700">{selectedOrder.cancel_reason}</p>
+                        <p className="text-[11px] text-red-600 mt-0.5">{selectedOrder.cancel_reason}</p>
                       )}
                       {selectedOrder.cancelled_at && (
-                        <p className="text-[10px] text-red-400 font-mono">
+                        <p className="text-[10px] text-red-400 font-mono mt-1">
                           {new Date(selectedOrder.cancelled_at).toLocaleString("pt-BR")}
                         </p>
                       )}
                     </div>
                   )}
 
+                {/* Cliente + Vendedor */}
                 <div className="mx-4 mt-3 grid grid-cols-2 gap-2">
-                  <div className="p-3.5 bg-slate-50 rounded-2xl space-y-1">
-                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1">
+                  <div className="bg-slate-50 rounded-2xl px-4 py-3 border border-slate-100">
+                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-[0.18em] mb-1.5 flex items-center gap-1">
                       <User size={9} /> Cliente
                     </p>
-                    <p className="text-[11px] font-black text-slate-900">
+                    <p className="text-[13px] font-black text-slate-900 leading-tight">
                       {selectedOrder.customer_name || "Consumidor Final"}
                     </p>
                     {selectedOrder.customer_phone && (
-                      <p className="text-[10px] font-mono text-slate-500">
-                        {selectedOrder.customer_phone}
-                      </p>
+                      <p className="text-[10px] font-mono text-slate-500 mt-0.5">{selectedOrder.customer_phone}</p>
                     )}
                   </div>
-                  <div className="p-3.5 bg-slate-50 rounded-2xl space-y-1">
-                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">
-                      Vendedor
-                    </p>
-                    <p className="text-[11px] font-black text-slate-900">
+                  <div className="bg-slate-50 rounded-2xl px-4 py-3 border border-slate-100">
+                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-[0.18em] mb-1.5">Vendedor</p>
+                    <p className="text-[13px] font-black text-slate-900 leading-tight">
                       {selectedOrder.seller_name || "—"}
                     </p>
-                    <p className="text-[10px] text-slate-400">
+                    <p className="text-[10px] text-slate-400 mt-0.5">
                       {selectedOrder.seller_name ? "Responsável" : "Não atribuído"}
                     </p>
                   </div>
                 </div>
 
-                <div className="mx-4 mt-3 space-y-2">
-                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
-                    <Package size={10} /> Itens do Pedido ({selectedOrder.items.length})
+                {/* Itens */}
+                <div className="mx-4 mt-4">
+                  <p className="text-[9px] font-black text-slate-400 uppercase tracking-[0.18em] mb-2 flex items-center gap-1.5">
+                    <Package size={9} /> Itens do Pedido
+                    <span className="ml-0.5 px-1.5 py-0.5 bg-slate-100 rounded-md text-slate-500">{selectedOrder.items.length}</span>
                   </p>
-                  <div className="bg-slate-50 rounded-2xl overflow-hidden divide-y divide-slate-100">
-                    {selectedOrder.items.map((item) => (
-                      <div key={item.id} className="px-4 py-3.5 flex items-center justify-between gap-3">
-                        <div className="min-w-0">
-                          <p className="text-[12px] font-black text-slate-900 truncate">
-                            {item.product_name}
-                          </p>
-                          <p className="text-[10px] font-bold text-slate-400">
+                  <div className="rounded-2xl border border-slate-100 overflow-hidden">
+                    {selectedOrder.items.map((item, i) => (
+                      <div key={item.id} className={cn(
+                        "px-4 py-3 flex items-center justify-between gap-3",
+                        i < selectedOrder.items.length - 1 && "border-b border-slate-50"
+                      )}>
+                        <div className="min-w-0 flex-1">
+                          <p className="text-[12px] font-bold text-slate-800 truncate">{item.product_name}</p>
+                          <p className="text-[10px] text-slate-400 mt-0.5">
                             {item.quantity} un × R$ {Number(item.unit_price).toFixed(2)}
                           </p>
                         </div>
-                        <span className="font-mono font-black text-sm text-slate-900 shrink-0">
+                        <span className="font-mono font-black text-[13px] text-slate-900 shrink-0">
                           R$ {(item.quantity * Number(item.unit_price)).toFixed(2)}
                         </span>
                       </div>
@@ -1602,41 +1725,41 @@ ${payments
                   </div>
                 </div>
 
-                {(selectedOrder.gross_amount != null &&
-                  Number(selectedOrder.gross_amount) !== Number(selectedOrder.total_amount)) ||
-                (selectedOrder.discount_amount != null &&
-                  Number(selectedOrder.discount_amount) > 0) ||
-                (selectedOrder.fee_amount != null && Number(selectedOrder.fee_amount) > 0) ? (
-                  <div className="mx-4 mt-3 bg-slate-50 rounded-2xl overflow-hidden divide-y divide-slate-100">
-                    {selectedOrder.gross_amount != null &&
-                      Number(selectedOrder.gross_amount) !== Number(selectedOrder.total_amount) && (
-                        <div className="px-4 py-3 flex justify-between text-[11px]">
-                          <span className="text-slate-500 font-bold">Subtotal</span>
-                          <span className="font-mono font-bold text-slate-700">
-                            R$ {Number(selectedOrder.gross_amount).toFixed(2)}
-                          </span>
+                {/* Subtotal / desconto / taxa / total */}
+                {(() => {
+                  const hasGross = selectedOrder.gross_amount != null && Number(selectedOrder.gross_amount) !== Number(selectedOrder.total_amount);
+                  const hasDisc  = selectedOrder.discount_amount != null && Number(selectedOrder.discount_amount) > 0;
+                  const hasFee   = selectedOrder.fee_amount != null && Number(selectedOrder.fee_amount) > 0;
+                  if (!hasGross && !hasDisc && !hasFee) return null;
+                  return (
+                    <div className="mx-4 mt-2 rounded-2xl border border-slate-100 overflow-hidden">
+                      {hasGross && (
+                        <div className="px-4 py-2.5 flex justify-between items-center border-b border-slate-50">
+                          <span className="text-[11px] font-bold text-slate-500">Subtotal</span>
+                          <span className="font-mono text-[11px] font-bold text-slate-700">R$ {Number(selectedOrder.gross_amount).toFixed(2)}</span>
                         </div>
                       )}
-                    {selectedOrder.discount_amount != null &&
-                      Number(selectedOrder.discount_amount) > 0 && (
-                        <div className="px-4 py-3 flex justify-between text-[11px]">
-                          <span className="text-rose-500 font-bold">Desconto</span>
-                          <span className="font-mono font-bold text-rose-500">
-                            − R$ {Number(selectedOrder.discount_amount).toFixed(2)}
-                          </span>
+                      {hasDisc && (
+                        <div className="px-4 py-2.5 flex justify-between items-center border-b border-slate-50">
+                          <span className="text-[11px] font-bold text-rose-500">Desconto</span>
+                          <span className="font-mono text-[11px] font-bold text-rose-500">− R$ {Number(selectedOrder.discount_amount).toFixed(2)}</span>
                         </div>
                       )}
-                    {selectedOrder.fee_amount != null && Number(selectedOrder.fee_amount) > 0 && (
-                      <div className="px-4 py-3 flex justify-between text-[11px]">
-                        <span className="text-amber-600 font-bold">Taxa Maquininha</span>
-                        <span className="font-mono font-bold text-amber-600">
-                          + R$ {Number(selectedOrder.fee_amount).toFixed(2)}
-                        </span>
+                      {hasFee && (
+                        <div className="px-4 py-2.5 flex justify-between items-center border-b border-slate-50">
+                          <span className="text-[11px] font-bold text-amber-600">Taxa Maquininha</span>
+                          <span className="font-mono text-[11px] font-bold text-amber-600">+ R$ {Number(selectedOrder.fee_amount).toFixed(2)}</span>
+                        </div>
+                      )}
+                      <div className="px-4 py-3 flex justify-between items-center bg-slate-50">
+                        <span className="text-[12px] font-black text-slate-800">Total</span>
+                        <span className="font-mono text-[14px] font-black text-slate-900">R$ {Number(selectedOrder.total_amount).toFixed(2)}</span>
                       </div>
-                    )}
-                  </div>
-                ) : null}
+                    </div>
+                  );
+                })()}
 
+                {/* Pagamento */}
                 {(() => {
                   const pm = selectedOrder.payment_method ?? "";
                   if (!pm) return null;
@@ -1650,50 +1773,39 @@ ${payments
                       amount: parseFloat(amt ?? "0") || 0,
                     };
                   });
-                  const labels: Record<string, string> = {
-                    money: "Dinheiro",
-                    pix: "PIX",
-                    debit: "Débito",
-                    credit: "Crédito",
-                  };
-                  const icons: Record<string, string> = {
-                    money: "💵",
-                    pix: "⚡",
-                    debit: "💳",
-                    credit: "💳",
+                  const labels: Record<string, string> = { money: "Dinheiro", pix: "PIX", debit: "Débito", credit: "Crédito" };
+                  const methodStyle: Record<string, { bg: string; icon: string }> = {
+                    money: { bg: "bg-slate-100", icon: "💵" },
+                    pix:   { bg: "bg-violet-50", icon: "⚡" },
+                    debit: { bg: "bg-blue-50",   icon: "💳" },
+                    credit:{ bg: "bg-emerald-50",icon: "💳" },
                   };
                   return (
-                    <div className="mx-4 mt-3 space-y-2">
-                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
-                        <CreditCard size={10} /> Pagamento
+                    <div className="mx-4 mt-4 mb-2">
+                      <p className="text-[9px] font-black text-slate-400 uppercase tracking-[0.18em] mb-2 flex items-center gap-1.5">
+                        <CreditCard size={9} /> Pagamento
                       </p>
                       <div className="space-y-2">
                         {segs.map((s, i) => {
+                          const style = methodStyle[s.method] ?? { bg: "bg-slate-50", icon: "💰" };
                           const perInst = s.installments > 1 ? s.amount / s.installments : 0;
                           return (
-                            <div
-                              key={i}
-                              className="bg-slate-50 rounded-2xl px-4 py-3.5 flex items-center justify-between gap-3"
-                            >
+                            <div key={i} className={cn("rounded-2xl px-4 py-3 flex items-center justify-between gap-3 border border-slate-100", style.bg)}>
                               <div className="flex items-center gap-3">
-                                <span className="text-xl">{icons[s.method] ?? "💰"}</span>
+                                <span className="text-lg leading-none">{style.icon}</span>
                                 <div>
-                                  <p className="text-[12px] font-black text-slate-900">
+                                  <p className="text-[12px] font-black text-slate-900 leading-tight">
                                     {labels[s.method] ?? s.method}
-                                    {s.brand && s.brand !== "other"
-                                      ? ` · ${s.brand.toUpperCase()}`
-                                      : ""}
+                                    {s.brand && s.brand !== "other" ? ` · ${s.brand.toUpperCase()}` : ""}
                                   </p>
-                                  {s.method === "credit" && s.installments > 1 ? (
-                                    <p className="text-[10px] font-bold text-slate-500">
-                                      {s.installments}× de R$ {perInst.toFixed(2)}
-                                    </p>
-                                  ) : (
-                                    <p className="text-[10px] font-bold text-slate-400">À vista</p>
-                                  )}
+                                  <p className="text-[10px] text-slate-500 mt-0.5">
+                                    {s.method === "credit" && s.installments > 1
+                                      ? `${s.installments}× de R$ ${perInst.toFixed(2)}`
+                                      : "À vista"}
+                                  </p>
                                 </div>
                               </div>
-                              <span className="font-mono font-black text-slate-900 text-sm shrink-0">
+                              <span className="font-mono font-black text-[13px] text-slate-900 shrink-0">
                                 R$ {s.amount.toFixed(2)}
                               </span>
                             </div>
@@ -1704,36 +1816,29 @@ ${payments
                   );
                 })()}
 
-                <div className="h-4" />
+                <div className="h-5" />
               </div>
 
-              <div className="shrink-0 px-4 pt-3 pb-4 border-t border-slate-100 bg-white space-y-2.5 safe-area-bottom">
-                <div className="flex gap-2">
-                  <button
-                    onClick={handleDownloadReceipt}
-                    className="flex-1 h-12 bg-slate-100 hover:bg-slate-200 active:scale-95 rounded-2xl text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-all text-slate-700"
-                  >
-                    <Download size={14} /> Baixar
+              {/* ── Footer actions ── */}
+              <div className="shrink-0 px-4 pt-3 pb-4 border-t border-slate-100 bg-white safe-area-bottom">
+                <div className="grid grid-cols-2 gap-2 mb-2">
+                  <button onClick={handleDownloadReceipt}
+                    className="h-11 bg-slate-100 hover:bg-slate-200 active:scale-95 rounded-2xl text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-all text-slate-700">
+                    <Download size={13} /> Baixar
                   </button>
-                  <button
-                    onClick={handlePrintReceipt}
-                    className="flex-1 h-12 bg-slate-900 hover:bg-slate-800 active:scale-95 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-all shadow-lg shadow-slate-900/20"
-                  >
-                    <Receipt size={14} /> Imprimir Comprovante
+                  <button onClick={handlePrintReceipt}
+                    className="h-11 bg-slate-900 hover:bg-slate-700 active:scale-95 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-all shadow-lg shadow-slate-900/20">
+                    <Receipt size={13} /> Comprovante
                   </button>
                 </div>
-                <div className="flex gap-2">
-                  <button
-                    onClick={handleDownloadWarranty}
-                    className="flex-1 h-12 bg-emerald-50 hover:bg-emerald-100 active:scale-95 border border-emerald-200 rounded-2xl text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-all text-emerald-700"
-                  >
-                    <Download size={14} /> Garantia
+                <div className="grid grid-cols-2 gap-2">
+                  <button onClick={handleDownloadWarranty}
+                    className="h-11 bg-emerald-50 hover:bg-emerald-100 active:scale-95 border border-emerald-200 rounded-2xl text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-all text-emerald-700">
+                    <Download size={13} /> Garantia
                   </button>
-                  <button
-                    onClick={handlePrintWarranty}
-                    className="flex-1 h-12 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-all shadow-lg shadow-emerald-500/30"
-                  >
-                    <ShieldCheck size={14} /> Imprimir Garantia
+                  <button onClick={handlePrintWarranty}
+                    className="h-11 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-all shadow-lg shadow-emerald-500/25">
+                    <ShieldCheck size={13} /> Imprimir
                   </button>
                 </div>
               </div>
@@ -1804,14 +1909,14 @@ ${payments
                   <button
                     onClick={handleCancelOrder}
                     disabled={cancelling}
-                    className="flex-1 h-10 bg-red-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-red-700 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+                    className="flex-1 h-10 bg-red-600 text-white rounded-xl text-[10px] font-black uppercase tracking-wide hover:bg-red-700 transition-all disabled:opacity-50 flex items-center justify-center gap-1.5 whitespace-nowrap"
                   >
                     {cancelling ? (
-                      <Loader2 size={14} className="animate-spin" />
+                      <Loader2 size={13} className="animate-spin shrink-0" />
                     ) : (
-                      <XCircle size={14} />
+                      <XCircle size={13} className="shrink-0" />
                     )}
-                    Confirmar Cancelamento
+                    Confirmar
                   </button>
                 </div>
               </div>
