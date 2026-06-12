@@ -48,15 +48,15 @@ export async function getDashboardStats(req: Request, res: Response) {
 
   try {
     const [totalGross, totalIncome, products, cogsResult] = await Promise.all([
-      // Bruto = gross_amount (valor sem desconto/taxa), fallback para total_amount
-      prisma.order.aggregate({
-        where: { tenant_id: tenantId, status: "completed" },
-        _sum: { gross_amount: true, total_amount: true },
+      // Bruto = soma de gross_amount das entradas do finance (igual ao card "Bruto" do Fluxo de Caixa)
+      prisma.finance.aggregate({
+        where: { tenant_id: tenantId, type: "income" },
+        _sum: { gross_amount: true, amount: true },
       }),
-      // Líquido = total_amount pago pelo cliente (o que entrou no caixa)
-      prisma.order.aggregate({
-        where: { tenant_id: tenantId, status: "completed" },
-        _sum: { total_amount: true },
+      // Líquido = soma de amount das entradas do finance (igual ao "Total Entradas" do Fluxo de Caixa)
+      prisma.finance.aggregate({
+        where: { tenant_id: tenantId, type: "income" },
+        _sum: { amount: true },
       }),
       prisma.product.findMany({
         where: { tenant_id: tenantId },
@@ -86,8 +86,8 @@ export async function getDashboardStats(req: Request, res: Response) {
       LIMIT 7
     `;
 
-    const grossRevenue = Number(totalGross._sum.gross_amount ?? totalGross._sum.total_amount) || 0;
-    const netRevenue   = Number(totalIncome._sum.total_amount) || 0;
+    const grossRevenue = Number(totalGross._sum.gross_amount ?? totalGross._sum.amount) || 0;
+    const netRevenue   = Number(totalIncome._sum.amount) || 0;
     const cogs         = Number(cogsResult[0]?.cogs) || 0;
 
     res.json({
