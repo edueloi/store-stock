@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import ExcelJS from "exceljs";
 import {
   Receipt,
   Search,
@@ -57,6 +58,278 @@ interface TenantBasic {
   };
 }
 
+function formatPaymentLabel(pm?: string | null) {
+  if (!pm) return "—";
+  const labels: Record<string, string> = { money: "Dinheiro", pix: "PIX", debit: "Débito", credit: "Crédito" };
+  return pm.split("|").map((seg) => {
+    const [methodPart, amountStr] = seg.split(":");
+    const tokens = methodPart.split("-");
+    const method = tokens[0] ?? "money";
+    const brand  = tokens[1] && tokens[1] !== "other" ? `/${tokens[1].toUpperCase()}` : "";
+    const inst   = tokens[2] ? ` ${tokens[2].toUpperCase()}` : "";
+    const amt    = amountStr ? ` R$ ${parseFloat(amountStr).toFixed(2)}` : "";
+    return `${labels[method] ?? method}${brand}${inst}${amt}`;
+  }).join(" + ");
+}
+
+async function exportOrdersToExcel(orders: Order[], tenantName: string) {
+  const wb = new ExcelJS.Workbook();
+  wb.creator = "BoxSys Store";
+  wb.created = new Date();
+
+  const ws = wb.addWorksheet("Pedidos", {
+    pageSetup: { paperSize: 9, orientation: "landscape", fitToPage: true },
+    views: [{ state: "frozen", ySplit: 7 }],
+  });
+
+  ws.columns = [
+    { key: "id",       width: 10 },
+    { key: "date",     width: 14 },
+    { key: "customer", width: 28 },
+    { key: "seller",   width: 18 },
+    { key: "payment",  width: 32 },
+    { key: "gross",    width: 14 },
+    { key: "discount", width: 14 },
+    { key: "fee",      width: 14 },
+    { key: "total",    width: 14 },
+    { key: "status",   width: 14 },
+  ];
+
+  const border = (style: "thin" | "medium" = "thin"): Partial<ExcelJS.Borders> => ({
+    top:    { style, color: { argb: style === "medium" ? "FF0F172A" : "FFE2E8F0" } },
+    bottom: { style, color: { argb: style === "medium" ? "FF0F172A" : "FFE2E8F0" } },
+    left:   { style, color: { argb: style === "medium" ? "FF0F172A" : "FFE2E8F0" } },
+    right:  { style, color: { argb: style === "medium" ? "FF0F172A" : "FFE2E8F0" } },
+  });
+  const fill = (hex: string): ExcelJS.Fill => ({
+    type: "pattern", pattern: "solid", fgColor: { argb: `FF${hex}` },
+  });
+  const font = (opts: { bold?: boolean; size?: number; color?: string; italic?: boolean }): Partial<ExcelJS.Font> => ({
+    name: "Calibri", size: opts.size ?? 11,
+    bold: opts.bold ?? false, italic: opts.italic ?? false,
+    color: { argb: `FF${opts.color ?? "1E293B"}` },
+  });
+
+  // Row 1 — título
+  ws.getRow(1).height = 30;
+  const c1 = ws.getRow(1).getCell(1);
+  c1.value = tenantName;
+  c1.font  = font({ bold: true, size: 20, color: "1E3A5F" });
+  c1.alignment = { vertical: "middle" };
+
+  // Row 2 — subtítulo
+  ws.getRow(2).height = 16;
+  const c2 = ws.getRow(2).getCell(1);
+  c2.value = `Relatório de Pedidos  ·  ${orders.length} pedidos exportados`;
+  c2.font  = font({ italic: true, size: 10, color: "64748B" });
+  const c2g = ws.getRow(2).getCell(8);
+  c2g.value = `Gerado em: ${new Date().toLocaleString("pt-BR")}`;
+  c2g.font  = font({ italic: true, size: 9, color: "94A3B8" });
+  c2g.alignment = { horizontal: "right", vertical: "middle" };
+
+  // Row 3 — separator
+  ws.getRow(3).height = 4;
+  for (let c = 1; c <= 10; c++) {
+    ws.getRow(3).getCell(c).border = { bottom: { style: "medium", color: { argb: "FF1E3A5F" } } };
+  }
+
+  // Rows 4–5 — summary cards
+  const completed = orders.filter(o => o.status === "completed");
+  const totalBruto   = completed.reduce((a, o) => a + Number(o.gross_amount   ?? o.total_amount), 0);
+  const totalDesconto = completed.reduce((a, o) => a + Number(o.discount_amount ?? 0), 0);
+  const totalTaxa     = completed.reduce((a, o) => a + Number(o.fee_amount     ?? 0), 0);
+  const totalLiquido  = completed.reduce((a, o) => a + Number(o.total_amount), 0);
+
+  ws.getRow(4).height = 16;
+  ws.getRow(5).height = 28;
+  const cards = [
+    { col: 1, span: 2, label: "TOTAL PEDIDOS",      bg: "EFF6FF", fg: "1D4ED8", val: orders.length,   fmt: "0",                vfg: "2563EB" },
+    { col: 3, span: 2, label: "PEDIDOS PAGOS",       bg: "ECFDF5", fg: "065F46", val: completed.length, fmt: "0",               vfg: "059669" },
+    { col: 5, span: 2, label: "BRUTO (PAGOS)",       bg: "F0FDF4", fg: "166534", val: totalBruto,      fmt: '"R$" #,##0.00',   vfg: "16A34A" },
+    { col: 7, span: 2, label: "DESCONTOS + TAXAS",   bg: "FFF1F2", fg: "9F1239", val: -(totalDesconto + totalTaxa), fmt: '"R$" #,##0.00', vfg: "E11D48" },
+    { col: 9, span: 2, label: "LÍQUIDO RECEBIDO",    bg: "1E293B", fg: "94A3B8", val: totalLiquido,    fmt: '"R$" #,##0.00',   vfg: "34D399" },
+  ];
+  for (const { col, span, label, bg, fg, val, fmt, vfg } of cards) {
+    const l4 = ws.getRow(4).getCell(col);
+    l4.value = label;
+    l4.font  = font({ bold: true, size: 8, color: fg });
+    l4.fill  = fill(bg);
+    l4.alignment = { horizontal: "center", vertical: "middle" };
+    l4.border = { top: { style: "medium", color: { argb: `FF${fg}` } }, left: { style: "medium", color: { argb: `FF${fg}` } }, right: { style: "medium", color: { argb: `FF${fg}` } } };
+    if (span > 1) ws.mergeCells(4, col, 4, col + span - 1);
+
+    const l5 = ws.getRow(5).getCell(col);
+    l5.value  = val;
+    l5.numFmt = fmt;
+    l5.font   = font({ bold: true, size: 13, color: vfg });
+    l5.fill   = fill(bg);
+    l5.alignment = { horizontal: "center", vertical: "middle" };
+    l5.border = { bottom: { style: "medium", color: { argb: `FF${fg}` } }, left: { style: "medium", color: { argb: `FF${fg}` } }, right: { style: "medium", color: { argb: `FF${fg}` } } };
+    if (span > 1) ws.mergeCells(5, col, 5, col + span - 1);
+  }
+
+  // Row 6 — gap
+  ws.getRow(6).height = 6;
+
+  // Row 7 — header
+  ws.getRow(7).height = 22;
+  const HEADERS = ["Pedido", "Data", "Cliente", "Vendedor", "Pagamento", "Bruto (R$)", "Desc. (R$)", "Taxa (R$)", "Total (R$)", "Status"];
+  HEADERS.forEach((h, i) => {
+    const cell = ws.getRow(7).getCell(i + 1);
+    cell.value = h;
+    cell.font  = font({ bold: true, size: 10, color: "FFFFFF" });
+    cell.fill  = fill("1E3A5F");
+    cell.alignment = { horizontal: i >= 5 ? "right" : i === 0 ? "center" : "left", vertical: "middle" };
+    cell.border = border("medium");
+  });
+
+  // Data rows
+  orders.forEach((o, i) => {
+    const rowNum = 8 + i;
+    const altBg  = i % 2 === 0 ? "FFFFFF" : "F8FAFC";
+    const row    = ws.getRow(rowNum);
+    row.height   = 20;
+
+    const s = (cell: ExcelJS.Cell, align: ExcelJS.Alignment["horizontal"] = "left") => {
+      cell.fill      = fill(altBg);
+      cell.alignment = { horizontal: align, vertical: "middle" };
+      cell.border    = border("thin");
+    };
+
+    // Pedido
+    const cId = row.getCell(1);
+    cId.value = `#${String(o.id).padStart(6, "0")}`;
+    cId.font  = font({ bold: true, size: 10, color: "2563EB" });
+    s(cId, "center");
+
+    // Data
+    const cDate = row.getCell(2);
+    const d = new Date(o.created_at);
+    cDate.value  = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+    cDate.numFmt = "DD/MM/YYYY";
+    cDate.font   = font({ size: 10, color: "475569" });
+    s(cDate, "center");
+
+    // Cliente
+    const cCust = row.getCell(3);
+    cCust.value = o.customer_name || "Balcão";
+    cCust.font  = font({ size: 10, bold: true });
+    s(cCust, "left");
+
+    // Vendedor
+    const cSeller = row.getCell(4);
+    cSeller.value = o.seller_name || "—";
+    cSeller.font  = font({ size: 10, color: "6366F1" });
+    s(cSeller, "left");
+
+    // Pagamento
+    const cPay = row.getCell(5);
+    cPay.value = formatPaymentLabel(o.payment_method);
+    cPay.font  = font({ size: 9, color: "475569" });
+    s(cPay, "left");
+
+    // Bruto
+    const cGross = row.getCell(6);
+    if (o.gross_amount != null) {
+      cGross.value  = Number(o.gross_amount);
+      cGross.numFmt = '"R$" #,##0.00';
+      cGross.font   = font({ size: 10, color: "475569" });
+    } else {
+      cGross.value = "—";
+      cGross.font  = font({ size: 10, color: "CBD5E1" });
+    }
+    s(cGross, "right");
+
+    // Desconto
+    const cDisc = row.getCell(7);
+    const discVal = Number(o.discount_amount ?? 0);
+    if (discVal > 0) {
+      cDisc.value  = -discVal;
+      cDisc.numFmt = '"R$" #,##0.00;[Red]"R$" -#,##0.00';
+      cDisc.font   = font({ bold: true, size: 10, color: "E11D48" });
+    } else {
+      cDisc.value = "—";
+      cDisc.font  = font({ size: 10, color: "CBD5E1" });
+    }
+    s(cDisc, "right");
+
+    // Taxa
+    const cFee = row.getCell(8);
+    const feeVal = Number(o.fee_amount ?? 0);
+    if (feeVal > 0) {
+      cFee.value  = -feeVal;
+      cFee.numFmt = '"R$" #,##0.00;[Red]"R$" -#,##0.00';
+      cFee.font   = font({ bold: true, size: 10, color: "D97706" });
+    } else {
+      cFee.value = "—";
+      cFee.font  = font({ size: 10, color: "CBD5E1" });
+    }
+    s(cFee, "right");
+
+    // Total
+    const cTotal = row.getCell(9);
+    const statusColor = o.status === "cancelled" ? "DC2626" : "059669";
+    cTotal.value  = Number(o.total_amount);
+    cTotal.numFmt = '"R$" #,##0.00';
+    cTotal.font   = font({ bold: true, size: 11, color: statusColor });
+    s(cTotal, "right");
+
+    // Status
+    const cStatus = row.getCell(10);
+    const statusMap: Record<string, { label: string; bg: string; fg: string }> = {
+      completed: { label: "✔ Pago",      bg: "D1FAE5", fg: "065F46" },
+      pending:   { label: "⏳ Pendente", bg: "FEF3C7", fg: "92400E" },
+      cancelled: { label: "✖ Cancelado", bg: "FEE2E2", fg: "991B1B" },
+    };
+    const st = statusMap[o.status] ?? { label: o.status, bg: "F1F5F9", fg: "475569" };
+    cStatus.value = st.label;
+    cStatus.font  = font({ bold: true, size: 9, color: st.fg });
+    cStatus.fill  = fill(st.bg);
+    cStatus.alignment = { horizontal: "center", vertical: "middle" };
+    cStatus.border = border("thin");
+  });
+
+  // Footer totals
+  const footerRow = 8 + orders.length + 1;
+  const addFooter = (rowN: number, label: string, val: number | string, bg: string, fg: string, fmt = '"R$" #,##0.00') => {
+    const row = ws.getRow(rowN);
+    row.height = 20;
+    for (let c = 1; c <= 8; c++) {
+      const cell = row.getCell(c);
+      cell.fill   = fill(bg);
+      cell.border = border("thin");
+    }
+    const lCell = row.getCell(9);
+    lCell.value = label;
+    lCell.font  = font({ bold: true, size: 10, color: fg });
+    lCell.fill  = fill(bg);
+    lCell.alignment = { horizontal: "right", vertical: "middle" };
+    lCell.border = border("thin");
+    const vCell = row.getCell(10);
+    vCell.value  = val;
+    if (typeof val === "number") vCell.numFmt = fmt;
+    vCell.font   = font({ bold: true, size: 11, color: fg });
+    vCell.fill   = fill(bg);
+    vCell.alignment = { horizontal: "right", vertical: "middle" };
+    vCell.border = border("medium");
+  };
+  addFooter(footerRow,     "BRUTO TOTAL",      totalBruto,                "ECFDF5", "059669");
+  addFooter(footerRow + 1, "DESCONTOS",        -totalDesconto,            "FFF1F2", "E11D48");
+  addFooter(footerRow + 2, "TAXAS MAQUININHA", -totalTaxa,                "FFFBEB", "D97706");
+  addFooter(footerRow + 3, "LÍQUIDO RECEBIDO", totalLiquido,              "D1FAE5", "059669");
+  addFooter(footerRow + 4, "PEDIDOS CANCELADOS", orders.filter(o => o.status === "cancelled").length, "FEE2E2", "DC2626", "0");
+
+  // Download
+  const buf  = await wb.xlsx.writeBuffer();
+  const blob = new Blob([buf], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement("a");
+  a.href     = url;
+  a.download = `Pedidos_${new Date().toLocaleDateString("pt-BR").replace(/\//g, "-")}.xlsx`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
 export default function Orders() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [topProducts, setTopProducts] = useState<any[]>([]);
@@ -76,6 +349,7 @@ export default function Orders() {
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [exporting, setExporting] = useState(false);
 
   const token = () => localStorage.getItem("token");
 
@@ -736,8 +1010,15 @@ ${payments
         title="Pedidos"
         subtitle="Gestão e acompanhamento de vendas"
         action={
-          <button className="h-9 bg-white border border-slate-200 px-4 rounded-xl flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest hover:bg-slate-50 transition-all text-slate-600 shadow-sm">
-            <Download size={13} /> Exportar
+          <button
+            onClick={async () => {
+              setExporting(true);
+              try { await exportOrdersToExcel(filteredOrders, tenant?.name ?? "BoxSys Store"); }
+              finally { setExporting(false); }
+            }}
+            disabled={exporting || filteredOrders.length === 0}
+            className="h-9 bg-white border border-slate-200 px-4 rounded-xl flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest hover:bg-slate-50 transition-all text-slate-600 shadow-sm disabled:opacity-40">
+            {exporting ? <Loader2 size={13} className="animate-spin" /> : <Download size={13} />} Exportar
           </button>
         }
       />
@@ -883,122 +1164,147 @@ ${payments
         )}
       </AnimatePresence>
 
-      {/* Desktop View Table */}
-      <div className="hidden lg:block bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden transition-all hover:shadow-md">
-        <div className="overflow-x-auto no-scrollbar">
+      {/* Desktop Table */}
+      <div className="hidden lg:block bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+        <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse">
             <thead>
-              <tr className="bg-slate-50 border-b border-slate-100">
-                <th className="px-5 py-5 w-12">
-                  <input
-                    type="checkbox"
-                    checked={allFilteredSelected}
-                    onChange={toggleSelectAll}
-                    className="w-4 h-4 rounded accent-slate-900 cursor-pointer"
-                  />
+              <tr className="border-b border-slate-100">
+                <th className="px-4 py-3 w-10">
+                  <input type="checkbox" checked={allFilteredSelected} onChange={toggleSelectAll}
+                    className="w-3.5 h-3.5 rounded accent-slate-900 cursor-pointer" />
                 </th>
-                <th className="px-4 py-5 text-[10px] font-black text-slate-500 uppercase tracking-[0.2em]">
-                  Pedido
-                </th>
-                <th className="px-4 py-5 text-[10px] font-black text-slate-500 uppercase tracking-[0.2em]">
-                  Cliente
-                </th>
-                <th className="px-4 py-5 text-[10px] font-black text-slate-500 uppercase tracking-[0.2em]">
-                  Data
-                </th>
-                <th className="px-4 py-5 text-[10px] font-black text-slate-500 uppercase tracking-[0.2em]">
-                  Total
-                </th>
-                <th className="px-4 py-5 text-[10px] font-black text-slate-500 uppercase tracking-[0.2em]">
-                  Status
-                </th>
-                <th className="px-4 py-5 text-right"></th>
+                <th className="px-4 py-3 text-[9px] font-black text-slate-400 uppercase tracking-[0.18em]">Pedido</th>
+                <th className="px-4 py-3 text-[9px] font-black text-slate-400 uppercase tracking-[0.18em]">Cliente</th>
+                <th className="px-4 py-3 text-[9px] font-black text-slate-400 uppercase tracking-[0.18em]">Pagamento</th>
+                <th className="px-4 py-3 text-[9px] font-black text-slate-400 uppercase tracking-[0.18em]">Data</th>
+                <th className="px-4 py-3 text-[9px] font-black text-slate-400 uppercase tracking-[0.18em] text-right">Total</th>
+                <th className="px-4 py-3 text-[9px] font-black text-slate-400 uppercase tracking-[0.18em] text-center">Status</th>
+                <th className="px-4 py-3 w-16"></th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-50 text-slate-700">
-              {filteredOrders.map((order) => {
+            <tbody>
+              {filteredOrders.map((order, idx) => {
                 const isChecked = selectedIds.has(order.id);
+                const pm = order.payment_method || "";
+                const pmLabel = pm ? pm.split("|").map((seg) => {
+                  const method = seg.split(":")[0].split("-")[0];
+                  const map: Record<string, string> = { money: "Dinheiro", pix: "PIX", debit: "Débito", credit: "Crédito" };
+                  return map[method] ?? method;
+                }).join(" + ") : "—";
+                const pmDot: Record<string, string> = { money: "bg-slate-400", pix: "bg-violet-500", debit: "bg-blue-500", credit: "bg-emerald-500" };
+                const firstMethod = pm.split("|")[0].split(":")[0].split("-")[0];
                 return (
-                  <tr
-                    key={order.id}
-                    onClick={() => fetchOrderDetails(order.id)}
+                  <tr key={order.id} onClick={() => fetchOrderDetails(order.id)}
                     className={cn(
-                      "hover:bg-blue-50/30 transition-colors group cursor-pointer",
-                      isChecked && "bg-blue-50/50"
-                    )}
-                  >
-                    <td className="px-5 py-6" onClick={(e) => toggleSelect(order.id, e)}>
-                      <input
-                        type="checkbox"
-                        checked={isChecked}
-                        onChange={() => {}}
-                        className="w-4 h-4 rounded accent-slate-900 cursor-pointer"
-                      />
+                      "border-b border-slate-50 last:border-0 group cursor-pointer transition-colors duration-100",
+                      isChecked ? "bg-blue-50/60" : idx % 2 === 0 ? "bg-white hover:bg-slate-50/70" : "bg-slate-50/30 hover:bg-slate-50/70"
+                    )}>
+                    {/* checkbox */}
+                    <td className="px-4 py-3" onClick={(e) => toggleSelect(order.id, e)}>
+                      <input type="checkbox" checked={isChecked} onChange={() => {}}
+                        className="w-3.5 h-3.5 rounded accent-slate-900 cursor-pointer" />
                     </td>
-                    <td className="px-4 py-6">
-                      <span className="font-mono font-black text-xs text-slate-400 group-hover:text-blue-600 transition-colors">
+                    {/* pedido */}
+                    <td className="px-4 py-3">
+                      <span className="font-mono font-bold text-[11px] text-slate-400 group-hover:text-blue-500 transition-colors">
                         #{String(order.id).padStart(6, "0")}
                       </span>
                     </td>
-                    <td className="px-4 py-6">
-                      <div className="flex flex-col">
-                        <span className="font-black text-xs text-slate-900 uppercase tracking-tight">
-                          {order.customer_name || "Consumidor Final"}
-                        </span>
-                        <span className="text-[9px] text-slate-400 font-bold uppercase mt-1 tracking-widest bg-slate-100 px-1.5 py-0.5 rounded w-fit">
-                          {order.customer_phone || "VENDA BALCÃO"}
-                        </span>
+                    {/* cliente */}
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-2.5">
+                        <div className="w-7 h-7 rounded-full bg-gradient-to-br from-slate-100 to-slate-200 border border-slate-200 flex items-center justify-center shrink-0">
+                          <User size={12} className="text-slate-500" />
+                        </div>
+                        <div>
+                          <p className="text-[11px] font-bold text-slate-800 leading-tight">
+                            {order.customer_name || "Balcão"}
+                          </p>
+                          {order.seller_name && (
+                            <p className="text-[9px] text-slate-400 font-medium leading-tight mt-0.5">
+                              via {order.seller_name}
+                            </p>
+                          )}
+                        </div>
                       </div>
                     </td>
-                    <td className="px-4 py-6 text-[10px] font-mono font-black text-slate-500 uppercase">
-                      {new Date(order.created_at).toLocaleDateString("pt-BR")}
+                    {/* pagamento */}
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-1.5">
+                        <span className={cn("w-1.5 h-1.5 rounded-full shrink-0", pmDot[firstMethod] ?? "bg-slate-400")} />
+                        <span className="text-[11px] text-slate-600 font-medium">{pmLabel}</span>
+                      </div>
                     </td>
-                    <td className="px-4 py-6">
-                      <span className="font-mono font-black text-sm text-slate-900 tracking-tighter">
+                    {/* data */}
+                    <td className="px-4 py-3">
+                      <span className="text-[11px] font-medium text-slate-500">
+                        {new Date(order.created_at).toLocaleDateString("pt-BR")}
+                      </span>
+                    </td>
+                    {/* total */}
+                    <td className="px-4 py-3 text-right">
+                      <span className={cn(
+                        "font-mono font-black text-[13px] tracking-tight",
+                        order.status === "cancelled" ? "text-slate-300 line-through" : "text-slate-900"
+                      )}>
                         R$ {Number(order.total_amount).toFixed(2)}
                       </span>
                     </td>
-                    <td className="px-4 py-6">
-                      <div
-                        className={cn(
-                          "flex items-center gap-2 px-3 py-1.5 rounded-xl text-[9px] font-black uppercase tracking-widest border w-fit shadow-sm",
-                          getStatusStyle(order.status)
-                        )}
-                      >
-                        {getStatusIcon(order.status)}
-                        <span>
-                          {order.status === "completed"
-                            ? "PAGO"
-                            : order.status === "pending"
-                            ? "PENDENTE"
-                            : "ESTORNO"}
+                    {/* status */}
+                    <td className="px-4 py-3 text-center">
+                      {order.status === "completed" && (
+                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-wider bg-emerald-50 text-emerald-600 border border-emerald-100">
+                          <CheckCircle2 size={10} /> Pago
                         </span>
-                      </div>
+                      )}
+                      {order.status === "pending" && (
+                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-wider bg-amber-50 text-amber-600 border border-amber-100">
+                          <Clock size={10} /> Pendente
+                        </span>
+                      )}
+                      {order.status === "cancelled" && (
+                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-wider bg-red-50 text-red-500 border border-red-100">
+                          <XCircle size={10} /> Cancelado
+                        </span>
+                      )}
                     </td>
-                    <td className="px-4 py-6 text-right">
-                      <div className="flex justify-end items-center gap-2 opacity-0 group-hover:opacity-100 transition-all translate-x-2 group-hover:translate-x-0">
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setSelectedIds(new Set([order.id]));
-                            setShowDeleteModal(true);
-                          }}
-                          className="w-9 h-9 rounded-xl bg-red-50 border border-red-100 text-red-500 flex items-center justify-center hover:bg-red-100 transition-all"
-                          title="Deletar pedido"
-                        >
-                          <Trash2 size={14} />
+                    {/* ações */}
+                    <td className="px-4 py-3 text-right">
+                      <div className="flex justify-end items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-all">
+                        <button onClick={(e) => { e.stopPropagation(); setSelectedIds(new Set([order.id])); setShowDeleteModal(true); }}
+                          className="w-7 h-7 rounded-lg bg-red-50 border border-red-100 text-red-400 flex items-center justify-center hover:bg-red-100 transition-all"
+                          title="Deletar">
+                          <Trash2 size={12} />
                         </button>
-                        <div className="w-9 h-9 rounded-xl bg-slate-900 text-white flex items-center justify-center shadow-lg">
-                          <ChevronRight size={18} strokeWidth={3} />
+                        <div className="w-7 h-7 rounded-lg bg-slate-900 text-white flex items-center justify-center">
+                          <ChevronRight size={14} strokeWidth={2.5} />
                         </div>
                       </div>
                     </td>
                   </tr>
                 );
               })}
+              {filteredOrders.length === 0 && (
+                <tr>
+                  <td colSpan={8} className="px-4 py-16 text-center text-[11px] font-bold text-slate-400 uppercase tracking-widest">
+                    Nenhum pedido encontrado
+                  </td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>
+        {filteredOrders.length > 0 && (
+          <div className="px-5 py-3 border-t border-slate-100 flex items-center justify-between bg-slate-50/50">
+            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+              {filteredOrders.length} pedido{filteredOrders.length !== 1 ? "s" : ""}
+            </span>
+            <span className="text-[10px] font-black font-mono text-slate-600">
+              Total: R$ {filteredOrders.reduce((a, o) => a + (o.status !== "cancelled" ? Number(o.total_amount) : 0), 0).toFixed(2)}
+            </span>
+          </div>
+        )}
       </div>
 
       {/* Mobile Card-Based List */}
