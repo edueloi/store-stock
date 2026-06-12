@@ -60,6 +60,33 @@ export async function updateFinanceEntry(req: Request, res: Response) {
         ...(date ? { date: parseDateField(date) } : {}),
       },
     });
+
+    // Sync back to the linked order if description references a PDV order
+    const description: string = rest.description ?? existing.description ?? "";
+    const orderMatch = description.match(/PDV\s*#(\d+)/i);
+    if (orderMatch) {
+      const orderId = Number(orderMatch[1]);
+      const order = await prisma.order.findFirst({ where: { id: orderId, tenant_id: tenantId } });
+      if (order) {
+        const newAmount      = rest.amount          != null ? Number(rest.amount)          : undefined;
+        const newDiscount    = rest.discount_amount != null ? Number(rest.discount_amount) : undefined;
+        const newFee         = rest.fee_amount      != null ? Number(rest.fee_amount)      : undefined;
+        const newGross       = rest.gross_amount    != null ? Number(rest.gross_amount)    : undefined;
+        const newPm: string | undefined = rest.payment_method ?? undefined;
+
+        await prisma.order.update({
+          where: { id: orderId },
+          data: {
+            ...(newAmount   != null ? { total_amount:    newAmount   } : {}),
+            ...(newGross    != null ? { gross_amount:    newGross    } : {}),
+            ...(newDiscount != null ? { discount_amount: newDiscount } : {}),
+            ...(newFee      != null ? { fee_amount:      newFee      } : {}),
+            ...(newPm               ? { payment_method:  newPm       } : {}),
+          },
+        });
+      }
+    }
+
     res.json({ ok: true });
   } catch (err) {
     console.error("[updateFinanceEntry]", err);
