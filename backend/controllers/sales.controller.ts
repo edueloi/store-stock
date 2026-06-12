@@ -66,6 +66,7 @@ export async function createSale(req: Request, res: Response) {
 
   try {
     const tenantId = getTenantId(req);
+    console.log("[createSale] tenant:", tenantId, "items:", JSON.stringify(items), "pm:", paymentMethod);
 
     // Idempotency: offline-queued sales retry with the same clientSaleId —
     // if this sale was already processed, acknowledge it without duplicating
@@ -136,6 +137,21 @@ export async function createSale(req: Request, res: Response) {
       if (cust) resolvedCustomerName = cust.name;
     }
 
+    // Validate all products exist before creating the order
+    const productIds = items.map(i => i.id);
+    const existingProducts = await prisma.product.findMany({
+      where: { id: { in: productIds }, tenant_id: tenantId },
+      select: { id: true },
+    });
+    const foundIds = existingProducts.map(p => p.id);
+    const missingIds = productIds.filter(id => !foundIds.includes(id));
+    if (missingIds.length > 0) {
+      console.error("[createSale] products not found:", missingIds, "for tenant:", tenantId);
+      res.status(422).json({ error: "Produto não encontrado", missingIds });
+      return;
+    }
+
+    console.log("[createSale] creating order, grossAmount:", grossAmount, "netAmount:", netAmount, "fee:", roundedFee);
     const order = await prisma.order.create({
       data: {
         tenant_id:       tenantId,
@@ -170,6 +186,7 @@ export async function createSale(req: Request, res: Response) {
       },
     });
 
+    console.log("[createSale] order created id:", order.id, "— updating stock");
     for (const item of items) {
       // decrement total product stock
       await prisma.product.update({
@@ -216,6 +233,7 @@ export async function createSale(req: Request, res: Response) {
       }
     }
 
+    console.log("[createSale] stock updated — creating finance entry");
     const methodSummary  = buildMethodSummary(pmString);
     const discountNote   = discountVal > 0 ? ` (desc. R$ ${discountVal.toFixed(2)})` : "";
     const surchargeNote  = surchargeVal > 0 ? ` (acrés. R$ ${surchargeVal.toFixed(2)})` : "";
@@ -242,7 +260,9 @@ export async function createSale(req: Request, res: Response) {
     }
 
     res.json({ success: true, orderId: order.id });
-  } catch {
-    res.status(500).json({ error: "Sale failed" });
+  } catch (err) {
+    console.error("[createSale] error:", err);
+    const message = err instanceof Error ? err.message : String(err);
+    res.status(500).json({ error: "Sale failed", detail: message });
   }
 }

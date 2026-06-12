@@ -100,12 +100,31 @@ echo ""
 echo "▶ Instalando dependências (npm install)..."
 npm install --silent
 
-# ── 7. Aplicar schema no banco (todas as tabelas) ───────────────
+# ── 7. Aplicar schema no banco (migrations seguras, sem perda de dados) ──
 echo ""
-echo "▶ Aplicando schema Prisma no banco..."
+echo "▶ Gerando Prisma client..."
 npx prisma generate
-npx prisma db push --accept-data-loss
-echo "  Tabelas criadas/atualizadas."
+
+echo "▶ Verificando histórico de migrations no banco..."
+MIGRATIONS_TABLE=$(mysql -u "$DB_USER" -p"$DB_PASS" "$DB_NAME" \
+  -sse "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='$DB_NAME' AND table_name='_prisma_migrations';" 2>/dev/null || echo "0")
+
+if [ "$MIGRATIONS_TABLE" = "0" ]; then
+  echo "  Banco criado via db push (sem histórico). Fazendo baseline de todas as migrations anteriores..."
+  # Marca todas as migrations EXCETO a última como já aplicadas (baseline)
+  # A última migration (complete_schema_sync) vai rodar de verdade
+  for migration_dir in prisma/migrations/*/; do
+    migration_name=$(basename "$migration_dir")
+    # Pula a migration de sync — ela vai rodar normalmente
+    if [ "$migration_name" != "20260612100000_complete_schema_sync" ]; then
+      npx prisma migrate resolve --applied "$migration_name" 2>/dev/null || true
+    fi
+  done
+  echo "  Baseline concluído. Aplicando migration de sync..."
+fi
+
+npx prisma migrate deploy
+echo "  Migrations aplicadas com sucesso."
 
 # ── 8. Build ─────────────────────────────────────────────────────
 echo ""

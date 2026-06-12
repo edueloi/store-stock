@@ -112,6 +112,7 @@ export default function PDV() {
   const [cart, setCart]             = useState<CartItem[]>([]);
   const [loading, setLoading]       = useState(true);
   const [finishing, setFinishing]   = useState(false);
+  const [saleError, setSaleError]   = useState<string | null>(null);
   const [configProduct, setConfigProduct] = useState<Product | null>(null);
   const [selectedOptions, setSelectedOptions] = useState<Record<string, string>>({});
   const [showCheckout, setShowCheckout] = useState(false);
@@ -674,6 +675,7 @@ ${change > 0 ? `<hr class="divider"/><div class="row bold"><span>TROCO:</span><s
   const handleFinishSale = async () => {
     if (!canFinish || finishing) return;
     setFinishing(true);
+    setSaleError(null);
     try {
       const pmString = payments.map((p) => {
         const brand = (p.method === "debit" || p.method === "credit") ? `-${p.cardBrand}` : "";
@@ -698,8 +700,13 @@ ${change > 0 ? `<hr class="divider"/><div class="row bold"><span>TROCO:</span><s
           passFeeByMethod,
         }),
       });
-      if (res.ok) {
-        const data = await res.json();
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        const msg = errData.detail || errData.error || `Erro ${res.status} ao processar venda`;
+        setSaleError(msg);
+        return;
+      }
+      const data = await res.json();
 
         // redeem reward if applied
         let rewardApplied: string | undefined;
@@ -754,8 +761,10 @@ ${change > 0 ? `<hr class="divider"/><div class="row bold"><span>TROCO:</span><s
         fetch("/api/products?active=true", { headers: { Authorization: `Bearer ${token}` } })
           .then((r) => r.json()).then((d) => setProducts(Array.isArray(d) ? d : []));
         fetchRecentOrders();
-      }
-    } catch (e) { console.error("Sale failed", e); }
+    } catch (e) {
+      console.error("Sale failed", e);
+      setSaleError("Erro inesperado ao processar venda. Tente novamente.");
+    }
     finally { setFinishing(false); }
   };
 
@@ -872,7 +881,7 @@ ${change > 0 ? `<hr class="divider"/><div class="row bold"><span>TROCO:</span><s
             </div>
             {/* Botão carrinho mobile */}
             <button
-              onClick={() => { setShowCheckout(true); autoFillFirst(); }}
+              onClick={() => { setShowCheckout(true); setSaleError(null); autoFillFirst(); }}
               disabled={cartQty === 0}
               className="lg:hidden relative h-10 px-4 rounded-xl flex items-center gap-2 text-[11px] font-black text-white shadow disabled:opacity-40"
               style={{ background: "linear-gradient(135deg, #3b82f6, #1d4ed8)" }}>
@@ -1066,7 +1075,7 @@ ${change > 0 ? `<hr class="divider"/><div class="row bold"><span>TROCO:</span><s
               </div>
             )}
             <button
-              onClick={() => { setShowCheckout(true); autoFillFirst(); }}
+              onClick={() => { setShowCheckout(true); setSaleError(null); autoFillFirst(); }}
               disabled={!canFinish}
               className="w-full h-13 disabled:opacity-25 text-white rounded-2xl text-[12px] font-black uppercase tracking-widest transition-all active:scale-[0.98] flex items-center justify-center gap-2.5 shadow-lg shadow-blue-200"
               style={{ height: "52px", background: "linear-gradient(135deg,#3b82f6,#1d4ed8)" }}>
@@ -1790,6 +1799,12 @@ ${change > 0 ? `<hr class="divider"/><div class="row bold"><span>TROCO:</span><s
 
                   {/* Botão confirmar */}
                   <div className="shrink-0 px-5 pb-5 pt-4 border-t border-slate-100 bg-white">
+                    {saleError && (
+                      <div className="mb-3 px-3 py-2.5 bg-red-50 border border-red-200 rounded-xl flex items-start gap-2">
+                        <span className="text-red-500 shrink-0 mt-0.5">⚠</span>
+                        <p className="text-[11px] font-bold text-red-700 leading-snug">{saleError}</p>
+                      </div>
+                    )}
                     <button onClick={handleFinishSale} disabled={!canFinish || finishing}
                       className="w-full rounded-2xl text-[13px] font-black uppercase tracking-widest text-white transition-all disabled:opacity-30 active:scale-[0.98] flex items-center justify-center gap-2.5 shadow-lg"
                       style={{
@@ -1805,6 +1820,12 @@ ${change > 0 ? `<hr class="divider"/><div class="row bold"><span>TROCO:</span><s
 
               {/* Botão confirmar mobile (só aparece em telas pequenas) */}
               <div className="sm:hidden shrink-0 px-4 pb-4 pt-3 border-t border-slate-100 bg-white">
+                {saleError && (
+                  <div className="mb-2.5 px-3 py-2 bg-red-50 border border-red-200 rounded-xl flex items-start gap-2">
+                    <span className="text-red-500 shrink-0">⚠</span>
+                    <p className="text-[10px] font-bold text-red-700 leading-snug">{saleError}</p>
+                  </div>
+                )}
                 <button onClick={handleFinishSale} disabled={!canFinish || finishing}
                   className="w-full h-12 rounded-2xl text-[12px] font-black uppercase tracking-widest text-white transition-all disabled:opacity-30 active:scale-[0.98] flex items-center justify-center gap-2 shadow-lg"
                   style={{
