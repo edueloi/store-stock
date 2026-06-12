@@ -233,6 +233,7 @@ model Order {
   fee_amount       Decimal?  @db.Decimal(10, 2)
   status           String    @default("pending")
   payment_method   String?
+  client_sale_id   String?   @unique
   cancelled_by     String?
   cancel_reason    String?
   cancelled_at     DateTime?

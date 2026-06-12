@@ -42,7 +42,7 @@ function buildMethodSummary(pm: string) {
 interface ServiceItemInput { id: number; name: string; price: number }
 
 export async function createSale(req: Request, res: Response) {
-  const { items, services, customerName, customerId, totalAmount, paymentMethod, discount, surcharge, sellerId, passFeeToCustomer, passFeeByMethod } = req.body as {
+  const { items, services, customerName, customerId, totalAmount, paymentMethod, discount, surcharge, sellerId, passFeeToCustomer, passFeeByMethod, clientSaleId, soldAtDate } = req.body as {
     items: SaleItemInput[];
     services?: ServiceItemInput[];
     customerName?: string;
@@ -54,6 +54,8 @@ export async function createSale(req: Request, res: Response) {
     sellerId?: number;
     passFeeToCustomer?: boolean;
     passFeeByMethod?: Record<string, boolean>;
+    clientSaleId?: string;
+    soldAtDate?: string;
   };
 
   // Resolve se um segmento de pagamento repassa taxa ao cliente
@@ -64,6 +66,19 @@ export async function createSale(req: Request, res: Response) {
 
   try {
     const tenantId = getTenantId(req);
+
+    // Idempotency: offline-queued sales retry with the same clientSaleId —
+    // if this sale was already processed, acknowledge it without duplicating
+    if (clientSaleId) {
+      const existing = await prisma.order.findUnique({
+        where: { client_sale_id: clientSaleId },
+        select: { id: true, tenant_id: true },
+      });
+      if (existing && existing.tenant_id === tenantId) {
+        res.json({ success: true, orderId: existing.id, duplicate: true });
+        return;
+      }
+    }
 
     // Load tenant card fees to compute machine fee internally
     const tenantData = await prisma.tenant.findUnique({
@@ -134,6 +149,7 @@ export async function createSale(req: Request, res: Response) {
         fee_amount:      roundedFee > 0 ? roundedFee : null,
         status:          "completed",
         payment_method:  pmString,
+        client_sale_id:  clientSaleId ?? null,
         items: {
           create: items.map((item) => ({
             product_id: item.id,
@@ -215,7 +231,8 @@ export async function createSale(req: Request, res: Response) {
         gross_amount:    grossAmount,
         fee_amount:      roundedFee > 0 ? roundedFee : null,
         discount_amount: discountVal > 0 ? discountVal : null,
-        date:            localDateString(),
+        // offline sales synced later carry the original sale date
+        date:            soldAtDate && /^\d{4}-\d{2}-\d{2}$/.test(soldAtDate) ? soldAtDate : localDateString(),
       },
     });
 

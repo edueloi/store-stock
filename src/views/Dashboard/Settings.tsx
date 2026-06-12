@@ -5,6 +5,7 @@ import {
   Users, Save, Loader2, Search, Check, ChevronRight, Globe,
   Bell, Sun, Moon, Package, AlertTriangle, Lock, Image, Upload, X, FileCheck,
   Smartphone, Zap, UserPlus, Trash2, Edit2, Eye, EyeOff, ShoppingCart, User,
+  Monitor, Download, WifiOff,
 } from "lucide-react";
 import PageHeader from "../../components/layout/PageHeader";
 import { cn } from "../../lib/utils";
@@ -161,6 +162,7 @@ const NAV = [
       { id: "preferences", icon: Settings2, label: "Preferências do Painel" },
       { id: "security", icon: Shield, label: "Segurança" },
       { id: "users", icon: Users, label: "Time & Acessos" },
+      { id: "desktop", icon: Monitor, label: "App Desktop PDV" },
     ],
   },
 ];
@@ -2098,6 +2100,71 @@ export default function Settings() {
 
             {/* ── Time & Acessos ──────────────────────────────────────── */}
             {active === "users" && <TeamSection />}
+
+            {/* ── App Desktop PDV ─────────────────────────────────────── */}
+            {active === "desktop" && (
+              <div className="space-y-6">
+                <SectionHeader
+                  title="App Desktop PDV"
+                  subtitle="Instale o terminal de vendas no computador do caixa — funciona até sem internet"
+                />
+
+                {/* Offline highlight */}
+                <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 flex items-start gap-3">
+                  <div className="w-9 h-9 rounded-xl bg-amber-100 flex items-center justify-center shrink-0">
+                    <WifiOff size={16} className="text-amber-600" />
+                  </div>
+                  <div>
+                    <p className="text-[11px] font-black text-amber-800 uppercase tracking-wide">Funciona Offline</p>
+                    <p className="text-[11px] text-amber-700 mt-1 leading-relaxed">
+                      Se a internet cair, o PDV continua vendendo normalmente. As vendas ficam salvas no
+                      computador e são sincronizadas automaticamente quando a conexão voltar — sem perder
+                      nenhuma venda e com a data correta no fluxo de caixa.
+                    </p>
+                  </div>
+                </div>
+
+                {/* Download cards */}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  {[
+                    { os: "Windows", desc: "Windows 10 ou superior", file: "/downloads/BoxSysPDV-Setup.exe", ext: ".exe" },
+                    { os: "macOS",   desc: "Intel e Apple Silicon",  file: "/downloads/BoxSysPDV.dmg",      ext: ".dmg" },
+                    { os: "Linux",   desc: "AppImage universal",     file: "/downloads/BoxSysPDV.AppImage", ext: ".AppImage" },
+                  ].map(({ os, desc, file, ext }) => (
+                    <a
+                      key={os}
+                      href={file}
+                      download
+                      className="group bg-white border border-slate-200 rounded-2xl p-5 flex flex-col items-center text-center hover:border-blue-300 hover:shadow-lg hover:shadow-blue-50 transition-all"
+                    >
+                      <div className="w-12 h-12 rounded-2xl bg-slate-100 group-hover:bg-blue-50 flex items-center justify-center mb-3 transition-colors">
+                        <Monitor size={22} className="text-slate-400 group-hover:text-blue-600 transition-colors" />
+                      </div>
+                      <p className="text-[13px] font-black text-slate-900">{os}</p>
+                      <p className="text-[10px] text-slate-400 font-bold mt-0.5">{desc}</p>
+                      <span className="mt-4 inline-flex items-center gap-1.5 px-4 h-9 rounded-xl bg-slate-900 group-hover:bg-blue-600 text-white text-[10px] font-black uppercase tracking-widest transition-colors">
+                        <Download size={12} /> Baixar {ext}
+                      </span>
+                    </a>
+                  ))}
+                </div>
+
+                {/* Setup instructions */}
+                <div className="bg-slate-50 border border-slate-100 rounded-2xl p-5">
+                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">Como configurar</p>
+                  <ol className="space-y-2 text-[12px] text-slate-600 font-medium list-decimal list-inside">
+                    <li>Baixe e instale o aplicativo no computador do caixa</li>
+                    <li>Na primeira abertura, informe o endereço da sua loja (ex: <span className="font-mono font-bold text-slate-800">{window.location.hostname}</span>)</li>
+                    <li>Faça login com um usuário de acesso ao PDV</li>
+                    <li>Pronto — o terminal está conectado e preparado para vender</li>
+                  </ol>
+                  <p className="text-[10px] text-slate-400 mt-4 leading-relaxed">
+                    💡 No Windows, o aviso "aplicativo não reconhecido" é normal na primeira instalação —
+                    clique em "Mais informações" e depois "Executar assim mesmo".
+                  </p>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </div>

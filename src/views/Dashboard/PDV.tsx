@@ -773,7 +773,7 @@ ${change > 0 ? `<hr class="divider"/><div class="row bold"><span>TROCO:</span><s
   };
 
   const filteredProducts = useMemo(() => products.filter((p) => {
-    if (!p.is_active || p.stock_quantity <= 0) return false;
+    if (!p.is_active) return false;
     if (selectedCategory && p.category_id !== selectedCategory) return false;
     if (searchTerm && !p.name.toLowerCase().includes(searchTerm.toLowerCase())) return false;
     return true;

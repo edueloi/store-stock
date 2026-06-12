@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <title>BoxSys PDV — Configuração</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; font-family: -apple-system, "Segoe UI", Roboto, sans-serif; }
+    body {
+      height: 100vh; display: flex; align-items: center; justify-content: center;
+      background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%); color: #e2e8f0;
+    }
+    .card {
+      width: 100%; max-width: 420px; padding: 40px;
+      background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 24px; backdrop-filter: blur(12px);
+    }
+    .logo {
+      width: 56px; height: 56px; border-radius: 16px; margin: 0 auto 20px;
+      background: linear-gradient(135deg, #3b82f6, #1d4ed8);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 26px; font-weight: 900; color: #fff;
+    }
+    h1 { font-size: 18px; font-weight: 900; text-align: center; text-transform: uppercase; letter-spacing: 0.1em; }
+    p.sub { font-size: 11px; color: #94a3b8; text-align: center; margin: 8px 0 28px; line-height: 1.5; }
+    label { display: block; font-size: 9px; font-weight: 900; text-transform: uppercase; letter-spacing: 0.18em; color: #64748b; margin-bottom: 8px; }
+    input {
+      width: 100%; height: 48px; padding: 0 16px; font-size: 14px; font-weight: 600;
+      background: rgba(15,23,42,0.6); border: 1px solid #334155; border-radius: 14px;
+      color: #f1f5f9; outline: none; transition: border-color .2s;
+    }
+    input:focus { border-color: #3b82f6; }
+    input::placeholder { color: #475569; font-weight: 400; }
+    button {
+      width: 100%; height: 48px; margin-top: 16px; border: none; border-radius: 14px;
+      background: linear-gradient(135deg, #3b82f6, #1d4ed8); color: #fff;
+      font-size: 11px; font-weight: 900; text-transform: uppercase; letter-spacing: 0.15em;
+      cursor: pointer; transition: opacity .2s;
+    }
+    button:hover { opacity: 0.9; }
+    button:disabled { opacity: 0.5; cursor: wait; }
+    .error {
+      display: none; margin-top: 14px; padding: 12px 14px; font-size: 11px; line-height: 1.4;
+      background: rgba(244,63,94,0.12); border: 1px solid rgba(244,63,94,0.3);
+      border-radius: 12px; color: #fda4af;
+    }
+    .hint { font-size: 10px; color: #475569; text-align: center; margin-top: 20px; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="logo">B</div>
+    <h1>BoxSys PDV</h1>
+    <p class="sub">Informe o endereço da sua loja para conectar o terminal de vendas.</p>
+
+    <label for="server">Endereço da Loja</label>
+    <input id="server" type="text" placeholder="minhaloja.boxsys.com.br" autofocus
+           onkeydown="if(event.key==='Enter')connect()" />
+    <button id="btn" onclick="connect()">Conectar</button>
+    <div id="error" class="error"></div>
+
+    <p class="hint">Ex: vogan-store.boxsys.com.br</p>
+  </div>
+
+  <script>
+    async function connect() {
+      const input = document.getElementById("server");
+      const btn = document.getElementById("btn");
+      const errEl = document.getElementById("error");
+      errEl.style.display = "none";
+      btn.disabled = true;
+      btn.textContent = "Conectando...";
+
+      const result = await window.boxsysDesktop.saveServer(input.value);
+
+      if (!result.ok) {
+        errEl.textContent = result.error;
+        errEl.style.display = "block";
+        btn.disabled = false;
+        btn.textContent = "Conectar";
+      }
+      // On success main process navigates to the PDV automatically
+    }
+  </script>
+</body>
+</html>

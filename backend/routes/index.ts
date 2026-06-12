@@ -30,6 +30,9 @@ export function registerRoutes(app: Express) {
   // Serve uploaded images
   app.use("/uploads", express.static(path.join(process.cwd(), "public", "uploads")));
 
+  // Serve desktop app installers (uploaded manually to public/downloads on the server)
+  app.use("/downloads", express.static(path.join(process.cwd(), "public", "downloads")));
+
   app.use("/api/public", publicRoutes);
   app.use("/api/auth", authRoutes);
   app.use("/api/products", productsRoutes);

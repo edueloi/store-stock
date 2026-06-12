@@ -2,15 +2,19 @@ import React, { useState, useEffect, useMemo, useCallback, useRef } from "react"
 import {
   Search, ShoppingCart, Plus, Minus, Trash2, User, CreditCard,
   Banknote, Percent, CheckCircle2, Package, X, QrCode, Tag,
-  Loader2, Lock, Mail, LogOut, Store,
+  Loader2, Lock, Mail, LogOut, Store, Eye, EyeOff,
   Printer, FileText, MessageCircle, Phone, ChevronRight, ChevronDown,
   PlusCircle, Barcode, Users, Scan, Star, Gift, UserPlus, Download,
-  Maximize2, Minimize2, Wrench,
+  Maximize2, Minimize2, Wrench, WifiOff, RefreshCw,
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { Product, Category } from "../types";
 import { cn } from "../lib/utils";
 import Combobox from "../components/ui/Combobox";
+import {
+  cacheSet, cacheGet, queueSale, getPendingSales,
+  removePendingSale, countPendingSales, PendingSale,
+} from "../lib/offlineDb";
 
 type PaymentMethod = "money" | "debit" | "credit" | "pix";
 type CardBrand = "visa" | "master" | "elo" | "amex" | "hiper" | "other";
@@ -71,6 +75,7 @@ interface CompletedSale {
   cardFees: Record<string, number[]>;
   pointsEarned?: number;
   rewardApplied?: string;
+  offline?: boolean;
 }
 
 interface SellerEntry { id: number; name: string; commission_rate: number }
@@ -96,6 +101,7 @@ function maskDoc(v: string) {
 function PDVLogin({ onLogin }: { onLogin: (token: string) => void }) {
   const [email, setEmail]       = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading]   = useState(false);
   const [error, setError]       = useState("");
 
@@ -146,8 +152,17 @@ function PDVLogin({ onLogin }: { onLogin: (token: string) => void }) {
           </div>
           <div className="relative">
             <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" size={15} />
-            <input type="password" placeholder="SENHA" value={password} onChange={(e) => setPassword(e.target.value)} required
-              className="w-full pl-11 pr-4 h-13 bg-slate-900 border border-slate-700 rounded-2xl text-[12px] font-bold uppercase tracking-widest text-white placeholder:text-slate-600 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition-all" />
+            <input type={showPassword ? "text" : "password"} placeholder="SENHA" value={password} onChange={(e) => setPassword(e.target.value)} required
+              className="w-full pl-11 pr-12 h-13 bg-slate-900 border border-slate-700 rounded-2xl text-[12px] font-bold uppercase tracking-widest text-white placeholder:text-slate-600 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition-all" />
+            <button
+              type="button"
+              tabIndex={-1}
+              onClick={() => setShowPassword((v) => !v)}
+              className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300 transition-colors"
+              title={showPassword ? "Ocultar senha" : "Mostrar senha"}
+            >
+              {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+            </button>
           </div>
           {error && (
             <motion.div initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }}
@@ -184,6 +199,13 @@ export default function PDVStandalone() {
   const [enabledBrands, setEnabledBrands]         = useState<Record<string, boolean>>({ visa: true, master: true, elo: true, amex: true, hiper: true, other: true });
   const [loading, setLoading]       = useState(false);
   const [finishing, setFinishing]   = useState(false);
+  const [isOnline, setIsOnline]     = useState(navigator.onLine);
+  const [pendingCount, setPendingCount] = useState(0);
+  const [syncing, setSyncing]       = useState(false);
+  const [syncToast, setSyncToast]   = useState<string | null>(null);
+  const [showPendingModal, setShowPendingModal] = useState(false);
+  const [pendingSalesList, setPendingSalesList] = useState<PendingSale[]>([]);
+  const [discardTarget, setDiscardTarget] = useState<PendingSale | null>(null);
   const [showCartMobile, setShowCartMobile] = useState(false);
   const [showCheckoutModal, setShowCheckoutModal] = useState(false);
   const [configProduct, setConfigProduct] = useState<Product | null>(null);
@@ -297,10 +319,108 @@ export default function PDVStandalone() {
     setToken(null); setCart([]);
   };
 
+  // ── offline sync ─────────────────────────────────────────────────────────────
+  const refreshPendingCount = useCallback(() => {
+    countPendingSales().then(setPendingCount);
+  }, []);
+
+  const syncPendingSales = useCallback(async () => {
+    if (!token || !navigator.onLine) return;
+    const pending = await getPendingSales();
+    if (pending.length === 0) return;
+    setSyncing(true);
+    let syncedCount = 0;
+    try {
+      // oldest first, so server-side order ids follow the real sale order
+      pending.sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+      for (const sale of pending) {
+        try {
+          const res = await fetch("/api/sales", {
+            method: "POST",
+            headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+            body: JSON.stringify(sale.body),
+          });
+          if (res.ok) {
+            await removePendingSale(sale.localId);
+            syncedCount++;
+          } else if (res.status === 401) {
+            break; // session expired — stop, retry after next login
+          } else {
+            // server rejected this sale — record the error and move on to the next
+            let msg = `Erro ${res.status}`;
+            try { const j = await res.json(); if (j?.error) msg = j.error; } catch { /* keep status */ }
+            await queueSale({ ...sale, attempts: (sale.attempts ?? 0) + 1, lastError: msg });
+          }
+        } catch {
+          break; // network dropped mid-sync — remaining sales stay queued
+        }
+      }
+    } finally {
+      setSyncing(false);
+      refreshPendingCount();
+      setPendingSalesList(await getPendingSales());
+      if (syncedCount > 0) {
+        setSyncToast(`${syncedCount} venda${syncedCount > 1 ? "s" : ""} sincronizada${syncedCount > 1 ? "s" : ""}!`);
+        setTimeout(() => setSyncToast(null), 4000);
+        // refresh stock after syncing
+        fetch("/api/products?active=true", { headers: { Authorization: `Bearer ${token}` } })
+          .then((r) => r.json())
+          .then((d) => {
+            if (Array.isArray(d)) { setProducts(d); cacheSet("products", d); }
+          })
+          .catch(() => {});
+      }
+    }
+  }, [token, refreshPendingCount]);
+
+  // connection listeners + periodic sync
+  useEffect(() => {
+    const goOnline  = () => { setIsOnline(true); syncPendingSales(); };
+    const goOffline = () => setIsOnline(false);
+    window.addEventListener("online", goOnline);
+    window.addEventListener("offline", goOffline);
+    refreshPendingCount();
+    syncPendingSales();
+    const interval = setInterval(() => { if (navigator.onLine) syncPendingSales(); }, 60_000);
+    return () => {
+      window.removeEventListener("online", goOnline);
+      window.removeEventListener("offline", goOffline);
+      clearInterval(interval);
+    };
+  }, [syncPendingSales, refreshPendingCount]);
+
   useEffect(() => {
     if (!token) return;
     setLoading(true);
     const headers = { Authorization: `Bearer ${token}` };
+    const applyTenant = (tenant: Record<string, unknown> | null | undefined) => {
+      if (!tenant) return;
+      const t = tenant as Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
+      if (t.name) setTenantName(t.name);
+      if (t.address_street) {
+        const parts = [
+          `${t.address_street}${t.address_number ? ", " + t.address_number : ""}`,
+          t.address_complement,
+          t.address_district,
+          t.address_city && t.address_state
+            ? `${t.address_city} - ${t.address_state}`
+            : (t.address_city ?? t.address_state ?? ""),
+          t.address_zip,
+        ].filter(Boolean);
+        setTenantAddress(parts.join(" | "));
+      } else if (t.address) {
+        setTenantAddress(t.address);
+      }
+      if (t.card_fees) setCardFees(t.card_fees);
+      if (t.pass_fee_to_customer !== undefined) setPassFeeToCustomer(Boolean(t.pass_fee_to_customer));
+      if (t.pass_fee_by_method) setPassFeeByMethod(t.pass_fee_by_method as Record<string, boolean>);
+      if (t.max_installments) setMaxInstallments(Number(t.max_installments));
+      if (t.enabled_brands) setEnabledBrands(t.enabled_brands as Record<string, boolean>);
+      if (t.logo_url) setTenantLogo(t.logo_url);
+      if (t.primary_color) setTenantColor(t.primary_color);
+      if (t.whatsapp) setTenantWhatsapp(t.whatsapp);
+    };
+
     Promise.all([
       fetch("/api/products?active=true",   { headers }).then((r) => { if (r.status === 401) { handleLogout(); throw new Error("unauth"); } return r.json(); }),
       fetch("/api/categories", { headers }).then((r) => r.json()),
@@ -309,47 +429,53 @@ export default function PDVStandalone() {
       .then(([prods, cats, tenant]) => {
         setProducts(Array.isArray(prods) ? prods : []);
         setCategories(Array.isArray(cats) ? cats : []);
-        if (tenant?.name) setTenantName(tenant.name);
-        if (tenant?.address_street) {
-          const parts = [
-            `${tenant.address_street}${tenant.address_number ? ", " + tenant.address_number : ""}`,
-            tenant.address_complement,
-            tenant.address_district,
-            tenant.address_city && tenant.address_state
-              ? `${tenant.address_city} - ${tenant.address_state}`
-              : (tenant.address_city ?? tenant.address_state ?? ""),
-            tenant.address_zip,
-          ].filter(Boolean);
-          setTenantAddress(parts.join(" | "));
-        } else if (tenant?.address) {
-          setTenantAddress(tenant.address);
-        }
-        if (tenant?.card_fees) setCardFees(tenant.card_fees);
-        if (tenant?.pass_fee_to_customer !== undefined) setPassFeeToCustomer(Boolean(tenant.pass_fee_to_customer));
-        if (tenant?.pass_fee_by_method) setPassFeeByMethod(tenant.pass_fee_by_method as Record<string, boolean>);
-        if (tenant?.max_installments) setMaxInstallments(Number(tenant.max_installments));
-        if (tenant?.enabled_brands) setEnabledBrands(tenant.enabled_brands as Record<string, boolean>);
-        if (tenant?.logo_url) setTenantLogo(tenant.logo_url);
-        if (tenant?.primary_color) setTenantColor(tenant.primary_color);
-        if (tenant?.whatsapp) setTenantWhatsapp(tenant.whatsapp);
+        applyTenant(tenant);
+        // snapshot for offline use
+        cacheSet("products", Array.isArray(prods) ? prods : []);
+        cacheSet("categories", Array.isArray(cats) ? cats : []);
+        cacheSet("tenant", tenant ?? null);
       })
-      .catch(() => {})
+      .catch((err) => {
+        if (err?.message === "unauth") return;
+        // offline — restore last snapshot
+        Promise.all([
+          cacheGet<Product[]>("products"),
+          cacheGet<Category[]>("categories"),
+          cacheGet<Record<string, unknown>>("tenant"),
+        ]).then(([prods, cats, tenant]) => {
+          if (prods) setProducts(prods);
+          if (cats) setCategories(cats);
+          applyTenant(tenant);
+        });
+      })
       .finally(() => setLoading(false));
 
     fetch("/api/sellers", { headers })
       .then((r) => r.json())
-      .then((d) => setSellers(Array.isArray(d) ? d.filter((s: SellerEntry & { is_active?: boolean }) => s.is_active !== false) : []))
-      .catch(() => {});
+      .then((d) => {
+        const list = Array.isArray(d) ? d.filter((s: SellerEntry & { is_active?: boolean }) => s.is_active !== false) : [];
+        setSellers(list);
+        cacheSet("sellers", list);
+      })
+      .catch(() => { cacheGet<SellerEntry[]>("sellers").then((d) => { if (d) setSellers(d); }); });
 
     fetch("/api/customers", { headers })
       .then((r) => r.json())
-      .then((d) => setCustomers(Array.isArray(d) ? d : []))
-      .catch(() => {});
+      .then((d) => {
+        const list = Array.isArray(d) ? d : [];
+        setCustomers(list);
+        cacheSet("customers", list);
+      })
+      .catch(() => { cacheGet<CustomerOption[]>("customers").then((d) => { if (d) setCustomers(d); }); });
 
     fetch("/api/services", { headers })
       .then((r) => r.json())
-      .then((d) => setServices(Array.isArray(d) ? d.filter((s: ServiceItem & { is_active?: boolean }) => s.is_active !== false) : []))
-      .catch(() => {});
+      .then((d) => {
+        const list = Array.isArray(d) ? d.filter((s: ServiceItem & { is_active?: boolean }) => s.is_active !== false) : [];
+        setServices(list);
+        cacheSet("services", list);
+      })
+      .catch(() => { cacheGet<ServiceItem[]>("services").then((d) => { if (d) setServices(d); }); });
 
     Promise.all([
       fetch("/api/loyalty/program", { headers }).then((r) => r.json()),
@@ -568,7 +694,7 @@ export default function PDVStandalone() {
   // ── receipt helpers ──────────────────────────────────────────────────────────
   const buildThermalHtml = (sale: CompletedSale) => {
     const now = new Date().toLocaleString("pt-BR");
-    const orderId = String(sale.orderId).padStart(6, "0");
+    const orderId = sale.offline ? "OFFLINE" : String(sale.orderId).padStart(6, "0");
     return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Cupom #${orderId}</title>
 <style>
   * { box-sizing:border-box; margin:0; padding:0; }
@@ -626,7 +752,7 @@ ${sale.change > 0 ? `<hr class="divider"/><div class="row bold"><span>TROCO:</sp
 
   const buildPDFHtml = (sale: CompletedSale) => {
     const now = new Date().toLocaleString("pt-BR");
-    const orderId = String(sale.orderId).padStart(5, "0");
+    const orderId = sale.offline ? "OFFLINE" : String(sale.orderId).padStart(5, "0");
     const payLines = sale.payments.map((p) => {
       const brand = (p.method === "debit" || p.method === "credit") && p.cardBrand !== "other" ? ` · ${p.cardBrand.toUpperCase()}` : "";
       const inst  = p.method === "credit" && p.installments > 1 ? ` ${p.installments}×` : "";
@@ -710,7 +836,7 @@ ${sale.change > 0 ? `<hr class="divider"/><div class="row bold"><span>TROCO:</sp
     }).join(" | ");
     return [
       `*${sale.tenantName}*`,
-      `Comprovante #${String(sale.orderId).padStart(5,"0")} — ${now}`,
+      `Comprovante ${sale.offline ? "(offline)" : "#" + String(sale.orderId).padStart(5,"0")} — ${now}`,
       ``,
       `*Cliente:* ${sale.customerName || "Consumidor Final"}`,
       sale.sellerName ? `*Vendedor:* ${sale.sellerName}` : null,
@@ -745,31 +871,98 @@ ${sale.change > 0 ? `<hr class="divider"/><div class="row bold"><span>TROCO:</sp
   const handleFinishSale = async () => {
     if (!canFinish || finishing) return;
     setFinishing(true);
-    try {
-      const pmString = payments.map((p) => {
-        const brand = (p.method === "debit" || p.method === "credit") ? `-${p.cardBrand}` : "";
-        const inst  = p.method === "credit" && p.installments > 1 ? `-${p.installments}x` : "";
-        return `${p.method}${brand}${inst}:${Number(p.amount).toFixed(2)}`;
-      }).join("|");
 
-      const selectedSeller = sellers.find((s) => s.id === selectedSellerId);
+    const pmString = payments.map((p) => {
+      const brand = (p.method === "debit" || p.method === "credit") ? `-${p.cardBrand}` : "";
+      const inst  = p.method === "credit" && p.installments > 1 ? `-${p.installments}x` : "";
+      return `${p.method}${brand}${inst}:${Number(p.amount).toFixed(2)}`;
+    }).join("|");
+
+    const selectedSeller = sellers.find((s) => s.id === selectedSellerId);
+    const clientSaleId = crypto.randomUUID();
+    const saleBody = {
+      items: cart.map((i) => ({ id: i.id, quantity: i.quantity, price: i.price, selectedOptions: i.selectedOptions ?? null })),
+      services: cartServices.map((s) => ({ id: s.id, name: s.name, price: s.price })),
+      customerName,
+      customerId: selectedCustomerId ?? undefined,
+      sellerId: selectedSellerId,
+      totalAmount: total,
+      paymentMethod: pmString,
+      discount: discountValue,
+      surcharge: surchargeValue > 0 ? surchargeValue : undefined,
+      passFeeToCustomer,
+      passFeeByMethod,
+      clientSaleId,
+      // calendar day of the sale in the device's local timezone — keeps the
+      // cash-flow date correct even if an offline sale syncs the next day
+      soldAtDate: (() => {
+        const d = new Date();
+        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+      })(),
+    };
+
+    // builds receipt + resets the cart — shared by online and offline paths
+    const completeSale = (orderId: number, offline: boolean, rewardApplied?: string) => {
+      let pointsEarned: number | undefined;
+      if (selectedCustomerId && loyaltyProgram?.is_active && loyaltyProgram.spend_per_point > 0) {
+        pointsEarned = Math.floor(total / loyaltyProgram.spend_per_point);
+        if (pointsEarned <= 0) pointsEarned = undefined;
+      }
+      const sale: CompletedSale = {
+        orderId,
+        customerName,
+        sellerName: selectedSeller?.name || "",
+        payments: payments.map((p) => ({ ...p })),
+        items: cart.map((i) => ({ name: i.name, quantity: i.quantity, price: i.price, image_url: i.image_url })),
+        subtotal, discountValue, surchargeValue, feeAmount, total,
+        change: change > 0 ? change : 0,
+        tenantName, tenantAddress, tenantLogo, tenantColor, tenantWhatsapp,
+        cardFees, pointsEarned, rewardApplied,
+        offline,
+      };
+      setCompletedSale(sale);
+      setCart([]); setCartServices([]); setCustomerName(""); setSelectedCustomerId(null); setCustomerPoints(0); setAppliedReward(null);
+      setDiscount(""); setSurcharge(""); setSelectedSellerId(null);
+      setPayments([newPayment()]);
+      setShowCartMobile(false);
+      setShowCheckoutModal(false);
+      setShowReceipt(true);
+      setWhatsappPhone(""); setShowPhoneInput(false);
+    };
+
+    // saves the sale locally and decrements cached stock — used when offline
+    const finishOffline = async () => {
+      const pending: PendingSale = {
+        localId: clientSaleId,
+        body: saleBody,
+        createdAt: new Date().toISOString(),
+        total,
+        customerName,
+      };
+      await queueSale(pending);
+      refreshPendingCount();
+      // local stock decrement so the next sale sees the updated quantity
+      setProducts((prev) => {
+        const updated = prev.map((p) => {
+          const inCart = cart.filter((i) => i.id === p.id).reduce((sum, i) => sum + i.quantity, 0);
+          return inCart > 0 ? { ...p, stock_quantity: p.stock_quantity - inCart } : p;
+        });
+        cacheSet("products", updated);
+        return updated;
+      });
+      completeSale(0, true);
+    };
+
+    try {
+      if (!navigator.onLine) {
+        await finishOffline();
+        return;
+      }
 
       const res = await fetch("/api/sales", {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({
-          items: cart.map((i) => ({ id: i.id, quantity: i.quantity, price: i.price, selectedOptions: i.selectedOptions ?? null })),
-          services: cartServices.map((s) => ({ id: s.id, name: s.name, price: s.price })),
-          customerName,
-          customerId: selectedCustomerId ?? undefined,
-          sellerId: selectedSellerId,
-          totalAmount: total,
-          paymentMethod: pmString,
-          discount: discountValue,
-          surcharge: surchargeValue > 0 ? surchargeValue : undefined,
-          passFeeToCustomer,
-          passFeeByMethod,
-        }),
+        body: JSON.stringify(saleBody),
       });
       if (res.ok) {
         const data = await res.json();
@@ -787,41 +980,23 @@ ${sale.change > 0 ? `<hr class="divider"/><div class="row bold"><span>TROCO:</sp
           } catch (e) { console.error(e); }
         }
 
-        // compute points that will be earned for this sale
-        let pointsEarned: number | undefined;
-        if (selectedCustomerId && loyaltyProgram?.is_active && loyaltyProgram.spend_per_point > 0) {
-          pointsEarned = Math.floor(total / loyaltyProgram.spend_per_point);
-          if (pointsEarned <= 0) pointsEarned = undefined;
-        }
-
-        const sale: CompletedSale = {
-          orderId: data.orderId,
-          customerName,
-          sellerName: selectedSeller?.name || "",
-          payments: payments.map((p) => ({ ...p })),
-          items: cart.map((i) => ({ name: i.name, quantity: i.quantity, price: i.price, image_url: i.image_url })),
-          subtotal, discountValue, surchargeValue, feeAmount, total,
-          change: change > 0 ? change : 0,
-          tenantName, tenantAddress, tenantLogo, tenantColor, tenantWhatsapp,
-          cardFees, pointsEarned, rewardApplied,
-        };
-        setCompletedSale(sale);
-        setCart([]); setCartServices([]); setCustomerName(""); setSelectedCustomerId(null); setCustomerPoints(0); setAppliedReward(null);
-        setDiscount(""); setSurcharge(""); setSelectedSellerId(null);
-        setPayments([newPayment()]);
-        setShowCartMobile(false);
-        setShowCheckoutModal(false);
-        setShowReceipt(true);
-        setWhatsappPhone(""); setShowPhoneInput(false);
+        completeSale(data.orderId, false, rewardApplied);
         fetch("/api/products?active=true", { headers: { Authorization: `Bearer ${token}` } })
-          .then((r) => r.json()).then((d) => setProducts(Array.isArray(d) ? d : []));
+          .then((r) => r.json())
+          .then((d) => {
+            if (Array.isArray(d)) { setProducts(d); cacheSet("products", d); }
+          })
+          .catch(() => {});
       }
-    } catch { console.error("Sale failed"); }
+    } catch {
+      // network failed mid-request — queue offline (idempotent clientSaleId prevents duplicates)
+      await finishOffline();
+    }
     finally { setFinishing(false); }
   };
 
   const filteredProducts = useMemo(() => products.filter((p) => {
-    if (!p.is_active || p.stock_quantity <= 0) return false;
+    if (!p.is_active) return false;
     if (searchTerm) {
       return p.name.toLowerCase().includes(searchTerm.toLowerCase());
     }
@@ -850,8 +1025,10 @@ ${sale.change > 0 ? `<hr class="divider"/><div class="row bold"><span>TROCO:</sp
           <div>
             <p className="text-[13px] font-black text-slate-800 tracking-wide leading-none">{tenantName}</p>
             <div className="flex items-center gap-1.5 mt-0.5">
-              <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-              <span className="text-[9px] font-semibold text-slate-400 uppercase tracking-widest">Terminal PDV</span>
+              <div className={cn("w-1.5 h-1.5 rounded-full animate-pulse", isOnline ? "bg-emerald-500" : "bg-amber-500")} />
+              <span className={cn("text-[9px] font-semibold uppercase tracking-widest", isOnline ? "text-slate-400" : "text-amber-600")}>
+                {isOnline ? "Terminal PDV" : "Modo Offline"}
+              </span>
             </div>
           </div>
         </div>
@@ -877,6 +1054,27 @@ ${sale.change > 0 ? `<hr class="divider"/><div class="row bold"><span>TROCO:</sp
 
         {/* Ações direita */}
         <div className="flex items-center gap-2">
+          {/* Offline status / pending sales */}
+          {!isOnline && (
+            <span className="flex items-center gap-1.5 px-3 h-8 rounded-xl text-[10px] font-bold uppercase tracking-widest text-amber-700 border border-amber-300 bg-amber-50">
+              <WifiOff size={11} /> Offline
+            </span>
+          )}
+          {pendingCount > 0 && (
+            <button
+              onClick={async () => { setPendingSalesList(await getPendingSales()); setShowPendingModal(true); }}
+              title="Ver vendas aguardando sincronização"
+              className={cn(
+                "flex items-center gap-1.5 px-3 h-8 rounded-xl text-[10px] font-bold uppercase tracking-widest border transition-all",
+                isOnline
+                  ? "text-blue-600 border-blue-200 bg-blue-50 hover:bg-blue-100"
+                  : "text-amber-700 border-amber-300 bg-amber-50 hover:bg-amber-100"
+              )}
+            >
+              <RefreshCw size={11} className={syncing ? "animate-spin" : ""} />
+              {syncing ? "Sincronizando..." : `${pendingCount} pendente${pendingCount > 1 ? "s" : ""}`}
+            </button>
+          )}
           {/* Fullscreen toggle */}
           <button onClick={toggleFullscreen} title={isFullscreen ? "Sair de tela cheia" : "Tela cheia"}
             className="flex items-center gap-1.5 px-3 h-8 rounded-xl text-[10px] font-bold uppercase tracking-widest text-slate-500 border border-slate-200 hover:bg-slate-50 hover:text-slate-700 transition-all">
@@ -2036,6 +2234,130 @@ ${sale.change > 0 ? `<hr class="divider"/><div class="row bold"><span>TROCO:</sp
         )}
       </AnimatePresence>
 
+      {/* Sync toast */}
+      <AnimatePresence>
+        {syncToast && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 20 }}
+            className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[70] flex items-center gap-2 px-4 h-11 bg-emerald-600 text-white rounded-2xl shadow-2xl shadow-emerald-600/30 text-[11px] font-black uppercase tracking-widest"
+          >
+            <CheckCircle2 size={15} /> {syncToast}
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Pending sales modal */}
+      <AnimatePresence>
+        {showPendingModal && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[60]"
+              onClick={() => { setShowPendingModal(false); setDiscardTarget(null); }}
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 10 }}
+              transition={{ type: "spring", damping: 25, stiffness: 350 }}
+              className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-[61] w-full max-w-md bg-white rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[80vh]"
+            >
+              <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between shrink-0">
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-xl bg-blue-100 flex items-center justify-center">
+                    <RefreshCw size={16} className={cn("text-blue-600", syncing && "animate-spin")} />
+                  </div>
+                  <div>
+                    <p className="text-[12px] font-black text-slate-900 uppercase tracking-wide">Vendas Pendentes</p>
+                    <p className="text-[10px] text-slate-400 font-bold">
+                      {isOnline ? "Aguardando sincronização" : "Serão enviadas quando a internet voltar"}
+                    </p>
+                  </div>
+                </div>
+                <button onClick={() => { setShowPendingModal(false); setDiscardTarget(null); }}
+                  className="w-8 h-8 rounded-lg border border-slate-200 flex items-center justify-center text-slate-400 hover:text-slate-700 transition-all">
+                  <X size={14} />
+                </button>
+              </div>
+
+              <div className="flex-1 overflow-y-auto divide-y divide-slate-50">
+                {pendingSalesList.length === 0 ? (
+                  <div className="px-6 py-10 text-center text-[10px] font-black uppercase tracking-widest text-slate-300">
+                    Nenhuma venda pendente
+                  </div>
+                ) : (
+                  pendingSalesList.map((sale) => (
+                    <div key={sale.localId} className="px-6 py-3.5 flex items-center gap-3">
+                      <div className="flex-1 min-w-0">
+                        <p className="text-[11px] font-bold text-slate-800 uppercase truncate">
+                          {sale.customerName || "Consumidor Final"}
+                        </p>
+                        <p className="text-[9px] text-slate-400 font-bold mt-0.5">
+                          {new Date(sale.createdAt).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}
+                        </p>
+                        {sale.lastError && (
+                          <p className="text-[9px] text-rose-500 font-bold mt-0.5">
+                            ⚠ {sale.lastError} ({sale.attempts}x)
+                          </p>
+                        )}
+                      </div>
+                      <span className="text-sm font-mono font-black text-slate-800 shrink-0">
+                        R$ {sale.total.toFixed(2)}
+                      </span>
+                      <button
+                        onClick={() => setDiscardTarget(sale)}
+                        title="Descartar venda"
+                        className="w-7 h-7 rounded-lg bg-slate-100 flex items-center justify-center text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-all shrink-0"
+                      >
+                        <Trash2 size={11} />
+                      </button>
+                    </div>
+                  ))
+                )}
+              </div>
+
+              {/* Discard confirmation */}
+              {discardTarget && (
+                <div className="px-6 py-4 bg-rose-50 border-t border-rose-200 shrink-0">
+                  <p className="text-[10px] font-black text-rose-700 uppercase tracking-wide mb-2">
+                    Descartar venda de R$ {discardTarget.total.toFixed(2)}? Ela NÃO será enviada ao servidor.
+                  </p>
+                  <div className="flex gap-2">
+                    <button onClick={() => setDiscardTarget(null)}
+                      className="flex-1 h-9 border border-rose-200 bg-white rounded-xl text-[9px] font-black uppercase tracking-widest text-slate-600 hover:bg-slate-50 transition-colors">
+                      Cancelar
+                    </button>
+                    <button
+                      onClick={async () => {
+                        await removePendingSale(discardTarget.localId);
+                        setDiscardTarget(null);
+                        refreshPendingCount();
+                        setPendingSalesList(await getPendingSales());
+                      }}
+                      className="flex-1 h-9 bg-rose-600 hover:bg-rose-500 text-white rounded-xl text-[9px] font-black uppercase tracking-widest transition-colors">
+                      Descartar
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              <div className="px-6 py-4 border-t border-slate-100 shrink-0">
+                <button
+                  onClick={() => syncPendingSales()}
+                  disabled={syncing || !isOnline || pendingSalesList.length === 0}
+                  className="w-full h-11 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-colors flex items-center justify-center gap-2 disabled:opacity-40"
+                >
+                  <RefreshCw size={13} className={syncing ? "animate-spin" : ""} />
+                  {syncing ? "Sincronizando..." : isOnline ? "Sincronizar Agora" : "Sem Conexão"}
+                </button>
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+
       {/* Receipt Modal */}
       <AnimatePresence>
         {showReceipt && completedSale && (
@@ -2059,11 +2381,13 @@ ${sale.change > 0 ? `<hr class="divider"/><div class="row bold"><span>TROCO:</sp
                   <div>
                     <div className="flex items-center gap-2 mb-2">
                       <CheckCircle2 size={20} className="text-emerald-200" />
-                      <span className="text-[11px] font-black uppercase tracking-[0.2em] text-emerald-200">Venda Confirmada</span>
+                      <span className="text-[11px] font-black uppercase tracking-[0.2em] text-emerald-200">
+                        {completedSale.offline ? "Venda Salva — Offline" : "Venda Confirmada"}
+                      </span>
                     </div>
                     <p className="text-3xl font-mono font-black">R$ {completedSale.total.toFixed(2)}</p>
                     <p className="text-[12px] text-emerald-200 font-bold mt-1">
-                      #{String(completedSale.orderId).padStart(5, "0")} · {completedSale.customerName || "Consumidor Final"}
+                      {completedSale.offline ? "Sincroniza ao reconectar" : `#${String(completedSale.orderId).padStart(5, "0")}`} · {completedSale.customerName || "Consumidor Final"}
                     </p>
                     {completedSale.sellerName && (
                       <p className="text-[11px] text-emerald-300 font-medium mt-0.5">Vendedor: {completedSale.sellerName}</p>
