@@ -185,7 +185,7 @@ export default function PDV() {
   useEffect(() => {
     const headers = { Authorization: `Bearer ${token}` };
     Promise.all([
-      fetch("/api/products",   { headers }).then((r) => r.json()),
+      fetch("/api/products?active=true",   { headers }).then((r) => r.json()),
       fetch("/api/categories", { headers }).then((r) => r.json()),
     ]).then(([prods, cats]) => {
       setProducts(Array.isArray(prods) ? prods : []);
@@ -751,7 +751,7 @@ ${change > 0 ? `<hr class="divider"/><div class="row bold"><span>TROCO:</span><s
         setShowCheckout(false);
         setShowReceipt(true);
         setWhatsappPhone(""); setShowPhoneInput(false);
-        fetch("/api/products", { headers: { Authorization: `Bearer ${token}` } })
+        fetch("/api/products?active=true", { headers: { Authorization: `Bearer ${token}` } })
           .then((r) => r.json()).then((d) => setProducts(Array.isArray(d) ? d : []));
         fetchRecentOrders();
       }
@@ -763,7 +763,7 @@ ${change > 0 ? `<hr class="divider"/><div class="row bold"><span>TROCO:</span><s
     setLoading(true);
     const headers = { Authorization: `Bearer ${token}` };
     Promise.all([
-      fetch("/api/products",   { headers }).then((r) => r.json()),
+      fetch("/api/products?active=true",   { headers }).then((r) => r.json()),
       fetch("/api/categories", { headers }).then((r) => r.json()),
     ]).then(([prods, cats]) => {
       setProducts(Array.isArray(prods) ? prods : []);

@@ -10,8 +10,12 @@ function getTenantId(req: Request) {
 
 export async function listProducts(req: Request, res: Response) {
   try {
+    const onlyActive = req.query.active === "true";
     const products = await prisma.product.findMany({
-      where: { tenant_id: getTenantId(req) },
+      where: {
+        tenant_id: getTenantId(req),
+        ...(onlyActive ? { is_active: true } : {}),
+      },
       include: {
         category: {
           select: { name: true },
