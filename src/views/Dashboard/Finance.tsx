@@ -83,6 +83,22 @@ function PaymentBadges({ pm }: { pm: string }) {
 const BRANDS = ["visa", "master", "elo", "amex", "hipercard"];
 const BRAND_DISPLAY: Record<string, string> = { visa: "Visa", master: "Master", elo: "Elo", amex: "Amex", hipercard: "Hiper" };
 
+// Valida a forma de pagamento: crédito/débito exigem bandeira válida;
+// crédito também exige parcela. Retorna msg de erro, ou null se ok.
+function validatePaymentMethod(pm: string): string | null {
+  for (const seg of parsePmString(pm)) {
+    if (seg.method === "credit" || seg.method === "debit") {
+      if (!seg.brand || seg.brand === "other" || !BRANDS.includes(seg.brand)) {
+        return "Selecione a bandeira do cartão.";
+      }
+      if (seg.method === "credit" && (!seg.installments || seg.installments < 1)) {
+        return "Selecione a quantidade de parcelas.";
+      }
+    }
+  }
+  return null;
+}
+
 function PaymentMethodPicker({
   value, onChange,
 }: {
@@ -97,12 +113,19 @@ function PaymentMethodPicker({
   const inst   = primarySeg.installments ?? 1;
 
   const build = (m: string, b: string, i: number) => {
-    const brandPart = (m === "credit" || m === "debit") && b ? `-${b}` : "";
-    const instPart  = m === "credit" && i > 1 ? `-${i}x` : "";
+    // cartão exige bandeira válida; só monta o segmento de parcela com a
+    // bandeira presente, evitando strings malformadas tipo "credit-2x-2x".
+    const validBrand = BRANDS.includes(b) ? b : "";
+    const brandPart  = (m === "credit" || m === "debit") && validBrand ? `-${validBrand}` : "";
+    const instPart   = m === "credit" && validBrand && i > 1 ? `-${i}x` : "";
     return `${m}${brandPart}${instPart}`;
   };
 
-  const setMethod = (m: string) => onChange(build(m, brand, inst));
+  // ao trocar para cartão sem bandeira definida, já assume Visa como padrão
+  const setMethod = (m: string) => {
+    const b = (m === "credit" || m === "debit") && !BRANDS.includes(brand) ? "visa" : brand;
+    onChange(build(m, b, inst));
+  };
   const setBrand  = (b: string) => onChange(build(method, b, inst));
   const setInst   = (i: number) => onChange(build(method, brand, i));
 
@@ -689,6 +712,7 @@ export default function Finance() {
   const [editingEntry, setEditingEntry] = useState<FinanceEntry | null>(null);
   const [editForm, setEditForm] = useState<Partial<FinanceEntry>>({});
   const [editSaving, setEditSaving] = useState(false);
+  const [pmError, setPmError] = useState<string | null>(null);
 
   const token = () => localStorage.getItem("token");
 
@@ -748,11 +772,15 @@ export default function Finance() {
   const openModal = (type: "income" | "expense") => {
     setModalType(type);
     setNewEntry({ type, date: today(), payment_method: "money" } as any);
+    setPmError(null);
     setIsModalOpen(true);
   };
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
+    const pmErr = validatePaymentMethod((newEntry as any).payment_method ?? "money");
+    if (pmErr) { setPmError(pmErr); return; }
+    setPmError(null);
     setSaving(true);
     try {
       const res = await fetch("/api/finance", {
@@ -810,12 +838,16 @@ export default function Finance() {
   const openEdit = (entry: FinanceEntry) => {
     setEditingEntry(entry);
     setEditForm({ ...entry });
+    setPmError(null);
     setSelectedEntry(null);
   };
 
   const handleEditSave = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingEntry) return;
+    const pmErr = validatePaymentMethod(editForm.payment_method ?? "money");
+    if (pmErr) { setPmError(pmErr); return; }
+    setPmError(null);
     setEditSaving(true);
     try {
       const res = await fetch(`/api/finance/${editingEntry.id}`, {
@@ -1898,8 +1930,11 @@ export default function Finance() {
             </label>
             <PaymentMethodPicker
               value={editForm.payment_method ?? "money"}
-              onChange={(v) => setEditForm({ ...editForm, payment_method: v })}
+              onChange={(v) => { setEditForm({ ...editForm, payment_method: v }); setPmError(null); }}
             />
+            {pmError && (
+              <p className="text-[10px] font-bold text-rose-600 px-1 pt-0.5">{pmError}</p>
+            )}
           </div>
         </form>
       </Modal>
@@ -2030,8 +2065,11 @@ export default function Finance() {
             </label>
             <PaymentMethodPicker
               value={(newEntry as any).payment_method ?? "money"}
-              onChange={(v) => setNewEntry({ ...newEntry, payment_method: v } as any)}
+              onChange={(v) => { setNewEntry({ ...newEntry, payment_method: v } as any); setPmError(null); }}
             />
+            {pmError && (
+              <p className="text-[10px] font-bold text-rose-600 px-1 pt-0.5">{pmError}</p>
+            )}
           </div>
         </form>
       </Modal>
