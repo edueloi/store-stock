@@ -92,10 +92,23 @@ function IconCircle({ icon, color, size = 40 }: { icon: string; color: string; s
 
 // ── Main component ────────────────────────────────────────────────
 
+// primeiro e último dia do mês atual no formato YYYY-MM-DD
+function monthRange(): { from: string; to: string } {
+  const n = new Date();
+  const pad = (x: number) => String(x).padStart(2, "0");
+  const first = new Date(n.getFullYear(), n.getMonth(), 1);
+  const last  = new Date(n.getFullYear(), n.getMonth() + 1, 0);
+  const fmtDate = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  return { from: fmtDate(first), to: fmtDate(last) };
+}
+
 export default function Home() {
   const [stats, setStats] = useState<any>(null);
   const [topProducts, setTopProducts] = useState<any[]>([]);
   const [loadingStats, setLoadingStats] = useState(true);
+
+  // Filtro de período (default: mês atual)
+  const [period, setPeriod] = useState<{ from: string; to: string }>(monthRange);
 
   // Quick links
   const [links, setLinks] = useState<QuickLink[]>([]);
@@ -113,20 +126,30 @@ export default function Home() {
 
   // ── Load everything ───────────────────────────────────────────
 
+  // stats + top produtos: recarregam quando o período muda
   useEffect(() => {
     const auth = headers();
+    const qs = `?from=${period.from}&to=${period.to}`;
+    setLoadingStats(true);
     Promise.all([
-      fetch("/api/stats", { headers: auth }).then(r => r.json()),
-      fetch("/api/stats/top-selling", { headers: auth }).then(r => r.json()),
-      getPref<QuickLink[]>("quick_links", []),
-      getPref<Task[]>("daily_tasks", []),
-    ]).then(([s, top, ql, tk]) => {
+      fetch(`/api/stats${qs}`, { headers: auth }).then(r => r.json()),
+      fetch(`/api/stats/top-selling${qs}`, { headers: auth }).then(r => r.json()),
+    ]).then(([s, top]) => {
       setStats(s);
       setTopProducts(Array.isArray(top) ? top : []);
-      setLinks(Array.isArray(ql) ? ql : []);
-      setTasks(Array.isArray(tk) ? tk : []);
       setLoadingStats(false);
     }).catch(() => setLoadingStats(false));
+  }, [period.from, period.to]);
+
+  // preferências (links/tarefas): carregam uma vez
+  useEffect(() => {
+    Promise.all([
+      getPref<QuickLink[]>("quick_links", []),
+      getPref<Task[]>("daily_tasks", []),
+    ]).then(([ql, tk]) => {
+      setLinks(Array.isArray(ql) ? ql : []);
+      setTasks(Array.isArray(tk) ? tk : []);
+    }).catch(() => {});
   }, []);
 
   // ── Quick Links CRUD ──────────────────────────────────────────
@@ -226,9 +249,53 @@ export default function Home() {
 
   const today = new Date().toLocaleDateString("pt-BR", { weekday: "long", day: "numeric", month: "long" });
 
+  const setThisMonth = () => setPeriod(monthRange());
+  const setLastMonth = () => {
+    const n = new Date();
+    const pad = (x: number) => String(x).padStart(2, "0");
+    const first = new Date(n.getFullYear(), n.getMonth() - 1, 1);
+    const last  = new Date(n.getFullYear(), n.getMonth(), 0);
+    const f = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+    setPeriod({ from: f(first), to: f(last) });
+  };
+
   return (
     <div className="space-y-6">
       <PageHeader title="Visão Geral" subtitle={today} />
+
+      {/* Filtro de período */}
+      <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm flex flex-wrap items-end gap-3">
+        <div className="flex flex-col gap-1">
+          <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-1">De</label>
+          <input
+            type="date"
+            value={period.from}
+            max={period.to}
+            onChange={(e) => setPeriod((p) => ({ ...p, from: e.target.value }))}
+            className="px-3 py-2 rounded-xl border border-slate-200 text-sm font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-400"
+          />
+        </div>
+        <div className="flex flex-col gap-1">
+          <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-1">Até</label>
+          <input
+            type="date"
+            value={period.to}
+            min={period.from}
+            onChange={(e) => setPeriod((p) => ({ ...p, to: e.target.value }))}
+            className="px-3 py-2 rounded-xl border border-slate-200 text-sm font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-400"
+          />
+        </div>
+        <div className="flex items-center gap-2 ml-auto">
+          <button onClick={setThisMonth}
+            className="px-3 py-2 rounded-xl border border-slate-200 text-xs font-bold text-slate-600 hover:bg-slate-50 hover:border-slate-300 transition-colors">
+            Mês atual
+          </button>
+          <button onClick={setLastMonth}
+            className="px-3 py-2 rounded-xl border border-slate-200 text-xs font-bold text-slate-600 hover:bg-slate-50 hover:border-slate-300 transition-colors">
+            Mês passado
+          </button>
+        </div>
+      </div>
 
       {/* KPI Cards */}
       {loadingStats ? (
@@ -262,7 +329,7 @@ export default function Home() {
         <div className="lg:col-span-2 bg-white p-5 rounded-2xl border border-slate-100 shadow-sm">
           <div className="flex items-center justify-between mb-5">
             <div>
-              <h3 className="text-xs font-bold uppercase tracking-widest text-slate-900">Faturamento — últimos 7 dias</h3>
+              <h3 className="text-xs font-bold uppercase tracking-widest text-slate-900">Faturamento — período</h3>
               <p className="text-[10px] text-slate-400 font-medium mt-0.5">Receita líquida de pedidos concluídos</p>
             </div>
             <div className="w-2 h-2 bg-blue-500 rounded-full" />
