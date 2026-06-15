@@ -278,11 +278,18 @@ export default function Home() {
                     </linearGradient>
                   </defs>
                   <CartesianGrid strokeDasharray="4 4" vertical={false} stroke="#f1f5f9" />
-                  <XAxis dataKey="date" axisLine={false} tickLine={false} tick={{ fontSize: 9, fill: "#94a3b8", fontWeight: 700 }} dy={8} />
+                  <XAxis
+                    dataKey="date"
+                    axisLine={false} tickLine={false}
+                    tick={{ fontSize: 9, fill: "#94a3b8", fontWeight: 700 }} dy={8}
+                    tickFormatter={(v: string) => new Date(v + "T00:00:00").toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" })}
+                  />
                   <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 9, fill: "#94a3b8", fontWeight: 700 }} width={48} />
                   <Tooltip
                     contentStyle={{ borderRadius: 10, border: "1px solid #f1f5f9", fontSize: 11, fontWeight: 700, boxShadow: "0 4px 12px rgba(0,0,0,0.08)" }}
                     labelStyle={{ color: "#1e293b", marginBottom: 2 }}
+                    labelFormatter={(v: string) => new Date(v + "T00:00:00").toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric" })}
+                    formatter={(value: number) => [`R$ ${Number(value).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, "Faturamento"]}
                   />
                   <Area type="monotone" dataKey="total" stroke="#3b82f6" strokeWidth={2.5} fillOpacity={1} fill="url(#gSales)" dot={false} />
                 </AreaChart>

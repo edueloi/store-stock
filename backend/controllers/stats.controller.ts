@@ -77,14 +77,31 @@ export async function getDashboardStats(req: Request, res: Response) {
       0
     );
 
-    const salesOverTime = await prisma.$queryRaw<{ date: string; total: number }[]>`
+    // Somas por dia dos últimos 7 dias (inclusive hoje). Montamos a série
+    // completa no JS para que dias SEM venda apareçam como zero e a ordem
+    // seja crescente (do mais antigo ao mais recente).
+    const rawDaily = await prisma.$queryRaw<{ date: string; total: number }[]>`
       SELECT DATE(date) as date, SUM(amount) as total
       FROM finance
-      WHERE tenant_id = ${tenantId} AND type = 'income'
+      WHERE tenant_id = ${tenantId}
+        AND type = 'income'
+        AND DATE(date) >= DATE(DATE_SUB(CURDATE(), INTERVAL 6 DAY))
       GROUP BY DATE(date)
-      ORDER BY date DESC
-      LIMIT 7
     `;
+    // mapa "YYYY-MM-DD" -> total
+    const dailyMap = new Map<string, number>();
+    for (const r of rawDaily) {
+      const key = String(r.date).substring(0, 10);
+      dailyMap.set(key, Number(r.total) || 0);
+    }
+    // gera os 7 dias do calendário em ordem crescente
+    const now = new Date();
+    const salesOverTime: { date: string; total: number }[] = [];
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() - i);
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+      salesOverTime.push({ date: key, total: dailyMap.get(key) ?? 0 });
+    }
 
     const grossRevenue = Number(totalGross._sum.gross_amount ?? totalGross._sum.amount) || 0;
     const netRevenue   = Number(totalIncome._sum.amount) || 0;
