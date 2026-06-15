@@ -15,12 +15,11 @@
  *   - credit: rate = card_fees[brand][installments-1]
  *   - debit:  rate = card_fees["debit_" + brand][0]
  *   - pix:    rate = card_fees["pix"][0]
- *   - fee     = soma(amount * rate/100), arredondado a 2 casas
- *   - net     = total_amount - feeAbsorvida
+ *   - base    = gross_amount - discount_amount (valor efetivamente pago)
+ *   - fee     = base * rate/100, arredondado a 2 casas
+ *   - net     = gross - desconto - fee
  *
- * Vendas com taxa REPASSADA ao cliente (descrição da Finance contém
- * "taxa repassada") têm o net = total_amount (loja não absorve). Para essas,
- * só atualizamos o fee_amount informativo, sem mexer no net.
+ * Atualiza fee_amount e total_amount (orders) e fee_amount/amount (finance).
  */
 import { PrismaClient } from "@prisma/client";
 
@@ -46,15 +45,20 @@ function rateFor(seg: ReturnType<typeof parsePaymentMethod>[number], cardFees: R
   return 0;
 }
 
-function computeFee(pm: string, cardFees: Record<string, number[]>) {
-  const fee = parsePaymentMethod(pm).reduce((sum, seg) => {
-    if (seg.amount <= 0) return sum;
-    return sum + seg.amount * (rateFor(seg, cardFees) / 100);
-  }, 0);
-  return Math.round(fee * 100) / 100;
-}
-
 const round2 = (n: number) => Math.round(n * 100) / 100;
+
+// Taxa sobre o valor PAGO (gross - desconto). Usa o seg.amount embutido se
+// houver; senão rateia a base entre os segmentos (a maioria tem 1 só).
+function computeFee(pm: string, gross: number, discount: number, cardFees: Record<string, number[]>) {
+  const segs = parsePaymentMethod(pm);
+  const factor = gross > 0 ? Math.max(0, (gross - discount) / gross) : 1;
+  const totalSeg = segs.reduce((s, x) => s + x.amount, 0);
+  const fee = segs.reduce((sum, seg) => {
+    const rawBase = seg.amount > 0 ? seg.amount : (totalSeg <= 0 ? gross : 0);
+    return sum + rawBase * factor * (rateFor(seg, cardFees) / 100);
+  }, 0);
+  return round2(fee);
+}
 
 async function main() {
   const tenantId = Number(process.argv[2]);
@@ -78,7 +82,7 @@ async function main() {
 
   const orders = await prisma.order.findMany({
     where: { tenant_id: tenantId, status: "completed", payment_method: { not: null } },
-    select: { id: true, total_amount: true, fee_amount: true, payment_method: true },
+    select: { id: true, total_amount: true, gross_amount: true, discount_amount: true, fee_amount: true, payment_method: true },
     orderBy: { id: "asc" },
   });
 
@@ -88,41 +92,41 @@ async function main() {
     // pula vendas só em dinheiro
     if (!/credit|debit|pix/.test(pm)) continue;
 
-    const newFee = computeFee(pm, cardFees);
-    const oldFee = o.fee_amount != null ? Number(o.fee_amount) : 0;
-    if (round2(newFee) === round2(oldFee)) continue;
+    // base = gross - desconto (o que o cliente efetivamente pagou)
+    const gross    = o.gross_amount != null ? Number(o.gross_amount) : Number(o.total_amount);
+    const discount = o.discount_amount != null ? Number(o.discount_amount) : 0;
 
-    // descobre se a taxa foi repassada ao cliente (Finance descreve isso)
+    const newFee = computeFee(pm, gross, discount, cardFees);
+    const oldFee = o.fee_amount != null ? Number(o.fee_amount) : 0;
+
+    // net correto = gross - desconto - taxa
+    const newNet = round2(gross - discount - newFee);
+
     const fin = await prisma.finance.findFirst({
       where: { tenant_id: tenantId, description: { contains: `Venda PDV #${o.id} ` } },
       select: { id: true, amount: true, description: true, fee_amount: true },
     });
-    const passed = !!fin?.description?.includes("taxa repassada");
+    const oldNet = fin ? Number(fin.amount) : Number(o.total_amount);
 
-    // net da loja: se repassada, loja absorve 0; senão absorve o fee novo
-    const total       = Number(o.total_amount);
-    const absorbedFee = passed ? 0 : newFee;
-    const newNet      = round2(total - absorbedFee);
+    // pula se já está tudo correto
+    if (round2(newFee) === round2(oldFee) && round2(newNet) === round2(oldNet)) continue;
 
     changed++;
     console.log(
-      `#${o.id}  ${pm}\n` +
+      `#${o.id}  ${pm}  (gross ${gross.toFixed(2)} - desc ${discount.toFixed(2)})\n` +
       `   fee: R$ ${oldFee.toFixed(2)} -> R$ ${newFee.toFixed(2)}` +
-      (passed ? "  (repassada — net inalterado)" : `   |   net: R$ ${Number(fin?.amount ?? 0).toFixed(2)} -> R$ ${newNet.toFixed(2)}`),
+      `   |   net: R$ ${oldNet.toFixed(2)} -> R$ ${newNet.toFixed(2)}`,
     );
 
     if (apply) {
       await prisma.order.update({
         where: { id: o.id },
-        data: { fee_amount: newFee > 0 ? newFee : null },
+        data: { fee_amount: newFee > 0 ? newFee : null, total_amount: newNet },
       });
       if (fin) {
         await prisma.finance.update({
           where: { id: fin.id },
-          data: {
-            fee_amount: newFee > 0 ? newFee : null,
-            ...(passed ? {} : { amount: newNet }),
-          },
+          data: { fee_amount: newFee > 0 ? newFee : null, amount: newNet },
         });
       }
     }
