@@ -88,33 +88,40 @@ export async function createSale(req: Request, res: Response) {
     });
     const cardFees = (tenantData?.card_fees ?? {}) as Record<string, number[]>;
 
-    // Calculate machine fee for all payment methods (credit, debit, pix)
     const pmString    = paymentMethod || "money";
     const pmSegments  = parsePaymentMethod(pmString);
-    const machineFee  = pmSegments.reduce((sum, seg) => {
-      if (seg.amount <= 0) return sum;
-      let rate = 0;
-      if (seg.method === "credit") rate = cardFees[seg.brand]?.[seg.installments - 1] ?? 0;
-      else if (seg.method === "debit") rate = cardFees[`debit_${seg.brand}`]?.[0] ?? 0;
-      else if (seg.method === "pix")   rate = cardFees["pix"]?.[0] ?? 0;
-      return sum + seg.amount * (rate / 100);
-    }, 0);
 
     const discountVal  = discount && discount > 0 ? Number(discount) : 0;
     const surchargeVal = surcharge && surcharge > 0 ? Number(surcharge) : 0;
-    const roundedFee   = Math.round(machineFee * 100) / 100;
 
     // gross = valor dos itens sem desconto nem acréscimo
     const grossAmount  = Math.round((totalAmount + discountVal - surchargeVal) * 100) / 100;
 
+    // Taxa da maquininha incide sobre o valor EFETIVAMENTE PAGO (já com desconto),
+    // nunca sobre o bruto. Como seg.amount pode vir desatualizado (ex.: valor fixado
+    // antes do desconto), normalizamos cada segmento pelo fator de desconto:
+    //   fator = (gross - desconto) / gross  →  proporção do que sobra após o desconto.
+    const discountFactor = grossAmount > 0 ? Math.max(0, (grossAmount - discountVal) / grossAmount) : 1;
+    const rateForSeg = (seg: typeof pmSegments[number]): number => {
+      if (seg.method === "credit") return cardFees[seg.brand]?.[seg.installments - 1] ?? 0;
+      if (seg.method === "debit")  return cardFees[`debit_${seg.brand}`]?.[0] ?? 0;
+      if (seg.method === "pix")    return cardFees["pix"]?.[0] ?? 0;
+      return 0;
+    };
+
+    // Calculate machine fee for all payment methods (credit, debit, pix)
+    const machineFee  = pmSegments.reduce((sum, seg) => {
+      if (seg.amount <= 0) return sum;
+      const base = seg.amount * discountFactor; // base com desconto aplicado
+      return sum + base * (rateForSeg(seg) / 100);
+    }, 0);
+    const roundedFee   = Math.round(machineFee * 100) / 100;
+
     // Taxa repassada ao cliente (soma dos segmentos com repasse ativo)
     const passedFee = pmSegments.reduce((sum, seg) => {
       if (!isPassFeeForSegment(seg.method) || seg.amount <= 0) return sum;
-      let rate = 0;
-      if (seg.method === "credit") rate = cardFees[seg.brand]?.[seg.installments - 1] ?? 0;
-      else if (seg.method === "debit") rate = cardFees[`debit_${seg.brand}`]?.[0] ?? 0;
-      else if (seg.method === "pix")   rate = cardFees["pix"]?.[0] ?? 0;
-      return sum + seg.amount * (rate / 100);
+      const base = seg.amount * discountFactor;
+      return sum + base * (rateForSeg(seg) / 100);
     }, 0);
     const roundedPassedFee = Math.round(passedFee * 100) / 100;
 
