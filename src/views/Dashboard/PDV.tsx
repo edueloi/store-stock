@@ -5,9 +5,10 @@ import {
   Loader2, ExternalLink, RefreshCw, ChevronRight,
   Printer, FileText, MessageCircle, Phone, Clock, Receipt,
   ChevronDown, PlusCircle, Users, Barcode, Wrench, ChevronUp,
-  Star, Gift, UserPlus, Store,
+  Star, Gift, UserPlus, Store, Terminal,
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
+import html2canvas from "html2canvas";
 import { Product, Category } from "../../types";
 import { cn } from "../../lib/utils";
 import Combobox from "../../components/ui/Combobox";
@@ -113,6 +114,9 @@ export default function PDV() {
   const [loading, setLoading]       = useState(true);
   const [finishing, setFinishing]   = useState(false);
   const [saleError, setSaleError]   = useState<string | null>(null);
+  const [terminalConfigured, setTerminalConfigured] = useState(false);
+  const [terminalCharging, setTerminalCharging] = useState(false);
+  const [terminalResult, setTerminalResult] = useState<{ status: string; brand?: string; authCode?: string } | null>(null);
   const [configProduct, setConfigProduct] = useState<Product | null>(null);
   const [selectedOptions, setSelectedOptions] = useState<Record<string, string>>({});
   const [showCheckout, setShowCheckout] = useState(false);
@@ -209,6 +213,10 @@ export default function PDV() {
           primary_color: d?.primary_color || "#2563eb",
         });
       })
+      .catch(() => {});
+    fetch("/api/terminals/config", { headers })
+      .then((r) => r.json())
+      .then((cfg) => { if (cfg?.provider) setTerminalConfigured(true); })
       .catch(() => {});
     fetch("/api/sellers", { headers })
       .then((r) => r.json())
@@ -497,55 +505,43 @@ export default function PDV() {
     return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Cupom #${orderId}</title>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { font-family: 'Courier New', Courier, monospace; font-size: 12px; width: 302px; margin: 0 auto; padding: 12px 10px; background: #fff; color: #000; }
+  html, body { margin: 0; padding: 0; }
+  body { font-family: 'Courier New', Courier, monospace; font-size: 9px; width: 58mm; height: auto; margin: 0; padding: 2px 3px; background: #fff; color: #000; line-height: 1.2; overflow: hidden; }
   .center { text-align: center; }
   .bold { font-weight: bold; }
-  .divider { border: none; border-top: 1px dashed #000; margin: 6px 0; }
-  .divider-solid { border: none; border-top: 2px solid #000; margin: 6px 0; }
-  .row { display: flex; justify-content: space-between; margin: 2px 0; font-size: 11px; }
-  .row-total { display: flex; justify-content: space-between; font-size: 14px; font-weight: bold; margin: 4px 0; }
-  .item-line { margin: 4px 0; }
-  .item-qty { font-size: 11px; color: #333; margin-top: 1px; }
-  .small { font-size: 10px; color: #555; margin-top: 12px; line-height: 1.6; text-align: center; }
-  @media print { @page { margin: 0; size: 80mm auto; } body { padding: 8px 6px; } }
+  .divider { border: none; border-top: 1px dashed #000; margin: 2px 0; padding: 0; }
+  .divider-solid { border: none; border-top: 1px solid #000; margin: 2px 0; padding: 0; }
+  .row { display: flex; justify-content: space-between; margin: 0; padding: 1px 0; font-size: 8px; line-height: 1.2; }
+  .row-total { display: flex; justify-content: space-between; font-size: 10px; font-weight: bold; margin: 1px 0; padding: 1px 0; }
+  .item-line { margin: 0; padding: 1px 0; }
+  .item-qty { font-size: 8px; color: #333; margin: 0; padding: 0; }
+  .small { font-size: 7px; color: #555; margin-top: 4px; line-height: 1.2; text-align: center; padding: 0; }
+  @media print { @page { margin: 0; padding: 0; size: 58mm auto; } html, body { margin: 0; padding: 2px 3px; } }
 </style></head><body>
-<div class="center bold" style="font-size:13px;letter-spacing:1px;text-transform:uppercase">${sale.tenantName}</div>
-${sale.tenantAddress ? `<div class="center" style="font-size:10px;color:#555;margin-top:2px">${sale.tenantAddress}</div>` : ""}
-<hr class="divider" style="margin-top:8px"/>
-<div class="center bold" style="font-size:11px;letter-spacing:2px">CUPOM NÃO FISCAL</div>
-<div class="center" style="font-size:11px">NF-${orderId}</div>
+<div class="center bold" style="font-size:9px;margin:0;padding:0">RECIBO</div>
+<div class="center bold" style="font-size:9px;margin:0;padding:0">${sale.tenantName}</div>
+${sale.tenantAddress ? `<div class="center" style="font-size:7px;color:#555;margin:0;padding:0">${sale.tenantAddress}</div>` : ""}
 <hr class="divider"/>
-<div class="center" style="font-size:11px">${now}</div>
+<div class="center" style="font-size:8px;margin:0;padding:0">NF-${orderId}</div>
+<div class="center" style="font-size:7px;margin:0;padding:0">${now}</div>
 <hr class="divider"/>
-<div class="row"><span class="bold">CLIENTE</span></div>
-<div style="font-size:11px;margin:2px 0">${sale.customerName || "CONSUMIDOR FINAL"}</div>
+<div style="font-size:8px;margin:0;padding:0">${sale.customerName || "CONSUMIDOR"}</div>
 <hr class="divider"/>
-<div class="center bold" style="font-size:11px;letter-spacing:2px;margin-bottom:4px">ITENS</div>
-${sale.items.map((item) => `
-<div class="item-line">
-  <div class="bold" style="font-size:11px;text-transform:uppercase">${item.name}</div>
-  <div class="row item-qty">
-    <span>${item.quantity},00 x R$ ${item.price.toFixed(2)}</span>
-    <span class="bold">R$ ${(item.price * item.quantity).toFixed(2)}</span>
-  </div>
-</div>`).join("")}
+${sale.items.map((item) => `<div class="item-line" style="margin:0;padding:0"><div class="bold" style="font-size:8px;margin:0;padding:0">${item.name}</div><div class="row" style="font-size:8px"><span>${item.quantity}x R$ ${item.price.toFixed(2)}</span><span>R$ ${(item.price * item.quantity).toFixed(2)}</span></div></div>`).join("")}
 <hr class="divider"/>
-<div class="row"><span class="bold">QTD DE ITENS:</span><span>${sale.items.reduce((a, b) => a + b.quantity, 0)}</span></div>
-${sale.discountValue > 0 ? `<div class="row"><span>SUBTOTAL</span><span>R$ ${sale.subtotal.toFixed(2)}</span></div><div class="row"><span>DESCONTO</span><span>- R$ ${sale.discountValue.toFixed(2)}</span></div>` : ""}
+${sale.discountValue > 0 ? `<div class="row"><span>SUBTOTAL</span><span>R$ ${sale.subtotal.toFixed(2)}</span></div><div class="row"><span>DESC</span><span>- R$ ${sale.discountValue.toFixed(2)}</span></div>` : ""}
 <hr class="divider-solid"/>
-<div class="row-total"><span>TOTAL R$:</span><span>R$ ${sale.total.toFixed(2)}</span></div>
+<div class="row-total"><span>TOTAL:</span><span>R$ ${sale.total.toFixed(2)}</span></div>
 <hr class="divider-solid"/>
 ${sale.payments.map((p) => {
-  const brand = (p.method === "debit" || p.method === "credit") && p.cardBrand !== "other" ? `/${p.cardBrand.toUpperCase()}` : "";
+  const brand = (p.method === "debit" || p.method === "credit") && p.cardBrand !== "other" ? ` ${p.cardBrand.toUpperCase()}` : "";
   const inst  = p.method === "credit" && p.installments > 1 ? ` ${p.installments}X` : "";
   const label = `${PM_LABEL[p.method]}${brand}${inst}`.toUpperCase();
-  return `<div class="row"><span class="bold">PAGAMENTO:</span><span>${label}</span></div><div class="row"><span></span><span class="bold">R$ ${Number(p.amount).toFixed(2)}</span></div>`;
-}).join('<hr class="divider"/>')}
-${change > 0 ? `<hr class="divider"/><div class="row bold"><span>TROCO:</span><span>R$ ${change.toFixed(2)}</span></div>` : ""}
+  return `<div class="row"><span>${label}</span><span class="bold">R$ ${Number(p.amount).toFixed(2)}</span></div>`;
+}).join("")}
+${change > 0 ? `<hr class="divider"/><div class="row"><span>TROCO:</span><span>R$ ${change.toFixed(2)}</span></div>` : ""}
 <hr class="divider"/>
-<div class="center bold" style="font-size:11px;letter-spacing:1px;margin:6px 0">OBRIGADO PELA PREFERÊNCIA!</div>
-<div class="center" style="font-size:11px">VOLTE SEMPRE</div>
-<p class="small">Este não é um documento fiscal<br/>Emitido em ${now}</p>
+<div class="center" style="font-size:7px;margin:0;padding:0">Obrigado!</div>
 </body></html>`;
   };
 
@@ -652,6 +648,41 @@ ${change > 0 ? `<hr class="divider"/><div class="row bold"><span>TROCO:</span><s
       ``,
       `Obrigado pela preferência! 🙏`,
     ].filter((l) => l !== null).join("\n");
+  };
+
+  const printThermalAsImage = async (html: string) => {
+    const div = document.createElement("div");
+    div.style.position = "fixed";
+    div.style.left = "-9999px";
+    div.style.top = "-9999px";
+    div.innerHTML = html;
+    document.body.appendChild(div);
+    try {
+      const canvas = await html2canvas(div, {
+        width: 220,
+        height: undefined,
+        backgroundColor: "#ffffff",
+        scale: 2,
+        useCORS: true,
+        logging: false,
+      });
+      const iframe = document.createElement("iframe");
+      Object.assign(iframe.style, { position: "fixed", right: "0", bottom: "0", width: "0", height: "0", border: "none" });
+      document.body.appendChild(iframe);
+      const doc = iframe.contentDocument || iframe.contentWindow?.document;
+      if (doc) {
+        doc.open();
+        doc.write(`<!DOCTYPE html><html><head><style>body{margin:0;padding:0}img{display:block;width:58mm;height:auto}</style></head><body><img src="${canvas.toDataURL()}" /></body></html>`);
+        doc.close();
+        setTimeout(() => {
+          iframe.contentWindow?.focus();
+          iframe.contentWindow?.print();
+          setTimeout(() => document.body.removeChild(iframe), 1500);
+        }, 300);
+      }
+    } finally {
+      document.body.removeChild(div);
+    }
   };
 
   const printViaIframe = (html: string, delay = 400) => {
@@ -763,6 +794,43 @@ ${change > 0 ? `<hr class="divider"/><div class="row bold"><span>TROCO:</span><s
       setSaleError("Erro inesperado ao processar venda. Tente novamente.");
     }
     finally { setFinishing(false); }
+  };
+
+  const handleChargeTerminal = async () => {
+    if (!canFinish || terminalCharging) return;
+    setTerminalCharging(true);
+    setTerminalResult(null);
+    setSaleError(null);
+    try {
+      const cardPayment = payments.find((p) => p.method === "credit" || p.method === "debit");
+      const amount = cardPayment ? Number(cardPayment.amount) || total : total;
+      const res = await fetch("/api/terminals/charge", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          amount,
+          installments: cardPayment?.installments ?? 1,
+          mode: cardPayment?.method === "debit" ? "debit" : "credit",
+          description: `Venda PDV`,
+        }),
+      });
+      const tx = await res.json();
+      if (!res.ok) {
+        setSaleError(tx?.error ?? "Erro ao cobrar na maquininha.");
+        return;
+      }
+      if (tx.status === "approved") {
+        setTerminalResult({ status: "approved", brand: tx.brand, authCode: tx.authorizationCode });
+        // Finaliza a venda automaticamente após aprovação
+        await handleFinishSale();
+      } else {
+        setSaleError(`Pagamento ${tx.status === "denied" ? "negado" : tx.status} pela maquininha.`);
+      }
+    } catch {
+      setSaleError("Erro de conexão com o terminal.");
+    } finally {
+      setTerminalCharging(false);
+    }
   };
 
   const refreshProducts = () => {
@@ -1794,14 +1862,32 @@ ${change > 0 ? `<hr class="divider"/><div class="row bold"><span>TROCO:</span><s
                   </div>
 
                   {/* Botão confirmar */}
-                  <div className="shrink-0 px-5 pb-5 pt-4 border-t border-slate-100 bg-white">
+                  <div className="shrink-0 px-5 pb-5 pt-4 border-t border-slate-100 bg-white space-y-2">
                     {saleError && (
                       <div className="mb-3 px-3 py-2.5 bg-red-50 border border-red-200 rounded-xl flex items-start gap-2">
                         <span className="text-red-500 shrink-0 mt-0.5">⚠</span>
                         <p className="text-[11px] font-bold text-red-700 leading-snug">{saleError}</p>
                       </div>
                     )}
-                    <button onClick={handleFinishSale} disabled={!canFinish || finishing}
+                    {terminalResult?.status === "approved" && (
+                      <div className="mb-2 px-3 py-2.5 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center gap-2">
+                        <CheckCircle2 size={14} className="text-emerald-600 shrink-0" />
+                        <p className="text-[11px] font-bold text-emerald-700">
+                          Aprovado na maquininha{terminalResult.brand ? ` · ${terminalResult.brand.toUpperCase()}` : ""}{terminalResult.authCode ? ` · Cód ${terminalResult.authCode}` : ""}
+                        </p>
+                      </div>
+                    )}
+                    {terminalConfigured && remaining <= 0.009 && (
+                      <button
+                        onClick={handleChargeTerminal}
+                        disabled={!canFinish || terminalCharging || finishing}
+                        className="w-full rounded-2xl text-[13px] font-black uppercase tracking-widest text-white transition-all disabled:opacity-30 active:scale-[0.98] flex items-center justify-center gap-2.5 shadow-lg"
+                        style={{ height: "52px", background: "linear-gradient(135deg,#16a34a,#15803d)", boxShadow: "0 8px 24px rgba(22,163,74,0.35)" }}
+                      >
+                        {terminalCharging ? <Loader2 size={17} className="animate-spin" /> : <><Terminal size={17} /> Cobrar na Maquininha</>}
+                      </button>
+                    )}
+                    <button onClick={handleFinishSale} disabled={!canFinish || finishing || terminalCharging}
                       className="w-full rounded-2xl text-[13px] font-black uppercase tracking-widest text-white transition-all disabled:opacity-30 active:scale-[0.98] flex items-center justify-center gap-2.5 shadow-lg"
                       style={{
                         height: "52px",
@@ -1815,14 +1901,24 @@ ${change > 0 ? `<hr class="divider"/><div class="row bold"><span>TROCO:</span><s
               </div>
 
               {/* Botão confirmar mobile (só aparece em telas pequenas) */}
-              <div className="sm:hidden shrink-0 px-4 pb-4 pt-3 border-t border-slate-100 bg-white">
+              <div className="sm:hidden shrink-0 px-4 pb-4 pt-3 border-t border-slate-100 bg-white space-y-2">
                 {saleError && (
                   <div className="mb-2.5 px-3 py-2 bg-red-50 border border-red-200 rounded-xl flex items-start gap-2">
                     <span className="text-red-500 shrink-0">⚠</span>
                     <p className="text-[10px] font-bold text-red-700 leading-snug">{saleError}</p>
                   </div>
                 )}
-                <button onClick={handleFinishSale} disabled={!canFinish || finishing}
+                {terminalConfigured && remaining <= 0.009 && (
+                  <button
+                    onClick={handleChargeTerminal}
+                    disabled={!canFinish || terminalCharging || finishing}
+                    className="w-full h-12 rounded-2xl text-[12px] font-black uppercase tracking-widest text-white transition-all disabled:opacity-30 active:scale-[0.98] flex items-center justify-center gap-2 shadow-lg"
+                    style={{ background: "linear-gradient(135deg,#16a34a,#15803d)" }}
+                  >
+                    {terminalCharging ? <Loader2 size={16} className="animate-spin" /> : <><Terminal size={16} /> Cobrar na Maquininha</>}
+                  </button>
+                )}
+                <button onClick={handleFinishSale} disabled={!canFinish || finishing || terminalCharging}
                   className="w-full h-12 rounded-2xl text-[12px] font-black uppercase tracking-widest text-white transition-all disabled:opacity-30 active:scale-[0.98] flex items-center justify-center gap-2 shadow-lg"
                   style={{
                     background: remaining > 0.009 ? "linear-gradient(135deg,#f59e0b,#d97706)" : "linear-gradient(135deg,#3b82f6,#1d4ed8)",
@@ -1928,14 +2024,14 @@ ${change > 0 ? `<hr class="divider"/><div class="row bold"><span>TROCO:</span><s
               <div className="flex-1 overflow-y-auto overscroll-contain p-4 space-y-2">
                 <p className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] pb-1">Emitir Comprovante</p>
 
-                <button onClick={() => printViaIframe(buildThermalHtml(completedSale))}
+                <button onClick={() => printThermalAsImage(buildThermalHtml(completedSale))}
                   className="w-full flex items-center gap-3.5 h-16 bg-slate-50 hover:bg-slate-100 active:scale-[0.98] border border-slate-200 rounded-2xl px-4 transition-all group">
                   <div className="w-10 h-10 bg-slate-900 rounded-xl flex items-center justify-center shrink-0 group-hover:bg-blue-600 transition-colors">
                     <Printer size={17} className="text-white" />
                   </div>
                   <div className="text-left flex-1 min-w-0">
                     <p className="text-[12px] font-black text-slate-900 uppercase tracking-wide">Nota Térmica</p>
-                    <p className="text-[10px] text-slate-400 font-medium">Impressora 80mm · Cupom fiscal</p>
+                    <p className="text-[10px] text-slate-400 font-medium">Impressora 58mm · Cupom fiscal</p>
                   </div>
                   <ChevronRight size={15} className="text-slate-300 group-hover:text-slate-500 shrink-0" />
                 </button>

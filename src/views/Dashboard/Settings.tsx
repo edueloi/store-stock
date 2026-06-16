@@ -5,7 +5,7 @@ import {
   Users, Save, Loader2, Search, Check, ChevronRight, Globe,
   Bell, Sun, Moon, Package, AlertTriangle, Lock, Image, Upload, X, FileCheck,
   Smartphone, Zap, UserPlus, Trash2, Edit2, Eye, EyeOff, ShoppingCart, User,
-  Monitor, Download, WifiOff,
+  Monitor, Download, WifiOff, Terminal, CheckCircle2, XCircle,
 } from "lucide-react";
 import PageHeader from "../../components/layout/PageHeader";
 import { cn } from "../../lib/utils";
@@ -159,6 +159,7 @@ const NAV = [
     desc: "Configurações do painel admin",
     color: "text-slate-400",
     items: [
+      { id: "terminal", icon: Terminal, label: "Maquininha (API)" },
       { id: "preferences", icon: Settings2, label: "Preferências do Painel" },
       { id: "security", icon: Shield, label: "Segurança" },
       { id: "users", icon: Users, label: "Time & Acessos" },
@@ -527,6 +528,22 @@ export default function Settings() {
     credit: false, debit: false, pix: false,
   });
 
+  // ── Terminal (maquininha API) ────────────────────────────────────────────────
+  type TerminalProvider = "rede" | "stone" | "mercadopago" | "cielo" | "pagseguro";
+  const TERMINAL_PROVIDERS: { id: TerminalProvider; label: string; color: string }[] = [
+    { id: "rede",        label: "Rede (Itaú)",        color: "#FF6200" },
+    { id: "stone",       label: "Stone",               color: "#00A868" },
+    { id: "mercadopago", label: "Mercado Pago",        color: "#009EE3" },
+    { id: "cielo",       label: "Cielo",               color: "#00AEEF" },
+    { id: "pagseguro",   label: "PagSeguro",           color: "#F7971C" },
+  ];
+  const [terminalProvider, setTerminalProvider] = useState<TerminalProvider>("rede");
+  const [terminalSandbox, setTerminalSandbox] = useState(true);
+  const [terminalClientId, setTerminalClientId] = useState("");
+  const [terminalClientSecret, setTerminalClientSecret] = useState("");
+  const [terminalPingStatus, setTerminalPingStatus] = useState<"idle" | "loading" | "ok" | "fail">("idle");
+  const [terminalSaving, setTerminalSaving] = useState(false);
+
   useEffect(() => {
     fetch("/api/tenant", { headers: API_HEADERS() })
       .then((r) => r.json())
@@ -539,6 +556,17 @@ export default function Settings() {
         if (d?.pass_fee_by_method) setPassFeeByMethod(d.pass_fee_by_method as Record<string, boolean>);
         setLoading(false);
       });
+
+    fetch("/api/terminals/config", { headers: API_HEADERS() })
+      .then((r) => r.json())
+      .then((cfg) => {
+        if (!cfg) return;
+        if (cfg.provider) setTerminalProvider(cfg.provider as TerminalProvider);
+        if (cfg.sandbox !== undefined) setTerminalSandbox(Boolean(cfg.sandbox));
+        if (cfg.credentials?.clientId) setTerminalClientId(cfg.credentials.clientId);
+        if (cfg.credentials?.clientSecret) setTerminalClientSecret(cfg.credentials.clientSecret);
+      })
+      .catch(() => { /* terminal config optional */ });
 
     // load panel prefs
     Promise.all([
@@ -719,6 +747,50 @@ export default function Settings() {
       toast.error("Erro de conexão ao salvar taxas.");
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleSaveTerminal = async () => {
+    if (!terminalClientId || !terminalClientSecret) {
+      toast.error("Preencha o Client ID e o Client Secret.");
+      return;
+    }
+    setTerminalSaving(true);
+    try {
+      const res = await fetch("/api/terminals/config", {
+        method: "PUT",
+        headers: API_HEADERS(),
+        body: JSON.stringify({
+          provider: terminalProvider,
+          sandbox: terminalSandbox,
+          credentials: { clientId: terminalClientId, clientSecret: terminalClientSecret },
+        }),
+      });
+      if (res.ok) toast.success("Configuração de maquininha salva!");
+      else toast.error("Erro ao salvar configuração.");
+    } catch {
+      toast.error("Erro de conexão.");
+    } finally {
+      setTerminalSaving(false);
+    }
+  };
+
+  const handlePingTerminal = async () => {
+    setTerminalPingStatus("loading");
+    try {
+      const res = await fetch("/api/terminals/ping", {
+        method: "POST",
+        headers: API_HEADERS(),
+        body: JSON.stringify({
+          provider: terminalProvider,
+          sandbox: terminalSandbox,
+          credentials: { clientId: terminalClientId, clientSecret: terminalClientSecret },
+        }),
+      });
+      const data = await res.json();
+      setTerminalPingStatus(data.ok ? "ok" : "fail");
+    } catch {
+      setTerminalPingStatus("fail");
     }
   };
 
@@ -1875,6 +1947,116 @@ export default function Settings() {
                 </div>
               );
             })()}
+
+            {/* ── Maquininha (API) ────────────────────────────────────── */}
+            {active === "terminal" && (
+              <div className="space-y-8">
+                <SectionHeader
+                  title="Maquininha (API)"
+                  subtitle="Conecte sua maquininha via API para registrar vendas automaticamente no sistema"
+                />
+
+                {/* Provider */}
+                <div className="space-y-3">
+                  <Field label="Provedor / Adquirente">
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                      {TERMINAL_PROVIDERS.map((p) => (
+                        <button
+                          key={p.id}
+                          onClick={() => { setTerminalProvider(p.id); setTerminalPingStatus("idle"); }}
+                          className={`flex items-center gap-2 px-3 py-2.5 rounded-xl border text-[11px] font-bold transition-all ${
+                            terminalProvider === p.id
+                              ? "border-current bg-slate-50 shadow-sm"
+                              : "border-slate-200 text-slate-400 hover:border-slate-300"
+                          }`}
+                          style={terminalProvider === p.id ? { color: p.color, borderColor: p.color } : {}}
+                        >
+                          <Terminal size={13} />
+                          {p.label}
+                        </button>
+                      ))}
+                    </div>
+                  </Field>
+                </div>
+
+                {/* Sandbox toggle */}
+                <Field label="Ambiente" hint="Use Sandbox para testes; Produção para vendas reais">
+                  <div className="flex gap-2">
+                    {[
+                      { val: true,  label: "Sandbox (testes)" },
+                      { val: false, label: "Produção" },
+                    ].map(({ val, label }) => (
+                      <button
+                        key={String(val)}
+                        onClick={() => setTerminalSandbox(val)}
+                        className={`flex-1 px-3 py-2 rounded-xl border text-[11px] font-bold transition-all ${
+                          terminalSandbox === val
+                            ? val
+                              ? "bg-amber-50 border-amber-400 text-amber-700"
+                              : "bg-emerald-50 border-emerald-400 text-emerald-700"
+                            : "border-slate-200 text-slate-400 hover:border-slate-300"
+                        }`}
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                </Field>
+
+                {/* Credentials */}
+                <div className="space-y-4">
+                  <Field label="Client ID (PV)">
+                    <input
+                      type="text"
+                      value={terminalClientId}
+                      onChange={(e) => setTerminalClientId(e.target.value)}
+                      placeholder="Ex: 48152954"
+                      className="w-full px-4 py-3 rounded-xl border border-slate-200 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-slate-300"
+                    />
+                  </Field>
+                  <Field label="Client Secret (Token)">
+                    <input
+                      type="password"
+                      value={terminalClientSecret}
+                      onChange={(e) => setTerminalClientSecret(e.target.value)}
+                      placeholder="Cole o token gerado no portal do desenvolvedor"
+                      className="w-full px-4 py-3 rounded-xl border border-slate-200 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-slate-300"
+                    />
+                  </Field>
+                </div>
+
+                {/* Ping / Test */}
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={handlePingTerminal}
+                    disabled={terminalPingStatus === "loading" || !terminalClientId || !terminalClientSecret}
+                    className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-slate-300 text-[11px] font-black uppercase tracking-wide text-slate-600 hover:bg-slate-50 disabled:opacity-40 transition-all"
+                  >
+                    {terminalPingStatus === "loading" ? (
+                      <Loader2 size={13} className="animate-spin" />
+                    ) : (
+                      <Zap size={13} />
+                    )}
+                    Testar Conexão
+                  </button>
+                  {terminalPingStatus === "ok" && (
+                    <span className="flex items-center gap-1.5 text-[11px] font-bold text-emerald-600">
+                      <CheckCircle2 size={14} /> Conectado com sucesso
+                    </span>
+                  )}
+                  {terminalPingStatus === "fail" && (
+                    <span className="flex items-center gap-1.5 text-[11px] font-bold text-red-500">
+                      <XCircle size={14} /> Falha na conexão — verifique as credenciais
+                    </span>
+                  )}
+                </div>
+
+                <SaveButton
+                  onClick={handleSaveTerminal}
+                  label={terminalSaving ? "Salvando..." : "Salvar Configuração"}
+                />
+              </div>
+            )}
 
             {/* ── Preferências do Painel ──────────────────────────────── */}
             {active === "preferences" && (

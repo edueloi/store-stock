@@ -41,6 +41,7 @@ model Tenant {
   max_installments       Int      @default(12)
   enabled_brands         Json?
   pass_fee_by_method     Json?
+  terminal_config        Json?
   status                 String   @default("active")
   trial_days       Int      @default(30)
   trial_starts_at  DateTime?
