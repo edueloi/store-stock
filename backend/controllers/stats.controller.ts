@@ -184,7 +184,8 @@ export async function getDashboardStats(req: Request, res: Response) {
       },
       salesOverTime,
     });
-  } catch {
-    res.status(500).json({ error: "Failed to fetch stats" });
+  } catch (err) {
+    console.error("[stats] getDashboardStats error:", err);
+    res.status(500).json({ error: "Failed to fetch stats", detail: String(err) });
   }
 }
