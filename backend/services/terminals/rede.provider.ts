@@ -17,24 +17,21 @@ interface RedeTokenResponse {
   token_type: string;
 }
 
-interface RedeBrand {
-  name: string;
-  returnCode: string;
-  returnMessage: string;
-  authorizationCode?: string;
-}
-
+// Actual response shape from Rede v2 API (fields are flat, not nested under brand)
 interface RedeTransactionResponse {
   returnCode: string;
   returnMessage: string;
   tid?: string;
   nsu?: string;
+  authorizationCode?: string;
+  brandTid?: string;
   amount?: number;
   installments?: number;
   kind?: string;
+  cardBin?: string;
   last4?: string;
   dateTime?: string;
-  brand?: RedeBrand;
+  reference?: string;
 }
 
 export class RedeProvider implements ITerminalProvider {
@@ -105,16 +102,14 @@ export class RedeProvider implements ITerminalProvider {
     return res.json() as Promise<T>;
   }
 
-  private mapBrand(rawBrand?: string): string {
-    const map: Record<string, string> = {
-      VISA: "visa",
-      MASTERCARD: "mastercard",
-      ELO: "elo",
-      AMEX: "amex",
-      HIPERCARD: "hipercard",
-      DINERS: "diners",
-    };
-    return map[(rawBrand ?? "").toUpperCase()] ?? (rawBrand?.toLowerCase() ?? "unknown");
+  private mapBrand(cardBin?: string): string {
+    // Rede v2 does not return brand name directly — derive from BIN prefix if needed
+    if (!cardBin) return "unknown";
+    const prefix = cardBin.charAt(0);
+    if (prefix === "4") return "visa";
+    if (prefix === "5") return "mastercard";
+    if (prefix === "3") return "amex";
+    return "unknown";
   }
 
   private mapStatus(returnCode: string): TerminalTransaction["status"] {
@@ -131,8 +126,8 @@ export class RedeProvider implements ITerminalProvider {
       amount: (raw.amount ?? 0) / 100,
       installments: raw.installments ?? 1,
       mode: raw.kind === "DEBIT" ? "debit" : "credit",
-      brand: this.mapBrand(raw.brand?.name),
-      authorizationCode: raw.brand?.authorizationCode,
+      brand: this.mapBrand(raw.cardBin),
+      authorizationCode: raw.authorizationCode,
       nsu: raw.nsu,
       cardLastDigits: raw.last4,
       occurredAt: raw.dateTime ? new Date(raw.dateTime) : new Date(),
@@ -141,7 +136,6 @@ export class RedeProvider implements ITerminalProvider {
   }
 
   async charge(req: TerminalChargeRequest): Promise<TerminalTransaction> {
-    // Amount must be sent in cents (integer)
     const amountInCents = Math.round(req.amount * 100);
 
     const body: Record<string, unknown> = {
@@ -153,15 +147,13 @@ export class RedeProvider implements ITerminalProvider {
       softDescriptor: req.description?.slice(0, 22) ?? "Venda",
     };
 
-    // Sandbox: send test card in body (production uses physical POS terminal)
+    // Sandbox: card fields are sent flat in the request body (not nested under "card")
     if (this.sandbox) {
-      body.card = {
-        number: "5448280000000007",
-        holderName: "TESTE SANDBOX",
-        expirationMonth: "12",
-        expirationYear: "2030",
-        securityCode: "123",
-      };
+      body.cardNumber = "5448280000000007";
+      body.cardHolderName = "TESTE SANDBOX";
+      body.expirationMonth = 12;
+      body.expirationYear = 2030;
+      body.securityCode = "123";
     }
 
     const raw = await this.request<RedeTransactionResponse>("POST", "/v2/transactions", body);

@@ -80,6 +80,7 @@ export default function AdminDashboard() {
       items: [
         { icon: LayoutDashboard, label: "Visão Geral",   path: "/admin" },
         { icon: ShoppingCart,    label: "PDV — Caixa",   path: "/admin/pdv" },
+        { icon: Wallet,          label: "Fluxo de Caixa", path: "/admin/finance" },
         { icon: Receipt,         label: "Pedidos",        path: "/admin/orders" },
         { icon: FileText,        label: "Orçamentos",     path: "/admin/orcamentos" },
       ],
@@ -98,7 +99,6 @@ export default function AdminDashboard() {
     {
       label: "Financeiro",
       items: [
-        { icon: Wallet,           label: "Fluxo de Caixa",    path: "/admin/finance" },
         { icon: ArrowDownCircle,  label: "Contas a Receber",  path: "/admin/contas-receber" },
         { icon: ArrowUpCircle,    label: "Contas a Pagar",    path: "/admin/contas-pagar" },
         { icon: Target,           label: "Metas",             path: "/admin/metas" },
@@ -190,7 +190,7 @@ export default function AdminDashboard() {
         </div>
 
         {/* Nav */}
-        <nav className="flex-1 overflow-y-auto admin-scroll py-2 px-2 space-y-3">
+        <nav className="flex-1 overflow-y-auto pdv-scroll-dark py-2 px-2 space-y-3">
           {menuGroups.map((group) => (
             <div key={group.label}>
               {isSidebarOpen && (
@@ -286,7 +286,7 @@ export default function AdminDashboard() {
               </button>
             </div>
 
-            <nav className="flex-1 overflow-y-auto admin-scroll py-2 px-2 space-y-3">
+            <nav className="flex-1 overflow-y-auto pdv-scroll-dark py-2 px-2 space-y-3">
               {menuGroups.map((group) => (
                 <div key={group.label}>
                   <p className="mb-1 px-2 text-[9px] font-black uppercase tracking-[0.18em] text-slate-600">

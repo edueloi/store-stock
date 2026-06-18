@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useMemo, useRef } from "react";
+import React, { useState, useEffect, useMemo, useRef, useCallback } from "react";
+import { useNavigate } from "react-router-dom";
 import ExcelJS from "exceljs";
 import { motion, AnimatePresence } from "motion/react";
 import PageHeader from "../../components/layout/PageHeader";
@@ -23,6 +24,8 @@ import {
   Trash2,
   Pencil,
   CreditCard,
+  Package,
+  ExternalLink,
 } from "lucide-react";
 import { FinanceEntry, Tenant } from "../../types";
 import { cn } from "../../lib/utils";
@@ -701,8 +704,13 @@ export default function Finance() {
   const [dateTo,   setDateTo]   = useState(() => monthRange(nowRef.getFullYear(), nowRef.getMonth()).to);
   const [searchQ, setSearchQ] = useState("");
   const [typeFilter, setTypeFilter] = useState<"all" | "income" | "expense">("all");
+  const [sourceFilter, setSourceFilter] = useState<Set<string>>(new Set());
   const [paymentFilter, setPaymentFilter] = useState<Set<string>>(new Set());
   const [showFilters, setShowFilters] = useState(false);
+  const [showSourceDrop, setShowSourceDrop] = useState(false);
+  const [showPaymentDrop, setShowPaymentDrop] = useState(false);
+  const sourceDropRef = useRef<HTMLDivElement>(null);
+  const paymentDropRef = useRef<HTMLDivElement>(null);
   const [showExport, setShowExport] = useState(false);
   const exportRef = useRef<HTMLDivElement>(null);
   const [selectedEntry, setSelectedEntry] = useState<FinanceEntry | null>(null);
@@ -714,14 +722,71 @@ export default function Finance() {
   const [editSaving, setEditSaving] = useState(false);
   const [pmError, setPmError] = useState<string | null>(null);
 
+  const navigate = useNavigate();
   const token = () => localStorage.getItem("token");
 
-  // Close export dropdown on outside click
+  // order detail fetched when a PDV sale entry is opened
+  interface OrderItem { product_name: string; image_url?: string | null; quantity: number; unit_price: number }
+  interface OrderDetail { id: number; customer_name: string; items: OrderItem[]; services: { name: string; unit_price: number; quantity: number }[] }
+  const [orderDetail, setOrderDetail] = useState<OrderDetail | null>(null);
+  const [loadingOrder, setLoadingOrder] = useState(false);
+
+  const extractOrderId = (description: string): number | null => {
+    const m = description.match(/Venda PDV #(\d+)/);
+    return m ? Number(m[1]) : null;
+  };
+
+  const fetchOrderDetail = useCallback(async (orderId: number) => {
+    setLoadingOrder(true);
+    setOrderDetail(null);
+    try {
+      const res = await fetch(`/api/orders/${orderId}`, {
+        headers: { Authorization: `Bearer ${token()}` },
+      });
+      if (res.ok) setOrderDetail(await res.json());
+    } catch { /* ignore */ }
+    setLoadingOrder(false);
+  }, []);
+
+  useEffect(() => {
+    if (!selectedEntry) { setOrderDetail(null); return; }
+    const orderId = extractOrderId(selectedEntry.description);
+    if (orderId) fetchOrderDetail(orderId);
+    else setOrderDetail(null);
+  }, [selectedEntry, fetchOrderDetail]);
+
+  // Load filter preferences — auto-open filter bar if any active filters were saved
+  useEffect(() => {
+    const t = token();
+    if (!t) return;
+    fetch("/api/preferences/finance_filters", { headers: { Authorization: `Bearer ${t}` } })
+      .then(r => r.ok ? r.json() : null)
+      .then(d => {
+        if (!d) return;
+        let hasAny = false;
+        if (Array.isArray(d.sources) && d.sources.length > 0) { setSourceFilter(new Set(d.sources)); hasAny = true; }
+        if (Array.isArray(d.payments) && d.payments.length > 0) { setPaymentFilter(new Set(d.payments)); hasAny = true; }
+        if (hasAny) setShowFilters(true);
+      })
+      .catch(() => {});
+  }, []);
+
+  const saveFilterPrefs = (sources: Set<string>, payments: Set<string>) => {
+    const t = token();
+    if (!t) return;
+    fetch("/api/preferences/finance_filters", {
+      method: "PUT",
+      headers: { Authorization: `Bearer ${t}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ value: { sources: [...sources], payments: [...payments] } }),
+    }).catch(() => {});
+  };
+
+  // Close all dropdowns on outside click
   useEffect(() => {
     const handler = (e: MouseEvent) => {
-      if (exportRef.current && !exportRef.current.contains(e.target as Node)) {
-        setShowExport(false);
-      }
+      if (exportRef.current && !exportRef.current.contains(e.target as Node)) setShowExport(false);
+      if (sourceDropRef.current && !sourceDropRef.current.contains(e.target as Node)) setShowSourceDrop(false);
+      if (paymentDropRef.current && !paymentDropRef.current.contains(e.target as Node)) setShowPaymentDrop(false);
     };
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
@@ -885,6 +950,12 @@ export default function Finance() {
       const entryDate = e.date.substring(0, 10);
       if (entryDate < dateFrom || entryDate > dateTo) return false;
       if (typeFilter !== "all" && e.type !== typeFilter) return false;
+      if (sourceFilter.size > 0) {
+        const src = (e as any).source ?? null;
+        // entries with source=null are legacy PDV sales (before source field existed)
+        const effectiveSource = src === null ? "pdv" : src;
+        if (!sourceFilter.has(effectiveSource)) return false;
+      }
       if (searchQ && !e.description.toLowerCase().includes(searchQ.toLowerCase())) return false;
       if (paymentFilter.size > 0) {
         let matched = false;
@@ -903,7 +974,7 @@ export default function Finance() {
       }
       return true;
     });
-  }, [entries, dateFrom, dateTo, typeFilter, searchQ, paymentFilter]);
+  }, [entries, dateFrom, dateTo, typeFilter, sourceFilter, searchQ, paymentFilter]);
 
   const incomeEntries    = filtered.filter((e) => e.type === "income");
   const expenseEntries   = filtered.filter((e) => e.type === "expense");
@@ -1036,23 +1107,28 @@ export default function Finance() {
             </h3>
             <div className="flex items-center gap-2">
               {/* Filter toggle */}
-              <button
-                onClick={() => setShowFilters(!showFilters)}
-                className={cn(
-                  "h-8 px-3 rounded-lg flex items-center gap-1.5 text-[9px] font-black uppercase tracking-widest border transition-all relative",
-                  showFilters || paymentFilter.size > 0
-                    ? "bg-blue-600 text-white border-blue-600"
-                    : "bg-white text-slate-500 border-slate-200 hover:border-slate-400"
-                )}
-              >
-                <SlidersHorizontal size={12} />
-                <span className="hidden sm:block">Filtros</span>
-                {paymentFilter.size > 0 && (
-                  <span className="absolute -top-1 -right-1 w-4 h-4 bg-rose-500 text-white rounded-full text-[8px] font-black flex items-center justify-center">
-                    {paymentFilter.size}
-                  </span>
-                )}
-              </button>
+              {(() => {
+                const activeCount = (sourceFilter.size > 0 ? 1 : 0) + (paymentFilter.size > 0 ? 1 : 0) + (searchQ ? 1 : 0);
+                return (
+                  <button
+                    onClick={() => setShowFilters(!showFilters)}
+                    className={cn(
+                      "h-8 px-3 rounded-lg flex items-center gap-1.5 text-[9px] font-black uppercase tracking-widest border transition-all relative",
+                      showFilters || activeCount > 0
+                        ? "bg-blue-600 text-white border-blue-600"
+                        : "bg-white text-slate-500 border-slate-200 hover:border-slate-400"
+                    )}
+                  >
+                    <SlidersHorizontal size={12} />
+                    <span className="hidden sm:block">Filtros</span>
+                    {activeCount > 0 && (
+                      <span className="absolute -top-1 -right-1 w-4 h-4 bg-rose-500 text-white rounded-full text-[8px] font-black flex items-center justify-center">
+                        {activeCount}
+                      </span>
+                    )}
+                  </button>
+                );
+              })()}
 
               {/* Export dropdown */}
               <div className="relative" ref={exportRef}>
@@ -1093,8 +1169,8 @@ export default function Finance() {
             </div>
           </div>
 
-          {/* Row 2: month navigator + mode toggle */}
-          <div className="flex items-center gap-3 flex-wrap">
+          {/* Row 2: month navigator + type toggles */}
+          <div className="flex items-center gap-2 flex-wrap">
             {/* ← Mês → navigator */}
             <div className="flex items-center gap-1 bg-slate-50 border border-slate-200 rounded-xl p-1">
               <button
@@ -1107,9 +1183,7 @@ export default function Finance() {
                 onClick={() => setPreset("month")}
                 className={cn(
                   "px-4 h-7 rounded-lg text-[11px] font-black uppercase tracking-widest transition-all min-w-[160px] text-center",
-                  preset === "month"
-                    ? "bg-slate-900 text-white"
-                    : "text-slate-600 hover:bg-white"
+                  preset === "month" ? "bg-slate-900 text-white" : "text-slate-600 hover:bg-white"
                 )}
               >
                 {MONTH_NAMES[navMonth]} {navYear}
@@ -1127,127 +1201,218 @@ export default function Finance() {
               onClick={() => setPreset(preset === "custom" ? "month" : "custom")}
               className={cn(
                 "h-9 px-3 rounded-xl flex items-center gap-1.5 text-[9px] font-black uppercase tracking-widest border transition-all",
-                preset === "custom"
-                  ? "bg-blue-600 text-white border-blue-600"
-                  : "bg-white text-slate-400 border-slate-200 hover:border-slate-400"
+                preset === "custom" ? "bg-blue-600 text-white border-blue-600" : "bg-white text-slate-400 border-slate-200 hover:border-slate-400"
               )}
             >
               <Calendar size={12} /> Período Livre
             </button>
 
-            {/* Custom date inputs (only visible when custom) */}
+            {/* Custom date inputs */}
             {preset === "custom" && (
               <div className="flex items-center gap-2">
-                <div className="relative">
-                  <input
-                    type="date"
-                    value={dateFrom}
-                    onChange={(e) => setDateFrom(e.target.value)}
-                    className="pl-3 pr-3 h-9 bg-slate-50 border border-slate-200 rounded-xl text-[11px] font-bold focus:outline-none focus:border-blue-400 transition-all w-[148px]"
-                  />
-                </div>
+                <input
+                  type="date" value={dateFrom}
+                  onChange={(e) => setDateFrom(e.target.value)}
+                  className="pl-3 pr-3 h-9 bg-slate-50 border border-slate-200 rounded-xl text-[11px] font-bold focus:outline-none focus:border-blue-400 transition-all w-[148px]"
+                />
                 <span className="text-[10px] font-black text-slate-300 uppercase">até</span>
-                <div className="relative">
-                  <input
-                    type="date"
-                    value={dateTo}
-                    onChange={(e) => setDateTo(e.target.value)}
-                    className="pl-3 pr-3 h-9 bg-slate-50 border border-slate-200 rounded-xl text-[11px] font-bold focus:outline-none focus:border-blue-400 transition-all w-[148px]"
-                  />
-                </div>
+                <input
+                  type="date" value={dateTo}
+                  onChange={(e) => setDateTo(e.target.value)}
+                  className="pl-3 pr-3 h-9 bg-slate-50 border border-slate-200 rounded-xl text-[11px] font-bold focus:outline-none focus:border-blue-400 transition-all w-[148px]"
+                />
               </div>
             )}
+
+            {/* Type chips — always visible, pushed to the right */}
+            <div className="ml-auto flex items-center gap-1 bg-slate-50 border border-slate-200 rounded-xl p-1">
+              {(["all", "income", "expense"] as const).map((t) => (
+                <button
+                  key={t}
+                  onClick={() => setTypeFilter(t)}
+                  className={cn(
+                    "h-7 px-3 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all",
+                    typeFilter === t
+                      ? t === "income" ? "bg-emerald-600 text-white shadow-sm"
+                        : t === "expense" ? "bg-rose-600 text-white shadow-sm"
+                        : "bg-slate-900 text-white shadow-sm"
+                      : "text-slate-500 hover:text-slate-700"
+                  )}
+                >
+                  {t === "all" ? "Todos" : t === "income" ? "Receitas" : "Despesas"}
+                </button>
+              ))}
+            </div>
           </div>
 
-          {/* Row 3: expanded filters */}
-          {showFilters && (
-            <div className="flex flex-col gap-3 pt-2 border-t border-slate-100">
-              {/* Row A: search + type */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          {/* Row 3: expanded filters — search + multi-select dropdowns in one line */}
+          {showFilters && (() => {
+            const SOURCE_OPTS = [
+              { value: "pdv",      label: "Venda PDV",           dot: "bg-blue-500"   },
+              { value: "services", label: "Serviço PDV",         dot: "bg-violet-500" },
+              { value: "mixed",    label: "Venda + Serviço PDV", dot: "bg-indigo-500" },
+            ] as const;
+            const PM_OPTS = [
+              { value: "credit", label: "Crédito",  dot: "bg-emerald-500" },
+              { value: "debit",  label: "Débito",   dot: "bg-blue-500"    },
+              { value: "pix",    label: "PIX",       dot: "bg-violet-500" },
+              { value: "money",  label: "Dinheiro",  dot: "bg-slate-400"  },
+              { value: "boleto", label: "Boleto",    dot: "bg-amber-500"  },
+            ] as const;
+
+            const toggleSource = (v: string) => {
+              setSourceFilter(prev => {
+                const next = new Set(prev);
+                if (next.has(v)) next.delete(v); else next.add(v);
+                saveFilterPrefs(next, paymentFilter);
+                return next;
+              });
+            };
+            const togglePayment = (v: string) => {
+              setPaymentFilter(prev => {
+                const next = new Set(prev);
+                if (next.has(v)) next.delete(v); else next.add(v);
+                saveFilterPrefs(sourceFilter, next);
+                return next;
+              });
+            };
+            const clearAll = () => {
+              setSourceFilter(new Set());
+              setPaymentFilter(new Set());
+              setSearchQ("");
+              saveFilterPrefs(new Set(), new Set());
+            };
+
+            const srcLabel = sourceFilter.size === 0
+              ? "Origem"
+              : sourceFilter.size === 1
+                ? SOURCE_OPTS.find(o => sourceFilter.has(o.value))?.label ?? "Origem"
+                : `Origem (${sourceFilter.size})`;
+
+            const pmLabel = paymentFilter.size === 0
+              ? "Pagamento"
+              : paymentFilter.size === 1
+                ? PM_OPTS.find(o => paymentFilter.has(o.value))?.label ?? "Pagamento"
+                : `Pagamento (${paymentFilter.size})`;
+
+            return (
+              <div className="flex items-center gap-2 flex-wrap pt-2 border-t border-slate-100">
                 {/* Search */}
-                <div className="relative">
+                <div className="relative flex-1 min-w-[180px]">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={12} />
                   <input
                     type="text"
                     placeholder="Pesquisar descrição..."
                     value={searchQ}
                     onChange={(e) => setSearchQ(e.target.value)}
-                    className="w-full pl-8 pr-3 h-9 bg-slate-50 border border-slate-200 rounded-lg text-[10px] font-bold uppercase tracking-widest placeholder:text-slate-300 focus:outline-none focus:border-blue-400 transition-all"
+                    className="w-full pl-8 pr-3 h-9 bg-slate-50 border border-slate-200 rounded-xl text-[11px] font-bold placeholder:text-slate-300 focus:outline-none focus:border-blue-400 transition-all"
                   />
                 </div>
-                {/* Type filter */}
-                <div className="flex gap-1.5">
-                  {(["all", "income", "expense"] as const).map((t) => (
-                    <button
-                      key={t}
-                      onClick={() => setTypeFilter(t)}
-                      className={cn(
-                        "flex-1 h-9 rounded-lg text-[9px] font-black uppercase tracking-widest border transition-all",
-                        typeFilter === t
-                          ? t === "income"
-                            ? "bg-emerald-600 text-white border-emerald-600"
-                            : t === "expense"
-                            ? "bg-rose-600 text-white border-rose-600"
-                            : "bg-slate-900 text-white border-slate-900"
-                          : "bg-white text-slate-400 border-slate-200 hover:border-slate-400"
-                      )}
-                    >
-                      {t === "all" ? "Todos" : t === "income" ? "Receitas" : "Despesas"}
-                    </button>
-                  ))}
-                </div>
-              </div>
 
-              {/* Row B: payment method chips (multi-select) */}
-              <div className="flex items-center gap-2 flex-wrap">
-                <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest shrink-0">
-                  Pagamento:
-                </span>
-                {([
-                  { key: "credit", label: "Crédito",  color: "blue"   },
-                  { key: "debit",  label: "Débito",   color: "violet" },
-                  { key: "pix",    label: "PIX",      color: "emerald"},
-                  { key: "money",  label: "Dinheiro", color: "slate"  },
-                  { key: "boleto", label: "Boleto",   color: "amber"  },
-                ] as const).map(({ key, label, color }) => {
-                  const active = paymentFilter.has(key);
-                  const toggle = () => {
-                    setPaymentFilter((prev) => {
-                      const next = new Set(prev);
-                      if (next.has(key)) next.delete(key); else next.add(key);
-                      return next;
-                    });
-                  };
-                  const activeClass =
-                    color === "blue"    ? "bg-blue-600 text-white border-blue-600" :
-                    color === "violet"  ? "bg-violet-600 text-white border-violet-600" :
-                    color === "emerald" ? "bg-emerald-600 text-white border-emerald-600" :
-                    color === "amber"   ? "bg-amber-500 text-white border-amber-500" :
-                                          "bg-slate-700 text-white border-slate-700";
-                  return (
-                    <button
-                      key={key}
-                      onClick={toggle}
-                      className={cn(
-                        "h-7 px-3 rounded-lg text-[9px] font-black uppercase tracking-widest border transition-all",
-                        active ? activeClass : "bg-white text-slate-400 border-slate-200 hover:border-slate-400"
-                      )}
-                    >
-                      {label}
-                    </button>
-                  );
-                })}
-                {paymentFilter.size > 0 && (
+                {/* Origem multi-select dropdown */}
+                <div className="relative" ref={sourceDropRef}>
                   <button
-                    onClick={() => setPaymentFilter(new Set())}
-                    className="h-7 px-2 rounded-lg text-[9px] font-black text-slate-400 hover:text-slate-700 transition-colors flex items-center gap-1"
+                    onClick={() => { setShowSourceDrop(v => !v); setShowPaymentDrop(false); }}
+                    className={cn(
+                      "h-9 pl-3 pr-2.5 rounded-xl border flex items-center gap-1.5 text-[11px] font-black uppercase tracking-widest transition-all whitespace-nowrap",
+                      sourceFilter.size > 0
+                        ? "bg-slate-900 text-white border-slate-900"
+                        : "bg-slate-50 text-slate-600 border-slate-200 hover:border-slate-400"
+                    )}
                   >
-                    <X size={10} /> Limpar
+                    {srcLabel}
+                    <ChevronDown size={12} className={cn("transition-transform", showSourceDrop && "rotate-180")} />
+                  </button>
+                  {showSourceDrop && (
+                    <div className="absolute left-0 top-11 z-50 w-52 bg-white border border-slate-200 rounded-xl shadow-xl overflow-hidden">
+                      {SOURCE_OPTS.map(opt => (
+                        <button
+                          key={opt.value}
+                          onClick={() => toggleSource(opt.value)}
+                          className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-slate-50 transition-colors text-left"
+                        >
+                          <div className={cn(
+                            "w-4 h-4 rounded border-2 flex items-center justify-center shrink-0 transition-all",
+                            sourceFilter.has(opt.value) ? "bg-slate-900 border-slate-900" : "border-slate-300"
+                          )}>
+                            {sourceFilter.has(opt.value) && (
+                              <svg width="8" height="8" viewBox="0 0 10 10" fill="none"><polyline points="1.5,5 4,7.5 8.5,2.5" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                            )}
+                          </div>
+                          <span className={cn("w-2 h-2 rounded-full shrink-0", opt.dot)} />
+                          <span className="text-[11px] font-bold text-slate-700">{opt.label}</span>
+                        </button>
+                      ))}
+                      {sourceFilter.size > 0 && (
+                        <button
+                          onClick={() => { setSourceFilter(new Set()); saveFilterPrefs(new Set(), paymentFilter); }}
+                          className="w-full flex items-center gap-2 px-3 py-2 border-t border-slate-100 text-[10px] font-black uppercase tracking-widest text-slate-400 hover:text-rose-500 transition-colors"
+                        >
+                          <X size={10} /> Limpar origem
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                {/* Pagamento multi-select dropdown */}
+                <div className="relative" ref={paymentDropRef}>
+                  <button
+                    onClick={() => { setShowPaymentDrop(v => !v); setShowSourceDrop(false); }}
+                    className={cn(
+                      "h-9 pl-3 pr-2.5 rounded-xl border flex items-center gap-1.5 text-[11px] font-black uppercase tracking-widest transition-all whitespace-nowrap",
+                      paymentFilter.size > 0
+                        ? "bg-slate-900 text-white border-slate-900"
+                        : "bg-slate-50 text-slate-600 border-slate-200 hover:border-slate-400"
+                    )}
+                  >
+                    {pmLabel}
+                    <ChevronDown size={12} className={cn("transition-transform", showPaymentDrop && "rotate-180")} />
+                  </button>
+                  {showPaymentDrop && (
+                    <div className="absolute left-0 top-11 z-50 w-44 bg-white border border-slate-200 rounded-xl shadow-xl overflow-hidden">
+                      {PM_OPTS.map(opt => (
+                        <button
+                          key={opt.value}
+                          onClick={() => togglePayment(opt.value)}
+                          className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-slate-50 transition-colors text-left"
+                        >
+                          <div className={cn(
+                            "w-4 h-4 rounded border-2 flex items-center justify-center shrink-0 transition-all",
+                            paymentFilter.has(opt.value) ? "bg-slate-900 border-slate-900" : "border-slate-300"
+                          )}>
+                            {paymentFilter.has(opt.value) && (
+                              <svg width="8" height="8" viewBox="0 0 10 10" fill="none"><polyline points="1.5,5 4,7.5 8.5,2.5" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                            )}
+                          </div>
+                          <span className={cn("w-2 h-2 rounded-full shrink-0", opt.dot)} />
+                          <span className="text-[11px] font-bold text-slate-700">{opt.label}</span>
+                        </button>
+                      ))}
+                      {paymentFilter.size > 0 && (
+                        <button
+                          onClick={() => { setPaymentFilter(new Set()); saveFilterPrefs(sourceFilter, new Set()); }}
+                          className="w-full flex items-center gap-2 px-3 py-2 border-t border-slate-100 text-[10px] font-black uppercase tracking-widest text-slate-400 hover:text-rose-500 transition-colors"
+                        >
+                          <X size={10} /> Limpar pagamento
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                {/* Clear all */}
+                {(sourceFilter.size > 0 || paymentFilter.size > 0 || searchQ) && (
+                  <button
+                    onClick={clearAll}
+                    className="h-9 px-3 rounded-xl border border-slate-200 text-[10px] font-black uppercase tracking-widest text-slate-400 hover:text-rose-600 hover:border-rose-200 transition-all flex items-center gap-1.5"
+                  >
+                    <X size={11} /> Limpar tudo
                   </button>
                 )}
               </div>
-            </div>
-          )}
+            );
+          })()}
         </div>
 
         {/* Bulk action bar */}
@@ -1353,9 +1518,17 @@ export default function Finance() {
                             )}
                           </div>
                           <div className="flex flex-col gap-1 min-w-0">
-                            <span className="text-[11px] font-bold text-slate-800 uppercase truncate max-w-[280px]">
-                              {entry.description.split(" — ")[0]}
-                            </span>
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <span className="text-[11px] font-bold text-slate-800 uppercase truncate max-w-[240px]">
+                                {entry.description.split(" — ")[0]}
+                              </span>
+                              {(entry as any).source === "services" && (
+                                <span className="text-[8px] font-black uppercase tracking-widest text-violet-600 bg-violet-50 border border-violet-200 px-1.5 py-0.5 rounded shrink-0">Serviço PDV</span>
+                              )}
+                              {(entry as any).source === "mixed" && (
+                                <span className="text-[8px] font-black uppercase tracking-widest text-indigo-600 bg-indigo-50 border border-indigo-200 px-1.5 py-0.5 rounded shrink-0">Venda + Serviço</span>
+                              )}
+                            </div>
                             {entry.payment_method
                               ? <PaymentBadges pm={entry.payment_method} />
                               : entry.description.includes(" — ") && (
@@ -1673,6 +1846,75 @@ export default function Finance() {
                       </div>
                     </div>
                   )}
+
+                  {/* Order items — only for PDV sales */}
+                  {(() => {
+                    const orderId = extractOrderId(e.description);
+                    if (!orderId) return null;
+                    return (
+                      <div className="bg-slate-50 rounded-2xl border border-slate-100 overflow-hidden">
+                        <div className="px-4 py-2 border-b border-slate-100 bg-slate-100/60 flex items-center justify-between">
+                          <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">
+                            Itens do Pedido #{orderId}
+                          </p>
+                          <button
+                            onClick={() => navigate(`/admin/orders?search=${orderId}`)}
+                            className="flex items-center gap-1 text-[9px] font-black text-blue-600 hover:text-blue-700 uppercase tracking-widest transition-colors"
+                          >
+                            <ExternalLink size={10} /> Ver pedido
+                          </button>
+                        </div>
+                        <div className="divide-y divide-slate-100">
+                          {loadingOrder ? (
+                            <div className="flex items-center justify-center py-4">
+                              <Loader2 size={14} className="animate-spin text-slate-300" />
+                            </div>
+                          ) : orderDetail ? (
+                            <>
+                              {orderDetail.items.map((item, i) => (
+                                <div key={i} className="flex items-center gap-3 px-4 py-2.5">
+                                  {item.image_url ? (
+                                    <img src={item.image_url} alt={item.product_name} className="w-9 h-9 rounded-lg object-contain border border-slate-200 bg-white p-0.5 shrink-0" />
+                                  ) : (
+                                    <div className="w-9 h-9 rounded-lg bg-slate-100 border border-slate-200 flex items-center justify-center shrink-0">
+                                      <Package size={14} className="text-slate-300" />
+                                    </div>
+                                  )}
+                                  <div className="flex-1 min-w-0">
+                                    <p className="text-[11px] font-bold text-slate-800 truncate">{item.product_name}</p>
+                                    <p className="text-[9px] text-slate-400 font-bold">
+                                      {item.quantity}× R$ {Number(item.unit_price).toFixed(2)}
+                                    </p>
+                                  </div>
+                                  <span className="font-mono text-[11px] font-black text-slate-700 shrink-0">
+                                    R$ {(item.quantity * Number(item.unit_price)).toFixed(2)}
+                                  </span>
+                                </div>
+                              ))}
+                              {orderDetail.services.map((svc, i) => (
+                                <div key={`svc-${i}`} className="flex items-center gap-3 px-4 py-2.5">
+                                  <div className="w-9 h-9 rounded-lg bg-violet-50 border border-violet-100 flex items-center justify-center shrink-0">
+                                    <Package size={14} className="text-violet-400" />
+                                  </div>
+                                  <div className="flex-1 min-w-0">
+                                    <p className="text-[11px] font-bold text-slate-800 truncate">{svc.name}</p>
+                                    <p className="text-[9px] text-violet-500 font-black uppercase tracking-wide">Serviço</p>
+                                  </div>
+                                  <span className="font-mono text-[11px] font-black text-slate-700 shrink-0">
+                                    R$ {Number(svc.unit_price).toFixed(2)}
+                                  </span>
+                                </div>
+                              ))}
+                            </>
+                          ) : (
+                            <div className="px-4 py-3 text-[10px] text-slate-400 text-center">
+                              Pedido não encontrado
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })()}
 
                   {/* Financial breakdown */}
                   {(gross != null || discount != null || fee != null) ? (

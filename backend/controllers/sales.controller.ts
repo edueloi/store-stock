@@ -144,18 +144,20 @@ export async function createSale(req: Request, res: Response) {
       if (cust) resolvedCustomerName = cust.name;
     }
 
-    // Validate all products exist before creating the order
+    // Validate all products exist before creating the order (skip if services-only sale)
     const productIds = items.map(i => i.id);
-    const existingProducts = await prisma.product.findMany({
-      where: { id: { in: productIds }, tenant_id: tenantId },
-      select: { id: true },
-    });
-    const foundIds = existingProducts.map(p => p.id);
-    const missingIds = productIds.filter(id => !foundIds.includes(id));
-    if (missingIds.length > 0) {
-      console.error("[createSale] products not found:", missingIds, "for tenant:", tenantId);
-      res.status(422).json({ error: "Produto não encontrado", missingIds });
-      return;
+    if (productIds.length > 0) {
+      const existingProducts = await prisma.product.findMany({
+        where: { id: { in: productIds }, tenant_id: tenantId },
+        select: { id: true },
+      });
+      const foundIds = existingProducts.map(p => p.id);
+      const missingIds = productIds.filter(id => !foundIds.includes(id));
+      if (missingIds.length > 0) {
+        console.error("[createSale] products not found:", missingIds, "for tenant:", tenantId);
+        res.status(422).json({ error: "Produto não encontrado", missingIds });
+        return;
+      }
     }
 
     console.log("[createSale] creating order, grossAmount:", grossAmount, "netAmount:", netAmount, "fee:", roundedFee);
@@ -171,6 +173,7 @@ export async function createSale(req: Request, res: Response) {
         discount_amount: discountVal > 0 ? discountVal : null,
         fee_amount:      roundedFee > 0 ? roundedFee : null,
         status:          "completed",
+        order_type:      items.length === 0 && services && services.length > 0 ? "services" : (services && services.length > 0 ? "mixed" : "products"),
         payment_method:  pmString,
         client_sale_id:  clientSaleId ?? null,
         items: {
@@ -251,12 +254,18 @@ export async function createSale(req: Request, res: Response) {
       data: {
         tenant_id:       tenantId,
         type:            "income",
-        description:     `Venda PDV #${order.id} — ${methodSummary}${discountNote}${surchargeNote}${feeNote}`,
+        description:     items.length === 0
+          ? `Serviços PDV #${order.id} — ${methodSummary}${discountNote}${surchargeNote}${feeNote}`
+          : (services && services.length > 0
+            ? `Venda Mista PDV #${order.id} — ${methodSummary}${discountNote}${surchargeNote}${feeNote}`
+            : `Venda PDV #${order.id} — ${methodSummary}${discountNote}${surchargeNote}${feeNote}`),
         amount:          netAmount,
         gross_amount:    grossAmount,
         fee_amount:      roundedFee > 0 ? roundedFee : null,
         discount_amount: discountVal > 0 ? discountVal : null,
         payment_method:  pmString,
+        source:          items.length === 0 ? "services" : (services && services.length > 0 ? "mixed" : "pdv"),
+        order_id:        order.id,
         // offline sales synced later carry the original sale date
         date:            soldAtDate && /^\d{4}-\d{2}-\d{2}$/.test(soldAtDate) ? new Date(soldAtDate + "T00:00:00Z") : localDateString(),
       },

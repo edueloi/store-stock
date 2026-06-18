@@ -8,6 +8,68 @@ function getTenantId(req: Request) {
   return (req as AuthenticatedRequest).user.tenantId;
 }
 
+function getActor(req: Request): string {
+  const u = (req as AuthenticatedRequest).user;
+  return (u as any).name ?? (u as any).email ?? "Sistema";
+}
+
+// ── helpers ──────────────────────────────────────────────────────────────────
+
+async function logAction(
+  tenantId: number,
+  orderId: number,
+  action: string,
+  actor?: string,
+  note?: string,
+  meta?: object,
+) {
+  await (prisma as any).orderAction.create({
+    data: { tenant_id: tenantId, order_id: orderId, action, actor: actor ?? null, note: note ?? null, meta: meta ?? null },
+  });
+}
+
+// Reverts stock for all items of a completed order (cancel or delete).
+// Also handles SKU/variation stock for items that carried selectedOptions in meta.
+async function revertStock(items: { product_id: number; quantity: number; selected_options?: any }[]) {
+  for (const item of items) {
+    await prisma.product.update({
+      where: { id: item.product_id },
+      data: { stock_quantity: { increment: item.quantity } },
+    });
+
+    // Revert SKU-level stock if the item had specific variation options stored in meta
+    const opts = item.selected_options as Record<string, string> | null | undefined;
+    if (opts && Object.keys(opts).length > 0) {
+      const product = await prisma.product.findUnique({
+        where: { id: item.product_id },
+        select: { skus: true, variations: true },
+      });
+      if (product?.skus) {
+        type SkuEntry = { combo: Record<string, string>; stock: number };
+        const skus = product.skus as SkuEntry[];
+        const updated = skus.map((sku) => {
+          const matches = Object.entries(opts).every(([k, v]) => sku.combo[k] === v);
+          return matches ? { ...sku, stock: sku.stock + item.quantity } : sku;
+        });
+        await prisma.product.update({ where: { id: item.product_id }, data: { skus: updated } });
+      } else if (product?.variations) {
+        type LegacyVariation = { name: string; options: { value: string; stock: number }[] };
+        const variations = product.variations as LegacyVariation[];
+        const updated = variations.map((v) => ({
+          ...v,
+          options: v.options.map((o) => {
+            const matches = opts[v.name] === o.value;
+            return matches ? { ...o, stock: o.stock + item.quantity } : o;
+          }),
+        }));
+        await prisma.product.update({ where: { id: item.product_id }, data: { variations: updated } });
+      }
+    }
+  }
+}
+
+// ── Controllers ───────────────────────────────────────────────────────────────
+
 export async function listOrders(req: Request, res: Response) {
   try {
     const limit = req.query.limit ? Number(req.query.limit) : undefined;
@@ -16,13 +78,7 @@ export async function listOrders(req: Request, res: Response) {
       orderBy: { created_at: "desc" },
       take: limit,
       include: {
-        items: {
-          include: {
-            product: {
-              select: { name: true, image_url: true },
-            },
-          },
-        },
+        items: { include: { product: { select: { name: true, image_url: true } } } },
         services: true,
       },
     });
@@ -37,11 +93,8 @@ export async function listOrders(req: Request, res: Response) {
         unit_price: item.unit_price,
       })),
       services: order.services.map((svc) => ({
-        id: svc.id,
-        service_id: svc.service_id,
-        name: svc.name,
-        unit_price: svc.unit_price,
-        quantity: svc.quantity,
+        id: svc.id, service_id: svc.service_id, name: svc.name,
+        unit_price: svc.unit_price, quantity: svc.quantity,
       })),
     })));
   } catch {
@@ -52,43 +105,48 @@ export async function listOrders(req: Request, res: Response) {
 export async function getOrderById(req: Request, res: Response) {
   try {
     const order = await prisma.order.findFirst({
-      where: {
-        id: Number(req.params.id),
-        tenant_id: getTenantId(req),
-      },
+      where: { id: Number(req.params.id), tenant_id: getTenantId(req) },
       include: {
-        items: {
-          include: {
-            product: {
-              select: { name: true },
-            },
-          },
-        },
+        items: { include: { product: { select: { name: true, image_url: true } } } },
         services: true,
       },
     });
 
-    if (!order) {
-      res.status(404).json({ error: "Order not found" });
-      return;
-    }
+    if (!order) { res.status(404).json({ error: "Order not found" }); return; }
 
     res.json({
       ...order,
       items: order.items.map((item) => ({
         ...item,
         product_name: item.product.name,
+        image_url: item.product.image_url ?? null,
       })),
       services: order.services.map((svc) => ({
-        id: svc.id,
-        service_id: svc.service_id,
-        name: svc.name,
-        unit_price: svc.unit_price,
-        quantity: svc.quantity,
+        id: svc.id, service_id: svc.service_id, name: svc.name,
+        unit_price: svc.unit_price, quantity: svc.quantity,
       })),
     });
   } catch {
     res.status(500).json({ error: "Failed to fetch order details" });
+  }
+}
+
+export async function getOrderActions(req: Request, res: Response) {
+  try {
+    const tenantId = getTenantId(req);
+    const orderId  = Number(req.params.id);
+
+    const order = await prisma.order.findFirst({ where: { id: orderId, tenant_id: tenantId }, select: { id: true } });
+    if (!order) { res.status(404).json({ error: "Pedido não encontrado" }); return; }
+
+    const actions = await (prisma as any).orderAction.findMany({
+      where: { order_id: orderId, tenant_id: tenantId },
+      orderBy: { created_at: "desc" },
+    });
+
+    res.json(actions);
+  } catch {
+    res.status(500).json({ error: "Falha ao buscar histórico" });
   }
 }
 
@@ -98,19 +156,13 @@ export async function updateOrderStatus(req: Request, res: Response) {
     const orderId  = Number(req.params.id);
     const newStatus: string = req.body.status;
 
-    const order = await prisma.order.findFirst({
-      where: { id: orderId, tenant_id: tenantId },
-    });
+    const order = await prisma.order.findFirst({ where: { id: orderId, tenant_id: tenantId } });
+    if (!order) { res.status(404).json({ error: "Order not found" }); return; }
 
-    if (!order) {
-      res.status(404).json({ error: "Order not found" });
-      return;
-    }
+    await prisma.order.update({ where: { id: orderId }, data: { status: newStatus } });
 
-    await prisma.order.update({
-      where: { id: orderId },
-      data: { status: newStatus },
-    });
+    // Log the status change
+    await logAction(tenantId, orderId, "status_change", getActor(req), `Status alterado: ${order.status} → ${newStatus}`);
 
     // When a pending order is manually marked as completed, create the finance entry
     if (newStatus === "completed" && order.status !== "completed") {
@@ -130,17 +182,17 @@ export async function updateOrderStatus(req: Request, res: Response) {
 
       await prisma.finance.create({
         data: {
-          tenant_id:       tenantId,
-          type:            "income",
-          description:     `Venda PDV #${orderId} — ${methodSummary}${discountNote}`,
-          amount:          net,
-          gross_amount:    gross,
-          fee_amount:      fee > 0 ? fee : null,
+          tenant_id: tenantId, type: "income",
+          description: `Venda PDV #${orderId} — ${methodSummary}${discountNote}`,
+          amount: net, gross_amount: gross,
+          fee_amount: fee > 0 ? fee : null,
           discount_amount: discount > 0 ? discount : null,
-          payment_method:  pm,
-          date:            localDateString(),
+          payment_method: pm,
+          date: localDateString(),
         },
       });
+
+      await logAction(tenantId, orderId, "finance_created", getActor(req), `Entrada financeira criada: R$ ${net.toFixed(2)}`);
     }
 
     res.json({ success: true });
@@ -153,58 +205,62 @@ export async function cancelOrder(req: Request, res: Response) {
   try {
     const tenantId  = getTenantId(req);
     const orderId   = Number(req.params.id);
-    const { cancel_reason, cancelled_by } = req.body as {
-      cancel_reason?: string;
-      cancelled_by?: string;
-    };
+    const { cancel_reason, cancelled_by } = req.body as { cancel_reason?: string; cancelled_by?: string };
 
-    // Load order with items
     const order = await prisma.order.findFirst({
       where: { id: orderId, tenant_id: tenantId },
       include: { items: true },
     });
 
-    if (!order) {
-      res.status(404).json({ error: "Pedido não encontrado" });
-      return;
-    }
+    if (!order) { res.status(404).json({ error: "Pedido não encontrado" }); return; }
+    if (order.status === "cancelled") { res.status(400).json({ error: "Pedido já cancelado" }); return; }
 
-    if (order.status === "cancelled") {
-      res.status(400).json({ error: "Pedido já cancelado" });
-      return;
-    }
-
-    // Mark order as cancelled
+    // Mark as cancelled
     await prisma.order.update({
       where: { id: orderId },
       data: {
-        status:       "cancelled",
-        cancelled_by: cancelled_by || "Sistema",
+        status:        "cancelled",
+        cancelled_by:  cancelled_by || "Sistema",
         cancel_reason: cancel_reason || null,
-        cancelled_at: new Date(),
+        cancelled_at:  new Date(),
       },
     });
 
-    // Revert stock for each item
-    for (const item of order.items) {
-      await prisma.product.update({
-        where: { id: item.product_id },
-        data: { stock_quantity: { increment: item.quantity } },
+    // Revert stock (total + SKU/variation level)
+    const itemsWithOptions = order.items.map((item) => ({
+      product_id: item.product_id,
+      quantity:   item.quantity,
+      selected_options: (item as any).selected_options ?? null,
+    }));
+    await revertStock(itemsWithOptions);
+
+    // Build stock revert summary for the log
+    const stockNote = order.items.map(i => `#${i.product_id} +${i.quantity}`).join(", ");
+
+    // Remove the original finance entry linked to this order (instead of creating a counter-entry)
+    // This cleanly removes the sale from cash flow and the overview, as if it never happened.
+    const deleted = await (prisma.finance as any).deleteMany({
+      where: { tenant_id: tenantId, order_id: orderId },
+    });
+
+    // Fallback: if no order_id link found, try matching by description (legacy entries)
+    if (deleted.count === 0) {
+      await prisma.finance.deleteMany({
+        where: {
+          tenant_id:   tenantId,
+          description: { contains: `#${orderId}` },
+          type:        "income",
+        },
       });
     }
 
-    // Create a finance reversal (estorno) entry
-    const net = Number(order.total_amount);
-    await prisma.finance.create({
-      data: {
-        tenant_id:   tenantId,
-        type:        "expense",
-        description: `Estorno Pedido #${orderId}${cancel_reason ? ` — ${cancel_reason}` : ""}${cancelled_by ? ` (por: ${cancelled_by})` : ""}`,
-        amount:      net,
-        date:        localDateString(),
-        category:    "Estorno",
-      },
-    });
+    // Log the cancellation action
+    await logAction(
+      tenantId, orderId, "cancelled",
+      cancelled_by || getActor(req),
+      cancel_reason || undefined,
+      { stock_reverted: stockNote, finance_entries_removed: deleted.count },
+    );
 
     res.json({ success: true });
   } catch (err) {
@@ -217,14 +273,36 @@ export async function deleteOrder(req: Request, res: Response) {
   try {
     const tenantId = getTenantId(req);
     const orderId  = Number(req.params.id);
+    const shouldRevertStock   = req.body?.revertStock   !== false;
+    const shouldRevertFinance = req.body?.revertFinance !== false;
 
     const order = await prisma.order.findFirst({
       where: { id: orderId, tenant_id: tenantId },
+      include: { items: true },
     });
 
-    if (!order) {
-      res.status(404).json({ error: "Pedido não encontrado" });
-      return;
+    if (!order) { res.status(404).json({ error: "Pedido não encontrado" }); return; }
+
+    if (order.status === "completed") {
+      if (shouldRevertStock) {
+        const itemsWithOptions = order.items.map((item) => ({
+          product_id: item.product_id,
+          quantity:   item.quantity,
+          selected_options: (item as any).selected_options ?? null,
+        }));
+        await revertStock(itemsWithOptions);
+      }
+
+      if (shouldRevertFinance) {
+        const deleted = await (prisma.finance as any).deleteMany({
+          where: { tenant_id: tenantId, order_id: orderId },
+        });
+        if (deleted.count === 0) {
+          await prisma.finance.deleteMany({
+            where: { tenant_id: tenantId, description: { contains: `#${orderId}` }, type: "income" },
+          });
+        }
+      }
     }
 
     await prisma.orderItem.deleteMany({ where: { order_id: orderId } });
@@ -242,23 +320,44 @@ export async function bulkDeleteOrders(req: Request, res: Response) {
   try {
     const tenantId = getTenantId(req);
     const { ids } = req.body as { ids: number[] };
+    const shouldRevertStock   = req.body?.revertStock   !== false;
+    const shouldRevertFinance = req.body?.revertFinance !== false;
 
     if (!Array.isArray(ids) || ids.length === 0) {
-      res.status(400).json({ error: "IDs inválidos" });
-      return;
+      res.status(400).json({ error: "IDs inválidos" }); return;
     }
 
-    // Ensure all orders belong to this tenant
     const orders = await prisma.order.findMany({
       where: { id: { in: ids }, tenant_id: tenantId },
-      select: { id: true },
+      include: { items: true },
     });
+
+    if (orders.length === 0) { res.status(404).json({ error: "Nenhum pedido encontrado" }); return; }
 
     const validIds = orders.map((o) => o.id);
 
-    if (validIds.length === 0) {
-      res.status(404).json({ error: "Nenhum pedido encontrado" });
-      return;
+    for (const order of orders) {
+      if (order.status === "completed") {
+        if (shouldRevertStock) {
+          const itemsWithOptions = order.items.map((item) => ({
+            product_id: item.product_id,
+            quantity:   item.quantity,
+            selected_options: (item as any).selected_options ?? null,
+          }));
+          await revertStock(itemsWithOptions);
+        }
+
+        if (shouldRevertFinance) {
+          const deleted = await (prisma.finance as any).deleteMany({
+            where: { tenant_id: tenantId, order_id: order.id },
+          });
+          if (deleted.count === 0) {
+            await prisma.finance.deleteMany({
+              where: { tenant_id: tenantId, description: { contains: `#${order.id}` }, type: "income" },
+            });
+          }
+        }
+      }
     }
 
     await prisma.orderItem.deleteMany({ where: { order_id: { in: validIds } } });

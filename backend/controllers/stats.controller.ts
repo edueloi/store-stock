@@ -76,16 +76,13 @@ export async function getDashboardStats(req: Request, res: Response) {
   const toEnd = endOfDay(to);
 
   try {
-    const [totalGross, totalIncome, products, cogsResult] = await Promise.all([
-      // Bruto = soma de gross_amount das entradas do finance (igual ao card "Bruto" do Fluxo de Caixa)
+    const baseWhere = { tenant_id: tenantId, type: "income", date: { gte: from, lte: to } } as const;
+
+    const [totalGross, products, cogsResult, servicesRevenue, productsRevenue, servicesCount, productsCount] = await Promise.all([
+      // Bruto total (todos os tipos)
       prisma.finance.aggregate({
-        where: { tenant_id: tenantId, type: "income", date: { gte: from, lte: to } },
+        where: baseWhere,
         _sum: { gross_amount: true, amount: true },
-      }),
-      // Líquido = soma de amount das entradas do finance (igual ao "Total Entradas" do Fluxo de Caixa)
-      prisma.finance.aggregate({
-        where: { tenant_id: tenantId, type: "income", date: { gte: from, lte: to } },
-        _sum: { amount: true },
       }),
       prisma.product.findMany({
         where: { tenant_id: tenantId },
@@ -99,43 +96,77 @@ export async function getDashboardStats(req: Request, res: Response) {
         WHERE o.tenant_id = ${tenantId} AND o.status = 'completed'
           AND o.created_at >= ${from} AND o.created_at <= ${toEnd}
       `,
+      // Receita líquida de serviços (source = 'services')
+      prisma.finance.aggregate({
+        where: { ...baseWhere, source: "services" },
+        _sum: { amount: true, gross_amount: true },
+      }),
+      // Receita líquida de produtos (source = 'pdv' ou null para entradas antigas)
+      prisma.finance.aggregate({
+        where: { ...baseWhere, OR: [{ source: "pdv" }, { source: null }] },
+        _sum: { amount: true, gross_amount: true },
+      }),
+      // Contagem de ordens de serviço no período
+      prisma.order.count({
+        where: { tenant_id: tenantId, status: "completed", order_type: "services", created_at: { gte: from, lte: toEnd } },
+      }),
+      // Contagem de ordens de produto no período
+      prisma.order.count({
+        where: { tenant_id: tenantId, status: "completed", order_type: { in: ["products", "mixed"] }, created_at: { gte: from, lte: toEnd } },
+      }),
     ]);
 
     const stockValue = products.reduce(
-      (accumulator, product) =>
-        accumulator + product.stock_quantity * Number(product.cost_price),
-      0
+      (acc, p) => acc + p.stock_quantity * Number(p.cost_price), 0
     );
 
-    // Série diária dentro do período selecionado. Montamos a série completa
-    // no JS para que dias SEM venda apareçam como zero e a ordem seja crescente.
-    const rawDaily = await prisma.$queryRaw<{ date: string; total: number }[]>`
-      SELECT DATE(date) as date, SUM(amount) as total
-      FROM finance
-      WHERE tenant_id = ${tenantId}
-        AND type = 'income'
-        AND DATE(date) >= ${ymd(from)}
-        AND DATE(date) <= ${ymd(to)}
-      GROUP BY DATE(date)
-    `;
-    const dailyMap = new Map<string, number>();
-    for (const r of rawDaily) {
-      dailyMap.set(String(r.date).substring(0, 10), Number(r.total) || 0);
+    // Série diária — busca todos os registros do período e agrupa em JS
+    // (evita dependência de timezone do MySQL em queries DATE() raw)
+    const allDailyEntries = await prisma.finance.findMany({
+      where: { tenant_id: tenantId, type: "income", date: { gte: from, lte: toEnd } },
+      select: { date: true, amount: true, source: true },
+    });
+
+    // Agrupa por dia (YYYY-MM-DD) em JS para evitar problemas de timezone do MySQL
+    const dailyAgg    = new Map<string, number>();
+    const dailySvc    = new Map<string, number>();
+    const dailyPdv    = new Map<string, number>();
+    for (const row of allDailyEntries) {
+      // Normalize to YYYY-MM-DD regardless of how the driver returns the date.
+      // @db.Date values are stored as UTC midnight — we extract the UTC calendar day.
+      const d = row.date instanceof Date ? row.date : new Date(String(row.date));
+      const key = ymd(d);
+      const amt  = Number(row.amount) || 0;
+      dailyAgg.set(key, (dailyAgg.get(key) ?? 0) + amt);
+      if (row.source === "services") {
+        dailySvc.set(key, (dailySvc.get(key) ?? 0) + amt);
+      } else {
+        dailyPdv.set(key, (dailyPdv.get(key) ?? 0) + amt);
+      }
     }
-    // gera todos os dias do período (limite de 366 pontos por segurança)
-    const salesOverTime: { date: string; total: number }[] = [];
+
+    const salesOverTime: { date: string; total: number; services: number; products: number }[] = [];
     const cursor = new Date(from.getTime());
     let guard = 0;
     while (cursor.getTime() <= to.getTime() && guard < 366) {
       const key = ymd(cursor);
-      salesOverTime.push({ date: key, total: dailyMap.get(key) ?? 0 });
+      salesOverTime.push({
+        date:     key,
+        total:    dailyAgg.get(key) ?? 0,
+        services: dailySvc.get(key) ?? 0,
+        products: dailyPdv.get(key) ?? 0,
+      });
       cursor.setUTCDate(cursor.getUTCDate() + 1);
       guard++;
     }
 
-    const grossRevenue = Number(totalGross._sum.gross_amount ?? totalGross._sum.amount) || 0;
-    const netRevenue   = Number(totalIncome._sum.amount) || 0;
-    const cogs         = Number(cogsResult[0]?.cogs) || 0;
+    const grossRevenue          = Number(totalGross._sum.gross_amount ?? totalGross._sum.amount) || 0;
+    const netRevenue            = Number(totalGross._sum.amount) || 0;
+    const cogs                  = Number(cogsResult[0]?.cogs) || 0;
+    const servicesNet           = Number(servicesRevenue._sum.amount) || 0;
+    const servicesGross         = Number(servicesRevenue._sum.gross_amount ?? servicesRevenue._sum.amount) || 0;
+    const productsNet           = Number(productsRevenue._sum.amount) || 0;
+    const productsGross         = Number(productsRevenue._sum.gross_amount ?? productsRevenue._sum.amount) || 0;
 
     res.json({
       summary: {
@@ -143,7 +174,13 @@ export async function getDashboardStats(req: Request, res: Response) {
         netRevenue,
         cogs,
         stockValue,
-        profit: netRevenue - cogs,
+        profit:         netRevenue - cogs,
+        servicesNet,
+        servicesGross,
+        servicesCount,
+        productsNet,
+        productsGross,
+        productsCount,
       },
       salesOverTime,
     });

@@ -153,7 +153,7 @@ export async function charge(req: Request, res: Response) {
 
     res.json(transaction);
   } catch (err) {
-    res.status(500).json({ error: String(err) });
+    res.status(400).json({ error: String(err) });
   }
 }
 

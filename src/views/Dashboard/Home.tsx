@@ -6,12 +6,12 @@ import {
   Twitter, Youtube, Linkedin, Mail, Phone, MessageCircle,
   Calendar, Music, Bookmark, Star, Shield, Coffee, Heart,
   Link2, CheckCircle2, Check,
-  BarChart3, Zap
+  BarChart3, Zap, Wrench,
 } from "lucide-react";
 import PageHeader from "../../components/layout/PageHeader";
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid,
-  Tooltip, ResponsiveContainer
+  Tooltip, ResponsiveContainer, Legend,
 } from "recharts";
 import { motion, AnimatePresence } from "motion/react";
 import { cn } from "../../lib/utils";
@@ -110,6 +110,9 @@ export default function Home() {
   // Filtro de período (default: mês atual)
   const [period, setPeriod] = useState<{ from: string; to: string }>(monthRange);
 
+  // Filtro de visualização de vendas: "all" | "products" | "services"
+  const [salesView, setSalesView] = useState<"all" | "products" | "services">("all");
+
   // Quick links
   const [links, setLinks] = useState<QuickLink[]>([]);
   const [linkModal, setLinkModal] = useState(false);
@@ -141,16 +144,23 @@ export default function Home() {
     }).catch(() => setLoadingStats(false));
   }, [period.from, period.to]);
 
-  // preferências (links/tarefas): carregam uma vez
+  // preferências (links/tarefas/salesView): carregam uma vez
   useEffect(() => {
     Promise.all([
       getPref<QuickLink[]>("quick_links", []),
       getPref<Task[]>("daily_tasks", []),
-    ]).then(([ql, tk]) => {
+      getPref<string>("home_sales_view", "all"),
+    ]).then(([ql, tk, sv]) => {
       setLinks(Array.isArray(ql) ? ql : []);
       setTasks(Array.isArray(tk) ? tk : []);
+      if (sv === "products" || sv === "services" || sv === "all") setSalesView(sv);
     }).catch(() => {});
   }, []);
+
+  const changeSalesView = (v: "all" | "products" | "services") => {
+    setSalesView(v);
+    setPref("home_sales_view", v).catch(() => {});
+  };
 
   // ── Quick Links CRUD ──────────────────────────────────────────
 
@@ -324,6 +334,90 @@ export default function Home() {
         </div>
       )}
 
+      {/* Breakdown: Produtos vs Serviços — com filtro de visualização */}
+      {stats?.summary && (stats.summary.servicesNet > 0 || stats.summary.productsNet > 0) && (
+        <div className="space-y-3">
+          {/* Toggle Tudo / Catálogo / Serviços */}
+          <div className="flex items-center gap-2">
+            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Vendas:</span>
+            <div className="flex items-center gap-1 bg-slate-100 rounded-xl p-1">
+              {([
+                { v: "all",      label: "Tudo"      },
+                { v: "products", label: "Catálogo"  },
+                { v: "services", label: "Serviços"  },
+              ] as const).map(({ v, label }) => (
+                <button
+                  key={v}
+                  onClick={() => changeSalesView(v)}
+                  className={cn(
+                    "h-7 px-3 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all",
+                    salesView === v
+                      ? v === "services" ? "bg-violet-600 text-white shadow-sm"
+                        : v === "products" ? "bg-blue-600 text-white shadow-sm"
+                        : "bg-slate-900 text-white shadow-sm"
+                      : "text-slate-500 hover:text-slate-700"
+                  )}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className={cn("grid gap-4", salesView === "all" ? "grid-cols-1 sm:grid-cols-2" : "grid-cols-1 sm:grid-cols-1 max-w-sm")}>
+            {/* Produtos card */}
+            {(salesView === "all" || salesView === "products") && (
+              <motion.div
+                key="products"
+                initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
+                className="bg-white p-4 rounded-2xl border border-blue-100 shadow-sm"
+              >
+                <div className="flex items-center gap-2 mb-3">
+                  <div className="w-8 h-8 rounded-xl bg-blue-50 flex items-center justify-center">
+                    <Package size={15} className="text-blue-600" />
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Vendas — Catálogo</p>
+                    <p className="text-[9px] text-slate-400">{stats.summary.productsCount ?? "—"} pedido{stats.summary.productsCount !== 1 ? "s" : ""}</p>
+                  </div>
+                </div>
+                <h3 className="text-xl font-black text-blue-600 font-mono tracking-tight">
+                  {`R$ ${Number(stats.summary.productsNet).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`}
+                </h3>
+                <p className="text-[9px] text-slate-400 mt-0.5">
+                  Bruto: {`R$ ${Number(stats.summary.productsGross).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`}
+                </p>
+              </motion.div>
+            )}
+
+            {/* Serviços card */}
+            {(salesView === "all" || salesView === "services") && (
+              <motion.div
+                key="services"
+                initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: salesView === "all" ? 0.05 : 0 }}
+                className="bg-white p-4 rounded-2xl border border-violet-100 shadow-sm"
+              >
+                <div className="flex items-center gap-2 mb-3">
+                  <div className="w-8 h-8 rounded-xl bg-violet-50 flex items-center justify-center">
+                    <Wrench size={15} className="text-violet-600" />
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Vendas — Serviços</p>
+                    <p className="text-[9px] text-slate-400">{stats.summary.servicesCount ?? "—"} pedido{stats.summary.servicesCount !== 1 ? "s" : ""}</p>
+                  </div>
+                </div>
+                <h3 className="text-xl font-black text-violet-600 font-mono tracking-tight">
+                  {`R$ ${Number(stats.summary.servicesNet).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`}
+                </h3>
+                <p className="text-[9px] text-slate-400 mt-0.5">
+                  Bruto: {`R$ ${Number(stats.summary.servicesGross).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`}
+                </p>
+              </motion.div>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Chart + Top Products */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 bg-white p-5 rounded-2xl border border-slate-100 shadow-sm">
@@ -339,9 +433,17 @@ export default function Home() {
               <ResponsiveContainer width="100%" height="100%">
                 <AreaChart data={stats.salesOverTime}>
                   <defs>
-                    <linearGradient id="gSales" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.12} />
+                    <linearGradient id="gTotal" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.10} />
                       <stop offset="95%" stopColor="#3b82f6" stopOpacity={0} />
+                    </linearGradient>
+                    <linearGradient id="gProducts" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#0ea5e9" stopOpacity={0.12} />
+                      <stop offset="95%" stopColor="#0ea5e9" stopOpacity={0} />
+                    </linearGradient>
+                    <linearGradient id="gServices" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.12} />
+                      <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0} />
                     </linearGradient>
                   </defs>
                   <CartesianGrid strokeDasharray="4 4" vertical={false} stroke="#f1f5f9" />
@@ -356,9 +458,27 @@ export default function Home() {
                     contentStyle={{ borderRadius: 10, border: "1px solid #f1f5f9", fontSize: 11, fontWeight: 700, boxShadow: "0 4px 12px rgba(0,0,0,0.08)" }}
                     labelStyle={{ color: "#1e293b", marginBottom: 2 }}
                     labelFormatter={(v: string) => new Date(v + "T00:00:00").toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric" })}
-                    formatter={(value: number) => [`R$ ${Number(value).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, "Faturamento"]}
+                    formatter={(value: number, name: string) => {
+                      const labels: Record<string, string> = { total: "Total", products: "Catálogo", services: "Serviços" };
+                      return [`R$ ${Number(value).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, labels[name] ?? name];
+                    }}
                   />
-                  <Area type="monotone" dataKey="total" stroke="#3b82f6" strokeWidth={2.5} fillOpacity={1} fill="url(#gSales)" dot={false} />
+                  <Legend
+                    iconType="circle" iconSize={7}
+                    formatter={(v) => {
+                      const labels: Record<string, string> = { total: "Total", products: "Catálogo", services: "Serviços" };
+                      return <span style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: 1 }}>{labels[v] ?? v}</span>;
+                    }}
+                  />
+                  {salesView !== "services" && (
+                    <Area type="monotone" dataKey={salesView === "products" ? "products" : "total"} name={salesView === "products" ? "products" : "total"} stroke="#3b82f6" strokeWidth={2.5} fillOpacity={1} fill="url(#gTotal)" dot={false} />
+                  )}
+                  {salesView === "all" && (
+                    <Area type="monotone" dataKey="products" name="products" stroke="#0ea5e9" strokeWidth={1.5} strokeDasharray="4 2" fillOpacity={1} fill="url(#gProducts)" dot={false} />
+                  )}
+                  {(salesView === "all" || salesView === "services") && (
+                    <Area type="monotone" dataKey="services" name="services" stroke="#8b5cf6" strokeWidth={salesView === "services" ? 2.5 : 1.5} strokeDasharray={salesView === "services" ? undefined : "4 2"} fillOpacity={1} fill="url(#gServices)" dot={false} />
+                  )}
                 </AreaChart>
               </ResponsiveContainer>
             </div>

@@ -11,6 +11,7 @@ import { motion, AnimatePresence } from "motion/react";
 import { Product, Category } from "../types";
 import { cn } from "../lib/utils";
 import Combobox from "../components/ui/Combobox";
+import { SERVICE_CATEGORIES, SERVICE_UNITS } from "./Dashboard/Services";
 import {
   cacheSet, cacheGet, queueSale, getPendingSales,
   removePendingSale, countPendingSales, PendingSale,
@@ -79,7 +80,7 @@ interface CompletedSale {
 }
 
 interface SellerEntry { id: number; name: string; commission_rate: number }
-interface ServiceItem  { id: number; name: string; price: number; description?: string }
+interface ServiceItem  { id: number; name: string; price: number; description?: string; unit?: string; category?: string; quantity?: number }
 
 function newPayment(): PaymentEntry {
   return { id: Math.random().toString(36).slice(2), method: "money", cardBrand: "visa", installments: 1, amount: "" };
@@ -250,6 +251,7 @@ export default function PDVStandalone() {
   const [services, setServices]               = useState<ServiceItem[]>([]);
   const [cartServices, setCartServices]       = useState<ServiceItem[]>([]);
   const [showServicesModal, setShowServicesModal] = useState(false);
+  const [showServicesTab, setShowServicesTab] = useState(false);
 
   // receipt modal
   const [completedSale, setCompletedSale]   = useState<CompletedSale | null>(null);
@@ -605,7 +607,7 @@ export default function PDVStandalone() {
   const removeFromCart = (id: string) => setCart(cart.filter((i) => i.cartItemId !== id));
 
   // ── totals ───────────────────────────────────────────────────────────────────
-  const servicesTotal  = cartServices.reduce((a, s) => a + Number(s.price), 0);
+  const servicesTotal  = cartServices.reduce((a, s) => a + Number(s.price) * (s.quantity ?? 1), 0);
   const subtotal       = cart.reduce((a, b) => a + b.price * b.quantity, 0) + servicesTotal;
   const discountRaw    = Number(discount) || 0;
   const discountValue  = discountMode === "%"
@@ -650,8 +652,8 @@ export default function PDVStandalone() {
   const moneyPmt    = payments.find((p) => p.method === "money");
   const moneyAmt    = Number(moneyPmt?.amount) || 0;
   const change      = moneyAmt > 0 && paidAmount >= total ? moneyAmt - (total - (paidAmount - moneyAmt)) : 0;
-  const cartQty     = cart.reduce((a, b) => a + b.quantity, 0);
-  const canFinish   = cart.length > 0 && total > 0;
+  const cartQty     = cart.reduce((a, b) => a + b.quantity, 0) + cartServices.reduce((a, s) => a + (s.quantity ?? 1), 0);
+  const canFinish   = (cart.length > 0 || cartServices.length > 0) && total > 0;
 
   // ── payment helpers ──────────────────────────────────────────────────────────
   const updatePayment = useCallback((id: string, patch: Partial<PaymentEntry>) =>
@@ -879,7 +881,7 @@ ${sale.change > 0 ? `<hr class="divider"/><div class="row bold"><span>TROCO:</sp
     const clientSaleId = crypto.randomUUID();
     const saleBody = {
       items: cart.map((i) => ({ id: i.id, quantity: i.quantity, price: i.price, selectedOptions: i.selectedOptions ?? null })),
-      services: cartServices.map((s) => ({ id: s.id, name: s.name, price: s.price })),
+      services: cartServices.map((s) => ({ id: s.id, name: s.name, price: s.price, quantity: s.quantity ?? 1 })),
       customerName,
       customerId: selectedCustomerId ?? undefined,
       sellerId: selectedSellerId,
@@ -1228,26 +1230,114 @@ ${sale.change > 0 ? `<hr class="divider"/><div class="row bold"><span>TROCO:</sp
             </button>
           </div>
 
-          {/* Categorias */}
-          {categories.length > 0 && (
-            <div className="flex gap-1.5 overflow-x-auto pb-0.5 shrink-0 scrollbar-none">
-              {[{ id: null, name: "Todos" }, ...categories.map(c => ({ id: c.id as number | null, name: c.name }))].map((cat) => (
-                <button key={cat.id ?? "all"} onClick={() => setSelectedCategory(cat.id)}
-                  className={cn(
-                    "shrink-0 h-7 px-3 rounded-lg text-[10px] font-bold tracking-wide transition-all border flex items-center gap-1",
-                    selectedCategory === cat.id
-                      ? "text-white border-blue-500 shadow"
-                      : "bg-white text-slate-500 border-slate-200 hover:border-blue-300 hover:text-blue-600"
-                  )}
-                  style={selectedCategory === cat.id ? { background: "linear-gradient(135deg,#3b82f6,#1d4ed8)" } : {}}>
-                  {cat.id !== null && <Tag size={9} />} {cat.name}
-                </button>
-              ))}
+          {/* Categorias + aba Serviços */}
+          <div className="flex gap-1.5 overflow-x-auto pb-0.5 shrink-0 scrollbar-none">
+            {/* Serviços FIRST */}
+            {services.length > 0 && (
+              <button
+                onClick={() => { setShowServicesTab(true); setSelectedCategory(null); }}
+                className={cn(
+                  "shrink-0 h-7 px-3 rounded-lg text-[10px] font-bold tracking-wide transition-all border flex items-center gap-1.5",
+                  showServicesTab
+                    ? "text-white border-violet-500 shadow"
+                    : "bg-white text-slate-500 border-slate-200 hover:border-violet-300 hover:text-violet-600"
+                )}
+                style={showServicesTab ? { background: "linear-gradient(135deg,#8b5cf6,#6d28d9)" } : {}}>
+                <Wrench size={9} /> Serviços
+                {cartServices.length > 0 && (
+                  <span className={cn(
+                    "ml-0.5 w-4 h-4 rounded-full text-[8px] font-black flex items-center justify-center",
+                    showServicesTab ? "bg-white/20 text-white" : "bg-violet-100 text-violet-700"
+                  )}>{cartServices.length}</span>
+                )}
+              </button>
+            )}
+            {categories.length > 0 && [{ id: null, name: "Todos" }, ...categories.map(c => ({ id: c.id as number | null, name: c.name }))].map((cat) => (
+              <button key={cat.id ?? "all"}
+                onClick={() => { setShowServicesTab(false); setSelectedCategory(cat.id); }}
+                className={cn(
+                  "shrink-0 h-7 px-3 rounded-lg text-[10px] font-bold tracking-wide transition-all border flex items-center gap-1",
+                  !showServicesTab && selectedCategory === cat.id
+                    ? "text-white border-blue-500 shadow"
+                    : "bg-white text-slate-500 border-slate-200 hover:border-blue-300 hover:text-blue-600"
+                )}
+                style={!showServicesTab && selectedCategory === cat.id ? { background: "linear-gradient(135deg,#3b82f6,#1d4ed8)" } : {}}>
+                {cat.id !== null && <Tag size={9} />} {cat.name}
+              </button>
+            ))}
+          </div>
+
+          {/* Grid de serviços */}
+          {showServicesTab && (
+            <div className="flex-1 overflow-y-auto pr-1 pb-2 pdv-scroll-light">
+              {services.length === 0 ? (
+                <div className="h-full flex flex-col items-center justify-center gap-3">
+                  <Wrench size={44} className="text-slate-300" strokeWidth={1} />
+                  <p className="text-[11px] font-black uppercase tracking-widest text-slate-400">Nenhum serviço cadastrado</p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-2.5">
+                  {services.map((svc) => {
+                    const inCart = cartServices.some((s) => s.id === svc.id);
+                    const catMeta = SERVICE_CATEGORIES.find((c) => c.value === svc.category) ?? SERVICE_CATEGORIES[SERVICE_CATEGORIES.length - 1];
+                    const unitAbbr = SERVICE_UNITS.find((u) => u.value === svc.unit)?.abbr ?? svc.unit ?? "un";
+                    const CatIcon = catMeta.icon;
+                    const cartEntry = cartServices.find((s) => s.id === svc.id);
+                    return (
+                      <motion.button layout key={svc.id}
+                        onClick={() => {
+                          if (cartEntry) setCartServices((prev) => prev.filter((s) => s.id !== svc.id));
+                          else setCartServices((prev) => [...prev, { ...svc, price: Number(svc.price), quantity: 1 }]);
+                        }}
+                        whileTap={{ scale: 0.97 }}
+                        className={cn(
+                          "bg-white rounded-2xl border flex flex-col items-start group relative text-left overflow-hidden transition-all duration-200 p-0",
+                          cartEntry
+                            ? "border-violet-400 shadow-md shadow-violet-100"
+                            : "border-slate-200 hover:border-violet-300 hover:shadow-md hover:shadow-violet-50"
+                        )}>
+                        {/* Área ícone */}
+                        <div className={cn("w-full aspect-[4/3] flex items-center justify-center relative", catMeta.color)}>
+                          <CatIcon size={36} strokeWidth={1.5} />
+                          {/* badge unidade */}
+                          <div className="absolute top-2 right-2 px-1.5 py-0.5 rounded-md text-[8px] font-mono font-bold bg-white/90 border border-slate-200 text-slate-500 shadow-sm">
+                            {unitAbbr}
+                          </div>
+                          {/* badge qty no carrinho */}
+                          {cartEntry && (
+                            <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }}
+                              className="absolute top-2 left-2 w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-black text-white shadow"
+                              style={{ background: "linear-gradient(135deg,#8b5cf6,#6d28d9)" }}>
+                              {cartEntry.quantity ?? 1}
+                            </motion.div>
+                          )}
+                          {/* overlay */}
+                          <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all duration-200 bg-violet-500/10">
+                            <div className="w-9 h-9 rounded-full flex items-center justify-center text-white scale-75 group-hover:scale-100 transition-transform shadow-lg"
+                              style={{ background: cartEntry ? "linear-gradient(135deg,#ef4444,#dc2626)" : "linear-gradient(135deg,#8b5cf6,#6d28d9)" }}>
+                              {cartEntry ? <X size={16} strokeWidth={2.5} /> : <Plus size={16} strokeWidth={2.5} />}
+                            </div>
+                          </div>
+                        </div>
+                        {/* Info */}
+                        <div className="w-full px-2.5 pt-2 pb-2.5">
+                          <p className="text-[11px] font-black text-slate-800 uppercase leading-tight line-clamp-2">{svc.name}</p>
+                          {svc.description && <p className="text-[9px] text-slate-400 mt-0.5 line-clamp-1">{svc.description}</p>}
+                          <p className="text-[12px] font-mono font-black text-violet-600 mt-1">
+                            R$ {Number(svc.price).toFixed(2)}{" "}
+                            <span className="text-[9px] text-slate-400 font-bold">/{unitAbbr}</span>
+                          </p>
+                        </div>
+                      </motion.button>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           )}
 
           {/* Grid de produtos */}
-          <div className="flex-1 overflow-y-auto pr-1 pb-2 pdv-scroll-light">
+          {!showServicesTab && (<div className="flex-1 overflow-y-auto pr-1 pb-2 pdv-scroll-light">
             {loading ? (
               <div className="h-full flex items-center justify-center">
                 <Loader2 size={28} className="animate-spin text-slate-300" />
@@ -1320,7 +1410,7 @@ ${sale.change > 0 ? `<hr class="divider"/><div class="row bold"><span>TROCO:</sp
                 })}
               </div>
             )}
-          </div>
+          </div>)}
         </div>
 
         {/* ── Carrinho Desktop ──────────────────────────────────────────────── */}
@@ -1329,6 +1419,8 @@ ${sale.change > 0 ? `<hr class="divider"/><div class="row bold"><span>TROCO:</sp
             cart={cart}
             updateQuantity={updateQuantity}
             removeFromCart={removeFromCart}
+            cartServices={cartServices}
+            setCartServices={setCartServices}
             subtotal={subtotal}
             discountValue={discountValue}
             surchargeValue={surchargeValue}
@@ -1551,6 +1643,8 @@ ${sale.change > 0 ? `<hr class="divider"/><div class="row bold"><span>TROCO:</sp
                   cart={cart}
                   updateQuantity={updateQuantity}
                   removeFromCart={removeFromCart}
+                  cartServices={cartServices}
+                  setCartServices={setCartServices}
                   subtotal={subtotal}
                   discountValue={discountValue}
                   surchargeValue={surchargeValue}
@@ -1871,14 +1965,26 @@ ${sale.change > 0 ? `<hr class="divider"/><div class="row bold"><span>TROCO:</sp
                         {cartServices.length > 0 && (
                           <div className="mt-1.5 space-y-1">
                             {cartServices.map((s) => (
-                              <div key={s.id} className="flex items-center justify-between bg-blue-50 border border-blue-100 rounded-lg px-2.5 py-1.5">
-                                <span className="flex items-center gap-1.5 text-[10px] font-bold text-slate-700">
-                                  <Wrench size={10} className="text-blue-400" /> {s.name}
+                              <div key={s.id} className="flex items-center justify-between bg-violet-50 border border-violet-100 rounded-lg px-2 py-1.5 gap-1.5">
+                                <span className="flex items-center gap-1 text-[10px] font-bold text-slate-700 min-w-0 flex-1">
+                                  <Wrench size={10} className="text-violet-400 shrink-0" />
+                                  <span className="truncate">{s.name}</span>
                                 </span>
-                                <div className="flex items-center gap-2">
-                                  <span className="text-[10px] font-mono font-black text-blue-600">R$ {Number(s.price).toFixed(2)}</span>
+                                <div className="flex items-center gap-1 shrink-0">
+                                  <button
+                                    onClick={() => setCartServices(prev => (s.quantity ?? 1) <= 1 ? prev.filter(x => x.id !== s.id) : prev.map(x => x.id === s.id ? { ...x, quantity: (x.quantity ?? 1) - 1 } : x))}
+                                    className="w-5 h-5 rounded border border-violet-200 bg-white flex items-center justify-center text-violet-500 hover:bg-violet-100 transition-colors text-[10px] font-black">
+                                    −
+                                  </button>
+                                  <span className="w-5 text-center text-[10px] font-mono font-black text-violet-700">{s.quantity ?? 1}</span>
+                                  <button
+                                    onClick={() => setCartServices(prev => prev.map(x => x.id === s.id ? { ...x, quantity: (x.quantity ?? 1) + 1 } : x))}
+                                    className="w-5 h-5 rounded border border-violet-200 bg-white flex items-center justify-center text-violet-500 hover:bg-violet-100 transition-colors text-[10px] font-black">
+                                    +
+                                  </button>
+                                  <span className="text-[10px] font-mono font-black text-violet-600 ml-1">R$ {(Number(s.price) * (s.quantity ?? 1)).toFixed(2)}</span>
                                   <button onClick={() => setCartServices((prev) => prev.filter((x) => x.id !== s.id))}
-                                    className="text-slate-300 hover:text-red-400 transition-colors">
+                                    className="text-slate-300 hover:text-red-400 transition-colors ml-0.5">
                                     <X size={11} />
                                   </button>
                                 </div>
@@ -2648,12 +2754,15 @@ const PaymentRow = React.memo(function PaymentRow({
 // ─── CART PANEL (apenas lista + botão ir para pagamento) ──────────────────────
 function CartPanel({
   cart, updateQuantity, removeFromCart,
+  cartServices, setCartServices,
   subtotal, discountValue, surchargeValue, feeAmount, total, cartQty,
   onCheckout, canFinish, onClose,
 }: {
   cart: CartItem[];
   updateQuantity: (id: string, delta: number) => void;
   removeFromCart: (id: string) => void;
+  cartServices: { id: number; name: string; price: number; quantity?: number }[];
+  setCartServices: React.Dispatch<React.SetStateAction<{ id: number; name: string; price: number; description?: string; unit?: string; category?: string; quantity?: number }[]>>;
   subtotal: number;
   discountValue: number;
   surchargeValue: number;
@@ -2731,7 +2840,46 @@ function CartPanel({
             </motion.div>
           ))}
         </AnimatePresence>
-        {cart.length === 0 && (
+        {/* Serviços no carrinho */}
+        <AnimatePresence initial={false}>
+          {cartServices.map((svc) => (
+            <motion.div key={`svc-${svc.id}`}
+              initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20, height: 0 }}
+              transition={{ duration: 0.18 }}>
+              <div className="flex items-center gap-2 p-3 rounded-2xl border border-violet-200 bg-violet-50/70 shadow-sm">
+                <div className="w-10 h-10 rounded-xl bg-violet-100 border border-violet-200 flex items-center justify-center shrink-0">
+                  <Wrench size={14} className="text-violet-500" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <span className="text-[8px] font-black uppercase tracking-widest text-violet-500 bg-violet-100 px-1.5 py-0.5 rounded-md">Serviço</span>
+                  <p className="text-[11px] font-bold text-slate-700 truncate leading-tight mt-0.5">{svc.name}</p>
+                  <p className="text-[12px] font-mono font-black text-violet-600">R$ {(Number(svc.price) * (svc.quantity ?? 1)).toFixed(2)}</p>
+                </div>
+                <div className="flex flex-col items-center gap-1 shrink-0">
+                  <div className="flex items-center gap-1 bg-violet-100 border border-violet-200 rounded-xl overflow-hidden">
+                    <button
+                      onClick={() => setCartServices(prev => (svc.quantity ?? 1) <= 1 ? prev.filter(x => x.id !== svc.id) : prev.map(x => x.id === svc.id ? { ...x, quantity: (x.quantity ?? 1) - 1 } : x))}
+                      className="p-1.5 hover:bg-violet-200 text-violet-400 hover:text-violet-700 transition-all">
+                      <Minus size={11} />
+                    </button>
+                    <span className="w-6 text-center font-mono font-black text-[12px] text-violet-700">{svc.quantity ?? 1}</span>
+                    <button
+                      onClick={() => setCartServices(prev => prev.map(x => x.id === svc.id ? { ...x, quantity: (x.quantity ?? 1) + 1 } : x))}
+                      className="p-1.5 hover:bg-violet-200 text-violet-400 hover:text-violet-700 transition-all">
+                      <Plus size={11} />
+                    </button>
+                  </div>
+                  <button onClick={() => setCartServices(prev => prev.filter(x => x.id !== svc.id))}
+                    className="p-1 text-slate-300 hover:text-red-500 transition-colors rounded">
+                    <Trash2 size={12} />
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          ))}
+        </AnimatePresence>
+
+        {cart.length === 0 && cartServices.length === 0 && (
           <div className="h-full flex flex-col items-center justify-center text-slate-300 gap-4 py-16">
             <ShoppingCart size={40} strokeWidth={1} />
             <div className="text-center">

@@ -17,7 +17,7 @@ function buildProvider(config: TerminalProviderConfig): ITerminalProvider {
     // case "cielo":      return new CieloProvider(config);
     // case "pagseguro":  return new PagSeguroProvider(config);
     default:
-      throw new Error(`Provider de maquininha não suportado: ${(config as TerminalProviderConfig).provider}`);
+      throw new Error(`Maquininha "${(config as TerminalProviderConfig).provider}" ainda não integrada. Configure a Rede (Itaú) nas configurações.`);
   }
 }
 

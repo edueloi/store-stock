@@ -2,6 +2,7 @@ import { Router } from "express";
 
 import {
   getOrderById,
+  getOrderActions,
   listOrders,
   updateOrderStatus,
   cancelOrder,
@@ -16,6 +17,7 @@ router.use(authenticateToken);
 
 router.get("/", listOrders);
 router.delete("/bulk", bulkDeleteOrders);
+router.get("/:id/actions", getOrderActions);
 router.get("/:id", getOrderById);
 router.put("/:id/status", updateOrderStatus);
 router.post("/:id/cancel", cancelOrder);

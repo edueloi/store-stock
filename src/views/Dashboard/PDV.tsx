@@ -5,13 +5,13 @@ import {
   Loader2, ExternalLink, RefreshCw, ChevronRight,
   Printer, FileText, MessageCircle, Phone, Clock, Receipt,
   ChevronDown, PlusCircle, Users, Barcode, Wrench, ChevronUp,
-  Star, Gift, UserPlus, Store, Terminal,
+  Star, Gift, UserPlus, Store, Terminal, Ruler,
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
-import html2canvas from "html2canvas";
 import { Product, Category } from "../../types";
 import { cn } from "../../lib/utils";
 import Combobox from "../../components/ui/Combobox";
+import { SERVICE_CATEGORIES, SERVICE_UNITS } from "./Services";
 
 function maskPhone(v: string) {
   const d = v.replace(/\D/g, "").slice(0, 11);
@@ -122,10 +122,11 @@ export default function PDV() {
   const [showCheckout, setShowCheckout] = useState(false);
 
   // services
-  interface ServiceItem { id: number; name: string; price: number; description?: string }
+  interface ServiceItem { id: number; name: string; price: number; description?: string; unit?: string; category?: string; quantity?: number }
   const [services, setServices]         = useState<ServiceItem[]>([]);
   const [showServicesModal, setShowServicesModal] = useState(false);
   const [cartServices, setCartServices] = useState<ServiceItem[]>([]);
+  const [showServicesTab, setShowServicesTab] = useState(false);
 
   // checkout fields — customer
   interface CustomerOption { id: number; name: string; phone?: string; document?: string }
@@ -394,7 +395,7 @@ export default function PDV() {
   const removeFromCart = (cartItemId: string) => setCart(cart.filter((i) => i.cartItemId !== cartItemId));
 
   // ── totals ────────────────────────────────────────────────────────────────────
-  const servicesTotal = cartServices.reduce((a, s) => a + s.price, 0);
+  const servicesTotal = cartServices.reduce((a, s) => a + s.price * (s.quantity ?? 1), 0);
   const subtotal      = cart.reduce((a, b) => a + b.price * b.quantity, 0) + servicesTotal;
 
   const discountRaw   = Number(discount) || 0;
@@ -443,7 +444,7 @@ export default function PDV() {
   const moneyAmt     = Number(moneyPayment?.amount) || 0;
   const change       = moneyAmt > 0 && paidAmount >= total ? moneyAmt - (total - (paidAmount - moneyAmt)) : 0;
 
-  const cartQty = cart.reduce((a, b) => a + b.quantity, 0);
+  const cartQty = cart.reduce((a, b) => a + b.quantity, 0) + cartServices.length;
 
   // payment helpers
   const updatePayment = (id: string, patch: Partial<PaymentEntry>) =>
@@ -486,7 +487,7 @@ export default function PDV() {
   };
 
   // permite confirmar mesmo com valor menor (saldo devedor aceito)
-  const canFinish = cart.length > 0 && total > 0;
+  const canFinish = (cart.length > 0 || cartServices.length > 0) && total > 0;
 
   // ── receipt helpers ───────────────────────────────────────────────────────────
   const buildPaymentLines = (sale: CompletedSale) =>
@@ -500,49 +501,120 @@ export default function PDV() {
   const buildThermalHtml = (sale: CompletedSale) => {
     const now = new Date().toLocaleString("pt-BR");
     const orderId = String(sale.orderId).padStart(6, "0");
-    const payLines = buildPaymentLines(sale);
 
-    return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Cupom #${orderId}</title>
-<style>
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-  html, body { margin: 0; padding: 0; }
-  body { font-family: 'Courier New', Courier, monospace; font-size: 9px; width: 58mm; height: auto; margin: 0; padding: 2px 3px; background: #fff; color: #000; line-height: 1.2; overflow: hidden; }
-  .center { text-align: center; }
-  .bold { font-weight: bold; }
-  .divider { border: none; border-top: 1px dashed #000; margin: 2px 0; padding: 0; }
-  .divider-solid { border: none; border-top: 1px solid #000; margin: 2px 0; padding: 0; }
-  .row { display: flex; justify-content: space-between; margin: 0; padding: 1px 0; font-size: 8px; line-height: 1.2; }
-  .row-total { display: flex; justify-content: space-between; font-size: 10px; font-weight: bold; margin: 1px 0; padding: 1px 0; }
-  .item-line { margin: 0; padding: 1px 0; }
-  .item-qty { font-size: 8px; color: #333; margin: 0; padding: 0; }
-  .small { font-size: 7px; color: #555; margin-top: 4px; line-height: 1.2; text-align: center; padding: 0; }
-  @media print { @page { margin: 0; padding: 0; size: 58mm auto; } html, body { margin: 0; padding: 2px 3px; } }
-</style></head><body>
-<div class="center bold" style="font-size:9px;margin:0;padding:0">RECIBO</div>
-<div class="center bold" style="font-size:9px;margin:0;padding:0">${sale.tenantName}</div>
-${sale.tenantAddress ? `<div class="center" style="font-size:7px;color:#555;margin:0;padding:0">${sale.tenantAddress}</div>` : ""}
-<hr class="divider"/>
-<div class="center" style="font-size:8px;margin:0;padding:0">NF-${orderId}</div>
-<div class="center" style="font-size:7px;margin:0;padding:0">${now}</div>
-<hr class="divider"/>
-<div style="font-size:8px;margin:0;padding:0">${sale.customerName || "CONSUMIDOR"}</div>
-<hr class="divider"/>
-${sale.items.map((item) => `<div class="item-line" style="margin:0;padding:0"><div class="bold" style="font-size:8px;margin:0;padding:0">${item.name}</div><div class="row" style="font-size:8px"><span>${item.quantity}x R$ ${item.price.toFixed(2)}</span><span>R$ ${(item.price * item.quantity).toFixed(2)}</span></div></div>`).join("")}
-<hr class="divider"/>
-${sale.discountValue > 0 ? `<div class="row"><span>SUBTOTAL</span><span>R$ ${sale.subtotal.toFixed(2)}</span></div><div class="row"><span>DESC</span><span>- R$ ${sale.discountValue.toFixed(2)}</span></div>` : ""}
-<hr class="divider-solid"/>
-<div class="row-total"><span>TOTAL:</span><span>R$ ${sale.total.toFixed(2)}</span></div>
-<hr class="divider-solid"/>
-${sale.payments.map((p) => {
-  const brand = (p.method === "debit" || p.method === "credit") && p.cardBrand !== "other" ? ` ${p.cardBrand.toUpperCase()}` : "";
-  const inst  = p.method === "credit" && p.installments > 1 ? ` ${p.installments}X` : "";
-  const label = `${PM_LABEL[p.method]}${brand}${inst}`.toUpperCase();
-  return `<div class="row"><span>${label}</span><span class="bold">R$ ${Number(p.amount).toFixed(2)}</span></div>`;
-}).join("")}
-${change > 0 ? `<hr class="divider"/><div class="row"><span>TROCO:</span><span>R$ ${change.toFixed(2)}</span></div>` : ""}
-<hr class="divider"/>
-<div class="center" style="font-size:7px;margin:0;padding:0">Obrigado!</div>
-</body></html>`;
+    const removeAccents = (text: string) =>
+      text.normalize("NFD").replace(/[̀-ͯ]/g, "");
+
+    const truncate = (str: string, maxLen: number) => {
+      const s = removeAccents(String(str || ""));
+      return s.length > maxLen ? s.substring(0, maxLen) : s;
+    };
+
+    const centerText = (text: string, width = 32) => {
+      const s = truncate(text, width);
+      const diff = Math.max(0, width - s.length);
+      return " ".repeat(Math.floor(diff / 2)) + s + " ".repeat(Math.ceil(diff / 2));
+    };
+
+    const line = (left: string, right: string = "", width = 32) => {
+      const l = truncate(left, 16);
+      const r = truncate(right, 14);
+      if (!right) {
+        const spaces = Math.max(0, width - l.length);
+        return l + " ".repeat(spaces);
+      }
+      const space = Math.max(1, width - l.length - r.length);
+      return l + " ".repeat(space) + r;
+    };
+
+    const dash = "--------------------------------";
+    const dotLine = "................................";
+
+    let receipt = "";
+    receipt += "\n" + centerText("RECIBO", 32) + "\n";
+    receipt += centerText(sale.tenantName, 32) + "\n";
+    if (sale.tenantAddress) {
+      receipt += centerText(sale.tenantAddress, 32) + "\n";
+    }
+    receipt += dash.substring(0, 32) + "\n\n";
+
+    receipt += line("PEDIDO", "#" + orderId, 32) + "\n";
+    receipt += line("DATA", now.split(",")[0], 32) + "\n";
+    receipt += line("HORA", now.split(",")[1].trim().substring(0, 8), 32) + "\n";
+    receipt += dash.substring(0, 32) + "\n\n";
+
+    receipt += "CLIENTE:\n";
+    receipt += centerText(truncate(sale.customerName || "CONSUMIDOR", 32), 32) + "\n";
+    receipt += dash.substring(0, 32) + "\n\n";
+
+    receipt += "ITENS:\n";
+    sale.items.forEach((item) => {
+      receipt += truncate(item.name, 32) + "\n";
+      const qty = String(item.quantity);
+      const price = "R$ " + item.price.toFixed(2);
+      const total = "R$ " + (item.price * item.quantity).toFixed(2);
+      receipt += line(qty + "x " + price, total, 32) + "\n\n";
+    });
+
+    if (sale.items.length > 0) {
+      receipt += dash.substring(0, 32) + "\n\n";
+    }
+
+    if (sale.items.length > 0 && sale.discountValue > 0) {
+      receipt += line("SUBTOTAL", "R$ " + sale.subtotal.toFixed(2), 32) + "\n";
+      receipt += line("DESCONTO", "-R$ " + sale.discountValue.toFixed(2), 32) + "\n";
+      receipt += dotLine.substring(0, 32) + "\n";
+    }
+
+    receipt += line("TOTAL", "R$ " + sale.total.toFixed(2), 32) + "\n";
+    receipt += dash.substring(0, 32) + "\n\n";
+
+    receipt += "PAGAMENTO:\n";
+    sale.payments.forEach((p) => {
+      const brand = (p.method === "debit" || p.method === "credit") && p.cardBrand !== "other" ? ` ${p.cardBrand.toUpperCase()}` : "";
+      const inst = p.method === "credit" && p.installments > 1 ? ` ${p.installments}x` : "";
+      const label = removeAccents(`${PM_LABEL[p.method]}${brand}${inst}`.toUpperCase());
+      receipt += line(label, "R$ " + Number(p.amount).toFixed(2), 32) + "\n";
+    });
+    receipt += "\n";
+
+    if (change > 0) {
+      receipt += dash.substring(0, 32) + "\n";
+      receipt += line("TROCO", "R$ " + change.toFixed(2), 32) + "\n";
+    }
+
+    receipt += dash.substring(0, 32) + "\n";
+    receipt += centerText("Obrigado!", 32) + "\n";
+    receipt += centerText("Volte Sempre!", 32);
+
+    return `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="windows-1252">
+  <meta http-equiv="Content-Type" content="text/html; charset=windows-1252">
+  <title>Cupom #${orderId}</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { margin: 0; padding: 0; width: 58mm; }
+    body {
+      font-family: 'Courier New', Courier, monospace;
+      font-size: 11px;
+      line-height: 1.2;
+      width: 58mm;
+      padding: 0;
+      margin: 0;
+      white-space: pre;
+      background: white;
+      color: black;
+    }
+    @media print {
+      @page { margin: 0; size: 58mm; }
+      body { margin: 0; padding: 0; width: 58mm; }
+    }
+  </style>
+</head>
+<body>${receipt}</body>
+</html>`;
   };
 
   const buildPDFHtml = (sale: CompletedSale) => {
@@ -650,41 +722,6 @@ ${change > 0 ? `<hr class="divider"/><div class="row"><span>TROCO:</span><span>R
     ].filter((l) => l !== null).join("\n");
   };
 
-  const printThermalAsImage = async (html: string) => {
-    const div = document.createElement("div");
-    div.style.position = "fixed";
-    div.style.left = "-9999px";
-    div.style.top = "-9999px";
-    div.innerHTML = html;
-    document.body.appendChild(div);
-    try {
-      const canvas = await html2canvas(div, {
-        width: 220,
-        height: undefined,
-        backgroundColor: "#ffffff",
-        scale: 2,
-        useCORS: true,
-        logging: false,
-      });
-      const iframe = document.createElement("iframe");
-      Object.assign(iframe.style, { position: "fixed", right: "0", bottom: "0", width: "0", height: "0", border: "none" });
-      document.body.appendChild(iframe);
-      const doc = iframe.contentDocument || iframe.contentWindow?.document;
-      if (doc) {
-        doc.open();
-        doc.write(`<!DOCTYPE html><html><head><style>body{margin:0;padding:0}img{display:block;width:58mm;height:auto}</style></head><body><img src="${canvas.toDataURL()}" /></body></html>`);
-        doc.close();
-        setTimeout(() => {
-          iframe.contentWindow?.focus();
-          iframe.contentWindow?.print();
-          setTimeout(() => document.body.removeChild(iframe), 1500);
-        }, 300);
-      }
-    } finally {
-      document.body.removeChild(div);
-    }
-  };
-
   const printViaIframe = (html: string, delay = 400) => {
     const iframe = document.createElement("iframe");
     Object.assign(iframe.style, { position: "fixed", right: "0", bottom: "0", width: "0", height: "0", border: "none" });
@@ -716,7 +753,7 @@ ${change > 0 ? `<hr class="divider"/><div class="row"><span>TROCO:</span><span>R
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify({
           items: cart.map((i) => ({ id: i.id, quantity: i.quantity, price: i.price, selectedOptions: i.selectedOptions ?? null })),
-          services: cartServices.map((s) => ({ id: s.id, name: s.name, price: s.price })),
+          services: cartServices.map((s) => ({ id: s.id, name: s.name, price: s.price, quantity: s.quantity ?? 1 })),
           customerName,
           customerId: selectedCustomerId ?? undefined,
           totalAmount: total,
@@ -939,7 +976,7 @@ ${change > 0 ? `<hr class="divider"/><div class="row"><span>TROCO:</span><span>R
           <div className="flex gap-2 items-center">
             <div className="relative flex-1">
               <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
-              <input type="text" placeholder="Buscar produto..."
+              <input type="text" placeholder={showServicesTab ? "Buscar serviço..." : "Buscar produto..."}
                 value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)}
                 className="w-full pl-10 pr-4 h-10 bg-white rounded-xl text-[13px] font-medium text-slate-700 placeholder:text-slate-400 focus:outline-none transition-all border border-slate-200 focus:border-blue-400 focus:ring-2 focus:ring-blue-100 shadow-sm" />
             </div>
@@ -956,93 +993,193 @@ ${change > 0 ? `<hr class="divider"/><div class="row"><span>TROCO:</span><span>R
             </button>
           </div>
 
-          {/* Categorias */}
-          {categories.length > 0 && (
-            <div className="flex gap-1.5 overflow-x-auto pb-0.5 shrink-0 scrollbar-none">
-              {[{ id: null as number | null, name: "Todos" }, ...categories.map(c => ({ id: c.id as number | null, name: c.name }))].map((cat) => (
-                <button key={cat.id ?? "all"} onClick={() => setSelectedCategory(cat.id)}
-                  className={cn(
-                    "shrink-0 h-7 px-3 rounded-lg text-[10px] font-bold tracking-wide transition-all border flex items-center gap-1",
-                    selectedCategory === cat.id
-                      ? "text-white border-blue-500 shadow"
-                      : "bg-white text-slate-500 border-slate-200 hover:border-blue-300 hover:text-blue-600"
-                  )}
-                  style={selectedCategory === cat.id ? { background: "linear-gradient(135deg,#3b82f6,#1d4ed8)" } : {}}>
-                  {cat.id !== null && <Tag size={9} />} {cat.name}
-                </button>
-              ))}
-            </div>
-          )}
+          {/* Categorias + aba Serviços */}
+          <div className="flex gap-1.5 overflow-x-auto pb-0.5 shrink-0 scrollbar-none">
+            {/* Aba Serviços — sempre visível se houver serviços */}
+            {services.length > 0 && (
+              <button
+                onClick={() => { setShowServicesTab(true); setSelectedCategory(null); }}
+                className={cn(
+                  "shrink-0 h-7 px-3 rounded-lg text-[10px] font-bold tracking-wide transition-all border flex items-center gap-1.5",
+                  showServicesTab
+                    ? "text-white border-violet-500 shadow"
+                    : "bg-white text-slate-500 border-slate-200 hover:border-violet-300 hover:text-violet-600"
+                )}
+                style={showServicesTab ? { background: "linear-gradient(135deg,#7c3aed,#4f46e5)" } : {}}
+              >
+                <Wrench size={9} />
+                Serviços
+                {cartServices.length > 0 && (
+                  <span className={cn("w-4 h-4 rounded-full text-[9px] font-black flex items-center justify-center",
+                    showServicesTab ? "bg-white text-violet-700" : "bg-violet-600 text-white"
+                  )}>{cartServices.length}</span>
+                )}
+              </button>
+            )}
+            {/* Abas de produtos */}
+            {categories.length > 0 && [{ id: null as number | null, name: "Todos" }, ...categories.map(c => ({ id: c.id as number | null, name: c.name }))].map((cat) => (
+              <button key={cat.id ?? "all"}
+                onClick={() => { setSelectedCategory(cat.id); setShowServicesTab(false); }}
+                className={cn(
+                  "shrink-0 h-7 px-3 rounded-lg text-[10px] font-bold tracking-wide transition-all border flex items-center gap-1",
+                  !showServicesTab && selectedCategory === cat.id
+                    ? "text-white border-blue-500 shadow"
+                    : "bg-white text-slate-500 border-slate-200 hover:border-blue-300 hover:text-blue-600"
+                )}
+                style={!showServicesTab && selectedCategory === cat.id ? { background: "linear-gradient(135deg,#3b82f6,#1d4ed8)" } : {}}>
+                {cat.id !== null && <Tag size={9} />} {cat.name}
+              </button>
+            ))}
+          </div>
 
-          {/* Grid de produtos */}
+          {/* Grid de produtos OU grid de serviços */}
           <div className="flex-1 overflow-y-auto pr-1 pb-2 admin-scroll">
-            {loading ? (
-              <div className="h-full flex items-center justify-center">
-                <Loader2 size={28} className="animate-spin text-slate-300" />
-              </div>
-            ) : filteredProducts.length === 0 ? (
-              <div className="h-full flex flex-col items-center justify-center gap-3">
-                <Package size={44} className="text-slate-300" strokeWidth={1} />
-                <p className="text-[11px] font-black uppercase tracking-widest text-slate-400">Nenhum produto encontrado</p>
-              </div>
-            ) : (
-              <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-2.5">
-                {filteredProducts.map((product) => {
-                  const qtyInCart   = cart.filter((i) => i.id === product.id).reduce((a, b) => a + b.quantity, 0);
-                  const atLimit     = qtyInCart >= product.stock_quantity;
-                  const hasVariations = (Array.isArray(product.attributes) && product.attributes.length > 0) ||
-                    (Array.isArray(product.variations) && product.variations.length > 0);
-                  return (
-                    <motion.button layout key={product.id}
-                      onClick={() => !atLimit && addToCart(product)}
-                      whileTap={atLimit ? {} : { scale: 0.97 }}
-                      className={cn(
-                        "bg-white rounded-2xl border flex flex-col items-start group relative text-left overflow-hidden transition-all duration-200",
-                        atLimit
-                          ? "opacity-40 cursor-not-allowed border-slate-200"
-                          : qtyInCart > 0
-                          ? "cursor-pointer border-blue-400 shadow-md shadow-blue-100"
-                          : "cursor-pointer border-slate-200 hover:border-blue-300 hover:shadow-md hover:shadow-blue-50"
-                      )}>
-
-                      {/* Imagem */}
-                      <div className="w-full aspect-[4/3] overflow-hidden relative flex items-center justify-center bg-slate-50">
-                        {product.image_url
-                          ? <img src={product.image_url} alt={product.name} className="object-contain w-full h-full group-hover:scale-105 transition-transform duration-500 p-1" />
-                          : <div className="w-full h-full flex items-center justify-center"><Package size={24} className="text-slate-300" /></div>}
-                        {/* Badge estoque */}
-                        <div className="absolute top-2 right-2 px-1.5 py-0.5 rounded-md text-[8px] font-mono font-bold bg-white/90 border border-slate-200 text-slate-500 shadow-sm">
-                          {product.stock_quantity}
-                        </div>
-                        {/* Badge carrinho */}
-                        {qtyInCart > 0 && (
-                          <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }}
-                            className="absolute top-2 left-2 w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-black text-white shadow"
-                            style={{ background: "linear-gradient(135deg,#3b82f6,#1d4ed8)" }}>
-                            {qtyInCart}
-                          </motion.div>
+            {showServicesTab ? (
+              /* ── ABA SERVIÇOS ── */
+              services.length === 0 ? (
+                <div className="h-full flex flex-col items-center justify-center gap-3">
+                  <Wrench size={44} className="text-slate-300" strokeWidth={1} />
+                  <p className="text-[11px] font-black uppercase tracking-widest text-slate-400">Nenhum serviço cadastrado</p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-2.5">
+                  {services.filter((s) => !searchTerm || s.name.toLowerCase().includes(searchTerm.toLowerCase()) || (s.category ?? "").toLowerCase().includes(searchTerm.toLowerCase())).map((svc) => {
+                    const cartEntry = cartServices.find((s) => s.id === svc.id);
+                    const catMeta = SERVICE_CATEGORIES.find((c) => c.value === svc.category) ?? SERVICE_CATEGORIES[SERVICE_CATEGORIES.length - 1];
+                    const CatIcon = catMeta.icon;
+                    const unitAbbr = SERVICE_UNITS.find((u) => u.value === svc.unit)?.abbr ?? (svc.unit ?? "un");
+                    return (
+                      <motion.button
+                        layout
+                        key={svc.id}
+                        onClick={() => {
+                          if (cartEntry) setCartServices((prev) => prev.filter((s) => s.id !== svc.id));
+                          else setCartServices((prev) => [...prev, { ...svc, price: Number(svc.price), quantity: 1 }]);
+                        }}
+                        whileTap={{ scale: 0.97 }}
+                        className={cn(
+                          "bg-white rounded-2xl border flex flex-col items-start group relative text-left overflow-hidden transition-all duration-200",
+                          cartEntry
+                            ? "border-violet-400 shadow-md shadow-violet-100"
+                            : "border-slate-200 hover:border-violet-300 hover:shadow-md hover:shadow-violet-50"
                         )}
-                        {/* Overlay hover */}
-                        {!atLimit && (
-                          <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all duration-200 bg-blue-500/10">
+                      >
+                        {/* Ícone categoria */}
+                        <div className={cn("w-full aspect-[4/3] flex items-center justify-center relative", catMeta.color.replace("text-", "text-").replace("bg-", "bg-"))}>
+                          <div className={cn("w-14 h-14 rounded-2xl flex items-center justify-center", catMeta.color)}>
+                            <CatIcon size={26} strokeWidth={1.5} />
+                          </div>
+                          {/* badge categoria */}
+                          <div className="absolute top-2 right-2">
+                            <span className={cn("text-[8px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded-md", catMeta.badge)}>
+                              {svc.category}
+                            </span>
+                          </div>
+                          {/* badge qty no carrinho */}
+                          {cartEntry && (
+                            <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }}
+                              className="absolute top-2 left-2 w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-black text-white shadow"
+                              style={{ background: "linear-gradient(135deg,#7c3aed,#4f46e5)" }}>
+                              {cartEntry.quantity ?? 1}
+                            </motion.div>
+                          )}
+                          {/* overlay */}
+                          <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all duration-200 bg-violet-500/10">
                             <div className="w-9 h-9 rounded-full flex items-center justify-center text-white scale-75 group-hover:scale-100 transition-transform shadow-lg"
-                              style={{ background: "linear-gradient(135deg,#3b82f6,#1d4ed8)" }}>
-                              <Plus size={16} strokeWidth={2.5} />
+                              style={{ background: cartEntry ? "linear-gradient(135deg,#ef4444,#dc2626)" : "linear-gradient(135deg,#7c3aed,#4f46e5)" }}>
+                              {cartEntry ? <X size={14} /> : <Plus size={16} strokeWidth={2.5} />}
                             </div>
                           </div>
-                        )}
-                      </div>
+                        </div>
 
-                      {/* Info */}
-                      <div className="p-2.5 w-full">
-                        <p className="text-[11px] font-semibold text-slate-700 leading-tight line-clamp-2 mb-1.5 min-h-[2.2em]">{product.name}</p>
-                        {hasVariations && <p className="text-[8px] font-black text-blue-500 uppercase tracking-widest mb-1">variações</p>}
-                        <p className="text-[14px] font-mono font-black text-blue-600">R$ {Number(product.price).toFixed(2)}</p>
-                      </div>
-                    </motion.button>
-                  );
-                })}
-              </div>
+                        {/* Info */}
+                        <div className="p-2.5 w-full">
+                          <p className="text-[11px] font-semibold text-slate-700 leading-tight line-clamp-2 mb-1 min-h-[2.2em]">{svc.name}</p>
+                          {svc.description && <p className="text-[9px] text-slate-400 truncate mb-1">{svc.description}</p>}
+                          <div className="flex items-end justify-between gap-1">
+                            <p className="text-[14px] font-mono font-black text-violet-600">
+                              {Number(svc.price).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
+                            </p>
+                            <span className="text-[8px] font-bold text-slate-400 flex items-center gap-0.5 pb-0.5">
+                              <Ruler size={7} />/{unitAbbr}
+                            </span>
+                          </div>
+                        </div>
+                      </motion.button>
+                    );
+                  })}
+                </div>
+              )
+            ) : (
+              /* ── ABA PRODUTOS ── */
+              loading ? (
+                <div className="h-full flex items-center justify-center">
+                  <Loader2 size={28} className="animate-spin text-slate-300" />
+                </div>
+              ) : filteredProducts.length === 0 ? (
+                <div className="h-full flex flex-col items-center justify-center gap-3">
+                  <Package size={44} className="text-slate-300" strokeWidth={1} />
+                  <p className="text-[11px] font-black uppercase tracking-widest text-slate-400">Nenhum produto encontrado</p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-2.5">
+                  {filteredProducts.map((product) => {
+                    const qtyInCart   = cart.filter((i) => i.id === product.id).reduce((a, b) => a + b.quantity, 0);
+                    const atLimit     = qtyInCart >= product.stock_quantity;
+                    const hasVariations = (Array.isArray(product.attributes) && product.attributes.length > 0) ||
+                      (Array.isArray(product.variations) && product.variations.length > 0);
+                    return (
+                      <motion.button layout key={product.id}
+                        onClick={() => !atLimit && addToCart(product)}
+                        whileTap={atLimit ? {} : { scale: 0.97 }}
+                        className={cn(
+                          "bg-white rounded-2xl border flex flex-col items-start group relative text-left overflow-hidden transition-all duration-200",
+                          atLimit
+                            ? "opacity-40 cursor-not-allowed border-slate-200"
+                            : qtyInCart > 0
+                            ? "cursor-pointer border-blue-400 shadow-md shadow-blue-100"
+                            : "cursor-pointer border-slate-200 hover:border-blue-300 hover:shadow-md hover:shadow-blue-50"
+                        )}>
+
+                        {/* Imagem */}
+                        <div className="w-full aspect-[4/3] overflow-hidden relative flex items-center justify-center bg-slate-50">
+                          {product.image_url
+                            ? <img src={product.image_url} alt={product.name} className="object-contain w-full h-full group-hover:scale-105 transition-transform duration-500 p-1" />
+                            : <div className="w-full h-full flex items-center justify-center"><Package size={24} className="text-slate-300" /></div>}
+                          {/* Badge estoque */}
+                          <div className="absolute top-2 right-2 px-1.5 py-0.5 rounded-md text-[8px] font-mono font-bold bg-white/90 border border-slate-200 text-slate-500 shadow-sm">
+                            {product.stock_quantity}
+                          </div>
+                          {/* Badge carrinho */}
+                          {qtyInCart > 0 && (
+                            <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }}
+                              className="absolute top-2 left-2 w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-black text-white shadow"
+                              style={{ background: "linear-gradient(135deg,#3b82f6,#1d4ed8)" }}>
+                              {qtyInCart}
+                            </motion.div>
+                          )}
+                          {/* Overlay hover */}
+                          {!atLimit && (
+                            <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all duration-200 bg-blue-500/10">
+                              <div className="w-9 h-9 rounded-full flex items-center justify-center text-white scale-75 group-hover:scale-100 transition-transform shadow-lg"
+                                style={{ background: "linear-gradient(135deg,#3b82f6,#1d4ed8)" }}>
+                                <Plus size={16} strokeWidth={2.5} />
+                              </div>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Info */}
+                        <div className="p-2.5 w-full">
+                          <p className="text-[11px] font-semibold text-slate-700 leading-tight line-clamp-2 mb-1.5 min-h-[2.2em]">{product.name}</p>
+                          {hasVariations && <p className="text-[8px] font-black text-blue-500 uppercase tracking-widest mb-1">variações</p>}
+                          <p className="text-[14px] font-mono font-black text-blue-600">R$ {Number(product.price).toFixed(2)}</p>
+                        </div>
+                      </motion.button>
+                    );
+                  })}
+                </div>
+              )
             )}
           </div>
         </div>
@@ -1065,6 +1202,7 @@ ${change > 0 ? `<hr class="divider"/><div class="row"><span>TROCO:</span><span>R
           {/* Itens */}
           <div className="flex-1 overflow-y-auto p-3 space-y-2 bg-slate-50 admin-scroll">
             <AnimatePresence initial={false}>
+              {/* Itens de produto */}
               {cart.map((item) => (
                 <motion.div key={item.cartItemId}
                   initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20, height: 0 }}
@@ -1096,13 +1234,56 @@ ${change > 0 ? `<hr class="divider"/><div class="row"><span>TROCO:</span><span>R
                   </div>
                 </motion.div>
               ))}
+
+              {/* Itens de serviço */}
+              {cartServices.map((svc) => {
+                const catMeta = SERVICE_CATEGORIES.find((c) => c.value === svc.category) ?? SERVICE_CATEGORIES[SERVICE_CATEGORIES.length - 1];
+                const CatIcon = catMeta.icon;
+                return (
+                  <motion.div key={`svc-${svc.id}`}
+                    initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20, height: 0 }}
+                    transition={{ duration: 0.18 }}>
+                    <div className="flex items-center gap-2 p-3 rounded-2xl border border-violet-200 bg-violet-50/60 hover:border-violet-300 transition-colors shadow-sm">
+                      <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 border border-violet-200 ${catMeta.color}`}>
+                        <CatIcon size={13} />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <span className="text-[8px] font-black uppercase tracking-widest text-violet-500 bg-violet-100 px-1.5 py-0.5 rounded-md">Serviço</span>
+                        <p className="text-[11px] font-bold text-slate-700 truncate leading-tight mt-0.5">{svc.name}</p>
+                        <p className="text-[11px] font-mono font-black text-violet-600">R$ {(Number(svc.price) * (svc.quantity ?? 1)).toFixed(2)}</p>
+                      </div>
+                      {/* qty controls */}
+                      <div className="flex items-center gap-1 shrink-0">
+                        <button
+                          onClick={() => setCartServices(prev => (svc.quantity ?? 1) <= 1 ? prev.filter(s => s.id !== svc.id) : prev.map(s => s.id === svc.id ? { ...s, quantity: (s.quantity ?? 1) - 1 } : s))}
+                          className="w-6 h-6 rounded-lg border border-violet-200 bg-white flex items-center justify-center text-violet-500 hover:bg-violet-100 transition-colors text-[11px] font-black">
+                          −
+                        </button>
+                        <span className="w-5 text-center text-[11px] font-mono font-black text-slate-700">{svc.quantity ?? 1}</span>
+                        <button
+                          onClick={() => setCartServices(prev => prev.map(s => s.id === svc.id ? { ...s, quantity: (s.quantity ?? 1) + 1 } : s))}
+                          className="w-6 h-6 rounded-lg bg-violet-600 text-white flex items-center justify-center hover:bg-violet-700 transition-colors text-[11px] font-black">
+                          +
+                        </button>
+                      </div>
+                      <button
+                        onClick={() => setCartServices((prev) => prev.filter((s) => s.id !== svc.id))}
+                        className="p-1 text-slate-300 hover:text-red-500 transition-colors rounded shrink-0"
+                      >
+                        <Trash2 size={12} />
+                      </button>
+                    </div>
+                  </motion.div>
+                );
+              })}
             </AnimatePresence>
-            {cart.length === 0 && (
+
+            {cart.length === 0 && cartServices.length === 0 && (
               <div className="h-full flex flex-col items-center justify-center text-slate-300 gap-4 py-16">
                 <ShoppingCart size={40} strokeWidth={1} />
                 <div className="text-center">
                   <p className="text-[11px] font-black uppercase tracking-[0.2em] mb-1 text-slate-400">Carrinho Vazio</p>
-                  <p className="text-[10px] text-slate-400">Selecione produtos ao lado</p>
+                  <p className="text-[10px] text-slate-400">Selecione produtos ou serviços</p>
                 </div>
               </div>
             )}
@@ -1110,7 +1291,7 @@ ${change > 0 ? `<hr class="divider"/><div class="row"><span>TROCO:</span><span>R
 
           {/* Footer do carrinho */}
           <div className="shrink-0 border-t border-slate-200 p-4 space-y-3 bg-white">
-            {cart.length > 0 && (
+            {(cart.length > 0 || cartServices.length > 0) && (
               <div className="space-y-1.5">
                 {(discountValue > 0 || surchargeValue > 0 || servicesTotal > 0) && (
                   <div className="flex justify-between text-[10px] font-medium text-slate-400">
@@ -1664,11 +1845,14 @@ ${change > 0 ? `<hr class="divider"/><div class="row"><span>TROCO:</span><span>R
                         {cartServices.length > 0 && (
                           <div className="mt-1.5 space-y-1">
                             {cartServices.map((s) => (
-                              <div key={s.id} className="flex items-center justify-between bg-blue-50 border border-blue-100 rounded-lg px-2.5 py-1.5">
-                                <span className="flex items-center gap-1.5 text-[10px] font-bold text-slate-700"><Wrench size={10} className="text-blue-400" /> {s.name}</span>
-                                <div className="flex items-center gap-2">
-                                  <span className="text-[10px] font-mono font-black text-blue-600">R$ {Number(s.price).toFixed(2)}</span>
-                                  <button onClick={() => setCartServices((prev) => prev.filter((x) => x.id !== s.id))} className="text-slate-300 hover:text-red-400 transition-colors"><X size={11} /></button>
+                              <div key={s.id} className="flex items-center gap-1.5 bg-violet-50 border border-violet-100 rounded-lg px-2 py-1.5">
+                                <span className="flex items-center gap-1 text-[10px] font-bold text-slate-700 flex-1 min-w-0"><Wrench size={10} className="text-violet-400 shrink-0" /><span className="truncate">{s.name}</span></span>
+                                <div className="flex items-center gap-1 shrink-0">
+                                  <button onClick={() => setCartServices(prev => (s.quantity ?? 1) <= 1 ? prev.filter(x => x.id !== s.id) : prev.map(x => x.id === s.id ? { ...x, quantity: (x.quantity ?? 1) - 1 } : x))} className="w-4 h-4 rounded border border-violet-200 bg-white flex items-center justify-center text-violet-500 hover:bg-violet-100 text-[9px] font-black">−</button>
+                                  <span className="w-4 text-center text-[9px] font-mono font-black text-slate-700">{s.quantity ?? 1}</span>
+                                  <button onClick={() => setCartServices(prev => prev.map(x => x.id === s.id ? { ...x, quantity: (x.quantity ?? 1) + 1 } : x))} className="w-4 h-4 rounded bg-violet-600 text-white flex items-center justify-center text-[9px] font-black">+</button>
+                                  <span className="text-[10px] font-mono font-black text-violet-600 ml-0.5">R$ {(Number(s.price) * (s.quantity ?? 1)).toFixed(2)}</span>
+                                  <button onClick={() => setCartServices((prev) => prev.filter((x) => x.id !== s.id))} className="text-slate-300 hover:text-red-400 transition-colors ml-0.5"><X size={11} /></button>
                                 </div>
                               </div>
                             ))}
@@ -2024,7 +2208,7 @@ ${change > 0 ? `<hr class="divider"/><div class="row"><span>TROCO:</span><span>R
               <div className="flex-1 overflow-y-auto overscroll-contain p-4 space-y-2">
                 <p className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] pb-1">Emitir Comprovante</p>
 
-                <button onClick={() => printThermalAsImage(buildThermalHtml(completedSale))}
+                <button onClick={() => printViaIframe(buildThermalHtml(completedSale))}
                   className="w-full flex items-center gap-3.5 h-16 bg-slate-50 hover:bg-slate-100 active:scale-[0.98] border border-slate-200 rounded-2xl px-4 transition-all group">
                   <div className="w-10 h-10 bg-slate-900 rounded-xl flex items-center justify-center shrink-0 group-hover:bg-blue-600 transition-colors">
                     <Printer size={17} className="text-white" />
@@ -2123,36 +2307,65 @@ ${change > 0 ? `<hr class="divider"/><div class="row"><span>TROCO:</span><span>R
                 </button>
               </div>
 
-              <div className="flex-1 overflow-y-auto divide-y divide-slate-50 admin-scroll">
-                {services.map((svc) => {
-                  const inCart = cartServices.some((s) => s.id === svc.id);
-                  return (
-                    <div key={svc.id} className="px-5 py-3.5 flex items-center gap-3">
-                      <div className="w-9 h-9 rounded-xl bg-blue-50 flex items-center justify-center shrink-0">
-                        <Wrench size={14} className="text-blue-500" />
+              <div className="flex-1 overflow-y-auto admin-scroll">
+                {(() => {
+                  // group services by category
+                  const catMap = new Map<string, typeof services>();
+                  services.forEach((svc) => {
+                    const key = svc.category || "Geral";
+                    if (!catMap.has(key)) catMap.set(key, []);
+                    catMap.get(key)!.push(svc);
+                  });
+                  const unitAbbr = (v?: string) => SERVICE_UNITS.find((u) => u.value === (v ?? "unidade"))?.abbr ?? (v ?? "un");
+                  return [...catMap.entries()].map(([cat, items]) => {
+                    const meta = SERVICE_CATEGORIES.find((c) => c.value === cat) ?? SERVICE_CATEGORIES[SERVICE_CATEGORIES.length - 1];
+                    const Icon = meta.icon;
+                    return (
+                      <div key={cat}>
+                        {/* category header */}
+                        <div className={`px-4 py-2 flex items-center gap-2 border-b border-slate-100 ${meta.color} bg-opacity-40`}>
+                          <Icon size={11} />
+                          <span className="text-[9px] font-black uppercase tracking-widest">{cat}</span>
+                          <span className="text-[9px] opacity-60">{items.length}</span>
+                        </div>
+                        {items.map((svc) => {
+                          const inCart = cartServices.some((s) => s.id === svc.id);
+                          return (
+                            <div key={svc.id} className={cn("px-4 py-3 flex items-center gap-3 border-b border-slate-50 hover:bg-slate-50/70 transition-colors", inCart && "bg-blue-50/40")}>
+                              <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 ${meta.color}`}>
+                                <Icon size={13} />
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <p className="text-[11px] font-bold text-slate-900 truncate">{svc.name}</p>
+                                {svc.description && <p className="text-[9px] text-slate-400 truncate leading-tight">{svc.description}</p>}
+                                <div className="flex items-center gap-2 mt-0.5">
+                                  <p className="text-[11px] font-mono font-black text-blue-600">{Number(svc.price).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}</p>
+                                  <span className="text-[8px] text-slate-400 font-bold flex items-center gap-0.5">
+                                    <Ruler size={7} />/{unitAbbr(svc.unit)}
+                                  </span>
+                                </div>
+                              </div>
+                              <button
+                                onClick={() => {
+                                  if (inCart) setCartServices((prev) => prev.filter((s) => s.id !== svc.id));
+                                  else setCartServices((prev) => [...prev, { ...svc, price: Number(svc.price) }]);
+                                }}
+                                className={cn(
+                                  "w-8 h-8 rounded-xl border flex items-center justify-center transition-all shrink-0",
+                                  inCart
+                                    ? "bg-rose-500 border-rose-500 text-white hover:bg-rose-600"
+                                    : "bg-blue-600 border-blue-600 text-white hover:bg-blue-700"
+                                )}
+                              >
+                                {inCart ? <X size={12} /> : <Plus size={12} />}
+                              </button>
+                            </div>
+                          );
+                        })}
                       </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-[12px] font-bold text-slate-900 uppercase truncate">{svc.name}</p>
-                        {svc.description && <p className="text-[9px] text-slate-400 truncate">{svc.description}</p>}
-                        <p className="text-[11px] font-mono font-black text-blue-600 mt-0.5">R$ {Number(svc.price).toFixed(2)}</p>
-                      </div>
-                      <button
-                        onClick={() => {
-                          if (inCart) setCartServices((prev) => prev.filter((s) => s.id !== svc.id));
-                          else setCartServices((prev) => [...prev, { ...svc, price: Number(svc.price) }]);
-                        }}
-                        className={cn(
-                          "w-8 h-8 rounded-xl border flex items-center justify-center transition-all shrink-0 text-[13px] font-black",
-                          inCart
-                            ? "bg-rose-500 border-rose-500 text-white hover:bg-rose-600"
-                            : "bg-blue-600 border-blue-600 text-white hover:bg-blue-700"
-                        )}
-                      >
-                        {inCart ? <X size={13} /> : <Plus size={13} />}
-                      </button>
-                    </div>
-                  );
-                })}
+                    );
+                  });
+                })()}
               </div>
 
               <div className="px-5 py-4 border-t border-slate-100 space-y-2">

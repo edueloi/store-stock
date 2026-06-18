@@ -6,11 +6,13 @@ import multer from "multer";
 
 import type { AuthenticatedRequest } from "../types/auth";
 
-const UPLOADS_DIR       = path.join(process.cwd(), "public", "uploads", "products");
-const UPLOADS_LOGOS_DIR = path.join(process.cwd(), "public", "uploads", "logos");
+const UPLOADS_DIR          = path.join(process.cwd(), "public", "uploads", "products");
+const UPLOADS_LOGOS_DIR    = path.join(process.cwd(), "public", "uploads", "logos");
+const UPLOADS_SERVICES_DIR = path.join(process.cwd(), "public", "uploads", "services");
 
-fs.mkdirSync(UPLOADS_DIR,       { recursive: true });
-fs.mkdirSync(UPLOADS_LOGOS_DIR, { recursive: true });
+fs.mkdirSync(UPLOADS_DIR,          { recursive: true });
+fs.mkdirSync(UPLOADS_LOGOS_DIR,    { recursive: true });
+fs.mkdirSync(UPLOADS_SERVICES_DIR, { recursive: true });
 
 const storage = multer.diskStorage({
   destination: (_req, _file, cb) => cb(null, UPLOADS_DIR),
@@ -35,8 +37,24 @@ const fileFilter = (_req: Request, file: Express.Multer.File, cb: multer.FileFil
   else cb(new Error("Apenas imagens são permitidas (jpg, png, webp, gif)"));
 };
 
-export const upload      = multer({ storage,      fileFilter, limits: { fileSize: 5 * 1024 * 1024 } });
-export const uploadLogo  = multer({ storage: logoStorage, fileFilter, limits: { fileSize: 2 * 1024 * 1024 } });
+const serviceFileFilter = (_req: Request, file: Express.Multer.File, cb: multer.FileFilterCallback) => {
+  const allowed = ["image/jpeg", "image/png"];
+  if (allowed.includes(file.mimetype)) cb(null, true);
+  else cb(new Error("Apenas JPG e PNG são permitidos para imagens de serviços"));
+};
+
+const serviceStorage = multer.diskStorage({
+  destination: (_req, _file, cb) => cb(null, UPLOADS_SERVICES_DIR),
+  filename: (_req, file, cb) => {
+    const ext = path.extname(file.originalname).toLowerCase();
+    const unique = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}${ext}`;
+    cb(null, unique);
+  },
+});
+
+export const upload        = multer({ storage,        fileFilter,        limits: { fileSize: 5 * 1024 * 1024 } });
+export const uploadLogo    = multer({ storage: logoStorage,    fileFilter,        limits: { fileSize: 2 * 1024 * 1024 } });
+export const uploadService = multer({ storage: serviceStorage, fileFilter: serviceFileFilter, limits: { fileSize: 2 * 1024 * 1024 } });
 
 export async function uploadProductImage(req: Request, res: Response) {
   try {
@@ -80,6 +98,25 @@ export async function uploadLogoImage(req: Request, res: Response) {
 
 export function deleteProductImage(imageUrl: string) {
   if (!imageUrl || !imageUrl.startsWith("/uploads/products/")) return;
+  const filePath = path.join(process.cwd(), "public", imageUrl);
+  fs.unlink(filePath, () => {});
+}
+
+export async function uploadServiceImage(req: Request, res: Response) {
+  try {
+    if (!req.file) {
+      res.status(400).json({ error: "Nenhum arquivo enviado" });
+      return;
+    }
+    const url = `/uploads/services/${req.file.filename}`;
+    res.json({ url });
+  } catch {
+    res.status(500).json({ error: "Upload falhou" });
+  }
+}
+
+export function deleteServiceImage(imageUrl: string) {
+  if (!imageUrl || !imageUrl.startsWith("/uploads/services/")) return;
   const filePath = path.join(process.cwd(), "public", imageUrl);
   fs.unlink(filePath, () => {});
 }

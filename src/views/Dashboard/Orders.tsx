@@ -1,5 +1,5 @@
-import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useState, useEffect, useRef } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import ExcelJS from "exceljs";
 import {
   Receipt,
@@ -9,9 +9,7 @@ import {
   Clock,
   CheckCircle2,
   XCircle,
-  TrendingUp,
   Package,
-  ShoppingCart as CartIcon,
   X,
   CreditCard,
   ShieldCheck,
@@ -337,13 +335,18 @@ async function exportOrdersToExcel(orders: Order[], tenantName: string) {
 
 export default function Orders() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [orders, setOrders] = useState<Order[]>([]);
-  const [topProducts, setTopProducts] = useState<any[]>([]);
   const [tenant, setTenant] = useState<TenantBasic | null>(null);
   const [printerSize, setPrinterSize] = useState<"58mm" | "80mm" | "A4">("58mm");
   const [loading, setLoading] = useState(true);
   const [selectedStatus, setSelectedStatus] = useState<string>("all");
-  const [searchTerm, setSearchTerm] = useState("");
+  const [selectedType, setSelectedType] = useState<string>("all");
+  const [showStatusDrop, setShowStatusDrop] = useState(false);
+  const [showTypeDrop, setShowTypeDrop] = useState(false);
+  const statusDropRef = useRef<HTMLDivElement>(null);
+  const typeDropRef   = useRef<HTMLDivElement>(null);
+  const [searchTerm, setSearchTerm] = useState(() => searchParams.get("search") ?? "");
   const [selectedOrder, setSelectedOrder] = useState<OrderDetail | null>(null);
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
   const [showCancelModal, setShowCancelModal] = useState(false);
@@ -354,6 +357,8 @@ export default function Orders() {
   // Bulk selection state
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [deleteRevertStock, setDeleteRevertStock] = useState(true);
+  const [deleteRevertFinance, setDeleteRevertFinance] = useState(true);
   const [deleting, setDeleting] = useState(false);
   const [exporting, setExporting] = useState(false);
 
@@ -399,22 +404,19 @@ export default function Orders() {
     }
   };
 
-  const fetchTopSelling = async () => {
-    try {
-      const res = await fetch("/api/stats/top-selling", {
-        headers: { Authorization: `Bearer ${token()}` },
-      });
-      setTopProducts(await res.json());
-    } catch (err) {
-      console.error(err);
-    }
-  };
+  useEffect(() => { setCurrentPage(1); }, [selectedStatus, selectedType, searchTerm, dateFrom, dateTo, sortField, sortDir]);
 
-  useEffect(() => { setCurrentPage(1); }, [selectedStatus, searchTerm, dateFrom, dateTo, sortField, sortDir]);
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (statusDropRef.current && !statusDropRef.current.contains(e.target as Node)) setShowStatusDrop(false);
+      if (typeDropRef.current   && !typeDropRef.current.contains(e.target as Node))   setShowTypeDrop(false);
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
 
   useEffect(() => {
     fetchOrders();
-    fetchTopSelling();
     fetch("/api/tenant", { headers: { Authorization: `Bearer ${token()}` } })
       .then((r) => r.json())
       .then((d) => setTenant(d))
@@ -446,6 +448,10 @@ export default function Orders() {
 
   const filteredOrders = orders.filter((o) => {
     if (selectedStatus !== "all" && o.status !== selectedStatus) return false;
+    if (selectedType !== "all") {
+      const ot = (o as any).order_type ?? "products";
+      if (selectedType !== ot) return false;
+    }
     // Convert to local date string to avoid UTC offset shifting the day
     const d = new Date(o.created_at);
     const oDate = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
@@ -516,11 +522,12 @@ export default function Orders() {
     try {
       const res = await fetch("/api/orders/bulk", {
         method: "DELETE",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token()}`,
-        },
-        body: JSON.stringify({ ids: Array.from(selectedIds) }),
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token()}` },
+        body: JSON.stringify({
+          ids: Array.from(selectedIds),
+          revertStock: deleteRevertStock,
+          revertFinance: deleteRevertFinance,
+        }),
       });
       if (res.ok) {
         setShowDeleteModal(false);
@@ -538,7 +545,11 @@ export default function Orders() {
     try {
       const res = await fetch(`/api/orders/${id}`, {
         method: "DELETE",
-        headers: { Authorization: `Bearer ${token()}` },
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token()}` },
+        body: JSON.stringify({
+          revertStock: deleteRevertStock,
+          revertFinance: deleteRevertFinance,
+        }),
       });
       if (res.ok) {
         setShowDeleteModal(false);
@@ -1076,162 +1087,181 @@ ${payments
         }
       />
 
-      {/* Analytics Summary */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 lg:gap-6">
-        <div className="md:col-span-2 bg-white rounded-[32px] border border-slate-200 p-6 lg:p-8 shadow-sm flex flex-col justify-between overflow-hidden relative group">
-          <div className="absolute right-0 top-0 p-8 text-slate-50 opacity-10 group-hover:opacity-20 transition-opacity hidden sm:block">
-            <TrendingUp size={120} strokeWidth={1.5} />
-          </div>
-          <div>
-            <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-6">
-              Resumo de Pedidos
-            </p>
-            <div className="grid grid-cols-3 gap-4 sm:gap-12">
-              <div className="space-y-1">
-                <h3 className="text-2xl sm:text-4xl font-black text-slate-900 tracking-tighter">
-                  {filteredOrders.length}
-                </h3>
-                <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">
-                  Total
-                </p>
-              </div>
-              <div className="space-y-1">
-                <h3 className="text-2xl sm:text-4xl font-black text-amber-500 tracking-tighter">
-                  {filteredOrders.filter((o) => o.status === "pending").length}
-                </h3>
-                <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">
-                  Pendente
-                </p>
-              </div>
-              <div className="space-y-1">
-                <h3 className="text-2xl sm:text-4xl font-black text-emerald-500 tracking-tighter">
-                  {filteredOrders.filter((o) => o.status === "completed").length}
-                </h3>
-                <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">
-                  Pago
-                </p>
-              </div>
-            </div>
-          </div>
-          <div className="mt-8 flex flex-wrap gap-2">
-            {["all", "pending", "completed", "cancelled"].map((status) => (
-              <button
-                key={status}
-                onClick={() => setSelectedStatus(status)}
-                className={cn(
-                  "px-4 h-9 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all border shrink-0",
-                  selectedStatus === status
-                    ? "bg-slate-900 text-white border-slate-900 shadow-xl shadow-slate-200"
-                    : "bg-white text-slate-500 border-slate-200 hover:border-slate-300"
-                )}
-              >
-                {status === "all"
-                  ? "Tudo"
-                  : status === "pending"
-                  ? "Pendentes"
-                  : status === "completed"
-                  ? "Efetivados"
-                  : "Cancelados"}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        <div className="bg-slate-900 rounded-[32px] p-6 lg:p-8 text-white shadow-2xl shadow-slate-200 flex flex-col justify-between">
-          <div>
-            <div className="flex items-center justify-between mb-6">
-              <p className="text-[10px] font-black text-blue-400 uppercase tracking-[0.2em]">
-                Mais Vendidos
-              </p>
-              <CartIcon size={16} className="text-blue-400" />
-            </div>
-            <div className="space-y-4">
-              {topProducts.map((p, i) => (
-                <div key={i} className="flex items-center justify-between group">
-                  <div className="flex items-center gap-3">
-                    <span className="text-[8px] font-black text-slate-500 w-4">0{i + 1}</span>
-                    <span className="text-[11px] font-bold uppercase truncate max-w-[120px] text-slate-300 group-hover:text-white transition-colors">
-                      {p.name}
-                    </span>
-                  </div>
-                  <span className="text-[10px] font-mono font-black text-blue-400 px-2.5 py-1 rounded-lg bg-blue-400/10 leading-none">
-                    {p.total_sold} UN
-                  </span>
-                </div>
-              ))}
-              {topProducts.length === 0 && (
-                <p className="text-[10px] text-slate-600 py-6 uppercase font-black tracking-widest text-center border border-dashed border-slate-800 rounded-2xl">
-                  Nenhuma venda ainda
-                </p>
-              )}
-            </div>
-          </div>
-          <button
-            onClick={() => navigate("/admin/analytics")}
-            className="mt-8 w-full h-10 bg-white/5 hover:bg-white/10 text-white rounded-xl text-[9px] font-black uppercase tracking-widest transition-all border border-white/10">
-            Ver Relatório
-          </button>
-        </div>
-      </div>
-
-      {/* Search + Date filters */}
-      <div className="flex flex-col sm:flex-row gap-2">
-        {/* Search */}
-        <div className="relative flex-1">
-          <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={15} />
-          <input
-            type="text"
-            placeholder="Buscar por ID, cliente, telefone..."
-            className="w-full pl-11 pr-4 h-10 bg-white border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-400 text-[11px] font-medium placeholder:text-slate-300 shadow-sm"
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-          />
-        </div>
-
-        {/* Date range */}
-        <div className="flex items-center gap-2 bg-white border border-slate-200 rounded-xl px-3 h-10 shadow-sm shrink-0">
-          <Calendar size={14} className="text-slate-400 shrink-0" />
-          <input
-            type="date"
-            value={dateFrom}
-            onChange={(e) => setDateFrom(e.target.value)}
-            className="text-[11px] font-medium text-slate-700 outline-none bg-transparent cursor-pointer w-[110px]"
-            title="De"
-          />
-          <span className="text-slate-300 font-bold text-[11px] shrink-0">—</span>
-          <input
-            type="date"
-            value={dateTo}
-            onChange={(e) => setDateTo(e.target.value)}
-            className="text-[11px] font-medium text-slate-700 outline-none bg-transparent cursor-pointer w-[110px]"
-            title="Até"
-          />
-        </div>
-
-        {/* Quick presets */}
-        <div className="flex items-center gap-1 shrink-0">
+      {/* ── Toolbar: KPIs compactos + filtros numa linha ───────────── */}
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm">
+        {/* KPI strip */}
+        <div className="flex items-center gap-0 border-b border-slate-100 divide-x divide-slate-100">
           {[
-            { label: "Hoje", from: todayStr(),        to: todayStr() },
-            { label: "7d",   from: (() => { const d = new Date(); d.setDate(d.getDate() - 6); return d.toISOString().slice(0,10); })(), to: todayStr() },
-            { label: "Mês",  from: firstOfMonthStr(), to: lastOfMonthStr() },
-            { label: "Tudo", from: "",                to: "" },
-          ].map((p) => {
-            const active = dateFrom === p.from && dateTo === p.to;
+            { label: "Total",      value: filteredOrders.length,                                              color: "text-slate-900" },
+            { label: "Pendentes",  value: filteredOrders.filter(o => o.status === "pending").length,          color: "text-amber-500" },
+            { label: "Efetivados", value: filteredOrders.filter(o => o.status === "completed").length,        color: "text-emerald-500" },
+            { label: "Cancelados", value: filteredOrders.filter(o => o.status === "cancelled").length,        color: "text-rose-500"   },
+          ].map(k => (
+            <div key={k.label} className="flex-1 px-5 py-4 flex flex-col gap-0.5">
+              <span className={cn("text-2xl font-black tracking-tight font-mono leading-none", k.color)}>{k.value}</span>
+              <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">{k.label}</span>
+            </div>
+          ))}
+        </div>
+
+        {/* Filter bar */}
+        <div className="flex items-center gap-2 px-4 py-3 flex-wrap">
+          {/* Search */}
+          <div className="relative flex-1 min-w-[180px]">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={13} />
+            <input
+              type="text"
+              placeholder="Buscar por ID, cliente, telefone..."
+              className="w-full pl-8 pr-3 h-9 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-400 text-[11px] font-medium placeholder:text-slate-300 transition-all"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+            />
+          </div>
+
+          {/* Status combobox */}
+          {(() => {
+            const STATUS_OPTS = [
+              { value: "all",       label: "Todos os Status", dot: "bg-slate-400"   },
+              { value: "pending",   label: "Pendentes",       dot: "bg-amber-400"   },
+              { value: "completed", label: "Efetivados",      dot: "bg-emerald-500" },
+              { value: "cancelled", label: "Cancelados",      dot: "bg-rose-500"    },
+            ];
+            const cur = STATUS_OPTS.find(o => o.value === selectedStatus) ?? STATUS_OPTS[0];
+            const active = selectedStatus !== "all";
             return (
-              <button
-                key={p.label}
-                onClick={() => { setDateFrom(p.from); setDateTo(p.to); }}
-                className={cn(
-                  "h-10 px-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all border shrink-0",
-                  active
-                    ? "bg-slate-900 text-white border-slate-900 shadow-sm"
-                    : "bg-white text-slate-500 border-slate-200 hover:border-slate-300 hover:bg-slate-50"
+              <div className="relative shrink-0" ref={statusDropRef}>
+                <button
+                  onClick={() => { setShowStatusDrop(v => !v); setShowTypeDrop(false); }}
+                  className={cn(
+                    "h-9 pl-3 pr-2.5 rounded-xl border flex items-center gap-2 text-[11px] font-black uppercase tracking-widest transition-all whitespace-nowrap",
+                    active
+                      ? selectedStatus === "completed" ? "bg-emerald-600 text-white border-emerald-600"
+                        : selectedStatus === "pending"   ? "bg-amber-500 text-white border-amber-500"
+                        : selectedStatus === "cancelled" ? "bg-rose-600 text-white border-rose-600"
+                        : "bg-slate-900 text-white border-slate-900"
+                      : "bg-slate-50 text-slate-600 border-slate-200 hover:border-slate-400"
+                  )}
+                >
+                  <span className={cn("w-2 h-2 rounded-full shrink-0", active ? "bg-white/70" : cur.dot)} />
+                  {cur.label}
+                  <ChevronRight size={11} className={cn("transition-transform opacity-60", showStatusDrop ? "-rotate-90" : "rotate-90")} />
+                </button>
+                {showStatusDrop && (
+                  <div className="absolute left-0 top-11 z-50 w-44 bg-white border border-slate-200 rounded-xl shadow-xl overflow-hidden">
+                    {STATUS_OPTS.map(opt => (
+                      <button
+                        key={opt.value}
+                        onClick={() => { setSelectedStatus(opt.value); setShowStatusDrop(false); }}
+                        className={cn(
+                          "w-full flex items-center gap-3 px-3 py-2.5 text-left transition-colors",
+                          selectedStatus === opt.value ? "bg-slate-50" : "hover:bg-slate-50"
+                        )}
+                      >
+                        <div className={cn(
+                          "w-4 h-4 rounded border-2 flex items-center justify-center shrink-0 transition-all",
+                          selectedStatus === opt.value ? "bg-slate-900 border-slate-900" : "border-slate-300"
+                        )}>
+                          {selectedStatus === opt.value && (
+                            <svg width="8" height="8" viewBox="0 0 10 10" fill="none"><polyline points="1.5,5 4,7.5 8.5,2.5" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                          )}
+                        </div>
+                        <span className={cn("w-2 h-2 rounded-full shrink-0", opt.dot)} />
+                        <span className="text-[11px] font-bold text-slate-700">{opt.label}</span>
+                      </button>
+                    ))}
+                  </div>
                 )}
-              >
-                {p.label}
-              </button>
+              </div>
             );
-          })}
+          })()}
+
+          {/* Tipo combobox */}
+          {(() => {
+            const TYPE_OPTS = [
+              { value: "all",      label: "Todos os Tipos", dot: "bg-slate-400"   },
+              { value: "products", label: "Catálogo",       dot: "bg-blue-500"    },
+              { value: "services", label: "Serviços",       dot: "bg-violet-500"  },
+              { value: "mixed",    label: "Misto",          dot: "bg-indigo-500"  },
+            ];
+            const cur = TYPE_OPTS.find(o => o.value === selectedType) ?? TYPE_OPTS[0];
+            const active = selectedType !== "all";
+            return (
+              <div className="relative shrink-0" ref={typeDropRef}>
+                <button
+                  onClick={() => { setShowTypeDrop(v => !v); setShowStatusDrop(false); }}
+                  className={cn(
+                    "h-9 pl-3 pr-2.5 rounded-xl border flex items-center gap-2 text-[11px] font-black uppercase tracking-widest transition-all whitespace-nowrap",
+                    active
+                      ? selectedType === "services" ? "bg-violet-600 text-white border-violet-600"
+                        : selectedType === "mixed"   ? "bg-indigo-600 text-white border-indigo-600"
+                        : "bg-slate-900 text-white border-slate-900"
+                      : "bg-slate-50 text-slate-600 border-slate-200 hover:border-slate-400"
+                  )}
+                >
+                  <span className={cn("w-2 h-2 rounded-full shrink-0", active ? "bg-white/70" : cur.dot)} />
+                  {cur.label}
+                  <ChevronRight size={11} className={cn("transition-transform opacity-60", showTypeDrop ? "-rotate-90" : "rotate-90")} />
+                </button>
+                {showTypeDrop && (
+                  <div className="absolute left-0 top-11 z-50 w-44 bg-white border border-slate-200 rounded-xl shadow-xl overflow-hidden">
+                    {TYPE_OPTS.map(opt => (
+                      <button
+                        key={opt.value}
+                        onClick={() => { setSelectedType(opt.value); setShowTypeDrop(false); }}
+                        className={cn(
+                          "w-full flex items-center gap-3 px-3 py-2.5 text-left transition-colors",
+                          selectedType === opt.value ? "bg-slate-50" : "hover:bg-slate-50"
+                        )}
+                      >
+                        <div className={cn(
+                          "w-4 h-4 rounded border-2 flex items-center justify-center shrink-0 transition-all",
+                          selectedType === opt.value ? "bg-slate-900 border-slate-900" : "border-slate-300"
+                        )}>
+                          {selectedType === opt.value && (
+                            <svg width="8" height="8" viewBox="0 0 10 10" fill="none"><polyline points="1.5,5 4,7.5 8.5,2.5" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                          )}
+                        </div>
+                        <span className={cn("w-2 h-2 rounded-full shrink-0", opt.dot)} />
+                        <span className="text-[11px] font-bold text-slate-700">{opt.label}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          })()}
+
+          {/* Date range */}
+          <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-200 rounded-xl px-3 h-9 shrink-0">
+            <Calendar size={12} className="text-slate-400 shrink-0" />
+            <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)}
+              className="text-[11px] font-medium text-slate-700 outline-none bg-transparent cursor-pointer w-[105px]" />
+            <span className="text-slate-300 font-bold text-[10px]">—</span>
+            <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)}
+              className="text-[11px] font-medium text-slate-700 outline-none bg-transparent cursor-pointer w-[105px]" />
+          </div>
+
+          {/* Quick presets */}
+          <div className="flex items-center gap-1 shrink-0 bg-slate-50 border border-slate-200 rounded-xl p-1">
+            {[
+              { label: "Hoje", from: todayStr(),        to: todayStr() },
+              { label: "7d",   from: (() => { const d = new Date(); d.setDate(d.getDate() - 6); return d.toISOString().slice(0,10); })(), to: todayStr() },
+              { label: "Mês",  from: firstOfMonthStr(), to: lastOfMonthStr() },
+              { label: "Tudo", from: "",                to: "" },
+            ].map(p => {
+              const active = dateFrom === p.from && dateTo === p.to;
+              return (
+                <button key={p.label} onClick={() => { setDateFrom(p.from); setDateTo(p.to); }}
+                  className={cn(
+                    "h-7 px-3 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all",
+                    active ? "bg-slate-900 text-white shadow-sm" : "text-slate-500 hover:text-slate-700"
+                  )}
+                >
+                  {p.label}
+                </button>
+              );
+            })}
+          </div>
         </div>
       </div>
 
@@ -1331,6 +1361,12 @@ ${payments
                       <span className="font-mono font-bold text-[11px] text-blue-500">
                         #{String(order.id).padStart(6, "0")}
                       </span>
+                      {(order as any).order_type === "services" && (
+                        <span className="block text-[8px] font-black uppercase tracking-widest text-violet-600 bg-violet-50 px-1.5 py-0.5 rounded mt-0.5 w-fit">Serviço</span>
+                      )}
+                      {(order as any).order_type === "mixed" && (
+                        <span className="block text-[8px] font-black uppercase tracking-widest text-indigo-600 bg-indigo-50 px-1.5 py-0.5 rounded mt-0.5 w-fit">Misto</span>
+                      )}
                     </td>
                     {/* cliente */}
                     <td className="px-3 py-2">
@@ -1966,76 +2002,128 @@ ${payments
 
       {/* Delete confirmation modal */}
       <AnimatePresence>
-        {showDeleteModal && (
-          <div className="fixed inset-0 z-[200] flex items-center justify-center px-4 bg-slate-900/60 backdrop-blur-sm">
-            <motion.div
-              initial={{ opacity: 0, scale: 0.92 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.92 }}
-              className="bg-white rounded-3xl shadow-2xl w-full max-w-sm overflow-hidden"
-            >
-              <div className="px-6 py-5 bg-red-50 border-b border-red-100 flex items-center gap-3">
-                <div className="w-10 h-10 rounded-2xl bg-red-100 flex items-center justify-center">
-                  <Trash2 size={18} className="text-red-600" />
+        {showDeleteModal && (() => {
+          // Check if any of the selected orders are completed (not cancelled/pending)
+          const selectedOrders = orders.filter(o => selectedIds.has(o.id));
+          const hasCompleted = selectedOrders.some(o => o.status === "completed");
+          const allCancelled = selectedOrders.every(o => o.status === "cancelled");
+
+          return (
+            <div className="fixed inset-0 z-[200] flex items-center justify-center px-4 bg-slate-900/60 backdrop-blur-sm">
+              <motion.div
+                initial={{ opacity: 0, scale: 0.92 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.92 }}
+                className="bg-white rounded-3xl shadow-2xl w-full max-w-sm overflow-hidden"
+              >
+                {/* Header */}
+                <div className="px-6 py-5 bg-red-50 border-b border-red-100 flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-2xl bg-red-100 flex items-center justify-center">
+                    <Trash2 size={18} className="text-red-600" />
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-bold text-red-400 uppercase tracking-widest">
+                      Deletar Pedido{selectedIds.size > 1 ? "s" : ""}
+                    </p>
+                    <p className="text-sm font-black text-red-900">
+                      {selectedIds.size === 1
+                        ? `#${String(Array.from(selectedIds)[0]).padStart(6, "0")}`
+                        : `${selectedIds.size} pedidos selecionados`}
+                    </p>
+                  </div>
                 </div>
-                <div>
-                  <p className="text-[10px] font-bold text-red-400 uppercase tracking-widest">
-                    Deletar Pedido{selectedIds.size > 1 ? "s" : ""}
+
+                <div className="p-6 space-y-4">
+                  <p className="text-[11px] text-slate-500 leading-relaxed">
+                    Esta ação é <span className="font-black text-red-600">permanente e irreversível</span>.{" "}
+                    O pedido será removido completamente do sistema.
                   </p>
-                  <p className="text-sm font-black text-red-900">
-                    {selectedIds.size === 1
-                      ? `#${String(Array.from(selectedIds)[0]).padStart(6, "0")}`
-                      : `${selectedIds.size} pedidos selecionados`}
-                  </p>
+
+                  {/* Options — only show for non-cancelled orders */}
+                  {!allCancelled && (
+                    <div className="space-y-2">
+                      <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Ao deletar, também:</p>
+
+                      {/* Revert stock */}
+                      {hasCompleted && (
+                        <label className="flex items-center gap-3 p-3 bg-slate-50 rounded-xl cursor-pointer hover:bg-slate-100 transition-colors">
+                          <div
+                            onClick={() => setDeleteRevertStock(v => !v)}
+                            className={cn(
+                              "w-5 h-5 rounded border-2 flex items-center justify-center shrink-0 transition-all",
+                              deleteRevertStock ? "bg-slate-900 border-slate-900" : "border-slate-300 bg-white"
+                            )}
+                          >
+                            {deleteRevertStock && (
+                              <svg width="9" height="9" viewBox="0 0 10 10" fill="none"><polyline points="1.5,5 4,7.5 8.5,2.5" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                            )}
+                          </div>
+                          <div>
+                            <p className="text-[11px] font-black text-slate-700">Devolver ao estoque</p>
+                            <p className="text-[9px] text-slate-400">Reverte a quantidade dos itens</p>
+                          </div>
+                        </label>
+                      )}
+
+                      {/* Remove finance */}
+                      {hasCompleted && (
+                        <label className="flex items-center gap-3 p-3 bg-slate-50 rounded-xl cursor-pointer hover:bg-slate-100 transition-colors">
+                          <div
+                            onClick={() => setDeleteRevertFinance(v => !v)}
+                            className={cn(
+                              "w-5 h-5 rounded border-2 flex items-center justify-center shrink-0 transition-all",
+                              deleteRevertFinance ? "bg-slate-900 border-slate-900" : "border-slate-300 bg-white"
+                            )}
+                          >
+                            {deleteRevertFinance && (
+                              <svg width="9" height="9" viewBox="0 0 10 10" fill="none"><polyline points="1.5,5 4,7.5 8.5,2.5" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                            )}
+                          </div>
+                          <div>
+                            <p className="text-[11px] font-black text-slate-700">Remover do financeiro</p>
+                            <p className="text-[9px] text-slate-400">Exclui a entrada no Fluxo de Caixa e Visão Geral</p>
+                          </div>
+                        </label>
+                      )}
+                    </div>
+                  )}
+
+                  {allCancelled && (
+                    <div className="bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 flex items-start gap-2.5">
+                      <AlertTriangle size={13} className="text-slate-400 mt-0.5 shrink-0" />
+                      <p className="text-[10px] text-slate-500 leading-relaxed">
+                        Pedido já cancelado — estoque e financeiro já foram revertidos no cancelamento.
+                      </p>
+                    </div>
+                  )}
+
+                  <div className="flex gap-2 pt-1">
+                    <button
+                      onClick={() => { setShowDeleteModal(false); if (!isDetailModalOpen) clearSelection(); }}
+                      className="flex-1 h-10 border border-slate-200 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-slate-50 transition-all text-slate-500"
+                    >
+                      Cancelar
+                    </button>
+                    <button
+                      onClick={() => {
+                        if (selectedIds.size === 1 && isDetailModalOpen) {
+                          handleDeleteSingle(Array.from(selectedIds)[0]);
+                        } else {
+                          handleBulkDelete();
+                        }
+                      }}
+                      disabled={deleting}
+                      className="flex-1 h-10 bg-red-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-red-700 transition-all disabled:opacity-50 flex items-center justify-center gap-2 shadow-lg shadow-red-100"
+                    >
+                      {deleting ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
+                      Deletar
+                    </button>
+                  </div>
                 </div>
-              </div>
-              <div className="p-6 space-y-4">
-                <p className="text-[10px] text-slate-500 font-bold leading-relaxed">
-                  Esta ação é <span className="text-red-600">permanente e irreversível</span>.{" "}
-                  {selectedIds.size === 1
-                    ? "O pedido será removido completamente do sistema."
-                    : `Os ${selectedIds.size} pedidos selecionados serão removidos completamente do sistema.`}
-                </p>
-                <div className="bg-amber-50 border border-amber-200 rounded-2xl px-4 py-3 flex items-start gap-2.5">
-                  <AlertTriangle size={14} className="text-amber-600 mt-0.5 shrink-0" />
-                  <p className="text-[10px] text-amber-700 font-bold leading-relaxed">
-                    Diferente do cancelamento, a deleção não reverte estoque nem gera estorno no
-                    financeiro.
-                  </p>
-                </div>
-                <div className="flex gap-2 pt-2">
-                  <button
-                    onClick={() => {
-                      setShowDeleteModal(false);
-                      if (!isDetailModalOpen) clearSelection();
-                    }}
-                    className="flex-1 h-10 border border-slate-200 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-slate-50 transition-all text-slate-500"
-                  >
-                    Cancelar
-                  </button>
-                  <button
-                    onClick={() => {
-                      if (selectedIds.size === 1 && isDetailModalOpen) {
-                        handleDeleteSingle(Array.from(selectedIds)[0]);
-                      } else {
-                        handleBulkDelete();
-                      }
-                    }}
-                    disabled={deleting}
-                    className="flex-1 h-10 bg-red-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-red-700 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
-                  >
-                    {deleting ? (
-                      <Loader2 size={14} className="animate-spin" />
-                    ) : (
-                      <Trash2 size={14} />
-                    )}
-                    Confirmar Deleção
-                  </button>
-                </div>
-              </div>
-            </motion.div>
-          </div>
-        )}
+              </motion.div>
+            </div>
+          );
+        })()}
       </AnimatePresence>
     </div>
   );
