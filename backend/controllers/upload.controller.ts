@@ -6,30 +6,14 @@ import multer from "multer";
 
 import type { AuthenticatedRequest } from "../types/auth";
 
-const UPLOADS_DIR          = path.join(process.cwd(), "public", "uploads", "products");
-const UPLOADS_LOGOS_DIR    = path.join(process.cwd(), "public", "uploads", "logos");
-const UPLOADS_SERVICES_DIR = path.join(process.cwd(), "public", "uploads", "services");
+const UPLOADS_BASE = path.join(process.cwd(), "public", "uploads");
 
-fs.mkdirSync(UPLOADS_DIR,          { recursive: true });
-fs.mkdirSync(UPLOADS_LOGOS_DIR,    { recursive: true });
-fs.mkdirSync(UPLOADS_SERVICES_DIR, { recursive: true });
-
-const storage = multer.diskStorage({
-  destination: (_req, _file, cb) => cb(null, UPLOADS_DIR),
-  filename: (_req, file, cb) => {
-    const ext = path.extname(file.originalname).toLowerCase();
-    const unique = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}${ext}`;
-    cb(null, unique);
-  },
-});
-
-const logoStorage = multer.diskStorage({
-  destination: (_req, _file, cb) => cb(null, UPLOADS_LOGOS_DIR),
-  filename: (_req, file, cb) => {
-    const ext = path.extname(file.originalname).toLowerCase();
-    cb(null, `logo-${Date.now()}${ext}`);
-  },
-});
+function tenantDir(req: Request, sub: "products" | "logos" | "services"): string {
+  const tenantId = (req as AuthenticatedRequest).user?.tenantId ?? "shared";
+  const dir = path.join(UPLOADS_BASE, sub, String(tenantId));
+  fs.mkdirSync(dir, { recursive: true });
+  return dir;
+}
 
 const fileFilter = (_req: Request, file: Express.Multer.File, cb: multer.FileFilterCallback) => {
   const allowed = ["image/jpeg", "image/png", "image/webp", "image/gif"];
@@ -43,27 +27,25 @@ const serviceFileFilter = (_req: Request, file: Express.Multer.File, cb: multer.
   else cb(new Error("Apenas JPG e PNG são permitidos para imagens de serviços"));
 };
 
-const serviceStorage = multer.diskStorage({
-  destination: (_req, _file, cb) => cb(null, UPLOADS_SERVICES_DIR),
-  filename: (_req, file, cb) => {
-    const ext = path.extname(file.originalname).toLowerCase();
-    const unique = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}${ext}`;
-    cb(null, unique);
-  },
-});
+const makeStorage = (sub: "products" | "logos" | "services") =>
+  multer.diskStorage({
+    destination: (req, _file, cb) => cb(null, tenantDir(req, sub)),
+    filename: (_req, file, cb) => {
+      const ext = path.extname(file.originalname).toLowerCase();
+      const unique = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}${ext}`;
+      cb(null, unique);
+    },
+  });
 
-export const upload        = multer({ storage,        fileFilter,        limits: { fileSize: 5 * 1024 * 1024 } });
-export const uploadLogo    = multer({ storage: logoStorage,    fileFilter,        limits: { fileSize: 2 * 1024 * 1024 } });
-export const uploadService = multer({ storage: serviceStorage, fileFilter: serviceFileFilter, limits: { fileSize: 2 * 1024 * 1024 } });
+export const upload        = multer({ storage: makeStorage("products"), fileFilter,        limits: { fileSize: 5 * 1024 * 1024 } });
+export const uploadLogo    = multer({ storage: makeStorage("logos"),    fileFilter,        limits: { fileSize: 2 * 1024 * 1024 } });
+export const uploadService = multer({ storage: makeStorage("services"), fileFilter: serviceFileFilter, limits: { fileSize: 2 * 1024 * 1024 } });
 
 export async function uploadProductImage(req: Request, res: Response) {
   try {
-    if (!req.file) {
-      res.status(400).json({ error: "Nenhum arquivo enviado" });
-      return;
-    }
-    const url = `/uploads/products/${req.file.filename}`;
-    res.json({ url });
+    if (!req.file) { res.status(400).json({ error: "Nenhum arquivo enviado" }); return; }
+    const tenantId = (req as AuthenticatedRequest).user.tenantId;
+    res.json({ url: `/uploads/products/${tenantId}/${req.file.filename}` });
   } catch {
     res.status(500).json({ error: "Upload falhou" });
   }
@@ -72,12 +54,9 @@ export async function uploadProductImage(req: Request, res: Response) {
 export async function uploadProductImages(req: Request, res: Response) {
   try {
     const files = req.files as Express.Multer.File[];
-    if (!files || files.length === 0) {
-      res.status(400).json({ error: "Nenhum arquivo enviado" });
-      return;
-    }
-    const urls = files.map(f => `/uploads/products/${f.filename}`);
-    res.json({ urls });
+    if (!files || files.length === 0) { res.status(400).json({ error: "Nenhum arquivo enviado" }); return; }
+    const tenantId = (req as AuthenticatedRequest).user.tenantId;
+    res.json({ urls: files.map(f => `/uploads/products/${tenantId}/${f.filename}`) });
   } catch {
     res.status(500).json({ error: "Upload falhou" });
   }
@@ -85,12 +64,19 @@ export async function uploadProductImages(req: Request, res: Response) {
 
 export async function uploadLogoImage(req: Request, res: Response) {
   try {
-    if (!req.file) {
-      res.status(400).json({ error: "Nenhum arquivo enviado" });
-      return;
-    }
-    const url = `/uploads/logos/${req.file.filename}`;
-    res.json({ url });
+    if (!req.file) { res.status(400).json({ error: "Nenhum arquivo enviado" }); return; }
+    const tenantId = (req as AuthenticatedRequest).user.tenantId;
+    res.json({ url: `/uploads/logos/${tenantId}/${req.file.filename}` });
+  } catch {
+    res.status(500).json({ error: "Upload falhou" });
+  }
+}
+
+export async function uploadServiceImage(req: Request, res: Response) {
+  try {
+    if (!req.file) { res.status(400).json({ error: "Nenhum arquivo enviado" }); return; }
+    const tenantId = (req as AuthenticatedRequest).user.tenantId;
+    res.json({ url: `/uploads/services/${tenantId}/${req.file.filename}` });
   } catch {
     res.status(500).json({ error: "Upload falhou" });
   }
@@ -98,25 +84,10 @@ export async function uploadLogoImage(req: Request, res: Response) {
 
 export function deleteProductImage(imageUrl: string) {
   if (!imageUrl || !imageUrl.startsWith("/uploads/products/")) return;
-  const filePath = path.join(process.cwd(), "public", imageUrl);
-  fs.unlink(filePath, () => {});
-}
-
-export async function uploadServiceImage(req: Request, res: Response) {
-  try {
-    if (!req.file) {
-      res.status(400).json({ error: "Nenhum arquivo enviado" });
-      return;
-    }
-    const url = `/uploads/services/${req.file.filename}`;
-    res.json({ url });
-  } catch {
-    res.status(500).json({ error: "Upload falhou" });
-  }
+  fs.unlink(path.join(process.cwd(), "public", imageUrl), () => {});
 }
 
 export function deleteServiceImage(imageUrl: string) {
   if (!imageUrl || !imageUrl.startsWith("/uploads/services/")) return;
-  const filePath = path.join(process.cwd(), "public", imageUrl);
-  fs.unlink(filePath, () => {});
+  fs.unlink(path.join(process.cwd(), "public", imageUrl), () => {});
 }
