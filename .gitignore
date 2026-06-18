@@ -7,3 +7,4 @@ desktop/release/
 *.log
 .env*
 !.env.example
+public/uploads/

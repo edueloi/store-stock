@@ -132,6 +132,11 @@ echo "▶ Buildando aplicação..."
 npm run build
 echo "  Build concluído."
 
+# ── Garantir diretório de uploads ───────────────────────────────
+mkdir -p "$APP_DIR/public/uploads/products"
+mkdir -p "$APP_DIR/public/uploads/logos"
+mkdir -p "$APP_DIR/public/uploads/services"
+
 # ── 9. PM2 — iniciar ou reiniciar ───────────────────────────────
 echo ""
 echo "▶ Subindo aplicação com PM2..."

@@ -2045,19 +2045,19 @@ export default function PDV() {
                     </div>
                   </div>
 
-                  {/* Botão confirmar */}
-                  <div className="shrink-0 px-5 pb-5 pt-4 border-t border-slate-100 bg-white space-y-2">
+                  {/* Botões de ação */}
+                  <div className="shrink-0 px-5 pb-5 pt-4 border-t border-slate-100 bg-white space-y-2.5">
                     {saleError && (
-                      <div className="mb-3 px-3 py-2.5 bg-red-50 border border-red-200 rounded-xl flex items-start gap-2">
+                      <div className="px-3 py-2.5 bg-red-50 border border-red-200 rounded-xl flex items-start gap-2">
                         <span className="text-red-500 shrink-0 mt-0.5">⚠</span>
                         <p className="text-[11px] font-bold text-red-700 leading-snug">{saleError}</p>
                       </div>
                     )}
                     {terminalResult?.status === "approved" && (
-                      <div className="mb-2 px-3 py-2.5 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center gap-2">
+                      <div className="px-3 py-2.5 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center gap-2">
                         <CheckCircle2 size={14} className="text-emerald-600 shrink-0" />
                         <p className="text-[11px] font-bold text-emerald-700">
-                          Aprovado na maquininha{terminalResult.brand ? ` · ${terminalResult.brand.toUpperCase()}` : ""}{terminalResult.authCode ? ` · Cód ${terminalResult.authCode}` : ""}
+                          Aprovado{terminalResult.brand ? ` · ${terminalResult.brand.toUpperCase()}` : ""}{terminalResult.authCode ? ` · Auth ${terminalResult.authCode}` : ""}
                         </p>
                       </div>
                     )}
@@ -2065,49 +2065,52 @@ export default function PDV() {
                       <button
                         onClick={handleChargeTerminal}
                         disabled={!canFinish || terminalCharging || finishing}
-                        className="w-full rounded-2xl text-[13px] font-black uppercase tracking-widest text-white transition-all disabled:opacity-30 active:scale-[0.98] flex items-center justify-center gap-2.5 shadow-lg"
-                        style={{ height: "52px", background: "linear-gradient(135deg,#16a34a,#15803d)", boxShadow: "0 8px 24px rgba(22,163,74,0.35)" }}
+                        className="w-full h-[52px] rounded-2xl text-[12px] font-black uppercase tracking-widest text-white transition-all disabled:opacity-40 active:scale-[0.98] flex items-center justify-center gap-2.5"
+                        style={{ background: "linear-gradient(135deg,#16a34a,#15803d)", boxShadow: "0 6px 20px rgba(22,163,74,0.30)" }}
                       >
-                        {terminalCharging ? <Loader2 size={17} className="animate-spin" /> : <><Terminal size={17} /> Cobrar na Maquininha</>}
+                        {terminalCharging
+                          ? <><Loader2 size={16} className="animate-spin" /> Aguardando maquininha…</>
+                          : <><Terminal size={16} /> Cobrar na Maquininha</>}
                       </button>
                     )}
                     <button onClick={handleFinishSale} disabled={!canFinish || finishing || terminalCharging}
-                      className="w-full rounded-2xl text-[13px] font-black uppercase tracking-widest text-white transition-all disabled:opacity-30 active:scale-[0.98] flex items-center justify-center gap-2.5 shadow-lg"
+                      className="w-full h-[52px] rounded-2xl text-[12px] font-black uppercase tracking-widest text-white transition-all disabled:opacity-40 active:scale-[0.98] flex items-center justify-center gap-2.5"
                       style={{
-                        height: "52px",
-                        background: remaining > 0.009 ? "linear-gradient(135deg,#f59e0b,#d97706)" : "linear-gradient(135deg,#3b82f6,#1d4ed8)",
-                        boxShadow: remaining > 0.009 ? "0 8px 24px rgba(245,158,11,0.35)" : "0 8px 24px rgba(59,130,246,0.35)",
+                        background: remaining > 0.009
+                          ? "linear-gradient(135deg,#f59e0b,#d97706)"
+                          : terminalResult?.status === "approved"
+                            ? "linear-gradient(135deg,#3b82f6,#1d4ed8)"
+                            : "linear-gradient(135deg,#3b82f6,#1d4ed8)",
+                        boxShadow: remaining > 0.009 ? "0 6px 20px rgba(245,158,11,0.30)" : "0 6px 20px rgba(59,130,246,0.30)",
                       }}>
-                      {finishing ? <Loader2 size={17} className="animate-spin" /> : <><CheckCircle2 size={17} /> Confirmar Venda</>}
+                      {finishing ? <Loader2 size={16} className="animate-spin" /> : <><CheckCircle2 size={16} /> Confirmar Venda</>}
                     </button>
                   </div>
                 </div>
               </div>
 
-              {/* Botão confirmar mobile (só aparece em telas pequenas) */}
+              {/* Botões mobile */}
               <div className="sm:hidden shrink-0 px-4 pb-4 pt-3 border-t border-slate-100 bg-white space-y-2">
                 {saleError && (
-                  <div className="mb-2.5 px-3 py-2 bg-red-50 border border-red-200 rounded-xl flex items-start gap-2">
+                  <div className="px-3 py-2 bg-red-50 border border-red-200 rounded-xl flex items-start gap-2">
                     <span className="text-red-500 shrink-0">⚠</span>
                     <p className="text-[10px] font-bold text-red-700 leading-snug">{saleError}</p>
                   </div>
                 )}
                 {terminalConfigured && remaining <= 0.009 && (
-                  <button
-                    onClick={handleChargeTerminal}
-                    disabled={!canFinish || terminalCharging || finishing}
-                    className="w-full h-12 rounded-2xl text-[12px] font-black uppercase tracking-widest text-white transition-all disabled:opacity-30 active:scale-[0.98] flex items-center justify-center gap-2 shadow-lg"
-                    style={{ background: "linear-gradient(135deg,#16a34a,#15803d)" }}
-                  >
-                    {terminalCharging ? <Loader2 size={16} className="animate-spin" /> : <><Terminal size={16} /> Cobrar na Maquininha</>}
+                  <button onClick={handleChargeTerminal} disabled={!canFinish || terminalCharging || finishing}
+                    className="w-full h-12 rounded-2xl text-[11px] font-black uppercase tracking-widest text-white transition-all disabled:opacity-40 active:scale-[0.98] flex items-center justify-center gap-2"
+                    style={{ background: "linear-gradient(135deg,#16a34a,#15803d)", boxShadow: "0 4px 14px rgba(22,163,74,0.28)" }}>
+                    {terminalCharging ? <><Loader2 size={14} className="animate-spin" /> Aguardando…</> : <><Terminal size={14} /> Cobrar na Maquininha</>}
                   </button>
                 )}
                 <button onClick={handleFinishSale} disabled={!canFinish || finishing || terminalCharging}
-                  className="w-full h-12 rounded-2xl text-[12px] font-black uppercase tracking-widest text-white transition-all disabled:opacity-30 active:scale-[0.98] flex items-center justify-center gap-2 shadow-lg"
+                  className="w-full h-12 rounded-2xl text-[11px] font-black uppercase tracking-widest text-white transition-all disabled:opacity-40 active:scale-[0.98] flex items-center justify-center gap-2"
                   style={{
                     background: remaining > 0.009 ? "linear-gradient(135deg,#f59e0b,#d97706)" : "linear-gradient(135deg,#3b82f6,#1d4ed8)",
+                    boxShadow: remaining > 0.009 ? "0 4px 14px rgba(245,158,11,0.28)" : "0 4px 14px rgba(59,130,246,0.28)",
                   }}>
-                  {finishing ? <Loader2 size={16} className="animate-spin" /> : <><CheckCircle2 size={16} /> Confirmar Venda</>}
+                  {finishing ? <Loader2 size={14} className="animate-spin" /> : <><CheckCircle2 size={14} /> Confirmar Venda</>}
                 </button>
               </div>
             </motion.div>

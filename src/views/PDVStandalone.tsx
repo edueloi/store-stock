@@ -5,7 +5,7 @@ import {
   Loader2, Lock, Mail, LogOut, Store, Eye, EyeOff,
   Printer, FileText, MessageCircle, Phone, ChevronRight, ChevronDown,
   PlusCircle, Barcode, Users, Scan, Star, Gift, UserPlus, Download,
-  Maximize2, Minimize2, Wrench, WifiOff, RefreshCw,
+  Maximize2, Minimize2, Wrench, WifiOff, RefreshCw, Terminal,
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { Product, Category } from "../types";
@@ -200,6 +200,7 @@ export default function PDVStandalone() {
   const [enabledBrands, setEnabledBrands]         = useState<Record<string, boolean>>({ visa: true, master: true, elo: true, amex: true, hiper: true, other: true });
   const [loading, setLoading]       = useState(false);
   const [finishing, setFinishing]   = useState(false);
+  const [saleError, setSaleError]   = useState<string | null>(null);
   const [isOnline, setIsOnline]     = useState(navigator.onLine);
   const [pendingCount, setPendingCount] = useState(0);
   const [syncing, setSyncing]       = useState(false);
@@ -252,6 +253,11 @@ export default function PDVStandalone() {
   const [cartServices, setCartServices]       = useState<ServiceItem[]>([]);
   const [showServicesModal, setShowServicesModal] = useState(false);
   const [showServicesTab, setShowServicesTab] = useState(false);
+
+  // terminal / maquininha
+  const [terminalConfigured, setTerminalConfigured] = useState(false);
+  const [terminalCharging, setTerminalCharging]     = useState(false);
+  const [terminalResult, setTerminalResult]         = useState<{ status: string; brand?: string; authCode?: string } | null>(null);
 
   // receipt modal
   const [completedSale, setCompletedSale]   = useState<CompletedSale | null>(null);
@@ -486,6 +492,11 @@ export default function PDVStandalone() {
       setLoyaltyProgram({ spend_per_point: Number(pg.spend_per_point ?? 10), is_active: pg.is_active ?? false });
       setLoyaltyRewards(Array.isArray(rw) ? rw.filter((r: { is_active: boolean }) => r.is_active) : []);
     }).catch(() => {});
+
+    fetch("/api/terminals/config", { headers })
+      .then((r) => r.json())
+      .then((d) => setTerminalConfigured(!!(d?.enabled && d?.api_key)))
+      .catch(() => {});
   }, [token]);
 
   // ── barcode scanner ──────────────────────────────────────────────────────────
@@ -865,6 +876,29 @@ ${sale.change > 0 ? `<hr class="divider"/><div class="row bold"><span>TROCO:</sp
       iframe.contentWindow?.print();
       setTimeout(() => document.body.removeChild(iframe), 1500);
     }, delay);
+  };
+
+  const handleChargeTerminal = async () => {
+    if (!canFinish || terminalCharging) return;
+    setTerminalCharging(true);
+    setSaleError(null);
+    try {
+      const r = await fetch("/api/terminals/charge", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ amount: total }),
+      });
+      const tx = await r.json();
+      if (tx?.status === "approved") {
+        setTerminalResult({ status: "approved", brand: tx.brand, authCode: tx.authCode ?? tx.auth_code });
+      } else if (!r.ok || tx?.status !== "approved") {
+        setSaleError(tx?.error ?? "Erro ao cobrar na maquininha.");
+      }
+    } catch {
+      setSaleError("Erro de conexão com o terminal.");
+    } finally {
+      setTerminalCharging(false);
+    }
   };
 
   const handleFinishSale = async () => {
@@ -2083,20 +2117,41 @@ ${sale.change > 0 ? `<hr class="divider"/><div class="row bold"><span>TROCO:</sp
                     </div>
                   </div>
 
-                  {/* Botão confirmar */}
-                  <div className="shrink-0 px-5 pb-5 pt-4 border-t border-slate-100 bg-white">
-                    <button onClick={handleFinishSale} disabled={!canFinish || finishing}
-                      className="w-full h-13 rounded-2xl text-[13px] font-black uppercase tracking-widest text-white transition-all disabled:opacity-30 active:scale-[0.98] flex items-center justify-center gap-2.5 shadow-lg"
+                  {/* Botões de ação */}
+                  <div className="shrink-0 px-5 pb-5 pt-4 border-t border-slate-100 bg-white space-y-2.5">
+                    {saleError && (
+                      <div className="px-3 py-2.5 bg-red-50 border border-red-200 rounded-xl flex items-start gap-2">
+                        <span className="text-red-500 shrink-0 mt-0.5">⚠</span>
+                        <p className="text-[11px] font-bold text-red-700 leading-snug">{saleError}</p>
+                      </div>
+                    )}
+                    {terminalResult?.status === "approved" && (
+                      <div className="px-3 py-2.5 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center gap-2">
+                        <CheckCircle2 size={14} className="text-emerald-600 shrink-0" />
+                        <p className="text-[11px] font-bold text-emerald-700">
+                          Aprovado{terminalResult.brand ? ` · ${terminalResult.brand.toUpperCase()}` : ""}{terminalResult.authCode ? ` · Auth ${terminalResult.authCode}` : ""}
+                        </p>
+                      </div>
+                    )}
+                    {terminalConfigured && remaining <= 0.009 && (
+                      <button
+                        onClick={handleChargeTerminal}
+                        disabled={!canFinish || terminalCharging || finishing}
+                        className="w-full h-[52px] rounded-2xl text-[12px] font-black uppercase tracking-widest text-white transition-all disabled:opacity-40 active:scale-[0.98] flex items-center justify-center gap-2.5"
+                        style={{ background: "linear-gradient(135deg,#16a34a,#15803d)", boxShadow: "0 6px 20px rgba(22,163,74,0.30)" }}
+                      >
+                        {terminalCharging
+                          ? <><Loader2 size={16} className="animate-spin" /> Aguardando maquininha…</>
+                          : <><Terminal size={16} /> Cobrar na Maquininha</>}
+                      </button>
+                    )}
+                    <button onClick={handleFinishSale} disabled={!canFinish || finishing || terminalCharging}
+                      className="w-full h-[52px] rounded-2xl text-[12px] font-black uppercase tracking-widest text-white transition-all disabled:opacity-40 active:scale-[0.98] flex items-center justify-center gap-2.5"
                       style={{
-                        height: "52px",
-                        background: remaining > 0.009
-                          ? "linear-gradient(135deg,#f59e0b,#d97706)"
-                          : "linear-gradient(135deg,#3b82f6,#1d4ed8)",
-                        boxShadow: remaining > 0.009
-                          ? "0 8px 24px rgba(245,158,11,0.35)"
-                          : "0 8px 24px rgba(59,130,246,0.35)",
+                        background: remaining > 0.009 ? "linear-gradient(135deg,#f59e0b,#d97706)" : "linear-gradient(135deg,#3b82f6,#1d4ed8)",
+                        boxShadow: remaining > 0.009 ? "0 6px 20px rgba(245,158,11,0.30)" : "0 6px 20px rgba(59,130,246,0.30)",
                       }}>
-                      {finishing ? <Loader2 size={17} className="animate-spin" /> : <><CheckCircle2 size={17} /> Confirmar Venda</>}
+                      {finishing ? <Loader2 size={16} className="animate-spin" /> : <><CheckCircle2 size={16} /> Confirmar Venda</>}
                     </button>
                   </div>
                 </div>
