@@ -14,7 +14,8 @@ export async function listServices(req: Request, res: Response) {
       orderBy: [{ category: "asc" }, { name: "asc" }],
     });
     res.json(services);
-  } catch {
+  } catch (err) {
+    console.error("[listServices] error:", err);
     res.status(500).json({ error: "Failed to fetch services" });
   }
 }
@@ -35,7 +36,8 @@ export async function createService(req: Request, res: Response) {
       },
     });
     res.json(service);
-  } catch {
+  } catch (err) {
+    console.error("[createService] error:", err);
     res.status(500).json({ error: "Failed to create service" });
   }
 }
