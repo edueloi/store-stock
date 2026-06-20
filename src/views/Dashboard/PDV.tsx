@@ -392,6 +392,11 @@ export default function PDV() {
     }).filter(Boolean));
   };
 
+  const setQuantityDirect = (cartItemId: string, value: number, maxStock?: number) => {
+    const clamped = Math.max(1, maxStock !== undefined ? Math.min(value, maxStock) : value);
+    setCart(cart.map((item) => item.cartItemId !== cartItemId ? item : { ...item, quantity: clamped }).filter(Boolean));
+  };
+
   const removeFromCart = (cartItemId: string) => setCart(cart.filter((i) => i.cartItemId !== cartItemId));
 
   // ── totals ────────────────────────────────────────────────────────────────────
@@ -1226,7 +1231,15 @@ export default function PDV() {
                     <div className="flex flex-col items-center gap-1 shrink-0">
                       <div className="flex items-center gap-1 bg-slate-100 border border-slate-200 rounded-xl overflow-hidden">
                         <button onClick={() => updateQuantity(item.cartItemId, -1)} className="p-1.5 hover:bg-slate-200 text-slate-400 hover:text-slate-700 transition-all"><Minus size={11} /></button>
-                        <span className="w-6 text-center font-mono font-black text-[12px] text-slate-700">{item.quantity}</span>
+                        <input
+                          type="number"
+                          min={1}
+                          max={item.stock_quantity}
+                          value={item.quantity}
+                          onChange={(e) => setQuantityDirect(item.cartItemId, parseInt(e.target.value) || 1, item.stock_quantity)}
+                          onFocus={(e) => e.target.select()}
+                          className="w-8 text-center font-mono font-black text-[12px] text-slate-700 bg-transparent border-none outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                        />
                         <button onClick={() => updateQuantity(item.cartItemId, 1)} disabled={item.quantity >= item.stock_quantity} className="p-1.5 hover:bg-slate-200 text-slate-400 hover:text-slate-700 transition-all disabled:opacity-20"><Plus size={11} /></button>
                       </div>
                       <button onClick={() => removeFromCart(item.cartItemId)} className="p-1 text-slate-300 hover:text-red-500 transition-colors rounded"><Trash2 size={12} /></button>
@@ -1259,7 +1272,14 @@ export default function PDV() {
                           className="w-6 h-6 rounded-lg border border-violet-200 bg-white flex items-center justify-center text-violet-500 hover:bg-violet-100 transition-colors text-[11px] font-black">
                           −
                         </button>
-                        <span className="w-5 text-center text-[11px] font-mono font-black text-slate-700">{svc.quantity ?? 1}</span>
+                        <input
+                          type="number"
+                          min={1}
+                          value={svc.quantity ?? 1}
+                          onChange={(e) => { const v = parseInt(e.target.value) || 1; setCartServices(prev => prev.map(s => s.id === svc.id ? { ...s, quantity: Math.max(1, v) } : s)); }}
+                          onFocus={(e) => e.target.select()}
+                          className="w-8 text-center text-[11px] font-mono font-black text-slate-700 bg-transparent border-none outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                        />
                         <button
                           onClick={() => setCartServices(prev => prev.map(s => s.id === svc.id ? { ...s, quantity: (s.quantity ?? 1) + 1 } : s))}
                           className="w-6 h-6 rounded-lg bg-violet-600 text-white flex items-center justify-center hover:bg-violet-700 transition-colors text-[11px] font-black">
@@ -1849,7 +1869,14 @@ export default function PDV() {
                                 <span className="flex items-center gap-1 text-[10px] font-bold text-slate-700 flex-1 min-w-0"><Wrench size={10} className="text-violet-400 shrink-0" /><span className="truncate">{s.name}</span></span>
                                 <div className="flex items-center gap-1 shrink-0">
                                   <button onClick={() => setCartServices(prev => (s.quantity ?? 1) <= 1 ? prev.filter(x => x.id !== s.id) : prev.map(x => x.id === s.id ? { ...x, quantity: (x.quantity ?? 1) - 1 } : x))} className="w-4 h-4 rounded border border-violet-200 bg-white flex items-center justify-center text-violet-500 hover:bg-violet-100 text-[9px] font-black">−</button>
-                                  <span className="w-4 text-center text-[9px] font-mono font-black text-slate-700">{s.quantity ?? 1}</span>
+                                  <input
+                                    type="number"
+                                    min={1}
+                                    value={s.quantity ?? 1}
+                                    onChange={(e) => { const v = parseInt(e.target.value) || 1; setCartServices(prev => prev.map(x => x.id === s.id ? { ...x, quantity: Math.max(1, v) } : x)); }}
+                                    onFocus={(e) => e.target.select()}
+                                    className="w-6 text-center text-[9px] font-mono font-black text-slate-700 bg-transparent border-none outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                                  />
                                   <button onClick={() => setCartServices(prev => prev.map(x => x.id === s.id ? { ...x, quantity: (x.quantity ?? 1) + 1 } : x))} className="w-4 h-4 rounded bg-violet-600 text-white flex items-center justify-center text-[9px] font-black">+</button>
                                   <span className="text-[10px] font-mono font-black text-violet-600 ml-0.5">R$ {(Number(s.price) * (s.quantity ?? 1)).toFixed(2)}</span>
                                   <button onClick={() => setCartServices((prev) => prev.filter((x) => x.id !== s.id))} className="text-slate-300 hover:text-red-400 transition-colors ml-0.5"><X size={11} /></button>

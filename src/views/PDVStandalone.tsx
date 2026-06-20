@@ -615,6 +615,12 @@ export default function PDVStandalone() {
       return { ...item, quantity: nq };
     }).filter(Boolean));
   };
+
+  const setQuantityDirect = (cartItemId: string, value: number, maxStock?: number) => {
+    const clamped = Math.max(1, maxStock !== undefined ? Math.min(value, maxStock) : value);
+    setCart(cart.map((item) => item.cartItemId !== cartItemId ? item : { ...item, quantity: clamped }).filter(Boolean));
+  };
+
   const removeFromCart = (id: string) => setCart(cart.filter((i) => i.cartItemId !== id));
 
   // ── totals ───────────────────────────────────────────────────────────────────
@@ -2882,7 +2888,14 @@ function CartPanel({
                     <button onClick={() => updateQuantity(item.cartItemId, -1)} className="p-1.5 hover:bg-slate-200 text-slate-400 hover:text-slate-700 transition-all">
                       <Minus size={11} />
                     </button>
-                    <span className="w-6 text-center font-mono font-black text-[12px] text-slate-700">{item.quantity}</span>
+                    <input
+                      type="number"
+                      min={1}
+                      value={item.quantity}
+                      onChange={(e) => setQuantityDirect(item.cartItemId, parseInt(e.target.value) || 1)}
+                      onFocus={(e) => e.target.select()}
+                      className="w-8 text-center font-mono font-black text-[12px] text-slate-700 bg-transparent border-none outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                    />
                     <button onClick={() => updateQuantity(item.cartItemId, 1)} className="p-1.5 hover:bg-slate-200 text-slate-400 hover:text-slate-700 transition-all">
                       <Plus size={11} />
                     </button>
@@ -2917,7 +2930,14 @@ function CartPanel({
                       className="p-1.5 hover:bg-violet-200 text-violet-400 hover:text-violet-700 transition-all">
                       <Minus size={11} />
                     </button>
-                    <span className="w-6 text-center font-mono font-black text-[12px] text-violet-700">{svc.quantity ?? 1}</span>
+                    <input
+                      type="number"
+                      min={1}
+                      value={svc.quantity ?? 1}
+                      onChange={(e) => { const v = parseInt(e.target.value) || 1; setCartServices(prev => prev.map(x => x.id === svc.id ? { ...x, quantity: Math.max(1, v) } : x)); }}
+                      onFocus={(e) => e.target.select()}
+                      className="w-8 text-center font-mono font-black text-[12px] text-violet-700 bg-transparent border-none outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                    />
                     <button
                       onClick={() => setCartServices(prev => prev.map(x => x.id === svc.id ? { ...x, quantity: (x.quantity ?? 1) + 1 } : x))}
                       className="p-1.5 hover:bg-violet-200 text-violet-400 hover:text-violet-700 transition-all">
