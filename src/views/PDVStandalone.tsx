@@ -953,7 +953,7 @@ ${sale.change > 0 ? `<hr class="divider"/><div class="row bold"><span>TROCO:</sp
         sellerName: selectedSeller?.name || "",
         payments: payments.map((p) => ({ ...p })),
         items: cart.map((i) => ({ name: i.name, quantity: i.quantity, price: i.price, image_url: i.image_url })),
-        subtotal, discountValue, surchargeValue, feeAmount, total,
+        subtotal, discountValue, surchargeValue, feeAmount: passedFeeAmount, total,
         change: change > 0 ? change : 0,
         tenantName, tenantAddress, tenantLogo, tenantColor, tenantWhatsapp,
         cardFees, pointsEarned, rewardApplied,

@@ -802,7 +802,7 @@ export default function PDV() {
           customerName,
           payments: payments.map((p) => ({ ...p })),
           items: cart.map((i) => ({ name: i.name, quantity: i.quantity, price: i.price, image_url: i.image_url })),
-          subtotal, discountValue, feeAmount, total,
+          subtotal, discountValue, feeAmount: passedFeeAmount, total,
           change: change > 0 ? change : 0,
           tenantName:     tenant.name,
           tenantAddress:  tenant.address_street
