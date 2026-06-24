@@ -506,23 +506,21 @@ export default function PDV() {
   const buildThermalHtml = (sale: CompletedSale) => {
     const now = new Date().toLocaleString("pt-BR");
     const orderId = String(sale.orderId).padStart(6, "0");
-
-    const removeAccents = (text: string) =>
-      text.normalize("NFD").replace(/[̀-ͯ]/g, "");
+    const W = 32;
 
     const truncate = (str: string, maxLen: number) => {
-      const s = removeAccents(String(str || ""));
+      const s = String(str || "");
       return s.length > maxLen ? s.substring(0, maxLen) : s;
     };
 
-    const centerText = (text: string, width = 32) => {
+    const centerText = (text: string, width = W) => {
       const s = truncate(text, width);
       const diff = Math.max(0, width - s.length);
       return " ".repeat(Math.floor(diff / 2)) + s + " ".repeat(Math.ceil(diff / 2));
     };
 
-    const line = (left: string, right: string = "", width = 32) => {
-      const l = truncate(left, 16);
+    const line = (left: string, right: string = "", width = W) => {
+      const l = truncate(left, width - 1);
       const r = truncate(right, 14);
       if (!right) {
         const spaces = Math.max(0, width - l.length);
@@ -532,71 +530,77 @@ export default function PDV() {
       return l + " ".repeat(space) + r;
     };
 
-    const dash = "--------------------------------";
-    const dotLine = "................................";
+    const dash  = "================================";
+    const thin  = "--------------------------------";
+    const dots  = "................................";
+
+    const [datePart, timePart] = now.split(", ");
 
     let receipt = "";
-    receipt += "\n" + centerText("RECIBO", 32) + "\n";
-    receipt += centerText(sale.tenantName, 32) + "\n";
+    receipt += "\n";
+    receipt += centerText("* RECIBO *", W) + "\n";
+    receipt += centerText(truncate(sale.tenantName.toUpperCase(), W), W) + "\n";
     if (sale.tenantAddress) {
-      receipt += centerText(sale.tenantAddress, 32) + "\n";
+      const addr = truncate(sale.tenantAddress, W);
+      receipt += centerText(addr, W) + "\n";
     }
-    receipt += dash.substring(0, 32) + "\n\n";
+    receipt += dash.substring(0, W) + "\n\n";
 
-    receipt += line("PEDIDO", "#" + orderId, 32) + "\n";
-    receipt += line("DATA", now.split(",")[0], 32) + "\n";
-    receipt += line("HORA", now.split(",")[1].trim().substring(0, 8), 32) + "\n";
-    receipt += dash.substring(0, 32) + "\n\n";
+    receipt += line("Pedido:", "#" + orderId, W) + "\n";
+    receipt += line("Data:", datePart, W) + "\n";
+    receipt += line("Hora:", (timePart || "").trim().substring(0, 8), W) + "\n";
+    receipt += thin.substring(0, W) + "\n\n";
 
-    receipt += "CLIENTE:\n";
-    receipt += centerText(truncate(sale.customerName || "CONSUMIDOR", 32), 32) + "\n";
-    receipt += dash.substring(0, 32) + "\n\n";
+    const clientName = truncate(sale.customerName || "CONSUMIDOR FINAL", W);
+    receipt += "Cliente:\n";
+    receipt += "  " + clientName + "\n";
+    receipt += thin.substring(0, W) + "\n\n";
 
-    receipt += "ITENS:\n";
+    receipt += "Itens:\n";
     sale.items.forEach((item) => {
-      receipt += truncate(item.name, 32) + "\n";
-      const qty = String(item.quantity);
+      receipt += truncate(item.name, W) + "\n";
+      const qty   = String(item.quantity) + "x";
       const price = "R$ " + item.price.toFixed(2);
       const total = "R$ " + (item.price * item.quantity).toFixed(2);
-      receipt += line(qty + "x " + price, total, 32) + "\n\n";
+      receipt += line("  " + qty + " " + price, total, W) + "\n";
     });
+    receipt += "\n";
 
-    if (sale.items.length > 0) {
-      receipt += dash.substring(0, 32) + "\n\n";
+    receipt += dash.substring(0, W) + "\n";
+
+    if (sale.discountValue > 0) {
+      receipt += line("Subtotal", "R$ " + sale.subtotal.toFixed(2), W) + "\n";
+      receipt += line("Desconto", "- R$ " + sale.discountValue.toFixed(2), W) + "\n";
+      receipt += dots.substring(0, W) + "\n";
     }
 
-    if (sale.items.length > 0 && sale.discountValue > 0) {
-      receipt += line("SUBTOTAL", "R$ " + sale.subtotal.toFixed(2), 32) + "\n";
-      receipt += line("DESCONTO", "-R$ " + sale.discountValue.toFixed(2), 32) + "\n";
-      receipt += dotLine.substring(0, 32) + "\n";
-    }
+    receipt += line("TOTAL", "R$ " + sale.total.toFixed(2), W) + "\n";
+    receipt += dash.substring(0, W) + "\n\n";
 
-    receipt += line("TOTAL", "R$ " + sale.total.toFixed(2), 32) + "\n";
-    receipt += dash.substring(0, 32) + "\n\n";
-
-    receipt += "PAGAMENTO:\n";
+    receipt += "Pagamento:\n";
     sale.payments.forEach((p) => {
-      const brand = (p.method === "debit" || p.method === "credit") && p.cardBrand !== "other" ? ` ${p.cardBrand.toUpperCase()}` : "";
-      const inst = p.method === "credit" && p.installments > 1 ? ` ${p.installments}x` : "";
-      const label = removeAccents(`${PM_LABEL[p.method]}${brand}${inst}`.toUpperCase());
-      receipt += line(label, "R$ " + Number(p.amount).toFixed(2), 32) + "\n";
+      const brand = (p.method === "debit" || p.method === "credit") && p.cardBrand !== "other"
+        ? ` ${p.cardBrand.charAt(0).toUpperCase() + p.cardBrand.slice(1).toLowerCase()}` : "";
+      const inst  = p.method === "credit" && p.installments > 1 ? ` ${p.installments}x` : "";
+      const label = `${PM_LABEL[p.method]}${brand}${inst}`;
+      receipt += line("  " + label, "R$ " + Number(p.amount).toFixed(2), W) + "\n";
     });
     receipt += "\n";
 
     if (change > 0) {
-      receipt += dash.substring(0, 32) + "\n";
-      receipt += line("TROCO", "R$ " + change.toFixed(2), 32) + "\n";
+      receipt += thin.substring(0, W) + "\n";
+      receipt += line("Troco:", "R$ " + change.toFixed(2), W) + "\n";
+      receipt += "\n";
     }
 
-    receipt += dash.substring(0, 32) + "\n";
-    receipt += centerText("Obrigado!", 32) + "\n";
-    receipt += centerText("Volte Sempre!", 32);
+    receipt += dash.substring(0, W) + "\n";
+    receipt += centerText("Obrigado pela preferencia!", W) + "\n";
+    receipt += centerText("Volte sempre!", W) + "\n";
 
     return `<!DOCTYPE html>
 <html>
 <head>
-  <meta charset="windows-1252">
-  <meta http-equiv="Content-Type" content="text/html; charset=windows-1252">
+  <meta charset="utf-8">
   <title>Cupom #${orderId}</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -604,17 +608,17 @@ export default function PDV() {
     body {
       font-family: 'Courier New', Courier, monospace;
       font-size: 11px;
-      line-height: 1.2;
+      line-height: 1.35;
       width: 58mm;
-      padding: 0;
+      padding: 2mm 3mm;
       margin: 0;
       white-space: pre;
       background: white;
       color: black;
     }
     @media print {
-      @page { margin: 0; size: 58mm; }
-      body { margin: 0; padding: 0; width: 58mm; }
+      @page { margin: 0; size: 58mm auto; }
+      body { margin: 0; padding: 2mm 3mm; width: 58mm; }
     }
   </style>
 </head>

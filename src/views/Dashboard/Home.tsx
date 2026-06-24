@@ -61,9 +61,16 @@ const COLORS = [
 const headers = () => ({ "Authorization": `Bearer ${localStorage.getItem("token")}` });
 const jsonHeaders = () => ({ ...headers(), "Content-Type": "application/json" });
 
+function handle403() {
+  localStorage.removeItem("token");
+  localStorage.removeItem("user");
+  window.location.href = "/login";
+}
+
 async function getPref<T>(key: string, fallback: T): Promise<T> {
   try {
     const r = await fetch(`/api/preferences/${key}`, { headers: headers() });
+    if (r.status === 401 || r.status === 403) { handle403(); return fallback; }
     const d = await r.json();
     return d ?? fallback;
   } catch { return fallback; }
@@ -135,10 +142,13 @@ export default function Home() {
     const qs = `?from=${period.from}&to=${period.to}`;
     setLoadingStats(true);
     Promise.all([
-      fetch(`/api/stats${qs}`, { headers: auth }).then(r => r.json()),
-      fetch(`/api/stats/top-selling${qs}`, { headers: auth }).then(r => r.json()),
-    ]).then(([s, top]) => {
-      setStats(s);
+      fetch(`/api/stats${qs}`, { headers: auth }),
+      fetch(`/api/stats/top-selling${qs}`, { headers: auth }),
+    ]).then(async ([rStats, rTop]) => {
+      if (rStats.status === 401 || rStats.status === 403) { handle403(); return; }
+      const s = await rStats.json();
+      const top = rTop.ok ? await rTop.json() : [];
+      setStats(s?.summary ? s : null);
       setTopProducts(Array.isArray(top) ? top : []);
       setLoadingStats(false);
     }).catch(() => setLoadingStats(false));

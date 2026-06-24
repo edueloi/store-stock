@@ -153,8 +153,17 @@ export default function AdminDashboard() {
     fetch("/api/tenant", {
       headers: { Authorization: `Bearer ${token}` },
     })
-      .then((r) => r.json())
+      .then((r) => {
+        if (r.status === 401 || r.status === 403) {
+          localStorage.removeItem("token");
+          localStorage.removeItem("user");
+          navigate("/login");
+          return null;
+        }
+        return r.json();
+      })
       .then((data) => {
+        if (!data) return;
         if (data?.slug) setTenantSlug(data.slug);
         if (data?.name) setTenantName(data.name);
         if (data?.public_url) setTenantPublicUrl(data.public_url);

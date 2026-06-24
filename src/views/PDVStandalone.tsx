@@ -711,57 +711,63 @@ export default function PDVStandalone() {
   const buildThermalHtml = (sale: CompletedSale) => {
     const now = new Date().toLocaleString("pt-BR");
     const orderId = sale.offline ? "OFFLINE" : String(sale.orderId).padStart(6, "0");
+    const [datePart, timePart] = now.split(", ");
     return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Cupom #${orderId}</title>
 <style>
   * { box-sizing:border-box; margin:0; padding:0; }
-  body { font-family:'Courier New',Courier,monospace; font-size:12px; width:302px; margin:0 auto; padding:12px 10px; background:#fff; color:#000; }
+  body { font-family:'Courier New',Courier,monospace; font-size:12px; width:302px; margin:0 auto; padding:10px 14px; background:#fff; color:#000; line-height:1.4; }
   .center { text-align:center; }
   .bold { font-weight:bold; }
   .divider { border:none; border-top:1px dashed #000; margin:6px 0; }
-  .divider-solid { border:none; border-top:2px solid #000; margin:6px 0; }
+  .divider-solid { border:none; border-top:2px solid #000; margin:5px 0; }
   .row { display:flex; justify-content:space-between; margin:2px 0; font-size:11px; }
-  .row-total { display:flex; justify-content:space-between; font-size:14px; font-weight:bold; margin:4px 0; }
+  .row-total { display:flex; justify-content:space-between; font-size:15px; font-weight:bold; margin:5px 0; }
+  .item-name { font-size:11px; font-weight:bold; }
   .item-sub { font-size:11px; color:#333; margin-top:1px; }
-  .small { font-size:10px; color:#555; margin-top:12px; line-height:1.6; text-align:center; }
-  @media print { @page { margin:0; size:80mm auto; } body { padding:8px 6px; } }
+  .section-label { font-size:10px; font-weight:bold; letter-spacing:2px; text-transform:uppercase; margin:4px 0 2px; }
+  .small { font-size:10px; color:#555; margin-top:10px; line-height:1.6; text-align:center; }
+  @media print { @page { margin:0; size:80mm auto; } body { padding:6px 10px; } }
 </style></head><body>
-<div class="center bold" style="font-size:13px;letter-spacing:1px;text-transform:uppercase">${sale.tenantName}</div>
-${sale.tenantAddress ? `<div class="center" style="font-size:10px;color:#555;margin-top:2px">${sale.tenantAddress}</div>` : ""}
-<hr class="divider" style="margin-top:8px"/>
-<div class="center bold" style="font-size:11px;letter-spacing:2px">CUPOM NÃO FISCAL</div>
-<div class="center" style="font-size:11px">NF-${orderId}</div>
+<div class="center bold" style="font-size:14px;letter-spacing:1px;text-transform:uppercase;margin-bottom:2px">${sale.tenantName}</div>
+${sale.tenantAddress ? `<div class="center" style="font-size:10px;color:#444;margin-bottom:2px">${sale.tenantAddress}</div>` : ""}
+<hr class="divider-solid"/>
+<div class="center bold" style="font-size:11px;letter-spacing:3px">CUPOM NÃO FISCAL</div>
+<div class="center" style="font-size:11px">Nº ${orderId}</div>
 <hr class="divider"/>
-<div class="center" style="font-size:11px">${now}</div>
+<div class="row"><span class="bold">Data:</span><span>${datePart}</span></div>
+<div class="row"><span class="bold">Hora:</span><span>${(timePart || "").trim().substring(0, 8)}</span></div>
 <hr class="divider"/>
-<div class="bold" style="font-size:11px">CLIENTE</div>
-<div style="font-size:11px;margin:2px 0">${sale.customerName || "CONSUMIDOR FINAL"}</div>
-${sale.sellerName ? `<div style="font-size:11px;margin:2px 0">VENDEDOR: ${sale.sellerName}</div>` : ""}
+<div class="section-label">Cliente</div>
+<div style="font-size:11px;margin:1px 0">${sale.customerName || "Consumidor Final"}</div>
+${sale.sellerName ? `<div style="font-size:11px;margin:1px 0">Vendedor: ${sale.sellerName}</div>` : ""}
 <hr class="divider"/>
-<div class="center bold" style="font-size:11px;letter-spacing:2px;margin-bottom:4px">ITENS</div>
+<div class="section-label">Itens</div>
 ${sale.items.map((item) => `
 <div style="margin:4px 0">
-  <div class="bold" style="font-size:11px;text-transform:uppercase">${item.name}</div>
-  <div class="row item-sub"><span>${item.quantity},00 x R$ ${item.price.toFixed(2)}</span><span class="bold">R$ ${(item.price * item.quantity).toFixed(2)}</span></div>
+  <div class="item-name">${item.name}</div>
+  <div class="row item-sub"><span>${item.quantity} x R$ ${item.price.toFixed(2)}</span><span class="bold">R$ ${(item.price * item.quantity).toFixed(2)}</span></div>
 </div>`).join("")}
 <hr class="divider"/>
-<div class="row"><span class="bold">QTD DE ITENS:</span><span>${sale.items.reduce((a, b) => a + b.quantity, 0)}</span></div>
-${(sale.discountValue > 0 || sale.surchargeValue > 0) ? `<div class="row"><span>SUBTOTAL</span><span>R$ ${sale.subtotal.toFixed(2)}</span></div>` : ""}
-${sale.discountValue > 0 ? `<div class="row"><span>DESCONTO</span><span>- R$ ${sale.discountValue.toFixed(2)}</span></div>` : ""}
-${sale.surchargeValue > 0 ? `<div class="row"><span>ACRÉSCIMO</span><span>+ R$ ${sale.surchargeValue.toFixed(2)}</span></div>` : ""}
-${sale.feeAmount > 0 ? `<div class="row"><span>JUROS MÁQUINA</span><span>+ R$ ${sale.feeAmount.toFixed(2)}</span></div>` : ""}
+<div class="row"><span class="bold">Qtd. de Itens:</span><span>${sale.items.reduce((a, b) => a + b.quantity, 0)}</span></div>
+${(sale.discountValue > 0 || sale.surchargeValue > 0) ? `<div class="row"><span>Subtotal:</span><span>R$ ${sale.subtotal.toFixed(2)}</span></div>` : ""}
+${sale.discountValue > 0 ? `<div class="row"><span>Desconto:</span><span>- R$ ${sale.discountValue.toFixed(2)}</span></div>` : ""}
+${sale.surchargeValue > 0 ? `<div class="row"><span>Acréscimo:</span><span>+ R$ ${sale.surchargeValue.toFixed(2)}</span></div>` : ""}
+${sale.feeAmount > 0 ? `<div class="row"><span>Juros máquina:</span><span>+ R$ ${sale.feeAmount.toFixed(2)}</span></div>` : ""}
 <hr class="divider-solid"/>
-<div class="row-total"><span>TOTAL R$:</span><span>R$ ${sale.total.toFixed(2)}</span></div>
+<div class="row-total"><span>TOTAL:</span><span>R$ ${sale.total.toFixed(2)}</span></div>
 <hr class="divider-solid"/>
+<div class="section-label">Pagamento</div>
 ${sale.payments.map((p) => {
-  const brand = (p.method === "debit" || p.method === "credit") && p.cardBrand !== "other" ? `/${p.cardBrand.toUpperCase()}` : "";
-  const inst  = p.method === "credit" && p.installments > 1 ? ` ${p.installments}X` : "";
-  const label = `${PM_LABEL[p.method]}${brand}${inst}`.toUpperCase();
-  return `<div class="row"><span class="bold">PAGAMENTO:</span><span>${label}</span></div><div class="row"><span></span><span class="bold">R$ ${Number(p.amount).toFixed(2)}</span></div>`;
-}).join('<hr class="divider"/>')}
-${sale.change > 0 ? `<hr class="divider"/><div class="row bold"><span>TROCO:</span><span>R$ ${sale.change.toFixed(2)}</span></div>` : ""}
-<hr class="divider"/>
-<div class="center bold" style="font-size:11px;letter-spacing:1px;margin:6px 0">OBRIGADO PELA PREFERÊNCIA!</div>
-<div class="center" style="font-size:11px">VOLTE SEMPRE</div>
+  const brand = (p.method === "debit" || p.method === "credit") && p.cardBrand !== "other"
+    ? ` ${p.cardBrand.charAt(0).toUpperCase() + p.cardBrand.slice(1).toLowerCase()}` : "";
+  const inst  = p.method === "credit" && p.installments > 1 ? ` ${p.installments}x` : "";
+  const label = `${PM_LABEL[p.method]}${brand}${inst}`;
+  return `<div class="row"><span>${label}</span><span class="bold">R$ ${Number(p.amount).toFixed(2)}</span></div>`;
+}).join("")}
+${sale.change > 0 ? `<hr class="divider"/><div class="row bold"><span>Troco:</span><span>R$ ${sale.change.toFixed(2)}</span></div>` : ""}
+<hr class="divider-solid"/>
+<div class="center bold" style="font-size:12px;letter-spacing:1px;margin:6px 0">Obrigado pela preferência!</div>
+<div class="center" style="font-size:11px">Volte sempre!</div>
 <p class="small">Este não é um documento fiscal<br/>Emitido em ${now}</p>
 </body></html>`;
   };
