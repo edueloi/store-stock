@@ -1054,31 +1054,31 @@ ${sale.change > 0 ? `<hr class="divider"/><div class="row bold"><span>Troco:</sp
     <div className="h-screen flex flex-col overflow-hidden font-sans bg-slate-100">
 
       {/* ── Top Bar ──────────────────────────────────────────────────────────── */}
-      <header className="h-14 flex items-center justify-between px-5 shrink-0 bg-white border-b border-slate-200 shadow-sm">
+      <header className="h-14 flex items-center justify-between px-3 sm:px-5 shrink-0 bg-white border-b border-slate-200 shadow-sm gap-2">
 
         {/* Logo + nome */}
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 sm:gap-3 min-w-0">
           {tenantLogo ? (
-            <img src={tenantLogo} alt={tenantName} className="h-8 w-auto max-w-[72px] object-contain rounded-xl" />
+            <img src={tenantLogo} alt={tenantName} className="h-8 w-auto max-w-[56px] sm:max-w-[72px] object-contain rounded-xl shrink-0" />
           ) : (
-            <div className="w-9 h-9 rounded-xl flex items-center justify-center text-white font-black text-[13px] shadow"
+            <div className="w-9 h-9 rounded-xl flex items-center justify-center text-white font-black text-[13px] shadow shrink-0"
               style={{ background: "linear-gradient(135deg, #3b82f6, #1d4ed8)" }}>
               {tenantName.charAt(0).toUpperCase()}
             </div>
           )}
-          <div>
-            <p className="text-[13px] font-black text-slate-800 tracking-wide leading-none">{tenantName}</p>
+          <div className="min-w-0">
+            <p className="text-[13px] font-black text-slate-800 tracking-wide leading-none truncate">{tenantName}</p>
             <div className="flex items-center gap-1.5 mt-0.5">
-              <div className={cn("w-1.5 h-1.5 rounded-full animate-pulse", isOnline ? "bg-emerald-500" : "bg-amber-500")} />
-              <span className={cn("text-[9px] font-semibold uppercase tracking-widest", isOnline ? "text-slate-400" : "text-amber-600")}>
+              <div className={cn("w-1.5 h-1.5 rounded-full animate-pulse shrink-0", isOnline ? "bg-emerald-500" : "bg-amber-500")} />
+              <span className={cn("text-[9px] font-semibold uppercase tracking-widest truncate", isOnline ? "text-slate-400" : "text-amber-600")}>
                 {isOnline ? "Terminal PDV" : "Modo Offline"}
               </span>
             </div>
           </div>
         </div>
 
-        {/* Scanner status — centro */}
-        <div className="flex-1 flex justify-center px-6">
+        {/* Scanner status — centro (oculto em telas pequenas) */}
+        <div className="hidden md:flex flex-1 justify-center px-6">
           <div className={cn(
             "flex items-center gap-2 px-3 h-7 rounded-xl border text-[10px] font-bold uppercase tracking-widest transition-all duration-300",
             scanFeedback === "ok"
@@ -1089,19 +1089,20 @@ ${sale.change > 0 ? `<hr class="divider"/><div class="row bold"><span>Troco:</sp
           )}>
             <Scan size={11} />
             {scanFeedback === "ok" ? "Adicionado!" : scanFeedback === "err" ? "Não encontrado" : "Scanner pronto"}
-            <input ref={scanInputRef} value={scanCode}
-              onChange={(e) => setScanCode(e.target.value)}
-              onKeyDown={(e) => { if (e.key === "Enter") { handleScan(scanCode); e.preventDefault(); } }}
-              className="absolute opacity-0 w-0 h-0 pointer-events-none" readOnly={false} />
           </div>
         </div>
+        {/* Input do scanner permanece montado sempre (fora do bloco visual) para não perder o listener no mobile */}
+        <input ref={scanInputRef} value={scanCode}
+          onChange={(e) => setScanCode(e.target.value)}
+          onKeyDown={(e) => { if (e.key === "Enter") { handleScan(scanCode); e.preventDefault(); } }}
+          className="absolute opacity-0 w-0 h-0 pointer-events-none" readOnly={false} />
 
         {/* Ações direita */}
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
           {/* Offline status / pending sales */}
           {!isOnline && (
-            <span className="flex items-center gap-1.5 px-3 h-8 rounded-xl text-[10px] font-bold uppercase tracking-widest text-amber-700 border border-amber-300 bg-amber-50">
-              <WifiOff size={11} /> Offline
+            <span className="flex items-center gap-1.5 px-2 sm:px-3 h-8 rounded-xl text-[10px] font-bold uppercase tracking-widest text-amber-700 border border-amber-300 bg-amber-50">
+              <WifiOff size={11} /> <span className="hidden sm:inline">Offline</span>
             </span>
           )}
           {pendingCount > 0 && (
@@ -1109,39 +1110,39 @@ ${sale.change > 0 ? `<hr class="divider"/><div class="row bold"><span>Troco:</sp
               onClick={async () => { setPendingSalesList(await getPendingSales()); setShowPendingModal(true); }}
               title="Ver vendas aguardando sincronização"
               className={cn(
-                "flex items-center gap-1.5 px-3 h-8 rounded-xl text-[10px] font-bold uppercase tracking-widest border transition-all",
+                "flex items-center gap-1.5 px-2 sm:px-3 h-8 rounded-xl text-[10px] font-bold uppercase tracking-widest border transition-all",
                 isOnline
                   ? "text-blue-600 border-blue-200 bg-blue-50 hover:bg-blue-100"
                   : "text-amber-700 border-amber-300 bg-amber-50 hover:bg-amber-100"
               )}
             >
               <RefreshCw size={11} className={syncing ? "animate-spin" : ""} />
-              {syncing ? "Sincronizando..." : `${pendingCount} pendente${pendingCount > 1 ? "s" : ""}`}
+              <span className="hidden sm:inline">{syncing ? "Sincronizando..." : `${pendingCount} pendente${pendingCount > 1 ? "s" : ""}`}</span>
             </button>
           )}
           {/* Fullscreen toggle */}
           <button onClick={toggleFullscreen} title={isFullscreen ? "Sair de tela cheia" : "Tela cheia"}
-            className="flex items-center gap-1.5 px-3 h-8 rounded-xl text-[10px] font-bold uppercase tracking-widest text-slate-500 border border-slate-200 hover:bg-slate-50 hover:text-slate-700 transition-all">
+            className="hidden sm:flex items-center gap-1.5 px-3 h-8 rounded-xl text-[10px] font-bold uppercase tracking-widest text-slate-500 border border-slate-200 hover:bg-slate-50 hover:text-slate-700 transition-all">
             {isFullscreen ? <Minimize2 size={11} /> : <Maximize2 size={11} />}
             {isFullscreen ? "Sair" : "Tela Cheia"}
           </button>
 
           {/* Instalar PWA */}
           {!pwaInstalled && (installPrompt || isSafari || isIos) && (
-            <button onClick={handleInstallPwa}
-              className="flex items-center gap-1.5 px-3 h-8 rounded-xl text-[10px] font-bold uppercase tracking-widest text-blue-600 border border-blue-200 bg-blue-50 hover:bg-blue-100 transition-all">
-              <Download size={11} /> Instalar App
+            <button onClick={handleInstallPwa} title="Instalar App"
+              className="flex items-center gap-1.5 px-2 sm:px-3 h-8 rounded-xl text-[10px] font-bold uppercase tracking-widest text-blue-600 border border-blue-200 bg-blue-50 hover:bg-blue-100 transition-all">
+              <Download size={11} /> <span className="hidden sm:inline">Instalar App</span>
             </button>
           )}
           {pwaInstalled && (
-            <span className="flex items-center gap-1.5 px-3 h-8 rounded-xl text-[10px] font-bold uppercase tracking-widest text-emerald-600 border border-emerald-200 bg-emerald-50">
+            <span className="hidden sm:flex items-center gap-1.5 px-3 h-8 rounded-xl text-[10px] font-bold uppercase tracking-widest text-emerald-600 border border-emerald-200 bg-emerald-50">
               <CheckCircle2 size={11} /> Instalado
             </span>
           )}
           {/* Sair */}
-          <button onClick={handleLogout}
-            className="flex items-center gap-1.5 px-3 h-8 rounded-xl text-[10px] font-bold uppercase tracking-widest text-slate-400 hover:text-red-500 transition-all border border-slate-200 hover:border-red-200 hover:bg-red-50">
-            <LogOut size={11} /> Sair
+          <button onClick={handleLogout} title="Sair"
+            className="flex items-center gap-1.5 px-2 sm:px-3 h-8 rounded-xl text-[10px] font-bold uppercase tracking-widest text-slate-400 hover:text-red-500 transition-all border border-slate-200 hover:border-red-200 hover:bg-red-50">
+            <LogOut size={11} /> <span className="hidden sm:inline">Sair</span>
           </button>
         </div>
       </header>
@@ -1719,48 +1720,46 @@ ${sale.change > 0 ? `<hr class="divider"/><div class="row bold"><span>Troco:</sp
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: 12, scale: 0.98 }}
               transition={{ type: "spring", damping: 32, stiffness: 300 }}
-              className="fixed inset-0 z-[251] flex flex-col m-auto bg-white"
+              className="fixed inset-0 sm:inset-auto z-[251] flex flex-col w-full h-full sm:m-auto sm:w-[min(980px,96vw)] sm:h-[min(700px,92vh)] sm:rounded-[24px] bg-white"
               style={{
-                width: "min(980px, 96vw)", height: "min(700px, 92vh)",
-                borderRadius: "24px",
                 boxShadow: "0 24px 80px rgba(0,0,0,0.18), 0 4px 16px rgba(0,0,0,0.08)",
                 overflow: "hidden",
                 border: "1px solid #e2e8f0",
               }}>
 
               {/* ── Header ─────────────────────────────────────────────────── */}
-              <div className="shrink-0 flex items-center justify-between px-6 py-4 bg-white border-b border-slate-100">
-                <div className="flex items-center gap-3">
+              <div className="shrink-0 flex items-center justify-between gap-2 px-4 sm:px-6 py-3 sm:py-4 bg-white border-b border-slate-100">
+                <div className="flex items-center gap-2 sm:gap-3 min-w-0">
                   {tenantLogo ? (
-                    <img src={tenantLogo} alt={tenantName} className="h-10 w-auto max-w-[100px] object-contain rounded-xl shrink-0" />
+                    <img src={tenantLogo} alt={tenantName} className="hidden sm:block h-10 w-auto max-w-[100px] object-contain rounded-xl shrink-0" />
                   ) : (
-                    <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 shadow-sm"
+                    <div className="hidden sm:flex w-10 h-10 rounded-xl items-center justify-center shrink-0 shadow-sm"
                       style={{ background: "linear-gradient(135deg,#3b82f6,#1d4ed8)" }}>
                       <Store size={18} className="text-white" />
                     </div>
                   )}
-                  <div>
+                  <div className="min-w-0">
                     <p className="text-[9px] font-bold uppercase tracking-[0.25em] text-blue-500">Finalizar Venda</p>
-                    <h2 className="text-[16px] font-black text-slate-800 leading-tight">{tenantName}</h2>
+                    <h2 className="text-[16px] font-black text-slate-800 leading-tight truncate">{tenantName}</h2>
                   </div>
                 </div>
-                <div className="flex items-center gap-4">
+                <div className="flex items-center gap-2 sm:gap-4 shrink-0">
                   <div className="text-right">
                     <p className="text-[9px] font-bold uppercase tracking-widest text-slate-400">{cartQty} {cartQty === 1 ? "item" : "itens"}</p>
-                    <p className="text-[24px] font-mono font-black text-slate-800 leading-none">R$ {total.toFixed(2)}</p>
+                    <p className="text-[20px] sm:text-[24px] font-mono font-black text-slate-800 leading-none">R$ {total.toFixed(2)}</p>
                   </div>
                   <button onClick={() => setShowCheckoutModal(false)} disabled={finishing}
-                    className="w-9 h-9 rounded-xl bg-slate-100 hover:bg-slate-200 flex items-center justify-center transition-all disabled:opacity-30 border border-slate-200">
+                    className="w-9 h-9 rounded-xl bg-slate-100 hover:bg-slate-200 flex items-center justify-center transition-all disabled:opacity-30 border border-slate-200 shrink-0">
                     <X size={16} className="text-slate-500" />
                   </button>
                 </div>
               </div>
 
               {/* ── Corpo em duas colunas ──────────────────────────────────── */}
-              <div className="flex-1 flex overflow-hidden">
+              <div className="flex-1 flex flex-col sm:flex-row overflow-hidden">
 
                 {/* COLUNA ESQUERDA */}
-                <div className="w-[340px] shrink-0 flex flex-col overflow-y-auto pdv-scroll-light border-r border-slate-100 bg-slate-50">
+                <div className="w-full sm:w-[340px] shrink-0 flex flex-col overflow-y-auto pdv-scroll-light border-b sm:border-b-0 sm:border-r border-slate-100 bg-slate-50 max-h-[45vh] sm:max-h-none">
 
                   {/* Itens do pedido */}
                   <div className="p-4 border-b border-slate-100">
@@ -2084,7 +2083,7 @@ ${sale.change > 0 ? `<hr class="divider"/><div class="row bold"><span>Troco:</sp
                 </div>
 
                 {/* COLUNA DIREITA — pagamentos */}
-                <div className="flex-1 flex flex-col overflow-hidden bg-white">
+                <div className="flex-1 flex flex-col overflow-hidden bg-white min-h-0">
                   <div className="flex-1 overflow-y-auto p-5 space-y-3 pdv-scroll-light">
 
                     {/* Label + adicionar */}

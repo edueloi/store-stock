@@ -1610,48 +1610,45 @@ export default function PDV() {
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: 12, scale: 0.98 }}
               transition={{ type: "spring", damping: 32, stiffness: 300 }}
-              className="fixed inset-x-4 bottom-4 sm:inset-auto sm:top-1/2 sm:left-1/2 sm:-translate-x-1/2 sm:-translate-y-1/2 z-[301] bg-white flex flex-col overflow-hidden"
+              className="fixed inset-0 sm:inset-auto sm:top-1/2 sm:left-1/2 sm:-translate-x-1/2 sm:-translate-y-1/2 z-[301] w-full h-full sm:w-[min(960px,calc(100vw-32px))] sm:h-[min(680px,calc(100vh-48px))] sm:rounded-[24px] bg-white flex flex-col overflow-hidden"
               style={{
-                width: "min(960px, calc(100vw - 32px))",
-                height: "min(680px, calc(100vh - 48px))",
-                borderRadius: "24px",
                 boxShadow: "0 24px 80px rgba(0,0,0,0.18), 0 4px 16px rgba(0,0,0,0.08)",
                 border: "1px solid #e2e8f0",
               }}>
 
               {/* ── Header ──────────────────────────────────────────────── */}
-              <div className="shrink-0 flex items-center justify-between px-6 py-4 bg-white border-b border-slate-100">
-                <div className="flex items-center gap-3">
+              <div className="shrink-0 flex items-center justify-between gap-2 px-4 sm:px-6 py-3 sm:py-4 bg-white border-b border-slate-100">
+                <div className="flex items-center gap-2 sm:gap-3 min-w-0">
                   {tenant.logo_url ? (
-                    <img src={tenant.logo_url} alt={tenant.name} className="h-10 w-auto max-w-[100px] object-contain rounded-xl shrink-0" />
+                    <img src={tenant.logo_url} alt={tenant.name} className="hidden sm:block h-10 w-auto max-w-[100px] object-contain rounded-xl shrink-0" />
                   ) : (
-                    <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 shadow-sm"
+                    <div className="hidden sm:flex w-10 h-10 rounded-xl items-center justify-center shrink-0 shadow-sm"
                       style={{ background: "linear-gradient(135deg,#3b82f6,#1d4ed8)" }}>
                       <Store size={18} className="text-white" />
                     </div>
                   )}
-                  <div>
+                  <div className="min-w-0">
                     <p className="text-[9px] font-bold uppercase tracking-[0.25em] text-blue-500">Finalizar Venda</p>
-                    <h2 className="text-[16px] font-black text-slate-800 leading-tight">{tenant.name}</h2>
+                    <h2 className="text-[16px] font-black text-slate-800 leading-tight truncate">{tenant.name}</h2>
                   </div>
                 </div>
-                <div className="flex items-center gap-4">
+                <div className="flex items-center gap-2 sm:gap-4 shrink-0">
                   <div className="text-right">
                     <p className="text-[9px] font-bold uppercase tracking-widest text-slate-400">{cartQty} {cartQty === 1 ? "item" : "itens"}</p>
-                    <p className="text-[24px] font-mono font-black text-slate-800 leading-none">R$ {total.toFixed(2)}</p>
+                    <p className="text-[20px] sm:text-[24px] font-mono font-black text-slate-800 leading-none">R$ {total.toFixed(2)}</p>
                   </div>
                   <button onClick={() => setShowCheckout(false)} disabled={finishing}
-                    className="w-9 h-9 rounded-xl bg-slate-100 hover:bg-slate-200 flex items-center justify-center transition-all disabled:opacity-30 border border-slate-200">
+                    className="w-9 h-9 rounded-xl bg-slate-100 hover:bg-slate-200 flex items-center justify-center transition-all disabled:opacity-30 border border-slate-200 shrink-0">
                     <X size={16} className="text-slate-500" />
                   </button>
                 </div>
               </div>
 
               {/* ── Corpo em duas colunas ────────────────────────────────── */}
-              <div className="flex-1 flex overflow-hidden">
+              <div className="flex-1 flex flex-col sm:flex-row overflow-hidden">
 
                 {/* COLUNA ESQUERDA — itens, cliente, serviços, descontos, vendedores */}
-                <div className="w-full sm:w-[340px] shrink-0 flex flex-col overflow-y-auto admin-scroll border-r border-slate-100 bg-slate-50">
+                <div className="w-full sm:w-[340px] shrink-0 flex flex-col overflow-y-auto admin-scroll border-b sm:border-b-0 sm:border-r border-slate-100 bg-slate-50 max-h-[45vh] sm:max-h-none">
 
                   {/* Itens do pedido */}
                   <div className="p-4 border-b border-slate-100">
@@ -1935,7 +1932,7 @@ export default function PDV() {
                 </div>
 
                 {/* COLUNA DIREITA — formas de pagamento + confirmar */}
-                <div className="hidden sm:flex flex-1 flex-col overflow-hidden bg-white">
+                <div className="flex flex-1 flex-col overflow-hidden bg-white min-h-0">
                   <div className="flex-1 overflow-y-auto p-5 space-y-3 admin-scroll">
 
                     {/* Label + adicionar */}
@@ -2120,30 +2117,6 @@ export default function PDV() {
                 </div>
               </div>
 
-              {/* Botões mobile */}
-              <div className="sm:hidden shrink-0 px-4 pb-4 pt-3 border-t border-slate-100 bg-white space-y-2">
-                {saleError && (
-                  <div className="px-3 py-2 bg-red-50 border border-red-200 rounded-xl flex items-start gap-2">
-                    <span className="text-red-500 shrink-0">⚠</span>
-                    <p className="text-[10px] font-bold text-red-700 leading-snug">{saleError}</p>
-                  </div>
-                )}
-                {terminalConfigured && remaining <= 0.009 && (
-                  <button onClick={handleChargeTerminal} disabled={!canFinish || terminalCharging || finishing}
-                    className="w-full h-12 rounded-2xl text-[11px] font-black uppercase tracking-widest text-white transition-all disabled:opacity-40 active:scale-[0.98] flex items-center justify-center gap-2"
-                    style={{ background: "linear-gradient(135deg,#16a34a,#15803d)", boxShadow: "0 4px 14px rgba(22,163,74,0.28)" }}>
-                    {terminalCharging ? <><Loader2 size={14} className="animate-spin" /> Aguardando…</> : <><Terminal size={14} /> Cobrar na Maquininha</>}
-                  </button>
-                )}
-                <button onClick={handleFinishSale} disabled={!canFinish || finishing || terminalCharging}
-                  className="w-full h-12 rounded-2xl text-[11px] font-black uppercase tracking-widest text-white transition-all disabled:opacity-40 active:scale-[0.98] flex items-center justify-center gap-2"
-                  style={{
-                    background: remaining > 0.009 ? "linear-gradient(135deg,#f59e0b,#d97706)" : "linear-gradient(135deg,#3b82f6,#1d4ed8)",
-                    boxShadow: remaining > 0.009 ? "0 4px 14px rgba(245,158,11,0.28)" : "0 4px 14px rgba(59,130,246,0.28)",
-                  }}>
-                  {finishing ? <Loader2 size={14} className="animate-spin" /> : <><CheckCircle2 size={14} /> Confirmar Venda</>}
-                </button>
-              </div>
             </motion.div>
           </>
         )}
