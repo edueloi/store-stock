@@ -268,7 +268,13 @@ export default function PublicStore() {
                       className={cn("min-w-[280px] md:min-w-[320px] bg-white/5 backdrop-blur-md border border-white/10 overflow-hidden snap-start group", style.radius)}
                     >
                        <div className="aspect-video relative">
-                          <img src={product.image_url || "/placeholder.jpg"} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700" alt={product.name} />
+                          {product.image_url ? (
+                            <img src={product.image_url} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700" alt={product.name} />
+                          ) : (
+                            <div className="w-full h-full flex items-center justify-center bg-white/5">
+                              <Package size={40} strokeWidth={1} className="text-white/20" />
+                            </div>
+                          )}
                           <div className="absolute inset-0 bg-gradient-to-t from-slate-900 via-transparent to-transparent"></div>
                           <div className="absolute bottom-4 left-4 right-4">
                              <span 

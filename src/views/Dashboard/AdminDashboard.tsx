@@ -26,6 +26,7 @@ import {
   Barcode,
   Calculator,
   Wrench,
+  ClipboardList,
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { cn } from "../../lib/utils";
@@ -52,6 +53,7 @@ import Goals from "./Goals";
 import Barcodes from "./Barcodes";
 import Markup from "./Markup";
 import Services from "./Services";
+import ServiceOrders from "./ServiceOrders";
 
 export default function AdminDashboard() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(window.innerWidth > 1024);
@@ -83,6 +85,7 @@ export default function AdminDashboard() {
         { icon: Wallet,          label: "Fluxo de Caixa", path: "/admin/finance" },
         { icon: Receipt,         label: "Pedidos",        path: "/admin/orders" },
         { icon: FileText,        label: "Orçamentos",     path: "/admin/orcamentos" },
+        { icon: ClipboardList,   label: "Ordens de Serviço", path: "/admin/ordens-servico" },
       ],
     },
     {
@@ -397,6 +400,7 @@ export default function AdminDashboard() {
               <Route path="contas-pagar" element={<ContasPagar />} />
               <Route path="analytics" element={<Analytics />} />
               <Route path="orcamentos" element={<Quotes />} />
+              <Route path="ordens-servico" element={<ServiceOrders />} />
               <Route path="vendedores" element={<Sellers />} />
               <Route path="servicos"   element={<Services />} />
               <Route path="metas"      element={<Goals />} />

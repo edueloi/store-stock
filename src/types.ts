@@ -22,6 +22,7 @@ export interface StorePolicies {
   warranty_resolution_days?: number;
   warranty_title?: string;
   warranty_clauses?: string[];
+  service_order_checklists?: Record<string, { label: string }[]>;
 }
 
 export interface Tenant {

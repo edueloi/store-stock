@@ -5,7 +5,7 @@ import {
   Users, Save, Loader2, Search, Check, ChevronRight, Globe,
   Bell, Sun, Moon, Package, AlertTriangle, Lock, Image, Upload, X, FileCheck,
   Smartphone, Zap, UserPlus, Trash2, Edit2, Eye, EyeOff, ShoppingCart, User,
-  Monitor, Download, WifiOff, Terminal, CheckCircle2, XCircle,
+  Monitor, Download, WifiOff, Terminal, CheckCircle2, XCircle, ClipboardList,
 } from "lucide-react";
 import PageHeader from "../../components/layout/PageHeader";
 import { cn } from "../../lib/utils";
@@ -152,6 +152,7 @@ const NAV = [
       { id: "payments", icon: CreditCard, label: "Pagamentos & Políticas" },
       { id: "card_fees", icon: CreditCard, label: "Maquininha & Taxas" },
       { id: "warranty", icon: FileCheck, label: "Termos de Garantia" },
+      { id: "service_checklists", icon: ClipboardList, label: "Checklists de OS" },
     ],
   },
   {
@@ -1507,7 +1508,7 @@ export default function Settings() {
                       { policyKey: "returns" as const, label: "Política de Devolução", placeholder: "Ex: Devoluções aceitas em até 7 dias após a entrega..." },
                       { policyKey: "exchange" as const, label: "Política de Troca", placeholder: "Ex: Trocas em até 30 dias mediante apresentação da nota..." },
                       { policyKey: "shipping" as const, label: "Política de Frete", placeholder: "Ex: Frete grátis para compras acima de R$ 150..." },
-                    ] as { policyKey: keyof StorePolicies; label: string; placeholder: string }[]
+                    ] as { policyKey: "returns" | "exchange" | "shipping"; label: string; placeholder: string }[]
                   ).map(({ policyKey, label, placeholder }) => (
                     <div key={policyKey}>
                       <Field label={label}>
@@ -1944,6 +1945,121 @@ export default function Settings() {
                   </div>
 
                   <SaveButton onClick={handleSaveTenant} label="Salvar Termos" />
+                </div>
+              );
+            })()}
+
+            {/* ── Checklists de Ordem de Serviço ────────────────────────── */}
+            {active === "service_checklists" && (() => {
+              const sp = policies as StorePolicies;
+              const checklists = sp.service_order_checklists ?? {};
+              const categories = Object.keys(checklists);
+
+              const setChecklists = (next: Record<string, { label: string }[]>) =>
+                setPolicies({ service_order_checklists: next });
+
+              const addCategory = () => {
+                const name = window.prompt("Nome da categoria (ex: Notebook, Som, Celular):");
+                if (!name || checklists[name]) return;
+                setChecklists({ ...checklists, [name]: [] });
+              };
+
+              const removeCategory = (cat: string) => {
+                if (!window.confirm(`Remover a categoria "${cat}" e seu checklist?`)) return;
+                const next = { ...checklists };
+                delete next[cat];
+                setChecklists(next);
+              };
+
+              const addItem = (cat: string) =>
+                setChecklists({ ...checklists, [cat]: [...(checklists[cat] ?? []), { label: "" }] });
+
+              const updateItem = (cat: string, idx: number, label: string) => {
+                const items = [...(checklists[cat] ?? [])];
+                items[idx] = { label };
+                setChecklists({ ...checklists, [cat]: items });
+              };
+
+              const removeItem = (cat: string, idx: number) => {
+                const items = (checklists[cat] ?? []).filter((_, i) => i !== idx);
+                setChecklists({ ...checklists, [cat]: items });
+              };
+
+              return (
+                <div className="space-y-8">
+                  <SectionHeader
+                    title="Checklists de Ordem de Serviço"
+                    subtitle="Configure o checklist de entrada usado em cada categoria de equipamento (notebooks, sons, celulares, etc.)"
+                  />
+
+                  <div className="flex items-center justify-between">
+                    <p className="text-[10px] font-black uppercase tracking-widest text-slate-700 border-l-4 border-blue-500 pl-3">
+                      Categorias
+                    </p>
+                    <button
+                      onClick={addCategory}
+                      className="flex items-center gap-2 text-[9px] font-black uppercase tracking-widest text-blue-600 hover:text-blue-800 transition-colors px-3 h-8 rounded-lg border border-blue-200 bg-blue-50 hover:bg-blue-100"
+                    >
+                      + Nova Categoria
+                    </button>
+                  </div>
+
+                  {categories.length === 0 ? (
+                    <p className="text-[11px] text-slate-400 font-medium">
+                      Nenhuma categoria configurada ainda. Crie uma categoria (ex: "Notebook") para poder montar o checklist de entrada usado nas Ordens de Serviço.
+                    </p>
+                  ) : (
+                    <div className="space-y-6">
+                      {categories.map((cat) => (
+                        <div key={cat} className="bg-slate-50 border border-slate-100 rounded-2xl p-5 space-y-3">
+                          <div className="flex items-center justify-between">
+                            <p className="text-[12px] font-black text-slate-800">{cat}</p>
+                            <div className="flex items-center gap-2">
+                              <button
+                                onClick={() => addItem(cat)}
+                                className="flex items-center gap-1.5 h-7 px-2.5 rounded-lg text-[9px] font-black uppercase tracking-wider bg-blue-50 border border-blue-200 text-blue-600 hover:bg-blue-100 transition-all"
+                              >
+                                + Item
+                              </button>
+                              <button
+                                onClick={() => removeCategory(cat)}
+                                className="w-7 h-7 rounded-full bg-rose-50 text-rose-400 flex items-center justify-center hover:bg-rose-100 hover:text-rose-600 transition-colors"
+                              >
+                                <X size={11} strokeWidth={3} />
+                              </button>
+                            </div>
+                          </div>
+                          <div className="space-y-2">
+                            {(checklists[cat] ?? []).length === 0 ? (
+                              <p className="text-[10px] text-slate-400">Nenhum item — clique em "+ Item" para adicionar (ex: "Liga", "Tela sem trincos", "Carregador incluso").</p>
+                            ) : (
+                              (checklists[cat] ?? []).map((item, idx) => (
+                                <div key={idx} className="flex gap-2 items-center">
+                                  <div className="w-5 h-5 rounded-full bg-slate-900 text-white flex items-center justify-center text-[8px] font-black shrink-0">
+                                    {idx + 1}
+                                  </div>
+                                  <TextInput
+                                    value={item.label}
+                                    onChange={(v) => updateItem(cat, idx, v)}
+                                    placeholder={`Item ${idx + 1} do checklist...`}
+                                    className="h-9"
+                                  />
+                                  <button
+                                    onClick={() => removeItem(cat, idx)}
+                                    className="w-6 h-6 rounded-full bg-rose-50 text-rose-400 flex items-center justify-center hover:bg-rose-100 hover:text-rose-600 transition-colors shrink-0"
+                                  >
+                                    <X size={10} strokeWidth={3} />
+                                  </button>
+                                </div>
+                              ))
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  <SaveButton onClick={handleSaveTenant} label="Salvar Checklists" />
                 </div>
               );
             })()}
