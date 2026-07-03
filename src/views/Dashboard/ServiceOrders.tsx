@@ -408,6 +408,11 @@ export default function ServiceOrders() {
   const [ncEmail, setNcEmail] = useState("");
   const [savingNC, setSavingNC] = useState(false);
 
+  const [showNewCategory, setShowNewCategory] = useState(false);
+  const [ncatName, setNcatName] = useState("");
+  const [ncatItems, setNcatItems] = useState<string[]>([""]);
+  const [savingCategory, setSavingCategory] = useState(false);
+
   const [selected, setSelected] = useState<ServiceOrder | null>(null);
 
   const [partSearch, setPartSearch] = useState("");
@@ -458,6 +463,32 @@ export default function ServiceOrders() {
 
   const checklistTemplates = tenant?.policies?.service_order_checklists ?? {};
   const categoryOptions = Object.keys(checklistTemplates).map((cat) => ({ value: cat, label: cat }));
+
+  // ── Category (checklist template) quick-create ─────────────────────────
+  const handleCreateCategory = async () => {
+    const name = ncatName.trim();
+    if (!name || checklistTemplates[name]) return;
+    setSavingCategory(true);
+    try {
+      const items = ncatItems.map((l) => l.trim()).filter(Boolean).map((label) => ({ label }));
+      const nextChecklists = { ...checklistTemplates, [name]: items };
+      const nextPolicies = { ...(tenant?.policies ?? {}), service_order_checklists: nextChecklists };
+      const res = await fetch("/api/tenant", {
+        method: "PUT",
+        headers: authHeader(),
+        body: JSON.stringify({ policies: nextPolicies }),
+      });
+      if (res.ok) {
+        setTenant((t) => (t ? { ...t, policies: nextPolicies } : t));
+        setForm((f) => ({ ...f, equipment_category: name }));
+        setShowNewCategory(false);
+        setNcatName("");
+        setNcatItems([""]);
+      }
+    } finally {
+      setSavingCategory(false);
+    }
+  };
 
   // ── Create ──────────────────────────────────────────────────────────────
   const handleCreate = async () => {
@@ -836,14 +867,26 @@ export default function ServiceOrders() {
                 {/* Equipamento */}
                 <div>
                   <label className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400 mb-1.5 block">Categoria do Equipamento</label>
-                  <Combobox
-                    placeholder="Selecionar categoria..."
-                    searchPlaceholder="Buscar categoria..."
-                    value={form.equipment_category}
-                    onChange={(v) => setForm((f) => ({ ...f, equipment_category: v }))}
-                    options={categoryOptions}
-                    hint={categoryOptions.length === 0 ? "Configure categorias em Configurações → Checklists de OS" : undefined}
-                  />
+                  <div className="flex gap-2">
+                    <div className="flex-1 min-w-0">
+                      <Combobox
+                        placeholder="Selecionar categoria..."
+                        searchPlaceholder="Buscar categoria..."
+                        value={form.equipment_category}
+                        onChange={(v) => setForm((f) => ({ ...f, equipment_category: v }))}
+                        options={categoryOptions}
+                        hint={categoryOptions.length === 0 ? "Nenhuma categoria ainda — clique em + para criar" : undefined}
+                      />
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => { setNcatName(""); setNcatItems([""]); setShowNewCategory(true); }}
+                      className="h-10 w-10 rounded-xl bg-blue-50 border border-blue-200 text-blue-600 hover:bg-blue-100 flex items-center justify-center shrink-0 transition-colors"
+                      title="Criar nova categoria"
+                    >
+                      <PlusCircle size={15} />
+                    </button>
+                  </div>
                 </div>
                 <div className="grid grid-cols-2 gap-2">
                   <input value={form.equipment_type} onChange={(e) => setForm((f) => ({ ...f, equipment_type: e.target.value }))} placeholder="Tipo (ex: Notebook Gamer)" className="h-10 px-3 rounded-xl border border-slate-200 text-[12px] font-medium focus:outline-none focus:border-blue-400" />
@@ -1017,6 +1060,97 @@ export default function ServiceOrders() {
                   className="flex-1 h-9 bg-blue-600 text-white rounded-lg text-sm font-bold hover:bg-blue-700 disabled:opacity-50 transition-all"
                 >
                   {savingNC ? "Cadastrando…" : "Criar Cliente"}
+                </button>
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+
+      {/* ── NOVA CATEGORIA MODAL ─────────────────────────────────────────── */}
+      <AnimatePresence>
+        {showNewCategory && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              onClick={() => setShowNewCategory(false)}
+              className="fixed inset-0 bg-slate-900/60 z-[400] backdrop-blur-sm"
+            />
+            <motion.div
+              initial={{ opacity: 0, y: 16, scale: 0.98 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 12, scale: 0.98 }}
+              transition={{ type: "spring", damping: 32, stiffness: 300 }}
+              className="fixed inset-x-4 bottom-4 sm:inset-auto sm:top-1/2 sm:left-1/2 sm:-translate-x-1/2 sm:-translate-y-1/2 z-[410] bg-white flex flex-col overflow-hidden rounded-3xl"
+              style={{ width: "min(480px, calc(100vw - 32px))", maxHeight: "calc(100vh - 48px)" }}
+            >
+              <div className="shrink-0 flex items-center justify-between px-6 py-4 border-b border-slate-100">
+                <div>
+                  <h2 className="text-[14px] font-black text-slate-800">Nova Categoria de Equipamento</h2>
+                  <p className="text-[10px] text-slate-400 mt-0.5">Define o checklist de entrada usado nessa categoria</p>
+                </div>
+                <button onClick={() => setShowNewCategory(false)} className="w-8 h-8 rounded-xl bg-slate-100 hover:bg-slate-200 flex items-center justify-center shrink-0">
+                  <X size={14} className="text-slate-500" />
+                </button>
+              </div>
+
+              <div className="flex-1 overflow-y-auto p-5 space-y-4">
+                <div>
+                  <label className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400 mb-1.5 block">Nome da Categoria</label>
+                  <input
+                    value={ncatName}
+                    onChange={(e) => setNcatName(e.target.value)}
+                    placeholder="Ex: Notebook, Som, Celular..."
+                    className="w-full h-10 px-3 rounded-xl border border-slate-200 text-[12px] font-medium focus:outline-none focus:border-blue-400"
+                  />
+                </div>
+
+                <div>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400">Itens do Checklist (opcional)</label>
+                    <button
+                      onClick={() => setNcatItems((prev) => [...prev, ""])}
+                      className="flex items-center gap-1 h-6 px-2 bg-blue-50 border border-blue-200 rounded-lg text-[9px] font-black text-blue-600 uppercase tracking-widest hover:bg-blue-100 transition-all"
+                    >
+                      <PlusCircle size={10} /> Item
+                    </button>
+                  </div>
+                  <div className="space-y-2">
+                    {ncatItems.map((item, idx) => (
+                      <div key={idx} className="flex gap-2 items-center">
+                        <div className="w-5 h-5 rounded-full bg-slate-900 text-white flex items-center justify-center text-[8px] font-black shrink-0">
+                          {idx + 1}
+                        </div>
+                        <input
+                          value={item}
+                          onChange={(e) => setNcatItems((prev) => prev.map((v, i) => (i === idx ? e.target.value : v)))}
+                          placeholder={`Ex: Liga, Tela sem trincos...`}
+                          className="flex-1 h-9 px-3 rounded-xl border border-slate-200 text-[12px] font-medium focus:outline-none focus:border-blue-400"
+                        />
+                        {ncatItems.length > 1 && (
+                          <button
+                            onClick={() => setNcatItems((prev) => prev.filter((_, i) => i !== idx))}
+                            className="w-6 h-6 rounded-full bg-rose-50 text-rose-400 flex items-center justify-center hover:bg-rose-100 hover:text-rose-600 transition-colors shrink-0"
+                          >
+                            <X size={10} strokeWidth={3} />
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                  <p className="text-[10px] text-slate-400 mt-2">Você pode adicionar ou ajustar itens depois em Configurações → Checklists de OS.</p>
+                </div>
+              </div>
+
+              <div className="shrink-0 px-6 pb-6 pt-3 flex gap-2 border-t border-slate-100">
+                <button onClick={() => setShowNewCategory(false)} className="flex-1 h-11 rounded-xl border border-slate-200 text-[10px] font-black uppercase tracking-widest text-slate-600 hover:bg-slate-50 transition-colors">
+                  Cancelar
+                </button>
+                <button
+                  onClick={handleCreateCategory}
+                  disabled={savingCategory || !ncatName.trim()}
+                  className="flex-1 h-11 bg-blue-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-blue-700 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+                >
+                  {savingCategory ? <Loader2 size={14} className="animate-spin" /> : <PlusCircle size={14} />}
+                  Criar Categoria
                 </button>
               </div>
             </motion.div>
