@@ -177,6 +177,17 @@ function buildPmString(payments: InvoicePayment[]): string {
 
 const fmt = (v: number) => Number(v || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 
+function maskPhone(v: string) {
+  const d = v.replace(/\D/g, "").slice(0, 11);
+  if (d.length <= 10) return d.replace(/(\d{2})(\d{4})(\d{0,4})/, "($1) $2-$3").replace(/-$/, "");
+  return d.replace(/(\d{2})(\d{5})(\d{0,4})/, "($1) $2-$3").replace(/-$/, "");
+}
+function maskDoc(v: string) {
+  const d = v.replace(/\D/g, "");
+  if (d.length <= 11) return d.replace(/(\d{3})(\d{3})(\d{3})(\d{0,2})/, "$1.$2.$3-$4").replace(/-$/, "").replace(/\.{1,}$/, "");
+  return d.slice(0, 14).replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{0,2})/, "$1.$2.$3/$4-$5").replace(/-$/, "").replace(/\/$/, "");
+}
+
 const authHeader = () => ({
   Authorization: `Bearer ${localStorage.getItem("token")}`,
   "Content-Type": "application/json",
@@ -389,6 +400,13 @@ export default function ServiceOrders() {
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState(emptyForm());
   const [saving, setSaving] = useState(false);
+
+  const [showNewCustomer, setShowNewCustomer] = useState(false);
+  const [ncName, setNcName] = useState("");
+  const [ncPhone, setNcPhone] = useState("");
+  const [ncDoc, setNcDoc] = useState("");
+  const [ncEmail, setNcEmail] = useState("");
+  const [savingNC, setSavingNC] = useState(false);
 
   const [selected, setSelected] = useState<ServiceOrder | null>(null);
 
@@ -792,9 +810,20 @@ export default function ServiceOrders() {
                           }
                         }}
                         options={customers.map((c) => ({ value: String(c.id), label: c.name, description: c.phone }))}
-                        onAddNew={(q) => setForm((f) => ({ ...f, customer_id: null, customer_name: q }))}
+                        onAddNew={(q) => {
+                          setNcName(q); setNcPhone(""); setNcDoc(""); setNcEmail("");
+                          setShowNewCustomer(true);
+                        }}
                       />
                     </div>
+                    <button
+                      type="button"
+                      onClick={() => { setNcName(""); setNcPhone(""); setNcDoc(""); setNcEmail(""); setShowNewCustomer(true); }}
+                      className="h-10 w-10 rounded-xl bg-blue-50 border border-blue-200 text-blue-600 hover:bg-blue-100 flex items-center justify-center shrink-0 transition-colors"
+                      title="Cadastrar novo cliente"
+                    >
+                      <UserPlus size={15} />
+                    </button>
                   </div>
                   <input
                     value={form.customer_phone}
@@ -896,6 +925,98 @@ export default function ServiceOrders() {
                 >
                   {saving ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />}
                   Criar Ordem de Serviço
+                </button>
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+
+      {/* ── NOVO CLIENTE MODAL ───────────────────────────────────────────── */}
+      <AnimatePresence>
+        {showNewCustomer && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              onClick={() => setShowNewCustomer(false)}
+              className="fixed inset-0 bg-slate-900/60 z-[400] backdrop-blur-sm"
+            />
+            <motion.div
+              initial={{ x: "100%" }} animate={{ x: 0 }} exit={{ x: "100%" }}
+              transition={{ type: "spring", damping: 26, stiffness: 200 }}
+              className="fixed inset-y-0 right-0 w-full max-w-sm bg-white z-[410] shadow-2xl flex flex-col"
+            >
+              <div className="flex items-center justify-between px-5 py-4 border-b border-slate-200 shrink-0">
+                <div>
+                  <h2 className="font-black text-slate-900 text-[15px]">Novo Cliente</h2>
+                  <p className="text-[11px] text-slate-500">Cadastro CRM</p>
+                </div>
+                <button onClick={() => setShowNewCustomer(false)} className="p-2 hover:bg-slate-100 rounded-lg text-slate-500">
+                  <X size={18} />
+                </button>
+              </div>
+
+              <div className="flex-1 overflow-y-auto p-5 space-y-3">
+                <div>
+                  <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block mb-1">Nome *</label>
+                  <input value={ncName} onChange={(e) => setNcName(e.target.value)} placeholder="Nome completo"
+                    className="w-full h-9 px-3 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block mb-1">Telefone</label>
+                    <input value={ncPhone} onChange={(e) => setNcPhone(maskPhone(e.target.value))} inputMode="numeric"
+                      placeholder="(11) 99999-9999"
+                      className="w-full h-9 px-3 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block mb-1">CPF/CNPJ</label>
+                    <input value={ncDoc} onChange={(e) => setNcDoc(maskDoc(e.target.value))} inputMode="numeric"
+                      placeholder="000.000.000-00"
+                      className="w-full h-9 px-3 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                  </div>
+                </div>
+                <div>
+                  <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block mb-1">E-mail</label>
+                  <input type="email" value={ncEmail} onChange={(e) => setNcEmail(e.target.value)} placeholder="email@exemplo.com"
+                    className="w-full h-9 px-3 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                </div>
+              </div>
+
+              <div className="border-t border-slate-200 px-5 py-4 shrink-0 bg-slate-50 flex gap-2">
+                <button onClick={() => setShowNewCustomer(false)}
+                  className="flex-1 h-9 rounded-lg border border-slate-200 text-sm font-semibold text-slate-600 hover:bg-slate-100">
+                  Cancelar
+                </button>
+                <button
+                  disabled={savingNC || !ncName.trim()}
+                  onClick={async () => {
+                    if (!ncName.trim()) return;
+                    setSavingNC(true);
+                    try {
+                      const res = await fetch("/api/customers", {
+                        method: "POST",
+                        headers: authHeader(),
+                        body: JSON.stringify({
+                          name: ncName,
+                          phone: ncPhone.replace(/\D/g, "") || null,
+                          document: ncDoc.replace(/\D/g, "") || null,
+                          email: ncEmail || null,
+                        }),
+                      });
+                      const newCust = await res.json();
+                      const cRes = await fetch("/api/customers", { headers: authHeaderNoJson() });
+                      const cData = await cRes.json();
+                      setCustomers(Array.isArray(cData) ? cData : []);
+                      setForm((f) => ({ ...f, customer_id: newCust.id, customer_name: newCust.name, customer_phone: newCust.phone ?? f.customer_phone }));
+                      setShowNewCustomer(false);
+                    } finally {
+                      setSavingNC(false);
+                    }
+                  }}
+                  className="flex-1 h-9 bg-blue-600 text-white rounded-lg text-sm font-bold hover:bg-blue-700 disabled:opacity-50 transition-all"
+                >
+                  {savingNC ? "Cadastrando…" : "Criar Cliente"}
                 </button>
               </div>
             </motion.div>
