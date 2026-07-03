@@ -61,6 +61,67 @@ interface TenantBasic {
   };
 }
 
+async function downloadHtmlAsPdf(html: string, filename: string) {
+  const container = document.createElement("div");
+  container.style.cssText = "position:fixed;left:-9999px;top:0;width:794px;background:#fff;";
+  document.body.appendChild(container);
+  const iframe = document.createElement("iframe");
+  iframe.style.cssText = "width:794px;height:0;border:none;display:block;";
+  container.appendChild(iframe);
+  try {
+    const idoc = iframe.contentDocument || iframe.contentWindow?.document;
+    if (!idoc) throw new Error("Não foi possível preparar o documento");
+    idoc.open();
+    idoc.write(html);
+    idoc.close();
+
+    await new Promise((resolve) => setTimeout(resolve, 250));
+    const targetBody = idoc.body;
+    iframe.style.height = `${targetBody.scrollHeight}px`;
+
+    const [{ default: html2canvas }, { jsPDF }] = await Promise.all([
+      import("html2canvas"),
+      import("jspdf"),
+    ]);
+    const canvas = await html2canvas(targetBody, {
+      scale: 2,
+      useCORS: true,
+      backgroundColor: "#ffffff",
+      windowWidth: 794,
+    });
+
+    const pdf = new jsPDF({ unit: "mm", format: "a4" });
+    const pageW = pdf.internal.pageSize.getWidth();
+    const pageH = pdf.internal.pageSize.getHeight();
+    const imgW = pageW;
+    const imgH = (canvas.height * imgW) / canvas.width;
+
+    if (imgH <= pageH) {
+      pdf.addImage(canvas.toDataURL("image/png"), "PNG", 0, 0, imgW, imgH);
+    } else {
+      let remaining = canvas.height;
+      let position = 0;
+      const pageCanvasH = (pageH * canvas.width) / imgW;
+      while (remaining > 0) {
+        const sliceH = Math.min(pageCanvasH, remaining);
+        const sliceCanvas = document.createElement("canvas");
+        sliceCanvas.width = canvas.width;
+        sliceCanvas.height = sliceH;
+        const ctx = sliceCanvas.getContext("2d")!;
+        ctx.drawImage(canvas, 0, position, canvas.width, sliceH, 0, 0, canvas.width, sliceH);
+        if (position > 0) pdf.addPage();
+        pdf.addImage(sliceCanvas.toDataURL("image/png"), "PNG", 0, 0, imgW, (sliceH * imgW) / canvas.width);
+        position += sliceH;
+        remaining -= sliceH;
+      }
+    }
+
+    pdf.save(filename);
+  } finally {
+    document.body.removeChild(container);
+  }
+}
+
 function formatPaymentLabel(pm?: string | null) {
   if (!pm) return "—";
   const labels: Record<string, string> = { money: "Dinheiro", pix: "PIX", debit: "Débito", credit: "Crédito" };
@@ -349,6 +410,8 @@ export default function Orders() {
   const [searchTerm, setSearchTerm] = useState(() => searchParams.get("search") ?? "");
   const [selectedOrder, setSelectedOrder] = useState<OrderDetail | null>(null);
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
+  const [generatingWarrantyPdf, setGeneratingWarrantyPdf] = useState(false);
+  const [generatingReceiptPdf, setGeneratingReceiptPdf] = useState(false);
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [cancelReason, setCancelReason] = useState("");
   const [cancelledBy, setCancelledBy] = useState("");
@@ -953,28 +1016,30 @@ ${payments
     }, 400);
   };
 
-  const handleDownloadReceipt = () => {
-    if (!selectedOrder) return;
-    const html = buildReceiptHtml(selectedOrder);
-    const blob = new Blob([html], { type: "text/html;charset=utf-8" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `comprovante-pedido-${String(selectedOrder.id).padStart(6, "0")}.html`;
-    a.click();
-    URL.revokeObjectURL(url);
+  const handleDownloadReceipt = async () => {
+    if (!selectedOrder || generatingReceiptPdf) return;
+    setGeneratingReceiptPdf(true);
+    try {
+      const html = buildReceiptHtml(selectedOrder);
+      await downloadHtmlAsPdf(html, `comprovante-pedido-${String(selectedOrder.id).padStart(6, "0")}.pdf`);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setGeneratingReceiptPdf(false);
+    }
   };
 
-  const handleDownloadWarranty = () => {
-    if (!selectedOrder) return;
-    const html = buildWarrantyHtml(selectedOrder);
-    const blob = new Blob([html], { type: "text/html;charset=utf-8" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `garantia-pedido-${String(selectedOrder.id).padStart(6, "0")}.html`;
-    a.click();
-    URL.revokeObjectURL(url);
+  const handleDownloadWarranty = async () => {
+    if (!selectedOrder || generatingWarrantyPdf) return;
+    setGeneratingWarrantyPdf(true);
+    try {
+      const html = buildWarrantyHtml(selectedOrder);
+      await downloadHtmlAsPdf(html, `garantia-pedido-${String(selectedOrder.id).padStart(6, "0")}.pdf`);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setGeneratingWarrantyPdf(false);
+    }
   };
 
   const handlePrintWarranty = () => {
@@ -1897,9 +1962,9 @@ ${payments
               {/* ── Footer actions ── */}
               <div className="shrink-0 px-4 pt-3 pb-4 border-t border-slate-100 bg-white safe-area-bottom">
                 <div className="grid grid-cols-2 gap-2 mb-2">
-                  <button onClick={handleDownloadReceipt}
-                    className="h-11 bg-slate-100 hover:bg-slate-200 active:scale-95 rounded-2xl text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-all text-slate-700">
-                    <Download size={13} /> Baixar
+                  <button onClick={handleDownloadReceipt} disabled={generatingReceiptPdf}
+                    className="h-11 bg-slate-100 hover:bg-slate-200 active:scale-95 rounded-2xl text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-all text-slate-700 disabled:opacity-60">
+                    {generatingReceiptPdf ? <Loader2 size={13} className="animate-spin" /> : <Download size={13} />} Baixar
                   </button>
                   <button onClick={handlePrintReceipt}
                     className="h-11 bg-slate-900 hover:bg-slate-700 active:scale-95 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-all shadow-lg shadow-slate-900/20">
@@ -1907,9 +1972,9 @@ ${payments
                   </button>
                 </div>
                 <div className="grid grid-cols-2 gap-2">
-                  <button onClick={handleDownloadWarranty}
-                    className="h-11 bg-emerald-50 hover:bg-emerald-100 active:scale-95 border border-emerald-200 rounded-2xl text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-all text-emerald-700">
-                    <Download size={13} /> Garantia
+                  <button onClick={handleDownloadWarranty} disabled={generatingWarrantyPdf}
+                    className="h-11 bg-emerald-50 hover:bg-emerald-100 active:scale-95 border border-emerald-200 rounded-2xl text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-all text-emerald-700 disabled:opacity-60">
+                    {generatingWarrantyPdf ? <Loader2 size={13} className="animate-spin" /> : <Download size={13} />} Garantia
                   </button>
                   <button onClick={handlePrintWarranty}
                     className="h-11 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-all shadow-lg shadow-emerald-500/25">
