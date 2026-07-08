@@ -260,9 +260,9 @@ function buildServiceOrderIntakeHtml(so: ServiceOrder, tenant: Tenant | null): s
     .map(
       (item) => `
     <tr>
-      <td style="padding:8px 10px;border-bottom:1px solid #f0f0f0">${item.label}</td>
-      <td style="padding:8px 10px;border-bottom:1px solid #f0f0f0;text-align:center;font-weight:900">${answerLabel(item.answer)}</td>
-      <td style="padding:8px 10px;border-bottom:1px solid #f0f0f0;font-size:10px;color:#666">${item.observation ?? ""}</td>
+      <td style="padding:10px 12px;border-bottom:1px solid #f0f0f0;font-size:14px">${item.label}</td>
+      <td style="padding:10px 12px;border-bottom:1px solid #f0f0f0;text-align:center;font-weight:900;font-size:14px">${answerLabel(item.answer)}</td>
+      <td style="padding:10px 12px;border-bottom:1px solid #f0f0f0;font-size:13px;color:#555">${item.observation ?? ""}</td>
     </tr>`
     )
     .join("");
@@ -274,28 +274,28 @@ function buildServiceOrderIntakeHtml(so: ServiceOrder, tenant: Tenant | null): s
 <title>Ordem de Serviço #${orderNum}</title>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { font-family: Arial, sans-serif; font-size: 12px; color: #1a1a1a; background: #fff; padding: 40px 48px; max-width: 794px; margin: 0 auto; }
+  body { font-family: Arial, sans-serif; font-size: 15px; color: #1a1a1a; background: #fff; padding: 40px 48px; max-width: 794px; margin: 0 auto; }
   .header { display: flex; align-items: center; justify-content: space-between; border-bottom: 3px solid #1a1a1a; padding-bottom: 18px; margin-bottom: 24px; }
-  .logo { width: 80px; height: 80px; object-fit: contain; }
-  .logo-placeholder { width: 80px; height: 80px; background: #f5f5f5; border: 1px solid #ddd; border-radius: 4px; display: flex; align-items: center; justify-content: center; font-size: 9px; color: #aaa; text-align: center; }
+  .logo { width: 90px; height: 90px; object-fit: contain; }
+  .logo-placeholder { width: 90px; height: 90px; background: #f5f5f5; border: 1px solid #ddd; border-radius: 4px; display: flex; align-items: center; justify-content: center; font-size: 11px; color: #aaa; text-align: center; }
   .store-info { text-align: right; }
-  .store-name { font-size: 18px; font-weight: 900; text-transform: uppercase; letter-spacing: 1px; }
-  .store-meta { font-size: 10px; color: #555; margin-top: 3px; line-height: 1.7; }
+  .store-name { font-size: 22px; font-weight: 900; text-transform: uppercase; letter-spacing: 1px; }
+  .store-meta { font-size: 13px; color: #555; margin-top: 4px; line-height: 1.7; }
   .title-block { text-align: center; margin: 20px 0 28px; }
-  .title-block h1 { font-size: 20px; font-weight: 900; text-transform: uppercase; letter-spacing: 3px; border: 3px solid #1a1a1a; display: inline-block; padding: 8px 28px; }
-  .section { margin-bottom: 22px; }
-  .section-label { font-size: 9px; font-weight: 900; text-transform: uppercase; letter-spacing: 2px; color: #555; margin-bottom: 8px; border-left: 3px solid #1a1a1a; padding-left: 8px; }
-  .info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 20px; }
-  .info-row { font-size: 11px; }
+  .title-block h1 { font-size: 24px; font-weight: 900; text-transform: uppercase; letter-spacing: 2px; border: 3px solid #1a1a1a; display: inline-block; padding: 10px 30px; }
+  .section { margin-bottom: 24px; }
+  .section-label { font-size: 12px; font-weight: 900; text-transform: uppercase; letter-spacing: 1.5px; color: #444; margin-bottom: 10px; border-left: 3px solid #1a1a1a; padding-left: 8px; }
+  .info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 20px; }
+  .info-row { font-size: 14px; }
   .info-row span { font-weight: 700; }
-  table { width: 100%; border-collapse: collapse; font-size: 11px; }
+  table { width: 100%; border-collapse: collapse; font-size: 14px; }
   thead tr { background: #1a1a1a; color: #fff; }
-  thead th { padding: 8px 10px; text-align: left; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; }
+  thead th { padding: 10px 12px; text-align: left; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; }
   thead th:nth-child(2) { text-align: center; }
-  .obs-box { border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px 14px; margin-top: 8px; font-size: 11px; line-height: 1.6; background: #fafafa; }
+  .obs-box { border: 1px solid #e2e8f0; border-radius: 8px; padding: 14px 16px; margin-top: 8px; font-size: 14px; line-height: 1.6; background: #fafafa; }
   .signatures { display: flex; justify-content: space-between; gap: 40px; margin-top: 56px; }
-  .sig-block { flex: 1; border-top: 1px solid #1a1a1a; padding-top: 8px; text-align: center; font-size: 10px; color: #555; }
-  .footer { text-align: center; font-size: 9px; color: #aaa; margin-top: 36px; border-top: 1px dashed #ddd; padding-top: 14px; line-height: 1.8; }
+  .sig-block { flex: 1; border-top: 1px solid #1a1a1a; padding-top: 10px; text-align: center; font-size: 13px; color: #444; }
+  .footer { text-align: center; font-size: 11px; color: #999; margin-top: 36px; border-top: 1px dashed #ddd; padding-top: 14px; line-height: 1.8; }
 </style>
 </head>
 <body>
@@ -361,7 +361,7 @@ ${so.observations ? `
   <div class="obs-box">${so.observations}</div>
 </div>` : ""}
 
-<div class="section" style="font-size:10px;color:#666;font-style:italic;">
+<div class="section" style="font-size:12px;color:#555;font-style:italic;">
   O equipamento acima foi recebido no estado descrito neste documento. A loja não se responsabiliza por condições não registradas neste checklist.
 </div>
 
