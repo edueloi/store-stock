@@ -3,6 +3,7 @@ const path = require("path");
 const fs = require("fs");
 const https = require("https");
 const { SerialPort } = require("serialport");
+const { autoUpdater } = require("electron-updater");
 const printerModule = require("./printer.cjs");
 
 // ─── Config persistence (userData/config.json) ──────────────────────────────
@@ -173,6 +174,26 @@ function buildMenu() {
         { type: "separator" },
         { label: "Configurar Impressora...", click: () => openPrinterConfigWindow() },
         { type: "separator" },
+        {
+          label: "Verificar Atualizações...",
+          click: async () => {
+            try {
+              const result = await autoUpdater.checkForUpdates();
+              if (!result || result.updateInfo.version === app.getVersion()) {
+                dialog.showMessageBox(mainWindow, {
+                  type: "info", title: "Atualizações",
+                  message: "Você já está usando a versão mais recente do BoxSys.",
+                });
+              }
+            } catch (err) {
+              dialog.showMessageBox(mainWindow, {
+                type: "error", title: "Atualizações",
+                message: `Não foi possível verificar atualizações: ${err?.message || err}`,
+              });
+            }
+          },
+        },
+        { type: "separator" },
         { label: "Sair", accelerator: "CmdOrCtrl+Q", role: "quit" },
       ],
     },
@@ -254,10 +275,44 @@ ipcMain.handle("printer:open-drawer", async () => {
   return printerModule.openCashDrawer(config);
 });
 
+// ─── Auto-update ─────────────────────────────────────────────────────────────
+// Checa e baixa a atualização em segundo plano; só instala quando o app fechar
+// (nunca no meio de uma venda) ou se o operador confirmar manualmente pelo aviso.
+autoUpdater.autoDownload = true;
+autoUpdater.autoInstallOnAppQuit = true;
+
+autoUpdater.on("update-downloaded", () => {
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    dialog.showMessageBox(mainWindow, {
+      type: "info",
+      buttons: ["Depois", "Reiniciar Agora"],
+      defaultId: 0,
+      title: "Atualização pronta",
+      message: "Uma nova versão do BoxSys foi baixada. Ela será instalada automaticamente ao fechar o app, ou você pode reiniciar agora.",
+    }).then(({ response }) => {
+      if (response === 1) autoUpdater.quitAndInstall();
+    });
+  }
+});
+
+autoUpdater.on("error", (err) => {
+  console.error("[autoUpdater] erro:", err?.message || err);
+});
+
+function checkForUpdates() {
+  autoUpdater.checkForUpdates().catch((err) => {
+    console.error("[autoUpdater] falha ao checar atualização:", err?.message || err);
+  });
+}
+
 // ─── Lifecycle ───────────────────────────────────────────────────────────────
 app.whenReady().then(() => {
   buildMenu();
   createWindow();
+
+  // Checagem assíncrona — não atrasa a abertura da janela principal.
+  checkForUpdates();
+  setInterval(checkForUpdates, 4 * 60 * 60 * 1000); // a cada 4 horas
 
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();

@@ -1,5 +1,6 @@
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 
+import PwaUpdateBanner from "./components/PwaUpdateBanner";
 import AdminDashboard from "./views/Dashboard/AdminDashboard";
 import StoreLayout from "./views/Store/StoreLayout";
 import Login from "./views/Auth/Login";
@@ -47,6 +48,7 @@ export default function App() {
         <Route path="/s/:slug/*" element={<StoreLayout />} />
         <Route path="/*" element={<HostAwareEntry />} />
       </Routes>
+      <PwaUpdateBanner />
     </BrowserRouter>
   );
 }

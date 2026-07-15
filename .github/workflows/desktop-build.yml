@@ -21,6 +21,10 @@ jobs:
     defaults:
       run:
         working-directory: desktop
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
       - uses: actions/checkout@v4
 
@@ -31,10 +35,19 @@ jobs:
       - name: Install dependencies
         run: npm install
 
-      - name: Build installers
-        run: npx electron-builder ${{ matrix.args }} --publish never
+      - name: Build and publish installers
+        # --publish always: publica direto no GitHub Release da tag (cria se não existir),
+        # incluindo latest.yml/latest-mac.yml/latest-linux.yml que o electron-updater
+        # (autoUpdater) consulta para saber se há versão nova.
+        run: npx electron-builder ${{ matrix.args }} --publish always
+        if: startsWith(github.ref, 'refs/tags/desktop-v')
 
-      - name: Upload artifacts
+      - name: Build only (no publish)
+        run: npx electron-builder ${{ matrix.args }} --publish never
+        if: ${{ !startsWith(github.ref, 'refs/tags/desktop-v') }}
+
+      - name: Upload artifacts (manual runs / PRs)
+        if: ${{ !startsWith(github.ref, 'refs/tags/desktop-v') }}
         uses: actions/upload-artifact@v4
         with:
           name: boxsys-pdv-${{ matrix.os }}
@@ -43,26 +56,3 @@ jobs:
             desktop/release/*.dmg
             desktop/release/*.AppImage
           if-no-files-found: error
-
-  release:
-    if: startsWith(github.ref, 'refs/tags/desktop-v')
-    needs: build
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-    steps:
-      - uses: actions/download-artifact@v4
-        with:
-          path: artifacts
-          merge-multiple: true
-
-      - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
-        with:
-          files: artifacts/*
-          name: "BoxSys PDV Desktop ${{ github.ref_name }}"
-          body: |
-            Instaladores do BoxSys PDV Desktop:
-            - **Windows**: `.exe` (instalador NSIS)
-            - **macOS**: `.dmg` (Intel + Apple Silicon)
-            - **Linux**: `.AppImage`

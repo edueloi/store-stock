@@ -37,6 +37,11 @@
       "node_modules/@serialport/**/*",
       "node_modules/serialport/**/*"
     ],
+    "publish": {
+      "provider": "github",
+      "owner": "edueloi",
+      "repo": "store-stock"
+    },
     "win": {
       "target": [
         {
@@ -47,7 +52,7 @@
         }
       ],
       "icon": "icon.png",
-      "artifactName": "BoxSysPDV-Setup.exe"
+      "artifactName": "${productName}-Setup-${version}.${ext}"
     },
     "nsis": {
       "oneClick": false,
@@ -67,7 +72,7 @@
       ],
       "icon": "icon.png",
       "category": "public.app-category.business",
-      "artifactName": "BoxSysPDV.dmg"
+      "artifactName": "${productName}-${version}.${ext}"
     },
     "linux": {
       "target": [
@@ -80,10 +85,11 @@
       ],
       "icon": "icon.png",
       "category": "Office",
-      "artifactName": "BoxSysPDV.AppImage"
+      "artifactName": "${productName}-${version}.${ext}"
     }
   },
   "dependencies": {
+    "electron-updater": "^6.8.9",
     "node-thermal-printer": "^4.6.0",
     "serialport": "^13.0.0"
   }
