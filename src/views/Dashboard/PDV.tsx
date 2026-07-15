@@ -8,7 +8,7 @@ import {
   Star, Gift, UserPlus, Store, Terminal, Ruler,
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
-import { Product, Category } from "../../types";
+import { Product, Category, NfceInvoice } from "../../types";
 import { cn } from "../../lib/utils";
 import Combobox from "../../components/ui/Combobox";
 import { SERVICE_CATEGORIES, SERVICE_UNITS } from "./Services";
@@ -166,6 +166,8 @@ export default function PDV() {
   // receipt modal
   const [completedSale, setCompletedSale] = useState<CompletedSale | null>(null);
   const [showReceipt, setShowReceipt]     = useState(false);
+  const [nfceInvoice, setNfceInvoice]     = useState<NfceInvoice | null>(null);
+  const [nfceRetrying, setNfceRetrying]   = useState(false);
   const [whatsappPhone, setWhatsappPhone] = useState("");
   const [showPhoneInput, setShowPhoneInput] = useState(false);
 
@@ -302,6 +304,44 @@ export default function PDV() {
     }
     setTimeout(() => setScanFeedback(null), 1200);
   }, [products, token, addToCartDirect]);
+
+  // ── Polling do status da NFC-e emitida em segundo plano após a venda ──────────
+  useEffect(() => {
+    if (!showReceipt || !completedSale?.orderId) return;
+    let cancelled = false;
+    let attempts = 0;
+
+    const poll = async () => {
+      try {
+        const res = await fetch(`/api/nfce/${completedSale.orderId}`, { headers: { Authorization: `Bearer ${token}` } });
+        if (res.ok) {
+          const data = await res.json();
+          if (!cancelled) setNfceInvoice(data);
+          if (data.status === "authorized" || data.status === "rejected" || data.status === "error") return;
+        }
+      } catch { /* segue tentando */ }
+      attempts++;
+      if (!cancelled && attempts < 10) setTimeout(poll, 2000);
+    };
+    poll();
+
+    return () => { cancelled = true; };
+  }, [showReceipt, completedSale?.orderId, token]);
+
+  const handleRetryNfce = async () => {
+    if (!completedSale?.orderId || nfceRetrying) return;
+    setNfceRetrying(true);
+    try {
+      await fetch(`/api/nfce/${completedSale.orderId}/retry`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const res = await fetch(`/api/nfce/${completedSale.orderId}`, { headers: { Authorization: `Bearer ${token}` } });
+      if (res.ok) setNfceInvoice(await res.json());
+    } finally {
+      setNfceRetrying(false);
+    }
+  };
 
   // ── Captura global do leitor de código de barras ─────────────────────────────
   // Leitores USB HID simulam teclado: digitam os chars rápido + Enter.
@@ -826,6 +866,7 @@ export default function PDV() {
           cardFees, pointsEarned, rewardApplied,
         };
         setCompletedSale(sale);
+        setNfceInvoice(null);
         setCart([]); setCartServices([]); setCustomerName(""); setSelectedCustomerId(null);
         setCustomerPoints(0); setAppliedReward(null); setDiscount(""); setSurcharge("");
         setPayments([newPayment()]); setSelectedSellerId(null);
@@ -2213,6 +2254,56 @@ export default function PDV() {
 
               {/* actions */}
               <div className="flex-1 overflow-y-auto overscroll-contain p-4 space-y-2">
+                {/* status da NFC-e */}
+                <div className={cn(
+                  "w-full flex items-center gap-3.5 rounded-2xl px-4 py-3 border",
+                  nfceInvoice?.status === "authorized" ? "bg-emerald-50 border-emerald-200"
+                    : nfceInvoice?.status === "rejected" || nfceInvoice?.status === "error" ? "bg-rose-50 border-rose-200"
+                    : "bg-blue-50 border-blue-200",
+                )}>
+                  {(!nfceInvoice || nfceInvoice.status === "pending" || nfceInvoice.status === "processing") && (
+                    <>
+                      <Loader2 size={18} className="text-blue-500 animate-spin shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-[11px] font-black text-blue-700 uppercase tracking-wide">Emitindo nota fiscal...</p>
+                        <p className="text-[10px] text-blue-500 font-medium">Aguardando autorização da SEFAZ-SP</p>
+                      </div>
+                    </>
+                  )}
+                  {nfceInvoice?.status === "authorized" && (
+                    <>
+                      <CheckCircle2 size={18} className="text-emerald-600 shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-[11px] font-black text-emerald-700 uppercase tracking-wide">NFC-e autorizada</p>
+                        <p className="text-[10px] text-emerald-600 font-medium truncate">Protocolo {nfceInvoice.protocol}</p>
+                      </div>
+                      <a
+                        href={`/api/nfce/${completedSale.orderId}/danfe`}
+                        target="_blank" rel="noopener noreferrer"
+                        className="shrink-0 h-9 px-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center gap-1.5 transition-all"
+                      >
+                        <FileText size={13} /> DANFE
+                      </a>
+                    </>
+                  )}
+                  {(nfceInvoice?.status === "rejected" || nfceInvoice?.status === "error") && (
+                    <>
+                      <X size={18} className="text-rose-600 shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-[11px] font-black text-rose-700 uppercase tracking-wide">Falha na emissão</p>
+                        <p className="text-[10px] text-rose-500 font-medium truncate">{nfceInvoice.rejection_reason || "Erro desconhecido"}</p>
+                      </div>
+                      <button
+                        onClick={handleRetryNfce}
+                        disabled={nfceRetrying}
+                        className="shrink-0 h-9 px-3 bg-rose-600 hover:bg-rose-700 disabled:opacity-50 text-white rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center gap-1.5 transition-all"
+                      >
+                        {nfceRetrying ? <Loader2 size={13} className="animate-spin" /> : <RefreshCw size={13} />} Tentar de novo
+                      </button>
+                    </>
+                  )}
+                </div>
+
                 <p className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] pb-1">Emitir Comprovante</p>
 
                 <button onClick={() => printViaIframe(buildThermalHtml(completedSale))}

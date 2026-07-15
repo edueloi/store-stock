@@ -1,4 +1,5 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, RefObject, ComponentType } from "react";
+import { createPortal } from "react-dom";
 import { Routes, Route, Link, useLocation, useNavigate } from "react-router-dom";
 import {
   BarChart3,
@@ -27,6 +28,7 @@ import {
   Calculator,
   Wrench,
   ClipboardList,
+  FileCheck,
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { cn } from "../../lib/utils";
@@ -38,6 +40,7 @@ import Inventory from "./Inventory"; // This will be "Catálogo"
 import Stock from "./Stock"; // This will be "Estoque"
 import PDV from "./PDV";
 import Orders from "./Orders";
+import NfceInvoices from "./NfceInvoices";
 import Finance from "./Finance";
 import ContasReceber from "./ContasReceber";
 import ContasPagar from "./ContasPagar";
@@ -55,21 +58,167 @@ import Markup from "./Markup";
 import Services from "./Services";
 import ServiceOrders from "./ServiceOrders";
 
+// ── Tooltip da sidebar recolhida (portal, foge do overflow do nav) ───────────
+function SidebarTooltip({ anchorRef, label }: { anchorRef: RefObject<HTMLElement>; label: string }) {
+  const [coords, setCoords] = useState<{ top: number; left: number } | null>(null);
+
+  const show = () => {
+    const r = anchorRef.current?.getBoundingClientRect();
+    if (r) setCoords({ top: r.top + r.height / 2, left: r.right + 10 });
+  };
+  const hide = () => setCoords(null);
+
+  useEffect(() => {
+    const el = anchorRef.current;
+    if (!el) return;
+    el.addEventListener("mouseenter", show);
+    el.addEventListener("mouseleave", hide);
+    return () => {
+      el.removeEventListener("mouseenter", show);
+      el.removeEventListener("mouseleave", hide);
+    };
+  }, [anchorRef]);
+
+  if (!coords) return null;
+
+  return createPortal(
+    <div
+      style={{ position: "fixed", top: coords.top, left: coords.left, transform: "translateY(-50%)", zIndex: 9999 }}
+      className="whitespace-nowrap rounded-lg bg-slate-800 border border-slate-700 px-2.5 py-1.5 text-[11px] font-bold text-white shadow-xl pointer-events-none"
+    >
+      {label}
+    </div>,
+    document.body
+  );
+}
+
+// ── Item de nav com tooltip quando a sidebar está recolhida ──────────────────
+function SidebarNavItem({
+  to, icon: Icon, label, isActive, isSidebarOpen,
+}: {
+  to: string;
+  icon: ComponentType<{ size?: number; className?: string }>;
+  label: string;
+  isActive: boolean;
+  isSidebarOpen: boolean;
+}) {
+  const ref = useRef<HTMLAnchorElement>(null);
+  return (
+    <>
+      <Link
+        ref={ref}
+        to={to}
+        className={cn(
+          "flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-[13px] font-semibold transition-all",
+          isActive
+            ? "bg-[#C9A227] text-white shadow-[0_2px_12px_rgba(201,162,39,0.35)]"
+            : "text-slate-400 hover:bg-white/5 hover:text-white"
+        )}
+      >
+        <Icon size={16} className="shrink-0" />
+        {isSidebarOpen && <span className="truncate">{label}</span>}
+      </Link>
+      {!isSidebarOpen && <SidebarTooltip anchorRef={ref} label={label} />}
+    </>
+  );
+}
+
+// ── Botão de rodapé da sidebar com tooltip quando recolhida ──────────────────
+function SidebarFooterButton({
+  onClick, icon: Icon, label, isSidebarOpen, danger,
+}: {
+  onClick: () => void;
+  icon: ComponentType<{ size?: number; className?: string }>;
+  label: string;
+  isSidebarOpen: boolean;
+  danger?: boolean;
+}) {
+  const ref = useRef<HTMLButtonElement>(null);
+  return (
+    <>
+      <button
+        ref={ref}
+        onClick={onClick}
+        className={cn(
+          "flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-[13px] font-semibold text-slate-400 transition-all",
+          danger ? "hover:bg-red-500/10 hover:text-red-400" : "hover:bg-white/5 hover:text-white"
+        )}
+      >
+        <Icon size={16} className="shrink-0" />
+        {isSidebarOpen && <span>{label}</span>}
+      </button>
+      {!isSidebarOpen && <SidebarTooltip anchorRef={ref} label={label} />}
+    </>
+  );
+}
+
+const SIDEBAR_PREF_KEY = "sidebar_open";
+// cache local só para evitar flash visual entre reloads, antes da preferência do backend chegar
+const SIDEBAR_CACHE_KEY = "admin_sidebar_open_cache";
+
+async function getPreference<T>(key: string, fallback: T): Promise<T> {
+  try {
+    const r = await fetch(`/api/preferences/${key}`, {
+      headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
+    });
+    if (!r.ok) return fallback;
+    const d = await r.json();
+    return d ?? fallback;
+  } catch { return fallback; }
+}
+
+async function setPreference(key: string, value: unknown) {
+  try {
+    await fetch(`/api/preferences/${key}`, {
+      method: "PUT",
+      headers: {
+        Authorization: `Bearer ${localStorage.getItem("token")}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ value }),
+    });
+  } catch { /* offline: cache local já foi atualizado */ }
+}
+
 export default function AdminDashboard() {
-  const [isSidebarOpen, setIsSidebarOpen] = useState(window.innerWidth > 1024);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(() => {
+    if (window.innerWidth <= 1024) return false;
+    const cached = localStorage.getItem(SIDEBAR_CACHE_KEY);
+    return cached !== null ? cached === "true" : true;
+  });
   const [tenantSlug, setTenantSlug] = useState<string>("");
   const [tenantPublicUrl, setTenantPublicUrl] = useState<string>("");
   const [tenantName, setTenantName] = useState<string>("Nexus ERP");
   const location = useLocation();
   const navigate = useNavigate();
 
+  const toggleSidebar = (value: boolean) => {
+    setIsSidebarOpen(value);
+    if (window.innerWidth > 1024) {
+      localStorage.setItem(SIDEBAR_CACHE_KEY, String(value));
+      setPreference(SIDEBAR_PREF_KEY, value);
+    }
+  };
+
+  // Busca a preferência real do usuário no backend assim que o painel carrega
+  useEffect(() => {
+    if (window.innerWidth <= 1024) return;
+    getPreference<boolean | null>(SIDEBAR_PREF_KEY, null).then((saved) => {
+      if (saved !== null) {
+        setIsSidebarOpen(saved);
+        localStorage.setItem(SIDEBAR_CACHE_KEY, String(saved));
+      }
+    });
+  }, []);
+
   useEffect(() => {
     const handleResize = () => {
-      // Auto close/open sidebar on large screen transitions
+      // Em telas pequenas o menu sempre fecha; em telas grandes volta à preferência em cache
       if (window.innerWidth <= 1024) {
         setIsSidebarOpen(false);
       } else {
-        setIsSidebarOpen(true);
+        const cached = localStorage.getItem(SIDEBAR_CACHE_KEY);
+        setIsSidebarOpen(cached !== null ? cached === "true" : true);
       }
     };
     window.addEventListener("resize", handleResize);
@@ -84,6 +233,7 @@ export default function AdminDashboard() {
         { icon: ShoppingCart,    label: "PDV — Caixa",   path: "/admin/pdv" },
         { icon: Wallet,          label: "Fluxo de Caixa", path: "/admin/finance" },
         { icon: Receipt,         label: "Pedidos",        path: "/admin/orders" },
+        { icon: FileCheck,       label: "Notas Fiscais",  path: "/admin/notas-fiscais" },
         { icon: FileText,        label: "Orçamentos",     path: "/admin/orcamentos" },
         { icon: ClipboardList,   label: "Ordens de Serviço", path: "/admin/ordens-servico" },
       ],
@@ -215,24 +365,14 @@ export default function AdminDashboard() {
                 {group.items.map((item) => {
                   const isActive = location.pathname === item.path || (item.path === "/admin" && location.pathname === "/admin/");
                   return (
-                    <Link
+                    <SidebarNavItem
                       key={item.path}
                       to={item.path}
-                      className={cn(
-                        "group flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-[13px] font-semibold transition-all relative",
-                        isActive
-                          ? "bg-[#C9A227] text-white shadow-[0_2px_12px_rgba(201,162,39,0.35)]"
-                          : "text-slate-400 hover:bg-white/5 hover:text-white"
-                      )}
-                    >
-                      <item.icon size={16} className="shrink-0" />
-                      {isSidebarOpen && <span className="truncate">{item.label}</span>}
-                      {!isSidebarOpen && (
-                        <div className="absolute left-[56px] z-50 whitespace-nowrap rounded-lg bg-slate-800 border border-slate-700 px-2.5 py-1.5 text-[11px] font-bold text-white opacity-0 shadow-xl transition-opacity group-hover:opacity-100 pointer-events-none">
-                          {item.label}
-                        </div>
-                      )}
-                    </Link>
+                      icon={item.icon}
+                      label={item.label}
+                      isActive={isActive}
+                      isSidebarOpen={isSidebarOpen}
+                    />
                   );
                 })}
               </div>
@@ -242,26 +382,8 @@ export default function AdminDashboard() {
 
         {/* Footer */}
         <div className="border-t border-white/5 p-2 space-y-px">
-          <button onClick={viewPublicStore}
-            className="group flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-[13px] font-semibold text-slate-400 transition-all hover:bg-white/5 hover:text-white relative">
-            <Package size={16} className="shrink-0" />
-            {isSidebarOpen && <span>Ver Loja</span>}
-            {!isSidebarOpen && (
-              <div className="absolute left-[56px] z-50 whitespace-nowrap rounded-lg bg-slate-800 border border-slate-700 px-2.5 py-1.5 text-[11px] font-bold text-white opacity-0 shadow-xl transition-opacity group-hover:opacity-100 pointer-events-none">
-                Ver Loja
-              </div>
-            )}
-          </button>
-          <button onClick={handleLogout}
-            className="group flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-[13px] font-semibold text-slate-400 transition-all hover:bg-red-500/10 hover:text-red-400 relative">
-            <LogOut size={16} className="shrink-0" />
-            {isSidebarOpen && <span>Sair</span>}
-            {!isSidebarOpen && (
-              <div className="absolute left-[56px] z-50 whitespace-nowrap rounded-lg bg-slate-800 border border-slate-700 px-2.5 py-1.5 text-[11px] font-bold text-white opacity-0 shadow-xl transition-opacity group-hover:opacity-100 pointer-events-none">
-                Sair
-              </div>
-            )}
-          </button>
+          <SidebarFooterButton onClick={viewPublicStore} icon={Package} label="Ver Loja" isSidebarOpen={isSidebarOpen} />
+          <SidebarFooterButton onClick={handleLogout} icon={LogOut} label="Sair" isSidebarOpen={isSidebarOpen} danger />
         </div>
       </aside>
 
@@ -346,7 +468,7 @@ export default function AdminDashboard() {
         <header className="h-12 bg-white border-b border-slate-200 flex items-center justify-between px-4 shrink-0 shadow-sm z-10">
           <div className="flex items-center gap-3">
             {/* Toggle sidebar desktop */}
-            <button onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+            <button onClick={() => toggleSidebar(!isSidebarOpen)}
               className="hidden lg:flex p-1.5 hover:bg-slate-100 rounded-lg text-slate-500 border border-slate-200 transition-all">
               <Menu size={17} />
             </button>
@@ -395,6 +517,7 @@ export default function AdminDashboard() {
               <Route path="customers" element={<Customers />} />
               <Route path="suppliers" element={<Suppliers />} />
               <Route path="orders" element={<Orders />} />
+              <Route path="notas-fiscais" element={<NfceInvoices />} />
               <Route path="finance" element={<Finance />} />
               <Route path="contas-receber" element={<ContasReceber />} />
               <Route path="contas-pagar" element={<ContasPagar />} />

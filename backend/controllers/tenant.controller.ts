@@ -67,6 +67,21 @@ export async function updateTenant(req: Request, res: Response) {
     if (b.enabled_brands !== undefined)     data.enabled_brands     = b.enabled_brands;
     if (b.pass_fee_by_method !== undefined) data.pass_fee_by_method = b.pass_fee_by_method;
 
+    // Dados fiscais
+    if (b.razao_social !== undefined)        data.razao_social        = b.razao_social;
+    if (b.inscricao_estadual !== undefined)  data.inscricao_estadual  = b.inscricao_estadual;
+    if (b.inscricao_municipal !== undefined) data.inscricao_municipal = b.inscricao_municipal;
+    if (b.cnae_fiscal !== undefined)         data.cnae_fiscal         = b.cnae_fiscal;
+    if (b.tax_regime !== undefined)          data.tax_regime          = b.tax_regime;
+    if (b.crt !== undefined)                 data.crt                 = Number(b.crt);
+
+    // NFC-e
+    if (b.nfce_environment !== undefined)  data.nfce_environment  = b.nfce_environment;
+    if (b.nfce_series !== undefined)       data.nfce_series       = Number(b.nfce_series);
+    if (b.nfce_next_number !== undefined)  data.nfce_next_number  = Number(b.nfce_next_number);
+    if (b.nfce_csc_id !== undefined)       data.nfce_csc_id       = b.nfce_csc_id;
+    if (b.nfce_csc_token !== undefined)    data.nfce_csc_token    = b.nfce_csc_token;
+
     // Only update slug/subdomain if explicitly provided and non-empty
     if (b.subdomain || b.slug) {
       const normalizedPublicId = normalizeSubdomain(b.subdomain || b.slug);

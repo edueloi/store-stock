@@ -3,6 +3,7 @@ import type { Request, Response } from "express";
 import { prisma } from "../config/prisma";
 import type { AuthenticatedRequest } from "../types/auth";
 import { localDateString } from "../utils/date";
+import { cancelarNfce } from "../services/nfce/cancelar";
 
 function getTenantId(req: Request) {
   return (req as AuthenticatedRequest).user.tenantId;
@@ -262,7 +263,19 @@ export async function cancelOrder(req: Request, res: Response) {
       { stock_reverted: stockNote, finance_entries_removed: deleted.count },
     );
 
-    res.json({ success: true });
+    // Se houver NFC-e autorizada para este pedido, tenta cancelar o evento fiscal.
+    // Não bloqueia o cancelamento do pedido em si — estoque/financeiro já revertidos acima
+    // independentemente do resultado fiscal, que fica registrado no NfceInvoice.
+    let nfceCancel: { attempted: boolean; success?: boolean; error?: string } = { attempted: false };
+    const invoice = await prisma.nfceInvoice.findUnique({ where: { order_id: orderId } });
+    if (invoice && invoice.status === "authorized") {
+      nfceCancel.attempted = true;
+      const result = await cancelarNfce(orderId, cancel_reason || "Cancelamento do pedido pelo operador");
+      nfceCancel.success = result.success;
+      if (!result.success) nfceCancel.error = result.error;
+    }
+
+    res.json({ success: true, nfce: nfceCancel });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Falha ao cancelar pedido" });

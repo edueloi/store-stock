@@ -68,6 +68,19 @@ export interface Tenant {
   public_url?: string;
   created_at?: string;
   updated_at?: string;
+  // Dados fiscais
+  razao_social?: string;
+  inscricao_estadual?: string;
+  inscricao_municipal?: string;
+  cnae_fiscal?: string;
+  tax_regime?: 'simples_nacional' | 'simples_excesso' | 'lucro_presumido' | 'lucro_real';
+  crt?: number;
+  // NFC-e
+  nfce_environment?: 'homologacao' | 'producao';
+  nfce_series?: number;
+  nfce_next_number?: number;
+  nfce_csc_id?: string;
+  nfce_csc_token?: string;
 }
 
 export interface User {
@@ -110,6 +123,20 @@ export interface Product {
   skus?: { combo: Record<string, string>; stock: number }[];
   /** @deprecated use attributes+skus */
   variations?: { name: string; options: { value: string; stock: number }[] }[];
+  // Dados fiscais
+  ncm?: string;
+  cest?: string;
+  cfop?: string;
+  origem?: number;
+  unidade_comercial?: string;
+  unidade_tributavel?: string;
+  csosn?: string;
+  cst_icms?: string;
+  icms_aliquota?: number;
+  pis_cst?: string;
+  pis_aliquota?: number;
+  cofins_cst?: string;
+  cofins_aliquota?: number;
 }
 
 export interface Supplier {
@@ -214,6 +241,34 @@ export interface SetupInvite {
   invite_url: string;
   access_url: string;
   is_expired: boolean;
+}
+
+export type NfceStatus = 'pending' | 'processing' | 'authorized' | 'rejected' | 'error' | 'cancelled';
+
+export interface NfceInvoice {
+  id: number;
+  tenant_id: number;
+  order_id: number;
+  status: NfceStatus;
+  environment: 'homologacao' | 'producao';
+  series: number;
+  number: number;
+  access_key?: string | null;
+  protocol?: string | null;
+  authorized_at?: string | null;
+  rejection_code?: string | null;
+  rejection_reason?: string | null;
+  xml_path?: string | null;
+  danfe_path?: string | null;
+  qrcode_url?: string | null;
+  attempts: number;
+  last_attempt_at?: string | null;
+  cancel_protocol?: string | null;
+  cancel_reason?: string | null;
+  cancelled_at?: string | null;
+  created_at: string;
+  updated_at: string;
+  order?: { customer_name?: string | null; total_amount: number };
 }
 
 export interface ManagedTenant extends Tenant {

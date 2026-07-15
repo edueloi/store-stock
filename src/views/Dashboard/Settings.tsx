@@ -153,6 +153,7 @@ const NAV = [
       { id: "card_fees", icon: CreditCard, label: "Maquininha & Taxas" },
       { id: "warranty", icon: FileCheck, label: "Termos de Garantia" },
       { id: "service_checklists", icon: ClipboardList, label: "Checklists de OS" },
+      { id: "fiscal", icon: FileCheck, label: "Dados Fiscais" },
     ],
   },
   {
@@ -1146,6 +1147,146 @@ export default function Settings() {
                 </div>
 
                 <SaveButton onClick={handleSaveTenant} />
+              </div>
+            )}
+
+            {/* ── Dados Fiscais ───────────────────────────────────────── */}
+            {active === "fiscal" && (
+              <div className="space-y-8">
+                <SectionHeader
+                  title="Dados Fiscais"
+                  subtitle="Informações usadas na emissão de NFC-e junto à SEFAZ-SP. Preencha com atenção — erros aqui geram rejeição das notas."
+                />
+
+                {/* Dados da empresa */}
+                <div className="space-y-3">
+                  <p className="text-[10px] font-black uppercase tracking-widest text-slate-700 border-l-4 border-blue-500 pl-3">
+                    Dados da Empresa
+                  </p>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                    <Field label="Razão Social" hint="Nome jurídico oficial, usado na tag xNome do XML">
+                      <TextInput
+                        value={tenant?.razao_social ?? ""}
+                        onChange={(v) => setT({ razao_social: v })}
+                        placeholder="Nome Empresarial Ltda"
+                      />
+                    </Field>
+                    <Field label="CNAE Fiscal">
+                      <TextInput
+                        value={tenant?.cnae_fiscal ?? ""}
+                        onChange={(v) => setT({ cnae_fiscal: v })}
+                        placeholder="0000-0/00"
+                        mono
+                      />
+                    </Field>
+                    <Field label="Inscrição Estadual (IE)">
+                      <TextInput
+                        value={tenant?.inscricao_estadual ?? ""}
+                        onChange={(v) => setT({ inscricao_estadual: v })}
+                        placeholder="000.000.000.000"
+                        mono
+                      />
+                    </Field>
+                    <Field label="Inscrição Municipal (IM)" hint="Opcional">
+                      <TextInput
+                        value={tenant?.inscricao_municipal ?? ""}
+                        onChange={(v) => setT({ inscricao_municipal: v })}
+                        mono
+                      />
+                    </Field>
+                  </div>
+                </div>
+
+                {/* Regime tributário */}
+                <div className="space-y-3">
+                  <p className="text-[10px] font-black uppercase tracking-widest text-slate-700 border-l-4 border-blue-500 pl-3">
+                    Regime Tributário
+                  </p>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                    <Field label="Regime" hint="Define CRT no XML e se produtos usam CSOSN ou CST">
+                      <select
+                        value={tenant?.tax_regime ?? "simples_nacional"}
+                        onChange={(e) => {
+                          const regime = e.target.value;
+                          const crtByRegime: Record<string, number> = {
+                            simples_nacional: 1,
+                            simples_excesso: 2,
+                            lucro_presumido: 3,
+                            lucro_real: 3,
+                          };
+                          setT({ tax_regime: regime as Tenant["tax_regime"], crt: crtByRegime[regime] ?? 1 });
+                        }}
+                        className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 h-11 text-xs font-bold outline-none focus:ring-4 focus:ring-blue-500/8 focus:border-blue-500 transition-all appearance-none"
+                      >
+                        <option value="simples_nacional">Simples Nacional</option>
+                        <option value="simples_excesso">Simples Nacional – Excesso de Sublimite</option>
+                        <option value="lucro_presumido">Lucro Presumido</option>
+                        <option value="lucro_real">Lucro Real</option>
+                      </select>
+                    </Field>
+                    <Field label="CRT (Código de Regime Tributário)" hint="Preenchido automaticamente pelo regime acima">
+                      <TextInput value={String(tenant?.crt ?? 1)} onChange={() => { /* derivado do regime */ }} mono className="opacity-60 pointer-events-none" />
+                    </Field>
+                  </div>
+                </div>
+
+                {/* NFC-e */}
+                <div className="space-y-3">
+                  <p className="text-[10px] font-black uppercase tracking-widest text-slate-700 border-l-4 border-amber-500 pl-3">
+                    NFC-e — Emissão
+                  </p>
+                  <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 flex items-start gap-2.5">
+                    <AlertTriangle size={15} className="text-amber-500 shrink-0 mt-0.5" />
+                    <p className="text-[10px] font-bold text-amber-700 leading-relaxed">
+                      Ambiente "Homologação" emite notas de teste, sem validade fiscal. Só troque para
+                      "Produção" quando tiver certificado digital A1 e CSC de produção configurados.
+                    </p>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                    <Field label="Ambiente NFC-e">
+                      <select
+                        value={tenant?.nfce_environment ?? "homologacao"}
+                        onChange={(e) => setT({ nfce_environment: e.target.value as Tenant["nfce_environment"] })}
+                        className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 h-11 text-xs font-bold outline-none focus:ring-4 focus:ring-blue-500/8 focus:border-blue-500 transition-all appearance-none"
+                      >
+                        <option value="homologacao">Homologação (teste)</option>
+                        <option value="producao">Produção</option>
+                      </select>
+                    </Field>
+                    <div />
+                    <Field label="Série">
+                      <TextInput
+                        value={String(tenant?.nfce_series ?? 1)}
+                        onChange={(v) => setT({ nfce_series: Number(v.replace(/\D/g, "")) || 1 })}
+                        mono
+                      />
+                    </Field>
+                    <Field label="Próximo Número" hint="Numeração sequencial da NFC-e">
+                      <TextInput
+                        value={String(tenant?.nfce_next_number ?? 1)}
+                        onChange={(v) => setT({ nfce_next_number: Number(v.replace(/\D/g, "")) || 1 })}
+                        mono
+                      />
+                    </Field>
+                    <Field label="CSC ID">
+                      <TextInput
+                        value={tenant?.nfce_csc_id ?? ""}
+                        onChange={(v) => setT({ nfce_csc_id: v })}
+                        mono
+                      />
+                    </Field>
+                    <Field label="CSC Token" hint="Código de Segurança do Contribuinte">
+                      <TextInput
+                        value={tenant?.nfce_csc_token ?? ""}
+                        onChange={(v) => setT({ nfce_csc_token: v })}
+                        type="password"
+                        mono
+                      />
+                    </Field>
+                  </div>
+                </div>
+
+                <SaveButton onClick={handleSaveTenant} label="Salvar Dados Fiscais" />
               </div>
             )}
 

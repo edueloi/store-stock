@@ -48,6 +48,24 @@ model Tenant {
   trial_ends_at    DateTime?
   subscription_amount Decimal @default(0) @db.Decimal(10, 2)
   setup_completed_at DateTime?
+
+  // --- Dados fiscais ---
+  razao_social         String?
+  inscricao_estadual   String?
+  inscricao_municipal  String?
+  cnae_fiscal          String?
+  tax_regime           String   @default("simples_nacional")
+  crt                  Int      @default(1)
+
+  // NFC-e
+  nfce_environment     String   @default("homologacao")
+  nfce_series          Int      @default(1)
+  nfce_next_number     Int      @default(1)
+  nfce_csc_id          String?
+  nfce_csc_token       String?
+  nfce_cert_path       String?
+  nfce_cert_password   String?
+
   created_at       DateTime @default(now())
   updated_at   DateTime @updatedAt
 
@@ -70,6 +88,7 @@ model Tenant {
   order_actions   OrderAction[]
   service_orders         ServiceOrder[]
   service_order_actions  ServiceOrderAction[]
+  nfce_invoices          NfceInvoice[]
 
   @@map("tenants")
 }
@@ -147,6 +166,22 @@ model Product {
   variations     Json?
   attributes     Json?
   skus           Json?
+
+  // --- Dados fiscais ---
+  ncm                String?  @db.VarChar(8)
+  cest               String?  @db.VarChar(7)
+  cfop               String?  @default("5102") @db.VarChar(4)
+  origem             Int      @default(0)
+  unidade_comercial  String   @default("UN")
+  unidade_tributavel String   @default("UN")
+  csosn              String?  @default("102")
+  cst_icms           String?
+  icms_aliquota      Decimal? @db.Decimal(5, 2)
+  pis_cst            String?
+  pis_aliquota       Decimal? @db.Decimal(5, 2)
+  cofins_cst         String?
+  cofins_aliquota    Decimal? @db.Decimal(5, 2)
+
   created_at     DateTime  @default(now())
   updated_at     DateTime  @updatedAt
 
@@ -249,13 +284,50 @@ model Order {
   created_at       DateTime  @default(now())
   updated_at       DateTime  @updatedAt
 
-  tenant   Tenant         @relation(fields: [tenant_id], references: [id])
-  seller   Seller?        @relation(fields: [seller_id], references: [id], onDelete: SetNull)
-  items    OrderItem[]
-  services OrderService[]
-  actions  OrderAction[]
+  tenant       Tenant         @relation(fields: [tenant_id], references: [id])
+  seller       Seller?        @relation(fields: [seller_id], references: [id], onDelete: SetNull)
+  items        OrderItem[]
+  services     OrderService[]
+  actions      OrderAction[]
+  nfce_invoice NfceInvoice?
 
   @@map("orders")
+}
+
+model NfceInvoice {
+  id               Int       @id @default(autoincrement())
+  tenant_id        Int
+  order_id         Int       @unique
+  status           String    @default("pending") // pending | processing | authorized | rejected | error | cancelled
+  environment      String
+  series           Int
+  number           Int
+  access_key       String?   @unique
+  protocol         String?
+  authorized_at    DateTime?
+  rejection_code   String?
+  rejection_reason String?   @db.Text
+  xml_path         String?
+  danfe_path       String?
+  qrcode_url       String?   @db.Text
+  attempts         Int       @default(0)
+  last_attempt_at  DateTime?
+
+  // Cancelamento (evento 110111)
+  cancel_protocol  String?
+  cancel_reason    String?   @db.Text
+  cancelled_at     DateTime?
+  cancel_xml_path  String?
+
+  created_at       DateTime  @default(now())
+  updated_at       DateTime  @updatedAt
+
+  tenant Tenant @relation(fields: [tenant_id], references: [id])
+  order  Order  @relation(fields: [order_id], references: [id])
+
+  @@index([tenant_id])
+  @@index([status])
+  @@map("nfce_invoices")
 }
 
 model OrderAction {

@@ -277,6 +277,7 @@ function GalleryUploader({ images, onChange }: GalleryUploaderProps) {
 export default function Inventory() {
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
+  const [taxRegime, setTaxRegime] = useState<string>("simples_nacional");
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Partial<Product> | null>(null);
@@ -323,13 +324,15 @@ export default function Inventory() {
 
   const fetchInventory = async () => {
     try {
-      const [pRes, cRes] = await Promise.all([
+      const [pRes, cRes, tRes] = await Promise.all([
         fetch("/api/products", { headers: { Authorization: `Bearer ${localStorage.getItem("token")}` } }),
         fetch("/api/categories", { headers: { Authorization: `Bearer ${localStorage.getItem("token")}` } }),
+        fetch("/api/tenant", { headers: { Authorization: `Bearer ${localStorage.getItem("token")}` } }),
       ]);
-      const [pData, cData] = await Promise.all([pRes.json(), cRes.json()]);
+      const [pData, cData, tData] = await Promise.all([pRes.json(), cRes.json(), tRes.json()]);
       setProducts(Array.isArray(pData) ? pData : []);
       setCategories(Array.isArray(cData) ? cData : []);
+      if (tData?.tax_regime) setTaxRegime(tData.tax_regime);
     } catch { /* noop */ }
     finally { setLoading(false); }
   };
@@ -1039,6 +1042,124 @@ export default function Inventory() {
               </button>
             </div>
             <p className="text-[9px] text-slate-400 px-1">Usado no leitor do PDV. Aceita EAN-13, EAN-8, Code128 ou código interno.</p>
+          </div>
+
+          {/* ── DADOS FISCAIS (NFC-e) ── */}
+          <div className="space-y-3 border-t border-slate-100 pt-5">
+            <p className="text-[10px] font-black uppercase tracking-widest text-slate-700 border-l-4 border-blue-500 pl-3">
+              Dados Fiscais
+            </p>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest px-1">NCM</label>
+                <input type="text" maxLength={8} placeholder="00000000"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs font-mono font-bold outline-none h-10 focus:border-blue-400 focus:ring-2 focus:ring-blue-500/10 transition-all"
+                  value={editingProduct?.ncm || ""}
+                  onChange={e => setEditingProduct(prev => ({ ...prev!, ncm: e.target.value.replace(/\D/g, "") }))} />
+              </div>
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest px-1">CEST</label>
+                <input type="text" maxLength={7} placeholder="Se aplicável"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs font-mono font-bold outline-none h-10 focus:border-blue-400 focus:ring-2 focus:ring-blue-500/10 transition-all"
+                  value={editingProduct?.cest || ""}
+                  onChange={e => setEditingProduct(prev => ({ ...prev!, cest: e.target.value.replace(/\D/g, "") }))} />
+              </div>
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest px-1">CFOP</label>
+                <input type="text" maxLength={4} placeholder="5102"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs font-mono font-bold outline-none h-10 focus:border-blue-400 focus:ring-2 focus:ring-blue-500/10 transition-all"
+                  value={editingProduct?.cfop ?? "5102"}
+                  onChange={e => setEditingProduct(prev => ({ ...prev!, cfop: e.target.value.replace(/\D/g, "") }))} />
+              </div>
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest px-1">Origem da Mercadoria</label>
+                <select className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs font-bold outline-none h-10 focus:border-blue-400 transition-all"
+                  value={editingProduct?.origem ?? 0}
+                  onChange={e => setEditingProduct(prev => ({ ...prev!, origem: Number(e.target.value) }))}>
+                  <option value={0}>0 — Nacional</option>
+                  <option value={1}>1 — Estrangeira (importação direta)</option>
+                  <option value={2}>2 — Estrangeira (adquirida no mercado interno)</option>
+                  <option value={3}>3 — Nacional (conteúdo import. 40-70%)</option>
+                  <option value={4}>4 — Nacional (processos produtivos básicos)</option>
+                  <option value={5}>5 — Nacional (conteúdo import. até 40%)</option>
+                  <option value={6}>6 — Estrangeira (import. direta, sem similar)</option>
+                  <option value={7}>7 — Estrangeira (mercado interno, sem similar)</option>
+                  <option value={8}>8 — Nacional (conteúdo import. acima de 70%)</option>
+                </select>
+              </div>
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest px-1">Unidade Comercial</label>
+                <input type="text" placeholder="UN"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs font-mono font-bold uppercase outline-none h-10 focus:border-blue-400 focus:ring-2 focus:ring-blue-500/10 transition-all"
+                  value={editingProduct?.unidade_comercial ?? "UN"}
+                  onChange={e => setEditingProduct(prev => ({ ...prev!, unidade_comercial: e.target.value.toUpperCase() }))} />
+              </div>
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest px-1">Unidade Tributável</label>
+                <input type="text" placeholder="UN"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs font-mono font-bold uppercase outline-none h-10 focus:border-blue-400 focus:ring-2 focus:ring-blue-500/10 transition-all"
+                  value={editingProduct?.unidade_tributavel ?? "UN"}
+                  onChange={e => setEditingProduct(prev => ({ ...prev!, unidade_tributavel: e.target.value.toUpperCase() }))} />
+              </div>
+            </div>
+
+            {taxRegime === "simples_nacional" || taxRegime === "simples_excesso" ? (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest px-1">CSOSN</label>
+                  <select className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs font-bold outline-none h-10 focus:border-blue-400 transition-all"
+                    value={editingProduct?.csosn ?? "102"}
+                    onChange={e => setEditingProduct(prev => ({ ...prev!, csosn: e.target.value }))}>
+                    <option value="101">101 — Tributada com permissão de crédito</option>
+                    <option value="102">102 — Tributada sem permissão de crédito</option>
+                    <option value="103">103 — Isenção do ICMS (faixa de receita bruta)</option>
+                    <option value="300">300 — Imune</option>
+                    <option value="400">400 — Não tributada</option>
+                    <option value="500">500 — ICMS cobrado por ST/antecipação</option>
+                    <option value="900">900 — Outros</option>
+                  </select>
+                </div>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest px-1">CST ICMS</label>
+                  <select className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs font-bold outline-none h-10 focus:border-blue-400 transition-all"
+                    value={editingProduct?.cst_icms ?? "00"}
+                    onChange={e => setEditingProduct(prev => ({ ...prev!, cst_icms: e.target.value }))}>
+                    <option value="00">00 — Tributada integralmente</option>
+                    <option value="10">10 — Tributada com ST</option>
+                    <option value="20">20 — Com redução de base de cálculo</option>
+                    <option value="40">40 — Isenta</option>
+                    <option value="41">41 — Não tributada</option>
+                    <option value="50">50 — Suspensão</option>
+                    <option value="60">60 — Cobrado anteriormente por ST</option>
+                    <option value="90">90 — Outras</option>
+                  </select>
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest px-1">Alíquota ICMS (%)</label>
+                  <input type="number" step="0.01" min="0"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs font-mono font-bold outline-none h-10 focus:border-blue-400 transition-all"
+                    value={editingProduct?.icms_aliquota ?? ""}
+                    onChange={e => { const v = e.target.value; setEditingProduct(prev => ({ ...prev!, icms_aliquota: v === "" ? undefined : Number(v) })); }} />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest px-1">PIS CST</label>
+                  <input type="text" maxLength={2}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs font-mono font-bold outline-none h-10 focus:border-blue-400 transition-all"
+                    value={editingProduct?.pis_cst || ""}
+                    onChange={e => setEditingProduct(prev => ({ ...prev!, pis_cst: e.target.value.replace(/\D/g, "") }))} />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest px-1">COFINS CST</label>
+                  <input type="text" maxLength={2}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs font-mono font-bold outline-none h-10 focus:border-blue-400 transition-all"
+                    value={editingProduct?.cofins_cst || ""}
+                    onChange={e => setEditingProduct(prev => ({ ...prev!, cofins_cst: e.target.value.replace(/\D/g, "") }))} />
+                </div>
+              </div>
+            )}
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

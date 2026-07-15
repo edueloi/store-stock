@@ -4,6 +4,7 @@ import { prisma } from "../config/prisma";
 import type { AuthenticatedRequest } from "../types/auth";
 import { awardPointsForOrder } from "./loyalty.controller";
 import { localDateString } from "../utils/date";
+import { emitirNfce } from "../services/nfce/emitir";
 
 function getTenantId(req: Request) {
   return (req as AuthenticatedRequest).user.tenantId;
@@ -274,6 +275,37 @@ export async function createSale(req: Request, res: Response) {
     // award loyalty points if customer is identified
     if (customerId) {
       awardPointsForOrder(tenantId, customerId, order.id, totalAmount).catch(console.error);
+    }
+
+    // Emissão de NFC-e: dispara em segundo plano, sem travar a resposta do PDV.
+    // A venda já está fechada; o status da nota evolui de forma assíncrona e é
+    // consultável via GET /api/nfce/:orderId (reemissão manual em caso de erro).
+    try {
+      const tenantForNfce = await prisma.tenant.findUnique({
+        where: { id: tenantId },
+        select: { nfce_environment: true, nfce_series: true, nfce_next_number: true },
+      });
+      if (tenantForNfce) {
+        const series = tenantForNfce.nfce_series;
+        const number = tenantForNfce.nfce_next_number;
+        await prisma.tenant.update({
+          where: { id: tenantId },
+          data: { nfce_next_number: { increment: 1 } },
+        });
+        await prisma.nfceInvoice.create({
+          data: {
+            tenant_id: tenantId,
+            order_id: order.id,
+            status: "pending",
+            environment: tenantForNfce.nfce_environment,
+            series,
+            number,
+          },
+        });
+        emitirNfce(order.id).catch((e) => console.error("[emitirNfce] erro:", e));
+      }
+    } catch (e) {
+      console.error("[createSale] falha ao agendar emissão de NFC-e:", e);
     }
 
     res.json({ success: true, orderId: order.id });

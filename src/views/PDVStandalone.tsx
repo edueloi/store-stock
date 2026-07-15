@@ -8,7 +8,7 @@ import {
   Maximize2, Minimize2, Wrench, WifiOff, RefreshCw, Terminal,
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
-import { Product, Category } from "../types";
+import { Product, Category, NfceInvoice } from "../types";
 import { cn } from "../lib/utils";
 import Combobox from "../components/ui/Combobox";
 import { SERVICE_CATEGORIES, SERVICE_UNITS } from "./Dashboard/Services";
@@ -264,6 +264,8 @@ export default function PDVStandalone() {
   const [showReceipt, setShowReceipt]       = useState(false);
   const [whatsappPhone, setWhatsappPhone]   = useState("");
   const [showPhoneInput, setShowPhoneInput] = useState(false);
+  const [nfceInvoice, setNfceInvoice]       = useState<NfceInvoice | null>(null);
+  const [nfceRetrying, setNfceRetrying]     = useState(false);
 
   // barcode scanner
   const [scanCode, setScanCode]         = useState("");
@@ -541,6 +543,47 @@ export default function PDVStandalone() {
     }
     setTimeout(() => setScanFeedback(null), 1200);
   }, [products, token, addToCartDirect]);
+
+  // ── Polling do status da NFC-e (só quando a venda foi confirmada online) ────
+  useEffect(() => {
+    if (!showReceipt || completedSale?.offline || !completedSale?.orderId) return;
+    let cancelled = false;
+    let attempts = 0;
+    const orderId = completedSale.orderId;
+    const authToken = localStorage.getItem("token");
+
+    const poll = async () => {
+      try {
+        const res = await fetch(`/api/nfce/${orderId}`, { headers: { Authorization: `Bearer ${authToken}` } });
+        if (res.ok) {
+          const data = await res.json();
+          if (!cancelled) setNfceInvoice(data);
+          if (data.status === "authorized" || data.status === "rejected" || data.status === "error") return;
+        }
+      } catch { /* segue tentando */ }
+      attempts++;
+      if (!cancelled && attempts < 10) setTimeout(poll, 2000);
+    };
+    poll();
+
+    return () => { cancelled = true; };
+  }, [showReceipt, completedSale?.orderId, completedSale?.offline]);
+
+  const handleRetryNfce = async () => {
+    if (!completedSale?.orderId || nfceRetrying) return;
+    setNfceRetrying(true);
+    const authToken = localStorage.getItem("token");
+    try {
+      await fetch(`/api/nfce/${completedSale.orderId}/retry`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${authToken}` },
+      });
+      const res = await fetch(`/api/nfce/${completedSale.orderId}`, { headers: { Authorization: `Bearer ${authToken}` } });
+      if (res.ok) setNfceInvoice(await res.json());
+    } finally {
+      setNfceRetrying(false);
+    }
+  };
 
   useEffect(() => {
     let lastKeyTime = 0;
@@ -966,6 +1009,7 @@ ${sale.change > 0 ? `<hr class="divider"/><div class="row bold"><span>Troco:</sp
         offline,
       };
       setCompletedSale(sale);
+      setNfceInvoice(null);
       setCart([]); setCartServices([]); setCustomerName(""); setSelectedCustomerId(null); setCustomerPoints(0); setAppliedReward(null);
       setDiscount(""); setSurcharge(""); setSelectedSellerId(null);
       setPayments([newPayment()]);
@@ -2609,6 +2653,56 @@ ${sale.change > 0 ? `<hr class="divider"/><div class="row bold"><span>Troco:</sp
 
               {/* Receipt actions */}
               <div className="shrink-0 p-5 space-y-2.5">
+                {!completedSale.offline && (
+                  <div className={cn(
+                    "w-full flex items-center gap-3.5 rounded-2xl px-4 py-3 border mb-1",
+                    nfceInvoice?.status === "authorized" ? "bg-emerald-900/30 border-emerald-600/50"
+                      : nfceInvoice?.status === "rejected" || nfceInvoice?.status === "error" ? "bg-rose-900/30 border-rose-600/50"
+                      : "bg-blue-900/30 border-blue-600/50",
+                  )}>
+                    {(!nfceInvoice || nfceInvoice.status === "pending" || nfceInvoice.status === "processing") && (
+                      <>
+                        <Loader2 size={18} className="text-blue-300 animate-spin shrink-0" />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-[11px] font-black text-blue-200 uppercase tracking-wide">Emitindo nota fiscal...</p>
+                          <p className="text-[10px] text-blue-400 font-medium">Aguardando autorização da SEFAZ-SP</p>
+                        </div>
+                      </>
+                    )}
+                    {nfceInvoice?.status === "authorized" && (
+                      <>
+                        <CheckCircle2 size={18} className="text-emerald-300 shrink-0" />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-[11px] font-black text-emerald-200 uppercase tracking-wide">NFC-e autorizada</p>
+                          <p className="text-[10px] text-emerald-400 font-medium truncate">Protocolo {nfceInvoice.protocol}</p>
+                        </div>
+                        <a
+                          href={`/api/nfce/${completedSale.orderId}/danfe`}
+                          target="_blank" rel="noopener noreferrer"
+                          className="shrink-0 h-9 px-3 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center gap-1.5 transition-all"
+                        >
+                          <FileText size={13} /> DANFE
+                        </a>
+                      </>
+                    )}
+                    {(nfceInvoice?.status === "rejected" || nfceInvoice?.status === "error") && (
+                      <>
+                        <X size={18} className="text-rose-300 shrink-0" />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-[11px] font-black text-rose-200 uppercase tracking-wide">Falha na emissão</p>
+                          <p className="text-[10px] text-rose-400 font-medium truncate">{nfceInvoice.rejection_reason || "Erro desconhecido"}</p>
+                        </div>
+                        <button
+                          onClick={handleRetryNfce}
+                          disabled={nfceRetrying}
+                          className="shrink-0 h-9 px-3 bg-rose-600 hover:bg-rose-500 disabled:opacity-50 text-white rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center gap-1.5 transition-all"
+                        >
+                          {nfceRetrying ? <Loader2 size={13} className="animate-spin" /> : <RefreshCw size={13} />} Tentar de novo
+                        </button>
+                      </>
+                    )}
+                  </div>
+                )}
                 <p className="text-[9px] font-black text-slate-500 uppercase tracking-[0.2em] mb-3">Emitir Comprovante</p>
                 <button onClick={() => printViaIframe(buildThermalHtml(completedSale))}
                   className="w-full flex items-center gap-4 h-14 bg-slate-800 hover:bg-slate-750 border border-slate-700 hover:border-slate-600 rounded-2xl px-5 transition-all group">

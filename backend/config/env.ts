@@ -1,4 +1,5 @@
 import dotenv from "dotenv";
+import path from "path";
 
 dotenv.config();
 
@@ -17,4 +18,7 @@ export const env = {
   smtpSecure: process.env.SMTP_SECURE !== "false",
   smtpUser: process.env.SMTP_USER || "contato@boxsys.com.br",
   smtpPass: process.env.SMTP_PASS || "",
+  nfceCertsDir: process.env.NFCE_CERTS_DIR || path.join(process.cwd(), "certs"),
+  nfceXmlDir: process.env.NFCE_XML_DIR || path.join(process.cwd(), "public", "nfce"),
+  nfceTimeoutMs: Number(process.env.NFCE_TIMEOUT_MS || 15000),
 };

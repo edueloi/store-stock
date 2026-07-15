@@ -43,21 +43,49 @@ function renderBarcode(svg: SVGSVGElement | null, code: string, opts?: object) {
   } catch { /* código inválido */ }
 }
 
+// ── QRCode loader (CDN dinâmico, sem instalar pacote) ─────────────────────────
+let qrCodePromise: Promise<void> | null = null;
+function loadQRCode(): Promise<void> {
+  if ((window as any).QRCode) return Promise.resolve();
+  if (qrCodePromise) return qrCodePromise;
+  qrCodePromise = new Promise((resolve, reject) => {
+    const s = document.createElement("script");
+    s.src = "https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js";
+    s.onload = () => resolve();
+    s.onerror = reject;
+    document.head.appendChild(s);
+  });
+  return qrCodePromise;
+}
+
+// ── Gera canvas de QR Code ────────────────────────────────────────────────────
+function renderQRCode(canvas: HTMLCanvasElement | null, code: string, size = 64) {
+  if (!canvas || !(window as any).QRCode) return;
+  (window as any).QRCode.toCanvas(canvas, code, { width: size, margin: 0 }, () => {});
+}
+
 // ── Componente de etiqueta individual ────────────────────────────────────────
 function LabelCard({
-  product, qty, labelSize,
+  product, qty, labelSize, fields,
 }: {
   product: Product & { barcode?: string };
   qty: number;
   labelSize: "small" | "medium" | "large";
+  fields: LabelFields;
 }) {
-  const svgRef = useRef<SVGSVGElement>(null);
-  const code   = product.barcode || product.sku || "";
+  const svgRef    = useRef<SVGSVGElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const code      = product.barcode || product.sku || "";
 
   useEffect(() => {
-    if (!code) return;
+    if (!code || !fields.showBarcode) return;
     loadJsBarcode().then(() => renderBarcode(svgRef.current, code));
-  }, [code]);
+  }, [code, fields.showBarcode]);
+
+  useEffect(() => {
+    if (!code || !fields.showQrCode) return;
+    loadQRCode().then(() => renderQRCode(canvasRef.current, code, 64));
+  }, [code, fields.showQrCode]);
 
   const sizeMap = {
     small:  "w-32",
@@ -66,19 +94,31 @@ function LabelCard({
   };
 
   return (
-    <div className={cn("bg-white border border-slate-200 rounded-xl p-2 flex flex-col items-center gap-1 shadow-sm", sizeMap[labelSize])}>
-      <p className="text-[9px] font-black text-slate-800 uppercase tracking-wide text-center line-clamp-2 leading-tight w-full">
-        {product.name}
-      </p>
-      <p className="text-[10px] font-black text-blue-600 font-mono">
-        R$ {Number(product.price).toFixed(2)}
-      </p>
-      {code ? (
-        <svg ref={svgRef} className="w-full" />
-      ) : (
-        <div className="w-full h-12 flex items-center justify-center bg-slate-50 rounded border border-dashed border-slate-200">
-          <p className="text-[8px] text-slate-400 font-bold uppercase">Sem código</p>
-        </div>
+    <div data-label-card className={cn("bg-white border border-slate-200 rounded-xl p-2 flex flex-col items-center gap-1 shadow-sm", sizeMap[labelSize])}>
+      {fields.showName && (
+        <p className="text-[9px] font-black text-slate-800 uppercase tracking-wide text-center line-clamp-2 leading-tight w-full">
+          {product.name}
+        </p>
+      )}
+      {fields.showPrice && (
+        <p className="text-[10px] font-black text-blue-600 font-mono">
+          R$ {Number(product.price).toFixed(2)}
+        </p>
+      )}
+      {fields.showSku && code && (
+        <p className="text-[8px] text-slate-400 font-mono tracking-wide">{code}</p>
+      )}
+      {fields.showBarcode && (
+        code ? (
+          <svg ref={svgRef} className="w-full" />
+        ) : (
+          <div className="w-full h-12 flex items-center justify-center bg-slate-50 rounded border border-dashed border-slate-200">
+            <p className="text-[8px] text-slate-400 font-bold uppercase">Sem código</p>
+          </div>
+        )
+      )}
+      {fields.showQrCode && code && (
+        <canvas ref={canvasRef} className="max-w-full" />
       )}
     </div>
   );
@@ -109,6 +149,22 @@ interface SelectedItem {
 type LabelSize = "small" | "medium" | "large";
 type LabelLayout = "1x1" | "2x2" | "3x3" | "4x4";
 
+interface LabelFields {
+  showName: boolean;
+  showPrice: boolean;
+  showBarcode: boolean;
+  showQrCode: boolean;
+  showSku: boolean;
+}
+
+const DEFAULT_LABEL_FIELDS: LabelFields = {
+  showName: true,
+  showPrice: true,
+  showBarcode: true,
+  showQrCode: false,
+  showSku: false,
+};
+
 const LAYOUT_COLS: Record<LabelLayout, number> = { "1x1": 1, "2x2": 2, "3x3": 3, "4x4": 4 };
 
 // ── Componente principal ──────────────────────────────────────────────────────
@@ -120,6 +176,7 @@ export default function Barcodes() {
   const [labelSize, setLabelSize]   = useState<LabelSize>("medium");
   const [layout, setLayout]         = useState<LabelLayout>("3x3");
   const [showOnly, setShowOnly]     = useState<"all" | "with" | "without">("all");
+  const [fields, setFields]         = useState<LabelFields>(DEFAULT_LABEL_FIELDS);
   const [jsBarcodeReady, setJsBarcodeReady] = useState(false);
   const printRef = useRef<HTMLDivElement>(null);
 
@@ -171,10 +228,34 @@ export default function Barcodes() {
   // ── Impressão ─────────────────────────────────────────────────────────────
   const handlePrint = useCallback(() => {
     if (!printRef.current) return;
-    const svgList = Array.from(printRef.current.querySelectorAll("svg")).map((s) => s.outerHTML);
+    const cards = Array.from(printRef.current.querySelectorAll("[data-label-card]"));
 
     const labelW = { small: "80px", medium: "110px", large: "140px" }[labelSize];
     const colsCSS = `repeat(${cols}, ${labelW})`;
+
+    const cardsHtml = labelItems.map(({ product }, idx) => {
+      const card = cards[idx] as HTMLElement | undefined;
+      const code = product.barcode || product.sku || "";
+
+      const svg = card?.querySelector("svg");
+      const barcodeHtml = fields.showBarcode
+        ? (svg ? svg.outerHTML : `<div class="label-nocode">Sem código</div>`)
+        : "";
+
+      const canvas = card?.querySelector("canvas") as HTMLCanvasElement | null;
+      const qrHtml = fields.showQrCode && code && canvas
+        ? `<img class="label-qr" src="${canvas.toDataURL()}" />`
+        : "";
+
+      return `
+  <div class="label">
+    ${fields.showName ? `<div class="label-name">${product.name}</div>` : ""}
+    ${fields.showPrice ? `<div class="label-price">R$ ${Number(product.price).toFixed(2)}</div>` : ""}
+    ${fields.showSku && code ? `<div class="label-sku">${code}</div>` : ""}
+    ${barcodeHtml}
+    ${qrHtml}
+  </div>`;
+    }).join("");
 
     const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Etiquetas</title>
 <style>
@@ -184,16 +265,14 @@ export default function Barcodes() {
   .label { border: 1px solid #ccc; border-radius: 6px; padding: 4px; display: flex; flex-direction: column; align-items: center; gap: 2px; width: ${labelW}; }
   .label-name { font-size: 7px; font-weight: 900; text-transform: uppercase; text-align: center; line-height: 1.2; color: #111; }
   .label-price { font-size: 9px; font-weight: 900; color: #2563eb; font-family: monospace; }
+  .label-sku { font-size: 7px; color: #666; font-family: monospace; }
+  .label-nocode { font-size: 7px; color: #999; text-transform: uppercase; font-weight: 700; }
   svg { width: 100%; }
+  .label-qr { width: 40px; height: 40px; }
   @media print { @page { margin: 8mm; } body { background: #fff; } }
 </style></head><body>
 <div class="grid">
-${labelItems.map(({ product }, idx) => `
-  <div class="label">
-    <div class="label-name">${product.name}</div>
-    <div class="label-price">R$ ${Number(product.price).toFixed(2)}</div>
-    ${svgList[idx] ?? ""}
-  </div>`).join("")}
+${cardsHtml}
 </div>
 </body></html>`;
 
@@ -203,7 +282,7 @@ ${labelItems.map(({ product }, idx) => `
     w.document.write(html);
     w.document.close();
     setTimeout(() => { w.focus(); w.print(); }, 600);
-  }, [labelItems, labelSize, cols]);
+  }, [labelItems, labelSize, cols, fields]);
 
   const totalLabels = selected.reduce((s, x) => s + x.qty, 0);
 
@@ -432,6 +511,34 @@ ${labelItems.map(({ product }, idx) => `
               </div>
             </div>
 
+            {/* Campos da etiqueta */}
+            <div className="space-y-2">
+              <p className="text-[9px] font-black uppercase tracking-widest text-slate-400">Campos da Etiqueta</p>
+              <div className="grid grid-cols-2 gap-1.5">
+                {([
+                  ["showName", "Nome"],
+                  ["showPrice", "Valor"],
+                  ["showBarcode", "Cód. de Barras"],
+                  ["showQrCode", "QR Code"],
+                  ["showSku", "Número/SKU"],
+                ] as [keyof LabelFields, string][]).map(([key, label]) => (
+                  <button
+                    key={key}
+                    onClick={() => setFields((f) => ({ ...f, [key]: !f[key] }))}
+                    className={cn(
+                      "h-9 rounded-xl border text-[9px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-1.5 px-2",
+                      fields[key]
+                        ? "bg-emerald-600 border-emerald-500 text-white shadow-sm"
+                        : "border-slate-200 text-slate-500 hover:border-slate-400 bg-white",
+                    )}
+                  >
+                    {fields[key] && <Check size={11} strokeWidth={3} />}
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
             {/* Resumo */}
             <div className="bg-slate-50 rounded-xl p-3 space-y-1">
               <div className="flex justify-between text-[9px] font-bold uppercase tracking-widest">
@@ -476,6 +583,7 @@ ${labelItems.map(({ product }, idx) => `
                     product={product}
                     qty={1}
                     labelSize={labelSize}
+                    fields={fields}
                   />
                 ))}
               </div>

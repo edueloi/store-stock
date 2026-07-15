@@ -108,6 +108,10 @@ const TRACKED_FIELDS: Record<string, string> = {
   is_active:      "Status ativo",
   is_featured:    "Destaque na home",
   category_id:    "Categoria",
+  ncm:            "NCM",
+  cfop:           "CFOP",
+  csosn:          "CSOSN",
+  cst_icms:       "CST ICMS",
 };
 
 function fmtHistoryVal(field: string, val: unknown): string {
@@ -133,6 +137,7 @@ export async function updateProduct(req: Request, res: Response) {
         name: true, price: true, cost_price: true, discount_price: true,
         stock_quantity: true, sku: true, barcode: true, description: true,
         is_active: true, is_featured: true, category_id: true,
+        ncm: true, cfop: true, csosn: true, cst_icms: true,
       },
     });
 
