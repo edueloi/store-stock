@@ -2,15 +2,16 @@
 <html lang="pt-BR">
 <head>
   <meta charset="UTF-8" />
-  <title>BoxSys PDV — Configuração</title>
+  <title>BoxSys — Configuração</title>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; font-family: -apple-system, "Segoe UI", Roboto, sans-serif; }
     body {
-      height: 100vh; display: flex; align-items: center; justify-content: center;
+      min-height: 100vh; display: flex; align-items: center; justify-content: center;
       background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%); color: #e2e8f0;
+      padding: 24px;
     }
     .card {
-      width: 100%; max-width: 420px; padding: 40px;
+      width: 100%; max-width: 440px; padding: 40px;
       background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08);
       border-radius: 24px; backdrop-filter: blur(12px);
     }
@@ -21,7 +22,7 @@
       font-size: 26px; font-weight: 900; color: #fff;
     }
     h1 { font-size: 18px; font-weight: 900; text-align: center; text-transform: uppercase; letter-spacing: 0.1em; }
-    p.sub { font-size: 11px; color: #94a3b8; text-align: center; margin: 8px 0 28px; line-height: 1.5; }
+    p.sub { font-size: 11px; color: #94a3b8; text-align: center; margin: 8px 0 24px; line-height: 1.5; }
     label { display: block; font-size: 9px; font-weight: 900; text-transform: uppercase; letter-spacing: 0.18em; color: #64748b; margin-bottom: 8px; }
     input {
       width: 100%; height: 48px; padding: 0 16px; font-size: 14px; font-weight: 600;
@@ -30,14 +31,22 @@
     }
     input:focus { border-color: #3b82f6; }
     input::placeholder { color: #475569; font-weight: 400; }
-    button {
-      width: 100%; height: 48px; margin-top: 16px; border: none; border-radius: 14px;
+    .mode-group { display: flex; gap: 10px; margin-top: 6px; }
+    .mode-card {
+      flex: 1; padding: 16px 14px; border-radius: 16px; border: 1px solid #334155;
+      background: rgba(15,23,42,0.4); cursor: pointer; transition: all .15s; text-align: left;
+    }
+    .mode-card.active { border-color: #3b82f6; background: rgba(59,130,246,0.12); }
+    .mode-card .mode-title { font-size: 12px; font-weight: 900; text-transform: uppercase; letter-spacing: 0.06em; color: #e2e8f0; margin-bottom: 4px; }
+    .mode-card .mode-desc { font-size: 10px; color: #94a3b8; line-height: 1.4; }
+    button.connect {
+      width: 100%; height: 48px; margin-top: 20px; border: none; border-radius: 14px;
       background: linear-gradient(135deg, #3b82f6, #1d4ed8); color: #fff;
       font-size: 11px; font-weight: 900; text-transform: uppercase; letter-spacing: 0.15em;
       cursor: pointer; transition: opacity .2s;
     }
-    button:hover { opacity: 0.9; }
-    button:disabled { opacity: 0.5; cursor: wait; }
+    button.connect:hover { opacity: 0.9; }
+    button.connect:disabled { opacity: 0.5; cursor: wait; }
     .error {
       display: none; margin-top: 14px; padding: 12px 14px; font-size: 11px; line-height: 1.4;
       background: rgba(244,63,94,0.12); border: 1px solid rgba(244,63,94,0.3);
@@ -49,19 +58,39 @@
 <body>
   <div class="card">
     <div class="logo">B</div>
-    <h1>BoxSys PDV</h1>
-    <p class="sub">Informe o endereço da sua loja para conectar o terminal de vendas.</p>
+    <h1>BoxSys</h1>
+    <p class="sub">Informe o endereço da sua loja e escolha como este computador vai usar o sistema.</p>
 
     <label for="server">Endereço da Loja</label>
     <input id="server" type="text" placeholder="minhaloja.boxsys.com.br" autofocus
            onkeydown="if(event.key==='Enter')connect()" />
-    <button id="btn" onclick="connect()">Conectar</button>
+
+    <label style="margin-top: 18px">Modo deste Terminal</label>
+    <div class="mode-group">
+      <div class="mode-card active" data-mode="pdv" onclick="setMode('pdv')">
+        <div class="mode-title">Terminal PDV</div>
+        <div class="mode-desc">Só o caixa, tela cheia, ideal para o balcão de vendas.</div>
+      </div>
+      <div class="mode-card" data-mode="admin" onclick="setMode('admin')">
+        <div class="mode-title">Sistema Completo</div>
+        <div class="mode-desc">Painel inteiro: catálogo, financeiro, notas fiscais, etc.</div>
+      </div>
+    </div>
+
+    <button class="connect" id="btn" onclick="connect()">Conectar</button>
     <div id="error" class="error"></div>
 
     <p class="hint">Ex: vogan-store.boxsys.com.br</p>
   </div>
 
   <script>
+    let currentMode = "pdv";
+
+    function setMode(mode) {
+      currentMode = mode;
+      document.querySelectorAll(".mode-card").forEach((el) => el.classList.toggle("active", el.dataset.mode === mode));
+    }
+
     async function connect() {
       const input = document.getElementById("server");
       const btn = document.getElementById("btn");
@@ -70,7 +99,7 @@
       btn.disabled = true;
       btn.textContent = "Conectando...";
 
-      const result = await window.boxsysDesktop.saveServer(input.value);
+      const result = await window.boxsysDesktop.saveServer(input.value, currentMode);
 
       if (!result.ok) {
         errEl.textContent = result.error;
@@ -78,8 +107,15 @@
         btn.disabled = false;
         btn.textContent = "Conectar";
       }
-      // On success main process navigates to the PDV automatically
+      // On success main process navigates automatically (PDV ou painel completo)
     }
+
+    (async function init() {
+      if (!window.boxsysDesktop?.getCurrentSetup) return;
+      const current = await window.boxsysDesktop.getCurrentSetup();
+      if (current.server) document.getElementById("server").value = current.server;
+      setMode(current.mode || "pdv");
+    })();
   </script>
 </body>
 </html>

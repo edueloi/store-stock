@@ -8,3 +8,5 @@ desktop/release/
 .env*
 !.env.example
 public/uploads/
+public/downloads/*
+!public/downloads/.gitkeep

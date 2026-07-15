@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <title>Configurar Impressora</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; font-family: -apple-system, "Segoe UI", Roboto, sans-serif; }
+    body {
+      min-height: 100vh; padding: 28px;
+      background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%); color: #e2e8f0;
+    }
+    h1 { font-size: 15px; font-weight: 900; text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 4px; }
+    p.sub { font-size: 11px; color: #94a3b8; margin-bottom: 20px; line-height: 1.5; }
+    label { display: block; font-size: 9px; font-weight: 900; text-transform: uppercase; letter-spacing: 0.18em; color: #64748b; margin-bottom: 6px; margin-top: 14px; }
+    label:first-of-type { margin-top: 0; }
+    select, input {
+      width: 100%; height: 42px; padding: 0 14px; font-size: 13px; font-weight: 600;
+      background: rgba(15,23,42,0.6); border: 1px solid #334155; border-radius: 12px;
+      color: #f1f5f9; outline: none; transition: border-color .2s;
+    }
+    select:focus, input:focus { border-color: #3b82f6; }
+    input::placeholder { color: #475569; font-weight: 400; }
+    .row { display: flex; gap: 10px; }
+    .row > div { flex: 1; }
+    .transport-group { display: flex; gap: 8px; margin-top: 6px; }
+    .transport-btn {
+      flex: 1; height: 40px; border-radius: 10px; border: 1px solid #334155;
+      background: rgba(15,23,42,0.4); color: #94a3b8; font-size: 11px; font-weight: 800;
+      text-transform: uppercase; letter-spacing: 0.08em; cursor: pointer; transition: all .15s;
+    }
+    .transport-btn.active { background: #1d4ed8; border-color: #1d4ed8; color: #fff; }
+    #serialFields, #networkFields { display: none; margin-top: 4px; }
+    button.primary {
+      width: 100%; height: 46px; margin-top: 20px; border: none; border-radius: 12px;
+      background: linear-gradient(135deg, #3b82f6, #1d4ed8); color: #fff;
+      font-size: 11px; font-weight: 900; text-transform: uppercase; letter-spacing: 0.15em;
+      cursor: pointer; transition: opacity .2s;
+    }
+    button.secondary {
+      width: 100%; height: 42px; margin-top: 8px; border-radius: 12px;
+      background: rgba(255,255,255,0.06); border: 1px solid #334155; color: #cbd5e1;
+      font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.12em;
+      cursor: pointer; transition: opacity .2s;
+    }
+    button:disabled { opacity: 0.5; cursor: wait; }
+    .msg {
+      display: none; margin-top: 14px; padding: 12px 14px; font-size: 11px; line-height: 1.4;
+      border-radius: 12px;
+    }
+    .msg.error { background: rgba(244,63,94,0.12); border: 1px solid rgba(244,63,94,0.3); color: #fda4af; }
+    .msg.success { background: rgba(16,185,129,0.12); border: 1px solid rgba(16,185,129,0.3); color: #6ee7b7; }
+    .refresh-link { font-size: 10px; color: #60a5fa; cursor: pointer; text-decoration: underline; margin-top: 6px; display: inline-block; }
+  </style>
+</head>
+<body>
+  <h1>Impressora Térmica (Cupom)</h1>
+  <p class="sub">Configure a impressora usada para imprimir o cupom não fiscal e acionar a gaveta de dinheiro. A impressão em A4 continua usando a impressora padrão do Windows.</p>
+
+  <label>Marca / Compatibilidade</label>
+  <select id="brand">
+    <option value="epson">Epson (padrão — compatível com Elgin, Bematech)</option>
+    <option value="daruma">Daruma</option>
+    <option value="star">Star</option>
+    <option value="tanca">Tanca</option>
+  </select>
+
+  <label>Conexão</label>
+  <div class="transport-group">
+    <button type="button" class="transport-btn active" data-transport="serial" onclick="setTransport('serial')">USB / Serial</button>
+    <button type="button" class="transport-btn" data-transport="network" onclick="setTransport('network')">Rede (Wi-Fi/Ethernet)</button>
+  </div>
+
+  <div id="serialFields">
+    <label>Porta COM</label>
+    <select id="serialPort"></select>
+    <span class="refresh-link" onclick="loadPorts()">Atualizar lista de portas</span>
+  </div>
+
+  <div id="networkFields">
+    <div class="row">
+      <div>
+        <label>Endereço IP</label>
+        <input id="networkHost" type="text" placeholder="192.168.1.50" />
+      </div>
+      <div>
+        <label>Porta</label>
+        <input id="networkPort" type="text" placeholder="9100" value="9100" />
+      </div>
+    </div>
+  </div>
+
+  <button class="secondary" id="testBtn" onclick="testPrinter()">Testar Impressão</button>
+  <button class="primary" id="saveBtn" onclick="saveConfig()">Salvar Configuração</button>
+  <div id="msg" class="msg"></div>
+
+  <script>
+    let currentTransport = "serial";
+
+    function setTransport(t) {
+      currentTransport = t;
+      document.querySelectorAll(".transport-btn").forEach((b) => b.classList.toggle("active", b.dataset.transport === t));
+      document.getElementById("serialFields").style.display = t === "serial" ? "block" : "none";
+      document.getElementById("networkFields").style.display = t === "network" ? "block" : "none";
+    }
+
+    async function loadPorts() {
+      const select = document.getElementById("serialPort");
+      select.innerHTML = "<option>Buscando portas...</option>";
+      const ports = await window.boxsysDesktop.listSerialPorts();
+      select.innerHTML = "";
+      if (ports.length === 0) {
+        select.innerHTML = "<option value=''>Nenhuma porta encontrada</option>";
+        return;
+      }
+      ports.forEach((p) => {
+        const opt = document.createElement("option");
+        opt.value = p.path;
+        opt.textContent = p.manufacturer ? `${p.path} — ${p.manufacturer}` : p.path;
+        select.appendChild(opt);
+      });
+    }
+
+    function readForm() {
+      return {
+        brand: document.getElementById("brand").value,
+        transport: currentTransport,
+        serialPort: document.getElementById("serialPort").value,
+        networkHost: document.getElementById("networkHost").value.trim(),
+        networkPort: Number(document.getElementById("networkPort").value) || 9100,
+      };
+    }
+
+    function showMsg(text, type) {
+      const el = document.getElementById("msg");
+      el.textContent = text;
+      el.className = `msg ${type}`;
+      el.style.display = "block";
+    }
+
+    async function testPrinter() {
+      const btn = document.getElementById("testBtn");
+      btn.disabled = true;
+      btn.textContent = "Testando...";
+      const result = await window.boxsysDesktop.testPrinter(readForm());
+      btn.disabled = false;
+      btn.textContent = "Testar Impressão";
+      if (result.ok) showMsg("Impressora conectada com sucesso!", "success");
+      else showMsg(result.error || "Não foi possível conectar à impressora.", "error");
+    }
+
+    async function saveConfig() {
+      const btn = document.getElementById("saveBtn");
+      btn.disabled = true;
+      btn.textContent = "Salvando...";
+      await window.boxsysDesktop.savePrinterConfig(readForm());
+      btn.disabled = false;
+      btn.textContent = "Salvar Configuração";
+      showMsg("Configuração salva.", "success");
+    }
+
+    (async function init() {
+      await loadPorts();
+      const cfg = await window.boxsysDesktop.getPrinterConfig();
+      if (cfg) {
+        document.getElementById("brand").value = cfg.brand || "epson";
+        setTransport(cfg.transport || "serial");
+        if (cfg.serialPort) document.getElementById("serialPort").value = cfg.serialPort;
+        if (cfg.networkHost) document.getElementById("networkHost").value = cfg.networkHost;
+        if (cfg.networkPort) document.getElementById("networkPort").value = cfg.networkPort;
+      }
+    })();
+  </script>
+</body>
+</html>

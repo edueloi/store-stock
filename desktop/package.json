@@ -26,15 +26,28 @@
     "files": [
       "main.cjs",
       "preload.cjs",
+      "printer.cjs",
       "setup.html",
       "offline.html",
-      "icon.png"
+      "printer-config.html",
+      "icon.png",
+      "node_modules/**/*"
+    ],
+    "asarUnpack": [
+      "node_modules/@serialport/**/*",
+      "node_modules/serialport/**/*"
     ],
     "win": {
       "target": [
-        { "target": "nsis", "arch": ["x64"] }
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
       ],
-      "icon": "icon.png"
+      "icon": "icon.png",
+      "artifactName": "BoxSysPDV-Setup.exe"
     },
     "nsis": {
       "oneClick": false,
@@ -44,17 +57,34 @@
     },
     "mac": {
       "target": [
-        { "target": "dmg", "arch": ["x64", "arm64"] }
+        {
+          "target": "dmg",
+          "arch": [
+            "x64",
+            "arm64"
+          ]
+        }
       ],
       "icon": "icon.png",
-      "category": "public.app-category.business"
+      "category": "public.app-category.business",
+      "artifactName": "BoxSysPDV.dmg"
     },
     "linux": {
       "target": [
-        { "target": "AppImage", "arch": ["x64"] }
+        {
+          "target": "AppImage",
+          "arch": [
+            "x64"
+          ]
+        }
       ],
       "icon": "icon.png",
-      "category": "Office"
+      "category": "Office",
+      "artifactName": "BoxSysPDV.AppImage"
     }
+  },
+  "dependencies": {
+    "node-thermal-printer": "^4.6.0",
+    "serialport": "^13.0.0"
   }
 }

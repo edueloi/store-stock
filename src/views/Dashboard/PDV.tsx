@@ -168,6 +168,7 @@ export default function PDV() {
   const [showReceipt, setShowReceipt]     = useState(false);
   const [nfceInvoice, setNfceInvoice]     = useState<NfceInvoice | null>(null);
   const [nfceRetrying, setNfceRetrying]   = useState(false);
+  const [printError, setPrintError]       = useState<string | null>(null);
   const [whatsappPhone, setWhatsappPhone] = useState("");
   const [showPhoneInput, setShowPhoneInput] = useState(false);
 
@@ -534,6 +535,24 @@ export default function PDV() {
   // permite confirmar mesmo com valor menor (saldo devedor aceito)
   const canFinish = (cart.length > 0 || cartServices.length > 0) && total > 0;
 
+  // ── Atalhos rápidos do app desktop (F2/F4/F8/F9), disparados pelo menu nativo ──
+  useEffect(() => {
+    if (!window.boxsysDesktop?.onShortcut) return;
+    const unsubscribe = window.boxsysDesktop.onShortcut((action) => {
+      if (action === "focus-search") {
+        document.getElementById("pdv-search-input")?.focus();
+      } else if (action === "open-drawer") {
+        handleOpenCashDrawer();
+      } else if (action === "checkout") {
+        if (canFinish) { setShowCheckout(true); setSaleError(null); autoFillFirst(); }
+      } else if (action === "new-sale") {
+        setCart([]); setCartServices([]); setCustomerName(""); setSelectedCustomerId(null);
+      }
+    });
+    return unsubscribe;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [canFinish]);
+
   // ── receipt helpers ───────────────────────────────────────────────────────────
   const buildPaymentLines = (sale: CompletedSale) =>
     sale.payments.map((p) => {
@@ -543,7 +562,7 @@ export default function PDV() {
       return `${PM_LABEL[p.method]}${brand}${inst}: R$ ${Number(p.amount).toFixed(2)}`;
     }).join(" | ");
 
-  const buildThermalHtml = (sale: CompletedSale) => {
+  const buildThermalText = (sale: CompletedSale) => {
     const now = new Date().toLocaleString("pt-BR");
     const orderId = String(sale.orderId).padStart(6, "0");
     const W = 32;
@@ -636,6 +655,13 @@ export default function PDV() {
     receipt += dash.substring(0, W) + "\n";
     receipt += centerText("Obrigado pela preferencia!", W) + "\n";
     receipt += centerText("Volte sempre!", W) + "\n";
+
+    return receipt;
+  };
+
+  const buildThermalHtml = (sale: CompletedSale) => {
+    const orderId = String(sale.orderId).padStart(6, "0");
+    const receipt = buildThermalText(sale);
 
     return `<!DOCTYPE html>
 <html>
@@ -783,6 +809,24 @@ export default function PDV() {
       iframe.contentWindow?.print();
       setTimeout(() => document.body.removeChild(iframe), 1500);
     }, delay);
+  };
+
+  // Imprime na impressora térmica nativa (app desktop); cai no diálogo do
+  // navegador quando não há app desktop ou nenhuma impressora configurada.
+  const printThermalReceipt = async (sale: CompletedSale) => {
+    if (window.boxsysDesktop?.printReceipt) {
+      const result = await window.boxsysDesktop.printReceipt(buildThermalText(sale));
+      if (result.ok) return;
+      setPrintError(result.error || "Falha ao imprimir na impressora térmica.");
+      return;
+    }
+    printViaIframe(buildThermalHtml(sale));
+  };
+
+  const handleOpenCashDrawer = async () => {
+    if (!window.boxsysDesktop?.openCashDrawer) return;
+    const result = await window.boxsysDesktop.openCashDrawer();
+    if (!result.ok) setPrintError(result.error || "Falha ao abrir a gaveta.");
   };
 
   // ── finish sale ───────────────────────────────────────────────────────────────
@@ -1026,7 +1070,7 @@ export default function PDV() {
           <div className="flex gap-2 items-center">
             <div className="relative flex-1">
               <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
-              <input type="text" placeholder={showServicesTab ? "Buscar serviço..." : "Buscar produto..."}
+              <input id="pdv-search-input" type="text" placeholder={showServicesTab ? "Buscar serviço..." : "Buscar produto..."}
                 value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)}
                 className="w-full pl-10 pr-4 h-10 bg-white rounded-xl text-[13px] font-medium text-slate-700 placeholder:text-slate-400 focus:outline-none transition-all border border-slate-200 focus:border-blue-400 focus:ring-2 focus:ring-blue-100 shadow-sm" />
             </div>
@@ -2306,7 +2350,7 @@ export default function PDV() {
 
                 <p className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] pb-1">Emitir Comprovante</p>
 
-                <button onClick={() => printViaIframe(buildThermalHtml(completedSale))}
+                <button onClick={() => { setPrintError(null); printThermalReceipt(completedSale); }}
                   className="w-full flex items-center gap-3.5 h-16 bg-slate-50 hover:bg-slate-100 active:scale-[0.98] border border-slate-200 rounded-2xl px-4 transition-all group">
                   <div className="w-10 h-10 bg-slate-900 rounded-xl flex items-center justify-center shrink-0 group-hover:bg-blue-600 transition-colors">
                     <Printer size={17} className="text-white" />
@@ -2317,6 +2361,26 @@ export default function PDV() {
                   </div>
                   <ChevronRight size={15} className="text-slate-300 group-hover:text-slate-500 shrink-0" />
                 </button>
+
+                {window.boxsysDesktop?.openCashDrawer && (
+                  <button onClick={handleOpenCashDrawer}
+                    className="w-full flex items-center gap-3.5 h-16 bg-slate-50 hover:bg-slate-100 active:scale-[0.98] border border-slate-200 rounded-2xl px-4 transition-all group">
+                    <div className="w-10 h-10 bg-amber-500 rounded-xl flex items-center justify-center shrink-0 group-hover:bg-amber-600 transition-colors">
+                      <Banknote size={17} className="text-white" />
+                    </div>
+                    <div className="text-left flex-1 min-w-0">
+                      <p className="text-[12px] font-black text-slate-900 uppercase tracking-wide">Abrir Gaveta</p>
+                      <p className="text-[10px] text-slate-400 font-medium">Acionar gaveta de dinheiro (F4)</p>
+                    </div>
+                    <ChevronRight size={15} className="text-slate-300 group-hover:text-slate-500 shrink-0" />
+                  </button>
+                )}
+
+                {printError && (
+                  <div className="bg-rose-50 border border-rose-200 rounded-2xl px-4 py-3 text-[11px] font-bold text-rose-600">
+                    {printError}
+                  </div>
+                )}
 
                 <button onClick={() => printViaIframe(buildPDFHtml(completedSale), 600)}
                   className="w-full flex items-center gap-3.5 h-16 bg-slate-50 hover:bg-slate-100 active:scale-[0.98] border border-slate-200 rounded-2xl px-4 transition-all group">

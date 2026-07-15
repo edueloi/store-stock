@@ -266,6 +266,7 @@ export default function PDVStandalone() {
   const [showPhoneInput, setShowPhoneInput] = useState(false);
   const [nfceInvoice, setNfceInvoice]       = useState<NfceInvoice | null>(null);
   const [nfceRetrying, setNfceRetrying]     = useState(false);
+  const [printError, setPrintError]         = useState<string | null>(null);
 
   // barcode scanner
   const [scanCode, setScanCode]         = useState("");
@@ -715,6 +716,24 @@ export default function PDVStandalone() {
   const cartQty     = cart.reduce((a, b) => a + b.quantity, 0) + cartServices.reduce((a, s) => a + (s.quantity ?? 1), 0);
   const canFinish   = (cart.length > 0 || cartServices.length > 0) && total > 0;
 
+  // ── Atalhos rápidos do app desktop (F2/F4/F8/F9), disparados pelo menu nativo ──
+  useEffect(() => {
+    if (!window.boxsysDesktop?.onShortcut) return;
+    const unsubscribe = window.boxsysDesktop.onShortcut((action) => {
+      if (action === "focus-search") {
+        scanInputRef.current?.focus();
+      } else if (action === "open-drawer") {
+        handleOpenCashDrawer();
+      } else if (action === "checkout") {
+        if (canFinish) { setShowCheckoutModal(true); setSaleError(null); }
+      } else if (action === "new-sale") {
+        setCart([]); setCartServices([]); setCustomerName(""); setSelectedCustomerId(null);
+      }
+    });
+    return unsubscribe;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [canFinish]);
+
   // ── payment helpers ──────────────────────────────────────────────────────────
   const updatePayment = useCallback((id: string, patch: Partial<PaymentEntry>) =>
     setPayments((ps) => ps.map((p) => p.id === id ? { ...p, ...patch } : p)), []);
@@ -751,6 +770,75 @@ export default function PDVStandalone() {
   };
 
   // ── receipt helpers ──────────────────────────────────────────────────────────
+  // Versão em texto puro (32 colunas), usada pela impressora térmica nativa do app desktop
+  const buildThermalText = (sale: CompletedSale) => {
+    const now = new Date().toLocaleString("pt-BR");
+    const orderId = sale.offline ? "OFFLINE" : String(sale.orderId).padStart(6, "0");
+    const W = 32;
+
+    const truncate = (str: string, maxLen: number) => {
+      const s = String(str || "");
+      return s.length > maxLen ? s.substring(0, maxLen) : s;
+    };
+    const centerText = (text: string, width = W) => {
+      const s = truncate(text, width);
+      const diff = Math.max(0, width - s.length);
+      return " ".repeat(Math.floor(diff / 2)) + s + " ".repeat(Math.ceil(diff / 2));
+    };
+    const line = (left: string, right: string = "", width = W) => {
+      const l = truncate(left, width - 1);
+      const r = truncate(right, 14);
+      if (!right) return l + " ".repeat(Math.max(0, width - l.length));
+      const space = Math.max(1, width - l.length - r.length);
+      return l + " ".repeat(space) + r;
+    };
+    const dash = "================================".substring(0, W);
+    const thin = "--------------------------------".substring(0, W);
+    const [datePart, timePart] = now.split(", ");
+
+    let receipt = "\n";
+    receipt += centerText(sale.tenantName.toUpperCase()) + "\n";
+    if (sale.tenantAddress) receipt += centerText(sale.tenantAddress) + "\n";
+    receipt += dash + "\n";
+    receipt += centerText("CUPOM NAO FISCAL") + "\n";
+    receipt += centerText("No " + orderId) + "\n";
+    receipt += thin + "\n";
+    receipt += line("Data:", datePart) + "\n";
+    receipt += line("Hora:", (timePart || "").trim().substring(0, 8)) + "\n";
+    receipt += thin + "\n";
+    receipt += "Cliente:\n  " + truncate(sale.customerName || "CONSUMIDOR FINAL", W) + "\n";
+    if (sale.sellerName) receipt += "Vendedor: " + truncate(sale.sellerName, W - 10) + "\n";
+    receipt += thin + "\n\nItens:\n";
+    sale.items.forEach((item) => {
+      receipt += truncate(item.name, W) + "\n";
+      receipt += line(`  ${item.quantity}x R$ ${item.price.toFixed(2)}`, "R$ " + (item.price * item.quantity).toFixed(2)) + "\n";
+    });
+    receipt += "\n" + dash + "\n";
+    if (sale.discountValue > 0 || sale.surchargeValue > 0) {
+      receipt += line("Subtotal", "R$ " + sale.subtotal.toFixed(2)) + "\n";
+    }
+    if (sale.discountValue > 0) receipt += line("Desconto", "-R$ " + sale.discountValue.toFixed(2)) + "\n";
+    if (sale.surchargeValue > 0) receipt += line("Acrescimo", "+R$ " + sale.surchargeValue.toFixed(2)) + "\n";
+    if (sale.feeAmount > 0) receipt += line("Juros maquina", "+R$ " + sale.feeAmount.toFixed(2)) + "\n";
+    receipt += dash + "\n";
+    receipt += line("TOTAL", "R$ " + sale.total.toFixed(2)) + "\n";
+    receipt += dash + "\n\nPagamento:\n";
+    sale.payments.forEach((p) => {
+      const brand = (p.method === "debit" || p.method === "credit") && p.cardBrand !== "other"
+        ? ` ${p.cardBrand.charAt(0).toUpperCase() + p.cardBrand.slice(1).toLowerCase()}` : "";
+      const inst = p.method === "credit" && p.installments > 1 ? ` ${p.installments}x` : "";
+      receipt += line("  " + PM_LABEL[p.method] + brand + inst, "R$ " + Number(p.amount).toFixed(2)) + "\n";
+    });
+    if (sale.change > 0) {
+      receipt += thin + "\n" + line("Troco:", "R$ " + sale.change.toFixed(2)) + "\n";
+    }
+    receipt += "\n" + dash + "\n";
+    receipt += centerText("Obrigado pela preferencia!") + "\n";
+    receipt += centerText("Volte sempre!") + "\n";
+    receipt += centerText("Nao e documento fiscal") + "\n";
+    return receipt;
+  };
+
   const buildThermalHtml = (sale: CompletedSale) => {
     const now = new Date().toLocaleString("pt-BR");
     const orderId = sale.offline ? "OFFLINE" : String(sale.orderId).padStart(6, "0");
@@ -931,6 +1019,24 @@ ${sale.change > 0 ? `<hr class="divider"/><div class="row bold"><span>Troco:</sp
       iframe.contentWindow?.print();
       setTimeout(() => document.body.removeChild(iframe), 1500);
     }, delay);
+  };
+
+  // Imprime na impressora térmica nativa (app desktop); cai no diálogo do
+  // navegador quando não há app desktop ou nenhuma impressora configurada.
+  const printThermalReceipt = async (sale: CompletedSale) => {
+    if (window.boxsysDesktop?.printReceipt) {
+      const result = await window.boxsysDesktop.printReceipt(buildThermalText(sale));
+      if (result.ok) return;
+      setPrintError(result.error || "Falha ao imprimir na impressora térmica.");
+      return;
+    }
+    printViaIframe(buildThermalHtml(sale));
+  };
+
+  const handleOpenCashDrawer = async () => {
+    if (!window.boxsysDesktop?.openCashDrawer) return;
+    const result = await window.boxsysDesktop.openCashDrawer();
+    if (!result.ok) setPrintError(result.error || "Falha ao abrir a gaveta.");
   };
 
   const handleChargeTerminal = async () => {
@@ -2704,7 +2810,7 @@ ${sale.change > 0 ? `<hr class="divider"/><div class="row bold"><span>Troco:</sp
                   </div>
                 )}
                 <p className="text-[9px] font-black text-slate-500 uppercase tracking-[0.2em] mb-3">Emitir Comprovante</p>
-                <button onClick={() => printViaIframe(buildThermalHtml(completedSale))}
+                <button onClick={() => { setPrintError(null); printThermalReceipt(completedSale); }}
                   className="w-full flex items-center gap-4 h-14 bg-slate-800 hover:bg-slate-750 border border-slate-700 hover:border-slate-600 rounded-2xl px-5 transition-all group">
                   <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
                     <Printer size={17} className="text-slate-900" />
@@ -2715,6 +2821,24 @@ ${sale.change > 0 ? `<hr class="divider"/><div class="row bold"><span>Troco:</sp
                   </div>
                   <ChevronRight size={15} className="ml-auto text-slate-600 group-hover:text-slate-400 group-hover:translate-x-0.5 transition-all" />
                 </button>
+                {window.boxsysDesktop?.openCashDrawer && (
+                  <button onClick={handleOpenCashDrawer}
+                    className="w-full flex items-center gap-4 h-14 bg-slate-800 hover:bg-slate-750 border border-slate-700 hover:border-slate-600 rounded-2xl px-5 transition-all group">
+                    <div className="w-10 h-10 bg-amber-500 rounded-xl flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
+                      <Banknote size={17} className="text-white" />
+                    </div>
+                    <div className="text-left">
+                      <p className="text-[12px] font-black text-white uppercase tracking-widest">Abrir Gaveta</p>
+                      <p className="text-[10px] text-slate-500 font-medium">Acionar gaveta de dinheiro (F4)</p>
+                    </div>
+                    <ChevronRight size={15} className="ml-auto text-slate-600 group-hover:text-slate-400 group-hover:translate-x-0.5 transition-all" />
+                  </button>
+                )}
+                {printError && (
+                  <div className="bg-rose-950/40 border border-rose-800/50 rounded-2xl px-4 py-3 text-[11px] font-bold text-rose-300">
+                    {printError}
+                  </div>
+                )}
                 <button onClick={() => printViaIframe(buildPDFHtml(completedSale), 600)}
                   className="w-full flex items-center gap-4 h-14 bg-slate-800 hover:bg-slate-750 border border-slate-700 hover:border-slate-600 rounded-2xl px-5 transition-all group">
                   <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform shadow-lg shadow-blue-500/20">
