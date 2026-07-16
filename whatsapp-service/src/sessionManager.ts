@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, readdirSync, rmSync } from "fs";
+import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "fs";
 import path from "path";
 import axios from "axios";
 import QRCode from "qrcode";
@@ -31,6 +31,34 @@ function sessionFolder(tenantId: number) {
   return path.join(SESSIONS_DIR, String(tenantId));
 }
 
+function metaFile(tenantId: number) {
+  return path.join(sessionFolder(tenantId), "meta.json");
+}
+
+// tenantSlug/webhookSecret precisam sobreviver a um restart do processo — sem isso,
+// uma sessão reidratada do disco (hydrateFromDisk) não sabe para onde encaminhar as
+// mensagens recebidas até que o backend principal chame /connect de novo, o que só
+// acontece enquanto alguém está com a tela do WhatsApp aberta no painel. Persistir
+// esses dois campos junto com a sessão evita esse buraco.
+function saveMeta(tenantId: number, tenantSlug: string, webhookSecret: string) {
+  try {
+    mkdirSync(sessionFolder(tenantId), { recursive: true });
+    writeFileSync(metaFile(tenantId), JSON.stringify({ tenantSlug, webhookSecret }));
+  } catch (err) {
+    logger.error({ err, tenantId }, "failed to persist session metadata");
+  }
+}
+
+function loadMeta(tenantId: number): { tenantSlug: string; webhookSecret: string } | null {
+  try {
+    const raw = readFileSync(metaFile(tenantId), "utf8");
+    const parsed = JSON.parse(raw);
+    return { tenantSlug: String(parsed.tenantSlug ?? ""), webhookSecret: String(parsed.webhookSecret ?? "") };
+  } catch {
+    return null;
+  }
+}
+
 async function forwardMessageToWebhook(tenantSlug: string, webhookSecret: string, data: Record<string, unknown>) {
   try {
     await axios.post(
@@ -44,6 +72,10 @@ async function forwardMessageToWebhook(tenantSlug: string, webhookSecret: string
 }
 
 async function startSocket(tenantId: number, tenantSlug: string, webhookSecret: string): Promise<SessionEntry> {
+  if (tenantSlug && webhookSecret) {
+    saveMeta(tenantId, tenantSlug, webhookSecret);
+  }
+
   const { state, saveCreds } = await useMultiFileAuthState(sessionFolder(tenantId));
 
   const sock = makeWASocket({
@@ -119,6 +151,7 @@ export async function connect(tenantId: number, tenantSlug: string, webhookSecre
     // Atualiza os dados de encaminhamento caso tenham mudado (ex: rotação do segredo).
     existing.tenantSlug = tenantSlug;
     existing.webhookSecret = webhookSecret;
+    saveMeta(tenantId, tenantSlug, webhookSecret);
     return toStatus(existing);
   }
 
@@ -189,13 +222,13 @@ export async function hydrateFromDisk() {
     const tenantId = Number(dirEntry.name);
     if (!Number.isFinite(tenantId)) continue;
 
-    // Sem tenantSlug/webhookSecret ainda (não persistidos em disco de propósito —
-    // o backend principal é quem detém essa informação). A sessão reconecta e passa
-    // a aceitar mensagens assim que o backend principal chamar /connect de novo
-    // (o que acontece automaticamente no próximo polling de connection-status).
-    // Até lá, mantemos a sessão pareada mas sem encaminhar mensagens.
+    const meta = loadMeta(tenantId);
+    if (!meta) {
+      logger.warn({ tenantId }, "no persisted metadata for session, reconnecting without webhook forwarding until next /connect call");
+    }
+
     try {
-      await startSocket(tenantId, "", "");
+      await startSocket(tenantId, meta?.tenantSlug ?? "", meta?.webhookSecret ?? "");
       logger.info({ tenantId }, "rehydrated session from disk");
     } catch (err) {
       logger.error({ err, tenantId }, "failed to rehydrate session from disk");
