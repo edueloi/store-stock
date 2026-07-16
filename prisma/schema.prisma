@@ -503,6 +503,7 @@ model Customer {
   birth_date   DateTime?
   risk_flag    Boolean  @default(false)
   risk_reason  String?  @db.Text
+  last_points_reminder_at DateTime?
   created_at   DateTime @default(now())
   updated_at   DateTime @updatedAt
 

@@ -2,7 +2,7 @@ import { existsSync, mkdirSync, readdirSync, rmSync } from "fs";
 import path from "path";
 import axios from "axios";
 import QRCode from "qrcode";
-import { makeWASocket, DisconnectReason, useMultiFileAuthState } from "@whiskeysockets/baileys";
+import { makeWASocket, DisconnectReason, useMultiFileAuthState, jidDecode } from "@whiskeysockets/baileys";
 import type { WASocket } from "@whiskeysockets/baileys";
 import { Boom } from "@hapi/boom";
 import pino from "pino";
@@ -129,7 +129,7 @@ export async function connect(tenantId: number, tenantSlug: string, webhookSecre
 export async function getStatus(tenantId: number) {
   const entry = sessions.get(tenantId);
   if (!entry) {
-    return { connected: false, state: "close" as const, qrCode: null, pairingCode: null };
+    return { connected: false, state: "close" as const, qrCode: null, pairingCode: null, phoneNumber: null };
   }
   return toStatus(entry);
 }
@@ -204,10 +204,14 @@ export async function hydrateFromDisk() {
 }
 
 async function toStatus(entry: SessionEntry) {
+  const jid = entry.sock.user?.id;
+  const phoneNumber = jid ? (jidDecode(jid)?.user ?? null) : null;
+
   return {
     connected: entry.connected,
     state: entry.state,
     qrCode: entry.qr ? await QRCode.toDataURL(entry.qr) : null,
     pairingCode: null as string | null,
+    phoneNumber,
   };
 }

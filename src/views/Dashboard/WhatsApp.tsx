@@ -66,6 +66,9 @@ interface WorkspaceTemplates {
   no_invoices: string;
   no_promotions: string;
   manual_takeover: string;
+  points_earned: string;
+  points_redeemed: string;
+  points_reminder: string;
 }
 
 interface WorkspaceState {
@@ -138,6 +141,7 @@ interface ConnectionStatus {
   state: string;
   qrCode: string | null;
   pairingCode: string | null;
+  phoneNumber: string | null;
 }
 
 interface OverviewResponse {
@@ -770,7 +774,9 @@ export default function WhatsApp() {
               </h3>
               <p className="text-[11px] text-slate-500 font-semibold mt-0.5">
                 {connectionStatus?.connected
-                  ? "Número vinculado e pronto para uso"
+                  ? connectionStatus.phoneNumber
+                    ? `Número +${connectionStatus.phoneNumber} vinculado e pronto para uso`
+                    : "Número vinculado e pronto para uso"
                   : "Escaneie o QR code para vincular o número"}
               </p>
             </div>
@@ -809,11 +815,18 @@ export default function WhatsApp() {
               <div className="w-14 h-14 rounded-2xl bg-emerald-500 text-white flex items-center justify-center shrink-0">
                 <CheckCircle2 size={26} />
               </div>
-              <p className="text-[13px] text-slate-600 leading-relaxed">
-                O número já está vinculado à instância e pronto para receber e enviar mensagens pelo bot.
-                Se precisar trocar de aparelho, desconecte pelo próprio WhatsApp em
-                <strong> Aparelhos conectados</strong> e clique em Atualizar aqui para gerar um novo QR code.
-              </p>
+              <div>
+                {connectionStatus.phoneNumber && (
+                  <p className="text-sm font-black text-slate-800 mb-1">
+                    +{connectionStatus.phoneNumber}
+                  </p>
+                )}
+                <p className="text-[13px] text-slate-600 leading-relaxed">
+                  O número já está vinculado à instância e pronto para receber e enviar mensagens pelo bot.
+                  Se precisar trocar de aparelho, desconecte pelo próprio WhatsApp em
+                  <strong> Aparelhos conectados</strong> e clique em Atualizar aqui para gerar um novo QR code.
+                </p>
+              </div>
             </div>
           ) : connectionStatus?.qrCode ? (
             <div className="grid grid-cols-1 md:grid-cols-[auto_1fr] gap-8 items-center">
@@ -1179,6 +1192,9 @@ export default function WhatsApp() {
                 ["transferred", "Transferência concluída"],
                 ["fallback", "Mensagem de fallback"],
                 ["closed_inactivity", "Encerramento automático"],
+                ["points_earned", "Pontos ganhos"],
+                ["points_redeemed", "Pontos resgatados"],
+                ["points_reminder", "Lembrete de pontos parados"],
               ].map(([key, label]) => (
                 <div key={key}>
                   <Label>{label}</Label>
@@ -1196,7 +1212,7 @@ export default function WhatsApp() {
                 <p className="text-[11px] font-semibold text-blue-700 leading-relaxed">
                   Placeholders suportados:{" "}
                   <span className="font-black">
-                    {"{{customerName}}"} {"{{storeName}}"} {"{{departmentLabel}}"} {"{{agentName}}"} {"{{position}}"}
+                    {"{{customerName}}"} {"{{storeName}}"} {"{{departmentLabel}}"} {"{{agentName}}"} {"{{position}}"} {"{{points}}"} {"{{balance}}"}
                   </span>
                 </p>
               </div>

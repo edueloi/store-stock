@@ -28,7 +28,7 @@ interface WhatsappMenuOption {
   order: number;
 }
 
-interface WhatsappTemplates {
+export interface WhatsappTemplates {
   welcome: string;
   menu_intro: string;
   fallback: string;
@@ -41,6 +41,9 @@ interface WhatsappTemplates {
   no_invoices: string;
   no_promotions: string;
   manual_takeover: string;
+  points_earned: string;
+  points_redeemed: string;
+  points_reminder: string;
 }
 
 interface PendingChoice {
@@ -155,6 +158,12 @@ const DEFAULT_TEMPLATES: WhatsappTemplates = {
     "No momento não há promoções ativas cadastradas. Posso te passar para vendas para um atendimento direto.",
   manual_takeover:
     "Atendimento assumido manualmente por {{agentName}}. Você pode seguir por aqui normalmente.",
+  points_earned:
+    "🎉 {{customerName}}, você ganhou {{points}} pontos na sua compra na {{storeName}}! Seu saldo agora é {{balance}} pontos.",
+  points_redeemed:
+    "✅ {{customerName}}, você resgatou {{points}} pontos na {{storeName}}. Saldo restante: {{balance}} pontos.",
+  points_reminder:
+    "👋 {{customerName}}, você tem {{balance}} pontos esperando na {{storeName}}! Que tal aproveitar em uma nova visita?",
 };
 
 const OPEN_STATUSES: ConversationStatus[] = ["bot", "queued", "assigned"];
@@ -170,7 +179,7 @@ function deepCopy<T>(value: T): T {
   return JSON.parse(JSON.stringify(value)) as T;
 }
 
-function normalizePhone(raw: string | null | undefined) {
+export function normalizePhone(raw: string | null | undefined) {
   return (raw ?? "").replace(/\D/g, "");
 }
 
@@ -267,7 +276,7 @@ function parseMenus(value: unknown): WhatsappMenuOption[] {
   return parsed.length > 0 ? parsed : getDefaultMenus();
 }
 
-function parseTemplates(value: unknown): WhatsappTemplates {
+export function parseTemplates(value: unknown): WhatsappTemplates {
   if (!isRecord(value)) return getDefaultTemplates();
 
   return {
@@ -283,6 +292,9 @@ function parseTemplates(value: unknown): WhatsappTemplates {
     no_invoices: String(value.no_invoices ?? DEFAULT_TEMPLATES.no_invoices),
     no_promotions: String(value.no_promotions ?? DEFAULT_TEMPLATES.no_promotions),
     manual_takeover: String(value.manual_takeover ?? DEFAULT_TEMPLATES.manual_takeover),
+    points_earned: String(value.points_earned ?? DEFAULT_TEMPLATES.points_earned),
+    points_redeemed: String(value.points_redeemed ?? DEFAULT_TEMPLATES.points_redeemed),
+    points_reminder: String(value.points_reminder ?? DEFAULT_TEMPLATES.points_reminder),
   };
 }
 
@@ -313,7 +325,7 @@ function parseMetadata(value: unknown): ConversationMetadata {
   };
 }
 
-function renderTemplate(template: string, values: Record<string, string | number | undefined | null>) {
+export function renderTemplate(template: string, values: Record<string, string | number | undefined | null>) {
   return template.replace(/\{\{(.*?)\}\}/g, (_, rawKey) => {
     const key = String(rawKey).trim();
     const value = values[key];
@@ -408,7 +420,7 @@ async function ensureWorkspace(tenantId: number) {
   });
 }
 
-async function getWorkspaceWithTenantByTenantId(tenantId: number) {
+export async function getWorkspaceWithTenantByTenantId(tenantId: number) {
   const [tenant, workspace] = await Promise.all([
     prisma.tenant.findUnique({
       where: { id: tenantId },
@@ -872,7 +884,7 @@ async function sendProviderRequest(
   return sendEvolutionRequest(workspaceId, endpoint, body);
 }
 
-async function sendTextMessage(
+export async function sendTextMessage(
   workspaceId: number,
   number: string,
   text: string,
@@ -1824,35 +1836,6 @@ export async function pingWhatsappEvolution(tenantId: number) {
   return response.data;
 }
 
-async function getEvolutionConnectionStatus(workspaceId: number) {
-  const config = await getEvolutionConfig(workspaceId);
-
-  const stateResponse = await axios.get(
-    `${config.baseUrl}/instance/connectionState/${config.instance}`,
-    { headers: { apikey: config.apiKey }, timeout: 10_000 },
-  );
-
-  const state: string =
-    stateResponse.data?.instance?.state ?? stateResponse.data?.state ?? "close";
-  const connected = state === "open";
-
-  if (connected) {
-    return { connected: true, state, qrCode: null as string | null, pairingCode: null as string | null };
-  }
-
-  const connectResponse = await axios.get(
-    `${config.baseUrl}/instance/connect/${config.instance}`,
-    { headers: { apikey: config.apiKey }, timeout: 15_000 },
-  );
-
-  const qrCode: string | null =
-    connectResponse.data?.base64 ?? connectResponse.data?.qrcode?.base64 ?? null;
-  const pairingCode: string | null =
-    connectResponse.data?.pairingCode ?? connectResponse.data?.qrcode?.pairingCode ?? null;
-
-  return { connected: false, state, qrCode, pairingCode };
-}
-
 // O serviço Baileys é stateless do ponto de vista do backend: não fica sabendo de
 // tenantSlug/webhookSecret até que o backend os informe. Por isso toda chamada de
 // status/conexão já envia esses dois dados junto — o /connect do serviço é
@@ -1873,6 +1856,7 @@ async function getBaileysConnectionStatus(
     state: String(data.state ?? "close"),
     qrCode: (data.qrCode as string | null) ?? null,
     pairingCode: (data.pairingCode as string | null) ?? null,
+    phoneNumber: (data.phoneNumber as string | null) ?? null,
   };
 }
 
@@ -1880,17 +1864,28 @@ export async function logoutBaileysSession(tenantId: number) {
   await sendBaileysRequest(tenantId, `/sessions/${tenantId}/logout`, {});
 }
 
-// Consulta o estado da conexão (Evolution ou Baileys, conforme o provider configurado
-// no workspace) e, se ainda não estiver pareada, devolve o QR code de conexão — é a
-// etapa que faltava para o usuário de fato vincular o WhatsApp.
+// Baileys é o único caminho de conexão oferecido hoje — Evolution nunca chegou a ser
+// configurado por nenhum tenant e fica só como fallback legado (acessível via
+// pingWhatsappEvolution para quem ainda tiver credenciais salvas manualmente). Por
+// isso o status de conexão do lojista sempre passa por Baileys, independente do
+// valor de `workspace.provider` (que pode estar desatualizado em workspaces criados
+// antes da migração para Baileys).
 export async function getWhatsappConnectionStatus(tenantId: number) {
   const { tenant, workspace } = await getWorkspaceWithTenantByTenantId(tenantId);
 
-  if (workspace.provider === "baileys") {
-    return getBaileysConnectionStatus(tenantId, tenant.slug, workspace.webhook_secret ?? "");
+  const status = await getBaileysConnectionStatus(tenantId, tenant.slug, workspace.webhook_secret ?? "");
+
+  // Assim que a sessão conecta de verdade, ativa o módulo automaticamente — o
+  // lojista não deveria precisar entender "provider" nem clicar em "Salvar módulo"
+  // separadamente só para o bot passar a responder.
+  if (status.connected && (!workspace.is_enabled || workspace.provider !== "baileys")) {
+    await prisma.whatsappWorkspace.update({
+      where: { id: workspace.id },
+      data: { is_enabled: true, provider: "baileys" },
+    });
   }
 
-  return getEvolutionConnectionStatus(workspace.id);
+  return status;
 }
 
 export async function sendWhatsappTestMenu(tenantId: number, phone: string) {

@@ -7,6 +7,7 @@ import { createApp } from "./app";
 import { env } from "./config/env";
 import { seedDefaultTenant } from "./services/seed.service";
 import { startWhatsappMaintenanceLoop } from "./services/whatsapp.service";
+import { startPointsReminderLoop } from "./services/loyalty-notifications.service";
 
 async function attachFrontend(app: express.Express) {
   if (env.nodeEnv !== "production") {
@@ -33,6 +34,7 @@ async function attachFrontend(app: express.Express) {
 export async function startServer() {
   await seedDefaultTenant();
   startWhatsappMaintenanceLoop();
+  startPointsReminderLoop();
 
   const app = createApp();
   await attachFrontend(app);

@@ -1,9 +1,18 @@
 import type { Request, Response } from "express";
 import { prisma } from "../config/prisma";
 import type { AuthenticatedRequest } from "../types/auth";
+import { sendLoyaltyWhatsapp } from "../services/loyalty-notifications.service";
 
 function tid(req: Request) {
   return (req as AuthenticatedRequest).user.tenantId;
+}
+
+async function getCurrentBalance(tenantId: number, customerId: number) {
+  const last = await prisma.customerPoint.findFirst({
+    where: { tenant_id: tenantId, customer_id: customerId },
+    orderBy: { created_at: "desc" },
+  });
+  return last?.balance_after ?? 0;
 }
 
 // ─── Program (one per tenant) ─────────────────────────────────────────────────
@@ -185,11 +194,7 @@ export async function adjustPoints(req: Request, res: Response) {
     const customerId = Number(req.params.customerId);
     const { delta, description } = req.body;
 
-    const last = await prisma.customerPoint.findFirst({
-      where: { tenant_id: tenantId, customer_id: customerId },
-      orderBy: { created_at: "desc" },
-    });
-    const currentBalance = last?.balance_after ?? 0;
+    const currentBalance = await getCurrentBalance(tenantId, customerId);
     const newBalance = Math.max(0, currentBalance + delta);
 
     const entry = await prisma.customerPoint.create({
@@ -221,11 +226,7 @@ export async function redeemReward(req: Request, res: Response) {
     });
     if (!reward) return res.status(404).json({ error: "Recompensa não encontrada" });
 
-    const last = await prisma.customerPoint.findFirst({
-      where: { tenant_id: tenantId, customer_id: customerId },
-      orderBy: { created_at: "desc" },
-    });
-    const currentBalance = last?.balance_after ?? 0;
+    const currentBalance = await getCurrentBalance(tenantId, customerId);
     if (currentBalance < reward.points_cost) {
       return res.status(400).json({ error: "Pontos insuficientes" });
     }
@@ -271,6 +272,18 @@ export async function redeemReward(req: Request, res: Response) {
         },
       }),
     ]);
+
+    const customer = await prisma.customer.findUnique({
+      where: { id: customerId },
+      select: { name: true, phone: true },
+    });
+    if (customer) {
+      sendLoyaltyWhatsapp(tenantId, customer.phone, "points_redeemed", {
+        customerName: customer.name,
+        points: reward.points_cost,
+        balance: newBalance,
+      }).catch(console.error);
+    }
 
     res.json({ success: true, balance: newBalance, reward });
   } catch (err) {
@@ -356,11 +369,7 @@ export async function awardPointsForOrder(
   const pointsEarned = Math.floor(orderTotal / spendPer);
   if (pointsEarned <= 0) return;
 
-  const last = await prisma.customerPoint.findFirst({
-    where: { tenant_id: tenantId, customer_id: customerId },
-    orderBy: { created_at: "desc" },
-  });
-  const currentBalance = last?.balance_after ?? 0;
+  const currentBalance = await getCurrentBalance(tenantId, customerId);
   const newBalance = currentBalance + pointsEarned;
 
   let expiresAt: Date | null = null;
@@ -380,4 +389,16 @@ export async function awardPointsForOrder(
       expires_at: expiresAt,
     },
   });
+
+  const customer = await prisma.customer.findUnique({
+    where: { id: customerId },
+    select: { name: true, phone: true },
+  });
+  if (customer) {
+    sendLoyaltyWhatsapp(tenantId, customer.phone, "points_earned", {
+      customerName: customer.name,
+      points: pointsEarned,
+      balance: newBalance,
+    }).catch(console.error);
+  }
 }
