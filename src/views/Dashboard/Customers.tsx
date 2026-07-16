@@ -9,6 +9,8 @@ import {
 import { motion, AnimatePresence } from "motion/react";
 import { cn } from "../../lib/utils";
 import PageHeader from "../../components/layout/PageHeader";
+import Modal from "../../components/ui/Modal";
+import Button from "../../components/ui/Button";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -155,6 +157,14 @@ export default function Customers() {
   const [noteBody, setNoteBody]   = useState("");
   const [savingNote, setSavingNote] = useState(false);
 
+  // Generic confirmation dialog (replaces window.confirm)
+  const [confirmDialog, setConfirmDialog] = useState<{
+    title: string;
+    message: string;
+    onConfirm: () => void | Promise<void>;
+  } | null>(null);
+  const [confirming, setConfirming] = useState(false);
+
   // Loyalty
   interface PointEntry { id: number; delta: number; balance_after: number; description?: string; created_at: string; }
   interface LoyaltyReward { id: number; name: string; type: string; discount_value?: number; discount_type?: string; product_id?: number; points_cost: number; is_active: boolean; }
@@ -267,11 +277,16 @@ export default function Customers() {
     }
   }
 
-  async function handleDelete(id: number) {
-    if (!confirm("Excluir este cliente? Todas as dívidas e notas serão removidas.")) return;
-    await fetch(`/api/customers/${id}`, { method: "DELETE", headers: authH() });
-    if (detail?.id === id) setDetail(null);
-    fetchAll();
+  function handleDelete(id: number) {
+    setConfirmDialog({
+      title: "Excluir cliente",
+      message: "Excluir este cliente? Todas as dívidas e notas serão removidas.",
+      onConfirm: async () => {
+        await fetch(`/api/customers/${id}`, { method: "DELETE", headers: authH() });
+        if (detail?.id === id) setDetail(null);
+        fetchAll();
+      },
+    });
   }
 
   // ── debt actions
@@ -300,13 +315,20 @@ export default function Customers() {
     fetchAll();
   }
 
-  async function handleDeleteDebt(debtId: number) {
-    if (!detail || !confirm("Remover esta dívida?")) return;
-    await fetch(`/api/customers/${detail.id}/debts/${debtId}`, {
-      method: "DELETE", headers: authH(),
+  function handleDeleteDebt(debtId: number) {
+    if (!detail) return;
+    const customerId = detail.id;
+    setConfirmDialog({
+      title: "Remover fiado",
+      message: "Remover esta dívida?",
+      onConfirm: async () => {
+        await fetch(`/api/customers/${customerId}/debts/${debtId}`, {
+          method: "DELETE", headers: authH(),
+        });
+        await fetchDetail(customerId);
+        fetchAll();
+      },
     });
-    await fetchDetail(detail.id);
-    fetchAll();
   }
 
   // ── note actions
@@ -324,12 +346,19 @@ export default function Customers() {
     } finally { setSavingNote(false); }
   }
 
-  async function handleDeleteNote(noteId: number) {
-    if (!detail || !confirm("Remover esta nota?")) return;
-    await fetch(`/api/customers/${detail.id}/notes/${noteId}`, {
-      method: "DELETE", headers: authH(),
+  function handleDeleteNote(noteId: number) {
+    if (!detail) return;
+    const customerId = detail.id;
+    setConfirmDialog({
+      title: "Remover nota",
+      message: "Remover esta nota?",
+      onConfirm: async () => {
+        await fetch(`/api/customers/${customerId}/notes/${noteId}`, {
+          method: "DELETE", headers: authH(),
+        });
+        await fetchDetail(customerId);
+      },
     });
-    await fetchDetail(detail.id);
   }
 
   // ── filters
@@ -1184,6 +1213,36 @@ export default function Customers() {
           </>
         )}
       </AnimatePresence>
+
+      <Modal
+        open={!!confirmDialog}
+        onClose={() => { if (!confirming) setConfirmDialog(null); }}
+        title={confirmDialog?.title ?? ""}
+        size="sm"
+        footer={
+          <>
+            <Button variant="secondary" onClick={() => setConfirmDialog(null)} disabled={confirming}>Cancelar</Button>
+            <Button
+              variant="danger"
+              loading={confirming}
+              onClick={async () => {
+                if (!confirmDialog) return;
+                setConfirming(true);
+                try {
+                  await confirmDialog.onConfirm();
+                  setConfirmDialog(null);
+                } finally {
+                  setConfirming(false);
+                }
+              }}
+            >
+              Confirmar
+            </Button>
+          </>
+        }
+      >
+        <p className="text-sm text-slate-600">{confirmDialog?.message}</p>
+      </Modal>
     </div>
   );
 }

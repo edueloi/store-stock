@@ -11,7 +11,9 @@ import {
   Package,
   Calendar,
   Layers,
-  ClipboardList
+  ClipboardList,
+  ChevronLeft,
+  ChevronRight
 } from "lucide-react";
 import PageHeader from "../../components/layout/PageHeader";
 import { Product } from "../../types";
@@ -34,6 +36,42 @@ const TYPE_LABELS: Record<string, string> = {
   return: "Devolução",
 };
 
+function Pagination({
+  page,
+  totalPages,
+  onChange,
+}: {
+  page: number;
+  totalPages: number;
+  onChange: (page: number) => void;
+}) {
+  if (totalPages <= 1) return null;
+
+  return (
+    <div className="flex items-center justify-between px-2">
+      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+        Página {page} de {totalPages}
+      </p>
+      <div className="flex items-center gap-2">
+        <button
+          onClick={() => onChange(Math.max(1, page - 1))}
+          disabled={page <= 1}
+          className="w-9 h-9 rounded-xl border border-slate-200 bg-white text-slate-500 hover:bg-slate-50 disabled:opacity-40 flex items-center justify-center transition-all"
+        >
+          <ChevronLeft size={14} />
+        </button>
+        <button
+          onClick={() => onChange(Math.min(totalPages, page + 1))}
+          disabled={page >= totalPages}
+          className="w-9 h-9 rounded-xl border border-slate-200 bg-white text-slate-500 hover:bg-slate-50 disabled:opacity-40 flex items-center justify-center transition-all"
+        >
+          <ChevronRight size={14} />
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export default function Stock() {
   const [products, setProducts] = useState<Product[]>([]);
   const [movements, setMovements] = useState<StockMovement[]>([]);
@@ -45,6 +83,9 @@ export default function Stock() {
   const [adjustmentType, setAdjustmentType] = useState("adjustment");
   const [adjustmentReason, setAdjustmentReason] = useState("");
   const [activeView, setActiveView] = useState<'inventory' | 'history'>('inventory');
+  const [inventoryPage, setInventoryPage] = useState(1);
+  const [historyPage, setHistoryPage] = useState(1);
+  const PAGE_SIZE = 20;
 
   const fetchData = async () => {
     try {
@@ -105,6 +146,20 @@ export default function Stock() {
   const lowStockCount = filteredProducts.filter(p => p.stock_quantity <= 5).length;
   const totalItems = filteredProducts.reduce((acc, p) => acc + p.stock_quantity, 0);
   const totalCost = filteredProducts.reduce((acc, p) => acc + (Number(p.cost_price || 0) * p.stock_quantity), 0);
+
+  useEffect(() => { setInventoryPage(1); }, [searchTerm]);
+
+  const inventoryTotalPages = Math.max(1, Math.ceil(filteredProducts.length / PAGE_SIZE));
+  const pagedProducts = filteredProducts.slice(
+    (inventoryPage - 1) * PAGE_SIZE,
+    inventoryPage * PAGE_SIZE,
+  );
+
+  const historyTotalPages = Math.max(1, Math.ceil(movements.length / PAGE_SIZE));
+  const pagedMovements = movements.slice(
+    (historyPage - 1) * PAGE_SIZE,
+    historyPage * PAGE_SIZE,
+  );
 
   if (loading) return <div className="p-8 text-center text-xs font-bold uppercase tracking-widest text-slate-400">Processando Inventário...</div>;
 
@@ -202,7 +257,7 @@ export default function Stock() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-50">
-                {filteredProducts.map(p => (
+                {pagedProducts.map(p => (
                   <tr key={p.id} className="hover:bg-slate-50/50 transition-colors group">
                     <td className="px-6 py-4">
                       <div className="flex flex-col">
@@ -252,7 +307,7 @@ export default function Stock() {
 
           {/* Mobile card list */}
           <div className="sm:hidden space-y-3">
-            {filteredProducts.map(p => (
+            {pagedProducts.map(p => (
               <div key={p.id} className="bg-white rounded-2xl border border-slate-200 shadow-sm p-4">
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex-1 min-w-0">
@@ -290,6 +345,8 @@ export default function Stock() {
               </div>
             )}
           </div>
+
+          <Pagination page={inventoryPage} totalPages={inventoryTotalPages} onChange={setInventoryPage} />
         </div>
       ) : (
         <div className="space-y-4">
@@ -310,7 +367,7 @@ export default function Stock() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-50">
-                {movements.map(m => (
+                {pagedMovements.map(m => (
                   <tr key={m.id} className="hover:bg-slate-50/50 transition-colors">
                     <td className="px-6 py-4 text-[10px] font-mono text-slate-400 whitespace-nowrap">
                       {new Date(m.created_at).toLocaleString('pt-BR')}
@@ -338,7 +395,7 @@ export default function Stock() {
 
           {/* Mobile card list */}
           <div className="sm:hidden space-y-3">
-            {movements.map(m => (
+            {pagedMovements.map(m => (
               <div key={m.id} className="bg-white rounded-2xl border border-slate-200 shadow-sm p-4">
                 <div className="flex items-start justify-between gap-2 mb-2">
                   <div className="flex-1 min-w-0">
@@ -363,6 +420,8 @@ export default function Stock() {
               </div>
             )}
           </div>
+
+          <Pagination page={historyPage} totalPages={historyTotalPages} onChange={setHistoryPage} />
         </div>
       )}
 
