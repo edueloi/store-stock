@@ -2,7 +2,7 @@ import { existsSync, mkdirSync, readdirSync, rmSync } from "fs";
 import path from "path";
 import axios from "axios";
 import QRCode from "qrcode";
-import makeWASocket, { DisconnectReason, useMultiFileAuthState } from "@whiskeysockets/baileys";
+import { makeWASocket, DisconnectReason, useMultiFileAuthState } from "@whiskeysockets/baileys";
 import type { WASocket } from "@whiskeysockets/baileys";
 import { Boom } from "@hapi/boom";
 import pino from "pino";
