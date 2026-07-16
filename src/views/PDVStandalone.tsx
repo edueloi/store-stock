@@ -498,7 +498,7 @@ export default function PDVStandalone() {
 
     fetch("/api/terminals/config", { headers })
       .then((r) => r.json())
-      .then((d) => setTerminalConfigured(!!(d?.enabled && d?.api_key)))
+      .then((d) => setTerminalConfigured(!!d?.provider))
       .catch(() => {});
   }, [token]);
 
@@ -1049,11 +1049,25 @@ ${sale.change > 0 ? `<hr class="divider"/><div class="row bold"><span>Troco:</sp
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify({ amount: total }),
       });
-      const tx = await r.json();
+      let tx = await r.json();
+
+      // Mercado Pago Point é assíncrono: a cobrança fica "pending" até o
+      // cliente aproximar o cartão no aparelho físico — faz polling curto
+      // até sair do estado intermediário.
+      if (tx?.status === "pending" && tx.id) {
+        for (let attempt = 0; attempt < 30 && tx.status === "pending"; attempt++) {
+          await new Promise((res) => setTimeout(res, 2000));
+          const pollRes = await fetch(`/api/terminals/transactions/${tx.id}`, {
+            headers: { Authorization: `Bearer ${token}` },
+          });
+          if (pollRes.ok) tx = await pollRes.json();
+        }
+      }
+
       if (tx?.status === "approved") {
-        setTerminalResult({ status: "approved", brand: tx.brand, authCode: tx.authCode ?? tx.auth_code });
-      } else if (!r.ok || tx?.status !== "approved") {
-        setSaleError(tx?.error ?? "Erro ao cobrar na maquininha.");
+        setTerminalResult({ status: "approved", brand: tx.brand, authCode: tx.authCode ?? tx.authorizationCode });
+      } else {
+        setSaleError(tx?.error ?? `Pagamento ${tx?.status === "denied" ? "negado" : tx?.status} pela maquininha.`);
       }
     } catch {
       setSaleError("Erro de conexão com o terminal.");
@@ -1615,6 +1629,7 @@ ${sale.change > 0 ? `<hr class="divider"/><div class="row bold"><span>Troco:</sp
           <CartPanel
             cart={cart}
             updateQuantity={updateQuantity}
+            setQuantityDirect={setQuantityDirect}
             removeFromCart={removeFromCart}
             cartServices={cartServices}
             setCartServices={setCartServices}
@@ -1839,6 +1854,7 @@ ${sale.change > 0 ? `<hr class="divider"/><div class="row bold"><span>Troco:</sp
                 <CartPanel
                   cart={cart}
                   updateQuantity={updateQuantity}
+                  setQuantityDirect={setQuantityDirect}
                   removeFromCart={removeFromCart}
                   cartServices={cartServices}
                   setCartServices={setCartServices}
@@ -3037,13 +3053,14 @@ const PaymentRow = React.memo(function PaymentRow({
 
 // ─── CART PANEL (apenas lista + botão ir para pagamento) ──────────────────────
 function CartPanel({
-  cart, updateQuantity, removeFromCart,
+  cart, updateQuantity, setQuantityDirect, removeFromCart,
   cartServices, setCartServices,
   subtotal, discountValue, surchargeValue, feeAmount, total, cartQty,
   onCheckout, canFinish, onClose,
 }: {
   cart: CartItem[];
   updateQuantity: (id: string, delta: number) => void;
+  setQuantityDirect: (id: string, value: number, maxStock?: number) => void;
   removeFromCart: (id: string) => void;
   cartServices: { id: number; name: string; price: number; quantity?: number }[];
   setCartServices: React.Dispatch<React.SetStateAction<{ id: number; name: string; price: number; description?: string; unit?: string; category?: string; quantity?: number }[]>>;

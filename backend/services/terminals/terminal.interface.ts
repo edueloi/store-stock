@@ -10,6 +10,13 @@ export interface TerminalChargeRequest {
   mode: PaymentMode;
   description?: string;
   orderId?: string;
+  /**
+   * Aparelho físico específico que deve processar a cobrança (ex: Mercado Pago
+   * Point, onde a cobrança é vinculada a um device_id). Omitido para providers
+   * que não trabalham com "intenção de pagamento" atrelada a um aparelho — a
+   * própria requisição de charge já é a transação (ex: Rede, Cielo).
+   */
+  deviceId?: string;
 }
 
 export interface TerminalTransaction {

@@ -29,7 +29,7 @@ export default function Tooltip({
   disabled = false,
 }: TooltipProps) {
   const [visible, setVisible] = useState(false);
-  const timerRef = useRef<ReturnType<typeof setTimeout>>();
+  const timerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
   const show = () => {
     if (disabled) return;

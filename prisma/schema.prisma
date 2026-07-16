@@ -89,6 +89,8 @@ model Tenant {
   service_orders         ServiceOrder[]
   service_order_actions  ServiceOrderAction[]
   nfce_invoices          NfceInvoice[]
+  whatsapp_workspace     WhatsappWorkspace?
+  terminal_transactions  TerminalTransaction[]
 
   @@map("tenants")
 }
@@ -284,14 +286,45 @@ model Order {
   created_at       DateTime  @default(now())
   updated_at       DateTime  @updatedAt
 
-  tenant       Tenant         @relation(fields: [tenant_id], references: [id])
-  seller       Seller?        @relation(fields: [seller_id], references: [id], onDelete: SetNull)
-  items        OrderItem[]
-  services     OrderService[]
-  actions      OrderAction[]
-  nfce_invoice NfceInvoice?
+  tenant                Tenant                @relation(fields: [tenant_id], references: [id])
+  seller                Seller?               @relation(fields: [seller_id], references: [id], onDelete: SetNull)
+  items                 OrderItem[]
+  services              OrderService[]
+  actions               OrderAction[]
+  nfce_invoice          NfceInvoice?
+  terminal_transactions TerminalTransaction[]
 
   @@map("orders")
+}
+
+model TerminalTransaction {
+  id                 Int       @id @default(autoincrement())
+  tenant_id          Int
+  order_id           Int?
+  provider           String // rede | stone | mercadopago | cielo | pagseguro
+  environment        String // sandbox | production
+  status             String    @default("pending") // pending | approved | denied | cancelled | error
+  external_id        String? // id retornado pela adquirente
+  nsu                String?
+  authorization_code String?
+  brand              String?
+  mode               String? // credit | debit
+  installments       Int       @default(1)
+  amount             Decimal   @db.Decimal(10, 2)
+  fee_amount         Decimal?  @db.Decimal(10, 2)
+  device_id          String? // aparelho físico (Mercado Pago Point)
+  raw_response       Json?
+  error_message      String?   @db.Text
+  created_at         DateTime  @default(now())
+  updated_at         DateTime  @updatedAt
+
+  tenant Tenant @relation(fields: [tenant_id], references: [id])
+  order  Order? @relation(fields: [order_id], references: [id])
+
+  @@index([tenant_id])
+  @@index([order_id])
+  @@index([status])
+  @@map("terminal_transactions")
 }
 
 model NfceInvoice {
@@ -832,4 +865,96 @@ model PointRedemption {
   @@index([customer_id])
   @@index([tenant_id])
   @@map("point_redemptions")
+}
+
+model WhatsappWorkspace {
+  id                 Int      @id @default(autoincrement())
+  tenant_id          Int      @unique
+  is_enabled         Boolean  @default(false)
+  provider           String   @default("evolution")
+  evolution_base_url String?
+  evolution_api_key  String?  @db.Text
+  evolution_instance String?
+  webhook_secret     String?
+  fallback_phone     String?
+  settings           Json?
+  menus              Json?
+  templates          Json?
+  created_at         DateTime @default(now())
+  updated_at         DateTime @updatedAt
+
+  tenant        Tenant                  @relation(fields: [tenant_id], references: [id])
+  agents        WhatsappAgent[]
+  conversations WhatsappConversation[]
+
+  @@map("whatsapp_workspaces")
+}
+
+model WhatsappAgent {
+  id                   Int      @id @default(autoincrement())
+  workspace_id         Int
+  name                 String
+  department           String   @default("sales")
+  role                 String   @default("agent")
+  phone                String?
+  email                String?
+  is_active            Boolean  @default(true)
+  is_online            Boolean  @default(true)
+  can_receive_transfer Boolean  @default(true)
+  max_concurrent_chats Int      @default(3)
+  priority             Int      @default(0)
+  notes                String?  @db.Text
+  created_at           DateTime @default(now())
+  updated_at           DateTime @updatedAt
+
+  workspace      WhatsappWorkspace       @relation(fields: [workspace_id], references: [id], onDelete: Cascade)
+  conversations  WhatsappConversation[]
+
+  @@index([workspace_id, department, is_active, is_online])
+  @@map("whatsapp_agents")
+}
+
+model WhatsappConversation {
+  id                   Int      @id @default(autoincrement())
+  workspace_id         Int
+  remote_jid           String
+  phone                String
+  customer_name        String?
+  status               String   @default("bot")
+  current_menu         String   @default("main")
+  department           String?
+  assigned_agent_id    Int?
+  queue_position       Int?
+  last_message_preview String?  @db.Text
+  last_inbound_at      DateTime?
+  last_outbound_at     DateTime?
+  closed_reason        String?
+  metadata             Json?
+  created_at           DateTime @default(now())
+  updated_at           DateTime @updatedAt
+
+  workspace       WhatsappWorkspace   @relation(fields: [workspace_id], references: [id], onDelete: Cascade)
+  assigned_agent  WhatsappAgent?      @relation(fields: [assigned_agent_id], references: [id], onDelete: SetNull)
+  messages        WhatsappMessageLog[]
+
+  @@unique([workspace_id, remote_jid])
+  @@index([workspace_id, status, department])
+  @@index([workspace_id, assigned_agent_id])
+  @@map("whatsapp_conversations")
+}
+
+model WhatsappMessageLog {
+  id                Int      @id @default(autoincrement())
+  conversation_id   Int
+  direction         String
+  message_type      String   @default("text")
+  body              String?  @db.Text
+  external_message_id String?
+  payload           Json?
+  created_at        DateTime @default(now())
+
+  conversation WhatsappConversation @relation(fields: [conversation_id], references: [id], onDelete: Cascade)
+
+  @@index([conversation_id, created_at])
+  @@map("whatsapp_message_logs")
 }

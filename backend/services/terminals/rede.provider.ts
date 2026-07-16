@@ -5,20 +5,15 @@ import type {
   TerminalTransaction,
 } from "./terminal.interface";
 
-// OAuth authentication requires V2 routes (V1 does not support OAuth)
+// e.Rede API v1 usa Basic Auth direto (PV:Token) em todos os endpoints de transação —
+// não há OAuth2/Bearer para essas chamadas (confirmado com credenciais reais de
+// sandbox em 16/07/2026; a collection Postman oficial da Rede usa Basic Auth em
+// /v1/transactions, não o fluxo oauth2/token, que serve a outro propósito).
 const SANDBOX_BASE = "https://sandbox-erede.useredecloud.com.br";
 const PROD_BASE = "https://api.userede.com.br/erede";
-const TOKEN_URL_SANDBOX = "https://rl7-sandbox-api.useredecloud.com.br/oauth2/token";
-const TOKEN_URL_PROD = "https://api.userede.com.br/redelabs/oauth2/token";
 
-interface RedeTokenResponse {
-  access_token: string;
-  expires_in: number;
-  token_type: string;
-}
-
-// Actual response shape from Rede v2 API (fields are flat, not nested under brand)
-interface RedeTransactionResponse {
+// Resposta da criação da transação (POST /v1/transactions) — campos no nível raiz.
+interface RedeAuthorizationResponse {
   returnCode: string;
   returnMessage: string;
   tid?: string;
@@ -34,14 +29,43 @@ interface RedeTransactionResponse {
   reference?: string;
 }
 
+// Resposta da consulta (GET /v1/transactions/:tid) — campos aninhados em "authorization".
+interface RedeQueryResponse {
+  requestDateTime?: string;
+  authorization?: {
+    returnCode: string;
+    returnMessage: string;
+    status?: string;
+    tid?: string;
+    nsu?: string;
+    authorizationCode?: string;
+    amount?: number;
+    installments?: number;
+    kind?: string;
+    cardBin?: string;
+    last4?: string;
+    dateTime?: string;
+    reference?: string;
+  };
+}
+
+// Resposta do cancelamento/refund (POST /v1/transactions/:tid/refunds).
+// Sucesso vem com returnCode "359" ("Refund successful"), não "00".
+interface RedeRefundResponse {
+  refundId?: string;
+  tid?: string;
+  nsu?: string;
+  refundDateTime?: string;
+  returnCode: string;
+  returnMessage: string;
+}
+
 export class RedeProvider implements ITerminalProvider {
   readonly provider = "rede" as const;
 
   private clientId: string;
   private clientSecret: string;
   private sandbox: boolean;
-  private accessToken: string | null = null;
-  private tokenExpiresAt = 0;
 
   constructor(config: TerminalProviderConfig) {
     this.clientId = config.credentials.clientId;
@@ -53,57 +77,30 @@ export class RedeProvider implements ITerminalProvider {
     return this.sandbox ? SANDBOX_BASE : PROD_BASE;
   }
 
-  private get tokenUrl() {
-    return this.sandbox ? TOKEN_URL_SANDBOX : TOKEN_URL_PROD;
-  }
-
-  private async getAccessToken(): Promise<string> {
-    if (this.accessToken && Date.now() < this.tokenExpiresAt - 30_000) {
-      return this.accessToken;
-    }
-
-    const credentials = Buffer.from(`${this.clientId}:${this.clientSecret}`).toString("base64");
-
-    const res = await fetch(this.tokenUrl, {
-      method: "POST",
-      headers: {
-        Authorization: `Basic ${credentials}`,
-        "Content-Type": "application/x-www-form-urlencoded",
-      },
-      body: "grant_type=client_credentials",
-    });
-
-    if (!res.ok) {
-      throw new Error(`Rede auth failed: ${res.status} ${await res.text()}`);
-    }
-
-    const data = (await res.json()) as RedeTokenResponse;
-    this.accessToken = data.access_token;
-    this.tokenExpiresAt = Date.now() + data.expires_in * 1000;
-    return this.accessToken;
+  private get basicAuthHeader(): string {
+    return `Basic ${Buffer.from(`${this.clientId}:${this.clientSecret}`).toString("base64")}`;
   }
 
   private async request<T>(method: string, path: string, body?: unknown): Promise<T> {
-    const token = await this.getAccessToken();
     const res = await fetch(`${this.baseUrl}${path}`, {
       method,
       headers: {
-        Authorization: `Bearer ${token}`,
+        Authorization: this.basicAuthHeader,
         "Content-Type": "application/json",
       },
       body: body ? JSON.stringify(body) : undefined,
     });
 
+    const text = await res.text();
     if (!res.ok) {
-      const text = await res.text();
       throw new Error(`Rede API ${method} ${path} → ${res.status}: ${text}`);
     }
 
-    return res.json() as Promise<T>;
+    return (text ? JSON.parse(text) : {}) as T;
   }
 
   private mapBrand(cardBin?: string): string {
-    // Rede v2 does not return brand name directly — derive from BIN prefix if needed
+    // A API da Rede não devolve o nome da bandeira diretamente — deriva do prefixo do BIN.
     if (!cardBin) return "unknown";
     const prefix = cardBin.charAt(0);
     if (prefix === "4") return "visa";
@@ -112,20 +109,22 @@ export class RedeProvider implements ITerminalProvider {
     return "unknown";
   }
 
-  private mapStatus(returnCode: string): TerminalTransaction["status"] {
+  // returnCode "00" = autorizada; "359" = estorno/cancelamento bem-sucedido.
+  // Demais códigos de negação variam, mas não há uma lista pública exaustiva —
+  // tratamos qualquer coisa fora dos dois casos de sucesso como "denied"/"error"
+  // conforme o contexto de onde a resposta veio.
+  private mapAuthorizationStatus(returnCode: string): TerminalTransaction["status"] {
     if (returnCode === "00") return "approved";
-    if (["04", "05", "51", "54", "57"].includes(returnCode)) return "denied";
-    if (returnCode === "XX") return "cancelled";
-    return "error";
+    return "denied";
   }
 
-  private toTransaction(raw: RedeTransactionResponse): TerminalTransaction {
+  private toTransactionFromAuthorization(raw: RedeAuthorizationResponse): TerminalTransaction {
     return {
       id: raw.tid ?? "",
-      status: this.mapStatus(raw.returnCode),
+      status: this.mapAuthorizationStatus(raw.returnCode),
       amount: (raw.amount ?? 0) / 100,
       installments: raw.installments ?? 1,
-      mode: raw.kind === "DEBIT" ? "debit" : "credit",
+      mode: raw.kind?.toLowerCase() === "debit" ? "debit" : "credit",
       brand: this.mapBrand(raw.cardBin),
       authorizationCode: raw.authorizationCode,
       nsu: raw.nsu,
@@ -135,58 +134,92 @@ export class RedeProvider implements ITerminalProvider {
     };
   }
 
+  private toTransactionFromQuery(raw: RedeQueryResponse): TerminalTransaction {
+    const a = raw.authorization;
+    return {
+      id: a?.tid ?? "",
+      status: this.mapAuthorizationStatus(a?.returnCode ?? ""),
+      amount: (a?.amount ?? 0) / 100,
+      installments: a?.installments ?? 1,
+      mode: a?.kind?.toLowerCase() === "debit" ? "debit" : "credit",
+      brand: this.mapBrand(a?.cardBin),
+      authorizationCode: a?.authorizationCode,
+      nsu: a?.nsu,
+      cardLastDigits: a?.last4,
+      occurredAt: a?.dateTime ? new Date(a.dateTime) : new Date(),
+      rawResponse: raw,
+    };
+  }
+
+  private toTransactionFromRefund(raw: RedeRefundResponse, amount: number): TerminalTransaction {
+    return {
+      id: raw.tid ?? "",
+      status: raw.returnCode === "359" ? "cancelled" : "error",
+      amount,
+      installments: 1,
+      mode: "credit",
+      brand: "unknown",
+      nsu: raw.nsu,
+      occurredAt: raw.refundDateTime ? new Date(raw.refundDateTime) : new Date(),
+      rawResponse: raw,
+    };
+  }
+
   async charge(req: TerminalChargeRequest): Promise<TerminalTransaction> {
     const amountInCents = Math.round(req.amount * 100);
 
     const body: Record<string, unknown> = {
       capture: true,
-      kind: req.mode === "debit" ? "DEBIT" : "CREDIT",
+      kind: req.mode === "debit" ? "debit" : "credit",
       amount: amountInCents,
       installments: req.installments ?? 1,
       reference: req.orderId ?? `order-${Date.now()}`,
       softDescriptor: req.description?.slice(0, 22) ?? "Venda",
     };
 
-    // Sandbox: card fields are sent flat in the request body (not nested under "card")
+    // Sandbox: dados de cartão de teste vão soltos no corpo da requisição
+    // (a API sandbox da Rede não simula captura física de cartão).
     if (this.sandbox) {
       body.cardNumber = "5448280000000007";
-      body.cardHolderName = "TESTE SANDBOX";
+      body.cardholderName = "TESTE SANDBOX";
       body.expirationMonth = 12;
       body.expirationYear = 2030;
       body.securityCode = "123";
     }
 
-    const raw = await this.request<RedeTransactionResponse>("POST", "/v2/transactions", body);
-    return this.toTransaction(raw);
+    const raw = await this.request<RedeAuthorizationResponse>("POST", "/v1/transactions", body);
+    return this.toTransactionFromAuthorization(raw);
   }
 
   async getTransaction(transactionId: string): Promise<TerminalTransaction> {
-    const raw = await this.request<RedeTransactionResponse>(
-      "GET",
-      `/v2/transactions/${transactionId}`
-    );
-    return this.toTransaction(raw);
+    const raw = await this.request<RedeQueryResponse>("GET", `/v1/transactions/${transactionId}`);
+    return this.toTransactionFromQuery(raw);
   }
 
   async cancel(transactionId: string, amount?: number): Promise<TerminalTransaction> {
-    // Cancel/refund uses POST to /refunds endpoint (not DELETE)
     const body: Record<string, unknown> = {};
     if (amount !== undefined) {
       body.amount = Math.round(amount * 100);
     }
 
-    const raw = await this.request<RedeTransactionResponse>(
+    const raw = await this.request<RedeRefundResponse>(
       "POST",
-      `/v2/transactions/${transactionId}/refunds`,
-      body
+      `/v1/transactions/${transactionId}/refunds`,
+      body,
     );
-    return this.toTransaction(raw);
+    return this.toTransactionFromRefund(raw, amount ?? 0);
   }
 
   async ping(): Promise<boolean> {
+    // Não há endpoint de "status do serviço" documentado — usamos uma consulta
+    // por reference inexistente como teste de credenciais: 401/403 = credenciais
+    // inválidas; qualquer outro status (mesmo 404 "não encontrado") confirma que a
+    // autenticação passou.
     try {
-      await this.getAccessToken();
-      return true;
+      const res = await fetch(`${this.baseUrl}/v1/transactions?reference=ping-check`, {
+        headers: { Authorization: this.basicAuthHeader },
+      });
+      return res.status !== 401 && res.status !== 403;
     } catch {
       return false;
     }

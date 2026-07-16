@@ -21,4 +21,6 @@ export const env = {
   nfceCertsDir: process.env.NFCE_CERTS_DIR || path.join(process.cwd(), "certs"),
   nfceXmlDir: process.env.NFCE_XML_DIR || path.join(process.cwd(), "public", "nfce"),
   nfceTimeoutMs: Number(process.env.NFCE_TIMEOUT_MS || 15000),
+  baileysServiceUrl: process.env.BAILEYS_SERVICE_URL || "http://127.0.0.1:3002",
+  baileysInternalToken: process.env.BAILEYS_INTERNAL_TOKEN || "",
 };

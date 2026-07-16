@@ -945,11 +945,25 @@ export default function PDV() {
           description: `Venda PDV`,
         }),
       });
-      const tx = await res.json();
+      let tx = await res.json();
       if (!res.ok) {
         setSaleError(tx?.error ?? "Erro ao cobrar na maquininha.");
         return;
       }
+
+      // Mercado Pago Point é assíncrono: a cobrança fica "pending" até o
+      // cliente aproximar o cartão no aparelho físico — faz polling curto
+      // até sair do estado intermediário.
+      if (tx.status === "pending" && tx.id) {
+        for (let attempt = 0; attempt < 30 && tx.status === "pending"; attempt++) {
+          await new Promise((r) => setTimeout(r, 2000));
+          const pollRes = await fetch(`/api/terminals/transactions/${tx.id}`, {
+            headers: { Authorization: `Bearer ${token}` },
+          });
+          if (pollRes.ok) tx = await pollRes.json();
+        }
+      }
+
       if (tx.status === "approved") {
         setTerminalResult({ status: "approved", brand: tx.brand, authCode: tx.authorizationCode });
         // Finaliza a venda automaticamente após aprovação

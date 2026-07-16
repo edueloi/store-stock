@@ -7,6 +7,7 @@ import {
   charge,
   getTransaction,
   cancelTransaction,
+  listTransactions,
 } from "../controllers/terminal.controller";
 import { authenticateToken } from "../middlewares/auth.middleware";
 
@@ -18,6 +19,7 @@ router.get("/config", getConfig);
 router.put("/config", saveConfig);
 router.post("/ping", pingTerminal);
 router.post("/charge", charge);
+router.get("/transactions", listTransactions);
 router.get("/transactions/:id", getTransaction);
 router.delete("/transactions/:id", cancelTransaction);
 

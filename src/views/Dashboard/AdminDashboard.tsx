@@ -18,6 +18,7 @@ import {
   Truck,
   FolderOpen,
   Settings as SettingsIcon,
+  MessageSquare,
   LineChart,
   ArrowDownCircle,
   ArrowUpCircle,
@@ -29,6 +30,7 @@ import {
   Wrench,
   ClipboardList,
   FileCheck,
+  Terminal,
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { cn } from "../../lib/utils";
@@ -41,6 +43,7 @@ import Stock from "./Stock"; // This will be "Estoque"
 import PDV from "./PDV";
 import Orders from "./Orders";
 import NfceInvoices from "./NfceInvoices";
+import TerminalTransactions from "./TerminalTransactions";
 import Finance from "./Finance";
 import ContasReceber from "./ContasReceber";
 import ContasPagar from "./ContasPagar";
@@ -57,6 +60,7 @@ import Barcodes from "./Barcodes";
 import Markup from "./Markup";
 import Services from "./Services";
 import ServiceOrders from "./ServiceOrders";
+import WhatsApp from "./WhatsApp";
 
 // ── Tooltip da sidebar recolhida (portal, foge do overflow do nav) ───────────
 function SidebarTooltip({ anchorRef, label }: { anchorRef: RefObject<HTMLElement>; label: string }) {
@@ -234,6 +238,7 @@ export default function AdminDashboard() {
         { icon: Wallet,          label: "Fluxo de Caixa", path: "/admin/finance" },
         { icon: Receipt,         label: "Pedidos",        path: "/admin/orders" },
         { icon: FileCheck,       label: "Notas Fiscais",  path: "/admin/notas-fiscais" },
+        { icon: Terminal,        label: "Maquininhas",    path: "/admin/maquininhas" },
         { icon: FileText,        label: "Orçamentos",     path: "/admin/orcamentos" },
         { icon: ClipboardList,   label: "Ordens de Serviço", path: "/admin/ordens-servico" },
       ],
@@ -265,6 +270,7 @@ export default function AdminDashboard() {
         { icon: Star,        label: "Vendedores",      path: "/admin/vendedores" },
         { icon: Wrench,      label: "Serviços",        path: "/admin/servicos" },
         { icon: UserCheck,   label: "Fidelidade",      path: "/admin/loyalty" },
+        { icon: MessageSquare, label: "WhatsApp",      path: "/admin/whatsapp" },
       ],
     },
     {
@@ -518,6 +524,7 @@ export default function AdminDashboard() {
               <Route path="suppliers" element={<Suppliers />} />
               <Route path="orders" element={<Orders />} />
               <Route path="notas-fiscais" element={<NfceInvoices />} />
+              <Route path="maquininhas" element={<TerminalTransactions />} />
               <Route path="finance" element={<Finance />} />
               <Route path="contas-receber" element={<ContasReceber />} />
               <Route path="contas-pagar" element={<ContasPagar />} />
@@ -526,6 +533,7 @@ export default function AdminDashboard() {
               <Route path="ordens-servico" element={<ServiceOrders />} />
               <Route path="vendedores" element={<Sellers />} />
               <Route path="servicos"   element={<Services />} />
+              <Route path="whatsapp"   element={<WhatsApp />} />
               <Route path="metas"      element={<Goals />} />
               <Route path="markup"     element={<Markup />} />
               <Route path="etiquetas"  element={<Barcodes />} />

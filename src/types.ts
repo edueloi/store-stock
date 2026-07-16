@@ -88,7 +88,7 @@ export interface User {
   tenant_id: number;
   name: string;
   email: string;
-  role: 'admin' | 'seller' | 'staff' | 'super_admin';
+  role: 'admin' | 'seller' | 'staff' | 'super_admin' | 'pdv';
   superAdmin?: boolean;
 }
 

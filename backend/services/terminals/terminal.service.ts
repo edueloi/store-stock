@@ -6,18 +6,23 @@ import type {
   TerminalTransaction,
 } from "./terminal.interface";
 import { RedeProvider } from "./rede.provider";
+import { MercadoPagoProvider } from "./mercadopago.provider";
+import { PagBankProvider } from "./pagbank.provider";
+import { CieloProvider } from "./cielo.provider";
 
 function buildProvider(config: TerminalProviderConfig): ITerminalProvider {
   switch (config.provider) {
     case "rede":
       return new RedeProvider(config);
-    // Futuros providers:
-    // case "stone":      return new StoneProvider(config);
-    // case "mercadopago": return new MercadoPagoProvider(config);
-    // case "cielo":      return new CieloProvider(config);
-    // case "pagseguro":  return new PagSeguroProvider(config);
+    case "mercadopago":
+      return new MercadoPagoProvider(config);
+    case "cielo":
+      return new CieloProvider(config);
+    case "pagseguro":
+      return new PagBankProvider(config);
+    // Futuro: case "stone" — depende de homologação/parceria comercial externa.
     default:
-      throw new Error(`Maquininha "${(config as TerminalProviderConfig).provider}" ainda não integrada. Configure a Rede (Itaú) nas configurações.`);
+      throw new Error(`Maquininha "${(config as TerminalProviderConfig).provider}" ainda não integrada.`);
   }
 }
 

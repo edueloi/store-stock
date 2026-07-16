@@ -32,7 +32,7 @@ function parseBody(body: Record<string, unknown>) {
 export async function createAccountPayable(req: Request, res: Response) {
   try {
     const item = await prisma.accountPayable.create({
-      data: { ...parseBody(req.body), tenant_id: getTenantId(req) },
+      data: { ...parseBody(req.body), tenant_id: getTenantId(req) } as Parameters<typeof prisma.accountPayable.create>[0]["data"],
     });
     res.json(item);
   } catch (err) {

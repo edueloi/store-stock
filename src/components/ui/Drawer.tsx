@@ -1,6 +1,7 @@
 import React, { ReactNode } from "react";
 import { X } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
+import type { TargetAndTransition } from "motion-dom";
 import { cn } from "../../lib/utils";
 
 type DrawerSide = "right" | "left" | "bottom";
@@ -18,7 +19,7 @@ interface DrawerProps {
   persistent?: boolean;
 }
 
-const sideVariants: Record<DrawerSide, { initial: object; animate: object; exit: object; classes: string }> = {
+const sideVariants: Record<DrawerSide, { initial: TargetAndTransition; animate: TargetAndTransition; exit: TargetAndTransition; classes: string }> = {
   right: {
     initial: { x: "100%" },
     animate: { x: 0 },

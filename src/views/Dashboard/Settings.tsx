@@ -537,12 +537,34 @@ export default function Settings() {
     { id: "stone",       label: "Stone",               color: "#00A868" },
     { id: "mercadopago", label: "Mercado Pago",        color: "#009EE3" },
     { id: "cielo",       label: "Cielo",               color: "#00AEEF" },
-    { id: "pagseguro",   label: "PagSeguro",           color: "#F7971C" },
+    { id: "pagseguro",   label: "PagBank",             color: "#F7971C" },
   ];
+  // Cada provider expõe um conjunto diferente de campos de credencial —
+  // a chave é o nome salvo em terminal_config.credentials, lido pelo provider correspondente.
+  const TERMINAL_CREDENTIAL_FIELDS: Record<TerminalProvider, { key: string; label: string; placeholder: string; secret: boolean }[]> = {
+    rede: [
+      { key: "clientId", label: "Client ID (PV)", placeholder: "Ex: 48152954", secret: false },
+      { key: "clientSecret", label: "Client Secret (Token)", placeholder: "Cole o token gerado no portal do desenvolvedor", secret: true },
+    ],
+    stone: [
+      { key: "clientId", label: "Client ID", placeholder: "Client ID Stone", secret: false },
+      { key: "clientSecret", label: "Client Secret", placeholder: "Client Secret Stone", secret: true },
+    ],
+    mercadopago: [
+      { key: "accessToken", label: "Access Token", placeholder: "APP_USR-... (gerado no painel de desenvolvedores)", secret: true },
+      { key: "deviceId", label: "Device ID (Maquininha Point)", placeholder: "Ex: PAX_A910__SMART0000...", secret: false },
+    ],
+    cielo: [
+      { key: "merchantId", label: "Merchant ID", placeholder: "Merchant ID Cielo", secret: false },
+      { key: "merchantKey", label: "Merchant Key", placeholder: "Merchant Key Cielo", secret: true },
+    ],
+    pagseguro: [
+      { key: "token", label: "Token de API", placeholder: "Token gerado no painel PagBank", secret: true },
+    ],
+  };
   const [terminalProvider, setTerminalProvider] = useState<TerminalProvider>("rede");
   const [terminalSandbox, setTerminalSandbox] = useState(true);
-  const [terminalClientId, setTerminalClientId] = useState("");
-  const [terminalClientSecret, setTerminalClientSecret] = useState("");
+  const [terminalCredentials, setTerminalCredentials] = useState<Record<string, string>>({});
   const [terminalPingStatus, setTerminalPingStatus] = useState<"idle" | "loading" | "ok" | "fail">("idle");
   const [terminalSaving, setTerminalSaving] = useState(false);
 
@@ -565,8 +587,7 @@ export default function Settings() {
         if (!cfg) return;
         if (cfg.provider) setTerminalProvider(cfg.provider as TerminalProvider);
         if (cfg.sandbox !== undefined) setTerminalSandbox(Boolean(cfg.sandbox));
-        if (cfg.credentials?.clientId) setTerminalClientId(cfg.credentials.clientId);
-        if (cfg.credentials?.clientSecret) setTerminalClientSecret(cfg.credentials.clientSecret);
+        if (cfg.credentials) setTerminalCredentials(cfg.credentials as Record<string, string>);
       })
       .catch(() => { /* terminal config optional */ });
 
@@ -752,9 +773,12 @@ export default function Settings() {
     }
   };
 
+  const terminalFieldsMissing = () =>
+    TERMINAL_CREDENTIAL_FIELDS[terminalProvider].some((f) => !terminalCredentials[f.key]);
+
   const handleSaveTerminal = async () => {
-    if (!terminalClientId || !terminalClientSecret) {
-      toast.error("Preencha o Client ID e o Client Secret.");
+    if (terminalFieldsMissing()) {
+      toast.error("Preencha todas as credenciais do provedor selecionado.");
       return;
     }
     setTerminalSaving(true);
@@ -765,7 +789,7 @@ export default function Settings() {
         body: JSON.stringify({
           provider: terminalProvider,
           sandbox: terminalSandbox,
-          credentials: { clientId: terminalClientId, clientSecret: terminalClientSecret },
+          credentials: terminalCredentials,
         }),
       });
       if (res.ok) toast.success("Configuração de maquininha salva!");
@@ -786,7 +810,7 @@ export default function Settings() {
         body: JSON.stringify({
           provider: terminalProvider,
           sandbox: terminalSandbox,
-          credentials: { clientId: terminalClientId, clientSecret: terminalClientSecret },
+          credentials: terminalCredentials,
         }),
       });
       const data = await res.json();
@@ -2260,33 +2284,26 @@ export default function Settings() {
                   </div>
                 </Field>
 
-                {/* Credentials */}
+                {/* Credentials — campos dinâmicos por provedor selecionado */}
                 <div className="space-y-4">
-                  <Field label="Client ID (PV)">
-                    <input
-                      type="text"
-                      value={terminalClientId}
-                      onChange={(e) => setTerminalClientId(e.target.value)}
-                      placeholder="Ex: 48152954"
-                      className="w-full px-4 py-3 rounded-xl border border-slate-200 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-slate-300"
-                    />
-                  </Field>
-                  <Field label="Client Secret (Token)">
-                    <input
-                      type="password"
-                      value={terminalClientSecret}
-                      onChange={(e) => setTerminalClientSecret(e.target.value)}
-                      placeholder="Cole o token gerado no portal do desenvolvedor"
-                      className="w-full px-4 py-3 rounded-xl border border-slate-200 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-slate-300"
-                    />
-                  </Field>
+                  {TERMINAL_CREDENTIAL_FIELDS[terminalProvider].map((f) => (
+                    <Field key={f.key} label={f.label}>
+                      <input
+                        type={f.secret ? "password" : "text"}
+                        value={terminalCredentials[f.key] ?? ""}
+                        onChange={(e) => setTerminalCredentials((prev) => ({ ...prev, [f.key]: e.target.value }))}
+                        placeholder={f.placeholder}
+                        className="w-full px-4 py-3 rounded-xl border border-slate-200 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-slate-300"
+                      />
+                    </Field>
+                  ))}
                 </div>
 
                 {/* Ping / Test */}
                 <div className="flex items-center gap-3">
                   <button
                     onClick={handlePingTerminal}
-                    disabled={terminalPingStatus === "loading" || !terminalClientId || !terminalClientSecret}
+                    disabled={terminalPingStatus === "loading" || terminalFieldsMissing()}
                     className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-slate-300 text-[11px] font-black uppercase tracking-wide text-slate-600 hover:bg-slate-50 disabled:opacity-40 transition-all"
                   >
                     {terminalPingStatus === "loading" ? (

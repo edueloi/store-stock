@@ -6,6 +6,7 @@ import { createServer as createViteServer } from "vite";
 import { createApp } from "./app";
 import { env } from "./config/env";
 import { seedDefaultTenant } from "./services/seed.service";
+import { startWhatsappMaintenanceLoop } from "./services/whatsapp.service";
 
 async function attachFrontend(app: express.Express) {
   if (env.nodeEnv !== "production") {
@@ -31,6 +32,7 @@ async function attachFrontend(app: express.Express) {
 
 export async function startServer() {
   await seedDefaultTenant();
+  startWhatsappMaintenanceLoop();
 
   const app = createApp();
   await attachFrontend(app);
