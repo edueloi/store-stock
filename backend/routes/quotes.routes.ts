@@ -3,7 +3,9 @@ import {
   listQuotes,
   getQuoteById,
   createQuote,
+  updateQuote,
   updateQuoteStatus,
+  recordQuoteDeposit,
   deleteQuote,
   convertToOrder,
 } from "../controllers/quotes.controller";
@@ -16,7 +18,9 @@ router.use(authenticateToken);
 router.get("/", listQuotes);
 router.get("/:id", getQuoteById);
 router.post("/", createQuote);
+router.put("/:id", updateQuote);
 router.put("/:id/status", updateQuoteStatus);
+router.post("/:id/deposit", recordQuoteDeposit);
 router.post("/:id/convert", convertToOrder);
 router.delete("/:id", deleteQuote);
 

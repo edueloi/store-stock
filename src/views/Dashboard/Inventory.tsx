@@ -1213,13 +1213,57 @@ export default function Inventory() {
             </div>
           </div>
 
-          {(editingProduct?.skus || []).length === 0 && (
-            <div className="space-y-1">
-              <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest px-1">Estoque Atual</label>
-              <input type="number" min="0" required
-                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs font-mono font-bold outline-none h-10 focus:border-blue-400 transition-all"
-                value={editingProduct?.stock_quantity ?? 0}
-                onChange={e => setEditingProduct(prev => ({ ...prev!, stock_quantity: Number(e.target.value) }))} />
+          <div className="space-y-1">
+            <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest px-1">Tipo de Venda</label>
+            <div className="flex bg-slate-100 border border-slate-200 rounded-xl p-0.5 gap-0.5 w-fit">
+              {([
+                { value: "unidade", label: "Unidade" },
+                { value: "m2", label: "m²" },
+                { value: "linear", label: "Metro linear" },
+              ] as const).map((opt) => (
+                <button key={opt.value} type="button"
+                  onClick={() => setEditingProduct(prev => ({ ...prev!, sale_unit: opt.value }))}
+                  className={cn("h-8 px-3 rounded-lg text-[10px] font-black transition-all",
+                    (editingProduct?.sale_unit ?? "unidade") === opt.value ? "bg-blue-600 text-white" : "text-slate-500")}>
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {(editingProduct?.sale_unit ?? "unidade") === "unidade" ? (
+            (editingProduct?.skus || []).length === 0 && (
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest px-1">Estoque Atual</label>
+                <input type="number" min="0" required
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs font-mono font-bold outline-none h-10 focus:border-blue-400 transition-all"
+                  value={editingProduct?.stock_quantity ?? 0}
+                  onChange={e => setEditingProduct(prev => ({ ...prev!, stock_quantity: Number(e.target.value) }))} />
+              </div>
+            )
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold text-slate-700 uppercase tracking-widest px-1">
+                  Preço por {editingProduct?.sale_unit === "m2" ? "m²" : "metro linear"} (R$) *
+                </label>
+                <input type="number" step="0.01" min="0" required
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs font-mono font-bold outline-none h-10 focus:border-blue-400 transition-all"
+                  value={editingProduct?.price_per_measure ?? ""}
+                  onChange={e => { const v = e.target.value; setEditingProduct(prev => ({ ...prev!, price_per_measure: v === "" ? undefined : Number(v) })); }} />
+              </div>
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest px-1">
+                  Mínimo faturável ({editingProduct?.sale_unit === "m2" ? "m²" : "m"}) — opcional
+                </label>
+                <input type="number" step="0.01" min="0"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs font-mono font-bold outline-none h-10 focus:border-blue-400 transition-all"
+                  value={editingProduct?.min_billable_quantity ?? ""}
+                  onChange={e => { const v = e.target.value; setEditingProduct(prev => ({ ...prev!, min_billable_quantity: v === "" ? undefined : Number(v) })); }} />
+              </div>
+              <p className="text-[10px] text-slate-400 sm:col-span-2">
+                Produtos por medida não têm controle de estoque — a peça é cortada sob medida no momento da venda.
+              </p>
             </div>
           )}
 

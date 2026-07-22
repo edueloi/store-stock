@@ -88,6 +88,7 @@ model Tenant {
   order_actions   OrderAction[]
   service_orders         ServiceOrder[]
   service_order_actions  ServiceOrderAction[]
+  quote_actions          QuoteAction[]
   nfce_invoices          NfceInvoice[]
   whatsapp_workspace     WhatsappWorkspace?
   terminal_transactions  TerminalTransaction[]
@@ -168,6 +169,11 @@ model Product {
   variations     Json?
   attributes     Json?
   skus           Json?
+
+  // --- Venda por medida (m²/metro linear) --- vidraçaria/marcenaria/gráfica
+  sale_unit             String   @default("unidade") // "unidade" | "m2" | "linear"
+  price_per_measure     Decimal? @db.Decimal(10, 2)
+  min_billable_quantity Decimal? @db.Decimal(10, 2)
 
   // --- Dados fiscais ---
   ncm                String?  @db.VarChar(8)
@@ -397,16 +403,18 @@ model Seller {
   tenant Tenant  @relation(fields: [tenant_id], references: [id])
   orders Order[]
   service_orders ServiceOrder[]
+  goals  Goal[]
 
   @@map("sellers")
 }
 
 model OrderItem {
-  id         Int     @id @default(autoincrement())
-  order_id   Int
-  product_id Int
-  quantity   Int
-  unit_price Decimal @db.Decimal(10, 2)
+  id               Int     @id @default(autoincrement())
+  order_id         Int
+  product_id       Int
+  quantity         Int
+  unit_price       Decimal @db.Decimal(10, 2)
+  dimensions_label String?
 
   order   Order   @relation(fields: [order_id], references: [id], onDelete: Cascade)
   product Product @relation(fields: [product_id], references: [id], onDelete: Cascade)
@@ -498,6 +506,14 @@ model Customer {
   phone        String?
   document     String?
   address      String?
+  address_street     String?
+  address_number     String?
+  address_complement String?
+  address_district   String?
+  address_city       String?
+  address_state      String?  @db.Char(2)
+  address_zip        String?
+  address_country    String?  @default("Brasil")
   notes        String?  @db.Text
   credit_limit Decimal? @db.Decimal(10, 2)
   birth_date   DateTime?
@@ -588,25 +604,52 @@ model Quote {
   notes              String?     @db.Text
   status             String      @default("open")
   converted_order_id Int?
+
+  deposit_amount         Decimal?  @db.Decimal(10, 2)
+  deposit_payment_method String?
+  deposit_paid_at        DateTime?
+
   created_at         DateTime    @default(now())
   updated_at         DateTime    @updatedAt
 
   tenant   Tenant         @relation(fields: [tenant_id], references: [id])
   items    QuoteItem[]
   services QuoteService[]
+  actions  QuoteAction[]
 
   @@unique([tenant_id, number])
   @@map("quotes")
 }
 
+model QuoteAction {
+  id          Int      @id @default(autoincrement())
+  tenant_id   Int
+  quote_id    Int
+  action      String
+  from_status String?
+  to_status   String?
+  actor       String?
+  note        String?  @db.Text
+  meta        Json?
+  created_at  DateTime @default(now())
+
+  quote  Quote  @relation(fields: [quote_id], references: [id], onDelete: Cascade)
+  tenant Tenant @relation(fields: [tenant_id], references: [id])
+
+  @@index([quote_id])
+  @@index([tenant_id])
+  @@map("quote_actions")
+}
+
 model QuoteItem {
-  id         Int      @id @default(autoincrement())
-  quote_id   Int
-  product_id Int?
-  name       String
-  quantity   Int
-  unit_price Decimal  @db.Decimal(10, 2)
-  total      Decimal  @db.Decimal(10, 2)
+  id               Int      @id @default(autoincrement())
+  quote_id         Int
+  product_id       Int?
+  name             String
+  quantity         Int
+  unit_price       Decimal  @db.Decimal(10, 2)
+  total            Decimal  @db.Decimal(10, 2)
+  dimensions_label String?
 
   quote Quote @relation(fields: [quote_id], references: [id], onDelete: Cascade)
 
@@ -629,14 +672,21 @@ model ServiceOrder {
   equipment_serial      String?
   equipment_accessories String?   @db.Text
 
+  reported_issue        String?   @db.Text
+
   seller_id             Int?
   technician_name       String?
 
   status                String    @default("aberta")
+  priority              String    @default("normal")
+  promised_at           DateTime? @db.Date
 
   service_value         Decimal   @default(0) @db.Decimal(10, 2)
   parts_total           Decimal   @default(0) @db.Decimal(10, 2)
   total_amount          Decimal   @default(0) @db.Decimal(10, 2)
+
+  warranty_days         Int?
+  warranty_terms        String?   @db.Text
 
   observations          String?   @db.Text
 
@@ -689,6 +739,7 @@ model ServiceOrderPart {
   quantity          Int      @default(1)
   unit_price        Decimal  @db.Decimal(10, 2)
   total             Decimal  @db.Decimal(10, 2)
+  dimensions_label  String?
   created_at        DateTime @default(now())
 
   service_order ServiceOrder @relation(fields: [service_order_id], references: [id], onDelete: Cascade)
@@ -737,6 +788,7 @@ model ServiceOrderAction {
 model Goal {
   id            Int      @id @default(autoincrement())
   tenant_id     Int
+  seller_id     Int?
   title         String
   description   String?  @db.Text
   type          String
@@ -749,9 +801,11 @@ model Goal {
   created_at    DateTime @default(now())
   updated_at    DateTime @updatedAt
 
-  tenant Tenant @relation(fields: [tenant_id], references: [id])
+  tenant Tenant  @relation(fields: [tenant_id], references: [id])
+  seller Seller? @relation(fields: [seller_id], references: [id], onDelete: Cascade)
 
   @@index([tenant_id])
+  @@index([seller_id])
   @@map("goals")
 }
 

@@ -5,6 +5,7 @@ import {
   DollarSign, Clock, CheckCircle2, FileText,
   ShoppingBag, StickyNote, Edit2, Save, XCircle,
   TrendingDown, AlertCircle, Shield, Star, Gift, Award,
+  Loader2,
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { cn } from "../../lib/utils";
@@ -21,6 +22,14 @@ interface Customer {
   phone?: string;
   document?: string;
   address?: string;
+  address_street?: string;
+  address_number?: string;
+  address_complement?: string;
+  address_district?: string;
+  address_city?: string;
+  address_state?: string;
+  address_zip?: string;
+  address_country?: string;
   notes?: string;
   credit_limit?: number;
   birth_date?: string;
@@ -134,6 +143,15 @@ export default function Customers() {
   const [fPhone, setFPhone]       = useState("");
   const [fDoc, setFDoc]           = useState("");
   const [fAddr, setFAddr]         = useState("");
+  const [fStreet, setFStreet]     = useState("");
+  const [fNumber, setFNumber]     = useState("");
+  const [fComplement, setFComplement] = useState("");
+  const [fDistrict, setFDistrict] = useState("");
+  const [fCity, setFCity]         = useState("");
+  const [fState, setFState]       = useState("");
+  const [fZip, setFZip]           = useState("");
+  const [fCountry, setFCountry]   = useState("Brasil");
+  const [cepLoading, setCepLoading] = useState(false);
   const [fNotes, setFNotes]       = useState("");
   const [fCredit, setFCredit]     = useState("");
   const [fBirth, setFBirth]       = useState("");
@@ -230,7 +248,8 @@ export default function Customers() {
   function openCreate() {
     setEditCust(null);
     setFName(""); setFEmail(""); setFPhone(""); setFDoc("");
-    setFAddr(""); setFNotes(""); setFCredit(""); setFBirth(""); setFRisk(false); setFRiskReason("");
+    setFAddr(""); setFStreet(""); setFNumber(""); setFComplement(""); setFDistrict(""); setFCity(""); setFState(""); setFZip(""); setFCountry("Brasil");
+    setFNotes(""); setFCredit(""); setFBirth(""); setFRisk(false); setFRiskReason("");
     setShowForm(true);
   }
 
@@ -238,6 +257,9 @@ export default function Customers() {
     setEditCust(c);
     setFName(c.name); setFEmail(c.email ?? ""); setFPhone(maskPhone(c.phone ?? ""));
     setFDoc(maskDoc(c.document ?? "")); setFAddr(c.address ?? ""); setFNotes(c.notes ?? "");
+    setFStreet(c.address_street ?? ""); setFNumber(c.address_number ?? ""); setFComplement(c.address_complement ?? "");
+    setFDistrict(c.address_district ?? ""); setFCity(c.address_city ?? ""); setFState(c.address_state ?? ""); setFZip(c.address_zip ?? "");
+    setFCountry(c.address_country ?? "Brasil");
     setFCredit(c.credit_limit ? String(c.credit_limit) : "");
     setFBirth(c.birth_date ? c.birth_date.slice(0, 10) : "");
     setFRisk(c.risk_flag); setFRiskReason(c.risk_reason ?? "");
@@ -246,15 +268,49 @@ export default function Customers() {
 
   function closeForm() { setShowForm(false); setEditCust(null); }
 
+  async function handleLookupCEP() {
+    const raw = fZip.replace(/\D/g, "");
+    if (raw.length !== 8) return;
+    setCepLoading(true);
+    try {
+      const res = await fetch(`https://viacep.com.br/ws/${raw}/json/`);
+      const d = await res.json();
+      if (!d.erro) {
+        setFStreet(d.logradouro ?? "");
+        setFDistrict(d.bairro ?? "");
+        setFCity(d.localidade ?? "");
+        setFState(d.uf ?? "");
+        setFZip(raw);
+      }
+    } catch {
+      // silencioso — mesmo comportamento do lookup de CEP do Tenant
+    } finally {
+      setCepLoading(false);
+    }
+  }
+
   async function handleSave() {
     if (!fName.trim()) return;
     setSaving(true);
     try {
+      const computedAddress = [
+        fStreet && fNumber ? `${fStreet}, ${fNumber}` : fStreet,
+        fDistrict,
+        fCity && fState ? `${fCity} - ${fState}` : fCity || fState,
+      ].filter(Boolean).join(", ");
       const body = {
         name: fName, email: fEmail,
         phone: fPhone.replace(/\D/g, "") || null,
         document: fDoc.replace(/\D/g, "") || null,
-        address: fAddr, notes: fNotes,
+        address: computedAddress || fAddr || null, notes: fNotes,
+        address_street: fStreet || null,
+        address_number: fNumber || null,
+        address_complement: fComplement || null,
+        address_district: fDistrict || null,
+        address_city: fCity || null,
+        address_state: fState || null,
+        address_zip: fZip.replace(/\D/g, "") || null,
+        address_country: fCountry || null,
         credit_limit: fCredit ? Number(fCredit) : null,
         birth_date: fBirth || null,
         risk_flag: fRisk,
@@ -1160,9 +1216,76 @@ export default function Customers() {
                   <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block mb-1">E-mail</label>
                   <input type="email" value={fEmail} onChange={(e) => setFEmail(e.target.value)} placeholder="email@exemplo.com" className="w-full h-9 px-3 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
                 </div>
-                <div>
-                  <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block mb-1">Endereço</label>
-                  <input value={fAddr} onChange={(e) => setFAddr(e.target.value)} placeholder="Rua, Cidade - UF" className="w-full h-9 px-3 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                <div className="space-y-2">
+                  <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block">Endereço</label>
+                  <div className="flex gap-2">
+                    <input
+                      value={fZip}
+                      onChange={(e) => setFZip(e.target.value.replace(/\D/g, "").slice(0, 8))}
+                      placeholder="CEP"
+                      inputMode="numeric"
+                      className="w-32 h-9 px-3 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                    <button
+                      type="button"
+                      onClick={handleLookupCEP}
+                      disabled={cepLoading || fZip.replace(/\D/g, "").length !== 8}
+                      className="h-9 px-3 rounded-lg border border-slate-200 text-[11px] font-bold text-slate-600 hover:bg-slate-50 disabled:opacity-50 transition-all flex items-center gap-1.5 shrink-0"
+                    >
+                      {cepLoading ? <Loader2 size={13} className="animate-spin" /> : <Search size={13} />}
+                      Buscar CEP
+                    </button>
+                  </div>
+                  <input
+                    value={fStreet}
+                    onChange={(e) => setFStreet(e.target.value)}
+                    placeholder="Rua / Logradouro"
+                    className="w-full h-9 px-3 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                  <div className="grid grid-cols-2 gap-2">
+                    <input
+                      value={fNumber}
+                      onChange={(e) => setFNumber(e.target.value)}
+                      placeholder="Número"
+                      className="h-9 px-3 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                    <input
+                      value={fComplement}
+                      onChange={(e) => setFComplement(e.target.value)}
+                      placeholder="Complemento"
+                      className="h-9 px-3 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                  <input
+                    value={fDistrict}
+                    onChange={(e) => setFDistrict(e.target.value)}
+                    placeholder="Bairro"
+                    className="w-full h-9 px-3 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                  <div className="grid grid-cols-3 gap-2">
+                    <input
+                      value={fCity}
+                      onChange={(e) => setFCity(e.target.value)}
+                      placeholder="Cidade"
+                      className="col-span-2 h-9 px-3 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                    <select
+                      value={fState}
+                      onChange={(e) => setFState(e.target.value)}
+                      className="h-9 px-2 rounded-lg border border-slate-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                      <option value="">UF</option>
+                      {["AC","AL","AP","AM","BA","CE","DF","ES","GO","MA","MT","MS","MG","PA","PB","PR","PE","PI","RJ","RN","RS","RO","RR","SC","SP","SE","TO"].map((uf) => (
+                        <option key={uf} value={uf}>{uf}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <input
+                    value={fCountry}
+                    onChange={(e) => setFCountry(e.target.value)}
+                    placeholder="País"
+                    className="w-full h-9 px-3 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
                 </div>
                 <div>
                   <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block mb-1">Limite de Crédito (R$)</label>

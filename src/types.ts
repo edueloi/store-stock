@@ -123,6 +123,10 @@ export interface Product {
   skus?: { combo: Record<string, string>; stock: number }[];
   /** @deprecated use attributes+skus */
   variations?: { name: string; options: { value: string; stock: number }[] }[];
+  // Venda por medida (m²/metro linear) — vidraçaria/marcenaria/gráfica
+  sale_unit?: 'unidade' | 'm2' | 'linear';
+  price_per_measure?: number;
+  min_billable_quantity?: number;
   // Dados fiscais
   ncm?: string;
   cest?: string;

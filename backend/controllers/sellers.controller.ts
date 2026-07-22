@@ -1,6 +1,7 @@
 import type { Request, Response } from "express";
 import { prisma } from "../config/prisma";
 import type { AuthenticatedRequest } from "../types/auth";
+import { computeCurrentValue } from "./goals.controller";
 
 function getTenantId(req: Request) {
   return (req as AuthenticatedRequest).user.tenantId;
@@ -156,5 +157,124 @@ export async function getSellerStats(req: Request, res: Response) {
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Falha ao buscar estatísticas" });
+  }
+}
+
+// ── Metas por vendedor ──────────────────────────────────────────────────────
+// Lista metas de vendedores (todas, ou de um vendedor específico via ?seller_id=)
+export async function listSellerGoals(req: Request, res: Response) {
+  try {
+    const tenantId = getTenantId(req);
+    const { seller_id } = req.query;
+
+    const goals = await prisma.goal.findMany({
+      where: {
+        tenant_id: tenantId,
+        seller_id: seller_id ? Number(seller_id) : { not: null },
+      },
+      orderBy: [{ status: "asc" }, { end_date: "asc" }],
+    });
+
+    const enriched = await Promise.all(
+      goals.map(async (g) => {
+        if (g.status !== "active") return g;
+        const current = await computeCurrentValue(
+          tenantId,
+          g.type,
+          new Date(g.start_date),
+          new Date(g.end_date),
+          g.seller_id
+        );
+        if (Math.abs(current - Number(g.current_value)) > 0.01) {
+          await prisma.goal.update({
+            where: { id: g.id },
+            data: { current_value: current },
+          });
+        }
+        return { ...g, current_value: current };
+      })
+    );
+
+    res.json(enriched);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Falha ao listar metas de vendedores" });
+  }
+}
+
+// ── Ranking por cumprimento de meta ─────────────────────────────────────────
+// Para cada vendedor ativo, retorna a meta ativa que se sobrepõe ao mês
+// selecionado e o % já cumprido, ordenado desc. Vendedores sem meta ativa no
+// período vêm com goal: null (aparecem no fim, sem % de cumprimento).
+export async function getSellerGoalsRanking(req: Request, res: Response) {
+  try {
+    const tenantId = getTenantId(req);
+    const { month, year } = req.query;
+
+    const now = new Date();
+    const y = year ? Number(year) : now.getFullYear();
+    const m = month ? Number(month) : now.getMonth() + 1;
+    const monthStart = new Date(y, m - 1, 1);
+    const monthEnd = new Date(y, m, 0);
+
+    const sellers = await prisma.seller.findMany({
+      where: { tenant_id: tenantId, is_active: true },
+      orderBy: { name: "asc" },
+    });
+
+    const ranking = await Promise.all(
+      sellers.map(async (s) => {
+        // Meta ativa do vendedor que se sobrepõe ao período selecionado.
+        // Se houver mais de uma, prioriza a de intervalo mais longo (mais estratégica).
+        const activeGoals = await prisma.goal.findMany({
+          where: {
+            tenant_id: tenantId,
+            seller_id: s.id,
+            status: "active",
+            start_date: { lte: monthEnd },
+            end_date: { gte: monthStart },
+          },
+        });
+
+        if (activeGoals.length === 0) {
+          return { ...s, goal: null, progress_pct: null };
+        }
+
+        activeGoals.sort((a, b) => {
+          const lenA = new Date(a.end_date).getTime() - new Date(a.start_date).getTime();
+          const lenB = new Date(b.end_date).getTime() - new Date(b.start_date).getTime();
+          return lenB - lenA;
+        });
+        const goal = activeGoals[0];
+
+        const current = await computeCurrentValue(
+          tenantId,
+          goal.type,
+          new Date(goal.start_date),
+          new Date(goal.end_date),
+          s.id
+        );
+        const target = Number(goal.target_value);
+        const progress_pct = target > 0 ? (current / target) * 100 : 0;
+
+        return {
+          ...s,
+          goal: { ...goal, current_value: current },
+          progress_pct,
+        };
+      })
+    );
+
+    ranking.sort((a, b) => {
+      if (a.progress_pct == null && b.progress_pct == null) return 0;
+      if (a.progress_pct == null) return 1;
+      if (b.progress_pct == null) return -1;
+      return b.progress_pct - a.progress_pct;
+    });
+
+    res.json({ month: m, year: y, ranking });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Falha ao buscar ranking de metas" });
   }
 }

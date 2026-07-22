@@ -16,6 +16,7 @@ import {
   cacheSet, cacheGet, queueSale, getPendingSales,
   removePendingSale, countPendingSales, PendingSale,
 } from "../lib/offlineDb";
+import { computeMeasuredPrice } from "../utils/measurePricing";
 
 type PaymentMethod = "money" | "debit" | "credit" | "pix";
 type CardBrand = "visa" | "master" | "elo" | "amex" | "hiper" | "other";
@@ -46,6 +47,7 @@ interface CartItem extends Product {
   cartItemId: string;
   variationLabel: string;
   selectedOptions?: Record<string, string>;
+  dimensionsLabel?: string;
 }
 
 interface PaymentEntry {
@@ -212,6 +214,9 @@ export default function PDVStandalone() {
   const [showCheckoutModal, setShowCheckoutModal] = useState(false);
   const [configProduct, setConfigProduct] = useState<Product | null>(null);
   const [selectedOptions, setSelectedOptions] = useState<Record<string, string>>({});
+  const [measureProduct, setMeasureProduct] = useState<Product | null>(null);
+  const [measureHeight, setMeasureHeight] = useState("");
+  const [measureWidth, setMeasureWidth] = useState("");
   const [tenantName, setTenantName]   = useState("PDV");
   const [tenantAddress, setTenantAddress] = useState("");
 
@@ -630,6 +635,12 @@ export default function PDVStandalone() {
 
   // ── cart helpers ─────────────────────────────────────────────────────────────
   const addToCart = (product: Product, options?: Record<string, string>) => {
+    if (product.sale_unit && product.sale_unit !== "unidade") {
+      setMeasureProduct(product);
+      setMeasureHeight("");
+      setMeasureWidth("");
+      return;
+    }
     const hasAttr = Array.isArray(product.attributes) && product.attributes.length > 0;
     const hasLeg  = !hasAttr && Array.isArray(product.variations) && product.variations.length > 0;
     if ((hasAttr || hasLeg) && !options) {
@@ -649,6 +660,32 @@ export default function PDVStandalone() {
       setCart([...cart, { ...product, price: Number(product.price), quantity: 1, cartItemId, selectedOptions: options, variationLabel }]);
     }
     setConfigProduct(null); setSelectedOptions({});
+  };
+
+  const measurePreview = measureProduct
+    ? computeMeasuredPrice(
+        (measureProduct.sale_unit as "m2" | "linear") ?? "m2",
+        Number(measureProduct.price_per_measure) || 0,
+        measureProduct.min_billable_quantity,
+        Number(measureHeight) || 0,
+        Number(measureWidth) || 0,
+      )
+    : null;
+
+  const addMeasuredToCart = () => {
+    if (!measureProduct || !measurePreview) return;
+    const cartItemId = `${measureProduct.id}-${Date.now()}`;
+    setCart((prev) => [...prev, {
+      ...measureProduct,
+      price: measurePreview.total,
+      quantity: 1,
+      cartItemId,
+      variationLabel: "",
+      dimensionsLabel: measurePreview.label,
+    }]);
+    setMeasureProduct(null);
+    setMeasureHeight("");
+    setMeasureWidth("");
   };
 
   const updateQuantity = (cartItemId: string, delta: number) => {
@@ -1089,7 +1126,7 @@ ${sale.change > 0 ? `<hr class="divider"/><div class="row bold"><span>Troco:</sp
     const selectedSeller = sellers.find((s) => s.id === selectedSellerId);
     const clientSaleId = crypto.randomUUID();
     const saleBody = {
-      items: cart.map((i) => ({ id: i.id, quantity: i.quantity, price: i.price, selectedOptions: i.selectedOptions ?? null })),
+      items: cart.map((i) => ({ id: i.id, quantity: i.quantity, price: i.price, selectedOptions: i.selectedOptions ?? null, dimensionsLabel: i.dimensionsLabel ?? null })),
       services: cartServices.map((s) => ({ id: s.id, name: s.name, price: s.price, quantity: s.quantity ?? 1 })),
       customerName,
       customerId: selectedCustomerId ?? undefined,
@@ -1830,6 +1867,92 @@ ${sale.change > 0 ? `<hr class="divider"/><div class="row bold"><span>Troco:</sp
                 <button onClick={() => addToCart(configProduct, selectedOptions)}
                   className="w-full h-13 rounded-2xl text-[12px] font-black uppercase tracking-[0.15em] text-white flex items-center justify-center gap-2 transition-all active:scale-98 shadow-xl shadow-blue-500/25"
                   style={{ background: "linear-gradient(135deg, #3b82f6, #1d4ed8)", height: "52px" }}>
+                  <Plus size={16} strokeWidth={3} /> Adicionar ao Carrinho
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* ── MEASURE (m²/linear) MODAL ───────────────────────────────────────── */}
+      <AnimatePresence>
+        {measureProduct && (
+          <motion.div
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[200] flex items-end sm:items-center justify-center sm:p-4"
+            style={{ background: "rgba(5,8,20,0.88)", backdropFilter: "blur(16px)" }}>
+            <motion.div
+              initial={{ opacity: 0, y: 40, scale: 0.97 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 30, scale: 0.97 }}
+              transition={{ type: "spring", damping: 28, stiffness: 260 }}
+              className="w-full sm:max-w-sm rounded-t-[28px] sm:rounded-3xl overflow-hidden shadow-2xl bg-white"
+            >
+              <div className="px-5 pt-5 pb-3 flex items-center justify-between border-b border-slate-100">
+                <div>
+                  <p className="text-[9px] font-black uppercase tracking-widest text-blue-500">
+                    Venda por {measureProduct.sale_unit === "m2" ? "m²" : "metro linear"}
+                  </p>
+                  <h3 className="text-[15px] font-black text-slate-800">{measureProduct.name}</h3>
+                </div>
+                <button onClick={() => setMeasureProduct(null)} className="w-9 h-9 rounded-xl bg-slate-100 hover:bg-slate-200 flex items-center justify-center">
+                  <X size={16} className="text-slate-500" />
+                </button>
+              </div>
+
+              <div className="p-5 space-y-3">
+                {measureProduct.sale_unit === "m2" ? (
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400 mb-1.5 block">Altura (m)</label>
+                      <input type="number" min="0" step="0.01" autoFocus value={measureHeight}
+                        onChange={(e) => setMeasureHeight(e.target.value)}
+                        placeholder="0,00"
+                        className="w-full h-11 px-3 rounded-xl border border-slate-200 text-sm font-mono font-bold text-center focus:outline-none focus:border-blue-400" />
+                    </div>
+                    <div>
+                      <label className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400 mb-1.5 block">Largura (m)</label>
+                      <input type="number" min="0" step="0.01" value={measureWidth}
+                        onChange={(e) => setMeasureWidth(e.target.value)}
+                        placeholder="0,00"
+                        className="w-full h-11 px-3 rounded-xl border border-slate-200 text-sm font-mono font-bold text-center focus:outline-none focus:border-blue-400" />
+                    </div>
+                  </div>
+                ) : (
+                  <div>
+                    <label className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400 mb-1.5 block">Comprimento (m)</label>
+                    <input type="number" min="0" step="0.01" autoFocus value={measureHeight}
+                      onChange={(e) => setMeasureHeight(e.target.value)}
+                      placeholder="0,00"
+                      className="w-full h-11 px-3 rounded-xl border border-slate-200 text-sm font-mono font-bold text-center focus:outline-none focus:border-blue-400" />
+                  </div>
+                )}
+
+                {measurePreview && measurePreview.rawQuantity > 0 && (
+                  <div className="bg-slate-900 rounded-2xl p-4 space-y-1.5">
+                    <div className="flex justify-between text-[10px] font-bold uppercase text-slate-400">
+                      <span>{measureProduct.sale_unit === "m2" ? "Área" : "Comprimento"}</span>
+                      <span className="font-mono text-slate-200">{measurePreview.label}</span>
+                    </div>
+                    {measurePreview.minimumApplied && (
+                      <p className="text-[10px] font-bold text-amber-400">
+                        Cobrando o mínimo de {Number(measureProduct.min_billable_quantity).toFixed(2)}{measureProduct.sale_unit === "m2" ? "m²" : "m"}
+                      </p>
+                    )}
+                    <div className="flex justify-between text-[15px] font-black uppercase text-white pt-1.5 border-t border-slate-700">
+                      <span>Total</span>
+                      <span className="font-mono">R$ {measurePreview.total.toFixed(2)}</span>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <div className="px-5 pb-6 pt-1">
+                <button onClick={addMeasuredToCart}
+                  disabled={!measurePreview || measurePreview.rawQuantity <= 0}
+                  className="w-full h-12 rounded-2xl text-[12px] font-black uppercase tracking-[0.15em] text-white flex items-center justify-center gap-2 transition-all active:scale-[0.98] disabled:opacity-40"
+                  style={{ background: "linear-gradient(135deg, #3b82f6, #1d4ed8)" }}>
                   <Plus size={16} strokeWidth={3} /> Adicionar ao Carrinho
                 </button>
               </div>

@@ -76,7 +76,10 @@ export async function getCustomer(req: Request, res: Response) {
 
 export async function createCustomer(req: Request, res: Response) {
   try {
-    const { name, email, phone, document, address, notes, credit_limit, risk_flag, risk_reason, birth_date } = req.body;
+    const {
+      name, email, phone, document, address, notes, credit_limit, risk_flag, risk_reason, birth_date,
+      address_street, address_number, address_complement, address_district, address_city, address_state, address_zip, address_country,
+    } = req.body;
     const customer = await prisma.customer.create({
       data: {
         tenant_id: getTenantId(req),
@@ -85,6 +88,14 @@ export async function createCustomer(req: Request, res: Response) {
         phone: phone || null,
         document: document || null,
         address: address || null,
+        address_street: address_street || null,
+        address_number: address_number || null,
+        address_complement: address_complement || null,
+        address_district: address_district || null,
+        address_city: address_city || null,
+        address_state: address_state || null,
+        address_zip: address_zip || null,
+        address_country: address_country || "Brasil",
         notes: notes || null,
         credit_limit: credit_limit || null,
         risk_flag: risk_flag ?? false,
@@ -103,7 +114,10 @@ export async function updateCustomer(req: Request, res: Response) {
   try {
     const tenantId = getTenantId(req);
     const id = Number(req.params.id);
-    const { name, email, phone, document, address, notes, credit_limit, risk_flag, risk_reason, birth_date } = req.body;
+    const {
+      name, email, phone, document, address, notes, credit_limit, risk_flag, risk_reason, birth_date,
+      address_street, address_number, address_complement, address_district, address_city, address_state, address_zip, address_country,
+    } = req.body;
 
     await prisma.customer.updateMany({
       where: { id, tenant_id: tenantId },
@@ -113,6 +127,14 @@ export async function updateCustomer(req: Request, res: Response) {
         ...(phone !== undefined && { phone: phone || null }),
         ...(document !== undefined && { document: document || null }),
         ...(address !== undefined && { address: address || null }),
+        ...(address_street !== undefined && { address_street: address_street || null }),
+        ...(address_number !== undefined && { address_number: address_number || null }),
+        ...(address_complement !== undefined && { address_complement: address_complement || null }),
+        ...(address_district !== undefined && { address_district: address_district || null }),
+        ...(address_city !== undefined && { address_city: address_city || null }),
+        ...(address_state !== undefined && { address_state: address_state || null }),
+        ...(address_zip !== undefined && { address_zip: address_zip || null }),
+        ...(address_country !== undefined && { address_country: address_country || null }),
         ...(notes !== undefined && { notes: notes || null }),
         ...(credit_limit !== undefined && { credit_limit: credit_limit || null }),
         ...(risk_flag !== undefined && { risk_flag }),

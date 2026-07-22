@@ -15,6 +15,7 @@ interface SaleItemInput {
   quantity: number;
   price: number;
   selectedOptions?: Record<string, string> | null;
+  dimensionsLabel?: string | null;
 }
 
 // Parses "credit-visa-2x:120.00|money:30.00" into structured segments
@@ -182,6 +183,7 @@ export async function createSale(req: Request, res: Response) {
             product_id: item.id,
             quantity: item.quantity,
             unit_price: item.price,
+            dimensions_label: item.dimensionsLabel ?? null,
           })),
         },
         ...(services && services.length > 0 ? {
@@ -199,6 +201,16 @@ export async function createSale(req: Request, res: Response) {
 
     console.log("[createSale] order created id:", order.id, "— updating stock");
     for (const item of items) {
+      // Produtos vendidos por medida (m²/linear) não têm controle de estoque —
+      // a peça é cortada sob medida, não há como inferir quanto resta em chapa/rolo.
+      const productForStock = await prisma.product.findUnique({
+        where: { id: item.id },
+        select: { sale_unit: true, skus: true, variations: true },
+      });
+      if (productForStock?.sale_unit && productForStock.sale_unit !== "unidade") {
+        continue;
+      }
+
       // decrement total product stock
       await prisma.product.update({
         where: { id: item.id },
@@ -207,10 +219,7 @@ export async function createSale(req: Request, res: Response) {
 
       // if item has specific variation options, also decrement the matching SKU in the JSON
       if (item.selectedOptions && Object.keys(item.selectedOptions).length > 0) {
-        const product = await prisma.product.findUnique({
-          where: { id: item.id },
-          select: { skus: true, variations: true },
-        });
+        const product = productForStock;
         if (product?.skus) {
           type SkuEntry = { combo: Record<string, string>; stock: number };
           const skus = product.skus as SkuEntry[];

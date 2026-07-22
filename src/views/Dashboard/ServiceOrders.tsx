@@ -22,12 +22,18 @@ import {
   PlusCircle,
   FileDown,
   Receipt,
+  AlertTriangle,
+  CalendarClock,
+  ShieldCheck,
+  ArrowRight,
+  Ban,
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { cn } from "../../lib/utils";
 import PageHeader from "../../components/layout/PageHeader";
 import Combobox from "../../components/ui/Combobox";
 import { downloadHtmlAsPdf } from "../../lib/pdf";
+import { computeMeasuredPrice } from "../../utils/measurePricing";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -48,6 +54,7 @@ interface ServiceOrderPart {
   quantity: number;
   unit_price: number;
   total: number;
+  dimensions_label?: string | null;
 }
 
 interface ServiceOrderPhoto {
@@ -80,12 +87,17 @@ interface ServiceOrder {
   equipment_model: string | null;
   equipment_serial: string | null;
   equipment_accessories: string | null;
+  reported_issue: string | null;
   seller_id: number | null;
   technician_name: string | null;
   status: SOStatus;
+  priority: "normal" | "urgente";
+  promised_at: string | null;
   service_value: number;
   parts_total: number;
   total_amount: number;
+  warranty_days: number | null;
+  warranty_terms: string | null;
   observations: string | null;
   invoiced_order_id: number | null;
   invoiced_at: string | null;
@@ -103,6 +115,9 @@ interface Product {
   price: number;
   stock_quantity: number;
   is_active?: boolean;
+  sale_unit?: "unidade" | "m2" | "linear";
+  price_per_measure?: number;
+  min_billable_quantity?: number;
 }
 
 interface Customer {
@@ -130,6 +145,7 @@ interface Tenant {
   address_state?: string;
   address_zip?: string;
   address?: string;
+  primary_color?: string;
   card_fees?: Record<string, number[]>;
   policies?: { service_order_checklists?: Record<string, { label: string }[]> };
 }
@@ -219,10 +235,15 @@ function emptyForm() {
     equipment_model: "",
     equipment_serial: "",
     equipment_accessories: "",
+    reported_issue: "",
     seller_id: null as number | null,
     technician_name: "",
     responsibleMode: "seller" as "seller" | "technician",
+    priority: "normal" as "normal" | "urgente",
+    promised_at: "",
     service_value: "",
+    warranty_days: "",
+    warranty_terms: "",
     observations: "",
   };
 }
@@ -231,7 +252,14 @@ function emptyForm() {
 
 function buildServiceOrderIntakeHtml(so: ServiceOrder, tenant: Tenant | null): string {
   const storeName = tenant?.name ?? "Estabelecimento";
-  const storeDoc = tenant?.document ? `CPF/CNPJ: ${tenant.document}` : "";
+  const docLabel = (doc: string) => {
+    const digits = doc.replace(/\D/g, "");
+    if (digits.length > 11) return "CNPJ";
+    if (digits.length > 0) return "CPF";
+    return "Documento";
+  };
+  const storeDoc = tenant?.document ? `${docLabel(tenant.document)}: ${tenant.document}` : "";
+  const brandColor = tenant?.primary_color ?? "#2563eb";
   const storeAddr = (() => {
     if (tenant?.address_street) {
       const parts = [
@@ -267,6 +295,24 @@ function buildServiceOrderIntakeHtml(so: ServiceOrder, tenant: Tenant | null): s
     )
     .join("");
 
+  const partsRows = so.parts
+    .map(
+      (p) => `
+    <tr>
+      <td style="padding:8px 12px;border-bottom:1px solid #f0f0f0;font-size:13px">${p.name}</td>
+      <td style="padding:8px 12px;border-bottom:1px solid #f0f0f0;text-align:center;font-size:13px">${p.quantity}</td>
+      <td style="padding:8px 12px;border-bottom:1px solid #f0f0f0;text-align:right;font-size:13px">${fmt(p.unit_price)}</td>
+      <td style="padding:8px 12px;border-bottom:1px solid #f0f0f0;text-align:right;font-size:13px;font-weight:700">${fmt(p.total)}</td>
+    </tr>`
+    )
+    .join("");
+
+  const priorityBadge = so.priority === "urgente"
+    ? `<span style="display:inline-block;background:#fee2e2;color:#dc2626;font-weight:900;font-size:11px;text-transform:uppercase;letter-spacing:1px;padding:4px 10px;border-radius:6px;margin-left:8px">Urgente</span>`
+    : "";
+
+  const promisedStr = so.promised_at ? new Date(so.promised_at + "T12:00:00").toLocaleDateString("pt-BR") : "";
+
   return `<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
@@ -274,28 +320,30 @@ function buildServiceOrderIntakeHtml(so: ServiceOrder, tenant: Tenant | null): s
 <title>Ordem de Serviço #${orderNum}</title>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { font-family: Arial, sans-serif; font-size: 15px; color: #1a1a1a; background: #fff; padding: 40px 48px; max-width: 794px; margin: 0 auto; }
-  .header { display: flex; align-items: center; justify-content: space-between; border-bottom: 3px solid #1a1a1a; padding-bottom: 18px; margin-bottom: 24px; }
-  .logo { width: 90px; height: 90px; object-fit: contain; }
-  .logo-placeholder { width: 90px; height: 90px; background: #f5f5f5; border: 1px solid #ddd; border-radius: 4px; display: flex; align-items: center; justify-content: center; font-size: 11px; color: #aaa; text-align: center; }
+  body { font-family: Arial, sans-serif; font-size: 15px; color: #1e293b; background: #fff; padding: 40px 48px; max-width: 794px; margin: 0 auto; }
+  .header { display: flex; align-items: center; justify-content: space-between; padding-bottom: 16px; margin-bottom: 4px; }
+  .logo { width: 60px; height: 60px; object-fit: contain; }
+  .logo-placeholder { width: 60px; height: 60px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 10px; color: #cbd5e1; text-align: center; }
   .store-info { text-align: right; }
-  .store-name { font-size: 22px; font-weight: 900; text-transform: uppercase; letter-spacing: 1px; }
-  .store-meta { font-size: 13px; color: #555; margin-top: 4px; line-height: 1.7; }
-  .title-block { text-align: center; margin: 20px 0 28px; }
-  .title-block h1 { font-size: 24px; font-weight: 900; text-transform: uppercase; letter-spacing: 2px; border: 3px solid #1a1a1a; display: inline-block; padding: 10px 30px; }
-  .section { margin-bottom: 24px; }
-  .section-label { font-size: 12px; font-weight: 900; text-transform: uppercase; letter-spacing: 1.5px; color: #444; margin-bottom: 10px; border-left: 3px solid #1a1a1a; padding-left: 8px; }
+  .store-name { font-size: 17px; font-weight: 700; color: #0f172a; }
+  .store-meta { font-size: 11px; color: #94a3b8; margin-top: 3px; line-height: 1.6; }
+  .accent-rule { border: none; border-top: 2px solid ${brandColor}; margin-bottom: 22px; }
+  .title-block { text-align: center; margin: 0 0 26px; }
+  .title-block h1 { font-size: 19px; font-weight: 700; color: ${brandColor}; letter-spacing: 0.5px; }
+  .section { margin-bottom: 22px; }
+  .section-label { font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 1.2px; color: #94a3b8; margin-bottom: 9px; }
   .info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 20px; }
-  .info-row { font-size: 14px; }
-  .info-row span { font-weight: 700; }
-  table { width: 100%; border-collapse: collapse; font-size: 14px; }
-  thead tr { background: #1a1a1a; color: #fff; }
-  thead th { padding: 10px 12px; text-align: left; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; }
+  .info-row { font-size: 13.5px; color: #475569; }
+  .info-row span { font-weight: 700; color: #0f172a; }
+  table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+  thead tr { border-bottom: 1.5px solid #e2e8f0; }
+  thead th { padding: 8px 10px; text-align: left; font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: #94a3b8; }
   thead th:nth-child(2) { text-align: center; }
+  tbody td { border-bottom: 1px solid #f1f5f9; }
   .obs-box { border: 1px solid #e2e8f0; border-radius: 8px; padding: 14px 16px; margin-top: 8px; font-size: 14px; line-height: 1.6; background: #fafafa; }
   .signatures { display: flex; justify-content: space-between; gap: 40px; margin-top: 56px; }
-  .sig-block { flex: 1; border-top: 1px solid #1a1a1a; padding-top: 10px; text-align: center; font-size: 13px; color: #444; }
-  .footer { text-align: center; font-size: 11px; color: #999; margin-top: 36px; border-top: 1px dashed #ddd; padding-top: 14px; line-height: 1.8; }
+  .sig-block { flex: 1; border-top: 1px solid #cbd5e1; padding-top: 10px; text-align: center; font-size: 13px; color: #64748b; }
+  .footer { text-align: center; font-size: 11px; color: #cbd5e1; margin-top: 36px; border-top: 1px solid #f1f5f9; padding-top: 14px; line-height: 1.8; }
 </style>
 </head>
 <body>
@@ -311,9 +359,10 @@ function buildServiceOrderIntakeHtml(so: ServiceOrder, tenant: Tenant | null): s
     </div>
   </div>
 </div>
+<hr class="accent-rule"/>
 
 <div class="title-block">
-  <h1>Ordem de Serviço Nº ${orderNum}</h1>
+  <h1>Ordem de Serviço Nº ${orderNum}${priorityBadge}</h1>
 </div>
 
 <div class="section">
@@ -323,6 +372,7 @@ function buildServiceOrderIntakeHtml(so: ServiceOrder, tenant: Tenant | null): s
     ${so.customer_phone ? `<div class="info-row">Contato: <span>${so.customer_phone}</span></div>` : ""}
     <div class="info-row">Data de Entrada: <span>${orderDate}</span></div>
     <div class="info-row">Responsável: <span>${responsavel}</span></div>
+    ${promisedStr ? `<div class="info-row">Previsão de Entrega: <span>${promisedStr}</span></div>` : ""}
   </div>
 </div>
 
@@ -337,6 +387,12 @@ function buildServiceOrderIntakeHtml(so: ServiceOrder, tenant: Tenant | null): s
   </div>
   ${so.equipment_accessories ? `<div class="obs-box"><strong>Acessórios:</strong> ${so.equipment_accessories}</div>` : ""}
 </div>
+
+${so.reported_issue ? `
+<div class="section">
+  <div class="section-label">Defeito Relatado pelo Cliente</div>
+  <div class="obs-box">${so.reported_issue}</div>
+</div>` : ""}
 
 ${checklistRows ? `
 <div class="section">
@@ -355,9 +411,44 @@ ${checklistRows ? `
   </table>
 </div>` : ""}
 
+${partsRows ? `
+<div class="section">
+  <div class="section-label">Peças Utilizadas</div>
+  <table>
+    <thead>
+      <tr>
+        <th>Peça</th>
+        <th style="text-align:center">Qtd.</th>
+        <th style="text-align:right">Valor Unit.</th>
+        <th style="text-align:right">Total</th>
+      </tr>
+    </thead>
+    <tbody>
+      ${partsRows}
+    </tbody>
+  </table>
+</div>` : ""}
+
+<div class="section">
+  <div class="section-label">Valores</div>
+  <div class="info-grid">
+    <div class="info-row">Mão de obra: <span>${fmt(so.service_value)}</span></div>
+    <div class="info-row">Peças: <span>${fmt(so.parts_total)}</span></div>
+  </div>
+  <div class="obs-box" style="display:flex;justify-content:space-between;align-items:center;font-weight:700;font-size:16px;background:${brandColor};color:#fff;border:none;">
+    <span>TOTAL</span><span>${fmt(so.total_amount)}</span>
+  </div>
+</div>
+
+${(so.warranty_days || so.warranty_terms) ? `
+<div class="section">
+  <div class="section-label">Garantia</div>
+  <div class="obs-box">${so.warranty_days ? `${so.warranty_days} dias` : ""}${so.warranty_days && so.warranty_terms ? " — " : ""}${so.warranty_terms ?? ""}</div>
+</div>` : ""}
+
 ${so.observations ? `
 <div class="section">
-  <div class="section-label">Observações Gerais</div>
+  <div class="section-label">Observações Internas do Técnico</div>
   <div class="obs-box">${so.observations}</div>
 </div>` : ""}
 
@@ -417,6 +508,9 @@ export default function ServiceOrders() {
 
   const [partSearch, setPartSearch] = useState("");
   const [partQty, setPartQty] = useState(1);
+  const [measureProduct, setMeasureProduct] = useState<Product | null>(null);
+  const [measureHeight, setMeasureHeight] = useState("");
+  const [measureWidth, setMeasureWidth] = useState("");
   const [addingPart, setAddingPart] = useState(false);
 
   const [photoUploading, setPhotoUploading] = useState(false);
@@ -508,9 +602,14 @@ export default function ServiceOrders() {
           equipment_model: form.equipment_model || undefined,
           equipment_serial: form.equipment_serial || undefined,
           equipment_accessories: form.equipment_accessories || undefined,
+          reported_issue: form.reported_issue || undefined,
           seller_id: form.responsibleMode === "seller" ? form.seller_id : undefined,
           technician_name: form.responsibleMode === "technician" ? form.technician_name : undefined,
+          priority: form.priority,
+          promised_at: form.promised_at || undefined,
           service_value: Number(form.service_value) || 0,
+          warranty_days: form.warranty_days ? Number(form.warranty_days) : undefined,
+          warranty_terms: form.warranty_terms || undefined,
           observations: form.observations || undefined,
         }),
       });
@@ -565,6 +664,13 @@ export default function ServiceOrders() {
   // ── Parts ───────────────────────────────────────────────────────────────
   const handleAddPart = async (product: Product) => {
     if (!selected) return;
+    if (product.sale_unit && product.sale_unit !== "unidade") {
+      setMeasureProduct(product);
+      setMeasureHeight("");
+      setMeasureWidth("");
+      setPartSearch("");
+      return;
+    }
     setAddingPart(true);
     try {
       const res = await fetch(`/api/service-orders/${selected.id}/parts`, {
@@ -575,6 +681,43 @@ export default function ServiceOrders() {
       if (res.ok) {
         setPartSearch("");
         setPartQty(1);
+        await refreshSelected(selected.id);
+      } else {
+        const err = await res.json().catch(() => ({}));
+        alert(err.error || "Falha ao adicionar peça");
+      }
+    } finally {
+      setAddingPart(false);
+    }
+  };
+
+  const measurePreview = measureProduct
+    ? computeMeasuredPrice(
+        (measureProduct.sale_unit as "m2" | "linear") ?? "m2",
+        Number(measureProduct.price_per_measure) || 0,
+        measureProduct.min_billable_quantity,
+        Number(measureHeight) || 0,
+        Number(measureWidth) || 0,
+      )
+    : null;
+
+  const handleAddMeasuredPart = async () => {
+    if (!selected || !measureProduct) return;
+    setAddingPart(true);
+    try {
+      const res = await fetch(`/api/service-orders/${selected.id}/parts`, {
+        method: "POST",
+        headers: authHeader(),
+        body: JSON.stringify({
+          product_id: measureProduct.id,
+          height: Number(measureHeight) || 0,
+          width: Number(measureWidth) || 0,
+        }),
+      });
+      if (res.ok) {
+        setMeasureProduct(null);
+        setMeasureHeight("");
+        setMeasureWidth("");
         await refreshSelected(selected.id);
       } else {
         const err = await res.json().catch(() => ({}));
@@ -687,7 +830,8 @@ export default function ServiceOrders() {
   });
 
   const filteredParts = products.filter(
-    (p) => partSearch && p.name.toLowerCase().includes(partSearch.toLowerCase()) && p.stock_quantity > 0
+    (p) => partSearch && p.name.toLowerCase().includes(partSearch.toLowerCase()) &&
+      (p.stock_quantity > 0 || (!!p.sale_unit && p.sale_unit !== "unidade"))
   );
 
   const statusCounts = STATUS_ORDER.reduce((acc, s) => {
@@ -902,6 +1046,17 @@ export default function ServiceOrders() {
                   className="w-full px-3 py-2 rounded-xl border border-slate-200 text-[12px] font-medium focus:outline-none focus:border-blue-400 resize-none"
                 />
 
+                <div>
+                  <label className="text-[9px] font-black uppercase tracking-[0.2em] text-amber-500 mb-1.5 block">Defeito Relatado pelo Cliente</label>
+                  <textarea
+                    value={form.reported_issue}
+                    onChange={(e) => setForm((f) => ({ ...f, reported_issue: e.target.value }))}
+                    placeholder="O que o cliente relatou como problema..."
+                    rows={2}
+                    className="w-full px-3 py-2 rounded-xl border border-amber-200 bg-amber-50/50 text-[12px] font-medium focus:outline-none focus:border-amber-400 resize-none"
+                  />
+                </div>
+
                 {/* Responsável */}
                 <div>
                   <label className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400 mb-1.5 block">Responsável</label>
@@ -932,6 +1087,35 @@ export default function ServiceOrders() {
                   )}
                 </div>
 
+                {/* Prioridade / Previsão de entrega */}
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400 mb-1.5 block">Prioridade</label>
+                    <div className="flex bg-slate-100 border border-slate-200 rounded-xl p-0.5 gap-0.5">
+                      {(["normal", "urgente"] as const).map((p) => (
+                        <button key={p} type="button" onClick={() => setForm((f) => ({ ...f, priority: p }))}
+                          className={cn("flex-1 h-9 rounded-lg text-[10px] font-black transition-all flex items-center justify-center gap-1",
+                            form.priority === p ? (p === "urgente" ? "bg-red-500 text-white" : "bg-blue-600 text-white") : "text-slate-500")}>
+                          {p === "urgente" && <AlertTriangle size={11} />}
+                          {p === "normal" ? "Normal" : "Urgente"}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <div>
+                    <label className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400 mb-1.5 block">Previsão de Entrega</label>
+                    <div className="relative">
+                      <CalendarClock className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
+                      <input
+                        type="date"
+                        value={form.promised_at}
+                        onChange={(e) => setForm((f) => ({ ...f, promised_at: e.target.value }))}
+                        className="w-full pl-9 pr-3 h-10 rounded-xl border border-slate-200 text-[12px] font-medium focus:outline-none focus:border-blue-400"
+                      />
+                    </div>
+                  </div>
+                </div>
+
                 {/* Valor */}
                 <div>
                   <label className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400 mb-1.5 block">Valor da Mão de Obra (opcional agora)</label>
@@ -947,13 +1131,39 @@ export default function ServiceOrders() {
                   </div>
                 </div>
 
-                <textarea
-                  value={form.observations}
-                  onChange={(e) => setForm((f) => ({ ...f, observations: e.target.value }))}
-                  placeholder="Observações gerais"
-                  rows={3}
-                  className="w-full px-3 py-2 rounded-xl border border-slate-200 text-[12px] font-medium focus:outline-none focus:border-blue-400 resize-none"
-                />
+                {/* Garantia */}
+                <div>
+                  <label className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400 mb-1.5 block">Termo de Garantia (opcional)</label>
+                  <div className="flex gap-2">
+                    <div className="relative w-28 shrink-0">
+                      <ShieldCheck className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
+                      <input
+                        type="number" min="0"
+                        value={form.warranty_days}
+                        onChange={(e) => setForm((f) => ({ ...f, warranty_days: e.target.value }))}
+                        placeholder="Dias"
+                        className="w-full pl-9 pr-2 h-10 rounded-xl border border-slate-200 text-[12px] font-mono font-bold focus:outline-none focus:border-blue-400 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none"
+                      />
+                    </div>
+                    <input
+                      value={form.warranty_terms}
+                      onChange={(e) => setForm((f) => ({ ...f, warranty_terms: e.target.value }))}
+                      placeholder="Condições da garantia (opcional)"
+                      className="flex-1 h-10 px-3 rounded-xl border border-slate-200 text-[12px] font-medium focus:outline-none focus:border-blue-400"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400 mb-1.5 block">Observações Internas do Técnico</label>
+                  <textarea
+                    value={form.observations}
+                    onChange={(e) => setForm((f) => ({ ...f, observations: e.target.value }))}
+                    placeholder="Anotações internas, diagnóstico, etc."
+                    rows={3}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 text-[12px] font-medium focus:outline-none focus:border-blue-400 resize-none"
+                  />
+                </div>
 
                 <p className="text-[10px] text-slate-400 leading-relaxed">
                   O checklist, peças e fotos são adicionados depois de criar a ordem, na tela de detalhes.
@@ -1186,26 +1396,75 @@ export default function ServiceOrders() {
               <div className="flex-1 overflow-y-auto p-6 space-y-6">
                 {/* Status */}
                 <div>
-                  <div className="flex items-center justify-between mb-2">
-                    <span className={cn("inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-wider", STATUS_META[selected.status].color)}>
-                      {STATUS_META[selected.status].icon} {STATUS_META[selected.status].label}
-                    </span>
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center gap-2">
+                      <span className={cn("inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-wider", STATUS_META[selected.status].color)}>
+                        {STATUS_META[selected.status].icon} {STATUS_META[selected.status].label}
+                      </span>
+                      {selected.priority === "urgente" && (
+                        <span className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-wider bg-red-50 text-red-600">
+                          <AlertTriangle size={12} /> Urgente
+                        </span>
+                      )}
+                    </div>
                     {selected.invoiced_order_id && (
                       <span className="text-[10px] font-bold text-emerald-600">Faturada — Pedido #{selected.invoiced_order_id}</span>
                     )}
                   </div>
-                  {!selected.invoiced_order_id && (
-                    <div className="flex flex-wrap gap-1.5">
-                      {STATUS_ORDER.filter((s) => s !== selected.status).map((s) => (
-                        <button key={s} onClick={() => changeStatus(s)}
-                          className="h-7 px-2.5 rounded-lg text-[9px] font-bold border border-slate-200 text-slate-500 hover:border-slate-400 hover:text-slate-700 transition-all">
-                          → {STATUS_META[s].label}
-                        </button>
-                      ))}
+
+                  {selected.status === "cancelada" ? (
+                    <div className="bg-red-50 border border-red-200 rounded-2xl p-3">
+                      <p className="text-[11px] font-black text-red-600 uppercase tracking-wider flex items-center gap-1.5"><Ban size={13} /> Ordem Cancelada</p>
+                      {selected.cancel_reason && <p className="text-[11px] text-red-500 mt-1">Motivo: {selected.cancel_reason}</p>}
                     </div>
-                  )}
-                  {selected.cancel_reason && (
-                    <p className="text-[10px] text-red-500 mt-2">Motivo do cancelamento: {selected.cancel_reason}</p>
+                  ) : (
+                    <>
+                      {/* Stepper guiado */}
+                      <div className="flex items-center gap-1 mb-3">
+                        {STATUS_ORDER.map((s, idx) => {
+                          const currentIdx = STATUS_ORDER.indexOf(selected.status);
+                          const isDone = idx <= currentIdx;
+                          return (
+                            <div key={s} className="flex-1 flex items-center gap-1">
+                              <div className={cn("flex-1 h-1.5 rounded-full transition-all", isDone ? "bg-blue-500" : "bg-slate-200")} />
+                            </div>
+                          );
+                        })}
+                      </div>
+                      <div className="flex flex-wrap gap-1.5 mb-2">
+                        {STATUS_ORDER.map((s, idx) => {
+                          const currentIdx = STATUS_ORDER.indexOf(selected.status);
+                          const isCurrent = idx === currentIdx;
+                          const isDone = idx < currentIdx;
+                          return (
+                            <span key={s} className={cn("text-[9px] font-bold px-1.5 py-0.5 rounded",
+                              isCurrent ? "bg-blue-100 text-blue-700" : isDone ? "text-emerald-600" : "text-slate-300")}>
+                              {STATUS_META[s].label}
+                            </span>
+                          );
+                        })}
+                      </div>
+                      {!selected.invoiced_order_id && (
+                        <div className="flex items-center gap-2">
+                          {(() => {
+                            const currentIdx = STATUS_ORDER.indexOf(selected.status);
+                            const next = STATUS_ORDER[currentIdx + 1];
+                            return next ? (
+                              <button onClick={() => changeStatus(next)}
+                                className="h-9 px-4 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-[10px] font-black uppercase tracking-wider flex items-center gap-1.5 transition-all">
+                                Avançar para: {STATUS_META[next].label} <ArrowRight size={13} />
+                              </button>
+                            ) : (
+                              <span className="text-[10px] font-bold text-emerald-600 flex items-center gap-1"><CheckCircle2 size={13} /> Concluída</span>
+                            );
+                          })()}
+                          <button onClick={() => changeStatus("cancelada")}
+                            className="text-[10px] font-bold text-slate-400 hover:text-red-500 transition-colors">
+                            Cancelar Ordem
+                          </button>
+                        </div>
+                      )}
+                    </>
                   )}
                 </div>
 
@@ -1218,11 +1477,20 @@ export default function ServiceOrders() {
                     {selected.equipment_brand && <p><span className="text-slate-400">Marca:</span> <span className="font-semibold">{selected.equipment_brand}</span></p>}
                     {selected.equipment_model && <p><span className="text-slate-400">Modelo:</span> <span className="font-semibold">{selected.equipment_model}</span></p>}
                     {selected.equipment_serial && <p><span className="text-slate-400">Série/IMEI:</span> <span className="font-semibold">{selected.equipment_serial}</span></p>}
+                    {selected.promised_at && <p><span className="text-slate-400">Previsão de Entrega:</span> <span className="font-semibold">{new Date(selected.promised_at + "T12:00:00").toLocaleDateString("pt-BR")}</span></p>}
                   </div>
                   {selected.equipment_accessories && (
                     <p className="text-[11px] text-slate-500 mt-2"><span className="text-slate-400">Acessórios:</span> {selected.equipment_accessories}</p>
                   )}
                 </div>
+
+                {/* Defeito relatado */}
+                {selected.reported_issue && (
+                  <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4">
+                    <p className="text-[9px] font-black uppercase tracking-[0.2em] text-amber-600 mb-1.5">Defeito Relatado pelo Cliente</p>
+                    <p className="text-[12px] text-amber-800">{selected.reported_issue}</p>
+                  </div>
+                )}
 
                 {/* Checklist */}
                 {selected.checklist_items.length > 0 && (
@@ -1316,7 +1584,7 @@ export default function ServiceOrders() {
                             if (product) handleAddPart(product);
                           }}
                           options={filteredParts.length > 0 ? filteredParts.map((p) => ({ value: String(p.id), label: p.name, description: `${fmt(p.price)} · estoque ${p.stock_quantity}` }))
-                            : products.filter((p) => p.stock_quantity > 0).slice(0, 20).map((p) => ({ value: String(p.id), label: p.name, description: `${fmt(p.price)} · estoque ${p.stock_quantity}` }))}
+                            : products.filter((p) => p.stock_quantity > 0 || (!!p.sale_unit && p.sale_unit !== "unidade")).slice(0, 20).map((p) => ({ value: String(p.id), label: p.name, description: p.sale_unit && p.sale_unit !== "unidade" ? `${fmt(p.price_per_measure ?? 0)}/${p.sale_unit === "m2" ? "m²" : "m"}` : `${fmt(p.price)} · estoque ${p.stock_quantity}` }))}
                         />
                       </div>
                       <input type="number" min="1" value={partQty} onChange={(e) => setPartQty(Math.max(1, Number(e.target.value) || 1))}
@@ -1332,7 +1600,11 @@ export default function ServiceOrders() {
                         <div key={part.id} className="flex items-center justify-between bg-slate-50 rounded-xl px-3 py-2 border border-slate-200">
                           <div className="min-w-0">
                             <p className="text-[12px] font-semibold text-slate-700 truncate">{part.name}</p>
-                            <p className="text-[10px] text-slate-400">{part.quantity} × {fmt(part.unit_price)}</p>
+                            {part.dimensions_label ? (
+                              <p className="text-[10px] text-blue-500 font-mono">{part.dimensions_label}</p>
+                            ) : (
+                              <p className="text-[10px] text-slate-400">{part.quantity} × {fmt(part.unit_price)}</p>
+                            )}
                           </div>
                           <div className="flex items-center gap-2 shrink-0">
                             <span className="text-[12px] font-mono font-bold text-slate-700">{fmt(part.total)}</span>
@@ -1364,9 +1636,22 @@ export default function ServiceOrders() {
                   </div>
                 </div>
 
+                {(selected.warranty_days || selected.warranty_terms) && (
+                  <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-4">
+                    <p className="text-[9px] font-black uppercase tracking-[0.2em] text-emerald-600 mb-1.5 flex items-center gap-1.5">
+                      <ShieldCheck size={13} /> Garantia
+                    </p>
+                    <p className="text-[12px] text-emerald-800">
+                      {selected.warranty_days ? `${selected.warranty_days} dias` : ""}
+                      {selected.warranty_days && selected.warranty_terms ? " — " : ""}
+                      {selected.warranty_terms ?? ""}
+                    </p>
+                  </div>
+                )}
+
                 {selected.observations && (
                   <div>
-                    <p className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400 mb-1">Observações Gerais</p>
+                    <p className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400 mb-1">Observações Internas do Técnico</p>
                     <p className="text-[12px] text-slate-600 bg-slate-50 rounded-xl p-3 border border-slate-200">{selected.observations}</p>
                   </div>
                 )}
@@ -1410,6 +1695,96 @@ export default function ServiceOrders() {
                     </button>
                   )}
                 </div>
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+
+      {/* ── MEASURE (m²/linear) MODAL ───────────────────────────────────────── */}
+      <AnimatePresence>
+        {measureProduct && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              onClick={() => setMeasureProduct(null)}
+              className="fixed inset-0 bg-slate-900/70 backdrop-blur-sm z-[400]"
+            />
+            <motion.div
+              initial={{ opacity: 0, y: 16, scale: 0.98 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 12, scale: 0.98 }}
+              transition={{ type: "spring", damping: 32, stiffness: 300 }}
+              className="fixed inset-x-4 bottom-4 sm:inset-auto sm:top-1/2 sm:left-1/2 sm:-translate-x-1/2 sm:-translate-y-1/2 z-[401] bg-white flex flex-col overflow-hidden rounded-3xl"
+              style={{ width: "min(420px, calc(100vw - 32px))" }}
+            >
+              <div className="shrink-0 flex items-center justify-between px-6 py-4 border-b border-slate-100">
+                <div>
+                  <p className="text-[9px] font-black uppercase tracking-widest text-blue-500">
+                    Venda por {measureProduct.sale_unit === "m2" ? "m²" : "metro linear"}
+                  </p>
+                  <h2 className="text-[14px] font-black text-slate-800">{measureProduct.name}</h2>
+                </div>
+                <button onClick={() => setMeasureProduct(null)} className="w-8 h-8 rounded-xl bg-slate-100 hover:bg-slate-200 flex items-center justify-center">
+                  <X size={14} className="text-slate-500" />
+                </button>
+              </div>
+
+              <div className="p-5 space-y-3">
+                {measureProduct.sale_unit === "m2" ? (
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400 mb-1.5 block">Altura (m)</label>
+                      <input type="number" min="0" step="0.01" autoFocus value={measureHeight}
+                        onChange={(e) => setMeasureHeight(e.target.value)}
+                        placeholder="0,00"
+                        className="w-full h-11 px-3 rounded-xl border border-slate-200 text-sm font-mono font-bold text-center focus:outline-none focus:border-blue-400" />
+                    </div>
+                    <div>
+                      <label className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400 mb-1.5 block">Largura (m)</label>
+                      <input type="number" min="0" step="0.01" value={measureWidth}
+                        onChange={(e) => setMeasureWidth(e.target.value)}
+                        placeholder="0,00"
+                        className="w-full h-11 px-3 rounded-xl border border-slate-200 text-sm font-mono font-bold text-center focus:outline-none focus:border-blue-400" />
+                    </div>
+                  </div>
+                ) : (
+                  <div>
+                    <label className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400 mb-1.5 block">Comprimento (m)</label>
+                    <input type="number" min="0" step="0.01" autoFocus value={measureHeight}
+                      onChange={(e) => setMeasureHeight(e.target.value)}
+                      placeholder="0,00"
+                      className="w-full h-11 px-3 rounded-xl border border-slate-200 text-sm font-mono font-bold text-center focus:outline-none focus:border-blue-400" />
+                  </div>
+                )}
+
+                {measurePreview && measurePreview.rawQuantity > 0 && (
+                  <div className="bg-slate-900 rounded-2xl p-4 space-y-1.5">
+                    <div className="flex justify-between text-[10px] font-bold uppercase text-slate-400">
+                      <span>{measureProduct.sale_unit === "m2" ? "Área" : "Comprimento"}</span>
+                      <span className="font-mono text-slate-200">{measurePreview.label}</span>
+                    </div>
+                    {measurePreview.minimumApplied && (
+                      <p className="text-[10px] font-bold text-amber-400">
+                        Cobrando o mínimo de {Number(measureProduct.min_billable_quantity).toFixed(2)}{measureProduct.sale_unit === "m2" ? "m²" : "m"}
+                      </p>
+                    )}
+                    <div className="flex justify-between text-[13px] font-black uppercase text-white pt-1.5 border-t border-slate-700">
+                      <span>Total</span>
+                      <span className="font-mono">R$ {measurePreview.total.toFixed(2)}</span>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <div className="shrink-0 px-6 pb-6 pt-1 flex gap-2 border-t border-slate-100">
+                <button onClick={() => setMeasureProduct(null)} className="flex-1 h-11 rounded-xl border border-slate-200 text-[10px] font-black uppercase tracking-widest text-slate-600 hover:bg-slate-50 transition-colors">
+                  Cancelar
+                </button>
+                <button onClick={handleAddMeasuredPart}
+                  disabled={addingPart || !measurePreview || measurePreview.rawQuantity <= 0}
+                  className="flex-1 h-11 bg-blue-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-blue-700 transition-all disabled:opacity-50 flex items-center justify-center gap-2">
+                  {addingPart ? <Loader2 size={14} className="animate-spin" /> : <PlusCircle size={14} />}
+                  Adicionar
+                </button>
               </div>
             </motion.div>
           </>

@@ -6,12 +6,14 @@ function getTenantId(req: Request) {
   return (req as AuthenticatedRequest).user.tenantId;
 }
 
-// Calcula o valor atual de uma meta com base nos dados reais do período
-async function computeCurrentValue(
+// Calcula o valor atual de uma meta com base nos dados reais do período.
+// sellerId: quando presente, restringe o cálculo às vendas daquele vendedor (metas individuais).
+export async function computeCurrentValue(
   tenantId: number,
   type: string,
   startDate: Date,
-  endDate: Date
+  endDate: Date,
+  sellerId?: number | null
 ): Promise<number> {
   const end = new Date(endDate);
   end.setHours(23, 59, 59, 999);
@@ -23,6 +25,7 @@ async function computeCurrentValue(
         where: {
           tenant_id: tenantId,
           status: "completed",
+          ...(sellerId != null && { seller_id: sellerId }),
           created_at: { gte: startDate, lte: end },
         },
         _sum: { total_amount: true },
@@ -36,10 +39,36 @@ async function computeCurrentValue(
         where: {
           tenant_id: tenantId,
           status: "completed",
+          ...(sellerId != null && { seller_id: sellerId }),
           created_at: { gte: startDate, lte: end },
         },
       });
       return count;
+    }
+
+    case "avg_ticket": {
+      // Ticket médio: receita / quantidade de vendas do mesmo período
+      const [revenueResult, count] = await Promise.all([
+        prisma.order.aggregate({
+          where: {
+            tenant_id: tenantId,
+            status: "completed",
+            ...(sellerId != null && { seller_id: sellerId }),
+            created_at: { gte: startDate, lte: end },
+          },
+          _sum: { total_amount: true },
+        }),
+        prisma.order.count({
+          where: {
+            tenant_id: tenantId,
+            status: "completed",
+            ...(sellerId != null && { seller_id: sellerId }),
+            created_at: { gte: startDate, lte: end },
+          },
+        }),
+      ]);
+      const revenue = Number(revenueResult._sum.total_amount ?? 0);
+      return count > 0 ? revenue / count : 0;
     }
 
     case "expense_reduction": {
@@ -81,7 +110,38 @@ async function computeCurrentValue(
     }
 
     case "new_customers": {
-      // Novos clientes cadastrados no período
+      if (sellerId != null) {
+        // Novos clientes atendidos por este vendedor: clientes cuja primeira
+        // venda concluída no tenant caiu dentro do período e foi feita por ele.
+        const orders = await prisma.order.findMany({
+          where: {
+            tenant_id: tenantId,
+            status: "completed",
+            seller_id: sellerId,
+            customer_id: { not: null },
+            created_at: { gte: startDate, lte: end },
+          },
+          select: { customer_id: true },
+          distinct: ["customer_id"],
+        });
+        const customerIds = orders.map((o) => o.customer_id).filter((id): id is number => id != null);
+        if (customerIds.length === 0) return 0;
+
+        const priorOrders = await prisma.order.findMany({
+          where: {
+            tenant_id: tenantId,
+            status: "completed",
+            customer_id: { in: customerIds },
+            created_at: { lt: startDate },
+          },
+          select: { customer_id: true },
+          distinct: ["customer_id"],
+        });
+        const alreadyExisting = new Set(priorOrders.map((o) => o.customer_id));
+        return customerIds.filter((id) => !alreadyExisting.has(id)).length;
+      }
+
+      // Meta da loja: novos clientes cadastrados no período
       const count = await prisma.customer.count({
         where: {
           tenant_id: tenantId,
@@ -100,7 +160,7 @@ export async function listGoals(req: Request, res: Response) {
   try {
     const tenantId = getTenantId(req);
     const goals = await prisma.goal.findMany({
-      where: { tenant_id: tenantId },
+      where: { tenant_id: tenantId, seller_id: null },
       orderBy: [{ status: "asc" }, { end_date: "asc" }],
     });
 
@@ -135,11 +195,13 @@ export async function listGoals(req: Request, res: Response) {
 export async function createGoal(req: Request, res: Response) {
   try {
     const tenantId = getTenantId(req);
-    const { title, description, type, period, target_value, start_date, end_date } = req.body;
+    const { title, description, type, period, target_value, start_date, end_date, seller_id } = req.body;
+    const sellerId = seller_id != null ? Number(seller_id) : null;
 
     const goal = await prisma.goal.create({
       data: {
         tenant_id: tenantId,
+        seller_id: sellerId,
         title,
         description: description || null,
         type,
@@ -157,7 +219,8 @@ export async function createGoal(req: Request, res: Response) {
       tenantId,
       type,
       new Date(start_date),
-      new Date(end_date)
+      new Date(end_date),
+      sellerId
     );
     const updated = await prisma.goal.update({
       where: { id: goal.id },

@@ -3,11 +3,22 @@ import {
   Users, Plus, Search, Edit2, Trash2, Trophy,
   TrendingUp, DollarSign, X, Check, ChevronLeft,
   ChevronRight, Star, Medal, Award, ToggleLeft, ToggleRight,
-  Phone, Mail, FileText, Percent,
+  Phone, Mail, FileText, Percent, Target, ChevronDown,
+  Clock, Flame, XCircle, CheckCircle2, AlertCircle,
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { cn } from "../../lib/utils";
 import PageHeader from "../../components/layout/PageHeader";
+import {
+  SELLER_GOAL_TYPES,
+  PERIODS,
+  fmtValue,
+  getTypeConfig,
+  getPeriodLabel,
+  progressColor,
+  daysLeft,
+  defaultDates,
+} from "../../lib/goals";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -29,6 +40,25 @@ interface SellerStats extends Seller {
   month_commission: number;
   all_time_revenue: number;
   all_time_commission: number;
+}
+
+interface SellerGoal {
+  id: number;
+  seller_id: number | null;
+  title: string;
+  description?: string;
+  type: string;
+  period: string;
+  target_value: number;
+  current_value: number;
+  start_date: string;
+  end_date: string;
+  status: "active" | "completed" | "cancelled";
+}
+
+interface GoalRankingEntry extends Seller {
+  goal: SellerGoal | null;
+  progress_pct: number | null;
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -59,11 +89,22 @@ const emptyForm = (): Omit<Seller, "id" | "created_at"> => ({
   commission_rate: 0, is_active: true, notes: "",
 });
 
+const emptyGoalForm = () => ({
+  seller_id: "" as number | "",
+  title: "",
+  description: "",
+  type: "revenue",
+  period: "monthly",
+  target_value: "",
+  start_date: "",
+  end_date: "",
+});
+
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export default function Sellers() {
   const now = new Date();
-  const [tab, setTab]             = useState<"ranking" | "cadastro">("ranking");
+  const [tab, setTab]             = useState<"ranking" | "cadastro" | "metas">("ranking");
   const [stats, setStats]         = useState<SellerStats[]>([]);
   const [sellers, setSellers]     = useState<Seller[]>([]);
   const [loading, setLoading]     = useState(true);
@@ -80,6 +121,20 @@ export default function Sellers() {
 
   // modal detalhe do vendedor
   const [detailSeller, setDetailSeller] = useState<SellerStats | null>(null);
+
+  // ranking: por receita (padrão) ou por % de meta batida
+  const [rankingMode, setRankingMode] = useState<"revenue" | "goals">("revenue");
+  const [goalsRanking, setGoalsRanking] = useState<GoalRankingEntry[]>([]);
+  const [goalsRankingLoading, setGoalsRankingLoading] = useState(false);
+
+  // aba Metas
+  const [sellerGoals, setSellerGoals]       = useState<SellerGoal[]>([]);
+  const [goalsLoading, setGoalsLoading]     = useState(true);
+  const [goalFilter, setGoalFilter]         = useState<number | "all">("all");
+  const [showGoalForm, setShowGoalForm]     = useState(false);
+  const [editGoal, setEditGoal]             = useState<SellerGoal | null>(null);
+  const [goalForm, setGoalForm]             = useState(emptyGoalForm());
+  const [savingGoal, setSavingGoal]         = useState(false);
 
   // ── Fetch ──────────────────────────────────────────────────────────────────
 
@@ -99,7 +154,30 @@ export default function Sellers() {
     setSellers(await r.json());
   }, []);
 
-  useEffect(() => { fetchStats(); fetchSellers(); }, [fetchStats, fetchSellers]);
+  const fetchGoalsRanking = useCallback(async () => {
+    setGoalsRankingLoading(true);
+    try {
+      const r = await fetch(`/api/sellers/goals-ranking?month=${month}&year=${year}`, { headers: authH() });
+      const d = await r.json();
+      setGoalsRanking(Array.isArray(d.ranking) ? d.ranking : []);
+    } finally {
+      setGoalsRankingLoading(false);
+    }
+  }, [month, year]);
+
+  const fetchSellerGoals = useCallback(async () => {
+    setGoalsLoading(true);
+    try {
+      const r = await fetch("/api/sellers/goals", { headers: authH() });
+      const d = await r.json();
+      setSellerGoals(Array.isArray(d) ? d : []);
+    } finally {
+      setGoalsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { fetchStats(); fetchSellers(); fetchSellerGoals(); }, [fetchStats, fetchSellers, fetchSellerGoals]);
+  useEffect(() => { if (rankingMode === "goals") fetchGoalsRanking(); }, [rankingMode, fetchGoalsRanking]);
 
   // ── CRUD ──────────────────────────────────────────────────────────────────
 
@@ -145,11 +223,94 @@ export default function Sellers() {
     fetchSellers(); fetchStats();
   };
 
+  // ── Metas por vendedor / loja ────────────────────────────────────────────
+
+  const openNewGoal = () => {
+    setEditGoal(null);
+    const { start, end } = defaultDates("monthly");
+    setGoalForm({ ...emptyGoalForm(), start_date: start, end_date: end });
+    setShowGoalForm(true);
+  };
+
+  const openEditGoal = (g: SellerGoal) => {
+    setEditGoal(g);
+    setGoalForm({
+      seller_id: g.seller_id ?? "",
+      title: g.title,
+      description: g.description ?? "",
+      type: g.type,
+      period: g.period,
+      target_value: String(g.target_value),
+      start_date: g.start_date.split("T")[0],
+      end_date: g.end_date.split("T")[0],
+    });
+    setShowGoalForm(true);
+  };
+
+  const closeGoalForm = () => { setShowGoalForm(false); setEditGoal(null); };
+
+  const handleSaveGoal = async () => {
+    if (!goalForm.title.trim() || !goalForm.target_value || !goalForm.start_date || !goalForm.end_date) return;
+    setSavingGoal(true);
+    try {
+      if (editGoal) {
+        await fetch(`/api/goals/${editGoal.id}`, {
+          method: "PUT", headers: authH(),
+          body: JSON.stringify({
+            title: goalForm.title,
+            description: goalForm.description || undefined,
+            target_value: Number(goalForm.target_value),
+          }),
+        });
+      } else {
+        await fetch("/api/goals", {
+          method: "POST", headers: authH(),
+          body: JSON.stringify({
+            seller_id: goalForm.seller_id === "" ? null : Number(goalForm.seller_id),
+            title: goalForm.title,
+            description: goalForm.description || undefined,
+            type: goalForm.type,
+            period: goalForm.period,
+            target_value: Number(goalForm.target_value),
+            start_date: goalForm.start_date,
+            end_date: goalForm.end_date,
+          }),
+        });
+      }
+      await Promise.all([fetchSellerGoals(), fetchGoalsRanking()]);
+      closeGoalForm();
+    } finally {
+      setSavingGoal(false);
+    }
+  };
+
+  const handleDeleteGoal = async (id: number) => {
+    if (!confirm("Excluir esta meta?")) return;
+    await fetch(`/api/goals/${id}`, { method: "DELETE", headers: authH() });
+    fetchSellerGoals(); fetchGoalsRanking();
+  };
+
+  // Auto-fill de datas ao trocar período no form de metas
+  useEffect(() => {
+    if (goalForm.period !== "custom") {
+      const { start, end } = defaultDates(goalForm.period);
+      setGoalForm((f) => ({ ...f, start_date: start, end_date: end }));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [goalForm.period]);
+
   // ── Filtered list ──────────────────────────────────────────────────────────
 
   const filteredSellers = sellers.filter((s) =>
     !search || s.name.toLowerCase().includes(search.toLowerCase())
   );
+
+  const filteredGoals = sellerGoals.filter(
+    (g) => goalFilter === "all" || g.seller_id === goalFilter
+  );
+
+  const sellerName = (id: number | null) =>
+    id == null ? "Loja (geral)" : sellers.find((s) => s.id === id)?.name ?? "Vendedor removido";
 
   // ── Month navigation ───────────────────────────────────────────────────────
 
@@ -175,24 +336,31 @@ export default function Sellers() {
     <div className="space-y-5">
       <PageHeader
         title="Vendedores"
-        subtitle="Ranking, comissões e cadastro da equipe de vendas"
+        subtitle="Ranking, comissões, metas e cadastro da equipe de vendas"
         action={
-          <button onClick={openNew}
-            className="h-9 px-4 bg-blue-600 text-white rounded-lg flex items-center gap-2 text-[12px] font-bold hover:bg-blue-700 transition-all shadow-md shadow-blue-500/20">
-            <Plus size={15} /> Novo Vendedor
-          </button>
+          tab === "metas" ? (
+            <button onClick={openNewGoal}
+              className="h-9 px-4 bg-blue-600 text-white rounded-lg flex items-center gap-2 text-[12px] font-bold hover:bg-blue-700 transition-all shadow-md shadow-blue-500/20">
+              <Plus size={15} /> Nova Meta
+            </button>
+          ) : (
+            <button onClick={openNew}
+              className="h-9 px-4 bg-blue-600 text-white rounded-lg flex items-center gap-2 text-[12px] font-bold hover:bg-blue-700 transition-all shadow-md shadow-blue-500/20">
+              <Plus size={15} /> Novo Vendedor
+            </button>
+          )
         }
       />
 
       {/* ── Tabs ─────────────────────────────────────────────────────────── */}
       <div className="flex gap-1 bg-slate-100 p-1 rounded-xl w-fit">
-        {(["ranking", "cadastro"] as const).map((t) => (
+        {(["ranking", "metas", "cadastro"] as const).map((t) => (
           <button key={t} onClick={() => setTab(t)}
             className={cn(
               "h-8 px-5 rounded-lg text-[11px] font-black uppercase tracking-wider transition-all",
               tab === t ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"
             )}>
-            {t === "ranking" ? "Ranking & Comissões" : "Cadastro"}
+            {t === "ranking" ? "Ranking & Comissões" : t === "metas" ? "Metas" : "Cadastro"}
           </button>
         ))}
       </div>
@@ -216,6 +384,24 @@ export default function Sellers() {
             </button>
           </div>
 
+          {/* Sub-toggle: por receita vs % de meta batida */}
+          <div className="flex gap-1 bg-slate-100 p-1 rounded-lg w-fit">
+            {([
+              { value: "revenue", label: "Por Receita" },
+              { value: "goals",   label: "% de Meta Batida" },
+            ] as const).map((o) => (
+              <button key={o.value} onClick={() => setRankingMode(o.value)}
+                className={cn(
+                  "h-7 px-3 rounded-md text-[10px] font-black uppercase tracking-wider transition-all",
+                  rankingMode === o.value ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"
+                )}>
+                {o.label}
+              </button>
+            ))}
+          </div>
+
+          {rankingMode === "revenue" && (
+          <>
           {/* Summary cards */}
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
             {[
@@ -310,6 +496,92 @@ export default function Sellers() {
                 </motion.div>
               ))}
             </div>
+          )}
+          </>
+          )}
+
+          {rankingMode === "goals" && (
+            goalsRankingLoading ? (
+              <div className="flex justify-center py-16 text-slate-400 text-sm">Carregando…</div>
+            ) : goalsRanking.length === 0 ? (
+              <div className="flex flex-col items-center py-16 text-slate-400 gap-3">
+                <Target size={36} strokeWidth={1} />
+                <p className="text-sm font-medium">Nenhum vendedor ativo cadastrado</p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {goalsRanking.map((s, idx) => {
+                  const hasGoal = s.goal != null && s.progress_pct != null;
+                  const pct = hasGoal ? Math.min(100, s.progress_pct!) : 0;
+                  return (
+                    <motion.div
+                      key={s.id}
+                      initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: idx * 0.04 }}
+                      className={cn(
+                        "bg-white rounded-2xl border shadow-sm p-4 flex items-center gap-4 transition-all",
+                        hasGoal && idx === 0 && "border-yellow-300 bg-yellow-50/40 shadow-yellow-100/80"
+                      )}
+                    >
+                      {/* Rank */}
+                      <div className={cn(
+                        "w-10 h-10 rounded-xl flex items-center justify-center shrink-0 font-black text-lg",
+                        hasGoal && idx === 0 ? "bg-yellow-100" : hasGoal && idx === 1 ? "bg-slate-100" : hasGoal && idx === 2 ? "bg-amber-50" : "bg-slate-50 text-slate-400"
+                      )}>
+                        {hasGoal && idx < 3 ? MEDAL_ICONS[idx] : <span className="text-[13px] text-slate-400">#{idx + 1}</span>}
+                      </div>
+
+                      {/* Avatar */}
+                      <div className={cn(
+                        "w-10 h-10 rounded-xl flex items-center justify-center shrink-0 text-white font-black text-sm",
+                        hasGoal && idx === 0 ? "bg-yellow-500" : "bg-blue-600"
+                      )}>
+                        {s.name.charAt(0).toUpperCase()}
+                      </div>
+
+                      {/* Info */}
+                      <div className="flex-1 min-w-0">
+                        <p className="font-black text-slate-900 text-sm truncate">{s.name}</p>
+                        {hasGoal ? (
+                          <p className="text-[11px] text-slate-400 font-medium truncate">
+                            {s.goal!.title} · {getTypeConfig(s.goal!.type).label}
+                          </p>
+                        ) : (
+                          <span className="inline-flex items-center text-[10px] font-bold text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full mt-0.5">
+                            Sem meta definida
+                          </span>
+                        )}
+                      </div>
+
+                      {hasGoal && (
+                        <>
+                          <div className="hidden sm:flex items-center gap-6 shrink-0">
+                            <div className="text-right">
+                              <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Progresso</p>
+                              <p className="font-black text-slate-900 text-sm">
+                                {fmtValue(Number(s.goal!.current_value), getTypeConfig(s.goal!.type).unit)} / {fmtValue(Number(s.goal!.target_value), getTypeConfig(s.goal!.type).unit)}
+                              </p>
+                            </div>
+                          </div>
+
+                          <div className="w-24 shrink-0">
+                            <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                              <div
+                                className={cn("h-full rounded-full transition-all", progressColor(s.progress_pct!))}
+                                style={{ width: `${pct}%` }}
+                              />
+                            </div>
+                            <p className={cn("text-[9px] font-bold mt-0.5 text-right", progressColor(s.progress_pct!).replace("bg-", "text-"))}>
+                              {s.progress_pct!.toFixed(0)}%
+                            </p>
+                          </div>
+                        </>
+                      )}
+                    </motion.div>
+                  );
+                })}
+              </div>
+            )
           )}
         </div>
       )}
@@ -431,6 +703,325 @@ export default function Sellers() {
           )}
         </div>
       )}
+
+      {/* ══════════════════ METAS TAB ══════════════════ */}
+      {tab === "metas" && (
+        <div className="space-y-4">
+          {/* Filtro por vendedor */}
+          <div className="flex gap-2 flex-wrap">
+            <button onClick={() => setGoalFilter("all")}
+              className={cn(
+                "h-8 px-3 rounded-lg text-[11px] font-bold border transition-all",
+                goalFilter === "all" ? "bg-blue-600 text-white border-blue-600" : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50"
+              )}>
+              Todas
+            </button>
+            {sellers.map((s) => (
+              <button key={s.id} onClick={() => setGoalFilter(s.id)}
+                className={cn(
+                  "h-8 px-3 rounded-lg text-[11px] font-bold border transition-all",
+                  goalFilter === s.id ? "bg-blue-600 text-white border-blue-600" : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50"
+                )}>
+                {s.name}
+              </button>
+            ))}
+          </div>
+
+          {goalsLoading ? (
+            <div className="flex justify-center py-16 text-slate-400 text-sm">Carregando…</div>
+          ) : filteredGoals.length === 0 ? (
+            <div className="flex flex-col items-center py-16 text-slate-400 gap-3">
+              <Target size={40} strokeWidth={1} />
+              <p className="text-sm font-medium">Nenhuma meta encontrada</p>
+              <button onClick={openNewGoal}
+                className="h-8 px-4 bg-blue-600 text-white rounded-lg text-xs font-bold hover:bg-blue-700">
+                Criar primeira meta
+              </button>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
+              <AnimatePresence mode="popLayout">
+                {filteredGoals.map((g) => {
+                  const cfg = getTypeConfig(g.type);
+                  const Icon = cfg.icon;
+                  const pct = Math.min(100, Number(g.target_value) > 0 ? (Number(g.current_value) / Number(g.target_value)) * 100 : 0);
+                  const left = daysLeft(g.end_date);
+                  const isExpired = left < 0;
+                  const isDone = pct >= 100;
+                  return (
+                    <motion.div
+                      key={g.id} layout
+                      initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, scale: 0.96 }}
+                      className={cn(
+                        "bg-white rounded-2xl border shadow-sm hover:shadow-md transition-all flex flex-col gap-0 overflow-hidden",
+                        isDone ? "border-emerald-300 ring-1 ring-emerald-200" : "border-slate-200"
+                      )}
+                    >
+                      <div className="flex items-start justify-between px-4 pt-4 pb-3">
+                        <div className="flex items-start gap-3 min-w-0">
+                          <div className={cn("w-9 h-9 rounded-xl flex items-center justify-center shrink-0 border", cfg.bg, cfg.border)}>
+                            <Icon size={16} className={cfg.color} />
+                          </div>
+                          <div className="min-w-0">
+                            <p className="text-[11px] font-black uppercase tracking-wider text-slate-400 leading-none mb-0.5">
+                              {getPeriodLabel(g.period)} · {cfg.label}
+                            </p>
+                            <h3 className="font-black text-slate-800 text-[14px] leading-tight truncate">{g.title}</h3>
+                            <p className="text-[11px] text-blue-500 font-bold mt-0.5">{sellerName(g.seller_id)}</p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-1 shrink-0 ml-2">
+                          {isDone && <Trophy size={14} className="text-amber-400" />}
+                          <button onClick={() => openEditGoal(g)}
+                            className="p-1.5 hover:bg-slate-100 rounded-lg text-slate-400 transition-colors">
+                            <Edit2 size={13} />
+                          </button>
+                          <button onClick={() => handleDeleteGoal(g.id)}
+                            className="p-1.5 hover:bg-red-50 rounded-lg text-slate-300 hover:text-red-400 transition-colors">
+                            <Trash2 size={13} />
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="px-4 pb-1">
+                        <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
+                          <motion.div
+                            initial={{ width: 0 }} animate={{ width: `${pct}%` }} transition={{ duration: 0.8, ease: "easeOut" }}
+                            className={cn("h-full rounded-full", progressColor(pct))}
+                          />
+                        </div>
+                        <div className="flex items-center justify-between mt-1.5">
+                          <span className={cn("text-[11px] font-black", progressColor(pct).replace("bg-", "text-"))}>
+                            {pct.toFixed(1)}%
+                          </span>
+                          <span className="text-[10px] text-slate-400 font-semibold">
+                            {fmtValue(Number(g.current_value), cfg.unit)} / {fmtValue(Number(g.target_value), cfg.unit)}
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center justify-between px-4 py-3 border-t border-slate-100 mt-auto">
+                        <div className="flex items-center gap-1.5">
+                          {isDone ? (
+                            <span className="flex items-center gap-1 text-[10px] font-black text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full">
+                              <CheckCircle2 size={10} /> Meta atingida!
+                            </span>
+                          ) : isExpired ? (
+                            <span className="flex items-center gap-1 text-[10px] font-black text-red-500 bg-red-50 px-2 py-0.5 rounded-full">
+                              <XCircle size={10} /> Expirada
+                            </span>
+                          ) : left <= 3 ? (
+                            <span className="flex items-center gap-1 text-[10px] font-black text-orange-600 bg-orange-50 px-2 py-0.5 rounded-full">
+                              <Flame size={10} /> {left}d restante{left !== 1 ? "s" : ""}
+                            </span>
+                          ) : (
+                            <span className="flex items-center gap-1 text-[10px] font-semibold text-slate-500">
+                              <Clock size={10} /> {left}d restantes
+                            </span>
+                          )}
+                        </div>
+                        <span className="text-[10px] text-slate-400">
+                          Falta: {fmtValue(Math.max(0, Number(g.target_value) - Number(g.current_value)), cfg.unit)}
+                        </span>
+                      </div>
+                    </motion.div>
+                  );
+                })}
+              </AnimatePresence>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ══════════ FORM DRAWER — NOVA/EDITAR META ══════════ */}
+      <AnimatePresence>
+        {showGoalForm && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              onClick={closeGoalForm}
+              className="fixed inset-0 bg-slate-900/50 z-40 backdrop-blur-sm"
+            />
+            <motion.div
+              initial={{ x: "100%" }} animate={{ x: 0 }} exit={{ x: "100%" }}
+              transition={{ type: "spring", damping: 26, stiffness: 200 }}
+              className="fixed inset-y-0 right-0 w-full max-w-md bg-white z-50 shadow-2xl flex flex-col"
+            >
+              <div className="flex items-center justify-between px-5 py-4 border-b border-slate-200 shrink-0">
+                <div>
+                  <h2 className="font-black text-slate-900 text-[15px]">
+                    {editGoal ? "Editar Meta" : "Nova Meta"}
+                  </h2>
+                  <p className="text-[11px] text-slate-500">
+                    {editGoal ? "Altere título, descrição ou valor alvo" : "Configure o dono, tipo, período e valor alvo"}
+                  </p>
+                </div>
+                <button onClick={closeGoalForm} className="p-2 hover:bg-slate-100 rounded-lg text-slate-500">
+                  <X size={18} />
+                </button>
+              </div>
+
+              <div className="flex-1 overflow-y-auto p-5 space-y-4">
+
+                {/* Dono da meta */}
+                {!editGoal && (
+                  <div>
+                    <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block mb-1">
+                      Meta de *
+                    </label>
+                    <div className="relative">
+                      <select
+                        value={goalForm.seller_id}
+                        onChange={(e) => setGoalForm((f) => ({ ...f, seller_id: e.target.value === "" ? "" : Number(e.target.value) }))}
+                        className="w-full h-9 pl-3 pr-8 rounded-lg border border-slate-200 text-sm appearance-none focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                      >
+                        <option value="">Loja (geral)</option>
+                        {sellers.map((s) => (
+                          <option key={s.id} value={s.id}>{s.name}</option>
+                        ))}
+                      </select>
+                      <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                    </div>
+                  </div>
+                )}
+
+                {/* Título */}
+                <div>
+                  <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block mb-1">
+                    Título da Meta *
+                  </label>
+                  <input
+                    value={goalForm.title}
+                    onChange={(e) => setGoalForm((f) => ({ ...f, title: e.target.value }))}
+                    placeholder="Ex: Vender R$ 10.000 em Julho"
+                    className="w-full h-9 px-3 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+
+                {/* Descrição */}
+                <div>
+                  <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block mb-1">
+                    Descrição (opcional)
+                  </label>
+                  <textarea
+                    value={goalForm.description}
+                    onChange={(e) => setGoalForm((f) => ({ ...f, description: e.target.value }))}
+                    rows={2}
+                    placeholder="Detalhes ou estratégias para atingir a meta…"
+                    className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+                  />
+                </div>
+
+                {/* Tipo */}
+                {!editGoal && (
+                  <div>
+                    <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block mb-2">
+                      Tipo de Meta *
+                    </label>
+                    <div className="grid grid-cols-2 gap-2">
+                      {SELLER_GOAL_TYPES.map((t) => (
+                        <button key={t.value} onClick={() => setGoalForm((f) => ({ ...f, type: t.value }))}
+                          className={cn(
+                            "flex items-center gap-2 px-3 py-2.5 rounded-xl border text-left transition-all",
+                            goalForm.type === t.value ? `${t.bg} ${t.border} ${t.color} border-2` : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50"
+                          )}>
+                          <t.icon size={14} className={goalForm.type === t.value ? t.color : "text-slate-400"} />
+                          <span className="text-[11px] font-bold leading-tight">{t.label}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Período */}
+                {!editGoal && (
+                  <div>
+                    <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block mb-1">
+                      Período *
+                    </label>
+                    <div className="relative">
+                      <select
+                        value={goalForm.period}
+                        onChange={(e) => setGoalForm((f) => ({ ...f, period: e.target.value }))}
+                        className="w-full h-9 pl-3 pr-8 rounded-lg border border-slate-200 text-sm appearance-none focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                      >
+                        {PERIODS.map((p) => (
+                          <option key={p.value} value={p.value}>{p.label}</option>
+                        ))}
+                      </select>
+                      <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                    </div>
+                  </div>
+                )}
+
+                {/* Datas */}
+                {!editGoal && (
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block mb-1">
+                        Início *
+                      </label>
+                      <input
+                        type="date"
+                        value={goalForm.start_date}
+                        onChange={(e) => setGoalForm((f) => ({ ...f, period: "custom", start_date: e.target.value }))}
+                        className="w-full h-9 px-3 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block mb-1">
+                        Fim *
+                      </label>
+                      <input
+                        type="date"
+                        value={goalForm.end_date}
+                        onChange={(e) => setGoalForm((f) => ({ ...f, period: "custom", end_date: e.target.value }))}
+                        className="w-full h-9 px-3 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {/* Valor alvo */}
+                <div>
+                  <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block mb-1">
+                    Valor Alvo * {getTypeConfig(goalForm.type).unit === "currency" ? "(R$)" : "(unidades)"}
+                  </label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm font-bold">
+                      {getTypeConfig(goalForm.type).unit === "currency" ? "R$" : "#"}
+                    </span>
+                    <input
+                      type="number"
+                      min={0}
+                      step={getTypeConfig(goalForm.type).unit === "currency" ? "0.01" : "1"}
+                      value={goalForm.target_value}
+                      onChange={(e) => setGoalForm((f) => ({ ...f, target_value: e.target.value }))}
+                      placeholder={getTypeConfig(goalForm.type).unit === "currency" ? "0,00" : "0"}
+                      className="w-full h-9 pl-9 pr-3 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Footer */}
+              <div className="border-t border-slate-200 px-5 py-4 shrink-0 bg-slate-50 flex gap-2">
+                <button onClick={closeGoalForm}
+                  className="flex-1 h-9 rounded-lg border border-slate-200 text-sm font-semibold text-slate-600 hover:bg-slate-100">
+                  Cancelar
+                </button>
+                <button
+                  onClick={handleSaveGoal}
+                  disabled={savingGoal || !goalForm.title.trim() || !goalForm.target_value || (!editGoal && (!goalForm.start_date || !goalForm.end_date))}
+                  className="flex-1 h-9 bg-blue-600 text-white rounded-lg text-sm font-bold hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+                >
+                  {savingGoal ? "Salvando…" : editGoal ? "Salvar Alterações" : "Criar Meta"}
+                </button>
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
 
       {/* ══════════ MODAL CADASTRO / EDIÇÃO ══════════ */}
       <AnimatePresence>
@@ -603,75 +1194,79 @@ export default function Sellers() {
               initial={{ opacity: 0, scale: 0.94, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.94, y: 20 }}
-              className="fixed inset-0 z-50 flex items-center justify-center p-4"
+              className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4"
             >
-              <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden">
+              <div className="bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl w-full sm:max-w-sm max-h-[92vh] sm:max-h-[88vh] overflow-y-auto overscroll-contain">
                 {/* Colored header */}
-                <div className="bg-gradient-to-br from-blue-600 to-blue-700 px-6 pt-6 pb-8 text-white relative">
+                <div className="sticky top-0 z-10 bg-gradient-to-br from-blue-600 to-blue-700 px-5 sm:px-6 pt-5 sm:pt-6 pb-8 text-white relative">
                   <button onClick={() => setDetailSeller(null)}
                     className="absolute top-4 right-4 p-1.5 hover:bg-white/20 rounded-lg transition-colors">
                     <X size={16} />
                   </button>
-                  <div className="w-14 h-14 rounded-2xl bg-white/20 flex items-center justify-center font-black text-2xl mb-3">
+                  <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-white/20 flex items-center justify-center font-black text-xl sm:text-2xl mb-3 shrink-0">
                     {detailSeller.name.charAt(0).toUpperCase()}
                   </div>
-                  <h3 className="font-black text-lg leading-tight">{detailSeller.name}</h3>
-                  {detailSeller.phone && (
-                    <p className="text-blue-200 text-sm mt-0.5 flex items-center gap-1.5">
-                      <Phone size={11} /> {detailSeller.phone}
-                    </p>
-                  )}
-                  {detailSeller.email && (
-                    <p className="text-blue-200 text-sm flex items-center gap-1.5">
-                      <Mail size={11} /> {detailSeller.email}
-                    </p>
+                  <h3 className="font-black text-base sm:text-lg leading-tight truncate pr-8">{detailSeller.name}</h3>
+                  {(detailSeller.phone || detailSeller.email) && (
+                    <div className="mt-1 space-y-0.5">
+                      {detailSeller.phone && (
+                        <p className="text-blue-200 text-xs sm:text-sm flex items-center gap-1.5 truncate">
+                          <Phone size={11} className="shrink-0" /> <span className="truncate">{detailSeller.phone}</span>
+                        </p>
+                      )}
+                      {detailSeller.email && (
+                        <p className="text-blue-200 text-xs sm:text-sm flex items-center gap-1.5 truncate">
+                          <Mail size={11} className="shrink-0" /> <span className="truncate">{detailSeller.email}</span>
+                        </p>
+                      )}
+                    </div>
                   )}
                 </div>
 
                 {/* Stats */}
-                <div className="px-6 -mt-4">
-                  <div className="bg-white rounded-2xl shadow-lg border border-slate-100 p-4 grid grid-cols-3 gap-3">
-                    <div className="text-center">
-                      <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Comissão</p>
-                      <p className="font-black text-blue-600 text-base">{Number(detailSeller.commission_rate).toFixed(1)}%</p>
+                <div className="px-5 sm:px-6 -mt-4 relative z-10">
+                  <div className="bg-white rounded-2xl shadow-lg border border-slate-100 p-3 sm:p-4 grid grid-cols-3 gap-2 sm:gap-3">
+                    <div className="text-center min-w-0">
+                      <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wider truncate">Comissão</p>
+                      <p className="font-black text-blue-600 text-sm sm:text-base truncate">{Number(detailSeller.commission_rate).toFixed(1)}%</p>
                     </div>
-                    <div className="text-center border-x border-slate-100">
-                      <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Vendas mês</p>
-                      <p className="font-black text-slate-900 text-base">{detailSeller.month_sales}</p>
+                    <div className="text-center border-x border-slate-100 min-w-0 px-1">
+                      <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wider truncate">Vendas mês</p>
+                      <p className="font-black text-slate-900 text-sm sm:text-base truncate">{detailSeller.month_sales}</p>
                     </div>
-                    <div className="text-center">
-                      <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Receita mês</p>
-                      <p className="font-black text-emerald-600 text-sm">{fmt(detailSeller.month_revenue)}</p>
+                    <div className="text-center min-w-0">
+                      <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wider truncate">Receita mês</p>
+                      <p className="font-black text-emerald-600 text-xs sm:text-sm truncate">{fmt(detailSeller.month_revenue)}</p>
                     </div>
                   </div>
                 </div>
 
-                <div className="p-6 space-y-3">
+                <div className="p-5 sm:p-6 space-y-3">
                   {/* Comissão do mês */}
-                  <div className="bg-emerald-50 border border-emerald-100 rounded-xl p-4 flex items-center justify-between">
-                    <div>
+                  <div className="bg-emerald-50 border border-emerald-100 rounded-xl p-3 sm:p-4 flex items-center justify-between gap-3">
+                    <div className="min-w-0">
                       <p className="text-[10px] font-bold text-emerald-600 uppercase tracking-wider">Comissão a Receber</p>
                       <p className="text-[10px] text-emerald-500">{MONTHS[month-1]} {year}</p>
                     </div>
-                    <p className="font-black text-emerald-700 text-xl">{fmt(detailSeller.month_commission)}</p>
+                    <p className="font-black text-emerald-700 text-lg sm:text-xl shrink-0">{fmt(detailSeller.month_commission)}</p>
                   </div>
 
                   {/* All time */}
                   <div className="grid grid-cols-2 gap-3">
-                    <div className="bg-slate-50 rounded-xl p-3">
+                    <div className="bg-slate-50 rounded-xl p-3 min-w-0">
                       <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Receita Total</p>
-                      <p className="font-black text-slate-900 text-sm mt-0.5">{fmt(detailSeller.all_time_revenue)}</p>
+                      <p className="font-black text-slate-900 text-sm mt-0.5 truncate">{fmt(detailSeller.all_time_revenue)}</p>
                     </div>
-                    <div className="bg-slate-50 rounded-xl p-3">
+                    <div className="bg-slate-50 rounded-xl p-3 min-w-0">
                       <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Comissão Total</p>
-                      <p className="font-black text-slate-900 text-sm mt-0.5">{fmt(detailSeller.all_time_commission)}</p>
+                      <p className="font-black text-slate-900 text-sm mt-0.5 truncate">{fmt(detailSeller.all_time_commission)}</p>
                     </div>
                   </div>
 
                   {detailSeller.notes && (
                     <div className="bg-amber-50 border border-amber-100 rounded-xl p-3">
                       <p className="text-[9px] font-bold text-amber-500 uppercase tracking-wider mb-1">Obs</p>
-                      <p className="text-sm text-amber-800">{detailSeller.notes}</p>
+                      <p className="text-sm text-amber-800 break-words">{detailSeller.notes}</p>
                     </div>
                   )}
 

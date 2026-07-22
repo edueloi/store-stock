@@ -3,6 +3,7 @@ import type { Request, Response } from "express";
 import { prisma } from "../config/prisma";
 import type { AuthenticatedRequest } from "../types/auth";
 import { localDateString } from "../utils/date";
+import { computeMeasuredPrice } from "../utils/measurePricing";
 
 function getTenantId(req: Request) {
   return (req as AuthenticatedRequest).user.tenantId;
@@ -14,6 +15,8 @@ function getActor(req: Request): string {
 }
 
 const ALLOWED_STATUSES = ["aberta", "em_analise", "em_conserto", "pronto_retirada", "entregue", "cancelada"];
+const STATUS_ORDER = ["aberta", "em_analise", "em_conserto", "pronto_retirada", "entregue"];
+const ALLOWED_PRIORITIES = ["normal", "urgente"];
 
 async function logAction(
   tenantId: number,
@@ -109,9 +112,14 @@ export async function createServiceOrder(req: Request, res: Response) {
       equipment_model,
       equipment_serial,
       equipment_accessories,
+      reported_issue,
       seller_id,
       technician_name,
+      priority,
+      promised_at,
       service_value,
+      warranty_days,
+      warranty_terms,
       observations,
       parts,
     } = req.body as {
@@ -124,9 +132,14 @@ export async function createServiceOrder(req: Request, res: Response) {
       equipment_model?: string;
       equipment_serial?: string;
       equipment_accessories?: string;
+      reported_issue?: string;
       seller_id?: number;
       technician_name?: string;
+      priority?: string;
+      promised_at?: string;
       service_value?: number;
+      warranty_days?: number;
+      warranty_terms?: string;
       observations?: string;
       parts?: Array<{ product_id: number; quantity: number }>;
     };
@@ -177,11 +190,16 @@ export async function createServiceOrder(req: Request, res: Response) {
         equipment_model: equipment_model || null,
         equipment_serial: equipment_serial || null,
         equipment_accessories: equipment_accessories || null,
+        reported_issue: reported_issue || null,
         seller_id: seller_id || null,
         technician_name: technician_name || null,
+        priority: ALLOWED_PRIORITIES.includes(priority ?? "") ? priority! : "normal",
+        promised_at: promised_at ? new Date(promised_at) : null,
         service_value: serviceValueNum,
         parts_total: partsTotal,
         total_amount: totalAmount,
+        warranty_days: warranty_days ? Number(warranty_days) : null,
+        warranty_terms: warranty_terms || null,
         observations: observations || null,
         checklist_items: {
           create: template.map((item, idx) => ({
@@ -229,9 +247,14 @@ export async function updateServiceOrder(req: Request, res: Response) {
       equipment_model,
       equipment_serial,
       equipment_accessories,
+      reported_issue,
       seller_id,
       technician_name,
+      priority,
+      promised_at,
       service_value,
+      warranty_days,
+      warranty_terms,
       observations,
     } = req.body as Record<string, any>;
 
@@ -244,8 +267,13 @@ export async function updateServiceOrder(req: Request, res: Response) {
     if (equipment_model !== undefined) data.equipment_model = equipment_model || null;
     if (equipment_serial !== undefined) data.equipment_serial = equipment_serial || null;
     if (equipment_accessories !== undefined) data.equipment_accessories = equipment_accessories || null;
+    if (reported_issue !== undefined) data.reported_issue = reported_issue || null;
     if (seller_id !== undefined) { data.seller_id = seller_id || null; if (seller_id) data.technician_name = null; }
     if (technician_name !== undefined) { data.technician_name = technician_name || null; if (technician_name) data.seller_id = null; }
+    if (priority !== undefined) data.priority = ALLOWED_PRIORITIES.includes(priority) ? priority : "normal";
+    if (promised_at !== undefined) data.promised_at = promised_at ? new Date(promised_at) : null;
+    if (warranty_days !== undefined) data.warranty_days = warranty_days ? Number(warranty_days) : null;
+    if (warranty_terms !== undefined) data.warranty_terms = warranty_terms || null;
     if (observations !== undefined) data.observations = observations || null;
 
     if (service_value !== undefined) {
@@ -318,6 +346,16 @@ export async function updateServiceOrderStatus(req: Request, res: Response) {
       return res.status(400).json({ error: "Ordem de serviço já foi faturada" });
     }
 
+    // Fluxo guiado: só avança uma etapa por vez (stepper na UI), exceto o
+    // cancelamento, que continua acessível de qualquer estado não terminal.
+    if (status !== "cancelada") {
+      const fromIdx = STATUS_ORDER.indexOf(order.status);
+      const toIdx = STATUS_ORDER.indexOf(status);
+      if (fromIdx === -1 || toIdx !== fromIdx + 1) {
+        return res.status(400).json({ error: "Só é possível avançar para a próxima etapa do fluxo" });
+      }
+    }
+
     const fromStatus = order.status;
     const data: Record<string, any> = { status };
 
@@ -356,20 +394,45 @@ export async function addServiceOrderPart(req: Request, res: Response) {
   try {
     const tenantId = getTenantId(req);
     const id = Number(req.params.id);
-    const { product_id, quantity } = req.body as { product_id: number; quantity: number };
+    const { product_id, quantity, height, width } = req.body as {
+      product_id: number; quantity?: number; height?: number; width?: number;
+    };
 
     const order = await prisma.serviceOrder.findFirst({ where: { id, tenant_id: tenantId } });
     if (!order) return res.status(404).json({ error: "Ordem de serviço não encontrada" });
     if (order.invoiced_order_id) return res.status(400).json({ error: "Ordem de serviço já foi faturada" });
 
-    const qty = Number(quantity) || 1;
     const product = await prisma.product.findFirst({ where: { id: product_id, tenant_id: tenantId } });
     if (!product) return res.status(404).json({ error: "Produto não encontrado" });
-    if (product.stock_quantity < qty) {
-      return res.status(400).json({ error: `Estoque insuficiente para "${product.name}"` });
+
+    const isMeasured = !!product.sale_unit && product.sale_unit !== "unidade";
+
+    let qty = Number(quantity) || 1;
+    let unitPrice = Number(product.price);
+    let total: number;
+    let dimensionsLabel: string | null = null;
+
+    if (isMeasured) {
+      // Nunca confia em preço mandado pelo cliente — recalcula a partir das
+      // dimensões brutas recebidas, mesmo princípio de recomputeTotals/recomputeQuoteTotals.
+      const result = computeMeasuredPrice(
+        product.sale_unit as "m2" | "linear",
+        Number(product.price_per_measure) || 0,
+        product.min_billable_quantity ? Number(product.min_billable_quantity) : null,
+        Number(height) || 0,
+        Number(width) || 0,
+      );
+      qty = 1;
+      unitPrice = result.total;
+      total = result.total;
+      dimensionsLabel = result.label;
+    } else {
+      if (product.stock_quantity < qty) {
+        return res.status(400).json({ error: `Estoque insuficiente para "${product.name}"` });
+      }
+      total = Math.round(unitPrice * qty * 100) / 100;
     }
 
-    const unitPrice = Number(product.price);
     const part = await prisma.serviceOrderPart.create({
       data: {
         service_order_id: id,
@@ -377,19 +440,23 @@ export async function addServiceOrderPart(req: Request, res: Response) {
         name: product.name,
         quantity: qty,
         unit_price: unitPrice,
-        total: Math.round(unitPrice * qty * 100) / 100,
+        total,
+        dimensions_label: dimensionsLabel,
       },
     });
 
-    await prisma.product.update({
-      where: { id: product.id },
-      data: { stock_quantity: { decrement: qty } },
-    });
+    // Produtos por medida (m²/linear) não têm controle de estoque.
+    if (!isMeasured) {
+      await prisma.product.update({
+        where: { id: product.id },
+        data: { stock_quantity: { decrement: qty } },
+      });
+    }
 
     await recomputeTotals(id);
     await logAction(tenantId, id, "part_added", {
       actor: getActor(req),
-      note: `${product.name} x${qty}`,
+      note: dimensionsLabel ? `${product.name} (${dimensionsLabel})` : `${product.name} x${qty}`,
       meta: { product_id: product.id, quantity: qty },
     });
 
@@ -622,6 +689,7 @@ export async function invoiceServiceOrder(req: Request, res: Response) {
             product_id: p.product_id!,
             quantity: p.quantity,
             unit_price: p.unit_price,
+            dimensions_label: p.dimensions_label,
           })),
         },
         ...(Number(order.service_value) > 0 && laborService ? {

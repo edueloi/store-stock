@@ -13,6 +13,7 @@ import {
   ChevronDown,
   Package,
   User,
+  UserPlus,
   Percent,
   DollarSign,
   CreditCard,
@@ -21,10 +22,14 @@ import {
   PlusCircle,
   Loader2,
   Wrench,
+  Edit2,
+  Wallet,
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { cn } from "../../lib/utils";
 import PageHeader from "../../components/layout/PageHeader";
+import Combobox from "../../components/ui/Combobox";
+import { computeMeasuredPrice } from "../../utils/measurePricing";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -35,6 +40,7 @@ interface QuoteItem {
   quantity: number;
   unit_price: number;
   total: number;
+  dimensions_label?: string | null;
 }
 
 interface QuoteServiceRow {
@@ -46,9 +52,20 @@ interface QuoteServiceRow {
   total: number;
 }
 
+interface QuoteActionLog {
+  id: number;
+  action: string;
+  from_status: string | null;
+  to_status: string | null;
+  actor: string | null;
+  note: string | null;
+  created_at: string;
+}
+
 interface Quote {
   id: number;
   number: number;
+  customer_id?: number | null;
   customer_name: string;
   customer_phone?: string;
   customer_email?: string;
@@ -59,9 +76,14 @@ interface Quote {
   validity_days: number;
   notes?: string;
   status: "open" | "converted" | "cancelled" | "expired";
+  converted_order_id?: number | null;
+  deposit_amount?: number | null;
+  deposit_payment_method?: string | null;
+  deposit_paid_at?: string | null;
   created_at: string;
   items: QuoteItem[];
   services: QuoteServiceRow[];
+  actions?: QuoteActionLog[];
 }
 
 interface Product {
@@ -72,6 +94,9 @@ interface Product {
   stock_quantity: number;
   image_url?: string;
   is_active?: boolean;
+  sale_unit?: "unidade" | "m2" | "linear";
+  price_per_measure?: number;
+  min_billable_quantity?: number;
 }
 
 interface ServiceCatalog {
@@ -158,10 +183,36 @@ function buildConvertPmString(payments: ConvertPayment[]): string {
 const fmt = (v: number) =>
   v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 
+function applyMoneyMask(raw: string) {
+  const digits = raw.replace(/\D/g, "");
+  if (!digits) return "";
+  const num = parseInt(digits, 10) / 100;
+  return num.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+function parseMaskedPrice(masked: string) {
+  return parseFloat(masked.replace(/\./g, "").replace(",", ".")) || 0;
+}
+
+function centsToMasked(value: number) {
+  return value.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
 const authHeader = () => ({
   Authorization: `Bearer ${localStorage.getItem("token")}`,
   "Content-Type": "application/json",
 });
+
+function maskPhone(v: string) {
+  const d = v.replace(/\D/g, "").slice(0, 11);
+  if (d.length <= 10) return d.replace(/(\d{2})(\d{4})(\d{0,4})/, "($1) $2-$3").replace(/-$/, "");
+  return d.replace(/(\d{2})(\d{5})(\d{0,4})/, "($1) $2-$3").replace(/-$/, "");
+}
+function maskDoc(v: string) {
+  const d = v.replace(/\D/g, "");
+  if (d.length <= 11) return d.replace(/(\d{3})(\d{3})(\d{3})(\d{0,2})/, "$1.$2.$3-$4").replace(/-$/, "").replace(/\.{1,}$/, "");
+  return d.slice(0, 14).replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{0,2})/, "$1.$2.$3/$4-$5").replace(/-$/, "").replace(/\/$/, "");
+}
 
 function statusLabel(s: string) {
   const map: Record<string, { label: string; color: string; icon: React.ReactNode }> = {
@@ -175,6 +226,13 @@ function statusLabel(s: string) {
 
 // ─── PDF Generator ────────────────────────────────────────────────────────────
 
+function docLabelForDocument(doc: string): string {
+  const digits = doc.replace(/\D/g, "");
+  if (digits.length > 11) return "CNPJ";
+  if (digits.length > 0) return "CPF";
+  return "Documento";
+}
+
 async function generateQuotePDF(quote: Quote, tenant: Tenant) {
   const { jsPDF } = await import("jspdf");
   const doc = new jsPDF({ unit: "mm", format: "a4" });
@@ -184,8 +242,7 @@ async function generateQuotePDF(quote: Quote, tenant: Tenant) {
   const margin = 18;
   const contentW = pageW - margin * 2;
 
-  const primary = tenant.primary_color ?? "#1e3a5f";
-  // Parse hex to r,g,b
+  const primary = tenant.primary_color ?? "#2563eb";
   const hexToRgb = (hex: string) => {
     const h = hex.replace("#", "");
     return {
@@ -195,10 +252,7 @@ async function generateQuotePDF(quote: Quote, tenant: Tenant) {
     };
   };
   const pc = hexToRgb(primary);
-
-  // ── Header background
-  doc.setFillColor(pc.r, pc.g, pc.b);
-  doc.rect(0, 0, pageW, 42, "F");
+  const gray = { text: [51, 65, 85], muted: [148, 163, 184], line: [230, 232, 236], soft: [250, 250, 251] };
 
   // ── Logo (if available) — converte para PNG via canvas para garantir compatibilidade
   let logoLoaded = false;
@@ -223,22 +277,23 @@ async function generateQuotePDF(quote: Quote, tenant: Tenant) {
         img.src = absoluteUrl;
       });
 
-      doc.addImage(dataUrl, "PNG", margin, 9, 22, 22);
+      doc.addImage(dataUrl, "PNG", margin, 16, 18, 18);
       logoLoaded = true;
     } catch {
       // ignora se não conseguir carregar o logo
     }
   }
 
-  // ── Company name + info (header)
-  const textX = logoLoaded ? margin + 26 : margin;
-  doc.setTextColor(255, 255, 255);
-  doc.setFontSize(15);
+  // ── Header — clean, white background, brand color used only as accent
+  const textX = logoLoaded ? margin + 24 : margin;
+  doc.setTextColor(20, 24, 32);
+  doc.setFontSize(14);
   doc.setFont("helvetica", "bold");
-  doc.text(tenant.name, textX, 18);
+  doc.text(tenant.name, textX, 22);
 
   doc.setFontSize(8);
   doc.setFont("helvetica", "normal");
+  doc.setTextColor(gray.muted[0], gray.muted[1], gray.muted[2]);
   const addrParts: string[] = [];
   if (tenant.address_street) {
     addrParts.push(
@@ -252,172 +307,194 @@ async function generateQuotePDF(quote: Quote, tenant: Tenant) {
       `${tenant.address_city}${tenant.address_state ? " - " + tenant.address_state : ""}`
     );
   if (tenant.address_zip) addrParts.push(`CEP: ${tenant.address_zip}`);
-  if (tenant.document) addrParts.push(`CNPJ/CPF: ${tenant.document}`);
+  if (tenant.document) addrParts.push(`${docLabelForDocument(tenant.document)}: ${tenant.document}`);
   if (tenant.whatsapp) addrParts.push(`WhatsApp: ${tenant.whatsapp}`);
 
-  let infoY = 25;
-  for (const part of addrParts) {
-    doc.text(part, textX, infoY);
-    infoY += 4;
-  }
+  doc.text(addrParts.join("  •  "), textX, 28, { maxWidth: 105 });
 
-  // ── "ORÇAMENTO" label on right
-  doc.setFontSize(18);
+  // ── "ORÇAMENTO" label on right, brand-colored text (no full banner)
+  doc.setFontSize(20);
   doc.setFont("helvetica", "bold");
-  doc.setTextColor(255, 255, 255);
-  doc.text("ORÇAMENTO", pageW - margin, 16, { align: "right" });
-  doc.setFontSize(10);
+  doc.setTextColor(pc.r, pc.g, pc.b);
+  doc.text("ORÇAMENTO", pageW - margin, 20, { align: "right" });
+  doc.setFontSize(9.5);
   doc.setFont("helvetica", "normal");
-  doc.text(`Nº ${String(quote.number).padStart(4, "0")}`, pageW - margin, 23, { align: "right" });
+  doc.setTextColor(gray.muted[0], gray.muted[1], gray.muted[2]);
+  doc.text(`Nº ${String(quote.number).padStart(4, "0")}`, pageW - margin, 26, { align: "right" });
 
   const dateStr = new Date(quote.created_at).toLocaleDateString("pt-BR");
   const validUntil = new Date(
     new Date(quote.created_at).getTime() + quote.validity_days * 86400000
   ).toLocaleDateString("pt-BR");
-  doc.text(`Data: ${dateStr}`, pageW - margin, 29, { align: "right" });
-  doc.text(`Válido até: ${validUntil}`, pageW - margin, 34, { align: "right" });
+  doc.text(`Emitido em ${dateStr}`, pageW - margin, 31, { align: "right" });
+  doc.text(`Válido até ${validUntil}`, pageW - margin, 36, { align: "right" });
 
-  // ── Client section
-  let y = 52;
-  doc.setDrawColor(220, 220, 220);
-  doc.setFillColor(248, 250, 252);
-  doc.roundedRect(margin, y, contentW, 22, 2, 2, "FD");
+  // ── Thin accent rule under header
+  let y = 44;
+  doc.setDrawColor(pc.r, pc.g, pc.b);
+  doc.setLineWidth(0.8);
+  doc.line(margin, y, pageW - margin, y);
 
-  doc.setTextColor(100, 116, 139);
+  // ── Client section — plain text, no boxed card
+  y += 10;
+  doc.setTextColor(gray.muted[0], gray.muted[1], gray.muted[2]);
   doc.setFontSize(7.5);
   doc.setFont("helvetica", "bold");
-  doc.text("DADOS DO CLIENTE", margin + 4, y + 6);
+  doc.text("CLIENTE", margin, y);
 
-  doc.setTextColor(30, 41, 59);
-  doc.setFontSize(10);
+  y += 6;
+  doc.setTextColor(20, 24, 32);
+  doc.setFontSize(11);
   doc.setFont("helvetica", "bold");
-  doc.text(quote.customer_name, margin + 4, y + 13);
+  doc.text(quote.customer_name, margin, y);
 
-  doc.setFont("helvetica", "normal");
-  doc.setFontSize(8.5);
-  const contactParts = [quote.customer_phone, quote.customer_email].filter(Boolean).join("   |   ");
-  if (contactParts) doc.text(contactParts, margin + 4, y + 19);
+  const contactParts = [quote.customer_phone, quote.customer_email].filter(Boolean).join("   •   ");
+  if (contactParts) {
+    y += 5.5;
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(8.5);
+    doc.setTextColor(gray.muted[0], gray.muted[1], gray.muted[2]);
+    doc.text(contactParts, margin, y);
+  }
 
-  // ── Items table header
-  y += 30;
-  doc.setFillColor(pc.r, pc.g, pc.b);
-  doc.rect(margin, y, contentW, 8, "F");
+  // ── Items table — light header row, no solid brand banner
+  y += 10;
+  doc.setDrawColor(gray.line[0], gray.line[1], gray.line[2]);
+  doc.setLineWidth(0.3);
+  doc.line(margin, y, pageW - margin, y);
 
-  doc.setTextColor(255, 255, 255);
-  doc.setFontSize(8);
+  y += 6;
+  doc.setTextColor(gray.muted[0], gray.muted[1], gray.muted[2]);
+  doc.setFontSize(7.5);
   doc.setFont("helvetica", "bold");
-  const cols = { name: margin + 3, qty: margin + 100, price: margin + 126, total: margin + 155 };
-  doc.text("PRODUTO / DESCRIÇÃO", cols.name, y + 5.5);
-  doc.text("QTD", cols.qty, y + 5.5, { align: "center" });
-  doc.text("PREÇO UNIT.", cols.price, y + 5.5, { align: "right" });
-  doc.text("TOTAL", pageW - margin - 3, y + 5.5, { align: "right" });
+  const cols = { name: margin, qty: margin + 105, price: margin + 133, total: pageW - margin };
+  doc.text("PRODUTO / SERVIÇO", cols.name, y);
+  doc.text("QTD", cols.qty, y, { align: "center" });
+  doc.text("PREÇO UNIT.", cols.price, y, { align: "right" });
+  doc.text("TOTAL", cols.total, y, { align: "right" });
+
+  y += 3;
+  doc.setDrawColor(gray.line[0], gray.line[1], gray.line[2]);
+  doc.line(margin, y, pageW - margin, y);
 
   // ── Items rows
-  y += 8;
+  y += 7;
   doc.setFont("helvetica", "normal");
-  doc.setFontSize(8.5);
+  doc.setFontSize(9);
 
-  const allRows: { name: string; qty: number; unit_price: number; total: number; isService?: boolean }[] = [
-    ...quote.items.map((i) => ({ name: i.name, qty: i.quantity, unit_price: Number(i.unit_price), total: Number(i.total) })),
+  const allRows: { name: string; dimLabel?: string | null; qty: number; unit_price: number; total: number; isService?: boolean }[] = [
+    ...quote.items.map((i) => ({ name: i.name, dimLabel: i.dimensions_label, qty: i.quantity, unit_price: Number(i.unit_price), total: Number(i.total) })),
     ...(quote.services ?? []).map((s) => ({ name: s.name, qty: s.quantity, unit_price: Number(s.unit_price), total: Number(s.unit_price) * s.quantity, isService: true })),
   ];
 
+  const maxNameW = 100;
   for (let i = 0; i < allRows.length; i++) {
     const row = allRows[i];
-    const rowH = 8;
-    if (i % 2 === 0) {
-      doc.setFillColor(248, 250, 252);
-      doc.rect(margin, y, contentW, rowH, "F");
-    }
-    doc.setTextColor(30, 41, 59);
-    const maxNameW = 90;
-    let rowName = (row.isService ? "⚙ " : "") + row.name;
-    while (doc.getTextWidth(rowName) > maxNameW && rowName.length > 3) {
-      rowName = rowName.slice(0, -1);
-    }
-    if (rowName !== (row.isService ? "⚙ " : "") + row.name) rowName += "…";
+    const rowLines = doc.splitTextToSize(row.name, maxNameW);
+    const rowH = Math.max(8, rowLines.length * 4.5 + (row.dimLabel ? 4 : 0) + 3);
 
-    doc.text(rowName, cols.name, y + 5.5);
-    doc.text(String(row.qty), cols.qty, y + 5.5, { align: "center" });
-    doc.text(fmt(row.unit_price), cols.price, y + 5.5, { align: "right" });
-    doc.text(fmt(row.total), pageW - margin - 3, y + 5.5, { align: "right" });
+    doc.setTextColor(20, 24, 32);
+    doc.text(rowLines, cols.name, y);
+    if (row.isService) {
+      doc.setFontSize(6.5);
+      doc.setTextColor(pc.r, pc.g, pc.b);
+      doc.text("SERVIÇO", cols.name, y - 4);
+      doc.setFontSize(9);
+    }
+    if (row.dimLabel) {
+      doc.setFontSize(7.5);
+      doc.setTextColor(gray.muted[0], gray.muted[1], gray.muted[2]);
+      doc.text(row.dimLabel, cols.name, y + rowLines.length * 4.5);
+      doc.setFontSize(9);
+    }
 
-    doc.setDrawColor(230, 230, 230);
-    doc.line(margin, y + rowH, margin + contentW, y + rowH);
+    doc.setTextColor(20, 24, 32);
+    doc.text(String(row.qty), cols.qty, y, { align: "center" });
+    doc.text(fmt(row.unit_price), cols.price, y, { align: "right" });
+    doc.text(fmt(row.total), cols.total, y, { align: "right" });
+
     y += rowH;
+    doc.setDrawColor(gray.soft[0] - 5, gray.soft[1] - 5, gray.soft[2] - 5);
+    doc.setDrawColor(240, 241, 243);
+    doc.line(margin, y - 2, pageW - margin, y - 2);
   }
 
-  // ── Totals block
-  y += 4;
-  const totalsX = pageW - margin - 70;
-  const totalsW = 70;
+  // ── Totals block — right-aligned, no boxed card
+  y += 6;
+  const totalsX = pageW - margin - 65;
+  const totalsW = 65;
 
-  doc.setDrawColor(220, 220, 220);
-  doc.setFillColor(248, 250, 252);
-  doc.roundedRect(totalsX, y, totalsW, quote.discount_value > 0 ? 28 : 18, 2, 2, "FD");
-
-  doc.setTextColor(100, 116, 139);
-  doc.setFontSize(8);
+  doc.setTextColor(gray.muted[0], gray.muted[1], gray.muted[2]);
+  doc.setFontSize(8.5);
   doc.setFont("helvetica", "normal");
-  doc.text("Subtotal:", totalsX + 3, y + 7);
-  doc.setTextColor(30, 41, 59);
-  doc.text(fmt(Number(quote.subtotal)), totalsX + totalsW - 3, y + 7, { align: "right" });
+  doc.text("Subtotal", totalsX, y);
+  doc.setTextColor(20, 24, 32);
+  doc.text(fmt(Number(quote.subtotal)), pageW - margin, y, { align: "right" });
 
   if (quote.discount_value > 0) {
     const discLabel =
       quote.discount_type === "percent"
-        ? `Desconto (${quote.discount_value}%):`
-        : "Desconto:";
+        ? `Desconto (${quote.discount_value}%)`
+        : "Desconto";
     const discAmt =
       quote.discount_type === "percent"
         ? (Number(quote.subtotal) * Number(quote.discount_value)) / 100
         : Number(quote.discount_value);
-    doc.setTextColor(100, 116, 139);
-    doc.text(discLabel, totalsX + 3, y + 14);
+    y += 6;
+    doc.setTextColor(gray.muted[0], gray.muted[1], gray.muted[2]);
+    doc.text(discLabel, totalsX, y);
     doc.setTextColor(220, 38, 38);
-    doc.text(`- ${fmt(discAmt)}`, totalsX + totalsW - 3, y + 14, { align: "right" });
-
-    doc.setFillColor(pc.r, pc.g, pc.b);
-    doc.roundedRect(totalsX, y + 20, totalsW, 8, 2, 2, "F");
-    doc.setTextColor(255, 255, 255);
-    doc.setFontSize(9);
-    doc.setFont("helvetica", "bold");
-    doc.text("TOTAL:", totalsX + 3, y + 25.5);
-    doc.text(fmt(Number(quote.total_amount)), totalsX + totalsW - 3, y + 25.5, { align: "right" });
-  } else {
-    doc.setFillColor(pc.r, pc.g, pc.b);
-    doc.roundedRect(totalsX, y + 10, totalsW, 8, 2, 2, "F");
-    doc.setTextColor(255, 255, 255);
-    doc.setFontSize(9);
-    doc.setFont("helvetica", "bold");
-    doc.text("TOTAL:", totalsX + 3, y + 15.5);
-    doc.text(fmt(Number(quote.total_amount)), totalsX + totalsW - 3, y + 15.5, { align: "right" });
+    doc.text(`- ${fmt(discAmt)}`, pageW - margin, y, { align: "right" });
   }
 
-  y += quote.discount_value > 0 ? 36 : 26;
+  y += 4;
+  doc.setDrawColor(gray.line[0], gray.line[1], gray.line[2]);
+  doc.line(totalsX, y, pageW - margin, y);
+  y += 7;
+  doc.setFontSize(11.5);
+  doc.setFont("helvetica", "bold");
+  doc.setTextColor(pc.r, pc.g, pc.b);
+  doc.text("TOTAL", totalsX, y);
+  doc.text(fmt(Number(quote.total_amount)), pageW - margin, y, { align: "right" });
+
+  y += 10;
+
+  // ── Entrada / Resta
+  const depositAmt = Number(quote.deposit_amount ?? 0);
+  if (depositAmt > 0) {
+    const remaining = Math.max(0, Number(quote.total_amount) - depositAmt);
+    doc.setDrawColor(224, 231, 255);
+    doc.setFillColor(246, 248, 255);
+    doc.roundedRect(totalsX, y, totalsW, 16, 2, 2, "FD");
+    doc.setFontSize(8);
+    doc.setFont("helvetica", "bold");
+    doc.setTextColor(pc.r, pc.g, pc.b);
+    doc.text("Entrada paga", totalsX + 4, y + 6);
+    doc.text(fmt(depositAmt), pageW - margin - 4, y + 6, { align: "right" });
+    doc.setTextColor(180, 83, 9);
+    doc.text("Restante", totalsX + 4, y + 12.5);
+    doc.text(fmt(remaining), pageW - margin - 4, y + 12.5, { align: "right" });
+    y += 22;
+  }
 
   // ── Notes
   if (quote.notes) {
-    y += 4;
-    doc.setDrawColor(220, 220, 220);
-    doc.setFillColor(255, 251, 235);
-    const noteLines = doc.splitTextToSize(quote.notes, contentW - 8);
-    const noteH = noteLines.length * 5 + 10;
-    doc.roundedRect(margin, y, contentW, noteH, 2, 2, "FD");
-    doc.setTextColor(100, 116, 139);
+    doc.setTextColor(gray.muted[0], gray.muted[1], gray.muted[2]);
     doc.setFontSize(7.5);
     doc.setFont("helvetica", "bold");
-    doc.text("OBSERVAÇÕES / CONDIÇÕES", margin + 4, y + 6);
+    doc.text("OBSERVAÇÕES / CONDIÇÕES DE PAGAMENTO", margin, y);
+    y += 5.5;
     doc.setFont("helvetica", "normal");
-    doc.setTextColor(30, 41, 59);
+    doc.setTextColor(60, 70, 85);
     doc.setFontSize(8.5);
-    doc.text(noteLines, margin + 4, y + 12);
-    y += noteH + 4;
+    const noteLines = doc.splitTextToSize(quote.notes, contentW);
+    doc.text(noteLines, margin, y);
+    y += noteLines.length * 4.5 + 6;
   }
 
   // ── Validity reminder
-  y += 4;
-  doc.setTextColor(100, 116, 139);
+  y += 3;
+  doc.setTextColor(gray.muted[0], gray.muted[1], gray.muted[2]);
   doc.setFontSize(8);
   doc.setFont("helvetica", "italic");
   doc.text(
@@ -426,20 +503,20 @@ async function generateQuotePDF(quote: Quote, tenant: Tenant) {
     y
   );
 
-  // ── Footer line
-  doc.setDrawColor(pc.r, pc.g, pc.b);
-  doc.setLineWidth(0.5);
-  doc.line(margin, pageH - 14, pageW - margin, pageH - 14);
-  doc.setTextColor(pc.r, pc.g, pc.b);
+  // ── Footer
+  doc.setDrawColor(gray.line[0], gray.line[1], gray.line[2]);
+  doc.setLineWidth(0.3);
+  doc.line(margin, pageH - 16, pageW - margin, pageH - 16);
   doc.setFontSize(7.5);
   doc.setFont("helvetica", "bold");
-  doc.text(tenant.name, margin, pageH - 9);
+  doc.setTextColor(60, 70, 85);
+  doc.text(tenant.name, margin, pageH - 10);
   doc.setFont("helvetica", "normal");
-  doc.setTextColor(150, 150, 150);
+  doc.setTextColor(gray.muted[0], gray.muted[1], gray.muted[2]);
   doc.text(
-    `Orçamento gerado em ${new Date().toLocaleDateString("pt-BR")} às ${new Date().toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}`,
+    `Gerado em ${new Date().toLocaleDateString("pt-BR")} às ${new Date().toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}`,
     pageW - margin,
-    pageH - 9,
+    pageH - 10,
     { align: "right" }
   );
 
@@ -460,10 +537,12 @@ export default function Quotes() {
 
   // New quote form state
   const [showForm, setShowForm] = useState(false);
+  const [editingQuoteId, setEditingQuoteId] = useState<number | null>(null);
   const [productSearch, setProductSearch] = useState("");
+  const [measureProduct, setMeasureProduct] = useState<Product | null>(null);
+  const [measureHeight, setMeasureHeight] = useState("");
+  const [measureWidth, setMeasureWidth] = useState("");
   const [serviceSearch, setServiceSearch] = useState("");
-  const [customerSearch, setCustomerSearch] = useState("");
-  const [showCustomerDropdown, setShowCustomerDropdown] = useState(false);
   const [formItems, setFormItems] = useState<QuoteItem[]>([]);
   const [formServices, setFormServices] = useState<QuoteServiceItem[]>([]);
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
@@ -473,6 +552,25 @@ export default function Quotes() {
   const [validityDays, setValidityDays] = useState(7);
   const [notes, setNotes] = useState("");
   const [saving, setSaving] = useState(false);
+
+  // Novo cliente inline (mesmo padrão de ServiceOrders.tsx)
+  const [showNewCustomer, setShowNewCustomer] = useState(false);
+  const [ncName, setNcName] = useState("");
+  const [ncPhone, setNcPhone] = useState("");
+  const [ncDoc, setNcDoc] = useState("");
+  const [ncEmail, setNcEmail] = useState("");
+  const [savingNC, setSavingNC] = useState(false);
+
+  // Detail drawer
+  const [selectedQuoteDetail, setSelectedQuoteDetail] = useState<Quote | null>(null);
+
+  // Registrar entrada
+  const [showDepositModal, setShowDepositModal] = useState(false);
+  const [depositAmount, setDepositAmount] = useState("");
+  const [depositMethod, setDepositMethod] = useState<ConvertMethod>("money");
+  const [depositBrand, setDepositBrand] = useState<ConvertBrand>("visa");
+  const [depositInstallments, setDepositInstallments] = useState(1);
+  const [savingDeposit, setSavingDeposit] = useState(false);
 
   // Detail/convert modal
   const [selectedQuote, setSelectedQuote] = useState<Quote | null>(null);
@@ -527,6 +625,13 @@ export default function Quotes() {
 
   // ── Add product to cart
   const addProduct = (p: Product) => {
+    if (p.sale_unit && p.sale_unit !== "unidade") {
+      setMeasureProduct(p);
+      setMeasureHeight("");
+      setMeasureWidth("");
+      setProductSearch("");
+      return;
+    }
     setFormItems((prev) => {
       const existing = prev.find((i) => i.product_id === p.id);
       if (existing) {
@@ -540,6 +645,31 @@ export default function Quotes() {
       return [...prev, { product_id: p.id, name: p.name, quantity: 1, unit_price: price, total: price }];
     });
     setProductSearch("");
+  };
+
+  const measurePreview = measureProduct
+    ? computeMeasuredPrice(
+        (measureProduct.sale_unit as "m2" | "linear") ?? "m2",
+        Number(measureProduct.price_per_measure) || 0,
+        measureProduct.min_billable_quantity,
+        Number(measureHeight) || 0,
+        Number(measureWidth) || 0,
+      )
+    : null;
+
+  const addMeasuredProduct = () => {
+    if (!measureProduct || !measurePreview) return;
+    setFormItems((prev) => [...prev, {
+      product_id: measureProduct.id,
+      name: measureProduct.name,
+      quantity: 1,
+      unit_price: measurePreview.total,
+      total: measurePreview.total,
+      dimensions_label: measurePreview.label,
+    }]);
+    setMeasureProduct(null);
+    setMeasureHeight("");
+    setMeasureWidth("");
   };
 
   const updateItemQty = (idx: number, qty: number) => {
@@ -582,7 +712,11 @@ export default function Quotes() {
     setFormServices((prev) => prev.map((s) => s.service_id === service_id ? { ...s, quantity: qty } : s));
   };
 
-  // ── Save quote
+  const updateServicePrice = (service_id: number, price: number) => {
+    setFormServices((prev) => prev.map((s) => s.service_id === service_id ? { ...s, price } : s));
+  };
+
+  // ── Save quote (create or edit) ──────────────────────────────────────────
   const handleSave = async () => {
     if (!formItems.length && !formServices.length) return;
     const cName = selectedCustomer?.name ?? manualCustomer.name;
@@ -607,6 +741,7 @@ export default function Quotes() {
           quantity: i.quantity,
           unit_price: i.unit_price,
           total: i.total,
+          dimensions_label: i.dimensions_label ?? null,
         })),
         services: formServices.map((s) => ({
           id: s.service_id,
@@ -615,7 +750,15 @@ export default function Quotes() {
           quantity: s.quantity,
         })),
       };
-      await fetch("/api/quotes", { method: "POST", headers: authHeader(), body: JSON.stringify(body) });
+      if (editingQuoteId) {
+        const res = await fetch(`/api/quotes/${editingQuoteId}`, { method: "PUT", headers: authHeader(), body: JSON.stringify(body) });
+        if (res.ok) {
+          const updated = await res.json();
+          setSelectedQuoteDetail(updated);
+        }
+      } else {
+        await fetch("/api/quotes", { method: "POST", headers: authHeader(), body: JSON.stringify(body) });
+      }
       await fetchAll();
       resetForm();
     } finally {
@@ -625,6 +768,7 @@ export default function Quotes() {
 
   const resetForm = () => {
     setShowForm(false);
+    setEditingQuoteId(null);
     setFormItems([]);
     setFormServices([]);
     setSelectedCustomer(null);
@@ -635,13 +779,62 @@ export default function Quotes() {
     setNotes("");
     setProductSearch("");
     setServiceSearch("");
-    setCustomerSearch("");
+  };
+
+  const openEditForm = (q: Quote) => {
+    setEditingQuoteId(q.id);
+    setFormItems(q.items.map((i) => ({ ...i })));
+    setFormServices(q.services.map((s) => ({ service_id: s.service_id, name: s.name, price: Number(s.unit_price), quantity: s.quantity })));
+    if (q.customer_id) {
+      setSelectedCustomer({ id: q.customer_id, name: q.customer_name, phone: q.customer_phone, email: q.customer_email });
+    } else {
+      setSelectedCustomer(null);
+      setManualCustomer({ name: q.customer_name, phone: q.customer_phone ?? "", email: q.customer_email ?? "" });
+    }
+    setDiscountType(q.discount_type);
+    setDiscountValue(Number(q.discount_value));
+    setValidityDays(q.validity_days);
+    setNotes(q.notes ?? "");
+    setShowForm(true);
   };
 
   const handleDelete = async (id: number) => {
     if (!confirm("Excluir este orçamento?")) return;
     await fetch(`/api/quotes/${id}`, { method: "DELETE", headers: authHeader() });
     fetchAll();
+  };
+
+  const refreshQuoteDetail = async (id: number) => {
+    const res = await fetch(`/api/quotes/${id}`, { headers: { Authorization: `Bearer ${localStorage.getItem("token")}` } });
+    if (res.ok) setSelectedQuoteDetail(await res.json());
+    fetchAll();
+  };
+
+  const handleRecordDeposit = async () => {
+    if (!selectedQuoteDetail) return;
+    setSavingDeposit(true);
+    try {
+      const brand = (depositMethod === "credit" || depositMethod === "debit") ? `-${depositBrand}` : "";
+      const inst = depositMethod === "credit" && depositInstallments > 1 ? `-${depositInstallments}x` : "";
+      const pmString = `${depositMethod}${brand}${inst}`;
+      const res = await fetch(`/api/quotes/${selectedQuoteDetail.id}/deposit`, {
+        method: "POST",
+        headers: authHeader(),
+        body: JSON.stringify({ amount: Number(depositAmount) || 0, payment_method: pmString }),
+      });
+      if (res.ok) {
+        setShowDepositModal(false);
+        setDepositAmount("");
+        setDepositMethod("money");
+        setDepositInstallments(1);
+        await refreshQuoteDetail(selectedQuoteDetail.id);
+      } else {
+        const err = await res.json().catch(() => ({}));
+        alert(err.error || "Falha ao registrar entrada");
+      }
+    } finally {
+      setSavingDeposit(false);
+    }
   };
 
   const handleConvert = async () => {
@@ -692,10 +885,6 @@ export default function Quotes() {
     (p) =>
       p.is_active !== false &&
       p.name.toLowerCase().includes(productSearch.toLowerCase())
-  );
-
-  const filteredCustomers = customers.filter((c) =>
-    c.name.toLowerCase().includes(customerSearch.toLowerCase())
   );
 
   // ── Stats
@@ -795,7 +984,7 @@ export default function Quotes() {
               {filtered.map((q) => {
                 const st = statusLabel(q.status);
                 return (
-                  <tr key={q.id} className="hover:bg-slate-50 transition-colors">
+                  <tr key={q.id} onClick={() => setSelectedQuoteDetail(q)} className="hover:bg-slate-50 transition-colors cursor-pointer">
                     <td className="px-4 py-3 font-mono text-slate-500 text-xs">
                       #{String(q.number).padStart(4, "0")}
                     </td>
@@ -814,7 +1003,7 @@ export default function Quotes() {
                         {st.icon} {st.label}
                       </span>
                     </td>
-                    <td className="px-4 py-3">
+                    <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
                       <div className="flex items-center justify-end gap-1">
                         <button
                           onClick={() => handleDownloadPDF(q)}
@@ -871,7 +1060,9 @@ export default function Quotes() {
               {/* Drawer header */}
               <div className="flex items-center justify-between px-5 py-4 border-b border-slate-200 shrink-0">
                 <div>
-                  <h2 className="font-black text-slate-900 text-[15px]">Novo Orçamento</h2>
+                  <h2 className="font-black text-slate-900 text-[15px]">
+                    {editingQuoteId ? `Editar Orçamento #${String(quotes.find((q) => q.id === editingQuoteId)?.number ?? "").padStart(4, "0")}` : "Novo Orçamento"}
+                  </h2>
                   <p className="text-[11px] text-slate-500">Selecione produtos e preencha os dados do cliente</p>
                 </div>
                 <button onClick={resetForm} className="p-2 hover:bg-slate-100 rounded-lg text-slate-500">
@@ -885,36 +1076,43 @@ export default function Quotes() {
                   <h3 className="text-[11px] font-black uppercase tracking-wider text-slate-500 mb-2 flex items-center gap-1.5">
                     <User size={12} /> Cliente
                   </h3>
-                  <div className="relative">
-                    <input
-                      value={customerSearch || selectedCustomer?.name || ""}
-                      onFocus={() => setShowCustomerDropdown(true)}
-                      onChange={(e) => {
-                        setCustomerSearch(e.target.value);
-                        setSelectedCustomer(null);
-                        setManualCustomer((m) => ({ ...m, name: e.target.value }));
-                      }}
-                      placeholder="Nome do cliente ou buscar cadastrado..."
-                      className="w-full h-9 px-3 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    />
-                    {showCustomerDropdown && filteredCustomers.length > 0 && (
-                      <div className="absolute z-10 w-full mt-1 bg-white border border-slate-200 rounded-lg shadow-lg max-h-48 overflow-y-auto">
-                        {filteredCustomers.slice(0, 8).map((c) => (
-                          <button
-                            key={c.id}
-                            onMouseDown={() => {
-                              setSelectedCustomer(c);
-                              setCustomerSearch(c.name);
-                              setShowCustomerDropdown(false);
-                            }}
-                            className="w-full px-3 py-2 text-left text-sm hover:bg-slate-50 flex flex-col"
-                          >
-                            <span className="font-semibold">{c.name}</span>
-                            {c.phone && <span className="text-xs text-slate-400">{c.phone}</span>}
-                          </button>
-                        ))}
-                      </div>
-                    )}
+                  <div className="flex gap-2">
+                    <div className="flex-1 min-w-0">
+                      <Combobox
+                        placeholder="Buscar por nome ou telefone..."
+                        searchPlaceholder="Nome ou telefone..."
+                        clearable
+                        freeInput
+                        value={selectedCustomer ? String(selectedCustomer.id) : manualCustomer.name}
+                        onChange={(v) => {
+                          if (!v) {
+                            setSelectedCustomer(null);
+                            setManualCustomer((m) => ({ ...m, name: "" }));
+                            return;
+                          }
+                          const cust = customers.find((c) => String(c.id) === v);
+                          if (cust) {
+                            setSelectedCustomer(cust);
+                          } else {
+                            setSelectedCustomer(null);
+                            setManualCustomer((m) => ({ ...m, name: v }));
+                          }
+                        }}
+                        options={customers.map((c) => ({ value: String(c.id), label: c.name, description: c.phone }))}
+                        onAddNew={(q) => {
+                          setNcName(q); setNcPhone(""); setNcDoc(""); setNcEmail("");
+                          setShowNewCustomer(true);
+                        }}
+                      />
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => { setNcName(""); setNcPhone(""); setNcDoc(""); setNcEmail(""); setShowNewCustomer(true); }}
+                      className="h-9 w-9 rounded-lg bg-blue-50 border border-blue-200 text-blue-600 hover:bg-blue-100 flex items-center justify-center shrink-0 transition-colors"
+                      title="Cadastrar novo cliente"
+                    >
+                      <UserPlus size={15} />
+                    </button>
                   </div>
                   {!selectedCustomer && (
                     <div className="grid grid-cols-2 gap-2 mt-2">
@@ -981,25 +1179,51 @@ export default function Quotes() {
                     </h3>
                     <div className="space-y-2">
                       {formItems.map((item, idx) => (
-                        <div key={idx} className="flex items-center gap-2 bg-slate-50 rounded-lg px-3 py-2">
-                          <span className="flex-1 text-sm font-medium text-slate-700 truncate">{item.name}</span>
-                          <div className="flex items-center gap-1 shrink-0">
-                            <button
-                              onClick={() => updateItemQty(idx, item.quantity - 1)}
-                              className="w-6 h-6 rounded-md bg-white border border-slate-200 text-slate-600 font-bold flex items-center justify-center hover:bg-red-50 hover:text-red-500"
-                            >−</button>
-                            <span className="w-6 text-center text-sm font-bold">{item.quantity}</span>
-                            <button
-                              onClick={() => updateItemQty(idx, item.quantity + 1)}
-                              className="w-6 h-6 rounded-md bg-white border border-slate-200 text-slate-600 font-bold flex items-center justify-center hover:bg-emerald-50 hover:text-emerald-500"
-                            >+</button>
+                        <div key={idx} className="flex flex-wrap items-center gap-2 bg-slate-50 rounded-lg px-3 py-2">
+                          <div className="flex-1 min-w-[120px]">
+                            <p className="text-sm font-medium text-slate-700 truncate">{item.name}</p>
+                            {item.dimensions_label && (
+                              <p className="text-[10px] text-blue-500 font-mono truncate">{item.dimensions_label}</p>
+                            )}
                           </div>
-                          <input
-                            type="number"
-                            value={item.unit_price}
-                            onChange={(e) => updateItemPrice(idx, Number(e.target.value))}
-                            className="w-24 h-7 px-2 rounded-md border border-slate-200 text-sm text-right focus:outline-none focus:ring-1 focus:ring-blue-400"
-                          />
+                          <div className="shrink-0">
+                            <label className="block text-[9px] font-bold uppercase tracking-wider text-slate-400 mb-0.5">
+                              Qtd.
+                            </label>
+                            <div className="flex items-center gap-1">
+                              <button
+                                onClick={() => updateItemQty(idx, item.quantity - 1)}
+                                className="w-6 h-6 rounded-md bg-white border border-slate-200 text-slate-600 font-bold flex items-center justify-center hover:bg-red-50 hover:text-red-500 shrink-0"
+                              >−</button>
+                              <input
+                                type="number"
+                                min={0}
+                                step="any"
+                                value={item.quantity}
+                                onChange={(e) => updateItemQty(idx, Number(e.target.value))}
+                                className="w-12 h-7 px-1 rounded-md border border-slate-200 text-sm text-center font-bold focus:outline-none focus:ring-1 focus:ring-blue-400"
+                              />
+                              <button
+                                onClick={() => updateItemQty(idx, item.quantity + 1)}
+                                className="w-6 h-6 rounded-md bg-white border border-slate-200 text-slate-600 font-bold flex items-center justify-center hover:bg-emerald-50 hover:text-emerald-500 shrink-0"
+                              >+</button>
+                            </div>
+                          </div>
+                          <div className="shrink-0">
+                            <label className="block text-[9px] font-bold uppercase tracking-wider text-slate-400 mb-0.5">
+                              Preço unitário
+                            </label>
+                            <div className="relative">
+                              <span className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-400 text-[10px] font-bold pointer-events-none select-none">R$</span>
+                              <input
+                                inputMode="numeric"
+                                placeholder="0,00"
+                                value={centsToMasked(item.unit_price)}
+                                onChange={(e) => updateItemPrice(idx, parseMaskedPrice(applyMoneyMask(e.target.value)))}
+                                className="w-28 h-7 pl-7 pr-2 rounded-md border border-slate-200 text-sm text-right font-mono focus:outline-none focus:ring-1 focus:ring-blue-400"
+                              />
+                            </div>
+                          </div>
                           <span className="w-20 text-right text-sm font-bold text-slate-800 shrink-0">
                             {fmt(item.total)}
                           </span>
@@ -1065,19 +1289,46 @@ export default function Quotes() {
                     </h3>
                     <div className="space-y-2">
                       {formServices.map((svc) => (
-                        <div key={svc.service_id} className="flex items-center gap-2 bg-blue-50 border border-blue-100 rounded-lg px-3 py-2">
+                        <div key={svc.service_id} className="flex flex-wrap items-center gap-2 bg-blue-50 border border-blue-100 rounded-lg px-3 py-2">
                           <Wrench size={13} className="text-blue-400 shrink-0" />
-                          <span className="flex-1 text-sm font-medium text-slate-700 truncate">{svc.name}</span>
-                          <div className="flex items-center gap-1 shrink-0">
-                            <button
-                              onClick={() => updateServiceQty(svc.service_id, svc.quantity - 1)}
-                              className="w-6 h-6 rounded-md bg-white border border-blue-200 text-slate-600 font-bold flex items-center justify-center hover:bg-red-50 hover:text-red-500"
-                            >−</button>
-                            <span className="w-6 text-center text-sm font-bold">{svc.quantity}</span>
-                            <button
-                              onClick={() => updateServiceQty(svc.service_id, svc.quantity + 1)}
-                              className="w-6 h-6 rounded-md bg-white border border-blue-200 text-slate-600 font-bold flex items-center justify-center hover:bg-emerald-50 hover:text-emerald-500"
-                            >+</button>
+                          <span className="flex-1 min-w-[100px] text-sm font-medium text-slate-700 truncate">{svc.name}</span>
+                          <div className="shrink-0">
+                            <label className="block text-[9px] font-bold uppercase tracking-wider text-blue-400 mb-0.5">
+                              Qtd.
+                            </label>
+                            <div className="flex items-center gap-1">
+                              <button
+                                onClick={() => updateServiceQty(svc.service_id, svc.quantity - 1)}
+                                className="w-6 h-6 rounded-md bg-white border border-blue-200 text-slate-600 font-bold flex items-center justify-center hover:bg-red-50 hover:text-red-500 shrink-0"
+                              >−</button>
+                              <input
+                                type="number"
+                                min={0}
+                                step="any"
+                                value={svc.quantity}
+                                onChange={(e) => updateServiceQty(svc.service_id, Number(e.target.value))}
+                                className="w-12 h-7 px-1 rounded-md border border-blue-200 text-sm text-center font-bold focus:outline-none focus:ring-1 focus:ring-blue-400"
+                              />
+                              <button
+                                onClick={() => updateServiceQty(svc.service_id, svc.quantity + 1)}
+                                className="w-6 h-6 rounded-md bg-white border border-blue-200 text-slate-600 font-bold flex items-center justify-center hover:bg-emerald-50 hover:text-emerald-500 shrink-0"
+                              >+</button>
+                            </div>
+                          </div>
+                          <div className="shrink-0">
+                            <label className="block text-[9px] font-bold uppercase tracking-wider text-blue-400 mb-0.5">
+                              Preço unitário
+                            </label>
+                            <div className="relative">
+                              <span className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-400 text-[10px] font-bold pointer-events-none select-none">R$</span>
+                              <input
+                                inputMode="numeric"
+                                placeholder="0,00"
+                                value={centsToMasked(svc.price)}
+                                onChange={(e) => updateServicePrice(svc.service_id, parseMaskedPrice(applyMoneyMask(e.target.value)))}
+                                className="w-28 h-7 pl-7 pr-2 rounded-md border border-blue-200 text-sm text-right font-mono focus:outline-none focus:ring-1 focus:ring-blue-400"
+                              />
+                            </div>
                           </div>
                           <span className="w-20 text-right text-sm font-bold text-blue-700 shrink-0">
                             {fmt(svc.price * svc.quantity)}
@@ -1197,10 +1448,472 @@ export default function Quotes() {
                       disabled={saving || (!formItems.length && !formServices.length) || !(selectedCustomer?.name ?? manualCustomer.name)}
                       className="h-9 px-5 bg-blue-600 text-white rounded-lg text-sm font-bold hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
                     >
-                      {saving ? "Salvando…" : "Salvar Orçamento"}
+                      {saving ? "Salvando…" : editingQuoteId ? "Salvar Alterações" : "Salvar Orçamento"}
                     </button>
                   </div>
                 </div>
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+
+      {/* ── Detail Drawer ─────────────────────────────────────────────────────── */}
+      <AnimatePresence>
+        {selectedQuoteDetail && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              onClick={() => setSelectedQuoteDetail(null)}
+              className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[300]"
+            />
+            <motion.div
+              initial={{ x: "100%" }} animate={{ x: 0 }} exit={{ x: "100%" }}
+              transition={{ type: "spring", damping: 28, stiffness: 300 }}
+              className="fixed right-0 top-0 h-full w-full max-w-2xl bg-white shadow-2xl z-[301] flex flex-col overflow-hidden"
+            >
+              {(() => {
+                const q = selectedQuoteDetail;
+                const st = statusLabel(q.status);
+                const depositAmt = Number(q.deposit_amount ?? 0);
+                const remaining = Math.max(0, Number(q.total_amount) - depositAmt);
+                return (
+                  <>
+                    <div className="shrink-0 flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-slate-50">
+                      <div>
+                        <p className="text-[9px] font-black uppercase tracking-widest text-blue-500">Orçamento</p>
+                        <h2 className="text-[18px] font-black text-slate-800">#{String(q.number).padStart(4, "0")} — {q.customer_name}</h2>
+                      </div>
+                      <button onClick={() => setSelectedQuoteDetail(null)} className="w-9 h-9 rounded-xl bg-white border border-slate-200 hover:bg-slate-100 flex items-center justify-center">
+                        <X size={16} className="text-slate-500" />
+                      </button>
+                    </div>
+
+                    <div className="flex-1 overflow-y-auto p-6 space-y-6">
+                      {/* Status */}
+                      <div className="flex items-center justify-between">
+                        <span className={cn("inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-wider", st.color)}>
+                          {st.icon} {st.label}
+                        </span>
+                        {q.converted_order_id && (
+                          <span className="text-[10px] font-bold text-emerald-600">Convertido — Pedido #{q.converted_order_id}</span>
+                        )}
+                      </div>
+
+                      {/* Cliente */}
+                      <div className="bg-slate-50 rounded-2xl border border-slate-200 p-4">
+                        <p className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400 mb-2">Cliente</p>
+                        <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-[12px]">
+                          <p><span className="text-slate-400">Nome:</span> <span className="font-semibold">{q.customer_name}</span></p>
+                          {q.customer_phone && <p><span className="text-slate-400">Telefone:</span> <span className="font-semibold">{q.customer_phone}</span></p>}
+                          {q.customer_email && <p><span className="text-slate-400">E-mail:</span> <span className="font-semibold">{q.customer_email}</span></p>}
+                          <p><span className="text-slate-400">Validade:</span> <span className="font-semibold">{q.validity_days} dias</span></p>
+                        </div>
+                      </div>
+
+                      {/* Itens/Serviços */}
+                      {(q.items.length > 0 || q.services.length > 0) && (
+                        <div>
+                          <p className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400 mb-2">Itens</p>
+                          <div className="space-y-1.5">
+                            {q.items.map((item, idx) => (
+                              <div key={`i-${idx}`} className="flex items-center justify-between bg-slate-50 rounded-xl px-3 py-2 border border-slate-200">
+                                <div className="min-w-0">
+                                  <p className="text-[12px] font-semibold text-slate-700 truncate">{item.name}</p>
+                                  {item.dimensions_label ? (
+                                    <p className="text-[10px] text-blue-500 font-mono">{item.dimensions_label}</p>
+                                  ) : (
+                                    <p className="text-[10px] text-slate-400">{item.quantity} × {fmt(item.unit_price)}</p>
+                                  )}
+                                </div>
+                                <span className="text-[12px] font-mono font-bold text-slate-700">{fmt(item.total)}</span>
+                              </div>
+                            ))}
+                            {q.services.map((s) => (
+                              <div key={`s-${s.id}`} className="flex items-center justify-between bg-blue-50 border border-blue-100 rounded-xl px-3 py-2">
+                                <div className="min-w-0 flex items-center gap-1.5">
+                                  <Wrench size={12} className="text-blue-400 shrink-0" />
+                                  <div className="min-w-0">
+                                    <p className="text-[12px] font-semibold text-slate-700 truncate">{s.name}</p>
+                                    <p className="text-[10px] text-slate-400">{s.quantity} × {fmt(s.unit_price)}</p>
+                                  </div>
+                                </div>
+                                <span className="text-[12px] font-mono font-bold text-blue-700">{fmt(s.total)}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Totais / Entrada / Resta */}
+                      <div className="bg-slate-900 rounded-2xl p-4 space-y-1.5">
+                        <div className="flex justify-between text-[10px] font-bold uppercase text-slate-400">
+                          <span>Subtotal</span>
+                          <span className="font-mono text-slate-200">{fmt(Number(q.subtotal))}</span>
+                        </div>
+                        {Number(q.discount_value) > 0 && (
+                          <div className="flex justify-between text-[10px] font-bold uppercase text-slate-400">
+                            <span>Desconto</span>
+                            <span className="font-mono text-rose-400">
+                              − {fmt(q.discount_type === "percent" ? (Number(q.subtotal) * Number(q.discount_value)) / 100 : Number(q.discount_value))}
+                            </span>
+                          </div>
+                        )}
+                        <div className="flex justify-between text-[13px] font-black uppercase text-white pt-1.5 border-t border-slate-700">
+                          <span>Total</span>
+                          <span className="font-mono">{fmt(Number(q.total_amount))}</span>
+                        </div>
+                        {depositAmt > 0 && (
+                          <>
+                            <div className="flex justify-between text-[10px] font-bold uppercase text-cyan-400 pt-1.5 border-t border-slate-700">
+                              <span>Entrada</span>
+                              <span className="font-mono">{fmt(depositAmt)}</span>
+                            </div>
+                            <div className="flex justify-between text-[11px] font-black uppercase text-amber-400">
+                              <span>Resta</span>
+                              <span className="font-mono">{fmt(remaining)}</span>
+                            </div>
+                          </>
+                        )}
+                      </div>
+
+                      {q.notes && (
+                        <div>
+                          <p className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400 mb-1">Observações</p>
+                          <p className="text-[12px] text-slate-600 bg-slate-50 rounded-xl p-3 border border-slate-200">{q.notes}</p>
+                        </div>
+                      )}
+
+                      {/* Timeline */}
+                      {q.actions && q.actions.length > 0 && (
+                        <div>
+                          <p className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400 mb-2">Histórico</p>
+                          <div className="space-y-2">
+                            {q.actions.map((a) => (
+                              <div key={a.id} className="flex items-start gap-2 text-[11px]">
+                                <div className="w-1.5 h-1.5 rounded-full bg-slate-300 mt-1.5 shrink-0" />
+                                <div className="min-w-0">
+                                  <p className="text-slate-600">
+                                    {a.action === "status_changed" && a.to_status ? `Status alterado para ${statusLabel(a.to_status).label}` :
+                                     a.action === "created" ? "Orçamento criado" :
+                                     a.action === "edited" ? "Orçamento editado" :
+                                     a.action === "converted" ? "Convertido em venda" :
+                                     a.action === "deposit_recorded" ? `Entrada registrada${a.note ? `: ${a.note}` : ""}` :
+                                     a.action === "expired" ? "Orçamento expirado" : a.action}
+                                  </p>
+                                  <p className="text-slate-400 text-[10px]">{a.actor ?? "Sistema"} · {new Date(a.created_at).toLocaleString("pt-BR")}</p>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Footer actions */}
+                    <div className="shrink-0 px-6 pb-6 pt-3 border-t border-slate-100 space-y-2">
+                      <div className="grid grid-cols-2 gap-2">
+                        <button onClick={() => handleDownloadPDF(q)}
+                          className="h-11 bg-slate-100 hover:bg-slate-200 rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 text-slate-700 transition-all">
+                          <Download size={14} /> Baixar PDF
+                        </button>
+                        {q.status === "open" && (
+                          <button onClick={() => { setSelectedQuoteDetail(null); openEditForm(q); }}
+                            className="h-11 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 text-blue-600 transition-all">
+                            <Edit2 size={14} /> Editar
+                          </button>
+                        )}
+                      </div>
+                      {q.status === "open" && (
+                        <div className="grid grid-cols-2 gap-2">
+                          <button onClick={() => { setDepositAmount(""); setShowDepositModal(true); }}
+                            className="h-11 bg-cyan-50 hover:bg-cyan-100 border border-cyan-200 rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 text-cyan-700 transition-all">
+                            <Wallet size={14} /> Registrar Entrada
+                          </button>
+                          <button onClick={() => {
+                            setSelectedQuote(q);
+                            setConvertPayments([newConvertPayment()]);
+                            setConvertSellerId("");
+                            setShowConvertModal(true);
+                          }}
+                            className="h-11 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-all">
+                            <ArrowRight size={14} /> Converter em Venda
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  </>
+                );
+              })()}
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+
+      {/* ── Medida (m²/linear) Modal ─────────────────────────────────────────── */}
+      <AnimatePresence>
+        {measureProduct && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              onClick={() => setMeasureProduct(null)}
+              className="fixed inset-0 bg-slate-900/70 backdrop-blur-sm z-[400]"
+            />
+            <motion.div
+              initial={{ opacity: 0, y: 16, scale: 0.98 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 12, scale: 0.98 }}
+              transition={{ type: "spring", damping: 32, stiffness: 300 }}
+              className="fixed inset-x-4 bottom-4 sm:inset-auto sm:top-1/2 sm:left-1/2 sm:-translate-x-1/2 sm:-translate-y-1/2 z-[401] bg-white flex flex-col overflow-hidden rounded-3xl"
+              style={{ width: "min(420px, calc(100vw - 32px))" }}
+            >
+              <div className="shrink-0 flex items-center justify-between px-6 py-4 border-b border-slate-100">
+                <div>
+                  <p className="text-[9px] font-black uppercase tracking-widest text-blue-500">
+                    Venda por {measureProduct.sale_unit === "m2" ? "m²" : "metro linear"}
+                  </p>
+                  <h2 className="text-[14px] font-black text-slate-800">{measureProduct.name}</h2>
+                </div>
+                <button onClick={() => setMeasureProduct(null)} className="w-8 h-8 rounded-xl bg-slate-100 hover:bg-slate-200 flex items-center justify-center">
+                  <X size={14} className="text-slate-500" />
+                </button>
+              </div>
+
+              <div className="p-5 space-y-3">
+                {measureProduct.sale_unit === "m2" ? (
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400 mb-1.5 block">Altura (m)</label>
+                      <input type="number" min="0" step="0.01" autoFocus value={measureHeight}
+                        onChange={(e) => setMeasureHeight(e.target.value)}
+                        placeholder="0,00"
+                        className="w-full h-11 px-3 rounded-xl border border-slate-200 text-sm font-mono font-bold text-center focus:outline-none focus:border-blue-400" />
+                    </div>
+                    <div>
+                      <label className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400 mb-1.5 block">Largura (m)</label>
+                      <input type="number" min="0" step="0.01" value={measureWidth}
+                        onChange={(e) => setMeasureWidth(e.target.value)}
+                        placeholder="0,00"
+                        className="w-full h-11 px-3 rounded-xl border border-slate-200 text-sm font-mono font-bold text-center focus:outline-none focus:border-blue-400" />
+                    </div>
+                  </div>
+                ) : (
+                  <div>
+                    <label className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400 mb-1.5 block">Comprimento (m)</label>
+                    <input type="number" min="0" step="0.01" autoFocus value={measureHeight}
+                      onChange={(e) => setMeasureHeight(e.target.value)}
+                      placeholder="0,00"
+                      className="w-full h-11 px-3 rounded-xl border border-slate-200 text-sm font-mono font-bold text-center focus:outline-none focus:border-blue-400" />
+                  </div>
+                )}
+
+                {measurePreview && measurePreview.rawQuantity > 0 && (
+                  <div className="bg-slate-900 rounded-2xl p-4 space-y-1.5">
+                    <div className="flex justify-between text-[10px] font-bold uppercase text-slate-400">
+                      <span>{measureProduct.sale_unit === "m2" ? "Área" : "Comprimento"}</span>
+                      <span className="font-mono text-slate-200">{measurePreview.label}</span>
+                    </div>
+                    {measurePreview.minimumApplied && (
+                      <p className="text-[10px] font-bold text-amber-400">
+                        Cobrando o mínimo de {Number(measureProduct.min_billable_quantity).toFixed(2)}{measureProduct.sale_unit === "m2" ? "m²" : "m"}
+                      </p>
+                    )}
+                    <div className="flex justify-between text-[13px] font-black uppercase text-white pt-1.5 border-t border-slate-700">
+                      <span>Total</span>
+                      <span className="font-mono">R$ {measurePreview.total.toFixed(2)}</span>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <div className="shrink-0 px-6 pb-6 pt-1 flex gap-2 border-t border-slate-100">
+                <button onClick={() => setMeasureProduct(null)} className="flex-1 h-11 rounded-xl border border-slate-200 text-[10px] font-black uppercase tracking-widest text-slate-600 hover:bg-slate-50 transition-colors">
+                  Cancelar
+                </button>
+                <button onClick={addMeasuredProduct}
+                  disabled={!measurePreview || measurePreview.rawQuantity <= 0}
+                  className="flex-1 h-11 bg-blue-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-blue-700 transition-all disabled:opacity-50 flex items-center justify-center gap-2">
+                  <Plus size={14} /> Adicionar
+                </button>
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+
+      {/* ── Registrar Entrada Modal ───────────────────────────────────────────── */}
+      <AnimatePresence>
+        {showDepositModal && selectedQuoteDetail && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              onClick={() => !savingDeposit && setShowDepositModal(false)}
+              className="fixed inset-0 bg-slate-900/70 backdrop-blur-sm z-[400]"
+            />
+            <motion.div
+              initial={{ opacity: 0, y: 16, scale: 0.98 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 12, scale: 0.98 }}
+              transition={{ type: "spring", damping: 32, stiffness: 300 }}
+              className="fixed inset-x-4 bottom-4 sm:inset-auto sm:top-1/2 sm:left-1/2 sm:-translate-x-1/2 sm:-translate-y-1/2 z-[401] bg-white flex flex-col overflow-hidden rounded-3xl"
+              style={{ width: "min(420px, calc(100vw - 32px))" }}
+            >
+              <div className="shrink-0 flex items-center justify-between px-6 py-4 border-b border-slate-100">
+                <h2 className="text-[14px] font-black text-slate-800">Registrar Entrada</h2>
+                <button onClick={() => setShowDepositModal(false)} className="w-8 h-8 rounded-xl bg-slate-100 hover:bg-slate-200 flex items-center justify-center">
+                  <X size={14} className="text-slate-500" />
+                </button>
+              </div>
+
+              <div className="p-5 space-y-4">
+                <div>
+                  <label className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400 mb-1.5 block">Valor da Entrada</label>
+                  <div className="relative">
+                    <Banknote className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
+                    <input type="number" min="0" step="0.01" value={depositAmount} onChange={(e) => setDepositAmount(e.target.value)}
+                      placeholder="0,00"
+                      className="w-full pl-9 pr-3 h-10 rounded-xl border border-slate-200 text-[13px] font-mono font-bold focus:outline-none focus:border-blue-400 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none" />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400 mb-1.5 block">Forma de Pagamento</label>
+                  <div className="grid grid-cols-4 gap-1.5">
+                    {(["money", "debit", "credit", "pix"] as ConvertMethod[]).map((key) => (
+                      <button key={key} onClick={() => setDepositMethod(key)}
+                        className={cn("h-9 rounded-xl border text-[9px] font-black uppercase tracking-widest transition-all flex flex-col items-center justify-center gap-0.5",
+                          depositMethod === key ? (key === "credit" ? "bg-emerald-600 border-emerald-500 text-white" : "bg-blue-600 border-blue-500 text-white") : "bg-white border-slate-200 text-slate-500 hover:border-slate-400")}>
+                        {key === "money" && <Banknote size={12} />}
+                        {key === "debit" && <CreditCard size={12} />}
+                        {key === "credit" && <CreditCard size={12} />}
+                        {key === "pix" && <QrCode size={12} />}
+                        {CONVERT_PM_LABEL[key]}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {(depositMethod === "debit" || depositMethod === "credit") && (
+                  <div className="grid grid-cols-3 gap-1">
+                    {CONVERT_CARD_BRANDS.map(({ key, label, color }) => (
+                      <button key={key} onClick={() => setDepositBrand(key)}
+                        className={cn("h-7 rounded-lg border text-[8px] font-black uppercase tracking-widest transition-all", depositBrand === key ? "text-white border-transparent" : "bg-white border-slate-200 text-slate-500 hover:border-slate-400")}
+                        style={depositBrand === key ? { backgroundColor: color } : {}}>
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                )}
+
+                {depositMethod === "credit" && (
+                  <div className="grid grid-cols-4 gap-1">
+                    {[1, 2, 3, 4, 5, 6, 10, 12].map((n) => (
+                      <button key={n} onClick={() => setDepositInstallments(n)}
+                        className={cn("h-8 rounded-lg border text-[9px] font-black transition-all", depositInstallments === n ? "bg-emerald-600 border-emerald-500 text-white" : "bg-white border-slate-200 text-slate-500 hover:border-slate-400")}>
+                        {n === 1 ? "Vista" : `${n}×`}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div className="shrink-0 px-6 pb-6 pt-3 flex gap-2 border-t border-slate-100">
+                <button onClick={() => setShowDepositModal(false)} className="flex-1 h-11 rounded-xl border border-slate-200 text-[10px] font-black uppercase tracking-widest text-slate-600 hover:bg-slate-50 transition-colors">
+                  Cancelar
+                </button>
+                <button onClick={handleRecordDeposit} disabled={savingDeposit || !(Number(depositAmount) > 0)}
+                  className="flex-1 h-11 bg-cyan-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-cyan-700 transition-all disabled:opacity-50 flex items-center justify-center gap-2">
+                  {savingDeposit ? <Loader2 size={14} className="animate-spin" /> : <Wallet size={14} />}
+                  Confirmar Entrada
+                </button>
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+
+      {/* ── Novo Cliente Modal ────────────────────────────────────────────────── */}
+      <AnimatePresence>
+        {showNewCustomer && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              onClick={() => setShowNewCustomer(false)}
+              className="fixed inset-0 bg-slate-900/60 z-[400] backdrop-blur-sm"
+            />
+            <motion.div
+              initial={{ x: "100%" }} animate={{ x: 0 }} exit={{ x: "100%" }}
+              transition={{ type: "spring", damping: 26, stiffness: 200 }}
+              className="fixed inset-y-0 right-0 w-full max-w-sm bg-white z-[410] shadow-2xl flex flex-col"
+            >
+              <div className="flex items-center justify-between px-5 py-4 border-b border-slate-200 shrink-0">
+                <div>
+                  <h2 className="font-black text-slate-900 text-[15px]">Novo Cliente</h2>
+                  <p className="text-[11px] text-slate-500">Cadastro CRM</p>
+                </div>
+                <button onClick={() => setShowNewCustomer(false)} className="p-2 hover:bg-slate-100 rounded-lg text-slate-500">
+                  <X size={18} />
+                </button>
+              </div>
+
+              <div className="flex-1 overflow-y-auto p-5 space-y-3">
+                <div>
+                  <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block mb-1">Nome *</label>
+                  <input value={ncName} onChange={(e) => setNcName(e.target.value)} placeholder="Nome completo"
+                    className="w-full h-9 px-3 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block mb-1">Telefone</label>
+                    <input value={ncPhone} onChange={(e) => setNcPhone(maskPhone(e.target.value))} inputMode="numeric"
+                      placeholder="(11) 99999-9999"
+                      className="w-full h-9 px-3 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block mb-1">CPF/CNPJ</label>
+                    <input value={ncDoc} onChange={(e) => setNcDoc(maskDoc(e.target.value))} inputMode="numeric"
+                      placeholder="000.000.000-00"
+                      className="w-full h-9 px-3 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                  </div>
+                </div>
+                <div>
+                  <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block mb-1">E-mail</label>
+                  <input type="email" value={ncEmail} onChange={(e) => setNcEmail(e.target.value)} placeholder="email@exemplo.com"
+                    className="w-full h-9 px-3 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                </div>
+              </div>
+
+              <div className="border-t border-slate-200 px-5 py-4 shrink-0 bg-slate-50 flex gap-2">
+                <button onClick={() => setShowNewCustomer(false)}
+                  className="flex-1 h-9 rounded-lg border border-slate-200 text-sm font-semibold text-slate-600 hover:bg-slate-100">
+                  Cancelar
+                </button>
+                <button
+                  disabled={savingNC || !ncName.trim()}
+                  onClick={async () => {
+                    if (!ncName.trim()) return;
+                    setSavingNC(true);
+                    try {
+                      const res = await fetch("/api/customers", {
+                        method: "POST",
+                        headers: authHeader(),
+                        body: JSON.stringify({
+                          name: ncName,
+                          phone: ncPhone.replace(/\D/g, "") || null,
+                          document: ncDoc.replace(/\D/g, "") || null,
+                          email: ncEmail || null,
+                        }),
+                      });
+                      const newCust = await res.json();
+                      const cRes = await fetch("/api/customers", { headers: { Authorization: `Bearer ${localStorage.getItem("token")}` } });
+                      const cData = await cRes.json();
+                      setCustomers(Array.isArray(cData) ? cData : []);
+                      setSelectedCustomer(newCust);
+                      setShowNewCustomer(false);
+                    } finally {
+                      setSavingNC(false);
+                    }
+                  }}
+                  className="flex-1 h-9 bg-blue-600 text-white rounded-lg text-sm font-bold hover:bg-blue-700 disabled:opacity-50 transition-all"
+                >
+                  {savingNC ? "Cadastrando…" : "Criar Cliente"}
+                </button>
               </div>
             </motion.div>
           </>
@@ -1211,8 +1924,10 @@ export default function Quotes() {
       <AnimatePresence>
         {showConvertModal && selectedQuote && (() => {
           const quoteTotal = Number(selectedQuote.total_amount);
+          const depositAlready = Number(selectedQuote.deposit_amount ?? 0);
+          const amountDue  = Math.max(0, quoteTotal - depositAlready);
           const paidTotal  = convertPayments.reduce((s, p) => s + (Number(p.amount) || 0), 0);
-          const remaining  = Math.max(0, quoteTotal - paidTotal);
+          const remaining  = Math.max(0, amountDue - paidTotal);
 
           return (
             <>
@@ -1403,8 +2118,14 @@ export default function Quotes() {
                         <span>Total orçamento</span>
                         <span className="font-mono">R$ {quoteTotal.toFixed(2)}</span>
                       </div>
+                      {depositAlready > 0 && (
+                        <div className="flex justify-between text-[10px] font-bold uppercase text-cyan-400">
+                          <span>Entrada já paga</span>
+                          <span className="font-mono">− R$ {depositAlready.toFixed(2)}</span>
+                        </div>
+                      )}
                       <div className="flex justify-between text-[10px] font-bold uppercase text-slate-400">
-                        <span>Pago</span>
+                        <span>Pago agora</span>
                         <span className="font-mono text-emerald-400">R$ {paidTotal.toFixed(2)}</span>
                       </div>
                       {remaining > 0.005 && (
