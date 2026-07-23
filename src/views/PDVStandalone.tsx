@@ -6,6 +6,7 @@ import {
   Printer, FileText, MessageCircle, Phone, ChevronRight, ChevronDown,
   PlusCircle, Barcode, Users, Scan, Star, Gift, UserPlus, Download,
   Maximize2, Minimize2, Wrench, WifiOff, RefreshCw, Terminal,
+  LayoutGrid, List,
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { Product, Category, NfceInvoice } from "../types";
@@ -17,6 +18,7 @@ import {
   removePendingSale, countPendingSales, PendingSale,
 } from "../lib/offlineDb";
 import { computeMeasuredPrice } from "../utils/measurePricing";
+import { productHasStock } from "../utils/productStock";
 
 type PaymentMethod = "money" | "debit" | "credit" | "pix";
 type CardBrand = "visa" | "master" | "elo" | "amex" | "hiper" | "other";
@@ -194,6 +196,11 @@ export default function PDVStandalone() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<number | null>(null);
+  const [viewMode, setViewMode] = useState<"grid" | "list">(() => (localStorage.getItem("pdv_view_mode") as "grid" | "list") || "grid");
+
+  useEffect(() => {
+    localStorage.setItem("pdv_view_mode", viewMode);
+  }, [viewMode]);
   const [cart, setCart]             = useState<CartItem[]>([]);
   const [cardFees, setCardFees]     = useState<Record<string, number[]>>({});
   const [passFeeToCustomer, setPassFeeToCustomer] = useState(false);
@@ -1242,6 +1249,7 @@ ${sale.change > 0 ? `<hr class="divider"/><div class="row bold"><span>Troco:</sp
   };
 
   const filteredProducts = useMemo(() => products.filter((p) => {
+    if (!productHasStock(p)) return false;
     if (searchTerm) {
       return p.name.toLowerCase().includes(searchTerm.toLowerCase());
     }
@@ -1513,6 +1521,24 @@ ${sale.change > 0 ? `<hr class="divider"/><div class="row bold"><span>Troco:</sp
                 {cat.id !== null && <Tag size={9} />} {cat.name}
               </button>
             ))}
+            {!showServicesTab && (
+              <div className="ml-auto shrink-0 flex items-center gap-0.5 bg-white border border-slate-200 rounded-lg p-0.5">
+                <button
+                  onClick={() => setViewMode("grid")}
+                  title="Visualização em cards"
+                  className={cn("h-6 w-6 rounded-md flex items-center justify-center transition-all",
+                    viewMode === "grid" ? "bg-blue-600 text-white" : "text-slate-400 hover:text-blue-600")}>
+                  <LayoutGrid size={12} />
+                </button>
+                <button
+                  onClick={() => setViewMode("list")}
+                  title="Visualização em lista"
+                  className={cn("h-6 w-6 rounded-md flex items-center justify-center transition-all",
+                    viewMode === "list" ? "bg-blue-600 text-white" : "text-slate-400 hover:text-blue-600")}>
+                  <List size={12} />
+                </button>
+              </div>
+            )}
           </div>
 
           {/* Grid de serviços */}
@@ -1594,6 +1620,58 @@ ${sale.change > 0 ? `<hr class="divider"/><div class="row bold"><span>Troco:</sp
               <div className="h-full flex flex-col items-center justify-center gap-3">
                 <Package size={44} className="text-slate-300" strokeWidth={1} />
                 <p className="text-[11px] font-black uppercase tracking-widest text-slate-400">Nenhum produto encontrado</p>
+              </div>
+            ) : viewMode === "list" ? (
+              <div className="flex flex-col gap-1.5">
+                {filteredProducts.map((product) => {
+                  const qtyInCart = cart.filter((i) => i.id === product.id).reduce((a, b) => a + b.quantity, 0);
+                  const hasVariations = (Array.isArray(product.attributes) && product.attributes.length > 0) ||
+                    (Array.isArray(product.variations) && product.variations.length > 0);
+                  return (
+                    <motion.button layout key={product.id}
+                      onClick={() => addToCart(product)}
+                      whileTap={{ scale: 0.98 }}
+                      className={cn(
+                        "bg-white rounded-xl border flex items-center gap-3 group relative text-left overflow-hidden transition-all duration-200 px-2.5 py-2",
+                        qtyInCart > 0
+                          ? "cursor-pointer border-blue-400 shadow-sm shadow-blue-100"
+                          : "cursor-pointer border-slate-200 hover:border-blue-300 hover:shadow-sm hover:shadow-blue-50"
+                      )}>
+                      {/* Miniatura */}
+                      <div className="w-11 h-11 rounded-lg overflow-hidden relative flex items-center justify-center bg-slate-50 shrink-0">
+                        {product.image_url
+                          ? <img src={product.image_url} alt={product.name} className="object-contain w-full h-full p-0.5" />
+                          : <Package size={18} className="text-slate-300" />}
+                        {qtyInCart > 0 && (
+                          <span className="absolute -top-1 -left-1 w-4.5 h-4.5 min-w-[18px] rounded-full flex items-center justify-center text-[9px] font-black text-white shadow"
+                            style={{ background: "linear-gradient(135deg,#3b82f6,#1d4ed8)" }}>
+                            {qtyInCart}
+                          </span>
+                        )}
+                      </div>
+
+                      {/* Info */}
+                      <div className="flex-1 min-w-0">
+                        <p className="text-[12px] font-semibold text-slate-700 leading-tight truncate">{product.name}</p>
+                        {hasVariations && <p className="text-[8px] font-black text-blue-500 uppercase tracking-widest">variações</p>}
+                      </div>
+
+                      {/* Estoque */}
+                      <div className="shrink-0 px-1.5 py-0.5 rounded-md text-[9px] font-mono font-bold bg-slate-50 border border-slate-200 text-slate-500">
+                        {product.stock_quantity}
+                      </div>
+
+                      {/* Preço */}
+                      <p className="text-[13px] font-mono font-black text-blue-600 shrink-0 w-20 text-right">R$ {Number(product.price).toFixed(2)}</p>
+
+                      {/* Add */}
+                      <div className="w-7 h-7 rounded-full flex items-center justify-center text-white shrink-0 opacity-0 group-hover:opacity-100 transition-opacity"
+                        style={{ background: "linear-gradient(135deg,#3b82f6,#1d4ed8)" }}>
+                        <Plus size={13} strokeWidth={2.5} />
+                      </div>
+                    </motion.button>
+                  );
+                })}
               </div>
             ) : (
               <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-2.5">

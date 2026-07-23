@@ -11,6 +11,7 @@ import { cn } from "../../../../lib/utils";
 import { useStore } from "../../StoreLayout";
 import { Category, Product } from "../../../../types";
 import { buildStorePath, resolveStoreSlug } from "../../store-routing";
+import { productHasStock } from "../../../../utils/productStock";
 
 const TECH_ICONS: Record<string, ReactNode> = {
   camera: <Camera size={20} />, câmera: <Camera size={20} />, cameras: <Camera size={20} />,
@@ -44,7 +45,7 @@ export default function StoreFront() {
   const bestsellerLimit = tenant.bestseller_limit ?? 8;
   const CATEGORY_DISPLAY_LIMIT = 6;
 
-  const allActive = products.filter(p => p.is_active);
+  const allActive = products.filter(p => p.is_active && productHasStock(p));
   const featured = allActive.filter(p => p.is_featured).slice(0, featuredLimit);
   const onSale = allActive.filter(p => p.discount_price);
   const bestSellers = [

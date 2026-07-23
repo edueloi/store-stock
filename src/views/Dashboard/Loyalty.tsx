@@ -8,6 +8,7 @@ import {
 import { motion, AnimatePresence } from "motion/react";
 import { cn } from "../../lib/utils";
 import PageHeader from "../../components/layout/PageHeader";
+import { productHasStock } from "../../utils/productStock";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -62,6 +63,9 @@ interface Product {
   id: number;
   name: string;
   stock_quantity: number;
+  sale_unit?: "unidade" | "m2" | "linear";
+  skus?: { combo: Record<string, string>; stock: number }[];
+  variations?: { name: string; options: { value: string; stock: number }[] }[];
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -936,7 +940,7 @@ export default function Loyalty() {
                       <select value={rProductId} onChange={(e) => setRProductId(e.target.value)}
                         className="w-full h-9 px-3 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 bg-white">
                         <option value="">Selecione…</option>
-                        {products.filter((p) => p.stock_quantity > 0).map((p) => (
+                        {products.filter((p) => (!p.sale_unit || p.sale_unit === "unidade") && productHasStock(p)).map((p) => (
                           <option key={p.id} value={p.id}>{p.name} (estoque: {p.stock_quantity})</option>
                         ))}
                       </select>

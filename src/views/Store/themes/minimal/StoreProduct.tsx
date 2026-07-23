@@ -9,6 +9,7 @@ import { cn } from "../../../../lib/utils";
 import { useStore } from "../../StoreLayout";
 import StoreSEO from "../../../../components/store/StoreSEO";
 import { buildStorePath, resolveStoreSlug } from "../../store-routing";
+import { productHasStock } from "../../../../utils/productStock";
 
 export default function StoreProduct() {
   const { slug: routeSlug, productId } = useParams();
@@ -98,7 +99,9 @@ export default function StoreProduct() {
     const opt = v.options.find(o => o.value === selectedOptions[v.name]);
     return opt?.stock ?? 0;
   });
-  const minStock = selectedStocks.length > 0
+  const minStock = product.sale_unit && product.sale_unit !== "unidade"
+    ? 99
+    : selectedStocks.length > 0
     ? (allVariationsSelected ? Math.min(...selectedStocks) : 99)
     : (product.stock_quantity ?? 99);
 
@@ -182,7 +185,7 @@ export default function StoreProduct() {
               "priceCurrency": "BRL",
               "price": productPrice,
               "itemCondition": "https://schema.org/NewCondition",
-              "availability": (product.stock_quantity ?? 1) > 0
+              "availability": productHasStock(product)
                 ? "https://schema.org/InStock"
                 : "https://schema.org/OutOfStock",
               "seller": { "@type": "Organization", "name": tenant.name },
