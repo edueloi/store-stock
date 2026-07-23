@@ -1294,7 +1294,7 @@ export default function PDV() {
                   <p className="text-[11px] font-black uppercase tracking-widest text-slate-400">Nenhum produto encontrado</p>
                 </div>
               ) : viewMode === "list" ? (
-                <div className="flex flex-col gap-1.5">
+                <div className="grid grid-cols-1 lg:grid-cols-2 2xl:grid-cols-3 gap-1.5">
                   {filteredProducts.map((product) => {
                     const qtyInCart   = cart.filter((i) => i.id === product.id).reduce((a, b) => a + b.quantity, 0);
                     const atLimit     = qtyInCart >= product.stock_quantity;

@@ -8,7 +8,7 @@ import {
 import { cn } from "../../../../lib/utils";
 import { useStore } from "../../StoreLayout";
 import StoreSEO from "../../../../components/store/StoreSEO";
-import { buildStorePath, resolveStoreSlug } from "../../store-routing";
+import { buildStorePath, resolveStoreSlug, parseProductIdFromRoute, productRouteSegment } from "../../store-routing";
 import { productHasStock } from "../../../../utils/productStock";
 
 export default function StoreProduct() {
@@ -16,7 +16,7 @@ export default function StoreProduct() {
   const { products, categories, addToCart, style, openCart, tenant } = useStore();
   const slug = resolveStoreSlug(routeSlug);
 
-  const product = products.find(p => p.id === Number(productId));
+  const product = products.find(p => p.id === parseProductIdFromRoute(productId));
   const allImages = Array.isArray(product?.images) && product.images.length > 0 ? product.images : product?.image_url ? [product.image_url] : [];
   const [activeImg, setActiveImg] = useState(0);
 
@@ -523,7 +523,7 @@ export default function StoreProduct() {
                   whileHover={{ y: -2 }}
                 >
                   <Link
-                    to={buildStorePath(slug, `/produto/${p.id}`)}
+                    to={buildStorePath(slug, `/produto/${productRouteSegment(p)}`)}
                     className="group flex flex-col border transition-all overflow-hidden rounded-2xl bg-white border-slate-100 hover:border-slate-200 hover:shadow-md"
                   >
                     <div className="overflow-hidden aspect-square bg-slate-50">

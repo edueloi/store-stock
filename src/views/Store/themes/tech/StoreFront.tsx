@@ -10,7 +10,7 @@ import {
 } from "lucide-react";
 import { useStore, StoreStyle } from "../../StoreLayout";
 import { Category, Product } from "../../../../types";
-import { buildStorePath, resolveStoreSlug } from "../../store-routing";
+import { buildStorePath, resolveStoreSlug, productRouteSegment } from "../../store-routing";
 import { productHasStock } from "../../../../utils/productStock";
 
 // ── Tech Icons Map ──────────────────────────────────────────────────────────
@@ -116,7 +116,7 @@ function ProductCard({ product, index, slug, style, onAddToCart }: {
       transition={{ delay: Math.min(index * 0.05, 0.4) }}
       className="group flex flex-col rounded-2xl border border-slate-200 bg-white overflow-hidden transition-all duration-300 hover:border-sky-300 hover:-translate-y-1 hover:shadow-[0_8px_28px_rgba(14,165,233,0.13)] shadow-sm"
     >
-      <Link to={buildStorePath(slug, `/produto/${product.id}`)} className="relative block overflow-hidden aspect-square bg-slate-50">
+      <Link to={buildStorePath(slug, `/produto/${productRouteSegment(product)}`)} className="relative block overflow-hidden aspect-square bg-slate-50">
         {img
           ? <img src={img} alt={product.name} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" />
           : <div className="w-full h-full flex items-center justify-center text-slate-300"><Package size={44} strokeWidth={1} /></div>}
@@ -149,7 +149,7 @@ function ProductCard({ product, index, slug, style, onAddToCart }: {
           {product.category_name || "Tecnologia"}
         </p>
         <Link
-          to={buildStorePath(slug, `/produto/${product.id}`)}
+          to={buildStorePath(slug, `/produto/${productRouteSegment(product)}`)}
           className="text-sm font-bold text-slate-800 leading-snug line-clamp-2 hover:text-sky-600 transition-colors"
         >
           {product.name}
@@ -432,7 +432,7 @@ export default function StoreFront() {
             <div className="grid lg:grid-cols-[1.2fr_0.8fr] gap-5">
               {/* Hero featured card */}
               <Link
-                to={storePath(`/produto/${featured[0].id}`)}
+                to={storePath(`/produto/${productRouteSegment(featured[0])}`)}
                 className="group relative overflow-hidden rounded-2xl border border-slate-200 min-h-[440px] bg-white hover:border-sky-300 hover:shadow-[0_8px_40px_rgba(14,165,233,0.15)] transition-all duration-300 shadow-sm"
               >
                 {getImg(featured[0]) ? (
@@ -481,7 +481,7 @@ export default function StoreFront() {
                   return (
                     <motion.div key={product.id} initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.08 }}>
                       <Link
-                        to={storePath(`/produto/${product.id}`)}
+                        to={storePath(`/produto/${productRouteSegment(product)}`)}
                         className="group flex gap-4 p-4 rounded-2xl border border-slate-200 bg-white hover:border-sky-300 hover:shadow-md transition-all shadow-sm"
                       >
                         <div className="w-20 h-20 rounded-xl overflow-hidden border border-slate-100 shrink-0 flex items-center justify-center bg-slate-50">

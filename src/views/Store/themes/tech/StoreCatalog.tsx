@@ -10,7 +10,7 @@ import {
 import { cn } from "../../../../lib/utils";
 import { useStore } from "../../StoreLayout";
 import { Product } from "../../../../types";
-import { buildStorePath, resolveStoreSlug } from "../../store-routing";
+import { buildStorePath, resolveStoreSlug, productRouteSegment } from "../../store-routing";
 import { productHasStock } from "../../../../utils/productStock";
 
 type SortKey = "default" | "price_asc" | "price_desc" | "name";
@@ -492,7 +492,7 @@ function TechProductCard({ product, index, slug, style, wishlist, onWishlist, on
       transition={{ delay: Math.min(index * 0.04, 0.4) }}
       className="group flex flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white hover:border-sky-300 hover:-translate-y-1 hover:shadow-[0_8px_28px_rgba(14,165,233,0.13)] transition-all duration-300 shadow-sm"
     >
-      <Link to={buildStorePath(slug, `/produto/${product.id}`)} className="relative aspect-square bg-slate-50 overflow-hidden block">
+      <Link to={buildStorePath(slug, `/produto/${productRouteSegment(product)}`)} className="relative aspect-square bg-slate-50 overflow-hidden block">
         {primaryImage
           ? <img src={primaryImage} alt={product.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
           : <div className="w-full h-full flex items-center justify-center text-slate-300"><Package size={48} strokeWidth={1} /></div>}
@@ -541,7 +541,7 @@ function TechProductCard({ product, index, slug, style, wishlist, onWishlist, on
         <p className="text-[9px] font-bold uppercase tracking-wider" style={{ color: style.accent }}>
           {product.category_name || "Tecnologia"}
         </p>
-        <Link to={buildStorePath(slug, `/produto/${product.id}`)} className="text-sm font-bold text-slate-800 line-clamp-2 leading-snug hover:text-sky-600 transition-colors">
+        <Link to={buildStorePath(slug, `/produto/${productRouteSegment(product)}`)} className="text-sm font-bold text-slate-800 line-clamp-2 leading-snug hover:text-sky-600 transition-colors">
           {product.name}
         </Link>
         {product.description && (
@@ -597,7 +597,7 @@ function TechProductRow({ product, index, slug, style, wishlist, onWishlist, onA
       transition={{ delay: Math.min(index * 0.03, 0.3) }}
       className="flex gap-4 border transition-all group p-3 rounded-2xl border-slate-200 bg-white hover:border-sky-300 hover:shadow-md shadow-sm"
     >
-      <Link to={buildStorePath(slug, `/produto/${product.id}`)} className="w-24 h-24 shrink-0 rounded-xl overflow-hidden bg-slate-50 border border-slate-100 relative">
+      <Link to={buildStorePath(slug, `/produto/${productRouteSegment(product)}`)} className="w-24 h-24 shrink-0 rounded-xl overflow-hidden bg-slate-50 border border-slate-100 relative">
         {primaryImage
           ? <img src={primaryImage} alt={product.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
           : <div className="w-full h-full flex items-center justify-center text-slate-300"><Package size={28} strokeWidth={1} /></div>}
@@ -613,7 +613,7 @@ function TechProductRow({ product, index, slug, style, wishlist, onWishlist, onA
               <p className="text-[9px] font-bold uppercase tracking-wider mb-0.5" style={{ color: style.accent }}>
                 {product.category_name || "Tecnologia"}
               </p>
-              <Link to={buildStorePath(slug, `/produto/${product.id}`)} className="text-sm font-bold text-slate-800 hover:text-sky-600 transition-colors leading-snug line-clamp-2 block">
+              <Link to={buildStorePath(slug, `/produto/${productRouteSegment(product)}`)} className="text-sm font-bold text-slate-800 hover:text-sky-600 transition-colors leading-snug line-clamp-2 block">
                 {product.name}
               </Link>
             </div>
@@ -638,7 +638,7 @@ function TechProductRow({ product, index, slug, style, wishlist, onWishlist, onA
             )}
           </div>
           <div className="flex items-center gap-2">
-            <Link to={buildStorePath(slug, `/produto/${product.id}`)}
+            <Link to={buildStorePath(slug, `/produto/${productRouteSegment(product)}`)}
               className="h-9 px-3 rounded-xl border border-slate-200 text-[10px] font-bold text-slate-500 hover:border-sky-300 hover:text-sky-600 flex items-center gap-1.5 transition-all">
               Ver produto
             </Link>

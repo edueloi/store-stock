@@ -9,7 +9,7 @@ import {
 import { cn } from "../../../../lib/utils";
 import { useStore } from "../../StoreLayout";
 import { Product } from "../../../../types";
-import { buildStorePath, resolveStoreSlug } from "../../store-routing";
+import { buildStorePath, resolveStoreSlug, productRouteSegment } from "../../store-routing";
 import { productHasStock } from "../../../../utils/productStock";
 
 type SortKey = "default" | "price_asc" | "price_desc" | "name";
@@ -499,7 +499,7 @@ function ProductCard({ product, index, slug, style, wishlist, onWishlist, onAddT
       whileHover={{ y: -4 }}
       className="group relative flex flex-col overflow-hidden border transition-all duration-300 rounded-2xl bg-[#fffbf5] border-[#f0e6d3] hover:shadow-[0_8px_32px_rgba(217,119,6,0.15)] hover:border-amber-200"
     >
-      <Link to={buildStorePath(slug, `/produto/${product.id}`)} className="relative overflow-hidden block aspect-square bg-amber-50/60">
+      <Link to={buildStorePath(slug, `/produto/${productRouteSegment(product)}`)} className="relative overflow-hidden block aspect-square bg-amber-50/60">
         {primaryImage
           ? <img src={primaryImage} alt={product.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
           : <div className="w-full h-full flex items-center justify-center text-amber-200"><Package size={48} strokeWidth={1} /></div>}
@@ -530,7 +530,7 @@ function ProductCard({ product, index, slug, style, wishlist, onWishlist, onAddT
             <Heart size={12} fill={inWishlist ? "currentColor" : "none"} />
           </button>
           <button
-            onClick={e => { e.preventDefault(); e.stopPropagation(); navigate(buildStorePath(slug, `/produto/${product.id}`)); }}
+            onClick={e => { e.preventDefault(); e.stopPropagation(); navigate(buildStorePath(slug, `/produto/${productRouteSegment(product)}`)); }}
             className="w-8 h-8 rounded-full bg-white border border-amber-200 flex items-center justify-center shadow text-stone-400 hover:text-amber-600 transition-all"
           >
             <Eye size={12} />
@@ -548,7 +548,7 @@ function ProductCard({ product, index, slug, style, wishlist, onWishlist, onAddT
       </Link>
       <div className="flex flex-col flex-1 p-3 gap-1">
         <p className="text-[9px] font-black uppercase tracking-widest text-amber-600/60">{product.category_name || "Geral"}</p>
-        <Link to={buildStorePath(slug, `/produto/${product.id}`)} className="text-xs font-semibold text-stone-700 line-clamp-2 leading-snug hover:text-amber-700 transition-colors">
+        <Link to={buildStorePath(slug, `/produto/${productRouteSegment(product)}`)} className="text-xs font-semibold text-stone-700 line-clamp-2 leading-snug hover:text-amber-700 transition-colors">
           {product.name}
         </Link>
         {Array.isArray(product.variations) && product.variations.length > 0 && (
@@ -601,7 +601,7 @@ function ProductRow({ product, index, slug, style, wishlist, onWishlist, onAddTo
       transition={{ delay: Math.min(index * 0.03, 0.3) }}
       className="flex gap-4 border transition-all group p-3 rounded-2xl bg-[#fffbf5] border-[#f0e6d3] hover:shadow-[0_4px_20px_rgba(217,119,6,0.1)] hover:border-amber-200"
     >
-      <Link to={buildStorePath(slug, `/produto/${product.id}`)} className="w-24 h-24 shrink-0 rounded-xl overflow-hidden bg-amber-50/60 relative">
+      <Link to={buildStorePath(slug, `/produto/${productRouteSegment(product)}`)} className="w-24 h-24 shrink-0 rounded-xl overflow-hidden bg-amber-50/60 relative">
         {primaryImage
           ? <img src={primaryImage} alt={product.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
           : <div className="w-full h-full flex items-center justify-center text-amber-200"><Package size={28} strokeWidth={1} /></div>}
@@ -619,7 +619,7 @@ function ProductRow({ product, index, slug, style, wishlist, onWishlist, onAddTo
           <div className="flex items-start justify-between gap-2">
             <div>
               <p className="text-[9px] font-black text-amber-600/60 uppercase tracking-widest">{product.category_name || "Geral"}</p>
-              <Link to={buildStorePath(slug, `/produto/${product.id}`)} className="text-sm font-semibold text-stone-700 hover:text-amber-700 transition-colors leading-snug line-clamp-2 mt-0.5 block">
+              <Link to={buildStorePath(slug, `/produto/${productRouteSegment(product)}`)} className="text-sm font-semibold text-stone-700 hover:text-amber-700 transition-colors leading-snug line-clamp-2 mt-0.5 block">
                 {product.name}
               </Link>
             </div>
@@ -653,7 +653,7 @@ function ProductRow({ product, index, slug, style, wishlist, onWishlist, onAddTo
             )}
           </div>
           <div className="flex items-center gap-2">
-            <Link to={buildStorePath(slug, `/produto/${product.id}`)}
+            <Link to={buildStorePath(slug, `/produto/${productRouteSegment(product)}`)}
               className="h-8 px-3 rounded-xl border border-[#f0e6d3] text-[10px] font-bold text-stone-500 hover:border-amber-300 hover:text-amber-700 flex items-center gap-1.5 transition-all bg-white">
               <Eye size={12} /> Ver
             </Link>

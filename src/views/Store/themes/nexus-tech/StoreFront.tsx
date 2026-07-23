@@ -11,7 +11,7 @@ import {
 import { cn } from "../../../../lib/utils";
 import { useStore, StoreStyle } from "../../StoreLayout";
 import { Category, Product } from "../../../../types";
-import { buildStorePath, resolveStoreSlug } from "../../store-routing";
+import { buildStorePath, resolveStoreSlug, productRouteSegment } from "../../store-routing";
 import { productHasStock } from "../../../../utils/productStock";
 
 // ── Icons ─────────────────────────────────────────────────────────────────────
@@ -112,7 +112,7 @@ function ProductCard({ product, index, slug, style, onAddToCart }: {
       transition={{ delay: index * 0.05, duration: 0.4 }}
     >
       <Link
-        to={buildStorePath(slug, `/produto/${product.id}`)}
+        to={buildStorePath(slug, `/produto/${productRouteSegment(product)}`)}
         className={cn(
           "group flex flex-col border overflow-hidden transition-all duration-300 tech-panel tech-card-sheen bg-white/90 hover:-translate-y-1.5 hover:shadow-[0_24px_60px_rgba(37,99,235,0.16)]",
           style.card,
@@ -446,7 +446,7 @@ export default function StoreFront() {
             <div className="grid lg:grid-cols-[1.15fr_0.85fr] gap-5">
               {/* Hero featured product */}
               <Link
-                to={storePath(`/produto/${featured[0].id}`)}
+                to={storePath(`/produto/${productRouteSegment(featured[0])}`)}
                 className="tech-panel tech-card-sheen group relative overflow-hidden rounded-[2.2rem] border border-[#dbe6ff] min-h-[480px] md:min-h-[560px] bg-[linear-gradient(145deg,#f0f6ff_0%,#fafcff_100%)] shadow-[0_4px_40px_rgba(37,99,235,0.09)] hover:shadow-[0_8px_60px_rgba(37,99,235,0.18)] transition-all duration-500"
               >
                 {getImg(featured[0]) ? (
@@ -570,7 +570,7 @@ export default function StoreFront() {
                     className="h-full"
                   >
                     <Link
-                      to={storePath(`/produto/${product.id}`)}
+                      to={storePath(`/produto/${productRouteSegment(product)}`)}
                       className={cn(
                         "group flex flex-col h-full border overflow-hidden transition-all duration-300 tech-panel tech-card-sheen bg-white/90 hover:-translate-y-1.5 hover:shadow-[0_24px_60px_rgba(37,99,235,0.15)]",
                         style.card,

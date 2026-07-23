@@ -9,7 +9,7 @@ import {
 import { cn } from "../../../../lib/utils";
 import { useStore } from "../../StoreLayout";
 import StoreSEO from "../../../../components/store/StoreSEO";
-import { buildStorePath, resolveStoreSlug } from "../../store-routing";
+import { buildStorePath, resolveStoreSlug, parseProductIdFromRoute, productRouteSegment } from "../../store-routing";
 import { productHasStock } from "../../../../utils/productStock";
 
 export default function StoreProduct() {
@@ -17,7 +17,7 @@ export default function StoreProduct() {
   const { products, categories, addToCart, style, openCart, tenant } = useStore();
   const slug = resolveStoreSlug(routeSlug);
 
-  const product = products.find(p => p.id === Number(productId));
+  const product = products.find(p => p.id === parseProductIdFromRoute(productId));
   const allImages = Array.isArray(product?.images) && product.images.length > 0
     ? product.images as string[]
     : product?.image_url ? [product.image_url] : [];
@@ -533,7 +533,7 @@ export default function StoreProduct() {
                 return (
                   <Link
                     key={p.id}
-                    to={buildStorePath(slug, `/produto/${p.id}`)}
+                    to={buildStorePath(slug, `/produto/${productRouteSegment(p)}`)}
                     className="group flex flex-col border border-slate-200 bg-white overflow-hidden rounded-2xl transition-all hover:-translate-y-1 hover:border-sky-300 hover:shadow-[0_8px_24px_rgba(14,165,233,0.12)] shadow-sm"
                   >
                     <div className="overflow-hidden aspect-square bg-slate-50">

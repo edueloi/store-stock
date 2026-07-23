@@ -10,7 +10,7 @@ import {
 import { cn } from "../../../../lib/utils";
 import { useStore } from "../../StoreLayout";
 import { Product } from "../../../../types";
-import { buildStorePath, resolveStoreSlug } from "../../store-routing";
+import { buildStorePath, resolveStoreSlug, productRouteSegment } from "../../store-routing";
 import { productHasStock } from "../../../../utils/productStock";
 
 type SortKey = "default" | "price_asc" | "price_desc" | "name";
@@ -556,7 +556,7 @@ function ProductCard({ product, index, slug, style, wishlist, onWishlist, onAddT
       )}>
         {/* Image */}
         <Link
-          to={buildStorePath(slug, `/produto/${product.id}`)}
+          to={buildStorePath(slug, `/produto/${productRouteSegment(product)}`)}
           className="relative overflow-hidden block aspect-square tech-grid bg-[linear-gradient(160deg,#f4f8ff_0%,#edf4ff_100%)]"
         >
           {primaryImage
@@ -597,7 +597,7 @@ function ProductCard({ product, index, slug, style, wishlist, onWishlist, onAddT
               <Heart size={11} fill={inWishlist ? "currentColor" : "none"} />
             </button>
             <button
-              onClick={e => { e.preventDefault(); e.stopPropagation(); navigate(buildStorePath(slug, `/produto/${product.id}`)); }}
+              onClick={e => { e.preventDefault(); e.stopPropagation(); navigate(buildStorePath(slug, `/produto/${productRouteSegment(product)}`)); }}
               className="w-8 h-8 rounded-full bg-white border border-[#dbe6ff] flex items-center justify-center shadow-md text-[#8baed0] hover:text-[#2563eb] hover:border-[#b3caff] transition-all"
             >
               <Eye size={11} />
@@ -620,7 +620,7 @@ function ProductCard({ product, index, slug, style, wishlist, onWishlist, onAddT
         <div className="flex flex-col flex-1 p-4 sm:p-5 gap-2">
           <p className="store-kicker text-[9px] font-semibold text-[#7b9ac0]">{product.category_name || "Tecnologia"}</p>
           <Link
-            to={buildStorePath(slug, `/produto/${product.id}`)}
+            to={buildStorePath(slug, `/produto/${productRouteSegment(product)}`)}
             className="store-display text-[1.1rem] sm:text-[1.28rem] font-semibold text-[#071426] line-clamp-2 leading-[1.02] hover:text-[#1d4ed8] transition-colors"
           >
             {product.name}
@@ -695,7 +695,7 @@ function ProductRow({ product, index, slug, style, wishlist, onWishlist, onAddTo
       )}>
         {/* Image */}
         <Link
-          to={buildStorePath(slug, `/produto/${product.id}`)}
+          to={buildStorePath(slug, `/produto/${productRouteSegment(product)}`)}
           className="w-24 h-24 sm:w-28 sm:h-28 shrink-0 rounded-[1.4rem] overflow-hidden tech-grid bg-[linear-gradient(160deg,#f4f8ff_0%,#edf4ff_100%)] relative"
         >
           {primaryImage
@@ -717,7 +717,7 @@ function ProductRow({ product, index, slug, style, wishlist, onWishlist, onAddTo
               <div>
                 <p className="store-kicker text-[9px] font-semibold text-[#7b9ac0]">{product.category_name || "Tecnologia"}</p>
                 <Link
-                  to={buildStorePath(slug, `/produto/${product.id}`)}
+                  to={buildStorePath(slug, `/produto/${productRouteSegment(product)}`)}
                   className="store-display text-[1.25rem] sm:text-[1.48rem] font-semibold text-[#071426] hover:text-[#1d4ed8] transition-colors leading-[0.97] line-clamp-2 mt-0.5 block"
                 >
                   {product.name}
@@ -765,7 +765,7 @@ function ProductRow({ product, index, slug, style, wishlist, onWishlist, onAddTo
             </div>
             <div className="flex items-center gap-2">
               <Link
-                to={buildStorePath(slug, `/produto/${product.id}`)}
+                to={buildStorePath(slug, `/produto/${productRouteSegment(product)}`)}
                 className="h-10 px-4 rounded-full border border-[#dbe6ff] bg-white text-[10px] font-semibold uppercase tracking-[0.14em] text-[#4e6c8e] hover:border-[#b3caff] hover:text-[#071426] flex items-center gap-1.5 transition-all"
               >
                 <Eye size={11} /> Ver

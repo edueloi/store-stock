@@ -9,7 +9,7 @@ import {
 import { cn } from "../../../../lib/utils";
 import { useStore, StoreStyle } from "../../StoreLayout";
 import { Product } from "../../../../types";
-import { buildStorePath, resolveStoreSlug } from "../../store-routing";
+import { buildStorePath, resolveStoreSlug, productRouteSegment } from "../../store-routing";
 import { productHasStock } from "../../../../utils/productStock";
 
 // ── Section Header ────────────────────────────────────────────────────────────
@@ -56,7 +56,7 @@ function ProductCard({ product, index, slug, style, onAddToCart }: {
       whileHover={{ y: -2 }}
     >
       <Link
-        to={buildStorePath(slug, `/produto/${product.id}`)}
+        to={buildStorePath(slug, `/produto/${productRouteSegment(product)}`)}
         className={cn(
           "group flex flex-col border overflow-hidden transition-all duration-300 rounded-2xl",
           "bg-white border-slate-100",
@@ -397,7 +397,7 @@ export default function StoreFront() {
                     whileHover={{ y: -2 }}
                     className="group bg-white border border-slate-100 overflow-hidden hover:border-slate-200 hover:shadow-md transition-all duration-300 rounded-2xl"
                   >
-                    <Link to={storePath(`/produto/${product.id}`)} className="block relative overflow-hidden" style={{ aspectRatio: "16/10" }}>
+                    <Link to={storePath(`/produto/${productRouteSegment(product)}`)} className="block relative overflow-hidden" style={{ aspectRatio: "16/10" }}>
                       {img
                         ? <img src={img} alt={product.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
                         : <div className="w-full h-full flex items-center justify-center bg-slate-50 text-slate-200">
@@ -500,7 +500,7 @@ export default function StoreFront() {
                     whileHover={{ y: -2 }}
                   >
                     <Link
-                      to={storePath(`/produto/${product.id}`)}
+                      to={storePath(`/produto/${productRouteSegment(product)}`)}
                       className="group flex flex-col border transition-all overflow-hidden hover:shadow-md rounded-2xl bg-white border-slate-100 hover:border-slate-200"
                     >
                       <div className="aspect-square bg-slate-50 overflow-hidden relative">

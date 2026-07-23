@@ -10,7 +10,7 @@ import {
 import { cn } from "../../../../lib/utils";
 import { useStore } from "../../StoreLayout";
 import { Category, Product } from "../../../../types";
-import { buildStorePath, resolveStoreSlug } from "../../store-routing";
+import { buildStorePath, resolveStoreSlug, productRouteSegment } from "../../store-routing";
 import { productHasStock } from "../../../../utils/productStock";
 
 const TECH_ICONS: Record<string, ReactNode> = {
@@ -246,7 +246,7 @@ export default function StoreFront() {
             </div>
 
             <div className="grid lg:grid-cols-[1.15fr_0.85fr] gap-4">
-              <Link to={storePath(`/produto/${featured[0].id}`)}
+              <Link to={storePath(`/produto/${productRouteSegment(featured[0])}`)}
                 className="group relative overflow-hidden rounded-2xl border border-[#1e2d4a] min-h-[480px] bg-[#0e1525]">
                 {getImg(featured[0]) ? (
                   <img src={getImg(featured[0])!} alt={featured[0].name} className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-105" />
@@ -288,7 +288,7 @@ export default function StoreFront() {
                   const pct = hasDiscount ? Math.round((1 - Number(product.discount_price) / Number(product.price)) * 100) : 0;
                   return (
                     <motion.div key={product.id} initial={{ opacity: 0, x: 16 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.07 }}>
-                      <Link to={storePath(`/produto/${product.id}`)}
+                      <Link to={storePath(`/produto/${productRouteSegment(product)}`)}
                         className="group flex gap-4 p-4 rounded-2xl border border-[#1e2d4a] bg-[#0e1525]/80 hover:border-blue-500/40 hover:bg-[#0e1525] transition-all">
                         <div className="w-20 h-20 rounded-xl overflow-hidden border border-[#1e2d4a] shrink-0 flex items-center justify-center bg-[#080c14]">
                           {img ? <img src={img} alt={product.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
@@ -338,7 +338,7 @@ export default function StoreFront() {
                 const pct = hasDiscount ? Math.round((1 - Number(product.discount_price) / Number(product.price)) * 100) : 0;
                 return (
                   <motion.div key={product.id} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05 }}>
-                    <Link to={storePath(`/produto/${product.id}`)}
+                    <Link to={storePath(`/produto/${productRouteSegment(product)}`)}
                       className="group flex flex-col rounded-2xl border border-[#1e2d4a] bg-[#0e1525]/80 overflow-hidden hover:border-blue-500/40 hover:-translate-y-1 transition-all duration-300">
                       <div className="relative aspect-square bg-[#080c14] overflow-hidden">
                         {img ? <img src={img} alt={product.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
@@ -407,7 +407,7 @@ export default function StoreFront() {
                 const img = getImg(product);
                 return (
                   <motion.div key={product.id} initial={{ opacity: 0, scale: 0.97 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: i * 0.05 }}>
-                    <Link to={storePath(`/produto/${product.id}`)}
+                    <Link to={storePath(`/produto/${productRouteSegment(product)}`)}
                       className="group flex flex-col rounded-2xl border border-[#1e2d4a] bg-[#0e1525]/80 overflow-hidden hover:border-blue-500/40 hover:-translate-y-1 transition-all duration-300">
                       <div className="relative aspect-square bg-[#080c14] overflow-hidden">
                         {img ? <img src={img} alt={product.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />

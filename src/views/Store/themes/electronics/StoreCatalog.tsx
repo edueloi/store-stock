@@ -10,7 +10,7 @@ import { cn } from "../../../../lib/utils";
 import { useStore } from "../../StoreLayout";
 import { Product } from "../../../../types";
 import { productHasStock } from "../../../../utils/productStock";
-import { buildStorePath, resolveStoreSlug } from "../../store-routing";
+import { buildStorePath, resolveStoreSlug, productRouteSegment } from "../../store-routing";
 
 type SortKey = "default" | "price_asc" | "price_desc" | "name";
 type ViewMode = "grid" | "list";
@@ -479,7 +479,7 @@ function ProductCard({ product, index, slug, style, wishlist, onWishlist, onAddT
       transition={{ delay: Math.min(index * 0.04, 0.4) }}
       className="group flex flex-col overflow-hidden rounded-2xl border border-[#1e2d4a] bg-[#0e1525]/80 hover:border-blue-500/40 hover:-translate-y-1 transition-all duration-300"
     >
-      <Link to={buildStorePath(slug, `/produto/${product.id}`)} className="relative aspect-square bg-[#080c14] overflow-hidden block">
+      <Link to={buildStorePath(slug, `/produto/${productRouteSegment(product)}`)} className="relative aspect-square bg-[#080c14] overflow-hidden block">
         {primaryImage
           ? <img src={primaryImage} alt={product.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
           : <div className="w-full h-full flex items-center justify-center text-slate-700"><Package size={48} strokeWidth={1} /></div>}
@@ -513,7 +513,7 @@ function ProductCard({ product, index, slug, style, wishlist, onWishlist, onAddT
       </Link>
       <div className="p-3 flex flex-col gap-1">
         <p className="text-[9px] font-bold uppercase tracking-wider text-blue-400/60">{product.category_name || "Eletrônicos"}</p>
-        <Link to={buildStorePath(slug, `/produto/${product.id}`)} className="text-sm font-bold text-white line-clamp-2 leading-snug hover:text-blue-300 transition-colors">
+        <Link to={buildStorePath(slug, `/produto/${productRouteSegment(product)}`)} className="text-sm font-bold text-white line-clamp-2 leading-snug hover:text-blue-300 transition-colors">
           {product.name}
         </Link>
         {product.description && <p className="text-[11px] leading-relaxed line-clamp-2 text-slate-500">{product.description}</p>}
@@ -565,7 +565,7 @@ function ProductRow({ product, index, slug, style, wishlist, onWishlist, onAddTo
       transition={{ delay: Math.min(index * 0.03, 0.3) }}
       className="flex gap-4 border transition-all group p-3 rounded-2xl border-[#1e2d4a] bg-[#0e1525]/80 hover:border-blue-500/40"
     >
-      <Link to={buildStorePath(slug, `/produto/${product.id}`)} className="w-24 h-24 shrink-0 rounded-xl overflow-hidden bg-[#080c14] border border-[#1e2d4a] relative">
+      <Link to={buildStorePath(slug, `/produto/${productRouteSegment(product)}`)} className="w-24 h-24 shrink-0 rounded-xl overflow-hidden bg-[#080c14] border border-[#1e2d4a] relative">
         {primaryImage
           ? <img src={primaryImage} alt={product.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
           : <div className="w-full h-full flex items-center justify-center text-slate-700"><Package size={28} strokeWidth={1} /></div>}
@@ -580,7 +580,7 @@ function ProductRow({ product, index, slug, style, wishlist, onWishlist, onAddTo
           <div className="flex items-start justify-between gap-2">
             <div>
               <p className="text-[9px] font-bold text-blue-400/60 uppercase tracking-wider">{product.category_name || "Geral"}</p>
-              <Link to={buildStorePath(slug, `/produto/${product.id}`)} className="text-sm font-bold text-white hover:text-blue-300 transition-colors leading-snug line-clamp-2 mt-0.5 block">
+              <Link to={buildStorePath(slug, `/produto/${productRouteSegment(product)}`)} className="text-sm font-bold text-white hover:text-blue-300 transition-colors leading-snug line-clamp-2 mt-0.5 block">
                 {product.name}
               </Link>
             </div>
@@ -614,7 +614,7 @@ function ProductRow({ product, index, slug, style, wishlist, onWishlist, onAddTo
             )}
           </div>
           <div className="flex items-center gap-2">
-            <Link to={buildStorePath(slug, `/produto/${product.id}`)}
+            <Link to={buildStorePath(slug, `/produto/${productRouteSegment(product)}`)}
               className="h-9 px-3 rounded-xl border border-[#1e2d4a] text-[10px] font-bold text-slate-400 hover:border-blue-500/40 hover:text-white flex items-center gap-1.5 transition-all">
               <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg> Ver
             </Link>

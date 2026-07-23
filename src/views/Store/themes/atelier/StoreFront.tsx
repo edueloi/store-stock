@@ -9,7 +9,7 @@ import {
 import { cn } from "../../../../lib/utils";
 import { useStore, StoreStyle } from "../../StoreLayout";
 import { Category, Product } from "../../../../types";
-import { buildStorePath, resolveStoreSlug } from "../../store-routing";
+import { buildStorePath, resolveStoreSlug, productRouteSegment } from "../../store-routing";
 import { productHasStock } from "../../../../utils/productStock";
 
 function SectionHeader({ title, icon, link, linkLabel, accent, isFashion = false }: {
@@ -50,7 +50,7 @@ function ProductCard({ product, index, slug, style, onAddToCart }: {
   return (
     <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: index * 0.04 }}>
       <Link
-        to={buildStorePath(slug, `/produto/${product.id}`)}
+        to={buildStorePath(slug, `/produto/${productRouteSegment(product)}`)}
         className={cn(
           "group flex flex-col border overflow-hidden transition-all",
           "fashion-soft-shadow hover:-translate-y-1 hover:shadow-[0_26px_70px_rgba(108,64,55,0.12)]",
@@ -338,7 +338,7 @@ export default function StoreFront() {
             />
             <div className="grid lg:grid-cols-[1.08fr_0.92fr] gap-5">
               <Link
-                to={storePath(`/produto/${featured[0].id}`)}
+                to={storePath(`/produto/${productRouteSegment(featured[0])}`)}
                 className="fashion-panel group relative overflow-hidden rounded-[2rem] border border-[#ead9ce] min-h-[540px] bg-[#f1e3d8]"
               >
                 {getImg(featured[0]) ? (
@@ -424,7 +424,7 @@ export default function StoreFront() {
                 return (
                   <motion.div key={product.id} initial={{ opacity: 0, scale: 0.97 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: i * 0.05 }}>
                     <Link
-                      to={storePath(`/produto/${product.id}`)}
+                      to={storePath(`/produto/${productRouteSegment(product)}`)}
                       className={cn(
                         "group flex flex-col border transition-all overflow-hidden",
                         "fashion-soft-shadow hover:-translate-y-1 hover:shadow-[0_26px_70px_rgba(108,64,55,0.12)]",

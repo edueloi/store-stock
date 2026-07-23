@@ -9,7 +9,7 @@ import {
 import { cn } from "../../../../lib/utils";
 import { useStore } from "../../StoreLayout";
 import StoreSEO from "../../../../components/store/StoreSEO";
-import { buildStorePath, resolveStoreSlug } from "../../store-routing";
+import { buildStorePath, resolveStoreSlug, parseProductIdFromRoute, productRouteSegment } from "../../store-routing";
 import { productHasStock } from "../../../../utils/productStock";
 
 export default function StoreProduct() {
@@ -17,7 +17,7 @@ export default function StoreProduct() {
   const { products, categories, addToCart, style, openCart, tenant } = useStore();
   const slug = resolveStoreSlug(routeSlug);
 
-  const product = products.find(p => p.id === Number(productId));
+  const product = products.find(p => p.id === parseProductIdFromRoute(productId));
   const allImages = Array.isArray(product?.images) && product.images.length > 0
     ? product.images as string[]
     : product?.image_url ? [product.image_url] : [];
@@ -642,7 +642,7 @@ export default function StoreProduct() {
                     className="h-full"
                   >
                     <Link
-                      to={buildStorePath(slug, `/produto/${p.id}`)}
+                      to={buildStorePath(slug, `/produto/${productRouteSegment(p)}`)}
                       className={cn(
                         "group flex flex-col h-full border overflow-hidden transition-all duration-300 tech-panel tech-card-sheen bg-white/90 hover:-translate-y-1.5 hover:shadow-[0_24px_60px_rgba(37,99,235,0.15)]",
                         style.card,

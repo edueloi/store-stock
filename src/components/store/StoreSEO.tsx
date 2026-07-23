@@ -62,7 +62,7 @@ export default function StoreSEO({
     if (keywords) setMeta("keywords", keywords);
 
     setMeta("og:title", title, true);
-    setMeta("og:type", type === "product" ? "og:product" : "website", true);
+    setMeta("og:type", type === "product" ? "product" : "website", true);
     setMeta("twitter:title", title);
     setMeta("twitter:card", image ? "summary_large_image" : "summary");
     setMeta("robots", "index, follow");
