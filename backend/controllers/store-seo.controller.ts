@@ -23,20 +23,26 @@ function fmtPrice(value: unknown): string {
 }
 
 export async function handleProductSeo(req: Request, res: Response) {
-  const fallback = () => {
+  const debug = req.query.seoDebug === "1";
+  const fallback = (reason: string) => {
+    if (debug) {
+      res.setHeader("Content-Type", "text/plain; charset=utf-8");
+      res.send(`FALLBACK: ${reason}`);
+      return;
+    }
     res.setHeader("Content-Type", "text/html; charset=utf-8");
     res.send(cachedTemplate ?? "");
   };
 
   try {
     if (!cachedTemplate) {
-      fallback();
+      fallback("no cached template");
       return;
     }
 
     const tenantLookup = resolveTenantLookupFromRequest(req);
     if (!tenantLookup) {
-      fallback();
+      fallback(`no tenantLookup — params.slug=${req.params.slug} host=${req.headers.host}`);
       return;
     }
 
@@ -44,19 +50,19 @@ export async function handleProductSeo(req: Request, res: Response) {
       where: { OR: [{ slug: tenantLookup }, { subdomain: tenantLookup }] },
     });
     if (!tenant) {
-      fallback();
+      fallback(`no tenant for lookup=${tenantLookup}`);
       return;
     }
 
     const accessState = getTenantAccessState(tenant);
     if (!accessState.allowed) {
-      fallback();
+      fallback(`access denied: ${accessState.reason}`);
       return;
     }
 
     const productId = parseProductIdFromRoute(req.params.productId);
     if (productId === null) {
-      fallback();
+      fallback(`no productId — params.productId=${req.params.productId}`);
       return;
     }
 
@@ -64,7 +70,7 @@ export async function handleProductSeo(req: Request, res: Response) {
       where: { id: productId, tenant_id: tenant.id, is_active: true },
     });
     if (!product) {
-      fallback();
+      fallback(`no product for id=${productId} tenant_id=${tenant.id}`);
       return;
     }
 
@@ -127,7 +133,7 @@ export async function handleProductSeo(req: Request, res: Response) {
     res.setHeader("Content-Type", "text/html; charset=utf-8");
     res.setHeader("Cache-Control", "public, max-age=300");
     res.send(html);
-  } catch {
-    fallback();
+  } catch (err) {
+    fallback(`exception: ${err instanceof Error ? err.message : String(err)}`);
   }
 }
