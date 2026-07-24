@@ -29,6 +29,7 @@ import terminalRoutes from "./terminal.routes";
 import serviceOrdersRoutes from "./service-orders.routes";
 import nfceRoutes from "./nfce.routes";
 import whatsappRoutes from "./whatsapp.routes";
+import consignmentsRoutes from "./consignments.routes";
 
 export function registerRoutes(app: Express) {
   // Serve uploaded images
@@ -63,4 +64,5 @@ export function registerRoutes(app: Express) {
   app.use("/api/service-orders", serviceOrdersRoutes);
   app.use("/api/nfce", nfceRoutes);
   app.use("/api/whatsapp", whatsappRoutes);
+  app.use("/api/consignments", consignmentsRoutes);
 }

@@ -31,6 +31,7 @@ import {
   ClipboardList,
   FileCheck,
   Terminal,
+  ShoppingBag,
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { cn } from "../../lib/utils";
@@ -61,6 +62,7 @@ import Markup from "./Markup";
 import Services from "./Services";
 import ServiceOrders from "./ServiceOrders";
 import WhatsApp from "./WhatsApp";
+import Consignments from "./Consignments";
 
 // ── Tooltip da sidebar recolhida (portal, foge do overflow do nav) ───────────
 function SidebarTooltip({ anchorRef, label }: { anchorRef: RefObject<HTMLElement>; label: string }) {
@@ -98,13 +100,14 @@ function SidebarTooltip({ anchorRef, label }: { anchorRef: RefObject<HTMLElement
 
 // ── Item de nav com tooltip quando a sidebar está recolhida ──────────────────
 function SidebarNavItem({
-  to, icon: Icon, label, isActive, isSidebarOpen,
+  to, icon: Icon, label, isActive, isSidebarOpen, badge,
 }: {
   to: string;
   icon: ComponentType<{ size?: number; className?: string }>;
   label: string;
   isActive: boolean;
   isSidebarOpen: boolean;
+  badge?: number;
 }) {
   const ref = useRef<HTMLAnchorElement>(null);
   return (
@@ -113,16 +116,28 @@ function SidebarNavItem({
         ref={ref}
         to={to}
         className={cn(
-          "flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-[13px] font-semibold transition-all",
+          "flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-[13px] font-semibold transition-all relative",
           isActive
             ? "bg-[#C9A227] text-white shadow-[0_2px_12px_rgba(201,162,39,0.35)]"
             : "text-slate-400 hover:bg-white/5 hover:text-white"
         )}
       >
-        <Icon size={16} className="shrink-0" />
-        {isSidebarOpen && <span className="truncate">{label}</span>}
+        <span className="relative shrink-0">
+          <Icon size={16} />
+          {!!badge && !isSidebarOpen && (
+            <span className="absolute -top-1.5 -right-1.5 min-w-[14px] h-[14px] px-0.5 rounded-full bg-red-500 text-white text-[8px] font-black flex items-center justify-center leading-none">
+              {badge > 9 ? "9+" : badge}
+            </span>
+          )}
+        </span>
+        {isSidebarOpen && <span className="truncate flex-1">{label}</span>}
+        {!!badge && isSidebarOpen && (
+          <span className="shrink-0 min-w-[18px] h-[18px] px-1 rounded-full bg-red-500 text-white text-[9px] font-black flex items-center justify-center leading-none">
+            {badge > 99 ? "99+" : badge}
+          </span>
+        )}
       </Link>
-      {!isSidebarOpen && <SidebarTooltip anchorRef={ref} label={label} />}
+      {!isSidebarOpen && <SidebarTooltip anchorRef={ref} label={badge ? `${label} (${badge} em atraso)` : label} />}
     </>
   );
 }
@@ -193,8 +208,29 @@ export default function AdminDashboard() {
   const [tenantSlug, setTenantSlug] = useState<string>("");
   const [tenantPublicUrl, setTenantPublicUrl] = useState<string>("");
   const [tenantName, setTenantName] = useState<string>("Nexus ERP");
+  const [overdueConsignments, setOverdueConsignments] = useState(0);
   const location = useLocation();
   const navigate = useNavigate();
+
+  // Aviso visual (não bloqueante) de sacolas de consignação em atraso —
+  // vem sempre do backend, então sobrevive a navegação/relogin sem precisar
+  // de estado local: some sozinho quando a sacola for resolvida no banco.
+  useEffect(() => {
+    let cancelled = false;
+    const fetchOverdue = async () => {
+      try {
+        const res = await fetch("/api/consignments/overdue-count", {
+          headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
+        });
+        if (!res.ok || cancelled) return;
+        const data = await res.json();
+        if (!cancelled) setOverdueConsignments(Number(data?.count) || 0);
+      } catch { /* silencioso — badge apenas não atualiza nesta rodada */ }
+    };
+    fetchOverdue();
+    const interval = setInterval(fetchOverdue, 60000);
+    return () => { cancelled = true; clearInterval(interval); };
+  }, []);
 
   const toggleSidebar = (value: boolean) => {
     setIsSidebarOpen(value);
@@ -241,6 +277,7 @@ export default function AdminDashboard() {
         { icon: Terminal,        label: "Maquininhas",    path: "/admin/maquininhas" },
         { icon: FileText,        label: "Orçamentos",     path: "/admin/orcamentos" },
         { icon: ClipboardList,   label: "Ordens de Serviço", path: "/admin/ordens-servico" },
+        { icon: ShoppingBag,     label: "Consignação",    path: "/admin/consignacoes" },
       ],
     },
     {
@@ -378,6 +415,7 @@ export default function AdminDashboard() {
                       label={item.label}
                       isActive={isActive}
                       isSidebarOpen={isSidebarOpen}
+                      badge={item.path === "/admin/consignacoes" ? overdueConsignments : undefined}
                     />
                   );
                 })}
@@ -435,6 +473,7 @@ export default function AdminDashboard() {
                   <div className="space-y-px">
                     {group.items.map((item) => {
                       const isActive = location.pathname === item.path || (item.path === "/admin" && location.pathname === "/admin/");
+                      const badge = item.path === "/admin/consignacoes" ? overdueConsignments : 0;
                       return (
                         <Link key={item.path} to={item.path} onClick={() => setIsSidebarOpen(false)}
                           className={cn(
@@ -444,7 +483,12 @@ export default function AdminDashboard() {
                               : "text-slate-400 hover:bg-white/5 hover:text-white"
                           )}>
                           <item.icon size={16} />
-                          <span>{item.label}</span>
+                          <span className="flex-1">{item.label}</span>
+                          {!!badge && (
+                            <span className="shrink-0 min-w-[18px] h-[18px] px-1 rounded-full bg-red-500 text-white text-[9px] font-black flex items-center justify-center leading-none">
+                              {badge > 99 ? "99+" : badge}
+                            </span>
+                          )}
                         </Link>
                       );
                     })}
@@ -531,6 +575,7 @@ export default function AdminDashboard() {
               <Route path="analytics" element={<Analytics />} />
               <Route path="orcamentos" element={<Quotes />} />
               <Route path="ordens-servico" element={<ServiceOrders />} />
+              <Route path="consignacoes" element={<Consignments />} />
               <Route path="vendedores" element={<Sellers />} />
               <Route path="servicos"   element={<Services />} />
               <Route path="whatsapp"   element={<WhatsApp />} />

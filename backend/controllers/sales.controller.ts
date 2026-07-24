@@ -10,6 +10,19 @@ function getTenantId(req: Request) {
   return (req as AuthenticatedRequest).user.tenantId;
 }
 
+// Erro com status HTTP explícito, para que tanto createSale quanto quem mais
+// chamar finalizeSaleOrder (ex.: faturamento de consignação) possam traduzi-lo
+// para a resposta HTTP apropriada.
+export class SaleError extends Error {
+  status: number;
+  extra?: Record<string, unknown>;
+  constructor(status: number, message: string, extra?: Record<string, unknown>) {
+    super(message);
+    this.status = status;
+    this.extra = extra;
+  }
+}
+
 interface SaleItemInput {
   id: number;
   quantity: number;
@@ -43,22 +56,37 @@ function buildMethodSummary(pm: string) {
 
 interface ServiceItemInput { id: number; name: string; price: number }
 
-export async function createSale(req: Request, res: Response) {
-  const { items, services, customerName, customerId, totalAmount, paymentMethod, discount, surcharge, sellerId, passFeeToCustomer, passFeeByMethod, clientSaleId, soldAtDate } = req.body as {
-    items: SaleItemInput[];
-    services?: ServiceItemInput[];
-    customerName?: string;
-    customerId?: number;
-    totalAmount: number;
-    paymentMethod?: string;
-    discount?: number;
-    surcharge?: number;
-    sellerId?: number;
-    passFeeToCustomer?: boolean;
-    passFeeByMethod?: Record<string, boolean>;
-    clientSaleId?: string;
-    soldAtDate?: string;
-  };
+interface FinalizeSaleParams {
+  tenantId: number;
+  items: SaleItemInput[];
+  services?: ServiceItemInput[];
+  customerName?: string;
+  customerId?: number;
+  totalAmount: number;
+  paymentMethod?: string;
+  discount?: number;
+  surcharge?: number;
+  sellerId?: number;
+  passFeeToCustomer?: boolean;
+  passFeeByMethod?: Record<string, boolean>;
+  clientSaleId?: string | null;
+  soldAtDate?: string;
+  // false quando o estoque dos itens já foi debitado antes (ex.: saída da consignação)
+  decrementStock: boolean;
+  // descrição customizada da entrada financeira (ex.: "Consignação #12 — Venda")
+  descriptionPrefix?: string;
+}
+
+// Núcleo compartilhado de "virar uma venda de verdade": taxas de cartão, criação de
+// Order/OrderItem/OrderService, débito de estoque (opcional), Finance, fidelidade e NFC-e.
+// Usado tanto pelo PDV normal (createSale) quanto pelo faturamento de consignação, para
+// garantir que ambos os caminhos produzam exatamente o mesmo resultado.
+async function finalizeSaleOrder(params: FinalizeSaleParams): Promise<{ orderId: number }> {
+  const {
+    tenantId, items, services, customerName, customerId, totalAmount, paymentMethod,
+    discount, surcharge, sellerId, passFeeToCustomer, passFeeByMethod, clientSaleId,
+    soldAtDate, decrementStock, descriptionPrefix,
+  } = params;
 
   // Resolve se um segmento de pagamento repassa taxa ao cliente
   const isPassFeeForSegment = (method: string): boolean => {
@@ -66,10 +94,7 @@ export async function createSale(req: Request, res: Response) {
     return !!passFeeToCustomer;
   };
 
-  try {
-    const tenantId = getTenantId(req);
-    console.log("[createSale] tenant:", tenantId, "items:", JSON.stringify(items), "pm:", paymentMethod);
-
+  {
     // Idempotency: offline-queued sales retry with the same clientSaleId —
     // if this sale was already processed, acknowledge it without duplicating
     if (clientSaleId) {
@@ -78,8 +103,7 @@ export async function createSale(req: Request, res: Response) {
         select: { id: true, tenant_id: true },
       });
       if (existing && existing.tenant_id === tenantId) {
-        res.json({ success: true, orderId: existing.id, duplicate: true });
-        return;
+        return { orderId: existing.id };
       }
     }
 
@@ -157,8 +181,7 @@ export async function createSale(req: Request, res: Response) {
       const missingIds = productIds.filter(id => !foundIds.includes(id));
       if (missingIds.length > 0) {
         console.error("[createSale] products not found:", missingIds, "for tenant:", tenantId);
-        res.status(422).json({ error: "Produto não encontrado", missingIds });
-        return;
+        throw new SaleError(422, "Produto não encontrado", { missingIds });
       }
     }
 
@@ -200,57 +223,61 @@ export async function createSale(req: Request, res: Response) {
     });
 
     console.log("[createSale] order created id:", order.id, "— updating stock");
-    for (const item of items) {
-      // Produtos vendidos por medida (m²/linear) não têm controle de estoque —
-      // a peça é cortada sob medida, não há como inferir quanto resta em chapa/rolo.
-      const productForStock = await prisma.product.findUnique({
-        where: { id: item.id },
-        select: { sale_unit: true, skus: true, variations: true },
-      });
-      if (productForStock?.sale_unit && productForStock.sale_unit !== "unidade") {
-        continue;
-      }
+    if (decrementStock) {
+      for (const item of items) {
+        // Produtos vendidos por medida (m²/linear) não têm controle de estoque —
+        // a peça é cortada sob medida, não há como inferir quanto resta em chapa/rolo.
+        const productForStock = await prisma.product.findUnique({
+          where: { id: item.id },
+          select: { sale_unit: true, skus: true, variations: true },
+        });
+        if (productForStock?.sale_unit && productForStock.sale_unit !== "unidade") {
+          continue;
+        }
 
-      // decrement total product stock
-      await prisma.product.update({
-        where: { id: item.id },
-        data: { stock_quantity: { decrement: item.quantity } },
-      });
+        // decrement total product stock
+        await prisma.product.update({
+          where: { id: item.id },
+          data: { stock_quantity: { decrement: item.quantity } },
+        });
 
-      // if item has specific variation options, also decrement the matching SKU in the JSON
-      if (item.selectedOptions && Object.keys(item.selectedOptions).length > 0) {
-        const product = productForStock;
-        if (product?.skus) {
-          type SkuEntry = { combo: Record<string, string>; stock: number };
-          const skus = product.skus as SkuEntry[];
-          const opts = item.selectedOptions;
-          const updated = skus.map((sku) => {
-            const matches = Object.entries(opts).every(([k, v]) => sku.combo[k] === v);
-            if (matches) return { ...sku, stock: Math.max(0, sku.stock - item.quantity) };
-            return sku;
-          });
-          await prisma.product.update({
-            where: { id: item.id },
-            data: { skus: updated },
-          });
-        } else if (product?.variations) {
-          // legacy variations format: [{ name, options: [{ value, stock }] }]
-          type LegacyVariation = { name: string; options: { value: string; stock: number }[] };
-          const variations = product.variations as LegacyVariation[];
-          const opts = item.selectedOptions;
-          const updated = variations.map((v) => ({
-            ...v,
-            options: v.options.map((o) => {
-              const matches = opts[v.name] === o.value;
-              return matches ? { ...o, stock: Math.max(0, o.stock - item.quantity) } : o;
-            }),
-          }));
-          await prisma.product.update({
-            where: { id: item.id },
-            data: { variations: updated },
-          });
+        // if item has specific variation options, also decrement the matching SKU in the JSON
+        if (item.selectedOptions && Object.keys(item.selectedOptions).length > 0) {
+          const product = productForStock;
+          if (product?.skus) {
+            type SkuEntry = { combo: Record<string, string>; stock: number };
+            const skus = product.skus as SkuEntry[];
+            const opts = item.selectedOptions;
+            const updated = skus.map((sku) => {
+              const matches = Object.entries(opts).every(([k, v]) => sku.combo[k] === v);
+              if (matches) return { ...sku, stock: Math.max(0, sku.stock - item.quantity) };
+              return sku;
+            });
+            await prisma.product.update({
+              where: { id: item.id },
+              data: { skus: updated },
+            });
+          } else if (product?.variations) {
+            // legacy variations format: [{ name, options: [{ value, stock }] }]
+            type LegacyVariation = { name: string; options: { value: string; stock: number }[] };
+            const variations = product.variations as LegacyVariation[];
+            const opts = item.selectedOptions;
+            const updated = variations.map((v) => ({
+              ...v,
+              options: v.options.map((o) => {
+                const matches = opts[v.name] === o.value;
+                return matches ? { ...o, stock: Math.max(0, o.stock - item.quantity) } : o;
+              }),
+            }));
+            await prisma.product.update({
+              where: { id: item.id },
+              data: { variations: updated },
+            });
+          }
         }
       }
+    } else {
+      console.log("[createSale] decrementStock=false — skipping (stock already debited upstream)");
     }
 
     console.log("[createSale] stock updated — creating finance entry");
@@ -260,15 +287,18 @@ export async function createSale(req: Request, res: Response) {
     const feeNote        = roundedPassedFee > 0 ? ` (taxa repassada R$ ${roundedPassedFee.toFixed(2)})` : "";
     // Quando taxa é repassada ao cliente: gross = totalAmount (inclui taxa), net = totalAmount, fee aparece como informativo
     // Quando loja absorve: gross = valor dos itens, net = totalAmount - taxa
+    const defaultDescription = items.length === 0
+      ? `Serviços PDV #${order.id} — ${methodSummary}${discountNote}${surchargeNote}${feeNote}`
+      : (services && services.length > 0
+        ? `Venda Mista PDV #${order.id} — ${methodSummary}${discountNote}${surchargeNote}${feeNote}`
+        : `Venda PDV #${order.id} — ${methodSummary}${discountNote}${surchargeNote}${feeNote}`);
     await prisma.finance.create({
       data: {
         tenant_id:       tenantId,
         type:            "income",
-        description:     items.length === 0
-          ? `Serviços PDV #${order.id} — ${methodSummary}${discountNote}${surchargeNote}${feeNote}`
-          : (services && services.length > 0
-            ? `Venda Mista PDV #${order.id} — ${methodSummary}${discountNote}${surchargeNote}${feeNote}`
-            : `Venda PDV #${order.id} — ${methodSummary}${discountNote}${surchargeNote}${feeNote}`),
+        description:     descriptionPrefix
+          ? `${descriptionPrefix} #${order.id} — ${methodSummary}${discountNote}${surchargeNote}${feeNote}`
+          : defaultDescription,
         amount:          netAmount,
         gross_amount:    grossAmount,
         fee_amount:      roundedFee > 0 ? roundedFee : null,
@@ -317,10 +347,54 @@ export async function createSale(req: Request, res: Response) {
       console.error("[createSale] falha ao agendar emissão de NFC-e:", e);
     }
 
-    res.json({ success: true, orderId: order.id });
+    return { orderId: order.id };
+  }
+}
+
+export async function createSale(req: Request, res: Response) {
+  const { items, services, customerName, customerId, totalAmount, paymentMethod, discount, surcharge, sellerId, passFeeToCustomer, passFeeByMethod, clientSaleId, soldAtDate } = req.body as {
+    items: SaleItemInput[];
+    services?: ServiceItemInput[];
+    customerName?: string;
+    customerId?: number;
+    totalAmount: number;
+    paymentMethod?: string;
+    discount?: number;
+    surcharge?: number;
+    sellerId?: number;
+    passFeeToCustomer?: boolean;
+    passFeeByMethod?: Record<string, boolean>;
+    clientSaleId?: string;
+    soldAtDate?: string;
+  };
+
+  try {
+    const tenantId = getTenantId(req);
+    console.log("[createSale] tenant:", tenantId, "items:", JSON.stringify(items), "pm:", paymentMethod);
+
+    const result = await finalizeSaleOrder({
+      tenantId, items, services, customerName, customerId, totalAmount, paymentMethod,
+      discount, surcharge, sellerId, passFeeToCustomer, passFeeByMethod, clientSaleId,
+      soldAtDate, decrementStock: true,
+    });
+
+    res.json({ success: true, orderId: result.orderId });
   } catch (err) {
     console.error("[createSale] error:", err);
+    if (err instanceof SaleError) {
+      res.status(err.status).json({ error: err.message, ...err.extra });
+      return;
+    }
     const message = err instanceof Error ? err.message : String(err);
     res.status(500).json({ error: "Sale failed", detail: message });
   }
+}
+
+// Usado pelo faturamento de consignação: mesmo núcleo de finalizeSaleOrder, mas nunca
+// decrementa estoque (os itens que "ficaram" já tiveram o estoque debitado quando a
+// sacola de consignação saiu).
+export async function finalizeSaleOrderForConsignment(
+  params: Omit<FinalizeSaleParams, "decrementStock">
+): Promise<{ orderId: number }> {
+  return finalizeSaleOrder({ ...params, decrementStock: false });
 }

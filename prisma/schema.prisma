@@ -92,6 +92,8 @@ model Tenant {
   nfce_invoices          NfceInvoice[]
   whatsapp_workspace     WhatsappWorkspace?
   terminal_transactions  TerminalTransaction[]
+  consignments           Consignment[]
+  consignment_actions    ConsignmentAction[]
 
   @@map("tenants")
 }
@@ -199,6 +201,7 @@ model Product {
   stock_movements StockMovement[]
   history         ProductHistory[]
   service_order_parts ServiceOrderPart[]
+  consignment_items  ConsignmentItem[]
 
   @@map("products")
 }
@@ -404,6 +407,7 @@ model Seller {
   orders Order[]
   service_orders ServiceOrder[]
   goals  Goal[]
+  consignments Consignment[]
 
   @@map("sellers")
 }
@@ -783,6 +787,84 @@ model ServiceOrderAction {
   @@index([service_order_id])
   @@index([tenant_id])
   @@map("service_order_actions")
+}
+
+model Consignment {
+  id                Int       @id @default(autoincrement())
+  tenant_id         Int
+  number            Int
+
+  customer_id       Int?
+  customer_name     String
+  customer_phone    String?
+
+  seller_id         Int?
+  seller_name       String?
+
+  due_days          Int       @default(7)
+  due_date          DateTime  @db.Date
+
+  status            String    @default("aberta") // aberta | fechada | cancelada
+  notes             String?   @db.Text
+
+  invoiced_order_id Int?
+  invoiced_at       DateTime?
+  closed_at         DateTime?
+
+  cancelled_by      String?
+  cancel_reason     String?
+  cancelled_at      DateTime?
+
+  created_at        DateTime  @default(now())
+  updated_at        DateTime  @updatedAt
+
+  tenant  Tenant              @relation(fields: [tenant_id], references: [id])
+  seller  Seller?             @relation(fields: [seller_id], references: [id], onDelete: SetNull)
+  items   ConsignmentItem[]
+  actions ConsignmentAction[]
+
+  @@unique([tenant_id, number])
+  @@index([tenant_id])
+  @@index([tenant_id, status])
+  @@map("consignments")
+}
+
+model ConsignmentItem {
+  id               Int       @id @default(autoincrement())
+  consignment_id   Int
+  product_id       Int
+  name             String
+  quantity         Int
+  unit_price       Decimal   @db.Decimal(10, 2)
+  selected_options Json?
+  resolution       String    @default("pending") // pending | kept | returned
+  resolved_at      DateTime?
+
+  consignment Consignment @relation(fields: [consignment_id], references: [id], onDelete: Cascade)
+  product     Product     @relation(fields: [product_id], references: [id], onDelete: Cascade)
+
+  @@index([consignment_id])
+  @@map("consignment_items")
+}
+
+model ConsignmentAction {
+  id             Int      @id @default(autoincrement())
+  tenant_id      Int
+  consignment_id Int
+  action         String
+  from_status    String?
+  to_status      String?
+  actor          String?
+  note           String?  @db.Text
+  meta           Json?
+  created_at     DateTime @default(now())
+
+  consignment Consignment @relation(fields: [consignment_id], references: [id], onDelete: Cascade)
+  tenant      Tenant      @relation(fields: [tenant_id], references: [id])
+
+  @@index([consignment_id])
+  @@index([tenant_id])
+  @@map("consignment_actions")
 }
 
 model Goal {
