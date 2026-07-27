@@ -27,6 +27,41 @@ export async function getNfceByOrder(req: Request, res: Response) {
   }
 }
 
+/** Cria e emite a NFC-e somente quando o operador solicitar após a venda. */
+export async function emitNfceForOrder(req: Request, res: Response) {
+  try {
+    const orderId = Number(req.params.orderId);
+    const tenantId = getTenantId(req);
+    const order = await prisma.order.findFirst({ where: { id: orderId, tenant_id: tenantId }, select: { id: true } });
+    if (!order) { res.status(404).json({ error: "Venda não encontrada" }); return; }
+
+    let invoice = await prisma.nfceInvoice.findFirst({ where: { order_id: orderId, tenant_id: tenantId } });
+    if (invoice?.status === "authorized") { res.status(409).json({ error: "NFC-e já autorizada" }); return; }
+
+    if (!invoice) {
+      const tenant = await prisma.tenant.findUnique({
+        where: { id: tenantId },
+        select: { nfce_environment: true, nfce_series: true, nfce_next_number: true },
+      });
+      if (!tenant) { res.status(404).json({ error: "Loja não encontrada" }); return; }
+      invoice = await prisma.$transaction(async (tx) => {
+        const created = await tx.nfceInvoice.create({ data: {
+          tenant_id: tenantId, order_id: orderId, status: "pending", environment: tenant.nfce_environment,
+          series: tenant.nfce_series, number: tenant.nfce_next_number,
+        }});
+        await tx.tenant.update({ where: { id: tenantId }, data: { nfce_next_number: { increment: 1 } } });
+        return created;
+      });
+    } else {
+      invoice = await prisma.nfceInvoice.update({ where: { id: invoice.id }, data: { status: "pending" } });
+    }
+    emitirNfce(orderId).catch((error) => console.error("[emitNfceForOrder] erro:", error));
+    res.json(invoice);
+  } catch {
+    res.status(500).json({ error: "Não foi possível iniciar a emissão da NFC-e" });
+  }
+}
+
 export async function retryNfce(req: Request, res: Response) {
   try {
     const orderId = Number(req.params.orderId);

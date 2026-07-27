@@ -50,6 +50,7 @@ import ContasReceber from "./ContasReceber";
 import ContasPagar from "./ContasPagar";
 import Settings from "./Settings";
 import Customers from "./Customers";
+import CustomerDetail from "./CustomerDetail";
 import Suppliers from "./Suppliers";
 import Categories from "./Categories";
 import Analytics from "./Analytics";
@@ -61,6 +62,8 @@ import Barcodes from "./Barcodes";
 import Markup from "./Markup";
 import Services from "./Services";
 import ServiceOrders from "./ServiceOrders";
+import ServiceOrderNew from "./ServiceOrderNew";
+import ServiceOrderDetail from "./ServiceOrderDetail";
 import WhatsApp from "./WhatsApp";
 import Consignments from "./Consignments";
 
@@ -303,7 +306,7 @@ export default function AdminDashboard() {
     {
       label: "Clientes & Marketing",
       items: [
-        { icon: Users,       label: "Clientes — CRM", path: "/admin/customers" },
+        { icon: Users,       label: "Clientes", path: "/admin/customers" },
         { icon: Star,        label: "Vendedores",      path: "/admin/vendedores" },
         { icon: Wrench,      label: "Serviços",        path: "/admin/servicos" },
         { icon: UserCheck,   label: "Fidelidade",      path: "/admin/loyalty" },
@@ -565,6 +568,7 @@ export default function AdminDashboard() {
               <Route path="stock" element={<Stock />} />
               <Route path="pdv" element={<PDV />} />
               <Route path="customers" element={<Customers />} />
+              <Route path="customers/:id" element={<CustomerDetail />} />
               <Route path="suppliers" element={<Suppliers />} />
               <Route path="orders" element={<Orders />} />
               <Route path="notas-fiscais" element={<NfceInvoices />} />
@@ -575,6 +579,8 @@ export default function AdminDashboard() {
               <Route path="analytics" element={<Analytics />} />
               <Route path="orcamentos" element={<Quotes />} />
               <Route path="ordens-servico" element={<ServiceOrders />} />
+              <Route path="ordens-servico/novo" element={<ServiceOrderNew />} />
+              <Route path="ordens-servico/:id" element={<ServiceOrderDetail />} />
               <Route path="consignacoes" element={<Consignments />} />
               <Route path="vendedores" element={<Sellers />} />
               <Route path="servicos"   element={<Services />} />

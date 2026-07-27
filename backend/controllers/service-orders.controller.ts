@@ -14,8 +14,8 @@ function getActor(req: Request): string {
   return (u as any).name ?? (u as any).email ?? "Sistema";
 }
 
-const ALLOWED_STATUSES = ["aberta", "em_analise", "em_conserto", "pronto_retirada", "entregue", "cancelada"];
-const STATUS_ORDER = ["aberta", "em_analise", "em_conserto", "pronto_retirada", "entregue"];
+const ALLOWED_STATUSES = ["rascunho", "aberta", "em_analise", "em_conserto", "pronto_retirada", "entregue", "cancelada"];
+const STATUS_ORDER = ["rascunho", "aberta", "em_analise", "em_conserto", "pronto_retirada", "entregue"];
 const ALLOWED_PRIORITIES = ["normal", "urgente"];
 
 async function logAction(
@@ -124,9 +124,9 @@ export async function createServiceOrder(req: Request, res: Response) {
       parts,
     } = req.body as {
       customer_id?: number;
-      customer_name: string;
+      customer_name?: string;
       customer_phone?: string;
-      equipment_category: string;
+      equipment_category?: string;
       equipment_type?: string;
       equipment_brand?: string;
       equipment_model?: string;
@@ -144,14 +144,13 @@ export async function createServiceOrder(req: Request, res: Response) {
       parts?: Array<{ product_id: number; quantity: number }>;
     };
 
-    if (!customer_name || !equipment_category) {
-      return res.status(400).json({ error: "Cliente e categoria do equipamento são obrigatórios" });
-    }
+    // Sem cliente/categoria: nasce como rascunho, preenchido aos poucos na tela de detalhe.
+    const isDraft = !customer_name || !equipment_category;
 
     // Server-side checklist instantiation — never trust client-submitted labels
     const tenant = await prisma.tenant.findUnique({ where: { id: tenantId }, select: { policies: true } });
     const policies = (tenant?.policies ?? {}) as { service_order_checklists?: Record<string, { label: string }[]> };
-    const template = policies.service_order_checklists?.[equipment_category] ?? [];
+    const template = equipment_category ? (policies.service_order_checklists?.[equipment_category] ?? []) : [];
 
     // Resolve and validate parts (stock check) before creating anything
     const partRows: { product_id: number; name: string; quantity: number; unit_price: number; total: number }[] = [];
@@ -181,10 +180,11 @@ export async function createServiceOrder(req: Request, res: Response) {
       data: {
         tenant_id: tenantId,
         number: nextNumber,
+        status: isDraft ? "rascunho" : "aberta",
         customer_id: customer_id || null,
-        customer_name,
+        customer_name: customer_name || "",
         customer_phone: customer_phone || null,
-        equipment_category,
+        equipment_category: equipment_category || "",
         equipment_type: equipment_type || null,
         equipment_brand: equipment_brand || null,
         equipment_model: equipment_model || null,
@@ -242,6 +242,7 @@ export async function updateServiceOrder(req: Request, res: Response) {
       customer_id,
       customer_name,
       customer_phone,
+      equipment_category,
       equipment_type,
       equipment_brand,
       equipment_model,
@@ -262,6 +263,7 @@ export async function updateServiceOrder(req: Request, res: Response) {
     if (customer_id !== undefined) data.customer_id = customer_id || null;
     if (customer_name !== undefined) data.customer_name = customer_name;
     if (customer_phone !== undefined) data.customer_phone = customer_phone || null;
+    if (equipment_category !== undefined) data.equipment_category = equipment_category || "";
     if (equipment_type !== undefined) data.equipment_type = equipment_type || null;
     if (equipment_brand !== undefined) data.equipment_brand = equipment_brand || null;
     if (equipment_model !== undefined) data.equipment_model = equipment_model || null;
@@ -283,6 +285,26 @@ export async function updateServiceOrder(req: Request, res: Response) {
     }
 
     await prisma.serviceOrder.update({ where: { id }, data });
+
+    // Enquanto ainda é rascunho, trocar a categoria reinstancia o checklist a partir
+    // do novo template — depois de iniciado o atendimento, respostas já preenchidas são preservadas.
+    if (existing.status === "rascunho" && equipment_category !== undefined && equipment_category !== existing.equipment_category) {
+      const tenant = await prisma.tenant.findUnique({ where: { id: tenantId }, select: { policies: true } });
+      const policies = (tenant?.policies ?? {}) as { service_order_checklists?: Record<string, { label: string }[]> };
+      const template = equipment_category ? (policies.service_order_checklists?.[equipment_category] ?? []) : [];
+
+      await prisma.serviceOrderChecklistItem.deleteMany({ where: { service_order_id: id } });
+      if (template.length > 0) {
+        await prisma.serviceOrderChecklistItem.createMany({
+          data: template.map((item, idx) => ({
+            tenant_id: tenantId,
+            service_order_id: id,
+            label: item.label,
+            position: idx,
+          })),
+        });
+      }
+    }
 
     const updated = await prisma.serviceOrder.findFirst({
       where: { id, tenant_id: tenantId },
@@ -353,6 +375,15 @@ export async function updateServiceOrderStatus(req: Request, res: Response) {
       const toIdx = STATUS_ORDER.indexOf(status);
       if (fromIdx === -1 || toIdx !== fromIdx + 1) {
         return res.status(400).json({ error: "Só é possível avançar para a próxima etapa do fluxo" });
+      }
+    }
+
+    // Sair do rascunho exige os dados mínimos para iniciar o atendimento.
+    if (order.status === "rascunho" && status === "aberta") {
+      if (!order.customer_name || !order.equipment_category || !order.reported_issue) {
+        return res.status(400).json({
+          error: "Preencha cliente, categoria do equipamento e problema relatado antes de iniciar o atendimento",
+        });
       }
     }
 

@@ -66,6 +66,7 @@ export async function updateTenant(req: Request, res: Response) {
     if (b.max_installments !== undefined)   data.max_installments   = Number(b.max_installments);
     if (b.enabled_brands !== undefined)     data.enabled_brands     = b.enabled_brands;
     if (b.pass_fee_by_method !== undefined) data.pass_fee_by_method = b.pass_fee_by_method;
+    if (b.require_cash_session !== undefined) data.require_cash_session = Boolean(b.require_cash_session);
 
     // Dados fiscais
     if (b.razao_social !== undefined)        data.razao_social        = b.razao_social;

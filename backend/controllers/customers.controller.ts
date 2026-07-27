@@ -15,7 +15,7 @@ export async function listCustomers(req: Request, res: Response) {
     const customers = await prisma.customer.findMany({
       where: { tenant_id: tenantId },
       include: {
-        debts: { where: { status: "open" }, select: { amount: true } },
+        debts: { where: { status: "open" }, select: { amount: true, amount_paid: true } },
         _count: { select: { debts: true, customer_notes: true } },
       },
       orderBy: { name: "asc" },
@@ -23,7 +23,7 @@ export async function listCustomers(req: Request, res: Response) {
 
     const enriched = customers.map((c) => ({
       ...c,
-      total_debt: c.debts.reduce((s, d) => s + Number(d.amount), 0),
+      total_debt: c.debts.reduce((s, d) => s + (Number(d.amount) - Number(d.amount_paid)), 0),
       open_debts: c.debts.length,
     }));
 
@@ -42,31 +42,51 @@ export async function getCustomer(req: Request, res: Response) {
     const customer = await prisma.customer.findFirst({
       where: { id, tenant_id: tenantId },
       include: {
-        debts: { orderBy: { created_at: "desc" } },
+        debts: {
+          orderBy: { created_at: "desc" },
+          include: {
+            order: { include: { items: { include: { product: { select: { name: true } } } }, services: true } },
+            payments: { orderBy: { paid_at: "desc" } },
+            installments: { orderBy: { number: "asc" } },
+          },
+        },
         customer_notes: { orderBy: { created_at: "desc" } },
       },
     });
 
     if (!customer) return res.status(404).json({ error: "Cliente não encontrado" });
 
-    // Purchase history from orders
+    // Purchase history from orders — por customer_id (confiável), com fallback por
+    // nome só para pedidos legados sem customer_id preenchido.
     const orders = await prisma.order.findMany({
       where: {
         tenant_id: tenantId,
-        customer_name: customer.name,
         status: "completed",
+        OR: [
+          { customer_id: customer.id },
+          { customer_id: null, customer_name: customer.name },
+        ],
       },
       orderBy: { created_at: "desc" },
       take: 50,
-      include: { items: true },
+      include: { items: { include: { product: { select: { name: true } } } } },
     });
+
+    // Expõe item.name direto (produto pode ter sido excluído depois da venda,
+    // por isso o fallback), mantendo o shape que o frontend já espera.
+    const mapItems = (items: { product?: { name: string } | null }[]) =>
+      items.map((it) => ({ ...it, name: it.product?.name ?? null }));
 
     res.json({
       ...customer,
+      debts: customer.debts.map((d) => ({
+        ...d,
+        order: d.order ? { ...d.order, items: mapItems(d.order.items) } : d.order,
+      })),
       total_debt: customer.debts
         .filter((d) => d.status === "open")
-        .reduce((s, d) => s + Number(d.amount), 0),
-      orders,
+        .reduce((s, d) => s + (Number(d.amount) - Number(d.amount_paid)), 0),
+      orders: orders.map((o) => ({ ...o, items: mapItems(o.items) })),
     });
   } catch (err) {
     console.error(err);
@@ -172,8 +192,16 @@ export async function listDebts(req: Request, res: Response) {
     const debts = await prisma.customerDebt.findMany({
       where: { tenant_id: tenantId, customer_id: customerId },
       orderBy: { created_at: "desc" },
+      include: {
+        order: { include: { items: { include: { product: { select: { name: true } } } }, services: true } },
+        payments: { orderBy: { paid_at: "desc" } },
+        installments: { orderBy: { number: "asc" } },
+      },
     });
-    res.json(debts);
+    res.json(debts.map((d) => ({
+      ...d,
+      order: d.order ? { ...d.order, items: d.order.items.map((it) => ({ ...it, name: it.product?.name ?? null })) } : d.order,
+    })));
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Falha ao listar dívidas" });
@@ -203,35 +231,147 @@ export async function createDebt(req: Request, res: Response) {
   }
 }
 
+// Núcleo compartilhado de "registrar pagamento de uma dívida": grava o pagamento
+// no ledger, atualiza o saldo/status da dívida e lança a receita no financeiro
+// só pelo valor efetivamente pago agora — nunca pelo valor total da dívida.
+async function registerDebtPayment(
+  tenantId: number,
+  debtId: number,
+  amount: number,
+  paymentMethod?: string | null,
+  installmentId?: number | null,
+) {
+  const debt = await prisma.customerDebt.findFirst({ where: { id: debtId, tenant_id: tenantId } });
+  if (!debt) throw new Error("NOT_FOUND");
+  if (debt.status === "paid") throw new Error("ALREADY_PAID");
+
+  const remaining = Number(debt.amount) - Number(debt.amount_paid);
+  if (amount <= 0 || amount > remaining + 0.005) throw new Error("INVALID_AMOUNT");
+
+  let installment = null;
+  if (installmentId) {
+    installment = await prisma.customerDebtInstallment.findFirst({
+      where: { id: installmentId, debt_id: debtId, tenant_id: tenantId },
+    });
+    if (!installment) throw new Error("INSTALLMENT_NOT_FOUND");
+    if (installment.status === "paid") throw new Error("INSTALLMENT_ALREADY_PAID");
+    const installmentRemaining = Number(installment.amount) - Number(installment.amount_paid);
+    if (amount > installmentRemaining + 0.005) throw new Error("INVALID_AMOUNT");
+  }
+
+  const customer = await prisma.customer.findUnique({ where: { id: debt.customer_id } });
+
+  return prisma.$transaction(async (tx) => {
+    const payment = await tx.customerDebtPayment.create({
+      data: {
+        tenant_id: tenantId,
+        debt_id: debtId,
+        installment_id: installmentId || null,
+        amount,
+        payment_method: paymentMethod || null,
+      },
+    });
+
+    if (installment) {
+      const installmentAmountPaid = Number(installment.amount_paid) + amount;
+      const installmentFullyPaid = installmentAmountPaid >= Number(installment.amount) - 0.005;
+      await tx.customerDebtInstallment.update({
+        where: { id: installment.id },
+        data: {
+          amount_paid: installmentAmountPaid,
+          status: installmentFullyPaid ? "paid" : "open",
+          paid_at: installmentFullyPaid ? new Date() : installment.paid_at,
+        },
+      });
+    }
+
+    const newAmountPaid = Number(debt.amount_paid) + amount;
+    const isFullyPaid = newAmountPaid >= Number(debt.amount) - 0.005;
+
+    const updated = await tx.customerDebt.update({
+      where: { id: debtId },
+      data: {
+        amount_paid: newAmountPaid,
+        status: isFullyPaid ? "paid" : "open",
+        paid_at: isFullyPaid ? new Date() : debt.paid_at,
+      },
+      include: { installments: { orderBy: { number: "asc" } } },
+    });
+
+    await tx.finance.create({
+      data: {
+        tenant_id: tenantId,
+        type: "income",
+        description: `Pagamento fiado — ${customer?.name ?? "Cliente"}: ${debt.description}`,
+        amount,
+        payment_method: paymentMethod || null,
+        date: localDateString(),
+      },
+    });
+
+    return { debt: updated, payment };
+  });
+}
+
 export async function payDebt(req: Request, res: Response) {
   try {
     const tenantId = getTenantId(req);
     const debtId = Number(req.params.debtId);
 
-    const debt = await prisma.customerDebt.findFirst({
-      where: { id: debtId, tenant_id: tenantId },
-    });
+    const debt = await prisma.customerDebt.findFirst({ where: { id: debtId, tenant_id: tenantId } });
     if (!debt) return res.status(404).json({ error: "Dívida não encontrada" });
 
-    await prisma.customerDebt.update({
-      where: { id: debtId },
-      data: { status: "paid", paid_at: new Date() },
-    });
+    const remaining = Number(debt.amount) - Number(debt.amount_paid);
+    const { payment_method } = req.body as { payment_method?: string };
+    const { debt: updated, payment } = await registerDebtPayment(tenantId, debtId, remaining, payment_method);
 
-    // Register income in finance
-    const customer = await prisma.customer.findUnique({ where: { id: debt.customer_id } });
-    await prisma.finance.create({
-      data: {
-        tenant_id: tenantId,
-        type: "income",
-        description: `Pagamento fiado — ${customer?.name ?? "Cliente"}: ${debt.description}`,
-        amount: debt.amount,
-        date: localDateString(),
-      },
-    });
-
-    res.json({ success: true });
+    res.json({ success: true, debt: updated, payment });
   } catch (err) {
+    if (err instanceof Error && err.message === "NOT_FOUND") {
+      return res.status(404).json({ error: "Dívida não encontrada" });
+    }
+    if (err instanceof Error && err.message === "ALREADY_PAID") {
+      return res.status(422).json({ error: "Dívida já está quitada" });
+    }
+    console.error(err);
+    res.status(500).json({ error: "Falha ao registrar pagamento" });
+  }
+}
+
+export async function payDebtPartial(req: Request, res: Response) {
+  try {
+    const tenantId = getTenantId(req);
+    const debtId = Number(req.params.debtId);
+    const { amount, payment_method, installment_id } = req.body as {
+      amount: number;
+      payment_method?: string;
+      installment_id?: number;
+    };
+
+    if (!amount || amount <= 0) {
+      return res.status(422).json({ error: "Valor de pagamento inválido" });
+    }
+
+    const { debt: updated, payment } = await registerDebtPayment(
+      tenantId, debtId, Number(amount), payment_method, installment_id,
+    );
+    res.json({ success: true, debt: updated, payment });
+  } catch (err) {
+    if (err instanceof Error && err.message === "NOT_FOUND") {
+      return res.status(404).json({ error: "Dívida não encontrada" });
+    }
+    if (err instanceof Error && err.message === "ALREADY_PAID") {
+      return res.status(422).json({ error: "Dívida já está quitada" });
+    }
+    if (err instanceof Error && err.message === "INVALID_AMOUNT") {
+      return res.status(422).json({ error: "Valor maior que o saldo devedor ou inválido" });
+    }
+    if (err instanceof Error && err.message === "INSTALLMENT_NOT_FOUND") {
+      return res.status(404).json({ error: "Parcela não encontrada" });
+    }
+    if (err instanceof Error && err.message === "INSTALLMENT_ALREADY_PAID") {
+      return res.status(422).json({ error: "Parcela já está paga" });
+    }
     console.error(err);
     res.status(500).json({ error: "Falha ao registrar pagamento" });
   }
@@ -247,6 +387,99 @@ export async function deleteDebt(req: Request, res: Response) {
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Falha ao excluir dívida" });
+  }
+}
+
+export async function listDebtInstallments(req: Request, res: Response) {
+  try {
+    const tenantId = getTenantId(req);
+    const debtId = Number(req.params.debtId);
+
+    const debt = await prisma.customerDebt.findFirst({ where: { id: debtId, tenant_id: tenantId } });
+    if (!debt) return res.status(404).json({ error: "Dívida não encontrada" });
+
+    const installments = await prisma.customerDebtInstallment.findMany({
+      where: { debt_id: debtId, tenant_id: tenantId },
+      orderBy: { number: "asc" },
+      include: { payments: { orderBy: { paid_at: "desc" } } },
+    });
+
+    res.json(installments);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Falha ao listar parcelas" });
+  }
+}
+
+// Reconfigura o parcelamento de uma dívida (nº de parcelas + vencimento da 1ª) —
+// só permitido enquanto nenhuma parcela tiver recebido pagamento algum.
+export async function updateDebtInstallments(req: Request, res: Response) {
+  try {
+    const tenantId = getTenantId(req);
+    const debtId = Number(req.params.debtId);
+    const { installments_count, first_due_date } = req.body as {
+      installments_count: number;
+      first_due_date: string;
+    };
+
+    const installmentsCount = Math.max(1, Math.floor(Number(installments_count) || 1));
+    if (!first_due_date) {
+      return res.status(422).json({ error: "Data da 1ª parcela é obrigatória" });
+    }
+
+    const debt = await prisma.customerDebt.findFirst({
+      where: { id: debtId, tenant_id: tenantId },
+      include: { installments: true },
+    });
+    if (!debt) return res.status(404).json({ error: "Dívida não encontrada" });
+    if (debt.status === "paid") return res.status(422).json({ error: "Dívida já está quitada" });
+
+    const hasPayment = debt.installments.some((i) => Number(i.amount_paid) > 0);
+    if (hasPayment) {
+      return res.status(422).json({ error: "Não é possível reconfigurar parcelas com pagamento já registrado" });
+    }
+
+    const totalAmount = Number(debt.amount);
+    const baseAmount = Math.floor((totalAmount / installmentsCount) * 100) / 100;
+    const firstDueDate = new Date(`${first_due_date}T00:00:00`);
+
+    const updated = await prisma.$transaction(async (tx) => {
+      await tx.customerDebtInstallment.deleteMany({ where: { debt_id: debtId, tenant_id: tenantId } });
+
+      let accumulated = 0;
+      for (let i = 0; i < installmentsCount; i++) {
+        const isLast = i === installmentsCount - 1;
+        const amount = isLast
+          ? Math.round((totalAmount - accumulated) * 100) / 100
+          : baseAmount;
+        accumulated += amount;
+
+        const dueDate = new Date(firstDueDate);
+        dueDate.setMonth(dueDate.getMonth() + i);
+
+        await tx.customerDebtInstallment.create({
+          data: {
+            tenant_id: tenantId,
+            debt_id: debtId,
+            number: i + 1,
+            due_date: dueDate,
+            amount,
+            status: "open",
+          },
+        });
+      }
+
+      return tx.customerDebt.update({
+        where: { id: debtId },
+        data: { installments_count: installmentsCount },
+        include: { installments: { orderBy: { number: "asc" } } },
+      });
+    });
+
+    res.json(updated);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Falha ao reconfigurar parcelas" });
   }
 }
 
@@ -286,28 +519,35 @@ export async function deleteNote(req: Request, res: Response) {
 export async function listDebtors(req: Request, res: Response) {
   try {
     const tenantId = getTenantId(req);
-    const debtors = await prisma.customerDebt.groupBy({
-      by: ["customer_id"],
+    // Prisma não agrega expressões calculadas (amount - amount_paid), então a
+    // soma do saldo restante por cliente é feita em memória a partir das dívidas abertas.
+    const openDebts = await prisma.customerDebt.findMany({
       where: { tenant_id: tenantId, status: "open" },
-      _sum: { amount: true },
-      _count: { id: true },
+      select: { customer_id: true, amount: true, amount_paid: true },
     });
 
-    const customerIds = debtors.map((d) => d.customer_id);
+    const byCustomer = new Map<number, { total: number; count: number }>();
+    for (const d of openDebts) {
+      const remaining = Number(d.amount) - Number(d.amount_paid);
+      const cur = byCustomer.get(d.customer_id) ?? { total: 0, count: 0 };
+      byCustomer.set(d.customer_id, { total: cur.total + remaining, count: cur.count + 1 });
+    }
+
+    const customerIds = Array.from(byCustomer.keys());
     const customers = await prisma.customer.findMany({
       where: { id: { in: customerIds } },
       select: { id: true, name: true, phone: true, risk_flag: true },
     });
 
-    const result = debtors.map((d) => {
-      const c = customers.find((x) => x.id === d.customer_id);
+    const result = Array.from(byCustomer.entries()).map(([customerId, agg]) => {
+      const c = customers.find((x) => x.id === customerId);
       return {
-        customer_id: d.customer_id,
+        customer_id: customerId,
         customer_name: c?.name ?? "–",
         customer_phone: c?.phone ?? null,
         risk_flag: c?.risk_flag ?? false,
-        total_debt: Number(d._sum.amount ?? 0),
-        open_debts: d._count.id,
+        total_debt: agg.total,
+        open_debts: agg.count,
       };
     }).sort((a, b) => b.total_debt - a.total_debt);
 

@@ -2,6 +2,7 @@ import { Router } from "express";
 
 import {
   getNfceByOrder,
+  emitNfceForOrder,
   retryNfce,
   cancelNfce,
   downloadDanfe,
@@ -16,6 +17,7 @@ router.use(authenticateToken);
 
 router.get("/", listNfce);
 router.get("/:orderId", getNfceByOrder);
+router.post("/:orderId/emit", emitNfceForOrder);
 router.post("/:orderId/retry", retryNfce);
 router.post("/:orderId/cancel", cancelNfce);
 router.get("/:orderId/danfe", downloadDanfe);

@@ -42,6 +42,7 @@ model Tenant {
   enabled_brands         Json?
   pass_fee_by_method     Json?
   terminal_config        Json?
+  require_cash_session   Boolean  @default(false)
   status                 String   @default("active")
   trial_days       Int      @default(30)
   trial_starts_at  DateTime?
@@ -94,6 +95,8 @@ model Tenant {
   terminal_transactions  TerminalTransaction[]
   consignments           Consignment[]
   consignment_actions    ConsignmentAction[]
+  customer_debt_payments CustomerDebtPayment[]
+  cash_sessions          CashSession[]
 
   @@map("tenants")
 }
@@ -133,6 +136,8 @@ model User {
   tenant        Tenant               @relation(fields: [tenant_id], references: [id])
   preferences   UserPreference[]
   reset_tokens  PasswordResetToken[]
+  cash_sessions_opened CashSession[] @relation("CashSessionOpenedBy")
+  cash_sessions_closed CashSession[] @relation("CashSessionClosedBy")
 
   @@map("users")
 }
@@ -289,6 +294,7 @@ model Order {
   order_type       String    @default("products")
   payment_method   String?
   client_sale_id   String?   @unique
+  cash_session_id  Int?
   cancelled_by     String?
   cancel_reason    String?
   cancelled_at     DateTime?
@@ -297,13 +303,51 @@ model Order {
 
   tenant                Tenant                @relation(fields: [tenant_id], references: [id])
   seller                Seller?               @relation(fields: [seller_id], references: [id], onDelete: SetNull)
+  cash_session          CashSession?          @relation(fields: [cash_session_id], references: [id], onDelete: SetNull)
   items                 OrderItem[]
   services              OrderService[]
   actions               OrderAction[]
   nfce_invoice          NfceInvoice?
   terminal_transactions TerminalTransaction[]
+  debts                 CustomerDebt[]
 
+  @@index([cash_session_id])
   @@map("orders")
+}
+
+model CashSession {
+  id                Int       @id @default(autoincrement())
+  tenant_id         Int
+  opened_by_id      Int
+  opened_by_name    String
+  closed_by_id      Int?
+  closed_by_name    String?
+
+  opening_amount    Decimal   @db.Decimal(10, 2) @default(0)
+  opening_note      String?   @db.Text
+
+  status            String    @default("open") // "open" | "closed"
+
+  opened_at         DateTime  @default(now())
+  closed_at         DateTime?
+
+  counted_amount    Decimal?  @db.Decimal(10, 2)
+  expected_amount   Decimal?  @db.Decimal(10, 2)
+  difference_amount Decimal?  @db.Decimal(10, 2)
+  payment_breakdown Json?
+  closing_note      String?   @db.Text
+
+  created_at        DateTime  @default(now())
+  updated_at        DateTime  @updatedAt
+
+  tenant    Tenant  @relation(fields: [tenant_id], references: [id])
+  opened_by User    @relation("CashSessionOpenedBy", fields: [opened_by_id], references: [id])
+  closed_by User?   @relation("CashSessionClosedBy", fields: [closed_by_id], references: [id], onDelete: SetNull)
+  orders    Order[]
+
+  @@index([tenant_id, status])
+  @@index([opened_by_id])
+  @@map("cash_sessions")
 }
 
 model TerminalTransaction {
@@ -537,22 +581,71 @@ model Customer {
 }
 
 model CustomerDebt {
-  id          Int       @id @default(autoincrement())
-  tenant_id   Int
-  customer_id Int
-  description String
-  amount      Decimal   @db.Decimal(10, 2)
-  due_date    DateTime? @db.Date
-  paid_at     DateTime?
-  status      String    @default("open")
-  created_at  DateTime  @default(now())
-  updated_at  DateTime  @updatedAt
+  id                 Int       @id @default(autoincrement())
+  tenant_id          Int
+  customer_id        Int
+  order_id           Int?
+  description        String
+  amount             Decimal   @db.Decimal(10, 2)
+  amount_paid        Decimal   @default(0) @db.Decimal(10, 2)
+  installments_count Int       @default(1)
+  due_date           DateTime? @db.Date
+  paid_at            DateTime?
+  status             String    @default("open")
+  created_at         DateTime  @default(now())
+  updated_at         DateTime  @updatedAt
 
-  customer Customer @relation(fields: [customer_id], references: [id], onDelete: Cascade)
+  customer     Customer                  @relation(fields: [customer_id], references: [id], onDelete: Cascade)
+  order        Order?                    @relation(fields: [order_id], references: [id], onDelete: SetNull)
+  payments     CustomerDebtPayment[]
+  installments CustomerDebtInstallment[]
 
   @@index([tenant_id])
   @@index([customer_id])
+  @@index([order_id])
   @@map("customer_debts")
+}
+
+model CustomerDebtInstallment {
+  id          Int       @id @default(autoincrement())
+  tenant_id   Int
+  debt_id     Int
+  number      Int
+  due_date    DateTime  @db.Date
+  amount      Decimal   @db.Decimal(10, 2)
+  amount_paid Decimal   @default(0) @db.Decimal(10, 2)
+  status      String    @default("open")
+  paid_at     DateTime?
+  created_at  DateTime  @default(now())
+  updated_at  DateTime  @updatedAt
+
+  debt     CustomerDebt          @relation(fields: [debt_id], references: [id], onDelete: Cascade)
+  payments CustomerDebtPayment[]
+
+  @@unique([debt_id, number])
+  @@index([debt_id])
+  @@index([tenant_id])
+  @@map("customer_debt_installments")
+}
+
+model CustomerDebtPayment {
+  id             Int      @id @default(autoincrement())
+  tenant_id      Int
+  debt_id        Int
+  installment_id Int?
+  amount         Decimal  @db.Decimal(10, 2)
+  payment_method String?
+  paid_at        DateTime @default(now())
+  created_at     DateTime @default(now())
+
+  debt        CustomerDebt             @relation(fields: [debt_id], references: [id], onDelete: Cascade)
+  installment CustomerDebtInstallment? @relation(fields: [installment_id], references: [id], onDelete: SetNull)
+  tenant      Tenant                   @relation(fields: [tenant_id], references: [id])
+
+  @@index([debt_id])
+  @@index([installment_id])
+  @@index([tenant_id])
+  @@map("customer_debt_payments")
 }
 
 model CustomerNote {
@@ -666,10 +759,10 @@ model ServiceOrder {
   number                Int
 
   customer_id           Int?
-  customer_name         String
+  customer_name         String    @default("")
   customer_phone        String?
 
-  equipment_category    String
+  equipment_category    String    @default("")
   equipment_type        String?
   equipment_brand       String?
   equipment_model       String?

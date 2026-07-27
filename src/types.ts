@@ -59,6 +59,7 @@ export interface Tenant {
   max_installments?: number;
   enabled_brands?: Record<string, boolean>;
   pass_fee_by_method?: Record<string, boolean>;
+  require_cash_session?: boolean;
   status?: 'pending_setup' | 'trial' | 'active' | 'suspended';
   trial_days?: number;
   trial_starts_at?: string;

@@ -23,6 +23,7 @@ import { motion, AnimatePresence } from "motion/react";
 import { cn } from "../../lib/utils";
 import PageHeader from "../../components/layout/PageHeader";
 import Combobox from "../../components/ui/Combobox";
+import { useToast } from "../../components/ui/Toast";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -174,6 +175,7 @@ function isOverdue(c: Consignment): boolean {
 // ─── Main Component ───────────────────────────────────────────────────────────
 
 export default function Consignments() {
+  const { success, error: toastError } = useToast();
   const [consignments, setConsignments] = useState<Consignment[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
@@ -280,9 +282,17 @@ export default function Consignments() {
       (!p.sale_unit || p.sale_unit === "unidade") && p.stock_quantity > 0
   );
 
+  const customerOpenConsignments = form.customer_id
+    ? consignments.filter((c) => c.status === "aberta" && c.customer_id === form.customer_id)
+    : [];
+
   // ── Create ──────────────────────────────────────────────────────────────
   const handleCreate = async () => {
     if (!form.customer_name || draftItems.length === 0) return;
+    if (customerOpenConsignments.length > 0) {
+      const list = customerOpenConsignments.map((c) => `#${String(c.number).padStart(4, "0")}`).join(", ");
+      if (!window.confirm(`${form.customer_name} já tem sacola aberta (${list}). Deseja criar outra mesmo assim?`)) return;
+    }
     setSaving(true);
     try {
       const res = await fetch("/api/consignments", {
@@ -304,10 +314,10 @@ export default function Consignments() {
         setForm(emptyForm());
         setDraftItems([]);
         await fetchAll();
-        setSelected(created);
+        success(`Sacola #${String(created.number).padStart(4, "0")} criada com sucesso`);
       } else {
         const err = await res.json().catch(() => ({}));
-        alert(err.error || "Falha ao criar consignação");
+        toastError(err.error || "Falha ao criar consignação");
       }
     } finally {
       setSaving(false);
@@ -379,9 +389,10 @@ export default function Consignments() {
         setInvoicePayments([newPayment()]);
         setInvoiceSellerId("");
         await refreshSelected(selected.id);
+        success("Sacola resolvida com sucesso");
       } else {
         const err = await res.json().catch(() => ({}));
-        alert(err.error || "Falha ao resolver consignação");
+        toastError(err.error || "Falha ao resolver consignação");
       }
     } finally {
       setResolving(false);
@@ -421,6 +432,28 @@ export default function Consignments() {
           </button>
         }
       />
+
+      {/* Stat cards */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <div className="rounded-xl p-4 border border-blue-100 bg-blue-50/50 shadow-sm">
+          <p className="text-[9px] font-black uppercase tracking-widest text-blue-500 mb-1">Abertas</p>
+          <p className="text-[22px] font-black text-slate-800">{statusCounts.aberta ?? 0}</p>
+        </div>
+        <div className="rounded-xl p-4 border border-red-100 bg-red-50/50 shadow-sm">
+          <p className="text-[9px] font-black uppercase tracking-widest text-red-500 mb-1">Em Atraso</p>
+          <p className="text-[22px] font-black text-slate-800">{overdueCount}</p>
+        </div>
+        <div className="rounded-xl p-4 border border-emerald-100 bg-emerald-50/50 shadow-sm">
+          <p className="text-[9px] font-black uppercase tracking-widest text-emerald-500 mb-1">Fechadas</p>
+          <p className="text-[22px] font-black text-slate-800">{statusCounts.fechada ?? 0}</p>
+        </div>
+        <div className="rounded-xl p-4 border border-slate-200 bg-slate-50 shadow-sm">
+          <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-1">Valor em Sacolas</p>
+          <p className="text-[22px] font-black text-slate-800">
+            {fmt(consignments.filter((c) => c.status === "aberta").reduce((sum, c) => sum + c.items.reduce((s, it) => s + Number(it.unit_price) * it.quantity, 0), 0))}
+          </p>
+        </div>
+      </div>
 
       {/* Search */}
       <div className="relative max-w-md">
@@ -596,6 +629,16 @@ export default function Consignments() {
                     placeholder="Telefone"
                     className="w-full mt-2 h-10 px-3 rounded-xl border border-slate-200 text-[12px] font-medium focus:outline-none focus:border-blue-400"
                   />
+                  {customerOpenConsignments.length > 0 && (
+                    <div className="mt-2 flex items-start gap-2 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2.5 text-[11px] text-amber-700">
+                      <AlertTriangle size={14} className="shrink-0 mt-0.5" />
+                      <span>
+                        Este cliente já tem {customerOpenConsignments.length === 1 ? "uma sacola aberta" : `${customerOpenConsignments.length} sacolas abertas`} (
+                        {customerOpenConsignments.map((c) => `#${String(c.number).padStart(4, "0")}`).join(", ")}
+                        ). Você pode criar outra mesmo assim.
+                      </span>
+                    </div>
+                  )}
                 </div>
 
                 <div className="grid grid-cols-2 gap-2">
@@ -755,48 +798,61 @@ export default function Consignments() {
               className="fixed inset-x-4 bottom-4 sm:inset-auto sm:top-1/2 sm:left-1/2 sm:-translate-x-1/2 sm:-translate-y-1/2 z-[301] bg-white flex flex-col overflow-hidden rounded-3xl"
               style={{ width: "min(600px, calc(100vw - 32px))", height: "min(760px, calc(100vh - 48px))" }}
             >
-              <div className="shrink-0 flex items-center justify-between px-6 py-4 border-b border-slate-100">
-                <div>
-                  <h2 className="text-[15px] font-black text-slate-800">Sacola #{String(selected.number).padStart(4, "0")}</h2>
-                  <p className="text-[11px] text-slate-500 font-medium">{selected.customer_name}</p>
+              <div className={cn(
+                "shrink-0 flex items-center justify-between px-6 py-5 border-b",
+                selected.status === "aberta" ? "bg-gradient-to-br from-blue-500 to-blue-700 border-blue-700" :
+                selected.status === "fechada" ? "bg-gradient-to-br from-emerald-500 to-emerald-700 border-emerald-700" :
+                "bg-gradient-to-br from-slate-500 to-slate-700 border-slate-700"
+              )}>
+                <div className="flex items-center gap-3">
+                  <div className="w-11 h-11 rounded-2xl bg-white/15 flex items-center justify-center shrink-0">
+                    <ShoppingBag size={20} className="text-white" />
+                  </div>
+                  <div>
+                    <h2 className="text-[16px] font-black text-white leading-tight">Sacola #{String(selected.number).padStart(4, "0")}</h2>
+                    <p className="text-[11px] text-white/80 font-medium">{selected.customer_name}</p>
+                  </div>
                 </div>
                 <div className="flex items-center gap-2">
-                  <span className={cn("inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider", STATUS_META[selected.status].color)}>
+                  <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider bg-white/15 text-white">
                     {STATUS_META[selected.status].icon} {STATUS_META[selected.status].label}
                   </span>
-                  <button onClick={() => setSelected(null)} className="w-9 h-9 rounded-xl bg-slate-100 hover:bg-slate-200 flex items-center justify-center">
-                    <X size={16} className="text-slate-500" />
+                  <button onClick={() => setSelected(null)} className="w-9 h-9 rounded-xl bg-white/15 hover:bg-white/25 flex items-center justify-center transition-colors">
+                    <X size={16} className="text-white" />
                   </button>
                 </div>
               </div>
 
-              <div className="flex-1 overflow-y-auto p-6 space-y-4">
+              <div className="flex-1 overflow-y-auto p-6 space-y-4 bg-slate-50/50">
                 {isOverdue(selected) && (
-                  <div className="flex items-center gap-2 bg-red-50 border border-red-200 rounded-xl px-3 py-2 text-[11px] font-bold text-red-600">
+                  <div className="flex items-center gap-2 bg-red-50 border border-red-200 rounded-xl px-3 py-2.5 text-[11px] font-bold text-red-600 shadow-sm">
                     <AlertTriangle size={14} /> Prazo vencido em {new Date(selected.due_date).toLocaleDateString("pt-BR")}
                   </div>
                 )}
 
                 <div className="grid grid-cols-2 gap-2 text-[11px]">
-                  <div className="bg-slate-50 rounded-xl px-3 py-2">
-                    <span className="text-slate-400 font-bold uppercase text-[9px] block">Prazo</span>
+                  <div className="bg-white rounded-xl px-3 py-2.5 border border-slate-200 shadow-sm">
+                    <span className="text-slate-400 font-bold uppercase text-[9px] block mb-0.5">Prazo</span>
                     <span className="font-semibold text-slate-700">{new Date(selected.due_date).toLocaleDateString("pt-BR")} ({selected.due_days}d)</span>
                   </div>
-                  <div className="bg-slate-50 rounded-xl px-3 py-2">
-                    <span className="text-slate-400 font-bold uppercase text-[9px] block">Vendedor</span>
+                  <div className="bg-white rounded-xl px-3 py-2.5 border border-slate-200 shadow-sm">
+                    <span className="text-slate-400 font-bold uppercase text-[9px] block mb-0.5">Vendedor</span>
                     <span className="font-semibold text-slate-700">{selected.seller_name || "—"}</span>
                   </div>
                 </div>
 
                 {selected.notes && (
-                  <div className="bg-amber-50/50 border border-amber-200 rounded-xl px-3 py-2 text-[11px] text-slate-600">{selected.notes}</div>
+                  <div className="bg-amber-50 border border-amber-200 rounded-xl px-3 py-2.5 text-[11px] text-amber-800 shadow-sm">{selected.notes}</div>
                 )}
 
                 <div>
-                  <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2">Itens</p>
+                  <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2">Itens ({selected.items.length})</p>
                   <div className="space-y-1.5">
                     {selected.items.map((it) => (
-                      <div key={it.id} className="flex items-center justify-between bg-slate-50 border border-slate-200 rounded-xl px-3 py-2">
+                      <div key={it.id} className="flex items-center gap-3 bg-white border border-slate-200 rounded-xl px-3 py-2.5 shadow-sm">
+                        <div className="w-9 h-9 rounded-lg bg-slate-100 flex items-center justify-center shrink-0">
+                          <Package size={15} className="text-slate-400" />
+                        </div>
                         <div className="flex-1 min-w-0">
                           <p className="text-[12px] font-semibold text-slate-700 truncate">{it.name} × {it.quantity}</p>
                           <p className="text-[10px] text-slate-400 font-mono">{fmt(Number(it.unit_price) * it.quantity)}</p>
@@ -817,20 +873,20 @@ export default function Consignments() {
                 </div>
 
                 {selected.cancel_reason && (
-                  <div className="bg-red-50 border border-red-200 rounded-xl px-3 py-2 text-[11px] text-red-600">
+                  <div className="bg-red-50 border border-red-200 rounded-xl px-3 py-2.5 text-[11px] text-red-600 shadow-sm">
                     <strong>Motivo do cancelamento:</strong> {selected.cancel_reason}
                   </div>
                 )}
               </div>
 
               {selected.status === "aberta" && (
-                <div className="shrink-0 px-6 pb-6 pt-3 flex gap-2 border-t border-slate-100">
+                <div className="shrink-0 px-6 pb-6 pt-3 flex gap-2 border-t border-slate-100 bg-white">
                   <button onClick={handleCancel} className="h-11 px-4 rounded-xl border border-red-200 text-red-600 text-[10px] font-black uppercase tracking-widest hover:bg-red-50 transition-colors flex items-center gap-2">
                     <Ban size={14} /> Cancelar
                   </button>
                   <button
                     onClick={openResolveModal}
-                    className="flex-1 h-11 bg-emerald-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-emerald-700 transition-all flex items-center justify-center gap-2"
+                    className="flex-1 h-11 bg-emerald-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-emerald-700 transition-all flex items-center justify-center gap-2 shadow-md shadow-emerald-500/20"
                   >
                     <CheckCircle2 size={14} /> Resolver Sacola
                   </button>
@@ -930,7 +986,10 @@ export default function Consignments() {
                                 )}
                                 <div className="grid grid-cols-4 gap-1.5 flex-1">
                                   {(["money", "debit", "credit", "pix"] as PayMethod[]).map((key) => (
-                                    <button key={key} onClick={() => updateInvoicePayment(p.id, { method: key, installments: 1 })}
+                                    <button key={key} onClick={() => updateInvoicePayment(p.id, {
+                                      method: key, installments: 1,
+                                      amount: key !== "money" && keptTotal > 0 ? keptTotal.toFixed(2) : p.amount,
+                                    })}
                                       className={cn("h-9 rounded-xl border text-[9px] font-black uppercase tracking-widest transition-all flex flex-col items-center justify-center gap-0.5",
                                         p.method === key ? key === "credit" ? "bg-emerald-600 border-emerald-500 text-white" : "bg-blue-600 border-blue-500 text-white" : "bg-white border-slate-200 text-slate-500 hover:border-slate-400")}>
                                       {key === "money" && <Banknote size={12} />}

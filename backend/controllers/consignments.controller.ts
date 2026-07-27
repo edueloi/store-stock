@@ -446,6 +446,7 @@ export async function resolveConsignment(req: Request, res: Response) {
       surcharge,
       passFeeToCustomer,
       passFeeByMethod,
+      cashSessionId,
     } = req.body as {
       resolutions: Array<{ item_id: number; resolution: "kept" | "returned" }>;
       payment_method?: string;
@@ -454,6 +455,7 @@ export async function resolveConsignment(req: Request, res: Response) {
       surcharge?: number;
       passFeeToCustomer?: boolean;
       passFeeByMethod?: Record<string, boolean>;
+      cashSessionId?: number | null;
     };
 
     if (!Array.isArray(resolutions) || resolutions.length === 0) {
@@ -505,6 +507,7 @@ export async function resolveConsignment(req: Request, res: Response) {
           passFeeToCustomer,
           passFeeByMethod,
           descriptionPrefix: `Consignação #${consignment.number} — Venda`,
+          cashSessionId,
         });
         invoicedOrderId = result.orderId;
       } catch (err) {

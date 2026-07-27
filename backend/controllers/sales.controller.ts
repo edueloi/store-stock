@@ -4,7 +4,7 @@ import { prisma } from "../config/prisma";
 import type { AuthenticatedRequest } from "../types/auth";
 import { awardPointsForOrder } from "./loyalty.controller";
 import { localDateString } from "../utils/date";
-import { emitirNfce } from "../services/nfce/emitir";
+import { parsePaymentMethod, buildMethodSummary } from "../utils/payment-method";
 
 function getTenantId(req: Request) {
   return (req as AuthenticatedRequest).user.tenantId;
@@ -31,29 +31,6 @@ interface SaleItemInput {
   dimensionsLabel?: string | null;
 }
 
-// Parses "credit-visa-2x:120.00|money:30.00" into structured segments
-function parsePaymentMethod(pm: string) {
-  return pm.split("|").map((seg) => {
-    const [methodPart, amountStr] = seg.split(":");
-    const tokens = methodPart.split("-");
-    return {
-      method:       tokens[0] ?? "money",
-      brand:        tokens[1] ?? "other",
-      installments: tokens[2] ? parseInt(tokens[2].replace("x", ""), 10) : 1,
-      amount:       parseFloat(amountStr ?? "0") || 0,
-    };
-  });
-}
-
-function buildMethodSummary(pm: string) {
-  const labels: Record<string, string> = { money: "Dinheiro", pix: "PIX", debit: "Débito", credit: "Crédito" };
-  return parsePaymentMethod(pm).map(({ method, brand, installments }) => {
-    const b = brand && brand !== "other" ? `/${brand.toUpperCase()}` : "";
-    const i = method === "credit" && installments > 1 ? ` ${installments}X` : "";
-    return `${labels[method] ?? method}${b}${i}`;
-  }).join(" + ");
-}
-
 interface ServiceItemInput { id: number; name: string; price: number }
 
 interface FinalizeSaleParams {
@@ -75,6 +52,14 @@ interface FinalizeSaleParams {
   decrementStock: boolean;
   // descrição customizada da entrada financeira (ex.: "Consignação #12 — Venda")
   descriptionPrefix?: string;
+  // nº de parcelas do crediário (default 1) e vencimento da 1ª parcela (default hoje +30d)
+  crediarioInstallments?: number;
+  crediarioFirstDueDate?: string;
+  // sessão de caixa aberta no momento da venda (obrigatória quando o tenant exige controle de caixa)
+  cashSessionId?: number | null;
+  // true quando esta chamada é a sincronização de uma venda feita offline — nesse caso
+  // não exigimos que a sessão ainda esteja "open" (pode ter sido fechada nesse meio-tempo)
+  isOfflineSync?: boolean;
 }
 
 // Núcleo compartilhado de "virar uma venda de verdade": taxas de cartão, criação de
@@ -86,6 +71,8 @@ async function finalizeSaleOrder(params: FinalizeSaleParams): Promise<{ orderId:
     tenantId, items, services, customerName, customerId, totalAmount, paymentMethod,
     discount, surcharge, sellerId, passFeeToCustomer, passFeeByMethod, clientSaleId,
     soldAtDate, decrementStock, descriptionPrefix,
+    crediarioInstallments, crediarioFirstDueDate,
+    cashSessionId, isOfflineSync,
   } = params;
 
   // Resolve se um segmento de pagamento repassa taxa ao cliente
@@ -110,12 +97,60 @@ async function finalizeSaleOrder(params: FinalizeSaleParams): Promise<{ orderId:
     // Load tenant card fees to compute machine fee internally
     const tenantData = await prisma.tenant.findUnique({
       where: { id: tenantId },
-      select: { card_fees: true },
+      select: { card_fees: true, require_cash_session: true },
     });
     const cardFees = (tenantData?.card_fees ?? {}) as Record<string, number[]>;
 
+    // Bloqueia a venda se o tenant exige controle de caixa e não há sessão válida informada
+    let resolvedCashSessionId: number | null = cashSessionId ?? null;
+    if (tenantData?.require_cash_session) {
+      if (!resolvedCashSessionId) {
+        throw new SaleError(409, "É necessário abrir o caixa antes de registrar vendas.");
+      }
+      const session = await prisma.cashSession.findFirst({
+        where: {
+          id: resolvedCashSessionId,
+          tenant_id: tenantId,
+          ...(isOfflineSync ? {} : { status: "open" }),
+        },
+        select: { id: true },
+      });
+      if (!session) {
+        throw new SaleError(409, "Sessão de caixa inválida ou já fechada. Abra o caixa novamente para continuar vendendo.");
+      }
+    }
+
     const pmString    = paymentMethod || "money";
     const pmSegments  = parsePaymentMethod(pmString);
+
+    // Crediário: parte da venda que fica como dívida do cliente, quitada depois.
+    const crediarioAmount = pmSegments.find((s) => s.method === "crediario" && s.amount > 0)?.amount ?? 0;
+    if (crediarioAmount > 0) {
+      if (!customerId) {
+        throw new SaleError(422, "Crediário requer um cliente selecionado");
+      }
+      const crediarioCustomer = await prisma.customer.findFirst({
+        where: { id: customerId, tenant_id: tenantId },
+        select: { credit_limit: true, name: true },
+      });
+      if (!crediarioCustomer) {
+        throw new SaleError(404, "Cliente não encontrado");
+      }
+      const creditLimit = crediarioCustomer.credit_limit ? Number(crediarioCustomer.credit_limit) : 0;
+      if (creditLimit > 0) {
+        const openDebts = await prisma.customerDebt.findMany({
+          where: { tenant_id: tenantId, customer_id: customerId, status: "open" },
+          select: { amount: true, amount_paid: true },
+        });
+        const openTotal = openDebts.reduce((s, d) => s + (Number(d.amount) - Number(d.amount_paid)), 0);
+        if (openTotal + crediarioAmount > creditLimit + 0.005) {
+          throw new SaleError(422,
+            `Limite de crédito excedido: em aberto R$ ${openTotal.toFixed(2)} + R$ ${crediarioAmount.toFixed(2)} > limite R$ ${creditLimit.toFixed(2)}`,
+            { creditLimit, openTotal, requested: crediarioAmount },
+          );
+        }
+      }
+    }
 
     const discountVal  = discount && discount > 0 ? Number(discount) : 0;
     const surchargeVal = surcharge && surcharge > 0 ? Number(surcharge) : 0;
@@ -201,6 +236,7 @@ async function finalizeSaleOrder(params: FinalizeSaleParams): Promise<{ orderId:
         order_type:      items.length === 0 && services && services.length > 0 ? "services" : (services && services.length > 0 ? "mixed" : "products"),
         payment_method:  pmString,
         client_sale_id:  clientSaleId ?? null,
+        cash_session_id: resolvedCashSessionId,
         items: {
           create: items.map((item) => ({
             product_id: item.id,
@@ -292,59 +328,90 @@ async function finalizeSaleOrder(params: FinalizeSaleParams): Promise<{ orderId:
       : (services && services.length > 0
         ? `Venda Mista PDV #${order.id} — ${methodSummary}${discountNote}${surchargeNote}${feeNote}`
         : `Venda PDV #${order.id} — ${methodSummary}${discountNote}${surchargeNote}${feeNote}`);
-    await prisma.finance.create({
-      data: {
-        tenant_id:       tenantId,
-        type:            "income",
-        description:     descriptionPrefix
-          ? `${descriptionPrefix} #${order.id} — ${methodSummary}${discountNote}${surchargeNote}${feeNote}`
-          : defaultDescription,
-        amount:          netAmount,
-        gross_amount:    grossAmount,
-        fee_amount:      roundedFee > 0 ? roundedFee : null,
-        discount_amount: discountVal > 0 ? discountVal : null,
-        payment_method:  pmString,
-        source:          items.length === 0 ? "services" : (services && services.length > 0 ? "mixed" : "pdv"),
-        order_id:        order.id,
-        // offline sales synced later carry the original sale date
-        date:            soldAtDate && /^\d{4}-\d{2}-\d{2}$/.test(soldAtDate) ? new Date(soldAtDate + "T00:00:00Z") : localDateString(),
-      },
-    });
+
+    // A parte fiada (crediário) não é receita de caixa agora — só quando o
+    // cliente pagar a dívida (mesmo princípio já usado em payDebt). O Finance
+    // desta venda reflete só o que efetivamente entrou no caixa/recebível imediato.
+    const nonCrediarioNet   = Math.round((netAmount - crediarioAmount) * 100) / 100;
+    const nonCrediarioGross = Math.round((grossAmount - crediarioAmount) * 100) / 100;
+    if (nonCrediarioNet > 0.009) {
+      await prisma.finance.create({
+        data: {
+          tenant_id:       tenantId,
+          type:            "income",
+          description:     descriptionPrefix
+            ? `${descriptionPrefix} #${order.id} — ${methodSummary}${discountNote}${surchargeNote}${feeNote}`
+            : defaultDescription,
+          amount:          nonCrediarioNet,
+          gross_amount:    nonCrediarioGross,
+          fee_amount:      roundedFee > 0 ? roundedFee : null,
+          discount_amount: discountVal > 0 ? discountVal : null,
+          payment_method:  pmString,
+          source:          items.length === 0 ? "services" : (services && services.length > 0 ? "mixed" : "pdv"),
+          order_id:        order.id,
+          // offline sales synced later carry the original sale date
+          date:            soldAtDate && /^\d{4}-\d{2}-\d{2}$/.test(soldAtDate) ? new Date(soldAtDate + "T00:00:00Z") : localDateString(),
+        },
+      });
+    } else {
+      console.log("[createSale] venda 100% crediário — Finance não criado agora, só ao pagar a dívida");
+    }
+
+    // Registra a parte fiada como dívida do cliente, vinculada a esta Order, já dividida em parcelas
+    if (crediarioAmount > 0 && customerId) {
+      const installmentsCount = Math.max(1, Math.floor(crediarioInstallments ?? 1));
+
+      const firstDueDate = crediarioFirstDueDate
+        ? new Date(`${crediarioFirstDueDate}T00:00:00`)
+        : (() => {
+            const d = new Date();
+            d.setDate(d.getDate() + 30);
+            return d;
+          })();
+
+      await prisma.$transaction(async (tx) => {
+        const debt = await tx.customerDebt.create({
+          data: {
+            tenant_id: tenantId,
+            customer_id: customerId,
+            order_id: order.id,
+            description: `Venda PDV #${order.id}`,
+            amount: crediarioAmount,
+            installments_count: installmentsCount,
+            status: "open",
+          },
+        });
+
+        const baseAmount = Math.floor((crediarioAmount / installmentsCount) * 100) / 100;
+        let accumulated = 0;
+
+        for (let i = 0; i < installmentsCount; i++) {
+          const isLast = i === installmentsCount - 1;
+          const amount = isLast
+            ? Math.round((crediarioAmount - accumulated) * 100) / 100
+            : baseAmount;
+          accumulated += amount;
+
+          const dueDate = new Date(firstDueDate);
+          dueDate.setMonth(dueDate.getMonth() + i);
+
+          await tx.customerDebtInstallment.create({
+            data: {
+              tenant_id: tenantId,
+              debt_id: debt.id,
+              number: i + 1,
+              due_date: dueDate,
+              amount,
+              status: "open",
+            },
+          });
+        }
+      });
+    }
 
     // award loyalty points if customer is identified
     if (customerId) {
       awardPointsForOrder(tenantId, customerId, order.id, totalAmount).catch(console.error);
-    }
-
-    // Emissão de NFC-e: dispara em segundo plano, sem travar a resposta do PDV.
-    // A venda já está fechada; o status da nota evolui de forma assíncrona e é
-    // consultável via GET /api/nfce/:orderId (reemissão manual em caso de erro).
-    try {
-      const tenantForNfce = await prisma.tenant.findUnique({
-        where: { id: tenantId },
-        select: { nfce_environment: true, nfce_series: true, nfce_next_number: true },
-      });
-      if (tenantForNfce) {
-        const series = tenantForNfce.nfce_series;
-        const number = tenantForNfce.nfce_next_number;
-        await prisma.tenant.update({
-          where: { id: tenantId },
-          data: { nfce_next_number: { increment: 1 } },
-        });
-        await prisma.nfceInvoice.create({
-          data: {
-            tenant_id: tenantId,
-            order_id: order.id,
-            status: "pending",
-            environment: tenantForNfce.nfce_environment,
-            series,
-            number,
-          },
-        });
-        emitirNfce(order.id).catch((e) => console.error("[emitirNfce] erro:", e));
-      }
-    } catch (e) {
-      console.error("[createSale] falha ao agendar emissão de NFC-e:", e);
     }
 
     return { orderId: order.id };
@@ -352,7 +419,11 @@ async function finalizeSaleOrder(params: FinalizeSaleParams): Promise<{ orderId:
 }
 
 export async function createSale(req: Request, res: Response) {
-  const { items, services, customerName, customerId, totalAmount, paymentMethod, discount, surcharge, sellerId, passFeeToCustomer, passFeeByMethod, clientSaleId, soldAtDate } = req.body as {
+  const {
+    items, services, customerName, customerId, totalAmount, paymentMethod, discount, surcharge,
+    sellerId, passFeeToCustomer, passFeeByMethod, clientSaleId, soldAtDate,
+    crediarioInstallments, crediarioFirstDueDate, cashSessionId, isOfflineSync,
+  } = req.body as {
     items: SaleItemInput[];
     services?: ServiceItemInput[];
     customerName?: string;
@@ -366,6 +437,10 @@ export async function createSale(req: Request, res: Response) {
     passFeeByMethod?: Record<string, boolean>;
     clientSaleId?: string;
     soldAtDate?: string;
+    crediarioInstallments?: number;
+    crediarioFirstDueDate?: string;
+    cashSessionId?: number | null;
+    isOfflineSync?: boolean;
   };
 
   try {
@@ -376,6 +451,8 @@ export async function createSale(req: Request, res: Response) {
       tenantId, items, services, customerName, customerId, totalAmount, paymentMethod,
       discount, surcharge, sellerId, passFeeToCustomer, passFeeByMethod, clientSaleId,
       soldAtDate, decrementStock: true,
+      crediarioInstallments, crediarioFirstDueDate,
+      cashSessionId, isOfflineSync,
     });
 
     res.json({ success: true, orderId: result.orderId });
