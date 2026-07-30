@@ -51,6 +51,7 @@ import {
   downloadServiceOrderPdf,
   newPayment,
   buildPmString,
+  NfseInvoice,
 } from "./serviceOrders.shared";
 
 export default function ServiceOrderDetail() {
@@ -86,6 +87,11 @@ export default function ServiceOrderDetail() {
   const [priority, setPriority] = useState<"normal" | "urgente">("normal");
   const [promisedAt, setPromisedAt] = useState("");
   const [serviceValue, setServiceValue] = useState("");
+  const [nfseInvoice, setNfseInvoice] = useState<NfseInvoice | null>(null);
+  const [nfseCodigoServico, setNfseCodigoServico] = useState("70602");
+  const [nfseDescricao, setNfseDescricao] = useState("");
+  const [nfseEmitting, setNfseEmitting] = useState(false);
+  const [nfseError, setNfseError] = useState<string | null>(null);
   const [warrantyDays, setWarrantyDays] = useState("");
   const [warrantyTerms, setWarrantyTerms] = useState("");
   const [observations, setObservations] = useState("");
@@ -170,6 +176,9 @@ export default function ServiceOrderDetail() {
       const so: ServiceOrder = await res.json();
       setSelected(so);
       if (!silent) applyFormFields(so);
+
+      const nfseRes = await fetch(`/api/nfse/${orderId}`, { headers: authHeaderNoJson() });
+      setNfseInvoice(nfseRes.ok ? await nfseRes.json() : null);
     } finally {
       if (!silent) setLoading(false);
     }
@@ -462,6 +471,36 @@ export default function ServiceOrderDetail() {
       await downloadServiceOrderPdf(selected, tenant);
     } finally {
       setGeneratingPdf(false);
+    }
+  };
+
+  // ── NFS-e ────────────────────────────────────────────────────────────────
+  const handleEmitNfse = async () => {
+    if (!selected) return;
+    setNfseEmitting(true);
+    setNfseError(null);
+    try {
+      const res = await fetch(`/api/nfse/${selected.id}/emit`, {
+        method: "POST",
+        headers: authHeader(),
+        body: JSON.stringify({
+          codigo_tributacao_nacional: nfseCodigoServico,
+          descricao_servico: nfseDescricao || undefined,
+          valor_servico: Number(serviceValue) || Number(selected.service_value),
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setNfseError(data.error ?? "Falha ao emitir NFS-e");
+        return;
+      }
+      setNfseInvoice(data);
+      // Emissão é assíncrona no backend — reconsulta em alguns segundos para pegar o resultado final
+      setTimeout(() => fetchOrder(true), 4000);
+    } catch {
+      setNfseError("Falha de conexão ao emitir NFS-e");
+    } finally {
+      setNfseEmitting(false);
     }
   };
 
@@ -1040,6 +1079,53 @@ export default function ServiceOrderDetail() {
               </div>
             </div>
           </div>
+
+          {/* NFS-e — emitida sobre a mão de obra (peças já geram NFC-e na venda) */}
+          {Number(selected.service_value) > 0 && (
+            <div className="bg-white rounded-2xl border border-slate-200 p-5 space-y-3">
+              <p className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400">NFS-e (Serviço)</p>
+              {nfseInvoice?.status === "authorized" ? (
+                <div className="flex items-center gap-2 text-emerald-600 bg-emerald-50 rounded-xl px-3 py-2.5">
+                  <CheckCircle2 size={14} />
+                  <span className="text-[11px] font-bold">
+                    NFS-e autorizada — Série {nfseInvoice.serie}/{nfseInvoice.numero}
+                  </span>
+                </div>
+              ) : (
+                <>
+                  {nfseInvoice && (nfseInvoice.status === "pending" || nfseInvoice.status === "processing") && (
+                    <div className="flex items-center gap-2 text-amber-600 bg-amber-50 rounded-xl px-3 py-2.5">
+                      <Loader2 size={14} className="animate-spin" />
+                      <span className="text-[11px] font-bold">Processando emissão…</span>
+                    </div>
+                  )}
+                  {nfseInvoice?.status === "rejected" || nfseInvoice?.status === "error" ? (
+                    <p className="text-[10px] font-bold text-red-600">{nfseInvoice.rejection_reason || "Falha na emissão"}</p>
+                  ) : null}
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="text-[9px] font-black text-slate-400 uppercase tracking-wide block mb-1">Cód. Serviço</label>
+                      <input value={nfseCodigoServico} onChange={(e) => setNfseCodigoServico(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                        placeholder="70602"
+                        className="w-full h-9 px-2 rounded-lg border border-slate-200 text-[12px] font-mono focus:outline-none focus:border-blue-400" />
+                    </div>
+                    <div>
+                      <label className="text-[9px] font-black text-slate-400 uppercase tracking-wide block mb-1">Descrição (opcional)</label>
+                      <input value={nfseDescricao} onChange={(e) => setNfseDescricao(e.target.value)}
+                        placeholder="Instalação de vidro/box"
+                        className="w-full h-9 px-2 rounded-lg border border-slate-200 text-[12px] focus:outline-none focus:border-blue-400" />
+                    </div>
+                  </div>
+                  <button onClick={handleEmitNfse} disabled={nfseEmitting || !nfseCodigoServico}
+                    className="w-full h-10 bg-violet-600 hover:bg-violet-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all disabled:opacity-50 flex items-center justify-center gap-2">
+                    {nfseEmitting ? <Loader2 size={13} className="animate-spin" /> : null}
+                    {nfseEmitting ? "Emitindo…" : "Emitir NFS-e"}
+                  </button>
+                  {nfseError && <p className="text-[10px] font-bold text-red-600">{nfseError}</p>}
+                </>
+              )}
+            </div>
+          )}
 
           {/* Garantia */}
           <div className="bg-white rounded-2xl border border-slate-200 p-5 space-y-3">

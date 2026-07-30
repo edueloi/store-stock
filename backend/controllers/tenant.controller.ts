@@ -95,6 +95,13 @@ export async function updateTenant(req: Request, res: Response) {
     if (b.nfce_csc_id !== undefined)       data.nfce_csc_id       = b.nfce_csc_id;
     if (b.nfce_csc_token !== undefined)    data.nfce_csc_token    = b.nfce_csc_token;
 
+    // NFS-e (Sistema Nacional NFS-e)
+    if (b.nfse_environment !== undefined)         data.nfse_environment         = b.nfse_environment;
+    if (b.nfse_codigo_municipio !== undefined)     data.nfse_codigo_municipio     = b.nfse_codigo_municipio;
+    if (b.nfse_inscricao_municipal !== undefined)  data.nfse_inscricao_municipal  = b.nfse_inscricao_municipal;
+    if (b.nfse_serie !== undefined)                data.nfse_serie                = Number(b.nfse_serie);
+    if (b.nfse_next_number !== undefined)          data.nfse_next_number          = Number(b.nfse_next_number);
+
     // Only update slug/subdomain if explicitly provided and non-empty
     if (b.subdomain || b.slug) {
       const normalizedPublicId = normalizeSubdomain(b.subdomain || b.slug);

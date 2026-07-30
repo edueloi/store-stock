@@ -84,6 +84,12 @@ export interface Tenant {
   nfce_csc_token?: string;
   nfce_cert_configured?: boolean;
   nfce_csc_configured?: boolean;
+  // NFS-e (Sistema Nacional NFS-e)
+  nfse_environment?: 'homologacao' | 'producao';
+  nfse_codigo_municipio?: string;
+  nfse_inscricao_municipal?: string;
+  nfse_serie?: number;
+  nfse_next_number?: number;
 }
 
 export interface User {

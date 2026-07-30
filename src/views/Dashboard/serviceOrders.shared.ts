@@ -46,6 +46,18 @@ export interface ServiceOrderActionLog {
   created_at: string;
 }
 
+export interface NfseInvoice {
+  id: number;
+  status: "pending" | "processing" | "authorized" | "rejected" | "error" | "cancelled";
+  environment: string;
+  serie: number;
+  numero: number;
+  chave_acesso: string | null;
+  rejection_code: string | null;
+  rejection_reason: string | null;
+  authorized_at: string | null;
+}
+
 export interface ServiceOrder {
   id: number;
   number: number;

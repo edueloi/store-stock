@@ -71,3 +71,8 @@ export function assinarNfce(xml: string, chaveAcesso: string, cert: CertMaterial
 export function assinarEvento(xml: string, idEvento: string, cert: CertMaterial): string {
   return assinarElemento(xml, "infEvento", idEvento, cert);
 }
+
+// Assina a tag infDPS do XML da DPS (NFS-e) — mesmo padrão de assinatura, id próprio do documento
+export function assinarDPS(xml: string, idDPS: string, cert: CertMaterial): string {
+  return assinarElemento(xml, "infDPS", idDPS, cert);
+}

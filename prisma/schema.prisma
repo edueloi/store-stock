@@ -67,6 +67,13 @@ model Tenant {
   nfce_cert_path       String?
   nfce_cert_password   String?
 
+  // NFS-e (Sistema Nacional NFS-e — reaproveita o mesmo certificado A1 acima)
+  nfse_environment     String   @default("homologacao")
+  nfse_codigo_municipio String? // Código IBGE (7 dígitos) do município do prestador
+  nfse_inscricao_municipal String?
+  nfse_serie           Int      @default(1) // faixa 00001-49999 = emissão com aplicativo próprio (via webservice)
+  nfse_next_number     Int      @default(1)
+
   created_at       DateTime @default(now())
   updated_at   DateTime @updatedAt
 
@@ -91,6 +98,7 @@ model Tenant {
   service_order_actions  ServiceOrderAction[]
   quote_actions          QuoteAction[]
   nfce_invoices          NfceInvoice[]
+  nfse_invoices          NfseInvoice[]
   whatsapp_workspace     WhatsappWorkspace?
   terminal_transactions  TerminalTransaction[]
   consignments           Consignment[]
@@ -414,6 +422,41 @@ model NfceInvoice {
   @@index([tenant_id])
   @@index([status])
   @@map("nfce_invoices")
+}
+
+// NFS-e — Sistema Nacional NFS-e (Sefin Nacional), emitida a partir da mão de obra
+// de uma Ordem de Serviço. Estrutura análoga a NfceInvoice.
+model NfseInvoice {
+  id               Int       @id @default(autoincrement())
+  tenant_id        Int
+  service_order_id Int       @unique
+  status           String    @default("pending") // pending | processing | authorized | rejected | error | cancelled
+  environment      String
+  serie            Int
+  numero           Int
+  chave_acesso     String?   @unique
+  codigo_verificacao String?
+  authorized_at    DateTime?
+  rejection_code   String?
+  rejection_reason String?   @db.Text
+  dps_xml_path     String?
+  nfse_xml_path    String?
+  attempts         Int       @default(0)
+  last_attempt_at  DateTime?
+
+  // Cancelamento (evento de substituição/cancelamento)
+  cancel_reason    String?   @db.Text
+  cancelled_at     DateTime?
+
+  created_at       DateTime  @default(now())
+  updated_at       DateTime  @updatedAt
+
+  tenant       Tenant       @relation(fields: [tenant_id], references: [id])
+  service_order ServiceOrder @relation(fields: [service_order_id], references: [id])
+
+  @@index([tenant_id])
+  @@index([status])
+  @@map("nfse_invoices")
 }
 
 model OrderAction {
@@ -803,6 +846,7 @@ model ServiceOrder {
   parts            ServiceOrderPart[]
   photos           ServiceOrderPhoto[]
   actions          ServiceOrderAction[]
+  nfse_invoice     NfseInvoice?
 
   @@unique([tenant_id, number])
   @@index([tenant_id])

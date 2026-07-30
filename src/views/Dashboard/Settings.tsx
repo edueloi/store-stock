@@ -504,6 +504,7 @@ export default function Settings() {
   const [certPassword, setCertPassword] = useState("");
   const [certError, setCertError] = useState<string | null>(null);
   const [certInfo, setCertInfo] = useState<{ subjectName: string; validUntil: string } | null>(null);
+  const [certFile, setCertFile] = useState<File | null>(null);
   const certInputRef = useRef<HTMLInputElement>(null);
   // system prefs (stored in UserPreference)
   const [panelTheme, setPanelTheme] = useState<"light" | "dark">("light");
@@ -729,7 +730,11 @@ export default function Settings() {
     }
   };
 
-  const handleCertUpload = async (file: File) => {
+  const handleCertUpload = async () => {
+    if (!certFile) {
+      setCertError("Selecione o arquivo .pfx/.p12 do certificado");
+      return;
+    }
     if (!certPassword) {
       setCertError("Informe a senha do certificado antes de enviar o arquivo");
       return;
@@ -738,7 +743,7 @@ export default function Settings() {
     setCertError(null);
     try {
       const form = new FormData();
-      form.append("certificate", file);
+      form.append("certificate", certFile);
       form.append("password", certPassword);
       const res = await fetch("/api/tenant/nfce-certificate", {
         method: "POST",
@@ -752,6 +757,7 @@ export default function Settings() {
       }
       setCertInfo({ subjectName: data.subjectName, validUntil: data.validUntil });
       setCertPassword("");
+      setCertFile(null);
       setTenant((prev) => (prev ? { ...prev, nfce_cert_configured: true } : prev));
       showSaved();
     } catch {
@@ -1138,18 +1144,19 @@ export default function Settings() {
                   </div>
 
                   {/* CEP lookup */}
-                  <div className="flex gap-2">
-                    <div className="flex-1">
-                      <Field label="CEP" hint="Digite o CEP para preencher o endereço automaticamente">
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.18em] px-1 block">
+                      CEP
+                    </label>
+                    <div className="flex gap-2">
+                      <div className="flex-1">
                         <TextInput
                           value={tenant?.address_zip ?? ""}
                           onChange={(v) => setT({ address_zip: v })}
                           placeholder="00000-000"
                           mono
                         />
-                      </Field>
-                    </div>
-                    <div className="flex items-end pb-0.5">
+                      </div>
                       <button
                         onClick={handleLookupCEP}
                         disabled={cepLoading}
@@ -1159,6 +1166,7 @@ export default function Settings() {
                         Buscar CEP
                       </button>
                     </div>
+                    <p className="text-[9px] text-slate-400 font-medium px-1">Digite o CEP para preencher o endereço automaticamente</p>
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
@@ -1346,14 +1354,11 @@ export default function Settings() {
                         <p className="text-[10px] text-slate-500">
                           Envie o arquivo .pfx/.p12 do certificado A1 da loja e a senha dele. É necessário para emitir NFC-e em produção.
                         </p>
-                        <div className="flex gap-2">
-                          <input
-                            type="password"
-                            value={certPassword}
-                            onChange={(e) => setCertPassword(e.target.value)}
-                            placeholder="Senha do certificado"
-                            className="flex-1 bg-white border border-slate-200 rounded-xl px-4 h-11 text-xs font-bold outline-none focus:ring-4 focus:ring-blue-500/8 focus:border-blue-500 transition-all"
-                          />
+
+                        <div>
+                          <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.18em] px-1 block mb-1.5">
+                            Arquivo do certificado
+                          </label>
                           <input
                             ref={certInputRef}
                             type="file"
@@ -1361,18 +1366,46 @@ export default function Settings() {
                             className="hidden"
                             onChange={(e) => {
                               const file = e.target.files?.[0];
-                              if (file) handleCertUpload(file);
+                              if (file) { setCertFile(file); setCertError(null); }
                               e.target.value = "";
                             }}
                           />
-                          <button
-                            onClick={() => certInputRef.current?.click()}
-                            disabled={certUploading || !certPassword}
-                            className="h-11 px-4 rounded-xl bg-slate-800 text-white text-[10px] font-black uppercase tracking-wide hover:bg-slate-700 transition-all disabled:opacity-50 shrink-0"
-                          >
-                            {certUploading ? "Enviando…" : "Enviar .pfx"}
-                          </button>
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={() => certInputRef.current?.click()}
+                              disabled={certUploading}
+                              className="h-11 px-4 rounded-xl bg-white border border-slate-200 text-slate-700 text-[10px] font-black uppercase tracking-wide hover:bg-slate-50 transition-all disabled:opacity-50 shrink-0 flex items-center gap-2"
+                            >
+                              <Upload size={13} /> Selecionar Arquivo
+                            </button>
+                            <span className={cn("text-[11px] truncate", certFile ? "text-slate-700 font-bold" : "text-slate-400")}>
+                              {certFile ? certFile.name : "Nenhum arquivo selecionado"}
+                            </span>
+                          </div>
                         </div>
+
+                        <div>
+                          <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.18em] px-1 block mb-1.5">
+                            Senha do certificado
+                          </label>
+                          <div className="flex gap-2">
+                            <input
+                              type="password"
+                              value={certPassword}
+                              onChange={(e) => setCertPassword(e.target.value)}
+                              placeholder="Senha do certificado"
+                              className="flex-1 bg-white border border-slate-200 rounded-xl px-4 h-11 text-xs font-bold outline-none focus:ring-4 focus:ring-blue-500/8 focus:border-blue-500 transition-all"
+                            />
+                            <button
+                              onClick={handleCertUpload}
+                              disabled={certUploading || !certPassword || !certFile}
+                              className="h-11 px-4 rounded-xl bg-slate-800 text-white text-[10px] font-black uppercase tracking-wide hover:bg-slate-700 transition-all disabled:opacity-50 shrink-0"
+                            >
+                              {certUploading ? "Enviando…" : "Enviar Certificado"}
+                            </button>
+                          </div>
+                        </div>
+
                         {certError && <p className="text-[10px] font-bold text-red-600">{certError}</p>}
                       </div>
                     )}
@@ -1416,6 +1449,62 @@ export default function Settings() {
                         value={tenant?.nfce_csc_token ?? ""}
                         onChange={(v) => setT({ nfce_csc_token: v })}
                         type="password"
+                        mono
+                      />
+                    </Field>
+                  </div>
+                </div>
+
+                {/* NFS-e */}
+                <div className="space-y-3">
+                  <p className="text-[10px] font-black uppercase tracking-widest text-slate-700 border-l-4 border-violet-500 pl-3">
+                    NFS-e — Emissão (Sistema Nacional)
+                  </p>
+                  <div className="bg-violet-50 border border-violet-200 rounded-xl px-4 py-3 flex items-start gap-2.5">
+                    <AlertTriangle size={15} className="text-violet-500 shrink-0 mt-0.5" />
+                    <p className="text-[10px] font-bold text-violet-700 leading-relaxed">
+                      Emitida a partir da mão de obra/serviço de uma Ordem de Serviço (peças continuam gerando NFC-e).
+                      Reaproveita o mesmo certificado digital A1 configurado acima. Consulte o código IBGE do seu
+                      município no site do IBGE.
+                    </p>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                    <Field label="Ambiente NFS-e">
+                      <select
+                        value={tenant?.nfse_environment ?? "homologacao"}
+                        onChange={(e) => setT({ nfse_environment: e.target.value as Tenant["nfse_environment"] })}
+                        className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 h-11 text-xs font-bold outline-none focus:ring-4 focus:ring-blue-500/8 focus:border-blue-500 transition-all appearance-none"
+                      >
+                        <option value="homologacao">Homologação (teste)</option>
+                        <option value="producao">Produção</option>
+                      </select>
+                    </Field>
+                    <div />
+                    <Field label="Código IBGE do Município" hint="7 dígitos, ex: 3554003 (Tatuí/SP)">
+                      <TextInput
+                        value={tenant?.nfse_codigo_municipio ?? ""}
+                        onChange={(v) => setT({ nfse_codigo_municipio: v.replace(/\D/g, "").slice(0, 7) })}
+                        mono
+                      />
+                    </Field>
+                    <Field label="Inscrição Municipal (IM)" hint="Opcional para alguns municípios">
+                      <TextInput
+                        value={tenant?.nfse_inscricao_municipal ?? ""}
+                        onChange={(v) => setT({ nfse_inscricao_municipal: v })}
+                        mono
+                      />
+                    </Field>
+                    <Field label="Série">
+                      <TextInput
+                        value={String(tenant?.nfse_serie ?? 1)}
+                        onChange={(v) => setT({ nfse_serie: Number(v.replace(/\D/g, "")) || 1 })}
+                        mono
+                      />
+                    </Field>
+                    <Field label="Próximo Número" hint="Numeração sequencial da DPS/NFS-e">
+                      <TextInput
+                        value={String(tenant?.nfse_next_number ?? 1)}
+                        onChange={(v) => setT({ nfse_next_number: Number(v.replace(/\D/g, "")) || 1 })}
                         mono
                       />
                     </Field>
