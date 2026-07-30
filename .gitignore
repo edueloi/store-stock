@@ -11,3 +11,4 @@ public/uploads/
 public/downloads/*
 !public/downloads/.gitkeep
 rede-itau/
+certs/

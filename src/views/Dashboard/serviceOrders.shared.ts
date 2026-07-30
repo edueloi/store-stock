@@ -1,5 +1,8 @@
 import { Clock, Search, Wrench, Package, CheckCircle2, XCircle } from "lucide-react";
 import { createElement } from "react";
+import { downloadHtmlAsPdf } from "../../lib/pdf";
+import { buildDocumentHeaderHtml, buildDocumentTableHtml, DOCUMENT_BASE_CSS, fmtMoney } from "../../lib/documentPdf";
+import type { Tenant as AppTenant } from "../../types";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -18,8 +21,10 @@ export interface ServiceOrderPart {
   product_id: number | null;
   name: string;
   quantity: number;
+  unit: string;
   unit_price: number;
   total: number;
+  no_charge: boolean;
   dimensions_label?: string | null;
 }
 
@@ -98,23 +103,16 @@ export interface Seller {
   is_active?: boolean;
 }
 
-export interface Tenant {
-  name: string;
-  document?: string;
-  logo_url?: string;
-  whatsapp?: string;
-  address_street?: string;
-  address_number?: string;
-  address_complement?: string;
-  address_district?: string;
-  address_city?: string;
-  address_state?: string;
-  address_zip?: string;
-  address?: string;
-  primary_color?: string;
+export type Tenant = Pick<
+  AppTenant,
+  | "name" | "document" | "logo_url" | "whatsapp"
+  | "address_street" | "address_number" | "address_complement" | "address_district"
+  | "address_city" | "address_state" | "address_zip" | "address"
+  | "primary_color" | "razao_social" | "inscricao_estadual" | "inscricao_municipal"
+> & {
   card_fees?: Record<string, number[]>;
   policies?: { service_order_checklists?: Record<string, { label: string }[]> };
-}
+};
 
 // ─── Payment engine (same as Quotes.tsx / PDV) ───────────────────────────────
 
@@ -194,67 +192,63 @@ export const STATUS_ORDER: SOStatus[] = ["rascunho", "aberta", "em_analise", "em
 // ─── PDF template ─────────────────────────────────────────────────────────────
 
 export function buildServiceOrderIntakeHtml(so: ServiceOrder, tenant: Tenant | null): string {
-  const storeName = tenant?.name ?? "Estabelecimento";
-  const docLabel = (doc: string) => {
-    const digits = doc.replace(/\D/g, "");
-    if (digits.length > 11) return "CNPJ";
-    if (digits.length > 0) return "CPF";
-    return "Documento";
-  };
-  const storeDoc = tenant?.document ? `${docLabel(tenant.document)}: ${tenant.document}` : "";
   const brandColor = tenant?.primary_color ?? "#2563eb";
-  const storeAddr = (() => {
-    if (tenant?.address_street) {
-      const parts = [
-        `${tenant.address_street}${tenant.address_number ? ", " + tenant.address_number : ""}`,
-        tenant.address_complement,
-        tenant.address_district,
-        tenant.address_city && tenant.address_state ? `${tenant.address_city} - ${tenant.address_state}` : tenant?.address_city ?? tenant?.address_state ?? "",
-        tenant?.address_zip,
-      ].filter(Boolean);
-      return parts.join(", ");
-    }
-    return tenant?.address ?? "";
-  })();
-  const storePhone = tenant?.whatsapp ? `WhatsApp: ${tenant.whatsapp}` : "";
-  const rawLogo = tenant?.logo_url ?? "";
-  const storeLogo = rawLogo && !rawLogo.startsWith("http") ? `${window.location.origin}${rawLogo}` : rawLogo;
-
   const orderNum = String(so.number).padStart(6, "0");
   const orderDate = new Date(so.created_at).toLocaleDateString("pt-BR");
   const responsavel = so.technician_name || (so.seller_id ? "Vendedor cadastrado" : "—");
+  const promisedStr = so.promised_at ? new Date(so.promised_at + "T12:00:00").toLocaleDateString("pt-BR") : "";
 
   const answerLabel = (a: ChecklistItem["answer"]) => (a === "sim" ? "Sim" : a === "nao" ? "Não" : a === "na" ? "N/A" : "—");
 
-  const checklistRows = so.checklist_items
-    .sort((a, b) => a.position - b.position)
-    .map(
-      (item) => `
-    <tr>
-      <td style="padding:10px 12px;border-bottom:1px solid #f0f0f0;font-size:14px">${item.label}</td>
-      <td style="padding:10px 12px;border-bottom:1px solid #f0f0f0;text-align:center;font-weight:900;font-size:14px">${answerLabel(item.answer)}</td>
-      <td style="padding:10px 12px;border-bottom:1px solid #f0f0f0;font-size:13px;color:#555">${item.observation ?? ""}</td>
-    </tr>`
-    )
-    .join("");
-
-  const partsRows = so.parts
-    .map(
-      (p) => `
-    <tr>
-      <td style="padding:8px 12px;border-bottom:1px solid #f0f0f0;font-size:13px">${p.name}</td>
-      <td style="padding:8px 12px;border-bottom:1px solid #f0f0f0;text-align:center;font-size:13px">${p.quantity}</td>
-      <td style="padding:8px 12px;border-bottom:1px solid #f0f0f0;text-align:right;font-size:13px">${fmt(p.unit_price)}</td>
-      <td style="padding:8px 12px;border-bottom:1px solid #f0f0f0;text-align:right;font-size:13px;font-weight:700">${fmt(p.total)}</td>
-    </tr>`
-    )
-    .join("");
-
-  const priorityBadge = so.priority === "urgente"
-    ? `<span style="display:inline-block;background:#fee2e2;color:#dc2626;font-weight:900;font-size:11px;text-transform:uppercase;letter-spacing:1px;padding:4px 10px;border-radius:6px;margin-left:8px">Urgente</span>`
+  const checklistTable = so.checklist_items.length
+    ? buildDocumentTableHtml(
+        [
+          { label: "Item" },
+          { label: "Situação", align: "center", width: "70px" },
+          { label: "Observação" },
+        ],
+        so.checklist_items
+          .slice()
+          .sort((a, b) => a.position - b.position)
+          .map((item) => ({ cells: [item.label, answerLabel(item.answer), item.observation ?? "—"] })),
+      )
     : "";
 
-  const promisedStr = so.promised_at ? new Date(so.promised_at + "T12:00:00").toLocaleDateString("pt-BR") : "";
+  const partsTable = so.parts.length
+    ? buildDocumentTableHtml(
+        [
+          { label: "Cód", align: "center", width: "45px" },
+          { label: "Descrição" },
+          { label: "Un", align: "center", width: "40px" },
+          { label: "Qtd", align: "center", width: "45px" },
+          { label: "Valor Unit.", align: "right", width: "80px" },
+          { label: "Total", align: "right", width: "80px" },
+        ],
+        so.parts.map((p) => ({
+          cells: [
+            p.product_id ? String(p.product_id) : "—",
+            p.name,
+            p.unit || "UN",
+            String(p.quantity),
+            p.no_charge ? "Sem cobrança" : fmtMoney(p.unit_price),
+            p.no_charge ? "—" : fmtMoney(p.total),
+          ],
+          sub: p.dimensions_label ?? undefined,
+        })),
+      )
+    : "";
+
+  const priorityBadge = so.priority === "urgente"
+    ? `<span style="display:inline-block;background:#fee2e2;color:#dc2626;font-weight:700;font-size:9.5px;text-transform:uppercase;letter-spacing:1px;padding:3px 8px;border-radius:5px;margin-left:8px">Urgente</span>`
+    : "";
+
+  const header = buildDocumentHeaderHtml(tenant, {
+    docTitle: `Ordem de Serviço${priorityBadge}`,
+    docNumber: orderNum,
+    docDateLabel: "Entrada",
+    docDate: orderDate,
+    extraTopRight: promisedStr ? [`Previsão: ${promisedStr}`] : [],
+  });
 
   return `<!DOCTYPE html>
 <html lang="pt-BR">
@@ -262,159 +256,93 @@ export function buildServiceOrderIntakeHtml(so: ServiceOrder, tenant: Tenant | n
 <meta charset="utf-8"/>
 <title>Ordem de Serviço #${orderNum}</title>
 <style>
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { font-family: Arial, sans-serif; font-size: 15px; color: #1e293b; background: #fff; padding: 40px 48px; max-width: 794px; margin: 0 auto; }
-  .header { display: flex; align-items: center; justify-content: space-between; padding-bottom: 16px; margin-bottom: 4px; }
-  .logo { width: 60px; height: 60px; object-fit: contain; }
-  .logo-placeholder { width: 60px; height: 60px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 10px; color: #cbd5e1; text-align: center; }
-  .store-info { text-align: right; }
-  .store-name { font-size: 17px; font-weight: 700; color: #0f172a; }
-  .store-meta { font-size: 11px; color: #94a3b8; margin-top: 3px; line-height: 1.6; }
-  .accent-rule { border: none; border-top: 2px solid ${brandColor}; margin-bottom: 22px; }
-  .title-block { text-align: center; margin: 0 0 26px; }
-  .title-block h1 { font-size: 19px; font-weight: 700; color: ${brandColor}; letter-spacing: 0.5px; }
-  .section { margin-bottom: 22px; }
-  .section-label { font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 1.2px; color: #94a3b8; margin-bottom: 9px; }
-  .info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 20px; }
-  .info-row { font-size: 13.5px; color: #475569; }
-  .info-row span { font-weight: 700; color: #0f172a; }
-  table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
-  thead tr { border-bottom: 1.5px solid #e2e8f0; }
-  thead th { padding: 8px 10px; text-align: left; font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: #94a3b8; }
-  thead th:nth-child(2) { text-align: center; }
-  tbody td { border-bottom: 1px solid #f1f5f9; }
-  .obs-box { border: 1px solid #e2e8f0; border-radius: 8px; padding: 14px 16px; margin-top: 8px; font-size: 14px; line-height: 1.6; background: #fafafa; }
-  .signatures { display: flex; justify-content: space-between; gap: 40px; margin-top: 56px; }
-  .sig-block { flex: 1; border-top: 1px solid #cbd5e1; padding-top: 10px; text-align: center; font-size: 13px; color: #64748b; }
-  .footer { text-align: center; font-size: 11px; color: #cbd5e1; margin-top: 36px; border-top: 1px solid #f1f5f9; padding-top: 14px; line-height: 1.8; }
+  :root { --doc-brand: ${brandColor}; }
+  ${DOCUMENT_BASE_CSS}
 </style>
 </head>
 <body>
 
-<div class="header">
-  ${storeLogo ? `<img src="${storeLogo}" class="logo" alt="Logo"/>` : `<div class="logo-placeholder">LOGO</div>`}
-  <div class="store-info">
-    <div class="store-name">${storeName}</div>
-    <div class="store-meta">
-      ${storeDoc ? storeDoc + "<br/>" : ""}
-      ${storeAddr ? storeAddr + "<br/>" : ""}
-      ${storePhone ? storePhone : ""}
-    </div>
-  </div>
-</div>
-<hr class="accent-rule"/>
+${header}
 
-<div class="title-block">
-  <h1>Ordem de Serviço Nº ${orderNum}${priorityBadge}</h1>
-</div>
-
-<div class="section">
-  <div class="section-label">Dados do Cliente</div>
-  <div class="info-grid">
-    <div class="info-row">Cliente: <span>${so.customer_name}</span></div>
-    ${so.customer_phone ? `<div class="info-row">Contato: <span>${so.customer_phone}</span></div>` : ""}
-    <div class="info-row">Data de Entrada: <span>${orderDate}</span></div>
-    <div class="info-row">Responsável: <span>${responsavel}</span></div>
-    ${promisedStr ? `<div class="info-row">Previsão de Entrega: <span>${promisedStr}</span></div>` : ""}
+<div class="doc-section">
+  <div class="doc-section-label">Dados do Cliente</div>
+  <div class="doc-info-grid">
+    <div class="doc-info-row">Cliente: <b>${so.customer_name}</b></div>
+    ${so.customer_phone ? `<div class="doc-info-row">Contato: <b>${so.customer_phone}</b></div>` : ""}
+    <div class="doc-info-row">Responsável: <b>${responsavel}</b></div>
   </div>
 </div>
 
-<div class="section">
-  <div class="section-label">Equipamento</div>
-  <div class="info-grid">
-    <div class="info-row">Categoria: <span>${so.equipment_category}</span></div>
-    ${so.equipment_type ? `<div class="info-row">Tipo: <span>${so.equipment_type}</span></div>` : ""}
-    ${so.equipment_brand ? `<div class="info-row">Marca: <span>${so.equipment_brand}</span></div>` : ""}
-    ${so.equipment_model ? `<div class="info-row">Modelo: <span>${so.equipment_model}</span></div>` : ""}
-    ${so.equipment_serial ? `<div class="info-row">Série/IMEI: <span>${so.equipment_serial}</span></div>` : ""}
+<div class="doc-section">
+  <div class="doc-section-label">Equipamento / Serviço</div>
+  <div class="doc-info-grid">
+    <div class="doc-info-row">Categoria: <b>${so.equipment_category}</b></div>
+    ${so.equipment_type ? `<div class="doc-info-row">Tipo: <b>${so.equipment_type}</b></div>` : ""}
+    ${so.equipment_brand ? `<div class="doc-info-row">Marca: <b>${so.equipment_brand}</b></div>` : ""}
+    ${so.equipment_model ? `<div class="doc-info-row">Modelo: <b>${so.equipment_model}</b></div>` : ""}
+    ${so.equipment_serial ? `<div class="doc-info-row">Série/IMEI: <b>${so.equipment_serial}</b></div>` : ""}
   </div>
-  ${so.equipment_accessories ? `<div class="obs-box"><strong>Acessórios:</strong> ${so.equipment_accessories}</div>` : ""}
+  ${so.equipment_accessories ? `<div class="doc-obs-box"><b>Acessórios:</b> ${so.equipment_accessories}</div>` : ""}
 </div>
 
 ${so.reported_issue ? `
-<div class="section">
-  <div class="section-label">Defeito Relatado pelo Cliente</div>
-  <div class="obs-box">${so.reported_issue}</div>
+<div class="doc-section">
+  <div class="doc-section-label">Defeito Relatado pelo Cliente</div>
+  <div class="doc-obs-box">${so.reported_issue}</div>
 </div>` : ""}
 
-${checklistRows ? `
-<div class="section">
-  <div class="section-label">Checklist de Entrada</div>
-  <table>
-    <thead>
-      <tr>
-        <th>Item</th>
-        <th style="text-align:center">Situação</th>
-        <th>Observação</th>
-      </tr>
-    </thead>
-    <tbody>
-      ${checklistRows}
-    </tbody>
-  </table>
+${checklistTable ? `
+<div class="doc-section">
+  <div class="doc-section-label">Checklist de Entrada</div>
+  ${checklistTable}
 </div>` : ""}
 
-${partsRows ? `
-<div class="section">
-  <div class="section-label">Peças Utilizadas</div>
-  <table>
-    <thead>
-      <tr>
-        <th>Peça</th>
-        <th style="text-align:center">Qtd.</th>
-        <th style="text-align:right">Valor Unit.</th>
-        <th style="text-align:right">Total</th>
-      </tr>
-    </thead>
-    <tbody>
-      ${partsRows}
-    </tbody>
-  </table>
+${partsTable ? `
+<div class="doc-section">
+  <div class="doc-section-label">Peças / Itens</div>
+  ${partsTable}
 </div>` : ""}
 
-<div class="section">
-  <div class="section-label">Valores</div>
-  <div class="info-grid">
-    <div class="info-row">Mão de obra: <span>${fmt(so.service_value)}</span></div>
-    <div class="info-row">Peças: <span>${fmt(so.parts_total)}</span></div>
-  </div>
-  <div class="obs-box" style="display:flex;justify-content:space-between;align-items:center;font-weight:700;font-size:16px;background:${brandColor};color:#fff;border:none;">
-    <span>TOTAL</span><span>${fmt(so.total_amount)}</span>
+<div class="doc-section">
+  <div class="doc-totals">
+    <div class="doc-totals-box">
+      <div class="doc-totals-row"><span>Mão de obra</span><span>${fmtMoney(so.service_value)}</span></div>
+      <div class="doc-totals-row"><span>Peças / Itens</span><span>${fmtMoney(so.parts_total)}</span></div>
+      <div class="doc-totals-row grand"><span>TOTAL</span><span>${fmtMoney(so.total_amount)}</span></div>
+    </div>
   </div>
 </div>
 
 ${(so.warranty_days || so.warranty_terms) ? `
-<div class="section">
-  <div class="section-label">Garantia</div>
-  <div class="obs-box">${so.warranty_days ? `${so.warranty_days} dias` : ""}${so.warranty_days && so.warranty_terms ? " — " : ""}${so.warranty_terms ?? ""}</div>
+<div class="doc-section">
+  <div class="doc-section-label">Garantia</div>
+  <div class="doc-obs-box">${so.warranty_days ? `${so.warranty_days} dias` : ""}${so.warranty_days && so.warranty_terms ? " — " : ""}${so.warranty_terms ?? ""}</div>
 </div>` : ""}
 
 ${so.observations ? `
-<div class="section">
-  <div class="section-label">Observações Internas do Técnico</div>
-  <div class="obs-box">${so.observations}</div>
+<div class="doc-section">
+  <div class="doc-section-label">Observações Internas</div>
+  <div class="doc-obs-box">${so.observations}</div>
 </div>` : ""}
 
-<div class="section" style="font-size:12px;color:#555;font-style:italic;">
-  O equipamento acima foi recebido no estado descrito neste documento. A loja não se responsabiliza por condições não registradas neste checklist.
+<div class="doc-section" style="font-size:10px;color:#94a3b8;font-style:italic;">
+  O equipamento/serviço acima foi recebido no estado descrito neste documento. A loja não se responsabiliza por condições não registradas neste checklist.
 </div>
 
-<div class="signatures">
-  <div class="sig-block">
-    <br/><br/>
-    ${storeName}<br/>Assinatura do Responsável pela Loja
-  </div>
-  <div class="sig-block">
-    <br/><br/>
-    ${so.customer_name}<br/>Assinatura do Cliente
-  </div>
+<div class="doc-signatures">
+  <div class="doc-sig-block">Assinatura do Responsável pela Loja</div>
+  <div class="doc-sig-block">Assinatura do Cliente</div>
 </div>
 
-<div class="footer">
-  Documento emitido em ${new Date().toLocaleString("pt-BR")} &nbsp;|&nbsp; ${storeName}
-  ${storeDoc ? "&nbsp;|&nbsp; " + storeDoc : ""}
+<div class="doc-footer">
+  Documento emitido em ${new Date().toLocaleString("pt-BR")} — Este documento não tem valor fiscal.
 </div>
 
 </body>
 </html>`;
+}
+
+export async function downloadServiceOrderPdf(so: ServiceOrder, tenant: Tenant | null) {
+  const html = buildServiceOrderIntakeHtml(so, tenant);
+  await downloadHtmlAsPdf(html, `ordem-servico-${String(so.number).padStart(6, "0")}.pdf`);
 }

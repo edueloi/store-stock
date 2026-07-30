@@ -3,7 +3,7 @@ import { useSearchParams } from "react-router-dom";
 import {
   Store, Palette, Share2, Clock, CreditCard, Shield, Settings2,
   Users, Save, Loader2, Search, Check, ChevronRight, Globe,
-  Bell, Sun, Moon, Package, AlertTriangle, Lock, Image, Upload, X, FileCheck,
+  Bell, Sun, Moon, Package, AlertTriangle, Lock, Image, Upload, X, FileCheck, ShieldCheck,
   Smartphone, Zap, UserPlus, Trash2, Edit2, Eye, EyeOff, ShoppingCart, User,
   Monitor, Download, WifiOff, Terminal, CheckCircle2, XCircle, ClipboardList, Wallet,
 } from "lucide-react";
@@ -500,6 +500,11 @@ export default function Settings() {
   const [cepLoading, setCepLoading] = useState(false);
   const [logoUploading, setLogoUploading] = useState(false);
   const logoInputRef = useRef<HTMLInputElement>(null);
+  const [certUploading, setCertUploading] = useState(false);
+  const [certPassword, setCertPassword] = useState("");
+  const [certError, setCertError] = useState<string | null>(null);
+  const [certInfo, setCertInfo] = useState<{ subjectName: string; validUntil: string } | null>(null);
+  const certInputRef = useRef<HTMLInputElement>(null);
   // system prefs (stored in UserPreference)
   const [panelTheme, setPanelTheme] = useState<"light" | "dark">("light");
   const [lowStockAlert, setLowStockAlert] = useState(5);
@@ -721,6 +726,56 @@ export default function Settings() {
       }
     } finally {
       setLogoUploading(false);
+    }
+  };
+
+  const handleCertUpload = async (file: File) => {
+    if (!certPassword) {
+      setCertError("Informe a senha do certificado antes de enviar o arquivo");
+      return;
+    }
+    setCertUploading(true);
+    setCertError(null);
+    try {
+      const form = new FormData();
+      form.append("certificate", file);
+      form.append("password", certPassword);
+      const res = await fetch("/api/tenant/nfce-certificate", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
+        body: form,
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setCertError(data.error ?? "Falha ao enviar certificado");
+        return;
+      }
+      setCertInfo({ subjectName: data.subjectName, validUntil: data.validUntil });
+      setCertPassword("");
+      setTenant((prev) => (prev ? { ...prev, nfce_cert_configured: true } : prev));
+      showSaved();
+    } catch {
+      setCertError("Falha de conexão ao enviar certificado");
+    } finally {
+      setCertUploading(false);
+    }
+  };
+
+  const handleCertRemove = async () => {
+    setCertUploading(true);
+    setCertError(null);
+    try {
+      const res = await fetch("/api/tenant/nfce-certificate", {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
+      });
+      if (res.ok) {
+        setCertInfo(null);
+        setTenant((prev) => (prev ? { ...prev, nfce_cert_configured: false } : prev));
+        showSaved();
+      }
+    } finally {
+      setCertUploading(false);
     }
   };
 
@@ -1267,6 +1322,62 @@ export default function Settings() {
                       "Produção" quando tiver certificado digital A1 e CSC de produção configurados.
                     </p>
                   </div>
+
+                  <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-3">
+                    <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">Certificado Digital A1</p>
+                    {tenant?.nfce_cert_configured ? (
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="flex items-center gap-2 text-emerald-700">
+                          <ShieldCheck size={15} />
+                          <span className="text-[11px] font-bold">
+                            Certificado configurado{certInfo ? ` — ${certInfo.subjectName}` : ""}
+                          </span>
+                        </div>
+                        <button
+                          onClick={handleCertRemove}
+                          disabled={certUploading}
+                          className="h-8 px-3 rounded-lg border border-red-200 text-red-600 text-[10px] font-black uppercase tracking-wide hover:bg-red-50 transition-all disabled:opacity-50"
+                        >
+                          {certUploading ? "Removendo…" : "Remover"}
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="space-y-2.5">
+                        <p className="text-[10px] text-slate-500">
+                          Envie o arquivo .pfx/.p12 do certificado A1 da loja e a senha dele. É necessário para emitir NFC-e em produção.
+                        </p>
+                        <div className="flex gap-2">
+                          <input
+                            type="password"
+                            value={certPassword}
+                            onChange={(e) => setCertPassword(e.target.value)}
+                            placeholder="Senha do certificado"
+                            className="flex-1 bg-white border border-slate-200 rounded-xl px-4 h-11 text-xs font-bold outline-none focus:ring-4 focus:ring-blue-500/8 focus:border-blue-500 transition-all"
+                          />
+                          <input
+                            ref={certInputRef}
+                            type="file"
+                            accept=".pfx,.p12"
+                            className="hidden"
+                            onChange={(e) => {
+                              const file = e.target.files?.[0];
+                              if (file) handleCertUpload(file);
+                              e.target.value = "";
+                            }}
+                          />
+                          <button
+                            onClick={() => certInputRef.current?.click()}
+                            disabled={certUploading || !certPassword}
+                            className="h-11 px-4 rounded-xl bg-slate-800 text-white text-[10px] font-black uppercase tracking-wide hover:bg-slate-700 transition-all disabled:opacity-50 shrink-0"
+                          >
+                            {certUploading ? "Enviando…" : "Enviar .pfx"}
+                          </button>
+                        </div>
+                        {certError && <p className="text-[10px] font-bold text-red-600">{certError}</p>}
+                      </div>
+                    )}
+                  </div>
+
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                     <Field label="Ambiente NFC-e">
                       <select

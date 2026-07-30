@@ -834,8 +834,10 @@ model ServiceOrderPart {
   product_id        Int?
   name              String
   quantity          Int      @default(1)
+  unit              String   @default("UN")
   unit_price        Decimal  @db.Decimal(10, 2)
   total             Decimal  @db.Decimal(10, 2)
+  no_charge         Boolean  @default(false)
   dimensions_label  String?
   created_at        DateTime @default(now())
 

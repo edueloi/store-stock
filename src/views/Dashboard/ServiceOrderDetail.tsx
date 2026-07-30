@@ -29,7 +29,6 @@ import { cn } from "../../lib/utils";
 import PageHeader from "../../components/layout/PageHeader";
 import Modal from "../../components/ui/Modal";
 import Combobox from "../../components/ui/Combobox";
-import { downloadHtmlAsPdf } from "../../lib/pdf";
 import { computeMeasuredPrice } from "../../utils/measurePricing";
 import {
   ServiceOrder,
@@ -49,7 +48,7 @@ import {
   authHeaderNoJson,
   STATUS_META,
   STATUS_ORDER,
-  buildServiceOrderIntakeHtml,
+  downloadServiceOrderPdf,
   newPayment,
   buildPmString,
 } from "./serviceOrders.shared";
@@ -105,10 +104,15 @@ export default function ServiceOrderDetail() {
 
   const [partSearch, setPartSearch] = useState("");
   const [partQty, setPartQty] = useState(1);
+  const [partNoCharge, setPartNoCharge] = useState(false);
   const [measureProduct, setMeasureProduct] = useState<Product | null>(null);
   const [measureHeight, setMeasureHeight] = useState("");
   const [measureWidth, setMeasureWidth] = useState("");
   const [addingPart, setAddingPart] = useState(false);
+  const [showFreePartForm, setShowFreePartForm] = useState(false);
+  const [freePartName, setFreePartName] = useState("");
+  const [freePartUnit, setFreePartUnit] = useState("UN");
+  const [freePartPrice, setFreePartPrice] = useState("");
 
   const [photoUploading, setPhotoUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -322,15 +326,48 @@ export default function ServiceOrderDetail() {
       const res = await fetch(`/api/service-orders/${selected.id}/parts`, {
         method: "POST",
         headers: authHeader(),
-        body: JSON.stringify({ product_id: product.id, quantity: partQty }),
+        body: JSON.stringify({ product_id: product.id, quantity: partQty, no_charge: partNoCharge }),
       });
       if (res.ok) {
         setPartSearch("");
         setPartQty(1);
+        setPartNoCharge(false);
         await fetchOrder(true);
       } else {
         const err = await res.json().catch(() => ({}));
         alert(err.error || "Falha ao adicionar peça");
+      }
+    } finally {
+      setAddingPart(false);
+    }
+  };
+
+  const handleAddFreePart = async () => {
+    if (!selected || !freePartName.trim()) return;
+    setAddingPart(true);
+    try {
+      const res = await fetch(`/api/service-orders/${selected.id}/parts`, {
+        method: "POST",
+        headers: authHeader(),
+        body: JSON.stringify({
+          name: freePartName.trim(),
+          unit: freePartUnit.trim() || "UN",
+          quantity: partQty,
+          unit_price: Number(freePartPrice) || 0,
+          no_charge: partNoCharge,
+        }),
+      });
+      if (res.ok) {
+        setFreePartName("");
+        setFreePartUnit("UN");
+        setFreePartPrice("");
+        setPartQty(1);
+        setPartNoCharge(false);
+        setShowFreePartForm(false);
+        await fetchOrder(true);
+      } else {
+        const err = await res.json().catch(() => ({}));
+        alert(err.error || "Falha ao adicionar item");
       }
     } finally {
       setAddingPart(false);
@@ -422,8 +459,7 @@ export default function ServiceOrderDetail() {
     if (!selected) return;
     setGeneratingPdf(true);
     try {
-      const html = buildServiceOrderIntakeHtml(selected, tenant);
-      await downloadHtmlAsPdf(html, `ordem-servico-${String(selected.number).padStart(6, "0")}.pdf`);
+      await downloadServiceOrderPdf(selected, tenant);
     } finally {
       setGeneratingPdf(false);
     }
@@ -793,29 +829,68 @@ export default function ServiceOrderDetail() {
 
           {/* Peças */}
           <div className="bg-white rounded-2xl border border-slate-200 p-5">
-            <p className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400 mb-2">Peças Utilizadas</p>
+            <p className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400 mb-2">Peças / Itens</p>
             {!selected.invoiced_order_id && (
-              <div className="flex gap-2 mb-2">
-                <div className="flex-1">
-                  <Combobox
-                    placeholder="Buscar peça no estoque..."
-                    searchPlaceholder="Nome do produto..."
-                    value=""
-                    onChange={(v) => {
-                      const product = products.find((p) => String(p.id) === v);
-                      if (product) handleAddPart(product);
-                    }}
-                    options={filteredParts.length > 0 ? filteredParts.map((p) => ({ value: String(p.id), label: p.name, description: `${fmt(p.price)} · estoque ${p.stock_quantity}` }))
-                      : products.filter((p) => p.stock_quantity > 0 || (!!p.sale_unit && p.sale_unit !== "unidade")).slice(0, 20).map((p) => ({ value: String(p.id), label: p.name, description: p.sale_unit && p.sale_unit !== "unidade" ? `${fmt(p.price_per_measure ?? 0)}/${p.sale_unit === "m2" ? "m²" : "m"}` : `${fmt(p.price)} · estoque ${p.stock_quantity}` }))}
-                  />
+              <div className="space-y-2 mb-2">
+                {!showFreePartForm ? (
+                  <div className="flex gap-2">
+                    <div className="flex-1">
+                      <Combobox
+                        placeholder="Buscar peça no estoque..."
+                        searchPlaceholder="Nome do produto..."
+                        value=""
+                        onChange={(v) => {
+                          const product = products.find((p) => String(p.id) === v);
+                          if (product) handleAddPart(product);
+                        }}
+                        options={filteredParts.length > 0 ? filteredParts.map((p) => ({ value: String(p.id), label: p.name, description: `${fmt(p.price)} · estoque ${p.stock_quantity}` }))
+                          : products.filter((p) => p.stock_quantity > 0 || (!!p.sale_unit && p.sale_unit !== "unidade")).slice(0, 20).map((p) => ({ value: String(p.id), label: p.name, description: p.sale_unit && p.sale_unit !== "unidade" ? `${fmt(p.price_per_measure ?? 0)}/${p.sale_unit === "m2" ? "m²" : "m"}` : `${fmt(p.price)} · estoque ${p.stock_quantity}` }))}
+                      />
+                    </div>
+                    <input type="number" min="1" value={partQty} onChange={(e) => setPartQty(Math.max(1, Number(e.target.value) || 1))}
+                      className="w-16 h-10 px-2 rounded-xl border border-slate-200 text-[12px] font-bold text-center focus:outline-none focus:border-blue-400" />
+                  </div>
+                ) : (
+                  <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 space-y-2">
+                    <input value={freePartName} onChange={(e) => setFreePartName(e.target.value)} placeholder="Descrição do item (ex: Mão de obra extra)"
+                      className="w-full h-9 px-3 rounded-lg border border-slate-200 text-[12px] focus:outline-none focus:border-blue-400" />
+                    <div className="flex gap-2">
+                      <input value={freePartUnit} onChange={(e) => setFreePartUnit(e.target.value.toUpperCase().slice(0, 10))} placeholder="Un"
+                        className="w-16 h-9 px-2 rounded-lg border border-slate-200 text-[12px] text-center font-bold focus:outline-none focus:border-blue-400" />
+                      <input type="number" min="1" value={partQty} onChange={(e) => setPartQty(Math.max(1, Number(e.target.value) || 1))}
+                        className="w-16 h-9 px-2 rounded-lg border border-slate-200 text-[12px] font-bold text-center focus:outline-none focus:border-blue-400" />
+                      <input type="number" min="0" step="0.01" value={freePartPrice} onChange={(e) => setFreePartPrice(e.target.value)}
+                        placeholder="Valor unit." disabled={partNoCharge}
+                        className="flex-1 h-9 px-3 rounded-lg border border-slate-200 text-[12px] font-mono focus:outline-none focus:border-blue-400 disabled:opacity-50" />
+                    </div>
+                  </div>
+                )}
+                <div className="flex items-center justify-between">
+                  <label className="flex items-center gap-1.5 text-[10px] font-bold text-slate-500 cursor-pointer">
+                    <input type="checkbox" checked={partNoCharge} onChange={(e) => setPartNoCharge(e.target.checked)} className="w-3.5 h-3.5 accent-blue-600" />
+                    Sem cobrança (cortesia)
+                  </label>
+                  {showFreePartForm ? (
+                    <div className="flex gap-2">
+                      <button onClick={() => setShowFreePartForm(false)} className="h-8 px-3 rounded-lg text-[10px] font-black uppercase tracking-wide text-slate-500 hover:bg-slate-100 transition-all">
+                        Cancelar
+                      </button>
+                      <button onClick={handleAddFreePart} disabled={addingPart || !freePartName.trim()}
+                        className="h-8 px-3 rounded-lg bg-blue-600 text-white text-[10px] font-black uppercase tracking-wide hover:bg-blue-700 transition-all disabled:opacity-50">
+                        Adicionar
+                      </button>
+                    </div>
+                  ) : (
+                    <button onClick={() => setShowFreePartForm(true)} className="text-[10px] font-black uppercase tracking-wide text-blue-600 hover:text-blue-700 transition-all">
+                      + Item livre (sem produto)
+                    </button>
+                  )}
                 </div>
-                <input type="number" min="1" value={partQty} onChange={(e) => setPartQty(Math.max(1, Number(e.target.value) || 1))}
-                  className="w-16 h-10 px-2 rounded-xl border border-slate-200 text-[12px] font-bold text-center focus:outline-none focus:border-blue-400" />
               </div>
             )}
-            {addingPart && <p className="text-[10px] text-slate-400 mb-2">Adicionando peça...</p>}
+            {addingPart && <p className="text-[10px] text-slate-400 mb-2">Adicionando item...</p>}
             {selected.parts.length === 0 ? (
-              <p className="text-[11px] text-slate-400">Nenhuma peça adicionada</p>
+              <p className="text-[11px] text-slate-400">Nenhum item adicionado</p>
             ) : (
               <div className="space-y-1.5">
                 {selected.parts.map((part) => (
@@ -825,11 +900,15 @@ export default function ServiceOrderDetail() {
                       {part.dimensions_label ? (
                         <p className="text-[10px] text-blue-500 font-mono">{part.dimensions_label}</p>
                       ) : (
-                        <p className="text-[10px] text-slate-400">{part.quantity} × {fmt(part.unit_price)}</p>
+                        <p className="text-[10px] text-slate-400">{part.quantity} {part.unit} × {fmt(part.unit_price)}</p>
                       )}
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
-                      <span className="text-[12px] font-mono font-bold text-slate-700">{fmt(part.total)}</span>
+                      {part.no_charge ? (
+                        <span className="text-[9px] font-black uppercase tracking-wide text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded">Sem cobrança</span>
+                      ) : (
+                        <span className="text-[12px] font-mono font-bold text-slate-700">{fmt(part.total)}</span>
+                      )}
                       {!selected.invoiced_order_id && (
                         <button onClick={() => handleRemovePart(part.id)} className="text-slate-300 hover:text-red-500 transition-colors">
                           <Trash2 size={13} />

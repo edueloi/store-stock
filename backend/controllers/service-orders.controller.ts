@@ -425,13 +425,55 @@ export async function addServiceOrderPart(req: Request, res: Response) {
   try {
     const tenantId = getTenantId(req);
     const id = Number(req.params.id);
-    const { product_id, quantity, height, width } = req.body as {
-      product_id: number; quantity?: number; height?: number; width?: number;
+    const {
+      product_id, quantity, height, width, no_charge,
+      name: freeName, unit: freeUnit, unit_price: freeUnitPrice,
+    } = req.body as {
+      product_id?: number; quantity?: number; height?: number; width?: number; no_charge?: boolean;
+      name?: string; unit?: string; unit_price?: number;
     };
 
     const order = await prisma.serviceOrder.findFirst({ where: { id, tenant_id: tenantId } });
     if (!order) return res.status(404).json({ error: "Ordem de serviço não encontrada" });
     if (order.invoiced_order_id) return res.status(400).json({ error: "Ordem de serviço já foi faturada" });
+
+    // Item livre: sem produto vinculado, nome/unidade/valor informados manualmente
+    // (ex.: "Mão de obra extra", item de terceiro, cortesia) — sem controle de estoque.
+    if (!product_id) {
+      if (!freeName || !freeName.trim()) {
+        return res.status(422).json({ error: "Informe a descrição do item" });
+      }
+      const qty = Math.max(1, Number(quantity) || 1);
+      const unitPrice = no_charge ? 0 : Math.max(0, Number(freeUnitPrice) || 0);
+      const total = Math.round(unitPrice * qty * 100) / 100;
+
+      await prisma.serviceOrderPart.create({
+        data: {
+          service_order_id: id,
+          product_id: null,
+          name: freeName.trim(),
+          quantity: qty,
+          unit: (freeUnit || "UN").trim().slice(0, 10).toUpperCase(),
+          unit_price: unitPrice,
+          total,
+          no_charge: !!no_charge,
+        },
+      });
+
+      await recomputeTotals(id);
+      await logAction(tenantId, id, "part_added", {
+        actor: getActor(req),
+        note: `${freeName.trim()} x${qty}${no_charge ? " (sem cobrança)" : ""}`,
+        meta: { product_id: null, quantity: qty, no_charge: !!no_charge },
+      });
+
+      const updated = await prisma.serviceOrder.findFirst({
+        where: { id, tenant_id: tenantId },
+        include: SERVICE_ORDER_INCLUDE,
+      });
+      res.json(updated);
+      return;
+    }
 
     const product = await prisma.product.findFirst({ where: { id: product_id, tenant_id: tenantId } });
     if (!product) return res.status(404).json({ error: "Produto não encontrado" });
@@ -464,14 +506,23 @@ export async function addServiceOrderPart(req: Request, res: Response) {
       total = Math.round(unitPrice * qty * 100) / 100;
     }
 
+    if (no_charge) {
+      unitPrice = 0;
+      total = 0;
+    }
+
+    const unitLabel = product.sale_unit === "m2" ? "M²" : product.sale_unit === "linear" ? "M" : "UN";
+
     const part = await prisma.serviceOrderPart.create({
       data: {
         service_order_id: id,
         product_id: product.id,
         name: product.name,
         quantity: qty,
+        unit: unitLabel,
         unit_price: unitPrice,
         total,
+        no_charge: !!no_charge,
         dimensions_label: dimensionsLabel,
       },
     });
@@ -487,8 +538,8 @@ export async function addServiceOrderPart(req: Request, res: Response) {
     await recomputeTotals(id);
     await logAction(tenantId, id, "part_added", {
       actor: getActor(req),
-      note: dimensionsLabel ? `${product.name} (${dimensionsLabel})` : `${product.name} x${qty}`,
-      meta: { product_id: product.id, quantity: qty },
+      note: dimensionsLabel ? `${product.name} (${dimensionsLabel})` : `${product.name} x${qty}${no_charge ? " (sem cobrança)" : ""}`,
+      meta: { product_id: product.id, quantity: qty, no_charge: !!no_charge },
     });
 
     const updated = await prisma.serviceOrder.findFirst({

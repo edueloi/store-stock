@@ -1,8 +1,15 @@
+import fs from "fs";
+import path from "path";
+
 import type { Request, Response } from "express";
+import multer from "multer";
+import forge from "node-forge";
 
 import { prisma } from "../config/prisma";
+import { env } from "../config/env";
 import type { AuthenticatedRequest } from "../types/auth";
 import { buildTenantAccessUrl, normalizeSubdomain } from "../utils/tenant-domain";
+import { parsePfx } from "../services/nfce/signer";
 
 function getTenantId(req: Request) {
   return (req as AuthenticatedRequest).user.tenantId;
@@ -19,8 +26,13 @@ export async function getTenant(req: Request, res: Response) {
       return;
     }
 
+    // Nunca devolve a senha do certificado / token CSC ao frontend — só indica se estão configurados.
+    const { nfce_cert_password, nfce_csc_token, ...safeTenant } = tenant;
+
     res.json({
-      ...tenant,
+      ...safeTenant,
+      nfce_cert_configured: !!(tenant.nfce_cert_path && tenant.nfce_cert_password),
+      nfce_csc_configured: !!(tenant.nfce_csc_id && tenant.nfce_csc_token),
       public_url: buildTenantAccessUrl(tenant.subdomain || tenant.slug),
     });
   } catch {
@@ -101,5 +113,83 @@ export async function updateTenant(req: Request, res: Response) {
   } catch (err) {
     console.error("updateTenant error:", err);
     res.status(500).json({ error: "Failed to update tenant" });
+  }
+}
+
+// ─── Certificado digital A1 (NFC-e) ────────────────────────────────────────────
+// Guardado fora de public/ (env.nfceCertsDir) — nunca deve ser servido estaticamente.
+
+export const uploadNfceCert = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 8 * 1024 * 1024 },
+  fileFilter: (_req, file, cb) => {
+    const allowed = [".pfx", ".p12"];
+    const ext = path.extname(file.originalname).toLowerCase();
+    if (allowed.includes(ext)) cb(null, true);
+    else cb(new Error("Envie um arquivo de certificado .pfx ou .p12"));
+  },
+});
+
+export async function uploadNfceCertificate(req: Request, res: Response) {
+  try {
+    const tenantId = getTenantId(req);
+    const { password } = req.body as { password?: string };
+    if (!req.file) { res.status(400).json({ error: "Nenhum arquivo enviado" }); return; }
+    if (!password) { res.status(400).json({ error: "Informe a senha do certificado" }); return; }
+
+    // Valida o certificado abrindo-o com a senha informada antes de persistir qualquer coisa —
+    // uma senha errada ou arquivo corrompido nunca deve virar configuração salva.
+    let certificatePem: string;
+    let validUntil: string;
+    let subjectName: string;
+    try {
+      const parsed = parsePfx(req.file.buffer.toString("binary"), password);
+      certificatePem = parsed.certificatePem;
+      const cert = forge.pki.certificateFromPem(certificatePem);
+      validUntil = cert.validity.notAfter.toISOString();
+      subjectName = cert.subject.getField("CN")?.value ?? "—";
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      res.status(422).json({ error: `Certificado inválido ou senha incorreta: ${message}` });
+      return;
+    }
+
+    fs.mkdirSync(env.nfceCertsDir, { recursive: true });
+    const filename = `${tenantId}-${Date.now()}.pfx`;
+    const destPath = path.join(env.nfceCertsDir, filename);
+    fs.writeFileSync(destPath, req.file.buffer);
+
+    const previous = await prisma.tenant.findUnique({ where: { id: tenantId }, select: { nfce_cert_path: true } });
+    await prisma.tenant.update({
+      where: { id: tenantId },
+      data: { nfce_cert_path: destPath, nfce_cert_password: password },
+    });
+    if (previous?.nfce_cert_path && previous.nfce_cert_path !== destPath) {
+      fs.unlink(previous.nfce_cert_path, () => {});
+    }
+
+    res.json({ success: true, subjectName, validUntil });
+  } catch (err) {
+    console.error("uploadNfceCertificate error:", err);
+    res.status(500).json({ error: "Falha ao enviar certificado" });
+  }
+}
+
+export async function deleteNfceCertificate(req: Request, res: Response) {
+  try {
+    const tenantId = getTenantId(req);
+    const previous = await prisma.tenant.findUnique({ where: { id: tenantId }, select: { nfce_cert_path: true } });
+
+    await prisma.tenant.update({
+      where: { id: tenantId },
+      data: { nfce_cert_path: null, nfce_cert_password: null },
+    });
+
+    if (previous?.nfce_cert_path) fs.unlink(previous.nfce_cert_path, () => {});
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error("deleteNfceCertificate error:", err);
+    res.status(500).json({ error: "Falha ao remover certificado" });
   }
 }

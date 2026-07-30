@@ -30,6 +30,8 @@ import { cn } from "../../lib/utils";
 import PageHeader from "../../components/layout/PageHeader";
 import Combobox from "../../components/ui/Combobox";
 import { computeMeasuredPrice } from "../../utils/measurePricing";
+import { downloadHtmlAsPdf } from "../../lib/pdf";
+import { buildDocumentHeaderHtml, buildDocumentTableHtml, DOCUMENT_BASE_CSS, fmtMoney } from "../../lib/documentPdf";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -135,6 +137,9 @@ interface Tenant {
   address_zip?: string;
   address?: string;
   primary_color?: string;
+  razao_social?: string;
+  inscricao_estadual?: string;
+  inscricao_municipal?: string;
 }
 
 // ─── Payment types (same engine as PDV) ──────────────────────────────────────
@@ -226,301 +231,132 @@ function statusLabel(s: string) {
 
 // ─── PDF Generator ────────────────────────────────────────────────────────────
 
-function docLabelForDocument(doc: string): string {
-  const digits = doc.replace(/\D/g, "");
-  if (digits.length > 11) return "CNPJ";
-  if (digits.length > 0) return "CPF";
-  return "Documento";
+function quoteItemUnit(dimLabel?: string | null): string {
+  if (!dimLabel) return "UN";
+  return /m²|m2/i.test(dimLabel) ? "M²" : "UN";
 }
 
 async function generateQuotePDF(quote: Quote, tenant: Tenant) {
-  const { jsPDF } = await import("jspdf");
-  const doc = new jsPDF({ unit: "mm", format: "a4" });
-
-  const pageW = 210;
-  const pageH = 297;
-  const margin = 18;
-  const contentW = pageW - margin * 2;
-
-  const primary = tenant.primary_color ?? "#2563eb";
-  const hexToRgb = (hex: string) => {
-    const h = hex.replace("#", "");
-    return {
-      r: parseInt(h.substring(0, 2), 16),
-      g: parseInt(h.substring(2, 4), 16),
-      b: parseInt(h.substring(4, 6), 16),
-    };
-  };
-  const pc = hexToRgb(primary);
-  const gray = { text: [51, 65, 85], muted: [148, 163, 184], line: [230, 232, 236], soft: [250, 250, 251] };
-
-  // ── Logo (if available) — converte para PNG via canvas para garantir compatibilidade
-  let logoLoaded = false;
-  if (tenant.logo_url) {
-    try {
-      const absoluteUrl = tenant.logo_url.startsWith("http")
-        ? tenant.logo_url
-        : `${window.location.origin}${tenant.logo_url}`;
-
-      const dataUrl = await new Promise<string>((resolve, reject) => {
-        const img = new Image();
-        img.crossOrigin = "anonymous";
-        img.onload = () => {
-          const canvas = document.createElement("canvas");
-          canvas.width = img.naturalWidth;
-          canvas.height = img.naturalHeight;
-          const ctx = canvas.getContext("2d")!;
-          ctx.drawImage(img, 0, 0);
-          resolve(canvas.toDataURL("image/png"));
-        };
-        img.onerror = reject;
-        img.src = absoluteUrl;
-      });
-
-      doc.addImage(dataUrl, "PNG", margin, 16, 18, 18);
-      logoLoaded = true;
-    } catch {
-      // ignora se não conseguir carregar o logo
-    }
-  }
-
-  // ── Header — clean, white background, brand color used only as accent
-  const textX = logoLoaded ? margin + 24 : margin;
-  doc.setTextColor(20, 24, 32);
-  doc.setFontSize(14);
-  doc.setFont("helvetica", "bold");
-  doc.text(tenant.name, textX, 22);
-
-  doc.setFontSize(8);
-  doc.setFont("helvetica", "normal");
-  doc.setTextColor(gray.muted[0], gray.muted[1], gray.muted[2]);
-  const addrParts: string[] = [];
-  if (tenant.address_street) {
-    addrParts.push(
-      `${tenant.address_street}${tenant.address_number ? ", " + tenant.address_number : ""}` +
-        (tenant.address_complement ? ` - ${tenant.address_complement}` : "")
-    );
-  }
-  if (tenant.address_district) addrParts.push(tenant.address_district);
-  if (tenant.address_city)
-    addrParts.push(
-      `${tenant.address_city}${tenant.address_state ? " - " + tenant.address_state : ""}`
-    );
-  if (tenant.address_zip) addrParts.push(`CEP: ${tenant.address_zip}`);
-  if (tenant.document) addrParts.push(`${docLabelForDocument(tenant.document)}: ${tenant.document}`);
-  if (tenant.whatsapp) addrParts.push(`WhatsApp: ${tenant.whatsapp}`);
-
-  doc.text(addrParts.join("  •  "), textX, 28, { maxWidth: 105 });
-
-  // ── "ORÇAMENTO" label on right, brand-colored text (no full banner)
-  doc.setFontSize(20);
-  doc.setFont("helvetica", "bold");
-  doc.setTextColor(pc.r, pc.g, pc.b);
-  doc.text("ORÇAMENTO", pageW - margin, 20, { align: "right" });
-  doc.setFontSize(9.5);
-  doc.setFont("helvetica", "normal");
-  doc.setTextColor(gray.muted[0], gray.muted[1], gray.muted[2]);
-  doc.text(`Nº ${String(quote.number).padStart(4, "0")}`, pageW - margin, 26, { align: "right" });
-
+  const brandColor = tenant.primary_color ?? "#2563eb";
   const dateStr = new Date(quote.created_at).toLocaleDateString("pt-BR");
   const validUntil = new Date(
     new Date(quote.created_at).getTime() + quote.validity_days * 86400000
   ).toLocaleDateString("pt-BR");
-  doc.text(`Emitido em ${dateStr}`, pageW - margin, 31, { align: "right" });
-  doc.text(`Válido até ${validUntil}`, pageW - margin, 36, { align: "right" });
 
-  // ── Thin accent rule under header
-  let y = 44;
-  doc.setDrawColor(pc.r, pc.g, pc.b);
-  doc.setLineWidth(0.8);
-  doc.line(margin, y, pageW - margin, y);
+  const header = buildDocumentHeaderHtml(tenant, {
+    docTitle: "Orçamento",
+    docNumber: String(quote.number).padStart(4, "0"),
+    docDateLabel: "Emitido em",
+    docDate: dateStr,
+    extraTopRight: [`Válido até ${validUntil}`],
+  });
 
-  // ── Client section — plain text, no boxed card
-  y += 10;
-  doc.setTextColor(gray.muted[0], gray.muted[1], gray.muted[2]);
-  doc.setFontSize(7.5);
-  doc.setFont("helvetica", "bold");
-  doc.text("CLIENTE", margin, y);
+  const itemsTable = buildDocumentTableHtml(
+    [
+      { label: "Cód", align: "center", width: "45px" },
+      { label: "Descrição" },
+      { label: "Un", align: "center", width: "40px" },
+      { label: "Qtd", align: "center", width: "45px" },
+      { label: "Preço Unit.", align: "right", width: "85px" },
+      { label: "Total", align: "right", width: "85px" },
+    ],
+    [
+      ...quote.items.map((i) => ({
+        cells: [
+          i.product_id ? String(i.product_id) : "—",
+          i.name,
+          quoteItemUnit(i.dimensions_label),
+          String(i.quantity),
+          fmtMoney(Number(i.unit_price)),
+          fmtMoney(Number(i.total)),
+        ],
+        sub: i.dimensions_label ?? undefined,
+      })),
+      ...(quote.services ?? []).map((s) => ({
+        cells: [
+          "SERV",
+          s.name,
+          "UN",
+          String(s.quantity),
+          fmtMoney(Number(s.unit_price)),
+          fmtMoney(Number(s.unit_price) * s.quantity),
+        ],
+      })),
+    ],
+  );
 
-  y += 6;
-  doc.setTextColor(20, 24, 32);
-  doc.setFontSize(11);
-  doc.setFont("helvetica", "bold");
-  doc.text(quote.customer_name, margin, y);
-
-  const contactParts = [quote.customer_phone, quote.customer_email].filter(Boolean).join("   •   ");
-  if (contactParts) {
-    y += 5.5;
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(8.5);
-    doc.setTextColor(gray.muted[0], gray.muted[1], gray.muted[2]);
-    doc.text(contactParts, margin, y);
-  }
-
-  // ── Items table — light header row, no solid brand banner
-  y += 10;
-  doc.setDrawColor(gray.line[0], gray.line[1], gray.line[2]);
-  doc.setLineWidth(0.3);
-  doc.line(margin, y, pageW - margin, y);
-
-  y += 6;
-  doc.setTextColor(gray.muted[0], gray.muted[1], gray.muted[2]);
-  doc.setFontSize(7.5);
-  doc.setFont("helvetica", "bold");
-  const cols = { name: margin, qty: margin + 105, price: margin + 133, total: pageW - margin };
-  doc.text("PRODUTO / SERVIÇO", cols.name, y);
-  doc.text("QTD", cols.qty, y, { align: "center" });
-  doc.text("PREÇO UNIT.", cols.price, y, { align: "right" });
-  doc.text("TOTAL", cols.total, y, { align: "right" });
-
-  y += 3;
-  doc.setDrawColor(gray.line[0], gray.line[1], gray.line[2]);
-  doc.line(margin, y, pageW - margin, y);
-
-  // ── Items rows
-  y += 7;
-  doc.setFont("helvetica", "normal");
-  doc.setFontSize(9);
-
-  const allRows: { name: string; dimLabel?: string | null; qty: number; unit_price: number; total: number; isService?: boolean }[] = [
-    ...quote.items.map((i) => ({ name: i.name, dimLabel: i.dimensions_label, qty: i.quantity, unit_price: Number(i.unit_price), total: Number(i.total) })),
-    ...(quote.services ?? []).map((s) => ({ name: s.name, qty: s.quantity, unit_price: Number(s.unit_price), total: Number(s.unit_price) * s.quantity, isService: true })),
-  ];
-
-  const maxNameW = 100;
-  for (let i = 0; i < allRows.length; i++) {
-    const row = allRows[i];
-    const rowLines = doc.splitTextToSize(row.name, maxNameW);
-    const rowH = Math.max(8, rowLines.length * 4.5 + (row.dimLabel ? 4 : 0) + 3);
-
-    doc.setTextColor(20, 24, 32);
-    doc.text(rowLines, cols.name, y);
-    if (row.isService) {
-      doc.setFontSize(6.5);
-      doc.setTextColor(pc.r, pc.g, pc.b);
-      doc.text("SERVIÇO", cols.name, y - 4);
-      doc.setFontSize(9);
-    }
-    if (row.dimLabel) {
-      doc.setFontSize(7.5);
-      doc.setTextColor(gray.muted[0], gray.muted[1], gray.muted[2]);
-      doc.text(row.dimLabel, cols.name, y + rowLines.length * 4.5);
-      doc.setFontSize(9);
-    }
-
-    doc.setTextColor(20, 24, 32);
-    doc.text(String(row.qty), cols.qty, y, { align: "center" });
-    doc.text(fmt(row.unit_price), cols.price, y, { align: "right" });
-    doc.text(fmt(row.total), cols.total, y, { align: "right" });
-
-    y += rowH;
-    doc.setDrawColor(gray.soft[0] - 5, gray.soft[1] - 5, gray.soft[2] - 5);
-    doc.setDrawColor(240, 241, 243);
-    doc.line(margin, y - 2, pageW - margin, y - 2);
-  }
-
-  // ── Totals block — right-aligned, no boxed card
-  y += 6;
-  const totalsX = pageW - margin - 65;
-  const totalsW = 65;
-
-  doc.setTextColor(gray.muted[0], gray.muted[1], gray.muted[2]);
-  doc.setFontSize(8.5);
-  doc.setFont("helvetica", "normal");
-  doc.text("Subtotal", totalsX, y);
-  doc.setTextColor(20, 24, 32);
-  doc.text(fmt(Number(quote.subtotal)), pageW - margin, y, { align: "right" });
-
-  if (quote.discount_value > 0) {
-    const discLabel =
-      quote.discount_type === "percent"
-        ? `Desconto (${quote.discount_value}%)`
-        : "Desconto";
-    const discAmt =
-      quote.discount_type === "percent"
+  const discountAmt = quote.discount_value > 0
+    ? (quote.discount_type === "percent"
         ? (Number(quote.subtotal) * Number(quote.discount_value)) / 100
-        : Number(quote.discount_value);
-    y += 6;
-    doc.setTextColor(gray.muted[0], gray.muted[1], gray.muted[2]);
-    doc.text(discLabel, totalsX, y);
-    doc.setTextColor(220, 38, 38);
-    doc.text(`- ${fmt(discAmt)}`, pageW - margin, y, { align: "right" });
-  }
+        : Number(quote.discount_value))
+    : 0;
+  const discountLabel = quote.discount_type === "percent"
+    ? `Desconto (${quote.discount_value}%)`
+    : "Desconto";
 
-  y += 4;
-  doc.setDrawColor(gray.line[0], gray.line[1], gray.line[2]);
-  doc.line(totalsX, y, pageW - margin, y);
-  y += 7;
-  doc.setFontSize(11.5);
-  doc.setFont("helvetica", "bold");
-  doc.setTextColor(pc.r, pc.g, pc.b);
-  doc.text("TOTAL", totalsX, y);
-  doc.text(fmt(Number(quote.total_amount)), pageW - margin, y, { align: "right" });
-
-  y += 10;
-
-  // ── Entrada / Resta
   const depositAmt = Number(quote.deposit_amount ?? 0);
-  if (depositAmt > 0) {
-    const remaining = Math.max(0, Number(quote.total_amount) - depositAmt);
-    doc.setDrawColor(224, 231, 255);
-    doc.setFillColor(246, 248, 255);
-    doc.roundedRect(totalsX, y, totalsW, 16, 2, 2, "FD");
-    doc.setFontSize(8);
-    doc.setFont("helvetica", "bold");
-    doc.setTextColor(pc.r, pc.g, pc.b);
-    doc.text("Entrada paga", totalsX + 4, y + 6);
-    doc.text(fmt(depositAmt), pageW - margin - 4, y + 6, { align: "right" });
-    doc.setTextColor(180, 83, 9);
-    doc.text("Restante", totalsX + 4, y + 12.5);
-    doc.text(fmt(remaining), pageW - margin - 4, y + 12.5, { align: "right" });
-    y += 22;
-  }
+  const remaining = Math.max(0, Number(quote.total_amount) - depositAmt);
 
-  // ── Notes
-  if (quote.notes) {
-    doc.setTextColor(gray.muted[0], gray.muted[1], gray.muted[2]);
-    doc.setFontSize(7.5);
-    doc.setFont("helvetica", "bold");
-    doc.text("OBSERVAÇÕES / CONDIÇÕES DE PAGAMENTO", margin, y);
-    y += 5.5;
-    doc.setFont("helvetica", "normal");
-    doc.setTextColor(60, 70, 85);
-    doc.setFontSize(8.5);
-    const noteLines = doc.splitTextToSize(quote.notes, contentW);
-    doc.text(noteLines, margin, y);
-    y += noteLines.length * 4.5 + 6;
-  }
+  const html = `<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8"/>
+<title>Orçamento #${String(quote.number).padStart(4, "0")}</title>
+<style>
+  :root { --doc-brand: ${brandColor}; }
+  ${DOCUMENT_BASE_CSS}
+</style>
+</head>
+<body>
 
-  // ── Validity reminder
-  y += 3;
-  doc.setTextColor(gray.muted[0], gray.muted[1], gray.muted[2]);
-  doc.setFontSize(8);
-  doc.setFont("helvetica", "italic");
-  doc.text(
-    `Este orçamento é válido por ${quote.validity_days} dia(s) a partir de ${dateStr} (até ${validUntil}).`,
-    margin,
-    y
-  );
+${header}
 
-  // ── Footer
-  doc.setDrawColor(gray.line[0], gray.line[1], gray.line[2]);
-  doc.setLineWidth(0.3);
-  doc.line(margin, pageH - 16, pageW - margin, pageH - 16);
-  doc.setFontSize(7.5);
-  doc.setFont("helvetica", "bold");
-  doc.setTextColor(60, 70, 85);
-  doc.text(tenant.name, margin, pageH - 10);
-  doc.setFont("helvetica", "normal");
-  doc.setTextColor(gray.muted[0], gray.muted[1], gray.muted[2]);
-  doc.text(
-    `Gerado em ${new Date().toLocaleDateString("pt-BR")} às ${new Date().toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}`,
-    pageW - margin,
-    pageH - 10,
-    { align: "right" }
-  );
+<div class="doc-section">
+  <div class="doc-section-label">Cliente</div>
+  <div class="doc-info-grid">
+    <div class="doc-info-row"><b>${quote.customer_name}</b></div>
+    ${[quote.customer_phone, quote.customer_email].filter(Boolean).length
+      ? `<div class="doc-info-row">${[quote.customer_phone, quote.customer_email].filter(Boolean).join("  |  ")}</div>`
+      : ""}
+  </div>
+</div>
 
-  doc.save(`orcamento-${String(quote.number).padStart(4, "0")}-${quote.customer_name.replace(/\s+/g, "-")}.pdf`);
+<div class="doc-section">
+  <div class="doc-section-label">Itens / Serviços</div>
+  ${itemsTable}
+</div>
+
+<div class="doc-section">
+  <div class="doc-totals">
+    <div class="doc-totals-box">
+      <div class="doc-totals-row"><span>Subtotal</span><span>${fmtMoney(Number(quote.subtotal))}</span></div>
+      ${discountAmt > 0 ? `<div class="doc-totals-row"><span>${discountLabel}</span><span>- ${fmtMoney(discountAmt)}</span></div>` : ""}
+      <div class="doc-totals-row grand"><span>TOTAL</span><span>${fmtMoney(Number(quote.total_amount))}</span></div>
+      ${depositAmt > 0 ? `
+      <div class="doc-totals-row" style="margin-top:8px"><span>Entrada paga</span><span>${fmtMoney(depositAmt)}</span></div>
+      <div class="doc-totals-row"><span>Restante</span><span>${fmtMoney(remaining)}</span></div>` : ""}
+    </div>
+  </div>
+</div>
+
+${quote.notes ? `
+<div class="doc-section">
+  <div class="doc-section-label">Observações / Condições de Pagamento</div>
+  <div class="doc-obs-box">${quote.notes}</div>
+</div>` : ""}
+
+<div class="doc-section" style="font-size:10px;color:#94a3b8;font-style:italic;">
+  Este orçamento é válido por ${quote.validity_days} dia(s) a partir de ${dateStr} (até ${validUntil}).
+</div>
+
+<div class="doc-footer">
+  Documento emitido em ${new Date().toLocaleString("pt-BR")} — Este documento não tem valor fiscal.
+</div>
+
+</body>
+</html>`;
+
+  await downloadHtmlAsPdf(html, `orcamento-${String(quote.number).padStart(4, "0")}-${quote.customer_name.replace(/\s+/g, "-")}.pdf`);
 }
 
 // ─── Main Component ───────────────────────────────────────────────────────────

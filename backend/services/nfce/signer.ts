@@ -7,9 +7,8 @@ export interface CertMaterial {
   certificatePem: string;
 }
 
-// Extrai chave privada + certificado X.509 de um arquivo .pfx/.p12 (certificado A1)
-export function loadPfx(pfxPath: string, password: string): CertMaterial {
-  const pfxDer = fs.readFileSync(pfxPath, "binary");
+// Extrai chave privada + certificado X.509 a partir dos bytes binários de um .pfx/.p12 (certificado A1)
+export function parsePfx(pfxDer: string, password: string): CertMaterial {
   const pfxAsn1 = forge.asn1.fromDer(pfxDer);
   const pfx = forge.pkcs12.pkcs12FromAsn1(pfxAsn1, password);
 
@@ -27,6 +26,12 @@ export function loadPfx(pfxPath: string, password: string): CertMaterial {
   const certificatePem = forge.pki.certificateToPem(certificate);
 
   return { privateKeyPem, certificatePem };
+}
+
+// Extrai chave privada + certificado X.509 de um arquivo .pfx/.p12 (certificado A1) já salvo em disco
+export function loadPfx(pfxPath: string, password: string): CertMaterial {
+  const pfxDer = fs.readFileSync(pfxPath, "binary");
+  return parsePfx(pfxDer, password);
 }
 
 // Assina um elemento identificado por Id dentro do XML (enveloped-signature, C14N, RSA-SHA1).
