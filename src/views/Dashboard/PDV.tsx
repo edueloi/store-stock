@@ -201,6 +201,7 @@ export default function PDV() {
   const [customers, setCustomers]                   = useState<CustomerOption[]>([]);
   const [selectedCustomerId, setSelectedCustomerId] = useState<number | null>(null);
   const [customerName, setCustomerName]             = useState("");
+  const [customerDocument, setCustomerDocument]     = useState("");
   const [customerPoints, setCustomerPoints]         = useState(0);
   const [loyaltyProgram, setLoyaltyProgram]         = useState<{ spend_per_point: number; is_active: boolean } | null>(null);
   const [loyaltyRewards, setLoyaltyRewards]         = useState<{ id: number; name: string; points_cost: number; type: string; discount_value?: number; discount_type?: string }[]>([]);
@@ -1100,6 +1101,7 @@ export default function PDV() {
           services: cartServices.map((s) => ({ id: s.id, name: s.name, price: s.price, quantity: s.quantity ?? 1 })),
           customerName,
           customerId: selectedCustomerId ?? undefined,
+          customerDocument: !selectedCustomerId && customerDocument ? customerDocument : undefined,
           totalAmount: total,
           paymentMethod: pmString,
           discount: discountValue,
@@ -2363,6 +2365,19 @@ export default function PDV() {
                         </div>
                       )}
                     </div>
+
+                    {/* CPF/CNPJ na nota — só quando não há cliente cadastrado selecionado
+                        (nesse caso o documento do cadastro já é usado automaticamente) */}
+                    {!selectedCustomerId && (
+                      <div>
+                        <label className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400 mb-1.5 block">
+                          CPF/CNPJ na Nota (opcional)
+                        </label>
+                        <input value={customerDocument} onChange={(e) => setCustomerDocument(maskDoc(e.target.value))}
+                          inputMode="numeric" placeholder="000.000.000-00"
+                          className="w-full h-9 px-3 rounded-xl border border-slate-200 text-[12px] font-mono focus:outline-none focus:border-blue-400" />
+                      </div>
+                    )}
 
                     {/* Vendedor */}
                     {sellers.length > 0 && (

@@ -53,6 +53,18 @@ export async function emitirNfce(orderId: number): Promise<void> {
     const numero = invoice.number;
     const serie = invoice.series;
 
+    // CPF/CNPJ do destinatário na nota (ex.: "Nota Fiscal Paulista" e programas estaduais
+    // equivalentes) — prioriza o documento avulso digitado na venda; se não houver, usa o
+    // documento do cliente cadastrado vinculado ao pedido.
+    let customerDocument = order.customer_document ?? undefined;
+    if (!customerDocument && order.customer_id) {
+      const customer = await prisma.customer.findUnique({
+        where: { id: order.customer_id },
+        select: { document: true },
+      });
+      customerDocument = customer?.document ?? undefined;
+    }
+
     const { chaveAcesso, xml } = buildNfceXml({
       tenant,
       order,
@@ -60,6 +72,7 @@ export async function emitirNfce(orderId: number): Promise<void> {
       payments,
       numero,
       serie,
+      customerDocument,
     });
 
     const cert = loadPfx(tenant.nfce_cert_path, tenant.nfce_cert_password);

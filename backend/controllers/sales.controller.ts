@@ -39,6 +39,9 @@ interface FinalizeSaleParams {
   services?: ServiceItemInput[];
   customerName?: string;
   customerId?: number;
+  // CPF/CNPJ avulso informado no PDV (sem cliente cadastrado), para identificar o
+  // destinatário na NFC-e — ex.: cliente pede "nota fiscal paulista" (crédito de ICMS/IPVA).
+  customerDocument?: string;
   totalAmount: number;
   paymentMethod?: string;
   discount?: number;
@@ -68,7 +71,7 @@ interface FinalizeSaleParams {
 // garantir que ambos os caminhos produzam exatamente o mesmo resultado.
 async function finalizeSaleOrder(params: FinalizeSaleParams): Promise<{ orderId: number }> {
   const {
-    tenantId, items, services, customerName, customerId, totalAmount, paymentMethod,
+    tenantId, items, services, customerName, customerId, customerDocument, totalAmount, paymentMethod,
     discount, surcharge, sellerId, passFeeToCustomer, passFeeByMethod, clientSaleId,
     soldAtDate, decrementStock, descriptionPrefix,
     crediarioInstallments, crediarioFirstDueDate,
@@ -228,6 +231,7 @@ async function finalizeSaleOrder(params: FinalizeSaleParams): Promise<{ orderId:
         seller_name:     sellerName,
         customer_name:   resolvedCustomerName,
         customer_id:     customerId ?? null,
+        customer_document: customerDocument ? customerDocument.replace(/\D/g, "") : null,
         total_amount:    totalAmount,
         gross_amount:    grossAmount,
         discount_amount: discountVal > 0 ? discountVal : null,
@@ -420,7 +424,7 @@ async function finalizeSaleOrder(params: FinalizeSaleParams): Promise<{ orderId:
 
 export async function createSale(req: Request, res: Response) {
   const {
-    items, services, customerName, customerId, totalAmount, paymentMethod, discount, surcharge,
+    items, services, customerName, customerId, customerDocument, totalAmount, paymentMethod, discount, surcharge,
     sellerId, passFeeToCustomer, passFeeByMethod, clientSaleId, soldAtDate,
     crediarioInstallments, crediarioFirstDueDate, cashSessionId, isOfflineSync,
   } = req.body as {
@@ -428,6 +432,7 @@ export async function createSale(req: Request, res: Response) {
     services?: ServiceItemInput[];
     customerName?: string;
     customerId?: number;
+    customerDocument?: string;
     totalAmount: number;
     paymentMethod?: string;
     discount?: number;
@@ -448,7 +453,7 @@ export async function createSale(req: Request, res: Response) {
     console.log("[createSale] tenant:", tenantId, "items:", JSON.stringify(items), "pm:", paymentMethod);
 
     const result = await finalizeSaleOrder({
-      tenantId, items, services, customerName, customerId, totalAmount, paymentMethod,
+      tenantId, items, services, customerName, customerId, customerDocument, totalAmount, paymentMethod,
       discount, surcharge, sellerId, passFeeToCustomer, passFeeByMethod, clientSaleId,
       soldAtDate, decrementStock: true,
       crediarioInstallments, crediarioFirstDueDate,

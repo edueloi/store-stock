@@ -294,6 +294,7 @@ model Order {
   customer_name    String?
   customer_phone   String?
   customer_address String?
+  customer_document String? // CPF/CNPJ avulso informado na venda (sem cliente cadastrado), para nota fiscal com destinatário identificado (Nota Fiscal Paulista/similares estaduais)
   total_amount     Decimal   @db.Decimal(10, 2)
   gross_amount     Decimal?  @db.Decimal(10, 2)
   discount_amount  Decimal?  @db.Decimal(10, 2)
