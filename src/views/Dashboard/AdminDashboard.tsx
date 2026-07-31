@@ -56,6 +56,8 @@ import Categories from "./Categories";
 import Analytics from "./Analytics";
 import Loyalty from "./Loyalty";
 import Quotes from "./Quotes";
+import QuoteNew from "./QuoteNew";
+import QuoteDetail from "./QuoteDetail";
 import Sellers from "./Sellers";
 import Goals from "./Goals";
 import Barcodes from "./Barcodes";
@@ -578,6 +580,8 @@ export default function AdminDashboard() {
               <Route path="contas-pagar" element={<ContasPagar />} />
               <Route path="analytics" element={<Analytics />} />
               <Route path="orcamentos" element={<Quotes />} />
+              <Route path="orcamentos/novo" element={<QuoteNew />} />
+              <Route path="orcamentos/:id" element={<QuoteDetail />} />
               <Route path="ordens-servico" element={<ServiceOrders />} />
               <Route path="ordens-servico/novo" element={<ServiceOrderNew />} />
               <Route path="ordens-servico/:id" element={<ServiceOrderDetail />} />

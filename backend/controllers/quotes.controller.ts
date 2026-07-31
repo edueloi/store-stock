@@ -109,7 +109,7 @@ export async function createQuote(req: Request, res: Response) {
       items,
       services,
     } = req.body as {
-      customer_name: string;
+      customer_name?: string;
       customer_phone?: string;
       customer_email?: string;
       customer_id?: number;
@@ -117,9 +117,13 @@ export async function createQuote(req: Request, res: Response) {
       discount_value?: number;
       validity_days?: number;
       notes?: string;
-      items: Array<{ product_id?: number; name: string; quantity: number; unit_price: number; total: number; dimensions_label?: string | null }>;
+      items?: Array<{ product_id?: number; name: string; quantity: number; unit_price: number; total: number; dimensions_label?: string | null }>;
       services?: Array<{ id: number; name: string; price: number; quantity?: number }>;
     };
+
+    // Sem cliente: nasce como rascunho, preenchido aos poucos na tela de detalhe
+    // (mesmo padrão de ServiceOrder — POST vazio cria e a tela de edição preenche o resto).
+    const isDraft = !customer_name;
 
     // Nunca confia no subtotal/total mandado pelo cliente — recalcula a partir
     // dos itens/serviços e do desconto, no mesmo padrão já usado em ServiceOrder.
@@ -152,7 +156,7 @@ export async function createQuote(req: Request, res: Response) {
       data: {
         tenant_id: tenantId,
         number: nextNumber,
-        customer_name,
+        customer_name: customer_name || "",
         customer_phone: customer_phone || null,
         customer_email: customer_email || null,
         customer_id: customer_id || null,
@@ -162,14 +166,14 @@ export async function createQuote(req: Request, res: Response) {
         total_amount: totalAmountComputed,
         validity_days: validity_days || 7,
         notes: notes || null,
-        status: "open",
+        status: isDraft ? "rascunho" : "open",
         items: { create: itemRows },
         ...(serviceRows.length > 0 ? { services: { create: serviceRows } } : {}),
       },
       include: { items: true, services: true },
     });
 
-    await logQuoteAction(tenantId, quote.id, "created", { toStatus: "open", actor: getActor(req) });
+    await logQuoteAction(tenantId, quote.id, "created", { toStatus: quote.status, actor: getActor(req) });
 
     res.json(quote);
   } catch (err) {
@@ -205,8 +209,8 @@ export async function updateQuote(req: Request, res: Response) {
 
     const existing = await prisma.quote.findFirst({ where: { id, tenant_id: tenantId } });
     if (!existing) return res.status(404).json({ error: "Orçamento não encontrado" });
-    if (existing.status !== "open") {
-      return res.status(400).json({ error: "Só é possível editar orçamentos em aberto" });
+    if (existing.status !== "open" && existing.status !== "rascunho") {
+      return res.status(400).json({ error: "Só é possível editar orçamentos em aberto ou rascunho" });
     }
 
     const {
@@ -233,12 +237,15 @@ export async function updateQuote(req: Request, res: Response) {
       services?: Array<{ id: number; name: string; price: number; quantity?: number }>;
     };
 
-    // Substitui items/services por completo (delete + recreate) dentro de uma
-    // transaction — mais simples e correto do que tentar reconciliar linha a linha.
-    await prisma.$transaction([
-      prisma.quoteItem.deleteMany({ where: { quote_id: id } }),
-      prisma.quoteService.deleteMany({ where: { quote_id: id } }),
-    ]);
+    // Substitui items/services por completo (delete + recreate) apenas quando o body
+    // enviar essas listas — permite autosave de campos isolados (ex: notes) sem apagar
+    // itens já salvos quando o front não os inclui no patch.
+    if (items !== undefined) {
+      await prisma.quoteItem.deleteMany({ where: { quote_id: id } });
+    }
+    if (services !== undefined) {
+      await prisma.quoteService.deleteMany({ where: { quote_id: id } });
+    }
 
     await prisma.quote.update({
       where: { id },
@@ -251,17 +258,19 @@ export async function updateQuote(req: Request, res: Response) {
         ...(discount_value !== undefined && { discount_value }),
         ...(validity_days !== undefined && { validity_days }),
         ...(notes !== undefined && { notes: notes || null }),
-        items: {
-          create: (items ?? []).map((i) => ({
-            product_id: i.product_id || null,
-            name: i.name,
-            quantity: i.quantity,
-            unit_price: i.unit_price,
-            total: Math.round(i.unit_price * i.quantity * 100) / 100,
-            dimensions_label: i.dimensions_label || null,
-          })),
-        },
-        ...(services && services.length > 0 ? {
+        ...(items !== undefined && {
+          items: {
+            create: items.map((i) => ({
+              product_id: i.product_id || null,
+              name: i.name,
+              quantity: i.quantity,
+              unit_price: i.unit_price,
+              total: Math.round(i.unit_price * i.quantity * 100) / 100,
+              dimensions_label: i.dimensions_label || null,
+            })),
+          },
+        }),
+        ...(services !== undefined && {
           services: {
             create: services.map((s) => ({
               service_id: s.id,
@@ -271,7 +280,7 @@ export async function updateQuote(req: Request, res: Response) {
               total: Math.round(s.price * (s.quantity ?? 1) * 100) / 100,
             })),
           },
-        } : {}),
+        }),
       },
     });
 

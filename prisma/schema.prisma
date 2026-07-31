@@ -735,16 +735,16 @@ model Quote {
   tenant_id          Int
   number             Int
   customer_id        Int?
-  customer_name      String
+  customer_name      String      @default("")
   customer_phone     String?
   customer_email     String?
-  subtotal           Decimal     @db.Decimal(10, 2)
+  subtotal           Decimal     @default(0) @db.Decimal(10, 2)
   discount_type      String      @default("percent")
   discount_value     Decimal     @default(0) @db.Decimal(10, 2)
-  total_amount       Decimal     @db.Decimal(10, 2)
+  total_amount       Decimal     @default(0) @db.Decimal(10, 2)
   validity_days      Int         @default(7)
   notes              String?     @db.Text
-  status             String      @default("open")
+  status             String      @default("rascunho") // rascunho | open | converted | cancelled | expired
   converted_order_id Int?
 
   deposit_amount         Decimal?  @db.Decimal(10, 2)
