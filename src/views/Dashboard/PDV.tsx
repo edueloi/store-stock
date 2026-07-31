@@ -254,6 +254,10 @@ export default function PDV() {
   const [scanCode, setScanCode]           = useState("");
   const [scanFeedback, setScanFeedback]   = useState<"ok" | "err" | null>(null);
   const scanInputRef = useRef<HTMLInputElement>(null);
+  const categoryScrollRef = useRef<HTMLDivElement>(null);
+  const scrollCategories = (dir: -1 | 1) => {
+    categoryScrollRef.current?.scrollBy({ left: dir * 180, behavior: "smooth" });
+  };
 
   // tenant
   const [tenant, setTenant] = useState<TenantInfo>({ name: "BoxSys Store" });
@@ -1414,44 +1418,58 @@ export default function PDV() {
           </div>
 
           {/* Categorias + aba Serviços */}
-          <div className="flex gap-1.5 overflow-x-auto pb-0.5 shrink-0 scrollbar-none">
-            {/* Aba Serviços — sempre visível se houver serviços */}
-            {services.length > 0 && (
-              <button
-                onClick={() => { setShowServicesTab(true); setSelectedCategory(null); }}
-                className={cn(
-                  "shrink-0 h-7 px-3 rounded-lg text-[10px] font-bold tracking-wide transition-all border flex items-center gap-1.5",
-                  showServicesTab
-                    ? "text-white border-violet-500 shadow"
-                    : "bg-white text-slate-500 border-slate-200 hover:border-violet-300 hover:text-violet-600"
-                )}
-                style={showServicesTab ? { background: "linear-gradient(135deg,#7c3aed,#4f46e5)" } : {}}
-              >
-                <Wrench size={9} />
-                Serviços
-                {cartServices.length > 0 && (
-                  <span className={cn("w-4 h-4 rounded-full text-[9px] font-black flex items-center justify-center",
-                    showServicesTab ? "bg-white text-violet-700" : "bg-violet-600 text-white"
-                  )}>{cartServices.length}</span>
-                )}
-              </button>
-            )}
-            {/* Abas de produtos */}
-            {categories.length > 0 && [{ id: null as number | null, name: "Todos" }, ...categories.map(c => ({ id: c.id as number | null, name: c.name }))].map((cat) => (
-              <button key={cat.id ?? "all"}
-                onClick={() => { setSelectedCategory(cat.id); setShowServicesTab(false); }}
-                className={cn(
-                  "shrink-0 h-7 px-3 rounded-lg text-[10px] font-bold tracking-wide transition-all border flex items-center gap-1",
-                  !showServicesTab && selectedCategory === cat.id
-                    ? "text-white border-blue-500 shadow"
-                    : "bg-white text-slate-500 border-slate-200 hover:border-blue-300 hover:text-blue-600"
-                )}
-                style={!showServicesTab && selectedCategory === cat.id ? { background: "linear-gradient(135deg,#3b82f6,#1d4ed8)" } : {}}>
-                {cat.id !== null && <Tag size={9} />} {cat.name}
-              </button>
-            ))}
+          <div className="flex items-center gap-1 shrink-0">
+            <button
+              onClick={() => scrollCategories(-1)}
+              title="Rolar categorias para a esquerda"
+              className="shrink-0 h-7 w-6 rounded-lg bg-white border border-slate-200 text-slate-400 hover:text-blue-600 hover:border-blue-300 flex items-center justify-center transition-all">
+              <ChevronLeft size={13} />
+            </button>
+            <div ref={categoryScrollRef} className="flex gap-1.5 overflow-x-auto pb-0.5 scrollbar-none">
+              {/* Aba Serviços — sempre visível se houver serviços */}
+              {services.length > 0 && (
+                <button
+                  onClick={() => { setShowServicesTab(true); setSelectedCategory(null); }}
+                  className={cn(
+                    "shrink-0 h-7 px-3 rounded-lg text-[10px] font-bold tracking-wide transition-all border flex items-center gap-1.5",
+                    showServicesTab
+                      ? "text-white border-violet-500 shadow"
+                      : "bg-white text-slate-500 border-slate-200 hover:border-violet-300 hover:text-violet-600"
+                  )}
+                  style={showServicesTab ? { background: "linear-gradient(135deg,#7c3aed,#4f46e5)" } : {}}
+                >
+                  <Wrench size={9} />
+                  Serviços
+                  {cartServices.length > 0 && (
+                    <span className={cn("w-4 h-4 rounded-full text-[9px] font-black flex items-center justify-center",
+                      showServicesTab ? "bg-white text-violet-700" : "bg-violet-600 text-white"
+                    )}>{cartServices.length}</span>
+                  )}
+                </button>
+              )}
+              {/* Abas de produtos */}
+              {categories.length > 0 && [{ id: null as number | null, name: "Todos" }, ...categories.map(c => ({ id: c.id as number | null, name: c.name }))].map((cat) => (
+                <button key={cat.id ?? "all"}
+                  onClick={() => { setSelectedCategory(cat.id); setShowServicesTab(false); }}
+                  className={cn(
+                    "shrink-0 h-7 px-3 rounded-lg text-[10px] font-bold tracking-wide transition-all border flex items-center gap-1",
+                    !showServicesTab && selectedCategory === cat.id
+                      ? "text-white border-blue-500 shadow"
+                      : "bg-white text-slate-500 border-slate-200 hover:border-blue-300 hover:text-blue-600"
+                  )}
+                  style={!showServicesTab && selectedCategory === cat.id ? { background: "linear-gradient(135deg,#3b82f6,#1d4ed8)" } : {}}>
+                  {cat.id !== null && <Tag size={9} />} {cat.name}
+                </button>
+              ))}
+            </div>
+            <button
+              onClick={() => scrollCategories(1)}
+              title="Rolar categorias para a direita"
+              className="shrink-0 h-7 w-6 rounded-lg bg-white border border-slate-200 text-slate-400 hover:text-blue-600 hover:border-blue-300 flex items-center justify-center transition-all">
+              <ChevronRight size={13} />
+            </button>
             {!showServicesTab && (
-              <div className="ml-auto shrink-0 flex items-center gap-0.5 bg-white border border-slate-200 rounded-lg p-0.5">
+              <div className="ml-1 shrink-0 flex items-center gap-0.5 bg-white border border-slate-200 rounded-lg p-0.5">
                 <button
                   onClick={() => setViewMode("grid")}
                   title="Visualização em cards"
