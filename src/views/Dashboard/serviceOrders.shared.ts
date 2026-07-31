@@ -72,6 +72,8 @@ export interface ServiceOrder {
   equipment_accessories: string | null;
   reported_issue: string | null;
   seller_id: number | null;
+  technician_id: number | null;
+  technician: { id: number; name: string } | null;
   technician_name: string | null;
   status: SOStatus;
   priority: "normal" | "urgente";
@@ -110,6 +112,12 @@ export interface Customer {
 }
 
 export interface Seller {
+  id: number;
+  name: string;
+  is_active?: boolean;
+}
+
+export interface Technician {
   id: number;
   name: string;
   is_active?: boolean;
@@ -207,7 +215,7 @@ export function buildServiceOrderIntakeHtml(so: ServiceOrder, tenant: Tenant | n
   const brandColor = tenant?.primary_color ?? "#2563eb";
   const orderNum = String(so.number).padStart(6, "0");
   const orderDate = new Date(so.created_at).toLocaleDateString("pt-BR");
-  const responsavel = so.technician_name || (so.seller_id ? "Vendedor cadastrado" : "—");
+  const responsavel = so.technician_name || so.technician?.name || (so.seller_id ? "Vendedor cadastrado" : "—");
   const promisedStr = so.promised_at ? new Date(so.promised_at + "T12:00:00").toLocaleDateString("pt-BR") : "";
 
   const answerLabel = (a: ChecklistItem["answer"]) => (a === "sim" ? "Sim" : a === "nao" ? "Não" : a === "na" ? "N/A" : "—");

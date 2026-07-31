@@ -11,6 +11,7 @@ export async function listCategories(req: Request, res: Response) {
   try {
     const categories = await prisma.category.findMany({
       where: { tenant_id: getTenantId(req) },
+      orderBy: { name: "asc" },
     });
 
     res.json(categories);

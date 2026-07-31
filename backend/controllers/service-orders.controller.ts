@@ -55,6 +55,7 @@ const SERVICE_ORDER_INCLUDE = {
   checklist_items: { orderBy: { position: "asc" as const } },
   parts: true,
   photos: { orderBy: { created_at: "asc" as const } },
+  technician: { select: { id: true, name: true } },
 };
 
 export async function listServiceOrders(req: Request, res: Response) {
@@ -250,6 +251,7 @@ export async function updateServiceOrder(req: Request, res: Response) {
       equipment_accessories,
       reported_issue,
       seller_id,
+      technician_id,
       technician_name,
       priority,
       promised_at,
@@ -270,8 +272,11 @@ export async function updateServiceOrder(req: Request, res: Response) {
     if (equipment_serial !== undefined) data.equipment_serial = equipment_serial || null;
     if (equipment_accessories !== undefined) data.equipment_accessories = equipment_accessories || null;
     if (reported_issue !== undefined) data.reported_issue = reported_issue || null;
-    if (seller_id !== undefined) { data.seller_id = seller_id || null; if (seller_id) data.technician_name = null; }
-    if (technician_name !== undefined) { data.technician_name = technician_name || null; if (technician_name) data.seller_id = null; }
+    // Responsável é sempre um dos três: vendedor cadastrado, técnico cadastrado, ou
+    // nome livre de técnico externo — selecionar um zera os outros dois.
+    if (seller_id !== undefined) { data.seller_id = seller_id || null; if (seller_id) { data.technician_id = null; data.technician_name = null; } }
+    if (technician_id !== undefined) { data.technician_id = technician_id || null; if (technician_id) { data.seller_id = null; data.technician_name = null; } }
+    if (technician_name !== undefined) { data.technician_name = technician_name || null; if (technician_name) { data.seller_id = null; data.technician_id = null; } }
     if (priority !== undefined) data.priority = ALLOWED_PRIORITIES.includes(priority) ? priority : "normal";
     if (promised_at !== undefined) data.promised_at = promised_at ? new Date(promised_at) : null;
     if (warranty_days !== undefined) data.warranty_days = warranty_days ? Number(warranty_days) : null;

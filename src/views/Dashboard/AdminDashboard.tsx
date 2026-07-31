@@ -32,6 +32,7 @@ import {
   FileCheck,
   Terminal,
   ShoppingBag,
+  HardHat,
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { cn } from "../../lib/utils";
@@ -59,6 +60,7 @@ import Quotes from "./Quotes";
 import QuoteNew from "./QuoteNew";
 import QuoteDetail from "./QuoteDetail";
 import Sellers from "./Sellers";
+import Technicians from "./Technicians";
 import Goals from "./Goals";
 import Barcodes from "./Barcodes";
 import Markup from "./Markup";
@@ -310,6 +312,7 @@ export default function AdminDashboard() {
       items: [
         { icon: Users,       label: "Clientes", path: "/admin/customers" },
         { icon: Star,        label: "Vendedores",      path: "/admin/vendedores" },
+        { icon: HardHat,     label: "Técnicos",        path: "/admin/tecnicos" },
         { icon: Wrench,      label: "Serviços",        path: "/admin/servicos" },
         { icon: UserCheck,   label: "Fidelidade",      path: "/admin/loyalty" },
         { icon: MessageSquare, label: "WhatsApp",      path: "/admin/whatsapp" },
@@ -587,6 +590,7 @@ export default function AdminDashboard() {
               <Route path="ordens-servico/:id" element={<ServiceOrderDetail />} />
               <Route path="consignacoes" element={<Consignments />} />
               <Route path="vendedores" element={<Sellers />} />
+              <Route path="tecnicos" element={<Technicians />} />
               <Route path="servicos"   element={<Services />} />
               <Route path="whatsapp"   element={<WhatsApp />} />
               <Route path="metas"      element={<Goals />} />

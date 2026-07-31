@@ -21,6 +21,7 @@ import uploadRoutes from "./upload.routes";
 import preferencesRoutes from "./preferences.routes";
 import quotesRoutes from "./quotes.routes";
 import sellersRoutes from "./sellers.routes";
+import techniciansRoutes from "./technicians.routes";
 import goalsRoutes from "./goals.routes";
 import servicesRoutes from "./services.routes";
 import teamRoutes from "./team.routes";
@@ -57,6 +58,7 @@ export function registerRoutes(app: Express) {
   app.use("/api/preferences", preferencesRoutes);
   app.use("/api/quotes",   quotesRoutes);
   app.use("/api/sellers",  sellersRoutes);
+  app.use("/api/technicians", techniciansRoutes);
   app.use("/api/goals",    goalsRoutes);
   app.use("/api/services",    servicesRoutes);
   app.use("/api/super-admin", superAdminRoutes);

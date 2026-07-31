@@ -36,6 +36,7 @@ import {
   Product,
   Customer,
   Seller,
+  Technician,
   Tenant,
   InvoicePayment,
   PayMethod,
@@ -66,6 +67,7 @@ export default function ServiceOrderDetail() {
   const [products, setProducts] = useState<Product[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [sellers, setSellers] = useState<Seller[]>([]);
+  const [technicians, setTechnicians] = useState<Technician[]>([]);
   const [tenant, setTenant] = useState<Tenant | null>(null);
 
   const [savingField, setSavingField] = useState<string | null>(null);
@@ -81,8 +83,9 @@ export default function ServiceOrderDetail() {
   const [equipmentSerial, setEquipmentSerial] = useState("");
   const [equipmentAccessories, setEquipmentAccessories] = useState("");
   const [reportedIssue, setReportedIssue] = useState("");
-  const [responsibleMode, setResponsibleMode] = useState<"seller" | "technician">("seller");
+  const [responsibleMode, setResponsibleMode] = useState<"seller" | "technician" | "external">("seller");
   const [sellerId, setSellerId] = useState<number | null>(null);
+  const [technicianId, setTechnicianId] = useState<number | null>(null);
   const [technicianName, setTechnicianName] = useState("");
   const [priority, setPriority] = useState<"normal" | "urgente">("normal");
   const [promisedAt, setPromisedAt] = useState("");
@@ -154,8 +157,9 @@ export default function ServiceOrderDetail() {
     setEquipmentSerial(so.equipment_serial ?? "");
     setEquipmentAccessories(so.equipment_accessories ?? "");
     setReportedIssue(so.reported_issue ?? "");
-    setResponsibleMode(so.technician_name ? "technician" : "seller");
+    setResponsibleMode(so.technician_name ? "external" : so.technician_id ? "technician" : "seller");
     setSellerId(so.seller_id);
+    setTechnicianId(so.technician_id);
     setTechnicianName(so.technician_name ?? "");
     setPriority(so.priority);
     setPromisedAt(so.promised_at ? so.promised_at.slice(0, 10) : "");
@@ -187,16 +191,18 @@ export default function ServiceOrderDetail() {
   useEffect(() => {
     (async () => {
       const h = authHeaderNoJson();
-      const [pRes, cRes, sRes, tRes] = await Promise.all([
+      const [pRes, cRes, sRes, tcRes, tRes] = await Promise.all([
         fetch("/api/products", { headers: h }),
         fetch("/api/customers", { headers: h }),
         fetch("/api/sellers", { headers: h }),
+        fetch("/api/technicians", { headers: h }),
         fetch("/api/tenant", { headers: h }),
       ]);
-      const [pData, cData, sData, tData] = await Promise.all([pRes.json(), cRes.json(), sRes.json(), tRes.json()]);
+      const [pData, cData, sData, tcData, tData] = await Promise.all([pRes.json(), cRes.json(), sRes.json(), tcRes.json(), tRes.json()]);
       setProducts(Array.isArray(pData) ? pData.filter((p: Product) => p.is_active !== false) : []);
       setCustomers(Array.isArray(cData) ? cData : []);
       setSellers(Array.isArray(sData) ? sData.filter((s: Seller) => s.is_active !== false) : []);
+      setTechnicians(Array.isArray(tcData) ? tcData.filter((t: Technician) => t.is_active !== false) : []);
       setTenant(tData ?? null);
     })();
     fetchOrder();
@@ -1002,14 +1008,15 @@ export default function ServiceOrderDetail() {
           <div className="bg-white rounded-2xl border border-slate-200 p-5 space-y-3">
             <p className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400">Responsável</p>
             <div className="flex bg-slate-100 border border-slate-200 rounded-xl p-0.5 gap-0.5 w-fit">
-              {(["seller", "technician"] as const).map((m) => (
+              {(["seller", "technician", "external"] as const).map((m) => (
                 <button key={m} onClick={() => {
                   setResponsibleMode(m);
-                  if (m === "seller") autosaveField({ technician_name: null }, "responsible");
-                  else autosaveField({ seller_id: null }, "responsible");
+                  if (m === "seller") autosaveField({ technician_id: null, technician_name: null }, "responsible");
+                  else if (m === "technician") autosaveField({ seller_id: null, technician_name: null }, "responsible");
+                  else autosaveField({ seller_id: null, technician_id: null }, "responsible");
                 }}
                   className={cn("h-8 px-3 rounded-lg text-[10px] font-black transition-all", responsibleMode === m ? "bg-blue-600 text-white" : "text-slate-500")}>
-                  {m === "seller" ? "Vendedor" : "Técnico externo"}
+                  {m === "seller" ? "Vendedor" : m === "technician" ? "Técnico" : "Externo"}
                 </button>
               ))}
             </div>
@@ -1026,12 +1033,25 @@ export default function ServiceOrderDetail() {
                 }}
                 options={sellers.map((s) => ({ value: String(s.id), label: s.name }))}
               />
+            ) : responsibleMode === "technician" ? (
+              <Combobox
+                placeholder="Selecionar técnico..."
+                searchPlaceholder="Buscar técnico..."
+                clearable
+                value={technicianId !== null ? String(technicianId) : ""}
+                onChange={(v) => {
+                  const val = v ? Number(v) : null;
+                  setTechnicianId(val);
+                  autosaveField({ technician_id: val }, "technician_id");
+                }}
+                options={technicians.map((t) => ({ value: String(t.id), label: t.name }))}
+              />
             ) : (
               <input
                 value={technicianName}
                 onChange={(e) => setTechnicianName(e.target.value)}
                 onBlur={() => autosaveField({ technician_name: technicianName || null }, "technician_name")}
-                placeholder="Nome do técnico externo"
+                placeholder="Nome do técnico/prestador externo"
                 className="w-full h-10 px-3 rounded-xl border border-slate-200 text-[12px] font-medium focus:outline-none focus:border-blue-400"
               />
             )}

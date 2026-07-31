@@ -46,7 +46,7 @@ export async function getPublicStore(req: Request, res: Response) {
     }
 
     const [categories, products] = await Promise.all([
-      prisma.category.findMany({ where: { tenant_id: tenant.id } }),
+      prisma.category.findMany({ where: { tenant_id: tenant.id }, orderBy: { name: "asc" } }),
       prisma.product.findMany({
         where: { tenant_id: tenant.id, is_active: true },
       }),

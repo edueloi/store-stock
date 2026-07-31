@@ -90,6 +90,7 @@ model Tenant {
   setup_invites   SetupInvite[]
   quotes          Quote[]
   sellers         Seller[]
+  technicians     Technician[]
   goals           Goal[]
   services        Service[]
   loyalty_program LoyaltyProgram?
@@ -501,6 +502,25 @@ model Seller {
   @@map("sellers")
 }
 
+// Técnicos/prestadores de serviço externos, cadastro próprio e independente do
+// Seller (sem comissão) — usado para atribuir quem executa uma Ordem de Serviço.
+model Technician {
+  id         Int      @id @default(autoincrement())
+  tenant_id  Int
+  name       String
+  phone      String?
+  document   String?
+  is_active  Boolean  @default(true)
+  notes      String?  @db.Text
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  tenant         Tenant         @relation(fields: [tenant_id], references: [id])
+  service_orders ServiceOrder[]
+
+  @@map("technicians")
+}
+
 model OrderItem {
   id               Int     @id @default(autoincrement())
   order_id         Int
@@ -817,6 +837,7 @@ model ServiceOrder {
   reported_issue        String?   @db.Text
 
   seller_id             Int?
+  technician_id         Int?
   technician_name       String?
 
   status                String    @default("aberta")
@@ -844,6 +865,7 @@ model ServiceOrder {
 
   tenant           Tenant                      @relation(fields: [tenant_id], references: [id])
   seller           Seller?                     @relation(fields: [seller_id], references: [id], onDelete: SetNull)
+  technician       Technician?                 @relation(fields: [technician_id], references: [id], onDelete: SetNull)
   checklist_items  ServiceOrderChecklistItem[]
   parts            ServiceOrderPart[]
   photos           ServiceOrderPhoto[]
