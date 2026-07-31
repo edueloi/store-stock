@@ -144,6 +144,25 @@ export async function downloadNfseXml(req: Request, res: Response) {
   }
 }
 
+export async function downloadNfsePdf(req: Request, res: Response) {
+  try {
+    const serviceOrderId = Number(req.params.serviceOrderId);
+    const tenantId = getTenantId(req);
+    const invoice = await prisma.nfseInvoice.findFirst({
+      where: { service_order_id: serviceOrderId, tenant_id: tenantId },
+    });
+    if (!invoice?.nfse_pdf_path || !fs.existsSync(invoice.nfse_pdf_path)) {
+      res.status(404).json({ error: "PDF não disponível" });
+      return;
+    }
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("Content-Disposition", `inline; filename="nfse-${invoice.chave_acesso ?? serviceOrderId}.pdf"`);
+    fs.createReadStream(invoice.nfse_pdf_path).pipe(res);
+  } catch {
+    res.status(500).json({ error: "Failed to fetch NFS-e PDF" });
+  }
+}
+
 export async function listNfse(req: Request, res: Response) {
   try {
     const tenantId = getTenantId(req);

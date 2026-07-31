@@ -5,9 +5,16 @@ import { SignedXml } from "xml-crypto";
 export interface CertMaterial {
   privateKeyPem: string;
   certificatePem: string;
+  chainPem: string;
+  titularCpf: string | null;
+  titularCnpj: string | null;
 }
 
-// Extrai chave privada + certificado X.509 a partir dos bytes binários de um .pfx/.p12 (certificado A1)
+// Extrai chave privada + certificado do titular + cadeia de certificação intermediária
+// a partir dos bytes binários de um .pfx/.p12 (certificado A1). Certificados ICP-Brasil
+// costumam empacotar a cadeia completa (titular + AC intermediária(s) + raiz) no mesmo
+// .pfx — servidores mTLS (Sistema Nacional NFS-e) exigem receber essa cadeia junto do
+// certificado do titular para conseguir validar a confiança até a raiz ICP-Brasil.
 export function parsePfx(pfxDer: string, password: string): CertMaterial {
   const pfxAsn1 = forge.asn1.fromDer(pfxDer);
   const pfx = forge.pkcs12.pkcs12FromAsn1(pfxAsn1, password);
@@ -19,13 +26,36 @@ export function parsePfx(pfxDer: string, password: string): CertMaterial {
   if (!certBags || certBags.length === 0) throw new Error("Certificado .pfx sem certificado X.509");
 
   const privateKey = keyBags[0].key;
-  const certificate = certBags[0].cert;
-  if (!privateKey || !certificate) throw new Error("Falha ao extrair chave/certificado do .pfx");
+  if (!privateKey) throw new Error("Falha ao extrair chave privada do .pfx");
 
-  const privateKeyPem = forge.pki.privateKeyToPem(privateKey);
-  const certificatePem = forge.pki.certificateToPem(certificate);
+  const allCerts = certBags.map((b) => b.cert).filter((c): c is forge.pki.Certificate => Boolean(c));
+  if (allCerts.length === 0) throw new Error("Falha ao extrair certificado do .pfx");
 
-  return { privateKeyPem, certificatePem };
+  // O certificado do titular é o único que não é usado como emissor de nenhum outro
+  // certificado do pacote (todo mundo na cadeia, exceto a ponta, é "issuer" de alguém).
+  const issuerNames = new Set(allCerts.map((c) => c.issuer.attributes.map((a) => `${a.shortName}=${a.value}`).join(",")));
+  const isIssuerOfSomeone = (c: forge.pki.Certificate) => {
+    const subjectName = c.subject.attributes.map((a) => `${a.shortName}=${a.value}`).join(",");
+    return issuerNames.has(subjectName);
+  };
+  const leaf = allCerts.find((c) => !isIssuerOfSomeone(c)) || allCerts[0];
+  const chain = allCerts.filter((c) => c !== leaf);
+
+  // CPF/CNPJ do titular embutido no CN (padrão ICP-Brasil): e-CPF traz "CN=NOME:CPF"
+  // (11 dígitos) e e-CNPJ (com identificação do responsável) traz "CN=NOME:CPF:CNPJ"
+  // ou similar — NUNCA usamos os campos "OU" para isso, pois eles frequentemente
+  // contêm o CNPJ da própria Autoridade Certificadora (AC), não o do titular.
+  const cn = leaf.subject.getField("CN")?.value || "";
+  const cpfMatch = cn.match(/:(\d{11})(?::|$)/);
+  const cnpjMatch = cn.match(/:(\d{14})(?::|$)/);
+
+  return {
+    privateKeyPem: forge.pki.privateKeyToPem(privateKey),
+    certificatePem: forge.pki.certificateToPem(leaf),
+    chainPem: chain.map((c) => forge.pki.certificateToPem(c)).join("\n"),
+    titularCpf: cpfMatch ? cpfMatch[1] : null,
+    titularCnpj: cnpjMatch ? cnpjMatch[1] : null,
+  };
 }
 
 // Extrai chave privada + certificado X.509 de um arquivo .pfx/.p12 (certificado A1) já salvo em disco

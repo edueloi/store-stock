@@ -442,6 +442,7 @@ model NfseInvoice {
   rejection_reason String?   @db.Text
   dps_xml_path     String?
   nfse_xml_path    String?
+  nfse_pdf_path    String?
   attempts         Int       @default(0)
   last_attempt_at  DateTime?
 

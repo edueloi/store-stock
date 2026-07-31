@@ -475,6 +475,18 @@ export default function ServiceOrderDetail() {
   };
 
   // ── NFS-e ────────────────────────────────────────────────────────────────
+  const handleOpenNfsePdf = async () => {
+    if (!selected) return;
+    try {
+      const res = await fetch(`/api/nfse/${selected.id}/pdf`, { headers: authHeaderNoJson() });
+      if (!res.ok) return;
+      const blob = await res.blob();
+      window.open(URL.createObjectURL(blob), "_blank");
+    } catch {
+      // silencioso: botão só abre o PDF, sem estado de erro dedicado
+    }
+  };
+
   const handleEmitNfse = async () => {
     if (!selected) return;
     setNfseEmitting(true);
@@ -1085,11 +1097,17 @@ export default function ServiceOrderDetail() {
             <div className="bg-white rounded-2xl border border-slate-200 p-5 space-y-3">
               <p className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400">NFS-e (Serviço)</p>
               {nfseInvoice?.status === "authorized" ? (
-                <div className="flex items-center gap-2 text-emerald-600 bg-emerald-50 rounded-xl px-3 py-2.5">
-                  <CheckCircle2 size={14} />
-                  <span className="text-[11px] font-bold">
-                    NFS-e autorizada — Série {nfseInvoice.serie}/{nfseInvoice.numero}
-                  </span>
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2 text-emerald-600 bg-emerald-50 rounded-xl px-3 py-2.5">
+                    <CheckCircle2 size={14} />
+                    <span className="text-[11px] font-bold">
+                      NFS-e autorizada — Série {nfseInvoice.serie}/{nfseInvoice.numero}
+                    </span>
+                  </div>
+                  <button onClick={handleOpenNfsePdf}
+                    className="w-full h-9 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all">
+                    Ver PDF da NFS-e
+                  </button>
                 </div>
               ) : (
                 <>

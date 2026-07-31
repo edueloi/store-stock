@@ -1,6 +1,7 @@
-import fs from "fs";
 import https from "https";
 import axios from "axios";
+
+import { loadPfx } from "./signer";
 
 // URLs dos webservices NFC-e da SEFAZ-SP (versão 4.00)
 const URLS = {
@@ -61,16 +62,22 @@ export async function callSefazSoap(input: SoapCallInput): Promise<SoapCallResul
   const url = URLS[environment][service];
   const envelope = buildEnvelope(soapBody);
 
-  let pfx: Buffer;
+  // Extraímos chave/cert em PEM via node-forge (em vez de passar pfx/passphrase brutos
+  // ao https.Agent) porque o parser PKCS12 nativo do OpenSSL do Node rejeita alguns
+  // certificados A1 emitidos com PBES2/AES-256 ("Unsupported PKCS12 PFX data"), que o
+  // node-forge lê sem problema. Também envia a cadeia intermediária junto do certificado
+  // do titular, exigida pela SEFAZ para validar a confiança até a raiz ICP-Brasil.
+  let cert;
   try {
-    pfx = fs.readFileSync(pfxPath);
-  } catch {
-    return { ok: false, statusCode: 0, rawResponse: "", error: `Certificado não encontrado: ${pfxPath}` };
+    cert = loadPfx(pfxPath, pfxPassword);
+  } catch (e) {
+    const message = e instanceof Error ? e.message : String(e);
+    return { ok: false, statusCode: 0, rawResponse: "", error: `Certificado inválido: ${message}` };
   }
 
   const httpsAgent = new https.Agent({
-    pfx,
-    passphrase: pfxPassword,
+    key: cert.privateKeyPem,
+    cert: cert.certificatePem + (cert.chainPem || ""),
     rejectUnauthorized: true,
   });
 
