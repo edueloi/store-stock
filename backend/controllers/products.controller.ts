@@ -81,6 +81,9 @@ export async function createProduct(req: Request, res: Response) {
     const product = await prisma.product.create({
       data: {
         ...rest,
+        // Nome do produto sempre em caixa alta — padroniza o catálogo (evita mistura
+        // de maiúsculas/minúsculas entre produtos cadastrados por vias diferentes).
+        ...(typeof rest.name === "string" ? { name: rest.name.toUpperCase() } : {}),
         tenant_id: getTenantId(req),
         images: Array.isArray(images) ? images : undefined,
         variations: Array.isArray(variations) ? variations : undefined,
@@ -164,6 +167,9 @@ export async function updateProduct(req: Request, res: Response) {
       where: { id, tenant_id: tenantId },
       data: {
         ...rest,
+        // Nome do produto sempre em caixa alta — padroniza o catálogo (evita mistura
+        // de maiúsculas/minúsculas entre produtos cadastrados por vias diferentes).
+        ...(typeof rest.name === "string" ? { name: rest.name.toUpperCase() } : {}),
         images: Array.isArray(images) ? images : undefined,
         variations: Array.isArray(variations) ? variations : undefined,
         attributes: Array.isArray(attributes) ? attributes : undefined,

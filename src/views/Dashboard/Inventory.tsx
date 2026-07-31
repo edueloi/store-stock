@@ -1010,7 +1010,7 @@ export default function Inventory() {
               <input type="text" required placeholder="Ex: Camiseta Básica Preta"
                 className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs font-bold uppercase outline-none h-10 focus:border-blue-400 focus:ring-2 focus:ring-blue-500/10 transition-all"
                 value={editingProduct?.name || ""}
-                onChange={e => setEditingProduct(prev => ({ ...prev!, name: e.target.value }))} />
+                onChange={e => setEditingProduct(prev => ({ ...prev!, name: e.target.value.toUpperCase() }))} />
             </div>
             <div className="space-y-1">
               <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest px-1">SKU / Identificador</label>
