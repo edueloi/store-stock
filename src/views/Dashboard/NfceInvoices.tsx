@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from "react";
 import ExcelJS from "exceljs";
 import {
   FileCheck, Search, Download, RefreshCw, FileText, AlertTriangle,
-  CheckCircle2, Loader2, Clock, XCircle, Ban,
+  CheckCircle2, Loader2, Clock, XCircle, Ban, Archive,
 } from "lucide-react";
 import PageHeader from "../../components/layout/PageHeader";
 import { NfceInvoice, NfceStatus } from "../../types";
@@ -71,6 +71,20 @@ async function exportNfceToExcel(invoices: NfceInvoice[]) {
   URL.revokeObjectURL(url);
 }
 
+// Baixa um arquivo autenticado (Bearer token) via fetch+blob — um <a href> direto
+// não envia o header Authorization e o backend responde 401.
+async function downloadAuthenticated(url: string, token: string | null, filename: string) {
+  const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+  if (!res.ok) throw new Error("Falha ao baixar arquivo");
+  const blob = await res.blob();
+  const blobUrl = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = blobUrl;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(blobUrl);
+}
+
 export default function NfceInvoices() {
   const [invoices, setInvoices] = useState<NfceInvoice[]>([]);
   const [loading, setLoading] = useState(true);
@@ -82,6 +96,8 @@ export default function NfceInvoices() {
   const [cancelReason, setCancelReason] = useState("");
   const [cancelling, setCancelling] = useState(false);
   const [cancelError, setCancelError] = useState<string | null>(null);
+  const [selected, setSelected] = useState<Set<number>>(new Set());
+  const [batchLoading, setBatchLoading] = useState<"retry" | "xml" | "danfe" | null>(null);
 
   const token = localStorage.getItem("token");
 
@@ -129,8 +145,11 @@ export default function NfceInvoices() {
     }
   };
 
-  const minutesSinceAuthorized = (inv: NfceInvoice) =>
-    inv.authorized_at ? (Date.now() - new Date(inv.authorized_at).getTime()) / 60000 : Infinity;
+  const handleDownloadDanfe = (inv: NfceInvoice) =>
+    downloadAuthenticated(`/api/nfce/${inv.order_id}/danfe`, token, `danfe-${inv.access_key ?? inv.order_id}.pdf`).catch(() => {});
+
+  const handleDownloadXml = (inv: NfceInvoice) =>
+    downloadAuthenticated(`/api/nfce/${inv.order_id}/xml`, token, `nfce-${inv.access_key ?? inv.order_id}.xml`).catch(() => {});
 
   const filtered = useMemo(() => {
     return invoices.filter((inv) => {
@@ -150,6 +169,69 @@ export default function NfceInvoices() {
     pending: invoices.filter((i) => i.status === "pending" || i.status === "processing").length,
     error: invoices.filter((i) => i.status === "error" || i.status === "rejected").length,
   }), [invoices]);
+
+  const toggleSelected = (orderId: number) => {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(orderId)) next.delete(orderId); else next.add(orderId);
+      return next;
+    });
+  };
+
+  const toggleSelectAllFiltered = () => {
+    setSelected((prev) => {
+      const allSelected = filtered.length > 0 && filtered.every((inv) => prev.has(inv.order_id));
+      if (allSelected) return new Set();
+      return new Set(filtered.map((inv) => inv.order_id));
+    });
+  };
+
+  const selectedInvoices = useMemo(
+    () => filtered.filter((inv) => selected.has(inv.order_id)),
+    [filtered, selected],
+  );
+  const selectedRetryable = selectedInvoices.filter((inv) => inv.status === "error" || inv.status === "rejected");
+  const selectedAuthorized = selectedInvoices.filter((inv) => inv.status === "authorized");
+
+  const handleRetryBatch = async () => {
+    if (selectedRetryable.length === 0) return;
+    setBatchLoading("retry");
+    try {
+      await fetch("/api/nfce/retry-batch", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ order_ids: selectedRetryable.map((inv) => inv.order_id) }),
+      });
+      setTimeout(fetchInvoices, 2000);
+    } finally {
+      setBatchLoading(null);
+    }
+  };
+
+  const handleDownloadXmlBatch = async () => {
+    if (selectedAuthorized.length === 0) return;
+    setBatchLoading("xml");
+    try {
+      const ids = selectedAuthorized.map((inv) => inv.order_id).join(",");
+      await downloadAuthenticated(`/api/nfce/xml-batch?ids=${ids}`, token, `nfce-xml-${new Date().toISOString().slice(0, 10)}.zip`);
+    } finally {
+      setBatchLoading(null);
+    }
+  };
+
+  const handleDownloadDanfeBatch = async () => {
+    if (selectedAuthorized.length === 0) return;
+    setBatchLoading("danfe");
+    try {
+      const ids = selectedAuthorized.map((inv) => inv.order_id).join(",");
+      await downloadAuthenticated(`/api/nfce/danfe-batch?ids=${ids}`, token, `danfe-${new Date().toISOString().slice(0, 10)}.zip`);
+    } finally {
+      setBatchLoading(null);
+    }
+  };
+
+  const minutesSinceAuthorized = (inv: NfceInvoice) =>
+    inv.authorized_at ? (Date.now() - new Date(inv.authorized_at).getTime()) / 60000 : Infinity;
 
   return (
     <div className="space-y-6">
@@ -205,10 +287,50 @@ export default function NfceInvoices() {
           </select>
         </div>
 
+        {selected.size > 0 && (
+          <div className="flex items-center gap-2 px-4 py-2.5 flex-wrap bg-blue-50/60 border-b border-blue-100">
+            <span className="text-[10px] font-black text-blue-700 uppercase tracking-widest mr-1">
+              {selected.size} selecionada{selected.size > 1 ? "s" : ""}
+            </span>
+            <button
+              onClick={handleRetryBatch}
+              disabled={batchLoading !== null || selectedRetryable.length === 0}
+              className="h-8 px-3 bg-rose-600 hover:bg-rose-700 disabled:opacity-40 text-white rounded-lg text-[9px] font-black uppercase tracking-widest flex items-center gap-1.5 transition-all"
+            >
+              {batchLoading === "retry" ? <Loader2 size={12} className="animate-spin" /> : <RefreshCw size={12} />}
+              Reemitir selecionadas ({selectedRetryable.length})
+            </button>
+            <button
+              onClick={handleDownloadXmlBatch}
+              disabled={batchLoading !== null || selectedAuthorized.length === 0}
+              className="h-8 px-3 bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 rounded-lg text-[9px] font-black uppercase tracking-widest flex items-center gap-1.5 transition-all disabled:opacity-40"
+            >
+              {batchLoading === "xml" ? <Loader2 size={12} className="animate-spin" /> : <Archive size={12} />}
+              Baixar XMLs (.zip)
+            </button>
+            <button
+              onClick={handleDownloadDanfeBatch}
+              disabled={batchLoading !== null || selectedAuthorized.length === 0}
+              className="h-8 px-3 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-[9px] font-black uppercase tracking-widest flex items-center gap-1.5 transition-all disabled:opacity-40"
+            >
+              {batchLoading === "danfe" ? <Loader2 size={12} className="animate-spin" /> : <Archive size={12} />}
+              Baixar DANFEs (.zip)
+            </button>
+          </div>
+        )}
+
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse">
             <thead>
               <tr className="border-t border-slate-100 bg-slate-50/60">
+                <th className="px-4 py-2.5 w-8">
+                  <input
+                    type="checkbox"
+                    checked={filtered.length > 0 && filtered.every((inv) => selected.has(inv.order_id))}
+                    onChange={toggleSelectAllFiltered}
+                    className="rounded border-slate-300"
+                  />
+                </th>
                 {["Nº", "Série", "Pedido", "Cliente", "Chave de Acesso", "Status", "Emitida em", ""].map((h) => (
                   <th key={h} className="px-4 py-2.5 text-[9px] font-black text-slate-400 uppercase tracking-widest whitespace-nowrap">{h}</th>
                 ))}
@@ -216,15 +338,23 @@ export default function NfceInvoices() {
             </thead>
             <tbody>
               {loading && (
-                <tr><td colSpan={8} className="px-4 py-10 text-center text-slate-400 text-xs">Carregando...</td></tr>
+                <tr><td colSpan={9} className="px-4 py-10 text-center text-slate-400 text-xs">Carregando...</td></tr>
               )}
               {!loading && filtered.length === 0 && (
-                <tr><td colSpan={8} className="px-4 py-10 text-center text-slate-400 text-xs">Nenhuma nota fiscal encontrada</td></tr>
+                <tr><td colSpan={9} className="px-4 py-10 text-center text-slate-400 text-xs">Nenhuma nota fiscal encontrada</td></tr>
               )}
               {!loading && filtered.map((inv) => {
                 const meta = STATUS_META[inv.status];
                 return (
                   <tr key={inv.id} className="border-t border-slate-100 hover:bg-slate-50/60 transition-colors">
+                    <td className="px-4 py-2.5">
+                      <input
+                        type="checkbox"
+                        checked={selected.has(inv.order_id)}
+                        onChange={() => toggleSelected(inv.order_id)}
+                        className="rounded border-slate-300"
+                      />
+                    </td>
                     <td className="px-4 py-2.5 text-xs font-mono font-bold text-slate-700">{inv.number}</td>
                     <td className="px-4 py-2.5 text-xs font-mono text-slate-500">{inv.series}</td>
                     <td className="px-4 py-2.5 text-xs font-mono text-blue-600">#{String(inv.order_id).padStart(6, "0")}</td>
@@ -251,14 +381,14 @@ export default function NfceInvoices() {
                         )}
                         {inv.status === "authorized" && (
                           <>
-                            <a href={`/api/nfce/${inv.order_id}/danfe`} target="_blank" rel="noopener noreferrer"
+                            <button onClick={() => handleDownloadDanfe(inv)}
                               className="h-8 px-3 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-[9px] font-black uppercase tracking-widest flex items-center gap-1.5 transition-all">
                               <FileText size={12} /> DANFE
-                            </a>
-                            <a href={`/api/nfce/${inv.order_id}/xml`} target="_blank" rel="noopener noreferrer"
+                            </button>
+                            <button onClick={() => handleDownloadXml(inv)}
                               className="h-8 px-3 bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 rounded-lg text-[9px] font-black uppercase tracking-widest flex items-center gap-1.5 transition-all">
                               <FileCheck size={12} /> XML
-                            </a>
+                            </button>
                             {minutesSinceAuthorized(inv) <= PRAZO_CANCELAMENTO_MINUTOS && (
                               <button
                                 onClick={() => { setCancelTarget(inv); setCancelReason(""); setCancelError(null); }}

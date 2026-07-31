@@ -1,4 +1,5 @@
 import fs from "fs";
+import archiver from "archiver";
 import type { Request, Response } from "express";
 
 import { prisma } from "../config/prisma";
@@ -113,6 +114,98 @@ export async function cancelNfce(req: Request, res: Response) {
     res.json({ success: true });
   } catch {
     res.status(500).json({ error: "Failed to cancel NFC-e" });
+  }
+}
+
+function parseIdsParam(raw: unknown): number[] {
+  const str = typeof raw === "string" ? raw : "";
+  return str.split(",").map((s) => Number(s.trim())).filter((n) => Number.isInteger(n) && n > 0);
+}
+
+/** Reemite (ou emite pela primeira vez) várias NFC-e de uma vez — usado pelo botão "Reemitir selecionadas". */
+export async function retryNfceBatch(req: Request, res: Response) {
+  try {
+    const tenantId = getTenantId(req);
+    const { order_ids } = req.body as { order_ids?: number[] };
+    const orderIds = Array.isArray(order_ids) ? order_ids.map(Number).filter((n) => Number.isInteger(n) && n > 0) : [];
+    if (orderIds.length === 0) { res.status(422).json({ error: "Informe ao menos um pedido" }); return; }
+
+    const invoices = await prisma.nfceInvoice.findMany({
+      where: { order_id: { in: orderIds }, tenant_id: tenantId, status: { not: "authorized" } },
+    });
+
+    await prisma.nfceInvoice.updateMany({
+      where: { id: { in: invoices.map((i) => i.id) } },
+      data: { status: "pending" },
+    });
+
+    for (const invoice of invoices) {
+      emitirNfce(invoice.order_id).catch((e) => console.error("[retryNfceBatch] erro:", e));
+    }
+
+    res.json({ success: true, count: invoices.length });
+  } catch {
+    res.status(500).json({ error: "Failed to retry NFC-e batch" });
+  }
+}
+
+/** Baixa os XMLs autorizados de várias notas compactados em um único .zip. */
+export async function downloadNfceXmlBatch(req: Request, res: Response) {
+  try {
+    const tenantId = getTenantId(req);
+    const orderIds = parseIdsParam(req.query.ids);
+    if (orderIds.length === 0) { res.status(422).json({ error: "Informe ao menos uma nota" }); return; }
+
+    const invoices = await prisma.nfceInvoice.findMany({
+      where: { order_id: { in: orderIds }, tenant_id: tenantId, status: "authorized" },
+    });
+
+    res.setHeader("Content-Type", "application/zip");
+    res.setHeader("Content-Disposition", `attachment; filename="nfce-xml-${Date.now()}.zip"`);
+
+    const archive = archiver("zip", { zlib: { level: 9 } });
+    archive.on("error", (err) => { console.error("[downloadNfceXmlBatch] erro:", err); res.end(); });
+    archive.pipe(res);
+
+    for (const invoice of invoices) {
+      if (invoice.xml_path && fs.existsSync(invoice.xml_path)) {
+        archive.file(invoice.xml_path, { name: `nfce-${invoice.access_key ?? invoice.order_id}.xml` });
+      }
+    }
+
+    await archive.finalize();
+  } catch {
+    res.status(500).json({ error: "Failed to build NFC-e XML batch" });
+  }
+}
+
+/** Baixa os DANFEs (PDF) autorizados de várias notas compactados em um único .zip. */
+export async function downloadDanfeBatch(req: Request, res: Response) {
+  try {
+    const tenantId = getTenantId(req);
+    const orderIds = parseIdsParam(req.query.ids);
+    if (orderIds.length === 0) { res.status(422).json({ error: "Informe ao menos uma nota" }); return; }
+
+    const invoices = await prisma.nfceInvoice.findMany({
+      where: { order_id: { in: orderIds }, tenant_id: tenantId, status: "authorized" },
+    });
+
+    res.setHeader("Content-Type", "application/zip");
+    res.setHeader("Content-Disposition", `attachment; filename="danfe-${Date.now()}.zip"`);
+
+    const archive = archiver("zip", { zlib: { level: 9 } });
+    archive.on("error", (err) => { console.error("[downloadDanfeBatch] erro:", err); res.end(); });
+    archive.pipe(res);
+
+    for (const invoice of invoices) {
+      if (invoice.danfe_path && fs.existsSync(invoice.danfe_path)) {
+        archive.file(invoice.danfe_path, { name: `danfe-${invoice.access_key ?? invoice.order_id}.pdf` });
+      }
+    }
+
+    await archive.finalize();
+  } catch {
+    res.status(500).json({ error: "Failed to build DANFE batch" });
   }
 }
 
