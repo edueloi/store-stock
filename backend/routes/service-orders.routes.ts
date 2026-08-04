@@ -7,6 +7,7 @@ import {
   updateChecklist,
   updateServiceOrderStatus,
   addServiceOrderPart,
+  updateServiceOrderPart,
   removeServiceOrderPart,
   attachServiceOrderPhoto,
   deleteServiceOrderPhoto,
@@ -28,6 +29,7 @@ router.put("/:id", updateServiceOrder);
 router.put("/:id/checklist", updateChecklist);
 router.put("/:id/status", updateServiceOrderStatus);
 router.post("/:id/parts", addServiceOrderPart);
+router.put("/:id/parts/:partId", updateServiceOrderPart);
 router.delete("/:id/parts/:partId", removeServiceOrderPart);
 router.post("/:id/photos", attachServiceOrderPhoto);
 router.delete("/:id/photos/:photoId", deleteServiceOrderPhoto);

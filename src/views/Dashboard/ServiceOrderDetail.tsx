@@ -23,6 +23,8 @@ import {
   QrCode,
   FileDown,
   Receipt,
+  Percent,
+  DollarSign,
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { cn } from "../../lib/utils";
@@ -90,6 +92,8 @@ export default function ServiceOrderDetail() {
   const [priority, setPriority] = useState<"normal" | "urgente">("normal");
   const [promisedAt, setPromisedAt] = useState("");
   const [serviceValue, setServiceValue] = useState("");
+  const [discountType, setDiscountType] = useState<"percent" | "fixed">("percent");
+  const [discountValue, setDiscountValue] = useState(0);
   const [nfseInvoice, setNfseInvoice] = useState<NfseInvoice | null>(null);
   const [nfseCodigoServico, setNfseCodigoServico] = useState("70602");
   const [nfseDescricao, setNfseDescricao] = useState("");
@@ -111,17 +115,27 @@ export default function ServiceOrderDetail() {
   const [ncatItems, setNcatItems] = useState<string[]>([""]);
   const [savingCategory, setSavingCategory] = useState(false);
 
+  // ── Modal unificado de adicionar item (catálogo / medida / livre) ───────
+  const [showAddPartModal, setShowAddPartModal] = useState(false);
+  const [addPartTab, setAddPartTab] = useState<"catalog" | "free">("catalog");
   const [partSearch, setPartSearch] = useState("");
+  const [partSelectedProduct, setPartSelectedProduct] = useState<Product | null>(null);
   const [partQty, setPartQty] = useState(1);
   const [partNoCharge, setPartNoCharge] = useState(false);
-  const [measureProduct, setMeasureProduct] = useState<Product | null>(null);
+  const [partDiscountType, setPartDiscountType] = useState<"percent" | "fixed">("percent");
+  const [partDiscountValue, setPartDiscountValue] = useState("");
   const [measureHeight, setMeasureHeight] = useState("");
   const [measureWidth, setMeasureWidth] = useState("");
   const [addingPart, setAddingPart] = useState(false);
-  const [showFreePartForm, setShowFreePartForm] = useState(false);
   const [freePartName, setFreePartName] = useState("");
   const [freePartUnit, setFreePartUnit] = useState("UN");
   const [freePartPrice, setFreePartPrice] = useState("");
+
+  // Edição de desconto de um item já existente
+  const [editingDiscountPartId, setEditingDiscountPartId] = useState<number | null>(null);
+  const [editDiscountType, setEditDiscountType] = useState<"percent" | "fixed">("percent");
+  const [editDiscountValue, setEditDiscountValue] = useState("");
+  const [savingItemDiscount, setSavingItemDiscount] = useState(false);
 
   const [photoUploading, setPhotoUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -164,6 +178,8 @@ export default function ServiceOrderDetail() {
     setPriority(so.priority);
     setPromisedAt(so.promised_at ? so.promised_at.slice(0, 10) : "");
     setServiceValue(so.service_value ? String(so.service_value) : "");
+    setDiscountType(so.discount_type ?? "percent");
+    setDiscountValue(Number(so.discount_value) || 0);
     setWarrantyDays(so.warranty_days ? String(so.warranty_days) : "");
     setWarrantyTerms(so.warranty_terms ?? "");
     setObservations(so.observations ?? "");
@@ -327,58 +343,88 @@ export default function ServiceOrderDetail() {
   const canStartService = !!customerName && !!equipmentCategory && !!reportedIssue;
 
   // ── Parts ───────────────────────────────────────────────────────────────
-  const handleAddPart = async (product: Product) => {
-    if (!selected) return;
-    if (product.sale_unit && product.sale_unit !== "unidade") {
-      setMeasureProduct(product);
-      setMeasureHeight("");
-      setMeasureWidth("");
-      setPartSearch("");
-      return;
-    }
-    setAddingPart(true);
-    try {
-      const res = await fetch(`/api/service-orders/${selected.id}/parts`, {
-        method: "POST",
-        headers: authHeader(),
-        body: JSON.stringify({ product_id: product.id, quantity: partQty, no_charge: partNoCharge }),
-      });
-      if (res.ok) {
-        setPartSearch("");
-        setPartQty(1);
-        setPartNoCharge(false);
-        await fetchOrder(true);
-      } else {
-        const err = await res.json().catch(() => ({}));
-        alert(err.error || "Falha ao adicionar peça");
-      }
-    } finally {
-      setAddingPart(false);
-    }
+  const isMeasuredProduct = !!partSelectedProduct?.sale_unit && partSelectedProduct.sale_unit !== "unidade";
+
+  const openAddPartModal = () => {
+    setAddPartTab("catalog");
+    setPartSearch("");
+    setPartSelectedProduct(null);
+    setPartQty(1);
+    setPartNoCharge(false);
+    setPartDiscountType("percent");
+    setPartDiscountValue("");
+    setMeasureHeight("");
+    setMeasureWidth("");
+    setFreePartName("");
+    setFreePartUnit("UN");
+    setFreePartPrice("");
+    setShowAddPartModal(true);
   };
 
-  const handleAddFreePart = async () => {
-    if (!selected || !freePartName.trim()) return;
+  // Aplica desconto sobre um valor, mesmo cálculo do backend (applyDiscount em
+  // service-orders.controller.ts) — só para preview em tempo real no modal.
+  const previewWithDiscount = (amount: number, discountType: "percent" | "fixed", discountValue: number) => {
+    const value = Math.max(0, discountValue || 0);
+    const discountAmt = discountType === "percent" ? (amount * value) / 100 : Math.min(value, amount);
+    return Math.max(0, Math.round((amount - discountAmt) * 100) / 100);
+  };
+
+  const measurePreview = isMeasuredProduct && partSelectedProduct
+    ? computeMeasuredPrice(
+        (partSelectedProduct.sale_unit as "m2" | "linear") ?? "m2",
+        Number(partSelectedProduct.price_per_measure) || 0,
+        partSelectedProduct.min_billable_quantity,
+        Number(measureHeight) || 0,
+        Number(measureWidth) || 0,
+      )
+    : null;
+
+  // Preço bruto (antes do desconto do item) do item sendo montado no modal, conforme a aba/modo ativo.
+  const addPartRawTotal = partNoCharge ? 0
+    : addPartTab === "free" ? Math.max(0, Number(freePartPrice) || 0) * Math.max(1, partQty)
+    : isMeasuredProduct ? (measurePreview?.total ?? 0)
+    : partSelectedProduct ? Number(partSelectedProduct.price) * Math.max(1, partQty)
+    : 0;
+  const addPartFinalTotal = partNoCharge ? 0 : previewWithDiscount(addPartRawTotal, partDiscountType, Number(partDiscountValue) || 0);
+
+  const handleAddPartSubmit = async () => {
+    if (!selected) return;
+    const commonDiscount = { discount_type: partDiscountType, discount_value: Math.max(0, Number(partDiscountValue) || 0) };
+
+    let body: Record<string, unknown>;
+    if (addPartTab === "free") {
+      if (!freePartName.trim()) return;
+      body = {
+        name: freePartName.trim(),
+        unit: freePartUnit.trim() || "UN",
+        quantity: partQty,
+        unit_price: Number(freePartPrice) || 0,
+        no_charge: partNoCharge,
+        ...commonDiscount,
+      };
+    } else if (isMeasuredProduct && partSelectedProduct) {
+      body = {
+        product_id: partSelectedProduct.id,
+        height: Number(measureHeight) || 0,
+        width: Number(measureWidth) || 0,
+        no_charge: partNoCharge,
+        ...commonDiscount,
+      };
+    } else if (partSelectedProduct) {
+      body = { product_id: partSelectedProduct.id, quantity: partQty, no_charge: partNoCharge, ...commonDiscount };
+    } else {
+      return;
+    }
+
     setAddingPart(true);
     try {
       const res = await fetch(`/api/service-orders/${selected.id}/parts`, {
         method: "POST",
         headers: authHeader(),
-        body: JSON.stringify({
-          name: freePartName.trim(),
-          unit: freePartUnit.trim() || "UN",
-          quantity: partQty,
-          unit_price: Number(freePartPrice) || 0,
-          no_charge: partNoCharge,
-        }),
+        body: JSON.stringify(body),
       });
       if (res.ok) {
-        setFreePartName("");
-        setFreePartUnit("UN");
-        setFreePartPrice("");
-        setPartQty(1);
-        setPartNoCharge(false);
-        setShowFreePartForm(false);
+        setShowAddPartModal(false);
         await fetchOrder(true);
       } else {
         const err = await res.json().catch(() => ({}));
@@ -389,40 +435,30 @@ export default function ServiceOrderDetail() {
     }
   };
 
-  const measurePreview = measureProduct
-    ? computeMeasuredPrice(
-        (measureProduct.sale_unit as "m2" | "linear") ?? "m2",
-        Number(measureProduct.price_per_measure) || 0,
-        measureProduct.min_billable_quantity,
-        Number(measureHeight) || 0,
-        Number(measureWidth) || 0,
-      )
-    : null;
+  const openEditDiscount = (part: ServiceOrder["parts"][number]) => {
+    setEditingDiscountPartId(part.id);
+    setEditDiscountType(part.discount_type ?? "percent");
+    setEditDiscountValue(part.discount_value ? String(part.discount_value) : "");
+  };
 
-  const handleAddMeasuredPart = async () => {
-    if (!selected || !measureProduct) return;
-    setAddingPart(true);
+  const handleSaveItemDiscount = async () => {
+    if (!selected || editingDiscountPartId == null) return;
+    setSavingItemDiscount(true);
     try {
-      const res = await fetch(`/api/service-orders/${selected.id}/parts`, {
-        method: "POST",
+      const res = await fetch(`/api/service-orders/${selected.id}/parts/${editingDiscountPartId}`, {
+        method: "PUT",
         headers: authHeader(),
-        body: JSON.stringify({
-          product_id: measureProduct.id,
-          height: Number(measureHeight) || 0,
-          width: Number(measureWidth) || 0,
-        }),
+        body: JSON.stringify({ discount_type: editDiscountType, discount_value: Math.max(0, Number(editDiscountValue) || 0) }),
       });
       if (res.ok) {
-        setMeasureProduct(null);
-        setMeasureHeight("");
-        setMeasureWidth("");
+        setEditingDiscountPartId(null);
         await fetchOrder(true);
       } else {
         const err = await res.json().catch(() => ({}));
-        alert(err.error || "Falha ao adicionar peça");
+        alert(err.error || "Falha ao salvar desconto");
       }
     } finally {
-      setAddingPart(false);
+      setSavingItemDiscount(false);
     }
   };
 
@@ -897,94 +933,57 @@ export default function ServiceOrderDetail() {
 
           {/* Peças */}
           <div className="bg-white rounded-2xl border border-slate-200 p-5">
-            <p className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400 mb-2">Peças / Itens</p>
-            {!selected.invoiced_order_id && (
-              <div className="space-y-2 mb-2">
-                {!showFreePartForm ? (
-                  <div className="flex gap-2">
-                    <div className="flex-1">
-                      <Combobox
-                        placeholder="Buscar peça no estoque..."
-                        searchPlaceholder="Nome do produto..."
-                        value=""
-                        onChange={(v) => {
-                          const product = products.find((p) => String(p.id) === v);
-                          if (product) handleAddPart(product);
-                        }}
-                        options={filteredParts.length > 0 ? filteredParts.map((p) => ({ value: String(p.id), label: p.name, description: `${fmt(p.price)} · estoque ${p.stock_quantity}` }))
-                          : products.filter((p) => p.stock_quantity > 0 || (!!p.sale_unit && p.sale_unit !== "unidade")).slice(0, 20).map((p) => ({ value: String(p.id), label: p.name, description: p.sale_unit && p.sale_unit !== "unidade" ? `${fmt(p.price_per_measure ?? 0)}/${p.sale_unit === "m2" ? "m²" : "m"}` : `${fmt(p.price)} · estoque ${p.stock_quantity}` }))}
-                      />
-                    </div>
-                    <input type="number" min="1" value={partQty} onChange={(e) => setPartQty(Math.max(1, Number(e.target.value) || 1))}
-                      className="w-16 h-10 px-2 rounded-xl border border-slate-200 text-[12px] font-bold text-center focus:outline-none focus:border-blue-400" />
-                  </div>
-                ) : (
-                  <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 space-y-2">
-                    <input value={freePartName} onChange={(e) => setFreePartName(e.target.value)} placeholder="Descrição do item (ex: Mão de obra extra)"
-                      className="w-full h-9 px-3 rounded-lg border border-slate-200 text-[12px] focus:outline-none focus:border-blue-400" />
-                    <div className="flex gap-2">
-                      <input value={freePartUnit} onChange={(e) => setFreePartUnit(e.target.value.toUpperCase().slice(0, 10))} placeholder="Un"
-                        className="w-16 h-9 px-2 rounded-lg border border-slate-200 text-[12px] text-center font-bold focus:outline-none focus:border-blue-400" />
-                      <input type="number" min="1" value={partQty} onChange={(e) => setPartQty(Math.max(1, Number(e.target.value) || 1))}
-                        className="w-16 h-9 px-2 rounded-lg border border-slate-200 text-[12px] font-bold text-center focus:outline-none focus:border-blue-400" />
-                      <input type="number" min="0" step="0.01" value={freePartPrice} onChange={(e) => setFreePartPrice(e.target.value)}
-                        placeholder="Valor unit." disabled={partNoCharge}
-                        className="flex-1 h-9 px-3 rounded-lg border border-slate-200 text-[12px] font-mono focus:outline-none focus:border-blue-400 disabled:opacity-50" />
-                    </div>
-                  </div>
-                )}
-                <div className="flex items-center justify-between">
-                  <label className="flex items-center gap-1.5 text-[10px] font-bold text-slate-500 cursor-pointer">
-                    <input type="checkbox" checked={partNoCharge} onChange={(e) => setPartNoCharge(e.target.checked)} className="w-3.5 h-3.5 accent-blue-600" />
-                    Sem cobrança (cortesia)
-                  </label>
-                  {showFreePartForm ? (
-                    <div className="flex gap-2">
-                      <button onClick={() => setShowFreePartForm(false)} className="h-8 px-3 rounded-lg text-[10px] font-black uppercase tracking-wide text-slate-500 hover:bg-slate-100 transition-all">
-                        Cancelar
-                      </button>
-                      <button onClick={handleAddFreePart} disabled={addingPart || !freePartName.trim()}
-                        className="h-8 px-3 rounded-lg bg-blue-600 text-white text-[10px] font-black uppercase tracking-wide hover:bg-blue-700 transition-all disabled:opacity-50">
-                        Adicionar
-                      </button>
-                    </div>
-                  ) : (
-                    <button onClick={() => setShowFreePartForm(true)} className="text-[10px] font-black uppercase tracking-wide text-blue-600 hover:text-blue-700 transition-all">
-                      + Item livre (sem produto)
-                    </button>
-                  )}
-                </div>
-              </div>
-            )}
-            {addingPart && <p className="text-[10px] text-slate-400 mb-2">Adicionando item...</p>}
+            <div className="flex items-center justify-between mb-3">
+              <p className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400">Peças / Itens / Serviços</p>
+              {!selected.invoiced_order_id && (
+                <button onClick={openAddPartModal}
+                  className="h-8 px-3 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-[10px] font-black uppercase tracking-wide flex items-center gap-1.5 transition-all">
+                  <Plus size={13} /> Adicionar item
+                </button>
+              )}
+            </div>
             {selected.parts.length === 0 ? (
               <p className="text-[11px] text-slate-400">Nenhum item adicionado</p>
             ) : (
               <div className="space-y-1.5">
-                {selected.parts.map((part) => (
-                  <div key={part.id} className="flex items-center justify-between bg-slate-50 rounded-xl px-3 py-2 border border-slate-200">
-                    <div className="min-w-0">
-                      <p className="text-[12px] font-semibold text-slate-700 truncate">{part.name}</p>
-                      {part.dimensions_label ? (
-                        <p className="text-[10px] text-blue-500 font-mono">{part.dimensions_label}</p>
-                      ) : (
-                        <p className="text-[10px] text-slate-400">{part.quantity} {part.unit} × {fmt(part.unit_price)}</p>
-                      )}
+                {selected.parts.map((part) => {
+                  const hasDiscount = !part.no_charge && Number(part.discount_value) > 0 && Number(part.total) < Number(part.total_before_discount);
+                  return (
+                    <div key={part.id} className="flex items-center justify-between bg-slate-50 rounded-xl px-3 py-2 border border-slate-200">
+                      <div className="min-w-0">
+                        <p className="text-[12px] font-semibold text-slate-700 truncate">{part.name}</p>
+                        {part.dimensions_label ? (
+                          <p className="text-[10px] text-blue-500 font-mono">{part.dimensions_label}</p>
+                        ) : (
+                          <p className="text-[10px] text-slate-400">{part.quantity} {part.unit} × {fmt(part.unit_price)}</p>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0">
+                        {part.no_charge ? (
+                          <span className="text-[9px] font-black uppercase tracking-wide text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded">Sem cobrança</span>
+                        ) : hasDiscount ? (
+                          <div className="flex flex-col items-end">
+                            <span className="text-[9px] font-mono text-slate-400 line-through">{fmt(part.total_before_discount)}</span>
+                            <span className="text-[12px] font-mono font-bold text-emerald-600">{fmt(part.total)}</span>
+                          </div>
+                        ) : (
+                          <span className="text-[12px] font-mono font-bold text-slate-700">{fmt(part.total)}</span>
+                        )}
+                        {!selected.invoiced_order_id && (
+                          <>
+                            <button onClick={() => openEditDiscount(part)} title="Desconto"
+                              className="text-slate-300 hover:text-blue-500 transition-colors">
+                              <Percent size={13} />
+                            </button>
+                            <button onClick={() => handleRemovePart(part.id)} className="text-slate-300 hover:text-red-500 transition-colors">
+                              <Trash2 size={13} />
+                            </button>
+                          </>
+                        )}
+                      </div>
                     </div>
-                    <div className="flex items-center gap-2 shrink-0">
-                      {part.no_charge ? (
-                        <span className="text-[9px] font-black uppercase tracking-wide text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded">Sem cobrança</span>
-                      ) : (
-                        <span className="text-[12px] font-mono font-bold text-slate-700">{fmt(part.total)}</span>
-                      )}
-                      {!selected.invoiced_order_id && (
-                        <button onClick={() => handleRemovePart(part.id)} className="text-slate-300 hover:text-red-500 transition-colors">
-                          <Trash2 size={13} />
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>
@@ -1107,6 +1106,27 @@ export default function ServiceOrderDetail() {
               />
             </div>
 
+            <div>
+              <label className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400 mb-1.5 block">Desconto total da OS</label>
+              <div className="flex gap-1">
+                <button onClick={() => { setDiscountType("percent"); autosaveField({ discount_type: "percent" }, "discount"); }}
+                  className={cn("h-9 w-9 rounded-lg border flex items-center justify-center transition-all",
+                    discountType === "percent" ? "bg-blue-600 text-white border-blue-600" : "bg-white border-slate-200 text-slate-500 hover:bg-slate-50")}>
+                  <Percent size={14} />
+                </button>
+                <button onClick={() => { setDiscountType("fixed"); autosaveField({ discount_type: "fixed" }, "discount"); }}
+                  className={cn("h-9 w-9 rounded-lg border flex items-center justify-center transition-all",
+                    discountType === "fixed" ? "bg-blue-600 text-white border-blue-600" : "bg-white border-slate-200 text-slate-500 hover:bg-slate-50")}>
+                  <DollarSign size={14} />
+                </button>
+                <input type="number" min={0} value={discountValue || ""}
+                  onChange={(e) => setDiscountValue(Number(e.target.value))}
+                  onBlur={() => autosaveField({ discount_value: discountValue }, "discount")}
+                  placeholder={discountType === "percent" ? "%" : "R$"}
+                  className="flex-1 h-9 px-3 rounded-lg border border-slate-200 text-sm font-mono focus:outline-none focus:border-blue-400" />
+              </div>
+            </div>
+
             <div className="bg-slate-900 rounded-2xl p-4 space-y-1.5">
               <div className="flex justify-between text-[10px] font-bold uppercase text-slate-400">
                 <span>Mão de obra</span>
@@ -1116,6 +1136,14 @@ export default function ServiceOrderDetail() {
                 <span>Peças</span>
                 <span className="font-mono text-slate-200">{fmt(selected.parts_total)}</span>
               </div>
+              {Number(selected.discount_value) > 0 && (
+                <div className="flex justify-between text-[10px] font-bold uppercase text-amber-400">
+                  <span>Desconto</span>
+                  <span className="font-mono">
+                    {selected.discount_type === "percent" ? `-${selected.discount_value}%` : `-${fmt(selected.discount_value)}`}
+                  </span>
+                </div>
+              )}
               <div className="flex justify-between text-[13px] font-black uppercase text-white pt-1.5 border-t border-slate-700">
                 <span>Total</span>
                 <span className="font-mono">{fmt(selected.total_amount)}</span>
@@ -1373,19 +1401,25 @@ export default function ServiceOrderDetail() {
         </div>
       </Modal>
 
-      {/* ── MEASURE (m²/linear) MODAL ───────────────────────────────────────── */}
+      {/* ── ADD PART MODAL (catálogo / medida / item livre + desconto) ─────── */}
       <Modal
-        open={!!measureProduct}
-        onClose={() => setMeasureProduct(null)}
-        title={measureProduct ? measureProduct.name : ""}
-        subtitle={measureProduct ? `Venda por ${measureProduct.sale_unit === "m2" ? "m²" : "metro linear"}` : undefined}
+        open={showAddPartModal}
+        onClose={() => setShowAddPartModal(false)}
+        title="Adicionar item"
+        subtitle={isMeasuredProduct ? `Venda por ${partSelectedProduct!.sale_unit === "m2" ? "m²" : "metro linear"}` : undefined}
+        size="lg"
         footer={
           <>
-            <button onClick={() => setMeasureProduct(null)} className="flex-1 h-11 rounded-xl border border-slate-200 text-[10px] font-black uppercase tracking-widest text-slate-600 hover:bg-slate-50 transition-colors">
+            <button onClick={() => setShowAddPartModal(false)} className="flex-1 h-11 rounded-xl border border-slate-200 text-[10px] font-black uppercase tracking-widest text-slate-600 hover:bg-slate-50 transition-colors">
               Cancelar
             </button>
-            <button onClick={handleAddMeasuredPart}
-              disabled={addingPart || !measurePreview || measurePreview.rawQuantity <= 0}
+            <button onClick={handleAddPartSubmit}
+              disabled={
+                addingPart ||
+                (addPartTab === "free" ? !freePartName.trim() :
+                  isMeasuredProduct ? !measurePreview || measurePreview.rawQuantity <= 0 :
+                  !partSelectedProduct)
+              }
               className="flex-1 h-11 bg-blue-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-blue-700 transition-all disabled:opacity-50 flex items-center justify-center gap-2">
               {addingPart ? <Loader2 size={14} className="animate-spin" /> : <PlusCircle size={14} />}
               Adicionar
@@ -1393,54 +1427,192 @@ export default function ServiceOrderDetail() {
           </>
         }
       >
-        {measureProduct && (
-          <>
-            {measureProduct.sale_unit === "m2" ? (
-              <div className="grid grid-cols-2 gap-3">
+        {/* Abas */}
+        <div className="flex gap-1.5 p-1 bg-slate-100 rounded-xl">
+          <button onClick={() => { setAddPartTab("catalog"); setFreePartName(""); }}
+            className={cn("flex-1 h-8 rounded-lg text-[10px] font-black uppercase tracking-wide transition-all",
+              addPartTab === "catalog" ? "bg-white text-blue-600 shadow-sm" : "text-slate-400 hover:text-slate-600")}>
+            Catálogo
+          </button>
+          <button onClick={() => { setAddPartTab("free"); setPartSelectedProduct(null); }}
+            className={cn("flex-1 h-8 rounded-lg text-[10px] font-black uppercase tracking-wide transition-all",
+              addPartTab === "free" ? "bg-white text-blue-600 shadow-sm" : "text-slate-400 hover:text-slate-600")}>
+            Item / Serviço Livre
+          </button>
+        </div>
+
+        {addPartTab === "catalog" ? (
+          <div className="space-y-3">
+            <Combobox
+              placeholder="Buscar produto ou serviço no catálogo..."
+              searchPlaceholder="Nome do produto..."
+              value={partSelectedProduct ? String(partSelectedProduct.id) : ""}
+              onChange={(v) => {
+                const product = products.find((p) => String(p.id) === v);
+                setPartSelectedProduct(product ?? null);
+                setMeasureHeight("");
+                setMeasureWidth("");
+              }}
+              options={filteredParts.length > 0 ? filteredParts.map((p) => ({ value: String(p.id), label: p.name, description: `${fmt(p.price)} · estoque ${p.stock_quantity}` }))
+                : products.filter((p) => p.stock_quantity > 0 || (!!p.sale_unit && p.sale_unit !== "unidade")).slice(0, 20).map((p) => ({ value: String(p.id), label: p.name, description: p.sale_unit && p.sale_unit !== "unidade" ? `${fmt(p.price_per_measure ?? 0)}/${p.sale_unit === "m2" ? "m²" : "m"}` : `${fmt(p.price)} · estoque ${p.stock_quantity}` }))}
+            />
+
+            {partSelectedProduct && isMeasuredProduct && (
+              partSelectedProduct.sale_unit === "m2" ? (
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400 mb-1.5 block">Altura (m)</label>
+                    <input type="number" min="0" step="0.01" autoFocus value={measureHeight}
+                      onChange={(e) => setMeasureHeight(e.target.value)}
+                      placeholder="0,00"
+                      className="w-full h-11 px-3 rounded-xl border border-slate-200 text-sm font-mono font-bold text-center focus:outline-none focus:border-blue-400" />
+                  </div>
+                  <div>
+                    <label className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400 mb-1.5 block">Largura (m)</label>
+                    <input type="number" min="0" step="0.01" value={measureWidth}
+                      onChange={(e) => setMeasureWidth(e.target.value)}
+                      placeholder="0,00"
+                      className="w-full h-11 px-3 rounded-xl border border-slate-200 text-sm font-mono font-bold text-center focus:outline-none focus:border-blue-400" />
+                  </div>
+                </div>
+              ) : (
                 <div>
-                  <label className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400 mb-1.5 block">Altura (m)</label>
+                  <label className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400 mb-1.5 block">Comprimento (m)</label>
                   <input type="number" min="0" step="0.01" autoFocus value={measureHeight}
                     onChange={(e) => setMeasureHeight(e.target.value)}
                     placeholder="0,00"
                     className="w-full h-11 px-3 rounded-xl border border-slate-200 text-sm font-mono font-bold text-center focus:outline-none focus:border-blue-400" />
                 </div>
-                <div>
-                  <label className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400 mb-1.5 block">Largura (m)</label>
-                  <input type="number" min="0" step="0.01" value={measureWidth}
-                    onChange={(e) => setMeasureWidth(e.target.value)}
-                    placeholder="0,00"
-                    className="w-full h-11 px-3 rounded-xl border border-slate-200 text-sm font-mono font-bold text-center focus:outline-none focus:border-blue-400" />
-                </div>
-              </div>
-            ) : (
+              )
+            )}
+
+            {partSelectedProduct && !isMeasuredProduct && (
               <div>
-                <label className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400 mb-1.5 block">Comprimento (m)</label>
-                <input type="number" min="0" step="0.01" autoFocus value={measureHeight}
-                  onChange={(e) => setMeasureHeight(e.target.value)}
-                  placeholder="0,00"
-                  className="w-full h-11 px-3 rounded-xl border border-slate-200 text-sm font-mono font-bold text-center focus:outline-none focus:border-blue-400" />
+                <label className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400 mb-1.5 block">Quantidade</label>
+                <input type="number" min="1" value={partQty} onChange={(e) => setPartQty(Math.max(1, Number(e.target.value) || 1))}
+                  className="w-24 h-11 px-3 rounded-xl border border-slate-200 text-sm font-mono font-bold text-center focus:outline-none focus:border-blue-400" />
               </div>
             )}
 
-            {measurePreview && measurePreview.rawQuantity > 0 && (
-              <div className="bg-slate-900 rounded-2xl p-4 space-y-1.5">
+            {measurePreview && isMeasuredProduct && measurePreview.rawQuantity > 0 && (
+              <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 space-y-1">
                 <div className="flex justify-between text-[10px] font-bold uppercase text-slate-400">
-                  <span>{measureProduct.sale_unit === "m2" ? "Área" : "Comprimento"}</span>
-                  <span className="font-mono text-slate-200">{measurePreview.label}</span>
+                  <span>{partSelectedProduct!.sale_unit === "m2" ? "Área" : "Comprimento"}</span>
+                  <span className="font-mono text-slate-600">{measurePreview.label}</span>
                 </div>
                 {measurePreview.minimumApplied && (
-                  <p className="text-[10px] font-bold text-amber-400">
-                    Cobrando o mínimo de {Number(measureProduct.min_billable_quantity).toFixed(2)}{measureProduct.sale_unit === "m2" ? "m²" : "m"}
+                  <p className="text-[10px] font-bold text-amber-600">
+                    Cobrando o mínimo de {Number(partSelectedProduct!.min_billable_quantity).toFixed(2)}{partSelectedProduct!.sale_unit === "m2" ? "m²" : "m"}
                   </p>
                 )}
-                <div className="flex justify-between text-[13px] font-black uppercase text-white pt-1.5 border-t border-slate-700">
-                  <span>Total</span>
-                  <span className="font-mono">R$ {measurePreview.total.toFixed(2)}</span>
+              </div>
+            )}
+          </div>
+        ) : (
+          <div className="space-y-3">
+            <input value={freePartName} onChange={(e) => setFreePartName(e.target.value)} placeholder="Descrição (ex: Corte de vidro, Mão de obra extra)"
+              className="w-full h-11 px-3 rounded-xl border border-slate-200 text-sm focus:outline-none focus:border-blue-400" />
+            <div className="grid grid-cols-3 gap-3">
+              <div>
+                <label className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400 mb-1.5 block">Unidade</label>
+                <input value={freePartUnit} onChange={(e) => setFreePartUnit(e.target.value.toUpperCase().slice(0, 10))} placeholder="Un"
+                  className="w-full h-11 px-2 rounded-xl border border-slate-200 text-sm text-center font-bold focus:outline-none focus:border-blue-400" />
+              </div>
+              <div>
+                <label className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400 mb-1.5 block">Qtd.</label>
+                <input type="number" min="1" value={partQty} onChange={(e) => setPartQty(Math.max(1, Number(e.target.value) || 1))}
+                  className="w-full h-11 px-2 rounded-xl border border-slate-200 text-sm font-bold text-center focus:outline-none focus:border-blue-400" />
+              </div>
+              <div>
+                <label className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400 mb-1.5 block">Valor unit.</label>
+                <input type="number" min="0" step="0.01" value={freePartPrice} onChange={(e) => setFreePartPrice(e.target.value)}
+                  placeholder="0,00" disabled={partNoCharge}
+                  className="w-full h-11 px-2 rounded-xl border border-slate-200 text-sm font-mono focus:outline-none focus:border-blue-400 disabled:opacity-50" />
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Desconto do item + cortesia — comum às duas abas */}
+        {(partSelectedProduct || addPartTab === "free") && (
+          <div className="border-t border-slate-100 pt-3 space-y-3">
+            <label className="flex items-center gap-1.5 text-[10px] font-bold text-slate-500 cursor-pointer">
+              <input type="checkbox" checked={partNoCharge} onChange={(e) => setPartNoCharge(e.target.checked)} className="w-3.5 h-3.5 accent-blue-600" />
+              Sem cobrança (cortesia)
+            </label>
+
+            {!partNoCharge && (
+              <div>
+                <label className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400 mb-1.5 block">Desconto neste item</label>
+                <div className="flex gap-2">
+                  <div className="flex bg-slate-100 rounded-xl p-1 shrink-0">
+                    <button onClick={() => setPartDiscountType("percent")}
+                      className={cn("h-9 w-9 rounded-lg flex items-center justify-center transition-all", partDiscountType === "percent" ? "bg-white text-blue-600 shadow-sm" : "text-slate-400")}>
+                      <Percent size={14} />
+                    </button>
+                    <button onClick={() => setPartDiscountType("fixed")}
+                      className={cn("h-9 w-9 rounded-lg flex items-center justify-center transition-all", partDiscountType === "fixed" ? "bg-white text-blue-600 shadow-sm" : "text-slate-400")}>
+                      <DollarSign size={14} />
+                    </button>
+                  </div>
+                  <input type="number" min="0" step="0.01" value={partDiscountValue} onChange={(e) => setPartDiscountValue(e.target.value)}
+                    placeholder={partDiscountType === "percent" ? "0%" : "R$ 0,00"}
+                    className="flex-1 h-9 px-3 rounded-xl border border-slate-200 text-sm font-mono focus:outline-none focus:border-blue-400" />
                 </div>
               </div>
             )}
-          </>
+
+            {/* Preview do valor final */}
+            <div className="bg-slate-900 rounded-2xl p-4 space-y-1.5">
+              {!partNoCharge && Number(partDiscountValue) > 0 && (
+                <div className="flex justify-between text-[10px] font-bold uppercase text-slate-400">
+                  <span>Antes do desconto</span>
+                  <span className="font-mono text-slate-400 line-through">{fmt(addPartRawTotal)}</span>
+                </div>
+              )}
+              <div className="flex justify-between text-[13px] font-black uppercase text-white pt-1.5 border-t border-slate-700">
+                <span>Total do item</span>
+                <span className="font-mono">{fmt(addPartFinalTotal)}</span>
+              </div>
+            </div>
+          </div>
         )}
+      </Modal>
+
+      {/* ── EDIT ITEM DISCOUNT MODAL ────────────────────────────────────────── */}
+      <Modal
+        open={editingDiscountPartId != null}
+        onClose={() => setEditingDiscountPartId(null)}
+        title="Desconto do item"
+        size="sm"
+        footer={
+          <>
+            <button onClick={() => setEditingDiscountPartId(null)} className="flex-1 h-11 rounded-xl border border-slate-200 text-[10px] font-black uppercase tracking-widest text-slate-600 hover:bg-slate-50 transition-colors">
+              Cancelar
+            </button>
+            <button onClick={handleSaveItemDiscount} disabled={savingItemDiscount}
+              className="flex-1 h-11 bg-blue-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-blue-700 transition-all disabled:opacity-50 flex items-center justify-center gap-2">
+              {savingItemDiscount ? <Loader2 size={14} className="animate-spin" /> : null}
+              Salvar
+            </button>
+          </>
+        }
+      >
+        <div className="flex gap-2">
+          <div className="flex bg-slate-100 rounded-xl p-1 shrink-0">
+            <button onClick={() => setEditDiscountType("percent")}
+              className={cn("h-9 w-9 rounded-lg flex items-center justify-center transition-all", editDiscountType === "percent" ? "bg-white text-blue-600 shadow-sm" : "text-slate-400")}>
+              <Percent size={14} />
+            </button>
+            <button onClick={() => setEditDiscountType("fixed")}
+              className={cn("h-9 w-9 rounded-lg flex items-center justify-center transition-all", editDiscountType === "fixed" ? "bg-white text-blue-600 shadow-sm" : "text-slate-400")}>
+              <DollarSign size={14} />
+            </button>
+          </div>
+          <input type="number" min="0" step="0.01" autoFocus value={editDiscountValue} onChange={(e) => setEditDiscountValue(e.target.value)}
+            placeholder={editDiscountType === "percent" ? "0%" : "R$ 0,00"}
+            className="flex-1 h-9 px-3 rounded-xl border border-slate-200 text-sm font-mono focus:outline-none focus:border-blue-400" />
+        </div>
       </Modal>
 
       {/* ── INVOICE MODAL ────────────────────────────────────────────────── */}

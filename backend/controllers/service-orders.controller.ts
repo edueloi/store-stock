@@ -48,17 +48,28 @@ async function logAction(
   });
 }
 
+// Aplica desconto percentual ou fixo sobre um valor, nunca deixando o resultado negativo
+// (mesmo princípio usado em recomputeQuoteTotals, quotes.controller.ts).
+function applyDiscount(amount: number, discountType: string, discountValue: number): number {
+  const discountAmt = discountType === "percent" ? (amount * discountValue) / 100 : Math.min(discountValue, amount);
+  return Math.max(0, Math.round((amount - discountAmt) * 100) / 100);
+}
+
 async function recomputeTotals(serviceOrderId: number) {
   const parts = await prisma.serviceOrderPart.findMany({ where: { service_order_id: serviceOrderId } });
   const partsTotal = parts.reduce((sum, p) => sum + Number(p.total), 0);
-  const so = await prisma.serviceOrder.findUnique({ where: { id: serviceOrderId }, select: { service_value: true } });
+  const so = await prisma.serviceOrder.findUnique({
+    where: { id: serviceOrderId },
+    select: { service_value: true, discount_type: true, discount_value: true },
+  });
   const serviceValue = Number(so?.service_value ?? 0);
-  const totalAmount = Math.round((serviceValue + partsTotal) * 100) / 100;
+  const subtotal = Math.round((serviceValue + partsTotal) * 100) / 100;
+  const totalAmount = applyDiscount(subtotal, so?.discount_type ?? "percent", Number(so?.discount_value ?? 0));
   await prisma.serviceOrder.update({
     where: { id: serviceOrderId },
-    data: { parts_total: partsTotal, total_amount: totalAmount },
+    data: { parts_total: partsTotal, subtotal, total_amount: totalAmount },
   });
-  return { partsTotal, totalAmount };
+  return { partsTotal, subtotal, totalAmount };
 }
 
 const SERVICE_ORDER_INCLUDE = {
@@ -164,7 +175,7 @@ export async function createServiceOrder(req: Request, res: Response) {
     const template = equipment_category ? (policies.service_order_checklists?.[equipment_category] ?? []) : [];
 
     // Resolve and validate parts (stock check) before creating anything
-    const partRows: { product_id: number; name: string; quantity: number; unit_price: number; total: number }[] = [];
+    const partRows: { product_id: number; name: string; quantity: number; unit_price: number; total_before_discount: number; total: number }[] = [];
     if (parts && parts.length > 0) {
       for (const p of parts) {
         const product = await prisma.product.findFirst({ where: { id: p.product_id, tenant_id: tenantId } });
@@ -173,12 +184,16 @@ export async function createServiceOrder(req: Request, res: Response) {
           return res.status(400).json({ error: `Estoque insuficiente para "${product.name}"` });
         }
         const unitPrice = Number(product.price);
+        const total = Math.round(unitPrice * p.quantity * 100) / 100;
+        // Peças informadas na criação da OS nascem sem desconto — desconto por item
+        // é aplicado depois, editando o item já criado na tela de detalhe.
         partRows.push({
           product_id: product.id,
           name: product.name,
           quantity: p.quantity,
           unit_price: unitPrice,
-          total: Math.round(unitPrice * p.quantity * 100) / 100,
+          total_before_discount: total,
+          total,
         });
       }
     }
@@ -208,6 +223,7 @@ export async function createServiceOrder(req: Request, res: Response) {
         promised_at: promised_at ? new Date(promised_at) : null,
         service_value: serviceValueNum,
         parts_total: partsTotal,
+        subtotal: totalAmount,
         total_amount: totalAmount,
         warranty_days: warranty_days ? Number(warranty_days) : null,
         warranty_terms: warranty_terms || null,
@@ -266,6 +282,8 @@ export async function updateServiceOrder(req: Request, res: Response) {
       priority,
       promised_at,
       service_value,
+      discount_type,
+      discount_value,
       warranty_days,
       warranty_terms,
       observations,
@@ -293,13 +311,15 @@ export async function updateServiceOrder(req: Request, res: Response) {
     if (warranty_terms !== undefined) data.warranty_terms = warranty_terms || null;
     if (observations !== undefined) data.observations = observations || null;
 
-    if (service_value !== undefined) {
-      const newServiceValue = Number(service_value) || 0;
-      data.service_value = newServiceValue;
-      data.total_amount = Math.round((newServiceValue + Number(existing.parts_total)) * 100) / 100;
-    }
+    if (discount_type !== undefined) data.discount_type = discount_type === "fixed" ? "fixed" : "percent";
+    if (discount_value !== undefined) data.discount_value = Math.max(0, Number(discount_value) || 0);
+    if (service_value !== undefined) data.service_value = Number(service_value) || 0;
 
     await prisma.serviceOrder.update({ where: { id }, data });
+
+    if (service_value !== undefined || discount_type !== undefined || discount_value !== undefined) {
+      await recomputeTotals(id);
+    }
 
     // Enquanto ainda é rascunho, trocar a categoria reinstancia o checklist a partir
     // do novo template — depois de iniciado o atendimento, respostas já preenchidas são preservadas.
@@ -450,14 +470,20 @@ export async function addServiceOrderPart(req: Request, res: Response) {
     const {
       product_id, quantity, height, width, no_charge,
       name: freeName, unit: freeUnit, unit_price: freeUnitPrice,
+      discount_type: discountType, discount_value: discountValueRaw,
     } = req.body as {
       product_id?: number; quantity?: number; height?: number; width?: number; no_charge?: boolean;
       name?: string; unit?: string; unit_price?: number;
+      discount_type?: string; discount_value?: number;
     };
 
     const order = await prisma.serviceOrder.findFirst({ where: { id, tenant_id: tenantId } });
     if (!order) return res.status(404).json({ error: "Ordem de serviço não encontrada" });
     if (order.invoiced_order_id) return res.status(400).json({ error: "Ordem de serviço já foi faturada" });
+
+    // Desconto por item nunca se aplica a itens de cortesia (no_charge já zera tudo).
+    const itemDiscountType = discountType === "fixed" ? "fixed" : "percent";
+    const itemDiscountValue = no_charge ? 0 : Math.max(0, Number(discountValueRaw) || 0);
 
     // Item livre: sem produto vinculado, nome/unidade/valor informados manualmente
     // (ex.: "Mão de obra extra", item de terceiro, cortesia) — sem controle de estoque.
@@ -467,7 +493,8 @@ export async function addServiceOrderPart(req: Request, res: Response) {
       }
       const qty = Math.max(1, Number(quantity) || 1);
       const unitPrice = no_charge ? 0 : Math.max(0, Number(freeUnitPrice) || 0);
-      const total = Math.round(unitPrice * qty * 100) / 100;
+      const totalBeforeDiscount = Math.round(unitPrice * qty * 100) / 100;
+      const total = applyDiscount(totalBeforeDiscount, itemDiscountType, itemDiscountValue);
 
       await prisma.serviceOrderPart.create({
         data: {
@@ -477,6 +504,9 @@ export async function addServiceOrderPart(req: Request, res: Response) {
           quantity: qty,
           unit: (freeUnit || "UN").trim().slice(0, 10).toUpperCase(),
           unit_price: unitPrice,
+          total_before_discount: totalBeforeDiscount,
+          discount_type: itemDiscountType,
+          discount_value: itemDiscountValue,
           total,
           no_charge: !!no_charge,
         },
@@ -504,7 +534,7 @@ export async function addServiceOrderPart(req: Request, res: Response) {
 
     let qty = Number(quantity) || 1;
     let unitPrice = Number(product.price);
-    let total: number;
+    let totalBeforeDiscount: number;
     let dimensionsLabel: string | null = null;
 
     if (isMeasured) {
@@ -519,17 +549,20 @@ export async function addServiceOrderPart(req: Request, res: Response) {
       );
       qty = 1;
       unitPrice = result.total;
-      total = result.total;
+      totalBeforeDiscount = result.total;
       dimensionsLabel = result.label;
     } else {
       if (product.stock_quantity < qty) {
         return res.status(400).json({ error: `Estoque insuficiente para "${product.name}"` });
       }
-      total = Math.round(unitPrice * qty * 100) / 100;
+      totalBeforeDiscount = Math.round(unitPrice * qty * 100) / 100;
     }
+
+    let total = applyDiscount(totalBeforeDiscount, itemDiscountType, itemDiscountValue);
 
     if (no_charge) {
       unitPrice = 0;
+      totalBeforeDiscount = 0;
       total = 0;
     }
 
@@ -543,6 +576,9 @@ export async function addServiceOrderPart(req: Request, res: Response) {
         quantity: qty,
         unit: unitLabel,
         unit_price: unitPrice,
+        total_before_discount: totalBeforeDiscount,
+        discount_type: itemDiscountType,
+        discount_value: itemDiscountValue,
         total,
         no_charge: !!no_charge,
         dimensions_label: dimensionsLabel,
@@ -572,6 +608,51 @@ export async function addServiceOrderPart(req: Request, res: Response) {
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Falha ao adicionar peça" });
+  }
+}
+
+// Edita o desconto de uma peça já adicionada — os demais dados do item (produto,
+// quantidade, medida) não mudam aqui; para isso remove-se e adiciona-se de novo.
+export async function updateServiceOrderPart(req: Request, res: Response) {
+  try {
+    const tenantId = getTenantId(req);
+    const id = Number(req.params.id);
+    const partId = Number(req.params.partId);
+    const { discount_type: discountType, discount_value: discountValueRaw } = req.body as {
+      discount_type?: string; discount_value?: number;
+    };
+
+    const order = await prisma.serviceOrder.findFirst({ where: { id, tenant_id: tenantId } });
+    if (!order) return res.status(404).json({ error: "Ordem de serviço não encontrada" });
+    if (order.invoiced_order_id) return res.status(400).json({ error: "Ordem de serviço já foi faturada" });
+
+    const part = await prisma.serviceOrderPart.findFirst({ where: { id: partId, service_order_id: id } });
+    if (!part) return res.status(404).json({ error: "Peça não encontrada" });
+    if (part.no_charge) return res.status(400).json({ error: "Item sem cobrança não pode receber desconto" });
+
+    const itemDiscountType = discountType === "fixed" ? "fixed" : "percent";
+    const itemDiscountValue = Math.max(0, Number(discountValueRaw) || 0);
+    const total = applyDiscount(Number(part.total_before_discount), itemDiscountType, itemDiscountValue);
+
+    await prisma.serviceOrderPart.update({
+      where: { id: partId },
+      data: { discount_type: itemDiscountType, discount_value: itemDiscountValue, total },
+    });
+
+    await recomputeTotals(id);
+    await logAction(tenantId, id, "part_discount_updated", {
+      actor: getActor(req),
+      note: `${part.name}: desconto ${itemDiscountType === "percent" ? `${itemDiscountValue}%` : `R$${itemDiscountValue.toFixed(2)}`}`,
+    });
+
+    const updated = await prisma.serviceOrder.findFirst({
+      where: { id, tenant_id: tenantId },
+      include: SERVICE_ORDER_INCLUDE,
+    });
+    res.json(updated);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Falha ao atualizar desconto da peça" });
   }
 }
 

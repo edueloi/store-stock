@@ -32,6 +32,9 @@ export interface ServiceOrderPart {
   quantity: number;
   unit: string;
   unit_price: number;
+  total_before_discount: number;
+  discount_type: "percent" | "fixed";
+  discount_value: number;
   total: number;
   no_charge: boolean;
   dimensions_label?: string | null;
@@ -89,6 +92,9 @@ export interface ServiceOrder {
   promised_at: string | null;
   service_value: number;
   parts_total: number;
+  subtotal: number;
+  discount_type: "percent" | "fixed";
+  discount_value: number;
   total_amount: number;
   warranty_days: number | null;
   warranty_terms: string | null;

@@ -885,7 +885,10 @@ model ServiceOrder {
 
   service_value         Decimal   @default(0) @db.Decimal(10, 2)
   parts_total           Decimal   @default(0) @db.Decimal(10, 2)
-  total_amount          Decimal   @default(0) @db.Decimal(10, 2)
+  subtotal              Decimal   @default(0) @db.Decimal(10, 2) // service_value + parts_total, antes do desconto total
+  discount_type         String    @default("percent") // percent | fixed
+  discount_value        Decimal   @default(0) @db.Decimal(10, 2)
+  total_amount          Decimal   @default(0) @db.Decimal(10, 2) // subtotal - desconto total
 
   warranty_days         Int?
   warranty_terms        String?   @db.Text
@@ -943,7 +946,10 @@ model ServiceOrderPart {
   quantity          Int      @default(1)
   unit              String   @default("UN")
   unit_price        Decimal  @db.Decimal(10, 2)
-  total             Decimal  @db.Decimal(10, 2)
+  total_before_discount Decimal @db.Decimal(10, 2) // quantidade x unit_price, antes do desconto do item
+  discount_type     String   @default("percent") // percent | fixed
+  discount_value    Decimal  @default(0) @db.Decimal(10, 2)
+  total             Decimal  @db.Decimal(10, 2) // total_before_discount - desconto do item
   no_charge         Boolean  @default(false)
   dimensions_label  String?
   created_at        DateTime @default(now())
