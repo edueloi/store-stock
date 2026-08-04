@@ -8,6 +8,7 @@ import { loadPfx, assinarDPS } from "../nfce/signer";
 import { callNfseRest, gzipBase64, ungzipBase64, type NfseEnvironment } from "./restClient";
 import { consultarAliquotaServico } from "./parametrosMunicipais";
 import { generateNfsePdf } from "./pdf";
+import { advanceServiceOrderToNotaEmitida } from "../../utils/stage-permissions";
 
 function ensureDir(dir: string) {
   fs.mkdirSync(dir, { recursive: true });
@@ -217,6 +218,8 @@ export async function emitirNfse(input: EmitirNfseInput): Promise<void> {
       where: { id: tenant.id },
       data: { nfse_next_number: { increment: 1 } },
     });
+
+    await advanceServiceOrderToNotaEmitida(serviceOrderId, "Sistema (NFS-e)");
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     await prisma.nfseInvoice.update({

@@ -24,6 +24,7 @@ import {
   Wallet,
   AlertTriangle,
   Trash2,
+  Link2,
 } from "lucide-react";
 import PageHeader from "../../components/layout/PageHeader";
 import Combobox from "../../components/ui/Combobox";
@@ -76,7 +77,7 @@ interface Quote {
   total_amount: number;
   validity_days: number;
   notes?: string;
-  status: "rascunho" | "open" | "converted" | "cancelled" | "expired";
+  status: "rascunho" | "orcamento_enviado" | "aguardando_aprovacao" | "aprovado" | "converted" | "cancelled" | "expired";
   converted_order_id?: number | null;
   deposit_amount?: number | null;
   deposit_payment_method?: string | null;
@@ -213,12 +214,14 @@ function maskDoc(v: string) {
 function statusLabel(s: string) {
   const map: Record<string, { label: string; color: string; icon: React.ReactNode }> = {
     rascunho:  { label: "Rascunho",   color: "text-slate-500 bg-slate-100", icon: <Clock size={12} /> },
-    open:      { label: "Aberto",     color: "text-blue-600 bg-blue-50",    icon: <Clock size={12} /> },
+    orcamento_enviado: { label: "Aberto", color: "text-blue-600 bg-blue-50",    icon: <Clock size={12} /> },
+    aguardando_aprovacao: { label: "Aguardando Aprovação", color: "text-amber-600 bg-amber-50", icon: <Clock size={12} /> },
+    aprovado: { label: "Aprovado", color: "text-teal-600 bg-teal-50", icon: <CheckCircle2 size={12} /> },
     converted: { label: "Convertido", color: "text-emerald-600 bg-emerald-50", icon: <CheckCircle2 size={12} /> },
     cancelled: { label: "Cancelado",  color: "text-red-600 bg-red-50",      icon: <XCircle size={12} /> },
     expired:   { label: "Expirado",   color: "text-orange-600 bg-orange-50",icon: <Clock size={12} /> },
   };
-  return map[s] ?? map.open;
+  return map[s] ?? map.orcamento_enviado;
 }
 
 function quoteItemUnit(dimLabel?: string | null): string {
@@ -405,6 +408,26 @@ export default function QuoteDetail() {
   const [sellers, setSellers] = useState<{ id: number; name: string }[]>([]);
   const [converting, setConverting] = useState(false);
 
+  const [generatingLink, setGeneratingLink] = useState(false);
+  const [linkCopied, setLinkCopied] = useState(false);
+
+  const handleCopyApprovalLink = async () => {
+    if (!quote) return;
+    setGeneratingLink(true);
+    setLinkCopied(false);
+    try {
+      const res = await fetch(`/api/quotes/${quote.id}/approval-link`, { method: "POST", headers: authHeader() });
+      const data = await res.json();
+      if (!res.ok) return;
+      const url = `${window.location.origin}/orcamento/${data.token}`;
+      await navigator.clipboard.writeText(url);
+      setLinkCopied(true);
+      setTimeout(() => setLinkCopied(false), 3000);
+    } finally {
+      setGeneratingLink(false);
+    }
+  };
+
   // ── Load ────────────────────────────────────────────────────────────────
   const applyFormFields = useCallback((q: Quote) => {
     setFormItems(q.items.map((i) => ({ ...i, unit_price: Number(i.unit_price), total: Number(i.total) })));
@@ -458,7 +481,7 @@ export default function QuoteDetail() {
   }, [fetchQuote]);
 
   const isDraft = quote?.status === "rascunho";
-  const isEditable = quote?.status === "rascunho" || quote?.status === "open";
+  const isEditable = quote?.status === "rascunho" || quote?.status === "orcamento_enviado";
 
   // ── Computed totals (live, from form state) ──────────────────────────────
   const itemsSubtotal    = formItems.reduce((s, i) => s + i.total, 0);
@@ -618,7 +641,7 @@ export default function QuoteDetail() {
     if (!quote) return;
     setStarting(true);
     try {
-      await fetch(`/api/quotes/${quote.id}/status`, { method: "PUT", headers: authHeader(), body: JSON.stringify({ status: "open" }) });
+      await fetch(`/api/quotes/${quote.id}/status`, { method: "PUT", headers: authHeader(), body: JSON.stringify({ status: "orcamento_enviado" }) });
       await fetchQuote(true);
     } finally {
       setStarting(false);
@@ -1078,7 +1101,7 @@ export default function QuoteDetail() {
               className="w-full h-10 bg-slate-100 hover:bg-slate-200 disabled:opacity-40 rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 text-slate-700 transition-all">
               <Download size={14} /> Baixar PDF
             </button>
-            {quote.status === "open" && (
+            {quote.status === "orcamento_enviado" && (
               <>
                 <button onClick={() => { setDepositAmount(""); setShowDepositModal(true); }}
                   className="w-full h-10 bg-cyan-50 hover:bg-cyan-100 border border-cyan-200 rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 text-cyan-700 transition-all">
@@ -1089,6 +1112,13 @@ export default function QuoteDetail() {
                   <ArrowRight size={14} /> Converter em Venda
                 </button>
               </>
+            )}
+            {quote.status === "aguardando_aprovacao" && (
+              <button onClick={handleCopyApprovalLink} disabled={generatingLink}
+                className="w-full h-10 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 text-blue-700 transition-all disabled:opacity-50">
+                {generatingLink ? <Loader2 size={14} className="animate-spin" /> : <Link2 size={14} />}
+                {linkCopied ? "Link copiado!" : "Copiar Link de Aprovação"}
+              </button>
             )}
             {!isDraft && (
               <button onClick={handleDiscard} disabled={deleting}

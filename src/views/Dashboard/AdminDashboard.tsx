@@ -33,10 +33,12 @@ import {
   Terminal,
   ShoppingBag,
   HardHat,
+  Kanban,
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { cn } from "../../lib/utils";
 import { ToastProvider } from "../../components/ui/Toast";
+import { getStoredUser } from "../../lib/session";
 
 // Sub-views
 import Home from "./Home";
@@ -68,6 +70,7 @@ import Services from "./Services";
 import ServiceOrders from "./ServiceOrders";
 import ServiceOrderNew from "./ServiceOrderNew";
 import ServiceOrderDetail from "./ServiceOrderDetail";
+import WorkflowBoard from "./WorkflowBoard";
 import WhatsApp from "./WhatsApp";
 import Consignments from "./Consignments";
 
@@ -272,59 +275,70 @@ export default function AdminDashboard() {
     return () => window.removeEventListener("resize", handleResize);
   }, []);
 
-  const menuGroups = [
+  const allMenuGroups = [
     {
       label: "Operação",
       items: [
-        { icon: LayoutDashboard, label: "Visão Geral",   path: "/admin" },
-        { icon: ShoppingCart,    label: "PDV — Caixa",   path: "/admin/pdv" },
-        { icon: Wallet,          label: "Fluxo de Caixa", path: "/admin/finance" },
-        { icon: Receipt,         label: "Pedidos",        path: "/admin/orders" },
-        { icon: FileCheck,       label: "Notas Fiscais",  path: "/admin/notas-fiscais" },
-        { icon: Terminal,        label: "Maquininhas",    path: "/admin/maquininhas" },
-        { icon: FileText,        label: "Orçamentos",     path: "/admin/orcamentos" },
-        { icon: ClipboardList,   label: "Ordens de Serviço", path: "/admin/ordens-servico" },
-        { icon: ShoppingBag,     label: "Consignação",    path: "/admin/consignacoes" },
+        { icon: LayoutDashboard, label: "Visão Geral",   path: "/admin",                key: "dashboard" },
+        { icon: ShoppingCart,    label: "PDV — Caixa",   path: "/admin/pdv",             key: "pdv" },
+        { icon: Wallet,          label: "Fluxo de Caixa", path: "/admin/finance",        key: "finance" },
+        { icon: Receipt,         label: "Pedidos",        path: "/admin/orders",         key: "orders" },
+        { icon: FileCheck,       label: "Notas Fiscais",  path: "/admin/notas-fiscais",  key: "notas_fiscais" },
+        { icon: Terminal,        label: "Maquininhas",    path: "/admin/maquininhas",    key: "maquininhas" },
+        { icon: FileText,        label: "Orçamentos",     path: "/admin/orcamentos",     key: "orcamentos" },
+        { icon: ClipboardList,   label: "Ordens de Serviço", path: "/admin/ordens-servico", key: "ordens_servico" },
+        { icon: Kanban,          label: "Fluxo de Produção", path: "/admin/fluxo-producao", key: "fluxo_producao" },
+        { icon: ShoppingBag,     label: "Consignação",    path: "/admin/consignacoes",   key: "consignacoes" },
       ],
     },
     {
       label: "Catálogo & Estoque",
       items: [
-        { icon: Tags,        label: "Catálogo",      path: "/admin/catalog" },
-        { icon: Box,         label: "Estoque",        path: "/admin/stock" },
-        { icon: Calculator,  label: "Markup",         path: "/admin/markup" },
-        { icon: Barcode,     label: "Etiquetas",      path: "/admin/etiquetas" },
-        { icon: FolderOpen,  label: "Categorias",     path: "/admin/categories" },
-        { icon: Truck,       label: "Fornecedores",   path: "/admin/suppliers" },
+        { icon: Tags,        label: "Catálogo",      path: "/admin/catalog",     key: "catalog" },
+        { icon: Box,         label: "Estoque",        path: "/admin/stock",      key: "stock" },
+        { icon: Calculator,  label: "Markup",         path: "/admin/markup",     key: "markup" },
+        { icon: Barcode,     label: "Etiquetas",      path: "/admin/etiquetas",  key: "etiquetas" },
+        { icon: FolderOpen,  label: "Categorias",     path: "/admin/categories", key: "categories" },
+        { icon: Truck,       label: "Fornecedores",   path: "/admin/suppliers", key: "suppliers" },
       ],
     },
     {
       label: "Financeiro",
       items: [
-        { icon: ArrowDownCircle,  label: "Contas a Receber",  path: "/admin/contas-receber" },
-        { icon: ArrowUpCircle,    label: "Contas a Pagar",    path: "/admin/contas-pagar" },
-        { icon: Target,           label: "Metas",             path: "/admin/metas" },
-        { icon: LineChart,        label: "Relatórios",        path: "/admin/analytics" },
+        { icon: ArrowDownCircle,  label: "Contas a Receber",  path: "/admin/contas-receber", key: "contas_receber" },
+        { icon: ArrowUpCircle,    label: "Contas a Pagar",    path: "/admin/contas-pagar",   key: "contas_pagar" },
+        { icon: Target,           label: "Metas",             path: "/admin/metas",          key: "metas" },
+        { icon: LineChart,        label: "Relatórios",        path: "/admin/analytics",      key: "analytics" },
       ],
     },
     {
       label: "Clientes & Marketing",
       items: [
-        { icon: Users,       label: "Clientes", path: "/admin/customers" },
-        { icon: Star,        label: "Vendedores",      path: "/admin/vendedores" },
-        { icon: HardHat,     label: "Técnicos",        path: "/admin/tecnicos" },
-        { icon: Wrench,      label: "Serviços",        path: "/admin/servicos" },
-        { icon: UserCheck,   label: "Fidelidade",      path: "/admin/loyalty" },
-        { icon: MessageSquare, label: "WhatsApp",      path: "/admin/whatsapp" },
+        { icon: Users,       label: "Clientes", path: "/admin/customers",  key: "customers" },
+        { icon: Star,        label: "Vendedores",      path: "/admin/vendedores", key: "vendedores" },
+        { icon: HardHat,     label: "Técnicos",        path: "/admin/tecnicos",   key: "tecnicos" },
+        { icon: Wrench,      label: "Serviços",        path: "/admin/servicos",   key: "servicos" },
+        { icon: UserCheck,   label: "Fidelidade",      path: "/admin/loyalty",    key: "loyalty" },
+        { icon: MessageSquare, label: "WhatsApp",      path: "/admin/whatsapp",   key: "whatsapp" },
       ],
     },
     {
       label: "Sistema",
       items: [
-        { icon: SettingsIcon, label: "Configurações", path: "/admin/settings" },
+        { icon: SettingsIcon, label: "Configurações", path: "/admin/settings", key: "settings" },
       ],
     },
   ];
+
+  // Usuários "admin" veem tudo; demais perfis só veem os menus liberados
+  // explicitamente (user.menus, gravado no login — ver Settings > Time & Acessos).
+  const currentUser = getStoredUser();
+  const allowedMenus = currentUser?.menus ?? [];
+  const canSeeMenu = (key: string) => currentUser?.role === "admin" || allowedMenus.includes(key);
+
+  const menuGroups = allMenuGroups
+    .map((g) => ({ ...g, items: g.items.filter((item) => canSeeMenu(item.key)) }))
+    .filter((g) => g.items.length > 0);
 
   // flat list for header label lookup and mobile nav
   const menuItems = menuGroups.flatMap((g) => g.items);
@@ -588,6 +602,7 @@ export default function AdminDashboard() {
               <Route path="ordens-servico" element={<ServiceOrders />} />
               <Route path="ordens-servico/novo" element={<ServiceOrderNew />} />
               <Route path="ordens-servico/:id" element={<ServiceOrderDetail />} />
+              <Route path="fluxo-producao" element={<WorkflowBoard />} />
               <Route path="consignacoes" element={<Consignments />} />
               <Route path="vendedores" element={<Sellers />} />
               <Route path="tecnicos" element={<Technicians />} />

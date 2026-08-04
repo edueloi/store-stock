@@ -2,6 +2,8 @@ import type { Request, Response } from "express";
 import bcrypt from "bcryptjs";
 import { prisma } from "../config/prisma";
 import type { AuthenticatedRequest } from "../types/auth";
+import { isMenuKey, MENU_KEYS, MENU_LABELS } from "../utils/menu-permissions";
+import { isWorkflowStage, STAGE_LABELS, WORKFLOW_STAGES } from "../utils/workflow-stages";
 
 export async function listTeam(req: Request, res: Response) {
   const authReq = req as AuthenticatedRequest;
@@ -149,5 +151,80 @@ export async function deleteTeamMember(req: Request, res: Response) {
     res.json({ success: true });
   } catch {
     res.status(500).json({ error: "Erro ao remover membro." });
+  }
+}
+
+// Catálogo estático de menus/etapas disponíveis, para a tela de permissões montar os checkboxes.
+export function getPermissionOptions(_req: Request, res: Response) {
+  res.json({
+    menus: MENU_KEYS.map((key) => ({ key, label: MENU_LABELS[key] })),
+    stages: WORKFLOW_STAGES.map((key) => ({ key, label: STAGE_LABELS[key] })),
+  });
+}
+
+// ── Permissões individuais (menus do sistema + etapas de Orçamento/OS) ──────────
+// "admin" sempre tem acesso total e não guarda linhas aqui — estas permissões só
+// se aplicam a membros com outro role (staff/pdv).
+
+export async function getTeamMemberPermissions(req: Request, res: Response) {
+  const authReq = req as AuthenticatedRequest;
+  const tenantId = authReq.user?.tenantId;
+  const memberId = Number(req.params.id);
+
+  if (!tenantId) { res.sendStatus(403); return; }
+  if (authReq.user?.role !== "admin") {
+    res.status(403).json({ error: "Apenas administradores podem ver permissões." });
+    return;
+  }
+
+  try {
+    const member = await prisma.user.findFirst({ where: { id: memberId, tenant_id: tenantId }, select: { id: true } });
+    if (!member) { res.status(404).json({ error: "Membro não encontrado." }); return; }
+
+    const [menus, stages] = await Promise.all([
+      prisma.userMenuPermission.findMany({ where: { user_id: memberId }, select: { menu: true } }),
+      prisma.userStagePermission.findMany({ where: { user_id: memberId }, select: { stage: true } }),
+    ]);
+
+    res.json({ menus: menus.map((m) => m.menu), stages: stages.map((s) => s.stage) });
+  } catch {
+    res.status(500).json({ error: "Erro ao buscar permissões." });
+  }
+}
+
+export async function updateTeamMemberPermissions(req: Request, res: Response) {
+  const authReq = req as AuthenticatedRequest;
+  const tenantId = authReq.user?.tenantId;
+  const memberId = Number(req.params.id);
+
+  if (!tenantId) { res.sendStatus(403); return; }
+  if (authReq.user?.role !== "admin") {
+    res.status(403).json({ error: "Apenas administradores podem editar permissões." });
+    return;
+  }
+
+  const { menus, stages } = req.body as { menus?: string[]; stages?: string[] };
+  if (!Array.isArray(menus) || !Array.isArray(stages)) {
+    res.status(400).json({ error: "Lista de menus e etapas inválida." });
+    return;
+  }
+
+  const validMenus = menus.filter(isMenuKey);
+  const validStages = stages.filter(isWorkflowStage);
+
+  try {
+    const member = await prisma.user.findFirst({ where: { id: memberId, tenant_id: tenantId }, select: { id: true } });
+    if (!member) { res.status(404).json({ error: "Membro não encontrado." }); return; }
+
+    await prisma.$transaction([
+      prisma.userMenuPermission.deleteMany({ where: { user_id: memberId } }),
+      prisma.userMenuPermission.createMany({ data: validMenus.map((menu) => ({ user_id: memberId, menu })) }),
+      prisma.userStagePermission.deleteMany({ where: { user_id: memberId } }),
+      prisma.userStagePermission.createMany({ data: validStages.map((stage) => ({ user_id: memberId, stage })) }),
+    ]);
+
+    res.json({ menus: validMenus, stages: validStages });
+  } catch {
+    res.status(500).json({ error: "Erro ao salvar permissões." });
   }
 }

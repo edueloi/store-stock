@@ -14,10 +14,12 @@ import {
   deleteServiceOrder,
 } from "../controllers/service-orders.controller";
 import { authenticateToken } from "../middlewares/auth.middleware";
+import { requireMenuPermission } from "../middlewares/menu-permission.middleware";
 
 const router = Router();
 
 router.use(authenticateToken);
+router.use(requireMenuPermission("ordens_servico"));
 
 router.get("/", listServiceOrders);
 router.get("/:id", getServiceOrderById);

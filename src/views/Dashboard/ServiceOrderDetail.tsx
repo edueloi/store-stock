@@ -629,7 +629,7 @@ export default function ServiceOrderDetail() {
             ) : isDraft ? (
               <div className="flex items-center gap-2">
                 <button
-                  onClick={() => changeStatus("aberta")}
+                  onClick={() => changeStatus("orcamento_enviado")}
                   disabled={!canStartService}
                   className="h-9 px-4 rounded-xl bg-blue-600 hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed text-white text-[10px] font-black uppercase tracking-wider flex items-center gap-1.5 transition-all"
                 >
@@ -670,12 +670,13 @@ export default function ServiceOrderDetail() {
                     );
                   })}
                 </div>
-                {!selected.invoiced_order_id && (
-                  <div className="flex items-center gap-2">
-                    {(() => {
-                      const currentIdx = STATUS_ORDER.indexOf(selected.status);
-                      const next = STATUS_ORDER[currentIdx + 1];
-                      return next && next !== "cancelada" ? (
+                <div className="flex items-center gap-2">
+                  {(() => {
+                    const currentIdx = STATUS_ORDER.indexOf(selected.status);
+                    const next = STATUS_ORDER[currentIdx + 1];
+                    // Faturada só pode seguir para "entregue" — as demais ações (cancelar/excluir/pular etapa) ficam bloqueadas.
+                    if (selected.invoiced_order_id) {
+                      return next === "entregue" ? (
                         <button onClick={() => changeStatus(next)}
                           className="h-9 px-4 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-[10px] font-black uppercase tracking-wider flex items-center gap-1.5 transition-all">
                           Avançar para: {STATUS_META[next].label} <ArrowRight size={13} />
@@ -683,17 +684,27 @@ export default function ServiceOrderDetail() {
                       ) : (
                         <span className="text-[10px] font-bold text-emerald-600 flex items-center gap-1"><CheckCircle2 size={13} /> Concluída</span>
                       );
-                    })()}
-                    <button onClick={() => setShowCancelModal(true)}
-                      className="text-[10px] font-bold text-slate-400 hover:text-red-500 transition-colors">
-                      Cancelar Ordem
-                    </button>
-                    <button onClick={() => setShowDiscardModal(true)}
-                      className="text-[10px] font-bold text-slate-400 hover:text-red-500 transition-colors">
-                      Excluir Ordem de Serviço
-                    </button>
-                  </div>
-                )}
+                    }
+                    return next && next !== "cancelada" ? (
+                      <>
+                        <button onClick={() => changeStatus(next)}
+                          className="h-9 px-4 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-[10px] font-black uppercase tracking-wider flex items-center gap-1.5 transition-all">
+                          Avançar para: {STATUS_META[next].label} <ArrowRight size={13} />
+                        </button>
+                        <button onClick={() => setShowCancelModal(true)}
+                          className="text-[10px] font-bold text-slate-400 hover:text-red-500 transition-colors">
+                          Cancelar Ordem
+                        </button>
+                        <button onClick={() => setShowDiscardModal(true)}
+                          className="text-[10px] font-bold text-slate-400 hover:text-red-500 transition-colors">
+                          Excluir Ordem de Serviço
+                        </button>
+                      </>
+                    ) : (
+                      <span className="text-[10px] font-bold text-emerald-600 flex items-center gap-1"><CheckCircle2 size={13} /> Concluída</span>
+                    );
+                  })()}
+                </div>
               </>
             )}
           </div>
@@ -1129,6 +1140,8 @@ export default function ServiceOrderDetail() {
                     Ver PDF da NFS-e
                   </button>
                 </div>
+              ) : selected.status !== "finalizado" && selected.status !== "nota_emitida" ? (
+                <p className="text-[10px] font-bold text-slate-400">Disponível quando a ordem estiver finalizada.</p>
               ) : (
                 <>
                   {nfseInvoice && (nfseInvoice.status === "pending" || nfseInvoice.status === "processing") && (
@@ -1209,7 +1222,7 @@ export default function ServiceOrderDetail() {
               className="h-11 bg-slate-100 hover:bg-slate-200 rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 text-slate-700 transition-all disabled:opacity-60">
               {generatingPdf ? <Loader2 size={14} className="animate-spin" /> : <FileDown size={14} />} Gerar PDF
             </button>
-            {!selected.invoiced_order_id && selected.status !== "cancelada" && selected.status !== "rascunho" && (
+            {!selected.invoiced_order_id && (selected.status === "finalizado" || selected.status === "nota_emitida") && (
               <button onClick={() => setShowInvoiceModal(true)}
                 className="h-11 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-all">
                 <Receipt size={14} /> Faturar

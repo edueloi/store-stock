@@ -48,7 +48,7 @@ interface Quote {
   total_amount: number;
   validity_days: number;
   notes?: string;
-  status: "rascunho" | "open" | "converted" | "cancelled" | "expired";
+  status: "rascunho" | "orcamento_enviado" | "aguardando_aprovacao" | "aprovado" | "converted" | "cancelled" | "expired";
   deposit_amount?: number | null;
   created_at: string;
   items: QuoteItem[];
@@ -86,12 +86,14 @@ const authHeader = () => ({
 function statusLabel(s: string) {
   const map: Record<string, { label: string; color: string; icon: React.ReactNode }> = {
     rascunho:  { label: "Rascunho",   color: "text-slate-500 bg-slate-100", icon: <Clock size={12} /> },
-    open:      { label: "Aberto",     color: "text-blue-600 bg-blue-50",    icon: <Clock size={12} /> },
+    orcamento_enviado: { label: "Aberto", color: "text-blue-600 bg-blue-50",    icon: <Clock size={12} /> },
+    aguardando_aprovacao: { label: "Aguardando Aprovação", color: "text-amber-600 bg-amber-50", icon: <Clock size={12} /> },
+    aprovado: { label: "Aprovado", color: "text-teal-600 bg-teal-50", icon: <CheckCircle2 size={12} /> },
     converted: { label: "Convertido", color: "text-emerald-600 bg-emerald-50", icon: <CheckCircle2 size={12} /> },
     cancelled: { label: "Cancelado",  color: "text-red-600 bg-red-50",      icon: <XCircle size={12} /> },
     expired:   { label: "Expirado",   color: "text-orange-600 bg-orange-50",icon: <Clock size={12} /> },
   };
-  return map[s] ?? map.open;
+  return map[s] ?? map.orcamento_enviado;
 }
 
 function quoteItemUnit(dimLabel?: string | null): string {
@@ -274,9 +276,9 @@ export default function Quotes() {
   // ── Stats
   const stats = {
     total: quotes.filter((q) => q.status !== "rascunho").length,
-    open: quotes.filter((q) => q.status === "open").length,
+    open: quotes.filter((q) => q.status === "orcamento_enviado").length,
     converted: quotes.filter((q) => q.status === "converted").length,
-    totalValue: quotes.filter((q) => q.status === "open").reduce((s, q) => s + Number(q.total_amount), 0),
+    totalValue: quotes.filter((q) => q.status === "orcamento_enviado").reduce((s, q) => s + Number(q.total_amount), 0),
   };
 
   return (
@@ -320,7 +322,7 @@ export default function Quotes() {
             className="w-full pl-9 pr-3 h-9 rounded-lg border border-slate-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
         </div>
-        {["all", "rascunho", "open", "converted", "cancelled"].map((s) => (
+        {["all", "rascunho", "orcamento_enviado", "converted", "cancelled"].map((s) => (
           <button
             key={s}
             onClick={() => setStatusFilter(s)}
@@ -331,7 +333,7 @@ export default function Quotes() {
                 : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50"
             )}
           >
-            {{ all: "Todos", rascunho: "Rascunhos", open: "Abertos", converted: "Convertidos", cancelled: "Cancelados" }[s]}
+            {{ all: "Todos", rascunho: "Rascunhos", orcamento_enviado: "Abertos", converted: "Convertidos", cancelled: "Cancelados" }[s]}
           </button>
         ))}
       </div>

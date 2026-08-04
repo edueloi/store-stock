@@ -175,6 +175,8 @@ const NAV = [
 
 type TeamMember = { id: number; name: string; email: string; role: string; created_at: string };
 type MemberForm = { name: string; email: string; password: string; role: string; showPass: boolean };
+type PermissionOption = { key: string; label: string };
+type PermissionOptions = { menus: PermissionOption[]; stages: PermissionOption[] };
 
 const ROLE_META: Record<string, { label: string; color: string; bg: string; icon: React.ReactNode; desc: string }> = {
   admin: { label: "Admin",       color: "#2563eb", bg: "#eff6ff", icon: <Shield size={12} />,      desc: "Acesso total ao painel" },
@@ -192,6 +194,11 @@ function TeamSection() {
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const [form, setForm]           = useState<MemberForm>({ name: "", email: "", password: "", role: "staff", showPass: false });
 
+  const [permOptions, setPermOptions] = useState<PermissionOptions>({ menus: [], stages: [] });
+  const [selectedMenus, setSelectedMenus] = useState<string[]>([]);
+  const [selectedStages, setSelectedStages] = useState<string[]>([]);
+  const [savingPerms, setSavingPerms] = useState(false);
+
   const token = localStorage.getItem("token");
   const headers = { "Content-Type": "application/json", Authorization: `Bearer ${token}` };
 
@@ -205,16 +212,57 @@ function TeamSection() {
 
   useEffect(() => { load(); }, [load]);
 
+  useEffect(() => {
+    fetch("/api/team/permission-options", { headers: { Authorization: `Bearer ${token}` } })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => { if (data) setPermOptions(data); });
+  }, [token]);
+
   const openCreate = () => {
     setEditId(null);
     setForm({ name: "", email: "", password: "", role: "staff", showPass: false });
+    setSelectedMenus([]);
+    setSelectedStages([]);
     setShowForm(true);
   };
 
-  const openEdit = (m: TeamMember) => {
+  const openEdit = async (m: TeamMember) => {
     setEditId(m.id);
     setForm({ name: m.name, email: m.email, password: "", role: m.role, showPass: false });
+    setSelectedMenus([]);
+    setSelectedStages([]);
     setShowForm(true);
+
+    if (m.role !== "admin") {
+      const res = await fetch(`/api/team/${m.id}/permissions`, { headers: { Authorization: `Bearer ${token}` } });
+      if (res.ok) {
+        const data = await res.json();
+        setSelectedMenus(data.menus ?? []);
+        setSelectedStages(data.stages ?? []);
+      }
+    }
+  };
+
+  const toggleMenu = (key: string) => {
+    setSelectedMenus((prev) => prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key]);
+  };
+  const toggleStage = (key: string) => {
+    setSelectedStages((prev) => prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key]);
+  };
+
+  const savePermissions = async (memberId: number) => {
+    setSavingPerms(true);
+    try {
+      const res = await fetch(`/api/team/${memberId}/permissions`, {
+        method: "PUT",
+        headers,
+        body: JSON.stringify({ menus: selectedMenus, stages: selectedStages }),
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        toast.error(data.error || "Erro ao salvar permissões.");
+      }
+    } finally { setSavingPerms(false); }
   };
 
   const handleSave = async () => {
@@ -233,6 +281,9 @@ function TeamSection() {
       });
       const data = await res.json();
       if (res.ok) {
+        if (form.role !== "admin") {
+          await savePermissions(editId ?? data.id);
+        }
         toast.success(editId ? "Membro atualizado!" : "Membro criado com sucesso!");
         setShowForm(false);
         load();
@@ -450,6 +501,49 @@ function TeamSection() {
                 </div>
                 <p className="text-[10px] text-slate-400 mt-2 font-medium">{ROLE_META[form.role]?.desc}</p>
               </div>
+
+              {/* Permissões individuais — admin já tem acesso total, não precisa marcar nada */}
+              {form.role !== "admin" && (
+                <div className="border-t border-slate-100 pt-4 space-y-4">
+                  <div>
+                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-500 block mb-2">
+                      Menus que este usuário pode acessar
+                    </label>
+                    <div className="grid grid-cols-2 gap-1.5 max-h-40 overflow-y-auto pr-1">
+                      {permOptions.menus.map((opt) => (
+                        <label key={opt.key} className="flex items-center gap-2 text-[11px] font-medium text-slate-600 px-2 py-1.5 rounded-lg hover:bg-slate-50 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={selectedMenus.includes(opt.key)}
+                            onChange={() => toggleMenu(opt.key)}
+                            className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                          />
+                          {opt.label}
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-500 block mb-2">
+                      Etapas de Orçamento/OS que pode mover
+                    </label>
+                    <div className="grid grid-cols-2 gap-1.5">
+                      {permOptions.stages.map((opt) => (
+                        <label key={opt.key} className="flex items-center gap-2 text-[11px] font-medium text-slate-600 px-2 py-1.5 rounded-lg hover:bg-slate-50 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={selectedStages.includes(opt.key)}
+                            onChange={() => toggleStage(opt.key)}
+                            className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                          />
+                          {opt.label}
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
 
             <div className="flex items-center gap-3 px-6 pb-6">
@@ -461,10 +555,10 @@ function TeamSection() {
               </button>
               <button
                 onClick={handleSave}
-                disabled={saving}
+                disabled={saving || savingPerms}
                 className="flex-1 h-10 bg-blue-600 text-white rounded-xl text-[11px] font-black uppercase tracking-wider hover:bg-blue-700 transition-all active:scale-95 disabled:opacity-50 flex items-center justify-center gap-2"
               >
-                {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
+                {saving || savingPerms ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
                 {editId ? "Salvar" : "Criar"}
               </button>
             </div>

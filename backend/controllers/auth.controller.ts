@@ -165,13 +165,25 @@ export async function login(req: Request, res: Response) {
       role: user.role,
     });
 
+    // "admin" já vê/move tudo — só busca as listas explícitas para os demais perfis,
+    // que são os únicos com linhas em UserMenuPermission/UserStagePermission.
+    const [menuPermissions, stagePermissions] = user.role === "admin"
+      ? [[], []]
+      : await Promise.all([
+          prisma.userMenuPermission.findMany({ where: { user_id: user.id }, select: { menu: true } }),
+          prisma.userStagePermission.findMany({ where: { user_id: user.id }, select: { stage: true } }),
+        ]);
+
     res.json({
       token,
       user: {
+        id: user.id,
         name: user.name,
         email: user.email,
         role: user.role,
         tenantId: user.tenant_id,
+        menus: menuPermissions.map((m) => m.menu),
+        stages: stagePermissions.map((s) => s.stage),
       },
       tenant: {
         id: user.tenant.id,

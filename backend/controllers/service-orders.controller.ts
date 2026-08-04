@@ -4,9 +4,19 @@ import { prisma } from "../config/prisma";
 import type { AuthenticatedRequest } from "../types/auth";
 import { localDateString } from "../utils/date";
 import { computeMeasuredPrice } from "../utils/measurePricing";
+import { advanceServiceOrderToNotaEmitida, canMoveToStage } from "../utils/stage-permissions";
+import { WORKFLOW_STAGES } from "../utils/workflow-stages";
 
 function getTenantId(req: Request) {
   return (req as AuthenticatedRequest).user.tenantId;
+}
+
+function getRole(req: Request): string {
+  return (req as AuthenticatedRequest).user.role;
+}
+
+function getUserId(req: Request): number {
+  return (req as AuthenticatedRequest).user.userId;
 }
 
 function getActor(req: Request): string {
@@ -14,8 +24,8 @@ function getActor(req: Request): string {
   return (u as any).name ?? (u as any).email ?? "Sistema";
 }
 
-const ALLOWED_STATUSES = ["rascunho", "aberta", "em_analise", "em_conserto", "pronto_retirada", "entregue", "cancelada"];
-const STATUS_ORDER = ["rascunho", "aberta", "em_analise", "em_conserto", "pronto_retirada", "entregue"];
+const ALLOWED_STATUSES = [...WORKFLOW_STAGES, "cancelada"];
+const STATUS_ORDER: string[] = [...WORKFLOW_STAGES];
 const ALLOWED_PRIORITIES = ["normal", "urgente"];
 
 async function logAction(
@@ -181,7 +191,7 @@ export async function createServiceOrder(req: Request, res: Response) {
       data: {
         tenant_id: tenantId,
         number: nextNumber,
-        status: isDraft ? "rascunho" : "aberta",
+        status: isDraft ? "rascunho" : "orcamento_enviado",
         customer_id: customer_id || null,
         customer_name: customer_name || "",
         customer_phone: customer_phone || null,
@@ -369,7 +379,9 @@ export async function updateServiceOrderStatus(req: Request, res: Response) {
       include: { parts: true },
     });
     if (!order) return res.status(404).json({ error: "Ordem de serviço não encontrada" });
-    if (order.invoiced_order_id) {
+    // Faturada só pode seguir para "entregue" (passo manual final) — qualquer outra
+    // mudança de status depois de faturar é bloqueada.
+    if (order.invoiced_order_id && status !== "entregue") {
       return res.status(400).json({ error: "Ordem de serviço já foi faturada" });
     }
 
@@ -381,10 +393,15 @@ export async function updateServiceOrderStatus(req: Request, res: Response) {
       if (fromIdx === -1 || toIdx !== fromIdx + 1) {
         return res.status(400).json({ error: "Só é possível avançar para a próxima etapa do fluxo" });
       }
+
+      const allowed = await canMoveToStage(getUserId(req), getRole(req), status);
+      if (!allowed) {
+        return res.status(403).json({ error: "Seu papel não tem permissão para mover a ordem de serviço para esta etapa" });
+      }
     }
 
     // Sair do rascunho exige os dados mínimos para iniciar o atendimento.
-    if (order.status === "rascunho" && status === "aberta") {
+    if (order.status === "rascunho" && status === "orcamento_enviado") {
       if (!order.customer_name || !order.equipment_category || !order.reported_issue) {
         return res.status(400).json({
           error: "Preencha cliente, categoria do equipamento e problema relatado antes de iniciar o atendimento",
@@ -716,6 +733,9 @@ export async function invoiceServiceOrder(req: Request, res: Response) {
     if (!order) return res.status(404).json({ error: "Ordem de serviço não encontrada" });
     if (order.invoiced_order_id) return res.status(400).json({ error: "Ordem de serviço já foi faturada" });
     if (order.status === "cancelada") return res.status(400).json({ error: "Ordem de serviço está cancelada" });
+    if (order.status !== "finalizado" && order.status !== "nota_emitida") {
+      return res.status(400).json({ error: "Só é possível faturar uma ordem de serviço finalizada" });
+    }
 
     const { payment_method, seller_id } = req.body as { payment_method?: string; seller_id?: number };
     const pmString = payment_method || "money";
@@ -810,13 +830,16 @@ export async function invoiceServiceOrder(req: Request, res: Response) {
 
     await prisma.serviceOrder.update({
       where: { id },
-      data: { invoiced_order_id: newOrder.id, invoiced_at: new Date(), status: "entregue" },
+      data: { invoiced_order_id: newOrder.id, invoiced_at: new Date() },
     });
-
     await logAction(tenantId, id, "invoiced", {
-      fromStatus: order.status, toStatus: "entregue", actor: getActor(req),
+      actor: getActor(req),
       meta: { order_id: newOrder.id },
     });
+
+    // Faturar (NFC-e das peças) avança para "nota_emitida" — não regride se a
+    // NFS-e da mão de obra já tiver avançado a etapa antes.
+    await advanceServiceOrderToNotaEmitida(id, getActor(req));
 
     res.json({ success: true, orderId: newOrder.id });
   } catch (err) {

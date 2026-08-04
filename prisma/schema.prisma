@@ -147,8 +147,43 @@ model User {
   reset_tokens  PasswordResetToken[]
   cash_sessions_opened CashSession[] @relation("CashSessionOpenedBy")
   cash_sessions_closed CashSession[] @relation("CashSessionClosedBy")
+  menu_permissions  UserMenuPermission[]
+  stage_permissions UserStagePermission[]
 
   @@map("users")
+}
+
+// Permissão individual por usuário para ver um menu/tela do sistema (ex: "pdv",
+// "orcamentos", "financeiro" — chaves em src/views/Dashboard/permissions.ts).
+// Ausência de linha para um (user_id, menu) = sem acesso; usuários com role
+// "admin" sempre veem tudo, sem precisar de linhas aqui.
+model UserMenuPermission {
+  id         Int      @id @default(autoincrement())
+  user_id    Int
+  menu       String
+  created_at DateTime @default(now())
+
+  user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@unique([user_id, menu])
+  @@index([user_id])
+  @@map("user_menu_permissions")
+}
+
+// Permissão individual por usuário para mover Orçamento/OS para uma etapa do
+// fluxo (WORKFLOW_STAGES em backend/utils/workflow-stages.ts). Mesmo princípio
+// de UserMenuPermission — ausência de linha = sem permissão, admin sempre pode tudo.
+model UserStagePermission {
+  id         Int      @id @default(autoincrement())
+  user_id    Int
+  stage      String
+  created_at DateTime @default(now())
+
+  user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@unique([user_id, stage])
+  @@index([user_id])
+  @@map("user_stage_permissions")
 }
 
 model Category {
@@ -764,12 +799,16 @@ model Quote {
   total_amount       Decimal     @default(0) @db.Decimal(10, 2)
   validity_days      Int         @default(7)
   notes              String?     @db.Text
-  status             String      @default("rascunho") // rascunho | open | converted | cancelled | expired
+  status             String      @default("rascunho") // rascunho | orcamento_enviado | aguardando_aprovacao | aprovado | converted | cancelled | expired
   converted_order_id Int?
 
   deposit_amount         Decimal?  @db.Decimal(10, 2)
   deposit_payment_method String?
   deposit_paid_at        DateTime?
+
+  approval_token      String?   @unique // link público para o cliente aprovar o orçamento
+  approved_at         DateTime?
+  approved_by_client  Boolean   @default(false)
 
   created_at         DateTime    @default(now())
   updated_at         DateTime    @updatedAt
@@ -840,7 +879,7 @@ model ServiceOrder {
   technician_id         Int?
   technician_name       String?
 
-  status                String    @default("aberta")
+  status                String    @default("rascunho") // rascunho | orcamento_enviado | aguardando_aprovacao | aprovado | em_producao | finalizado | nota_emitida | entregue | cancelada
   priority              String    @default("normal")
   promised_at           DateTime? @db.Date
 

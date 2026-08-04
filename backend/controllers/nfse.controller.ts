@@ -39,9 +39,13 @@ export async function emitNfseForServiceOrder(req: Request, res: Response) {
 
     const serviceOrder = await prisma.serviceOrder.findFirst({
       where: { id: serviceOrderId, tenant_id: tenantId },
-      select: { id: true, service_value: true, equipment_type: true, equipment_category: true },
+      select: { id: true, status: true, service_value: true, equipment_type: true, equipment_category: true },
     });
     if (!serviceOrder) { res.status(404).json({ error: "Ordem de serviço não encontrada" }); return; }
+    if (serviceOrder.status !== "finalizado" && serviceOrder.status !== "nota_emitida") {
+      res.status(400).json({ error: "Só é possível emitir a NFS-e de uma ordem de serviço finalizada" });
+      return;
+    }
 
     const valorServico = valor_servico ?? Number(serviceOrder.service_value);
     if (!valorServico || valorServico <= 0) {

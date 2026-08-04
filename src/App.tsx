@@ -9,6 +9,7 @@ import ResetPassword from "./views/Auth/ResetPassword";
 import PDVStandalone from "./views/PDVStandalone";
 import SuperAdminDashboard from "./views/SuperAdmin/SuperAdminDashboard";
 import SetupInvite from "./views/Auth/SetupInvite";
+import QuoteApproval from "./views/Public/QuoteApproval";
 import { getStoredUser } from "./lib/session";
 import { isTenantSubdomainHost } from "./views/Store/store-routing";
 
@@ -42,6 +43,7 @@ export default function App() {
         <Route path="/forgot-password" element={<ForgotPassword />} />
         <Route path="/reset-password/:token" element={<ResetPassword />} />
         <Route path="/setup/:token" element={<SetupInvite />} />
+        <Route path="/orcamento/:token" element={<QuoteApproval />} />
         <Route path="/pdv" element={<PDVStandalone />} />
         <Route path="/admin/*" element={<AdminDashboard />} />
         <Route path="/super-admin/*" element={<SuperAdminDashboard />} />

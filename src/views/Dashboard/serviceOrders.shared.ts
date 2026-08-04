@@ -1,4 +1,4 @@
-import { Clock, Search, Wrench, Package, CheckCircle2, XCircle } from "lucide-react";
+import { Clock, Send, Search, ThumbsUp, Wrench, Package, FileCheck, CheckCircle2, XCircle } from "lucide-react";
 import { createElement } from "react";
 import { downloadHtmlAsPdf } from "../../lib/pdf";
 import { buildDocumentHeaderHtml, buildDocumentTableHtml, DOCUMENT_BASE_CSS, fmtMoney } from "../../lib/documentPdf";
@@ -6,7 +6,16 @@ import type { Tenant as AppTenant } from "../../types";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-export type SOStatus = "rascunho" | "aberta" | "em_analise" | "em_conserto" | "pronto_retirada" | "entregue" | "cancelada";
+export type SOStatus =
+  | "rascunho"
+  | "orcamento_enviado"
+  | "aguardando_aprovacao"
+  | "aprovado"
+  | "em_producao"
+  | "finalizado"
+  | "nota_emitida"
+  | "entregue"
+  | "cancelada";
 
 export interface ChecklistItem {
   id: number;
@@ -199,15 +208,27 @@ export const authHeaderNoJson = () => ({
 
 export const STATUS_META: Record<SOStatus, { label: string; color: string; icon: React.ReactNode }> = {
   rascunho: { label: "Rascunho", color: "text-slate-500 bg-slate-100", icon: createElement(Clock, { size: 12 }) },
-  aberta: { label: "Aberta", color: "text-blue-600 bg-blue-50", icon: createElement(Clock, { size: 12 }) },
-  em_analise: { label: "Em Análise", color: "text-amber-600 bg-amber-50", icon: createElement(Search, { size: 12 }) },
-  em_conserto: { label: "Em Conserto", color: "text-violet-600 bg-violet-50", icon: createElement(Wrench, { size: 12 }) },
-  pronto_retirada: { label: "Pronto p/ Retirada", color: "text-cyan-600 bg-cyan-50", icon: createElement(Package, { size: 12 }) },
+  orcamento_enviado: { label: "Orçamento Enviado", color: "text-blue-600 bg-blue-50", icon: createElement(Send, { size: 12 }) },
+  aguardando_aprovacao: { label: "Aguardando Aprovação", color: "text-amber-600 bg-amber-50", icon: createElement(Search, { size: 12 }) },
+  aprovado: { label: "Aprovado", color: "text-teal-600 bg-teal-50", icon: createElement(ThumbsUp, { size: 12 }) },
+  em_producao: { label: "Em Produção", color: "text-violet-600 bg-violet-50", icon: createElement(Wrench, { size: 12 }) },
+  finalizado: { label: "Finalizado", color: "text-cyan-600 bg-cyan-50", icon: createElement(Package, { size: 12 }) },
+  nota_emitida: { label: "Nota Emitida", color: "text-indigo-600 bg-indigo-50", icon: createElement(FileCheck, { size: 12 }) },
   entregue: { label: "Entregue", color: "text-emerald-600 bg-emerald-50", icon: createElement(CheckCircle2, { size: 12 }) },
   cancelada: { label: "Cancelada", color: "text-red-600 bg-red-50", icon: createElement(XCircle, { size: 12 }) },
 };
 
-export const STATUS_ORDER: SOStatus[] = ["rascunho", "aberta", "em_analise", "em_conserto", "pronto_retirada", "entregue", "cancelada"];
+export const STATUS_ORDER: SOStatus[] = [
+  "rascunho",
+  "orcamento_enviado",
+  "aguardando_aprovacao",
+  "aprovado",
+  "em_producao",
+  "finalizado",
+  "nota_emitida",
+  "entregue",
+  "cancelada",
+];
 
 // ─── PDF template ─────────────────────────────────────────────────────────────
 

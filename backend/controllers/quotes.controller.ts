@@ -1,10 +1,21 @@
+import crypto from "crypto";
 import type { Request, Response } from "express";
 import { prisma } from "../config/prisma";
 import type { AuthenticatedRequest } from "../types/auth";
 import { localDateString } from "../utils/date";
+import { canMoveToStage } from "../utils/stage-permissions";
+import { isWorkflowStage, WORKFLOW_STAGES } from "../utils/workflow-stages";
 
 function getTenantId(req: Request) {
   return (req as AuthenticatedRequest).user.tenantId;
+}
+
+function getRole(req: Request): string {
+  return (req as AuthenticatedRequest).user.role;
+}
+
+function getUserId(req: Request): number {
+  return (req as AuthenticatedRequest).user.userId;
 }
 
 function getActor(req: Request): string {
@@ -166,7 +177,7 @@ export async function createQuote(req: Request, res: Response) {
         total_amount: totalAmountComputed,
         validity_days: validity_days || 7,
         notes: notes || null,
-        status: isDraft ? "rascunho" : "open",
+        status: isDraft ? "rascunho" : "orcamento_enviado",
         items: { create: itemRows },
         ...(serviceRows.length > 0 ? { services: { create: serviceRows } } : {}),
       },
@@ -191,6 +202,22 @@ export async function updateQuoteStatus(req: Request, res: Response) {
     const existing = await prisma.quote.findFirst({ where: { id, tenant_id: tenantId } });
     if (!existing) return res.status(404).json({ error: "Orçamento não encontrado" });
 
+    // Fluxo guiado: só avança uma etapa por vez dentro das 8 etapas do workflow,
+    // igual à Ordem de Serviço. Estados terminais (cancelled/expired/converted) seguem
+    // acessíveis livremente — não fazem parte do stepper.
+    if (isWorkflowStage(status)) {
+      const fromIdx = WORKFLOW_STAGES.indexOf(existing.status as any);
+      const toIdx = WORKFLOW_STAGES.indexOf(status as any);
+      if (fromIdx === -1 || toIdx !== fromIdx + 1) {
+        return res.status(400).json({ error: "Só é possível avançar para a próxima etapa do fluxo" });
+      }
+
+      const allowed = await canMoveToStage(getUserId(req), getRole(req), status);
+      if (!allowed) {
+        return res.status(403).json({ error: "Seu papel não tem permissão para mover o orçamento para esta etapa" });
+      }
+    }
+
     await prisma.quote.update({ where: { id }, data: { status } });
     await logQuoteAction(tenantId, id, "status_changed", {
       fromStatus: existing.status, toStatus: status, actor: getActor(req),
@@ -209,7 +236,7 @@ export async function updateQuote(req: Request, res: Response) {
 
     const existing = await prisma.quote.findFirst({ where: { id, tenant_id: tenantId } });
     if (!existing) return res.status(404).json({ error: "Orçamento não encontrado" });
-    if (existing.status !== "open" && existing.status !== "rascunho") {
+    if (existing.status !== "orcamento_enviado" && existing.status !== "rascunho") {
       return res.status(400).json({ error: "Só é possível editar orçamentos em aberto ou rascunho" });
     }
 
@@ -302,7 +329,7 @@ export async function recordQuoteDeposit(req: Request, res: Response) {
 
     const quote = await prisma.quote.findFirst({ where: { id, tenant_id: tenantId } });
     if (!quote) return res.status(404).json({ error: "Orçamento não encontrado" });
-    if (quote.status !== "open") {
+    if (quote.status !== "orcamento_enviado") {
       return res.status(400).json({ error: "Só é possível registrar entrada em orçamentos em aberto" });
     }
 
@@ -524,7 +551,7 @@ let quoteExpirationStarted = false;
 export async function runQuoteExpirationJob() {
   try {
     const openQuotes = await prisma.quote.findMany({
-      where: { status: "open" },
+      where: { status: "orcamento_enviado" },
       select: { id: true, tenant_id: true, created_at: true, validity_days: true },
     });
 
@@ -534,7 +561,7 @@ export async function runQuoteExpirationJob() {
       if (expiresAt >= now) continue;
 
       await prisma.quote.update({ where: { id: q.id }, data: { status: "expired" } });
-      await logQuoteAction(q.tenant_id, q.id, "expired", { fromStatus: "open", toStatus: "expired" });
+      await logQuoteAction(q.tenant_id, q.id, "expired", { fromStatus: "orcamento_enviado", toStatus: "expired" });
     }
   } catch (err) {
     console.error("Quote expiration job failed:", err);

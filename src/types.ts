@@ -99,6 +99,9 @@ export interface User {
   email: string;
   role: 'admin' | 'seller' | 'staff' | 'super_admin' | 'pdv';
   superAdmin?: boolean;
+  // Permissões individuais (ausentes/vazias para role "admin", que já vê/move tudo).
+  menus?: string[];
+  stages?: string[];
 }
 
 export interface Category {
