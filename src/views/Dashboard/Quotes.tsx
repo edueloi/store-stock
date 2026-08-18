@@ -14,8 +14,8 @@ import {
 } from "lucide-react";
 import { cn } from "../../lib/utils";
 import PageHeader from "../../components/layout/PageHeader";
-import { downloadHtmlAsPdf } from "../../lib/pdf";
-import { buildDocumentHeaderHtml, buildDocumentTableHtml, DOCUMENT_BASE_CSS, fmtMoney } from "../../lib/documentPdf";
+import { generateQuotePDF } from "../../lib/quotePdf";
+import type { DocumentTenant } from "../../lib/documentPdf";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -52,29 +52,13 @@ interface Quote {
   notes?: string;
   status: "rascunho" | "orcamento_enviado" | "aguardando_aprovacao" | "aprovado" | "aguardando_arte" | "arte_finalizada" | "converted" | "cancelled" | "expired";
   deposit_amount?: number | null;
+  deposit_payment_method?: string | null;
   created_at: string;
   items: QuoteItem[];
   services: QuoteServiceRow[];
 }
 
-interface Tenant {
-  name: string;
-  document?: string;
-  logo_url?: string;
-  whatsapp?: string;
-  address_street?: string;
-  address_number?: string;
-  address_complement?: string;
-  address_district?: string;
-  address_city?: string;
-  address_state?: string;
-  address_zip?: string;
-  address?: string;
-  primary_color?: string;
-  razao_social?: string;
-  inscricao_estadual?: string;
-  inscricao_municipal?: string;
-}
+type Tenant = DocumentTenant;
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -98,134 +82,6 @@ function statusLabel(s: string) {
     expired:   { label: "Expirado",   color: "text-orange-600 bg-orange-50",icon: <Clock size={12} /> },
   };
   return map[s] ?? map.orcamento_enviado;
-}
-
-function quoteItemUnit(dimLabel?: string | null): string {
-  if (!dimLabel) return "UN";
-  return /m²|m2/i.test(dimLabel) ? "M²" : "UN";
-}
-
-async function generateQuotePDF(quote: Quote, tenant: Tenant) {
-  const brandColor = tenant.primary_color ?? "#2563eb";
-  const dateStr = new Date(quote.created_at).toLocaleDateString("pt-BR");
-  const validUntil = new Date(
-    new Date(quote.created_at).getTime() + quote.validity_days * 86400000
-  ).toLocaleDateString("pt-BR");
-
-  const header = buildDocumentHeaderHtml(tenant, {
-    docTitle: "Orçamento",
-    docNumber: String(quote.number).padStart(4, "0"),
-    docDateLabel: "Emitido em",
-    docDate: dateStr,
-    extraTopRight: [`Válido até ${validUntil}`],
-  });
-
-  const itemsTable = buildDocumentTableHtml(
-    [
-      { label: "Cód", align: "center", width: "45px" },
-      { label: "Descrição" },
-      { label: "Un", align: "center", width: "40px" },
-      { label: "Qtd", align: "center", width: "45px" },
-      { label: "Preço Unit.", align: "right", width: "85px" },
-      { label: "Total", align: "right", width: "85px" },
-    ],
-    [
-      ...quote.items.map((i) => ({
-        cells: [
-          i.product_id ? String(i.product_id) : "—",
-          i.name,
-          quoteItemUnit(i.dimensions_label),
-          String(i.quantity),
-          fmtMoney(Number(i.unit_price)),
-          fmtMoney(Number(i.total)),
-        ],
-        sub: i.dimensions_label ?? undefined,
-      })),
-      ...(quote.services ?? []).map((s) => ({
-        cells: [
-          "SERV",
-          s.name,
-          "UN",
-          String(s.quantity),
-          fmtMoney(Number(s.unit_price)),
-          fmtMoney(Number(s.unit_price) * s.quantity),
-        ],
-      })),
-    ],
-  );
-
-  const discountAmt = quote.discount_value > 0
-    ? (quote.discount_type === "percent"
-        ? (Number(quote.subtotal) * Number(quote.discount_value)) / 100
-        : Number(quote.discount_value))
-    : 0;
-  const discountLabel = quote.discount_type === "percent"
-    ? `Desconto (${quote.discount_value}%)`
-    : "Desconto";
-
-  const depositAmt = Number(quote.deposit_amount ?? 0);
-  const remaining = Math.max(0, Number(quote.total_amount) - depositAmt);
-
-  const html = `<!DOCTYPE html>
-<html lang="pt-BR">
-<head>
-<meta charset="utf-8"/>
-<title>Orçamento #${String(quote.number).padStart(4, "0")}</title>
-<style>
-  :root { --doc-brand: ${brandColor}; }
-  ${DOCUMENT_BASE_CSS}
-</style>
-</head>
-<body>
-
-${header}
-
-<div class="doc-section">
-  <div class="doc-section-label">Cliente</div>
-  <div class="doc-info-grid">
-    <div class="doc-info-row"><b>${quote.customer_name}</b></div>
-    ${[quote.customer_phone, quote.customer_email].filter(Boolean).length
-      ? `<div class="doc-info-row">${[quote.customer_phone, quote.customer_email].filter(Boolean).join("  |  ")}</div>`
-      : ""}
-  </div>
-</div>
-
-<div class="doc-section">
-  <div class="doc-section-label">Itens / Serviços</div>
-  ${itemsTable}
-</div>
-
-<div class="doc-section">
-  <div class="doc-totals">
-    <div class="doc-totals-box">
-      <div class="doc-totals-row"><span>Subtotal</span><span>${fmtMoney(Number(quote.subtotal))}</span></div>
-      ${discountAmt > 0 ? `<div class="doc-totals-row"><span>${discountLabel}</span><span>- ${fmtMoney(discountAmt)}</span></div>` : ""}
-      <div class="doc-totals-row grand"><span>TOTAL</span><span>${fmtMoney(Number(quote.total_amount))}</span></div>
-      ${depositAmt > 0 ? `
-      <div class="doc-totals-row" style="margin-top:8px"><span>Entrada paga</span><span>${fmtMoney(depositAmt)}</span></div>
-      <div class="doc-totals-row"><span>Restante</span><span>${fmtMoney(remaining)}</span></div>` : ""}
-    </div>
-  </div>
-</div>
-
-${quote.notes ? `
-<div class="doc-section">
-  <div class="doc-section-label">Observações / Condições de Pagamento</div>
-  <div class="doc-obs-box">${quote.notes}</div>
-</div>` : ""}
-
-<div class="doc-section" style="font-size:10px;color:#94a3b8;font-style:italic;">
-  Este orçamento é válido por ${quote.validity_days} dia(s) a partir de ${dateStr} (até ${validUntil}).
-</div>
-
-<div class="doc-footer">
-  Documento emitido em ${new Date().toLocaleString("pt-BR")} — Este documento não tem valor fiscal.
-</div>
-
-</body>
-</html>`;
-
-  await downloadHtmlAsPdf(html, `orcamento-${String(quote.number).padStart(4, "0")}-${quote.customer_name.replace(/\s+/g, "-")}.pdf`);
 }
 
 // ─── Main Component ───────────────────────────────────────────────────────────

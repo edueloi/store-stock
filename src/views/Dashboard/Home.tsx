@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   TrendingUp, TrendingDown, Package, DollarSign,
   ShoppingCart, Users, AlertTriangle, Trophy,
@@ -110,6 +111,7 @@ function monthRange(): { from: string; to: string } {
 }
 
 export default function Home() {
+  const navigate = useNavigate();
   const [stats, setStats] = useState<any>(null);
   const [topProducts, setTopProducts] = useState<any[]>([]);
   const [loadingStats, setLoadingStats] = useState(true);
@@ -378,6 +380,44 @@ export default function Home() {
               <h3 className="text-lg font-black text-slate-900 tracking-tight font-mono leading-none">{k.value}</h3>
             </motion.div>
           ))}
+        </div>
+      )}
+
+      {/* Produtos Esgotados / estoque baixo */}
+      {stats?.summary?.outOfStockProducts?.length > 0 && (
+        <div className="bg-white rounded-2xl border border-red-100 shadow-sm overflow-hidden">
+          <div className="flex items-center justify-between px-5 py-4 bg-red-50 border-b border-red-100">
+            <div className="flex items-center gap-2.5">
+              <AlertTriangle size={16} className="text-red-500 shrink-0" />
+              <div>
+                <p className="text-sm font-black text-slate-900">Produtos Esgotados</p>
+                <p className="text-[10px] text-red-500 font-bold uppercase tracking-wide">
+                  {stats.summary.outOfStockProducts.length} sem estoque
+                  {stats.summary.lowStockCount > 0 ? ` · ${stats.summary.lowStockCount} com estoque baixo` : ""}
+                </p>
+              </div>
+            </div>
+            <button onClick={() => navigate("/admin/stock")}
+              className="text-[10px] font-black uppercase tracking-wider text-red-600 hover:underline shrink-0">
+              Ver estoque
+            </button>
+          </div>
+          <div className="divide-y divide-slate-50 max-h-64 overflow-y-auto">
+            {stats.summary.outOfStockProducts.slice(0, 8).map((p: { id: number; name: string; sku: string | null }) => (
+              <div key={p.id} className="flex items-center justify-between px-5 py-2.5 gap-3">
+                <div className="min-w-0">
+                  <p className="text-xs font-bold text-slate-900 truncate">{p.name}</p>
+                  <p className="text-[9px] font-mono text-slate-400 uppercase">SKU: {p.sku || String(p.id).padStart(6, "0")}</p>
+                </div>
+                <span className="text-[9px] font-black uppercase text-red-500 shrink-0">0 un</span>
+              </div>
+            ))}
+          </div>
+          {stats.summary.outOfStockProducts.length > 8 && (
+            <div className="px-5 py-2 text-center text-[10px] font-bold text-slate-400 uppercase tracking-wide bg-slate-50">
+              +{stats.summary.outOfStockProducts.length - 8} outros produtos esgotados
+            </div>
+          )}
         </div>
       )}
 

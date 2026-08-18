@@ -22,12 +22,35 @@ import {
   ArrowUpDown,
   ArrowUp,
   ArrowDown,
+  FileText,
 } from "lucide-react";
 import PageHeader from "../../components/layout/PageHeader";
 import { Order, Product } from "../../types";
 import { cn } from "../../lib/utils";
 import { motion, AnimatePresence } from "motion/react";
 import { downloadHtmlAsPdf } from "../../lib/pdf";
+import { useToast } from "../../components/ui/Toast";
+
+// Baixa um arquivo autenticado (Bearer token) via fetch+blob — um <a href> direto
+// não envia o header Authorization e o backend responde 401.
+async function downloadAuthenticated(url: string, token: string | null, filename: string) {
+  const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+  if (!res.ok) {
+    let message = "Falha ao baixar arquivo";
+    try {
+      const data = await res.json();
+      if (data?.error) message = data.error;
+    } catch { /* resposta sem corpo JSON */ }
+    throw new Error(message);
+  }
+  const blob = await res.blob();
+  const blobUrl = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = blobUrl;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(blobUrl);
+}
 
 interface OrderDetail extends Order {
   items: Array<{
@@ -392,6 +415,7 @@ export default function Orders() {
   const [currentPage, setCurrentPage] = useState(1);
 
   const token = () => localStorage.getItem("token");
+  const notify = useToast();
 
   const fetchOrders = async () => {
     try {
@@ -406,6 +430,33 @@ export default function Orders() {
       setLoading(false);
     }
   };
+
+  // ── NFC-e por pedido ─────────────────────────────────────────────────────
+  const [emittingNfceId, setEmittingNfceId] = useState<number | null>(null);
+
+  const handleEmitNfce = async (orderId: number) => {
+    setEmittingNfceId(orderId);
+    try {
+      const res = await fetch(`/api/nfce/${orderId}/emit`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token()}` },
+      });
+      const data = await res.json();
+      if (!res.ok) { notify.error(data.error || "Não foi possível emitir a nota fiscal."); return; }
+      setOrders((prev) => prev.map((o) => (
+        o.id === orderId ? { ...o, nfce_invoice: { status: data.status, access_key: data.access_key } } : o
+      )));
+      notify.success("Emissão da NFC-e iniciada — atualize a lista em alguns segundos para ver o status.");
+    } catch {
+      notify.error("Erro ao solicitar a emissão da nota fiscal.");
+    } finally {
+      setEmittingNfceId(null);
+    }
+  };
+
+  const handleDownloadDanfe = (orderId: number, accessKey?: string | null) =>
+    downloadAuthenticated(`/api/nfce/${orderId}/danfe`, token(), `danfe-${accessKey ?? orderId}.pdf`)
+      .catch((e) => notify.error(e instanceof Error ? e.message : "Não foi possível baixar o DANFE."));
 
   useEffect(() => { setCurrentPage(1); }, [selectedStatus, selectedType, searchTerm, dateFrom, dateTo, sortField, sortDir]);
 
@@ -1332,6 +1383,7 @@ ${payments
                   </button>
                 </th>
                 <th className="px-3 py-2.5 text-[9px] font-black text-slate-400 uppercase tracking-[0.18em] text-center w-28">Status</th>
+                <th className="px-3 py-2.5 text-[9px] font-black text-slate-400 uppercase tracking-[0.18em] text-center w-32">Nota Fiscal</th>
                 <th className="px-3 py-2.5 w-20 text-[9px] font-black text-slate-400 uppercase tracking-[0.18em] text-center">Ações</th>
               </tr>
             </thead>
@@ -1427,6 +1479,37 @@ ${payments
                         </span>
                       )}
                     </td>
+                    {/* nota fiscal */}
+                    <td className="px-3 py-2 text-center" onClick={(e) => e.stopPropagation()}>
+                      {order.status === "cancelled" ? (
+                        <span className="text-[10px] text-slate-300">—</span>
+                      ) : order.nfce_invoice?.status === "authorized" ? (
+                        <button onClick={() => handleDownloadDanfe(order.id, order.nfce_invoice?.access_key)}
+                          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-wider bg-emerald-50 text-emerald-600 border border-emerald-100 hover:bg-emerald-100 transition-colors"
+                          title="Baixar DANFE">
+                          <FileText size={10} /> Emitida
+                        </button>
+                      ) : order.nfce_invoice?.status === "processing" || order.nfce_invoice?.status === "pending" ? (
+                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-wider bg-blue-50 text-blue-600 border border-blue-100">
+                          <Loader2 size={10} className="animate-spin" /> Processando
+                        </span>
+                      ) : order.nfce_invoice?.status === "rejected" || order.nfce_invoice?.status === "error" ? (
+                        <button onClick={() => handleEmitNfce(order.id)} disabled={emittingNfceId === order.id}
+                          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-wider bg-red-50 text-red-500 border border-red-100 hover:bg-red-100 transition-colors disabled:opacity-50"
+                          title="Tentar novamente">
+                          {emittingNfceId === order.id ? <Loader2 size={10} className="animate-spin" /> : <AlertTriangle size={10} />} Reemitir
+                        </button>
+                      ) : order.customer_document && order.customer_document.trim() ? (
+                        <button onClick={() => handleEmitNfce(order.id)} disabled={emittingNfceId === order.id}
+                          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-wider bg-slate-900 text-white hover:bg-slate-700 transition-colors disabled:opacity-50">
+                          {emittingNfceId === order.id ? <Loader2 size={10} className="animate-spin" /> : <FileText size={10} />} Gerar NF
+                        </button>
+                      ) : (
+                        <span className="text-[9px] text-slate-400 uppercase font-bold tracking-wide" title="Sem CPF/CNPJ cadastrado — apenas cupom comum">
+                          Sem CPF/CNPJ
+                        </span>
+                      )}
+                    </td>
                     {/* ações — sempre visíveis */}
                     <td className="px-3 py-2">
                       <div className="flex justify-center items-center gap-1.5">
@@ -1447,7 +1530,7 @@ ${payments
               })}
               {sortedOrders.length === 0 && (
                 <tr>
-                  <td colSpan={8} className="px-4 py-12 text-center text-[11px] font-bold text-slate-400 uppercase tracking-widest">
+                  <td colSpan={9} className="px-4 py-12 text-center text-[11px] font-bold text-slate-400 uppercase tracking-widest">
                     Nenhum pedido encontrado
                   </td>
                 </tr>
@@ -1620,6 +1703,33 @@ ${payments
                   </p>
                 </div>
               </div>
+
+              {order.status !== "cancelled" && (
+                <div className="flex justify-end pt-3">
+                  {order.nfce_invoice?.status === "authorized" ? (
+                    <button onClick={() => handleDownloadDanfe(order.id, order.nfce_invoice?.access_key)}
+                      className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-wider bg-emerald-50 text-emerald-600 border border-emerald-100">
+                      <FileText size={10} /> Nota Emitida
+                    </button>
+                  ) : order.nfce_invoice?.status === "processing" || order.nfce_invoice?.status === "pending" ? (
+                    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-wider bg-blue-50 text-blue-600 border border-blue-100">
+                      <Loader2 size={10} className="animate-spin" /> Nota Processando
+                    </span>
+                  ) : order.nfce_invoice?.status === "rejected" || order.nfce_invoice?.status === "error" ? (
+                    <button onClick={() => handleEmitNfce(order.id)} disabled={emittingNfceId === order.id}
+                      className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-wider bg-red-50 text-red-500 border border-red-100 disabled:opacity-50">
+                      {emittingNfceId === order.id ? <Loader2 size={10} className="animate-spin" /> : <AlertTriangle size={10} />} Reemitir Nota
+                    </button>
+                  ) : order.customer_document && order.customer_document.trim() ? (
+                    <button onClick={() => handleEmitNfce(order.id)} disabled={emittingNfceId === order.id}
+                      className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-wider bg-slate-900 text-white disabled:opacity-50">
+                      {emittingNfceId === order.id ? <Loader2 size={10} className="animate-spin" /> : <FileText size={10} />} Gerar Nota Fiscal
+                    </button>
+                  ) : (
+                    <span className="text-[9px] text-slate-400 uppercase font-bold tracking-wide">Sem CPF/CNPJ — só cupom comum</span>
+                  )}
+                </div>
+              )}
             </motion.div>
           );
         })}

@@ -377,6 +377,54 @@ export async function payDebtPartial(req: Request, res: Response) {
   }
 }
 
+// Aplica juros a uma parcela vencida — sempre uma ação explícita do operador (nunca
+// acúmulo automático em background). O valor entra em `amount` da parcela (pra
+// `remaining = amount - amount_paid` continuar funcionando em todo lugar sem mudança
+// nenhuma) e também em `interest_amount`, só pra distinguir principal de juros depois
+// em recibos/relatórios. Não gera CustomerDebtPayment (juros não é dinheiro recebido).
+export async function applyInstallmentInterest(req: Request, res: Response) {
+  try {
+    const tenantId = getTenantId(req);
+    const debtId = Number(req.params.debtId);
+    const installmentId = Number(req.params.instId);
+    const { interest_amount } = req.body as { interest_amount?: number };
+
+    const amount = Number(interest_amount);
+    if (!amount || amount <= 0) {
+      return res.status(422).json({ error: "Valor de juros inválido" });
+    }
+
+    const installment = await prisma.customerDebtInstallment.findFirst({
+      where: { id: installmentId, debt_id: debtId, tenant_id: tenantId },
+    });
+    if (!installment) return res.status(404).json({ error: "Parcela não encontrada" });
+    if (installment.status === "paid") {
+      return res.status(422).json({ error: "Parcela já está paga — não é possível aplicar juros" });
+    }
+
+    const updated = await prisma.$transaction(async (tx) => {
+      const updatedInstallment = await tx.customerDebtInstallment.update({
+        where: { id: installmentId },
+        data: {
+          amount: { increment: amount },
+          interest_amount: { increment: amount },
+          interest_applied_at: new Date(),
+        },
+      });
+      await tx.customerDebt.update({
+        where: { id: debtId },
+        data: { amount: { increment: amount } },
+      });
+      return updatedInstallment;
+    });
+
+    res.json({ success: true, installment: updated });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Falha ao aplicar juros" });
+  }
+}
+
 export async function deleteDebt(req: Request, res: Response) {
   try {
     const tenantId = getTenantId(req);

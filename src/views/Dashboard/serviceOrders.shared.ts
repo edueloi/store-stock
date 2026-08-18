@@ -93,6 +93,7 @@ export interface ServiceOrder {
   priority: "normal" | "urgente";
   promised_at: string | null;
   service_value: number;
+  service_description: string | null;
   parts_total: number;
   subtotal: number;
   discount_type: "percent" | "fixed";

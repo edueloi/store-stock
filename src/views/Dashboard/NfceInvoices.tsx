@@ -2,13 +2,14 @@ import { useState, useEffect, useMemo } from "react";
 import ExcelJS from "exceljs";
 import {
   FileCheck, Search, Download, RefreshCw, FileText, AlertTriangle,
-  CheckCircle2, Loader2, Clock, XCircle, Ban, Archive,
+  CheckCircle2, Loader2, Clock, XCircle, Ban, Archive, Calendar,
 } from "lucide-react";
 import PageHeader from "../../components/layout/PageHeader";
 import { NfceInvoice, NfceStatus } from "../../types";
 import { cn } from "../../lib/utils";
 import Modal from "../../components/ui/Modal";
 import Button from "../../components/ui/Button";
+import { useToast } from "../../components/ui/Toast";
 
 const PRAZO_CANCELAMENTO_MINUTOS = 30;
 
@@ -75,7 +76,14 @@ async function exportNfceToExcel(invoices: NfceInvoice[]) {
 // não envia o header Authorization e o backend responde 401.
 async function downloadAuthenticated(url: string, token: string | null, filename: string) {
   const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
-  if (!res.ok) throw new Error("Falha ao baixar arquivo");
+  if (!res.ok) {
+    let message = "Falha ao baixar arquivo";
+    try {
+      const data = await res.json();
+      if (data?.error) message = data.error;
+    } catch { /* resposta sem corpo JSON */ }
+    throw new Error(message);
+  }
   const blob = await res.blob();
   const blobUrl = URL.createObjectURL(blob);
   const a = document.createElement("a");
@@ -98,6 +106,18 @@ export default function NfceInvoices() {
   const [cancelError, setCancelError] = useState<string | null>(null);
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [batchLoading, setBatchLoading] = useState<"retry" | "xml" | "danfe" | null>(null);
+  const notify = useToast();
+
+  // Date filter — default: first → last day of current month
+  const todayStr = () => new Date().toISOString().slice(0, 10);
+  const firstOfMonthStr = (d = new Date()) =>
+    `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-01`;
+  const lastOfMonthStr = (d = new Date()) => {
+    const last = new Date(d.getFullYear(), d.getMonth() + 1, 0);
+    return `${last.getFullYear()}-${String(last.getMonth() + 1).padStart(2, "0")}-${String(last.getDate()).padStart(2, "0")}`;
+  };
+  const [dateFrom, setDateFrom] = useState(firstOfMonthStr());
+  const [dateTo,   setDateTo]   = useState(lastOfMonthStr());
 
   const token = localStorage.getItem("token");
 
@@ -146,14 +166,21 @@ export default function NfceInvoices() {
   };
 
   const handleDownloadDanfe = (inv: NfceInvoice) =>
-    downloadAuthenticated(`/api/nfce/${inv.order_id}/danfe`, token, `danfe-${inv.access_key ?? inv.order_id}.pdf`).catch(() => {});
+    downloadAuthenticated(`/api/nfce/${inv.order_id}/danfe`, token, `danfe-${inv.access_key ?? inv.order_id}.pdf`)
+      .catch((e) => notify.error(e instanceof Error ? e.message : "Não foi possível baixar o DANFE."));
 
   const handleDownloadXml = (inv: NfceInvoice) =>
-    downloadAuthenticated(`/api/nfce/${inv.order_id}/xml`, token, `nfce-${inv.access_key ?? inv.order_id}.xml`).catch(() => {});
+    downloadAuthenticated(`/api/nfce/${inv.order_id}/xml`, token, `nfce-${inv.access_key ?? inv.order_id}.xml`)
+      .catch((e) => notify.error(e instanceof Error ? e.message : "Não foi possível baixar o XML."));
 
   const filtered = useMemo(() => {
     return invoices.filter((inv) => {
       if (statusFilter !== "all" && inv.status !== statusFilter) return false;
+      // Data local (evita o dia mudar por causa do offset UTC)
+      const d = new Date(inv.created_at);
+      const invDate = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+      if (dateFrom && invDate < dateFrom) return false;
+      if (dateTo   && invDate > dateTo)   return false;
       if (searchTerm) {
         const term = searchTerm.toLowerCase();
         const haystack = `${inv.number} ${inv.access_key ?? ""} ${inv.order?.customer_name ?? ""}`.toLowerCase();
@@ -161,7 +188,7 @@ export default function NfceInvoices() {
       }
       return true;
     });
-  }, [invoices, statusFilter, searchTerm]);
+  }, [invoices, statusFilter, searchTerm, dateFrom, dateTo]);
 
   const counts = useMemo(() => ({
     total: invoices.length,
@@ -214,6 +241,8 @@ export default function NfceInvoices() {
     try {
       const ids = selectedAuthorized.map((inv) => inv.order_id).join(",");
       await downloadAuthenticated(`/api/nfce/xml-batch?ids=${ids}`, token, `nfce-xml-${new Date().toISOString().slice(0, 10)}.zip`);
+    } catch (e) {
+      notify.error(e instanceof Error ? e.message : "Não foi possível baixar os XMLs.");
     } finally {
       setBatchLoading(null);
     }
@@ -225,6 +254,8 @@ export default function NfceInvoices() {
     try {
       const ids = selectedAuthorized.map((inv) => inv.order_id).join(",");
       await downloadAuthenticated(`/api/nfce/danfe-batch?ids=${ids}`, token, `danfe-${new Date().toISOString().slice(0, 10)}.zip`);
+    } catch (e) {
+      notify.error(e instanceof Error ? e.message : "Não foi possível baixar os DANFEs.");
     } finally {
       setBatchLoading(null);
     }
@@ -285,6 +316,38 @@ export default function NfceInvoices() {
               <option key={key} value={key}>{meta.label}</option>
             ))}
           </select>
+
+          {/* Date range */}
+          <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-200 rounded-xl px-3 h-9 shrink-0">
+            <Calendar size={12} className="text-slate-400 shrink-0" />
+            <input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)}
+              className="text-[11px] font-medium text-slate-700 outline-none bg-transparent cursor-pointer w-[105px]" />
+            <span className="text-slate-300 font-bold text-[10px]">—</span>
+            <input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)}
+              className="text-[11px] font-medium text-slate-700 outline-none bg-transparent cursor-pointer w-[105px]" />
+          </div>
+
+          {/* Quick presets */}
+          <div className="flex items-center gap-1 shrink-0 bg-slate-50 border border-slate-200 rounded-xl p-1">
+            {[
+              { label: "Hoje", from: todayStr(),        to: todayStr() },
+              { label: "7d",   from: (() => { const d = new Date(); d.setDate(d.getDate() - 6); return d.toISOString().slice(0, 10); })(), to: todayStr() },
+              { label: "Mês",  from: firstOfMonthStr(), to: lastOfMonthStr() },
+              { label: "Tudo", from: "",                to: "" },
+            ].map((p) => {
+              const active = dateFrom === p.from && dateTo === p.to;
+              return (
+                <button key={p.label} onClick={() => { setDateFrom(p.from); setDateTo(p.to); }}
+                  className={cn(
+                    "h-7 px-3 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all",
+                    active ? "bg-slate-900 text-white shadow-sm" : "text-slate-500 hover:text-slate-700"
+                  )}
+                >
+                  {p.label}
+                </button>
+              );
+            })}
+          </div>
         </div>
 
         {selected.size > 0 && (

@@ -33,6 +33,7 @@ import nfseRoutes from "./nfse.routes";
 import whatsappRoutes from "./whatsapp.routes";
 import consignmentsRoutes from "./consignments.routes";
 import cashSessionsRoutes from "./cash-sessions.routes";
+import heldSalesRoutes from "./held-sales.routes";
 import workflowRoutes from "./workflow.routes";
 
 export function registerRoutes(app: Express) {
@@ -72,5 +73,6 @@ export function registerRoutes(app: Express) {
   app.use("/api/whatsapp", whatsappRoutes);
   app.use("/api/consignments", consignmentsRoutes);
   app.use("/api/cash-sessions", cashSessionsRoutes);
+  app.use("/api/held-sales", heldSalesRoutes);
   app.use("/api/workflow", workflowRoutes);
 }

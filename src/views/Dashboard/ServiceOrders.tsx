@@ -4,6 +4,7 @@ import { Plus, Search, Trash2, Loader2 } from "lucide-react";
 import { cn } from "../../lib/utils";
 import PageHeader from "../../components/layout/PageHeader";
 import Modal from "../../components/ui/Modal";
+import Combobox, { type ComboboxOption } from "../../components/ui/Combobox";
 import {
   ServiceOrder,
   Seller,
@@ -80,6 +81,15 @@ export default function ServiceOrders() {
     return acc;
   }, {} as Record<SOStatus, number>);
 
+  const statusOptions: ComboboxOption[] = [
+    { value: "all", label: `Todas as etapas (${orders.length})` },
+    ...STATUS_ORDER.map((s) => ({
+      value: s,
+      label: `${STATUS_META[s].label} (${statusCounts[s]})`,
+      icon: STATUS_META[s].icon,
+    })),
+  ];
+
   return (
     <div className="space-y-5">
       <PageHeader
@@ -106,30 +116,13 @@ export default function ServiceOrders() {
         />
       </div>
 
-      {/* Status tabs */}
-      <div className="flex gap-1.5 overflow-x-auto pb-1">
-        <button
-          onClick={() => setStatusFilter("all")}
-          className={cn(
-            "shrink-0 h-8 px-3 rounded-lg text-[10px] font-black uppercase tracking-wider border transition-all",
-            statusFilter === "all" ? "bg-slate-900 border-slate-900 text-white" : "bg-white border-slate-200 text-slate-500 hover:border-slate-300"
-          )}
-        >
-          Todas ({orders.length})
-        </button>
-        {STATUS_ORDER.map((s) => (
-          <button
-            key={s}
-            onClick={() => setStatusFilter(s)}
-            className={cn(
-              "shrink-0 h-8 px-3 rounded-lg text-[10px] font-black uppercase tracking-wider border transition-all flex items-center gap-1.5",
-              statusFilter === s ? "bg-slate-900 border-slate-900 text-white" : "bg-white border-slate-200 text-slate-500 hover:border-slate-300"
-            )}
-          >
-            {STATUS_META[s].icon} {STATUS_META[s].label} ({statusCounts[s]})
-          </button>
-        ))}
-      </div>
+      {/* Status filter */}
+      <Combobox
+        options={statusOptions}
+        value={statusFilter}
+        onChange={(v) => setStatusFilter(v as "all" | SOStatus)}
+        className="max-w-xs"
+      />
 
       {/* List */}
       <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">

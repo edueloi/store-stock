@@ -183,9 +183,11 @@ export interface Order {
   tenant_id: number;
   seller_id?: number | null;
   seller_name?: string | null;
+  customer_id?: number | null;
   customer_name?: string;
   customer_phone?: string;
   customer_address?: string;
+  customer_document?: string | null;
   total_amount: number;
   gross_amount?: number | null;
   discount_amount?: number | null;
@@ -196,12 +198,13 @@ export interface Order {
   cancel_reason?: string | null;
   cancelled_at?: string | null;
   created_at: string;
+  nfce_invoice?: { status: string; access_key?: string | null } | null;
 }
 
 export interface FinanceEntry {
   id: number;
   tenant_id: number;
-  type: 'income' | 'expense';
+  type: 'income' | 'expense' | 'withdrawal';
   description: string;
   amount: number;
   gross_amount?: number | null;

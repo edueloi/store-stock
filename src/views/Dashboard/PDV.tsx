@@ -18,6 +18,8 @@ import { productHasStock } from "../../utils/productStock";
 import { fetchCurrentCashSession, openCashSession as apiOpenCashSession, closeCashSession as apiCloseCashSession, CashSessionInfo } from "../../lib/cashSession";
 import OpenCashSessionScreen from "../../components/pdv/OpenCashSessionScreen";
 import CloseCashSessionModal from "../../components/pdv/CloseCashSessionModal";
+import HeldSalesDrawer from "../../components/pdv/HeldSalesDrawer";
+import { cancelHeldSale, createHeldSale, getOpenHeldSalesCount, type HeldSale } from "../../lib/heldSales";
 
 function maskPhone(v: string) {
   const d = v.replace(/\D/g, "").slice(0, 11);
@@ -50,6 +52,9 @@ interface CartItem extends Product {
   variationLabel: string;
   selectedOptions?: Record<string, string>;
   dimensionsLabel?: string;
+  // id da HeldSaleItem de origem, quando esta linha veio de uma venda em espera retomada —
+  // enviado ao finalizar pra não debitar de novo um estoque já reservado no hold.
+  heldSaleItemId?: number;
 }
 
 // Cada entrada de pagamento (pode ter múltiplos)
@@ -114,6 +119,16 @@ const PM_LABEL: Record<PaymentMethod, string> = {
   money: "Dinheiro", debit: "Débito", credit: "Crédito", pix: "PIX", crediario: "Crediário",
 };
 
+// Sugestão de juros pro-rata sobre o valor restante da parcela — sempre calculada na
+// hora pra exibir, nunca acumulada automaticamente. `rate` é % ao mês.
+function suggestedInterest(remaining: number, due_date: string, rate: number, graceDays: number): number {
+  if (rate <= 0) return 0;
+  const daysLate = Math.floor((Date.now() - new Date(due_date).getTime()) / 86400000);
+  const billableDays = Math.max(0, daysLate - graceDays);
+  if (billableDays <= 0) return 0;
+  return Math.round(remaining * (rate / 100) * (billableDays / 30) * 100) / 100;
+}
+
 function defaultCrediarioFirstDueDate(): string {
   const d = new Date();
   d.setDate(d.getDate() + 30);
@@ -156,16 +171,25 @@ export default function PDV() {
   const [showCrediarioModal, setShowCrediarioModal] = useState(false);
   const [showCustomerLookup, setShowCustomerLookup] = useState(false);
   const [showConsignmentLookup, setShowConsignmentLookup] = useState(false);
+  // vendas em espera (comanda) — segurar o carrinho atual e retomar depois
+  const [showHeldSalesDrawer, setShowHeldSalesDrawer] = useState(false);
+  const [openHeldSalesCount, setOpenHeldSalesCount] = useState(0);
+  const [activeHeldSaleId, setActiveHeldSaleId] = useState<number | null>(null);
+  const [holdingSale, setHoldingSale] = useState(false);
   const [showAddProductModal, setShowAddProductModal] = useState(false);
   const [addProductSearch, setAddProductSearch] = useState("");
   const [morePaymentMenuFor, setMorePaymentMenuFor] = useState<string | null>(null);
 
   // ── Crediário (consulta + pagamento parcial de dívidas) ─────────────────
   interface DebtOrder { id: number; number?: number; items: { id: number; product_id: number; quantity: number; unit_price: number; product?: { name: string } }[] }
+  interface DebtInstallmentLite {
+    id: number; number: number; due_date: string; amount: number; amount_paid: number; status: string; paid_at?: string | null;
+  }
   interface CustomerDebtLite {
     id: number; description: string; amount: number; amount_paid: number; status: string; due_date?: string | null;
     created_at: string; order_id: number | null; order?: DebtOrder | null;
     payments?: { id: number; amount: number; payment_method?: string | null; paid_at: string }[];
+    installments?: DebtInstallmentLite[];
   }
   const [crediarioSearch, setCrediarioSearch] = useState("");
   const [crediarioCustomer, setCrediarioCustomer] = useState<CustomerOption | null>(null);
@@ -175,6 +199,14 @@ export default function PDV() {
   const [crediarioPayAmount, setCrediarioPayAmount] = useState<Record<number, string>>({});
   const [crediarioPayMethod, setCrediarioPayMethod] = useState<Record<number, "money" | "pix" | "debit" | "credit">>({});
   const [crediarioPaying, setCrediarioPaying] = useState<number | null>(null);
+  // Parcelas — chaveados por id de parcela (tabela diferente de debt, não reaproveitar os mapas acima)
+  const [crediarioInstallmentPayAmount, setCrediarioInstallmentPayAmount] = useState<Record<number, string>>({});
+  const [crediarioInstallmentPayMethod, setCrediarioInstallmentPayMethod] = useState<Record<number, "money" | "pix" | "debit" | "credit">>({});
+  const [crediarioPayingInstallmentId, setCrediarioPayingInstallmentId] = useState<number | null>(null);
+  // Juros de crediário (configurado em Settings, aplicado manualmente por parcela)
+  const [crediarioInterestRate, setCrediarioInterestRate] = useState(0);
+  const [crediarioGraceDays, setCrediarioGraceDays] = useState(0);
+  const [crediarioApplyingInterestId, setCrediarioApplyingInterestId] = useState<number | null>(null);
 
   // ── Consultar Cliente ────────────────────────────────────────────────────
   const [customerLookupSearch, setCustomerLookupSearch] = useState("");
@@ -313,6 +345,8 @@ export default function PDV() {
         if (d?.pass_fee_by_method) setPassFeeByMethod(d.pass_fee_by_method as Record<string, boolean>);
         if (d?.max_installments) setMaxInstallments(Number(d.max_installments));
         if (d?.enabled_brands) setEnabledBrands(d.enabled_brands as Record<string, boolean>);
+        setCrediarioInterestRate(Number(d?.crediario_interest_rate) || 0);
+        setCrediarioGraceDays(Number(d?.crediario_grace_days) || 0);
         setTenant({
           name:          d?.name          || "BoxSys Store",
           address:       d?.address       || "",
@@ -339,6 +373,9 @@ export default function PDV() {
       .then((r) => r.json())
       .then((d) => setCustomers(Array.isArray(d) ? d : []))
       .catch(() => {});
+    if (token) {
+      getOpenHeldSalesCount(token).then(setOpenHeldSalesCount).catch(() => {});
+    }
     Promise.all([
       fetch("/api/loyalty/program", { headers }).then((r) => r.json()),
       fetch("/api/loyalty/rewards", { headers }).then((r) => r.json()),
@@ -759,6 +796,51 @@ export default function PDV() {
     }
   };
 
+  // Paga uma parcela específica (não a dívida em bloco) — pra dividir entre formas,
+  // o operador chama isso mais de uma vez seguidas pra mesma parcela, com valores/formas
+  // diferentes; cada chamada já revalida o saldo restante da parcela no servidor.
+  const handlePayInstallment = async (debt: CustomerDebtLite, installment: DebtInstallmentLite) => {
+    const remaining = Number(installment.amount) - Number(installment.amount_paid);
+    const amount = Number(crediarioInstallmentPayAmount[installment.id] ?? remaining);
+    if (!amount || amount <= 0 || amount > remaining + 0.005) return;
+    setCrediarioPayingInstallmentId(installment.id);
+    try {
+      const res = await fetch(`/api/customers/${crediarioCustomer!.id}/debts/${debt.id}/pay-partial`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ amount, payment_method: crediarioInstallmentPayMethod[installment.id] ?? "money", installment_id: installment.id }),
+      });
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        alert(errData.error || "Erro ao pagar parcela.");
+        return;
+      }
+      if (crediarioCustomer) await loadCrediarioCustomer(crediarioCustomer);
+      setCrediarioInstallmentPayAmount((prev) => { const next = { ...prev }; delete next[installment.id]; return next; });
+      setCrediarioInstallmentPayMethod((prev) => { const next = { ...prev }; delete next[installment.id]; return next; });
+    } finally {
+      setCrediarioPayingInstallmentId(null);
+    }
+  };
+
+  // Aplica juros a uma parcela vencida — ação manual e explícita, sempre com
+  // confirmação (não tem "desfazer" nesta versão).
+  const handleApplyInterest = async (debt: CustomerDebtLite, installment: DebtInstallmentLite, suggested: number) => {
+    if (suggested <= 0) return;
+    if (!window.confirm(`Aplicar R$ ${suggested.toFixed(2)} de juros a esta parcela? Isso não pode ser desfeito automaticamente.`)) return;
+    setCrediarioApplyingInterestId(installment.id);
+    try {
+      await fetch(`/api/customers/${crediarioCustomer!.id}/debts/${debt.id}/installments/${installment.id}/apply-interest`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ interest_amount: suggested }),
+      });
+      if (crediarioCustomer) await loadCrediarioCustomer(crediarioCustomer);
+    } finally {
+      setCrediarioApplyingInterestId(null);
+    }
+  };
+
   const crediarioFilteredCustomers = crediarioSearch
     ? customers.filter((c) => c.name.toLowerCase().includes(crediarioSearch.toLowerCase()) || (c.phone ?? "").includes(crediarioSearch))
     : [];
@@ -786,10 +868,19 @@ export default function PDV() {
     }
   };
 
-  // Cancela a venda em andamento: limpa carrinho/cliente/pagamentos e volta pra grade
-  const cancelSale = () => {
+  // Cancela a venda em andamento: limpa carrinho/cliente/pagamentos e volta pra grade.
+  // Se o carrinho veio de uma venda em espera retomada, cancela ela de verdade no
+  // servidor (devolve o estoque reservado) — senão a reserva ficaria presa pra sempre.
+  const cancelSale = async () => {
     if (finishing) return;
-    if (!window.confirm("Cancelar esta venda? Os itens do carrinho serão descartados.")) return;
+    const msg = activeHeldSaleId
+      ? "Cancelar esta venda? Os itens do carrinho serão descartados e o estoque reservado na venda em espera será devolvido."
+      : "Cancelar esta venda? Os itens do carrinho serão descartados.";
+    if (!window.confirm(msg)) return;
+    if (activeHeldSaleId && token) {
+      try { await cancelHeldSale(token, activeHeldSaleId); } catch (err) { console.error(err); }
+      getOpenHeldSalesCount(token).then(setOpenHeldSalesCount).catch(() => {});
+    }
     setCart([]);
     setCartServices([]);
     setPayments([newPayment()]);
@@ -803,6 +894,98 @@ export default function PDV() {
     setSaleError(null);
     setShowCheckout(false);
     setPdvStep("cart");
+    setActiveHeldSaleId(null);
+    refreshProducts();
+  };
+
+  // Segura a venda atual (comanda): reserva o estoque no servidor e libera o PDV pra
+  // atender outro cliente, sem descartar o carrinho. Só disponível na etapa "cart" —
+  // ver corte de escopo do plano da feature.
+  const holdSale = async () => {
+    if (holdingSale || (cart.length === 0 && cartServices.length === 0)) return;
+    setHoldingSale(true);
+    try {
+      await createHeldSale(token!, {
+        customer_id: selectedCustomerId ?? undefined,
+        customer_name: customerName || undefined,
+        seller_id: selectedSellerId ?? undefined,
+        snapshot: {
+          discount, discountMode, surcharge, surchargeMode,
+          appliedReward, customerDocument, customerPoints, cartServices,
+        },
+        items: cart.map((i) => ({
+          product_id: i.id,
+          quantity: i.quantity,
+          selectedOptions: i.selectedOptions ?? null,
+          dimensionsLabel: i.dimensionsLabel ?? null,
+        })),
+      });
+      setCart([]);
+      setCartServices([]);
+      setPayments([newPayment()]);
+      setSelectedCustomerId(null);
+      setCustomerName("");
+      setDiscount("");
+      setSurcharge("");
+      setAppliedReward(null);
+      setSelectedSellerId(null);
+      setTerminalResult(null);
+      setSaleError(null);
+      setShowCheckout(false);
+      setPdvStep("cart");
+      setActiveHeldSaleId(null);
+      refreshProducts();
+      if (token) getOpenHeldSalesCount(token).then(setOpenHeldSalesCount).catch(() => {});
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Erro ao segurar a venda.");
+    } finally {
+      setHoldingSale(false);
+    }
+  };
+
+  // Retoma uma venda em espera: reconstrói o carrinho a partir dos itens salvos
+  // (o estoque continua reservado — só volta se a venda em espera for cancelada).
+  const resumeFromHeldSale = (heldSale: HeldSale) => {
+    const restoredCart: CartItem[] = [];
+    const missing: string[] = [];
+    for (const it of heldSale.items) {
+      if (it.resolution !== "pending") continue;
+      const product = products.find((p) => p.id === it.product_id);
+      if (!product) { missing.push(it.name); continue; }
+      const variationLabel = it.selected_options
+        ? Object.entries(it.selected_options).map(([k, v]) => `${k}: ${v}`).join(", ")
+        : "";
+      restoredCart.push({
+        ...product,
+        price: Number(it.unit_price),
+        quantity: it.quantity,
+        cartItemId: `held-${it.id}`,
+        selectedOptions: it.selected_options ?? undefined,
+        variationLabel,
+        dimensionsLabel: it.dimensions_label ?? undefined,
+        heldSaleItemId: it.id,
+      });
+    }
+    if (missing.length > 0) {
+      alert(`Alguns produtos não foram encontrados e não puderam ser restaurados: ${missing.join(", ")}`);
+    }
+    setCart(restoredCart);
+    setCartServices((heldSale.snapshot?.cartServices as ServiceItem[] | undefined) ?? []);
+    setSelectedCustomerId(heldSale.customer_id);
+    setCustomerName(heldSale.customer_name ?? "");
+    setCustomerDocument(heldSale.snapshot?.customerDocument ?? "");
+    setCustomerPoints(heldSale.snapshot?.customerPoints ?? 0);
+    setAppliedReward((heldSale.snapshot?.appliedReward as typeof appliedReward) ?? null);
+    setDiscount(heldSale.snapshot?.discount ?? "");
+    setDiscountMode(heldSale.snapshot?.discountMode ?? "R$");
+    setSurcharge(heldSale.snapshot?.surcharge ?? "");
+    setSurchargeMode(heldSale.snapshot?.surchargeMode ?? "R$");
+    setSelectedSellerId(heldSale.seller_id);
+    setPayments([newPayment()]);
+    setPdvStep("cart");
+    setShowCheckout(false);
+    setActiveHeldSaleId(heldSale.id);
+    if (token) getOpenHeldSalesCount(token).then(setOpenHeldSalesCount).catch(() => {});
   };
 
   // ── Atalhos rápidos do app desktop (F2/F4/F8/F9), disparados pelo menu nativo ──
@@ -1132,7 +1315,7 @@ export default function PDV() {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify({
-          items: cart.map((i) => ({ id: i.id, quantity: i.quantity, price: i.price, selectedOptions: i.selectedOptions ?? null, dimensionsLabel: i.dimensionsLabel ?? null })),
+          items: cart.map((i) => ({ id: i.id, quantity: i.quantity, price: i.price, selectedOptions: i.selectedOptions ?? null, dimensionsLabel: i.dimensionsLabel ?? null, heldSaleItemId: i.heldSaleItemId ?? undefined })),
           services: cartServices.map((s) => ({ id: s.id, name: s.name, price: s.price, quantity: s.quantity ?? 1, dimensionsLabel: s.dimensionsLabel ?? null })),
           customerName,
           customerId: selectedCustomerId ?? undefined,
@@ -1147,6 +1330,7 @@ export default function PDV() {
           crediarioInstallments: crediarioPayment?.crediarioInstallments ?? undefined,
           crediarioFirstDueDate: crediarioPayment?.crediarioFirstDueDate ?? undefined,
           cashSessionId: cashSession?.id ?? null,
+          heldSaleId: activeHeldSaleId ?? undefined,
         }),
       });
       if (!res.ok) {
@@ -1209,6 +1393,10 @@ export default function PDV() {
         setShowCheckout(false);
         setShowReceipt(true);
         setWhatsappPhone(""); setShowPhoneInput(false);
+        if (activeHeldSaleId) {
+          setActiveHeldSaleId(null);
+          if (token) getOpenHeldSalesCount(token).then(setOpenHeldSalesCount).catch(() => {});
+        }
         fetch("/api/products", { headers: { Authorization: `Bearer ${token}` } })
           .then((r) => r.json()).then((d) => setProducts(Array.isArray(d) ? d : []));
         fetchRecentOrders();
@@ -1415,6 +1603,16 @@ export default function PDV() {
               className="flex items-center gap-1.5 px-3 h-8 rounded-xl text-[10px] font-bold uppercase tracking-widest text-slate-500 border border-slate-200 hover:bg-violet-50 hover:text-violet-600 hover:border-violet-200 transition-all">
               <ShoppingBag size={11} />
               <span className="hidden sm:block">Consignado</span>
+            </button>
+            <button onClick={() => setShowHeldSalesDrawer(true)} title="Vendas Abertas"
+              className="relative flex items-center gap-1.5 px-3 h-8 rounded-xl text-[10px] font-bold uppercase tracking-widest text-slate-500 border border-slate-200 hover:bg-amber-50 hover:text-amber-600 hover:border-amber-200 transition-all">
+              <Clock size={11} />
+              <span className="hidden sm:block">Vendas Abertas</span>
+              {openHeldSalesCount > 0 && (
+                <span className="absolute -top-1.5 -right-1.5 min-w-[16px] h-[16px] px-1 rounded-full bg-amber-500 text-white text-[9px] font-black flex items-center justify-center leading-none">
+                  {openHeldSalesCount > 99 ? "99+" : openHeldSalesCount}
+                </span>
+              )}
             </button>
           </div>
         )}
@@ -1891,15 +2089,27 @@ export default function PDV() {
                 </div>
               </div>
             )}
-            <button
-              onClick={goToPayment}
-              disabled={!canFinish}
-              className="w-full h-11 disabled:opacity-25 text-white rounded-xl text-[11px] font-bold uppercase tracking-wide transition-all active:scale-[0.98] flex items-center justify-center gap-2 shadow-md shadow-blue-200"
-              style={{ background: "linear-gradient(135deg,#3b82f6,#1d4ed8)" }}>
-              <CreditCard size={14} />
-              Ir para Pagamento
-              {cartQty > 0 && <span className="bg-white/20 rounded-md px-1.5 py-0.5 text-[9px] font-black">{cartQty}</span>}
-            </button>
+            <div className="flex gap-2">
+              {(cart.length > 0 || cartServices.length > 0) && (
+                <button
+                  onClick={holdSale}
+                  disabled={holdingSale}
+                  title="Segurar Venda"
+                  className="h-11 px-3.5 rounded-xl text-[11px] font-bold uppercase tracking-wide text-amber-600 border border-amber-200 hover:bg-amber-50 transition-all disabled:opacity-40 active:scale-[0.98] flex items-center justify-center gap-2 shrink-0">
+                  {holdingSale ? <Loader2 size={14} className="animate-spin" /> : <Clock size={14} />}
+                  <span className="hidden sm:inline">Segurar</span>
+                </button>
+              )}
+              <button
+                onClick={goToPayment}
+                disabled={!canFinish}
+                className="flex-1 h-11 disabled:opacity-25 text-white rounded-xl text-[11px] font-bold uppercase tracking-wide transition-all active:scale-[0.98] flex items-center justify-center gap-2 shadow-md shadow-blue-200"
+                style={{ background: "linear-gradient(135deg,#3b82f6,#1d4ed8)" }}>
+                <CreditCard size={14} />
+                Ir para Pagamento
+                {cartQty > 0 && <span className="bg-white/20 rounded-md px-1.5 py-0.5 text-[9px] font-black">{cartQty}</span>}
+              </button>
+            </div>
           </div>
         </div>
 
@@ -3480,23 +3690,91 @@ export default function PDV() {
                                   Pago: R$ {Number(d.amount_paid).toFixed(2)} de R$ {Number(d.amount).toFixed(2)}
                                 </p>
                               )}
-                              {d.due_date && <p className="text-[10px] text-amber-600 font-semibold mt-0.5">Vencimento: {new Date(d.due_date).toLocaleDateString("pt-BR")}</p>}
-                              <div className="grid grid-cols-4 gap-1 mt-2">
-                                {([ ["money", "Dinheiro"], ["pix", "PIX"], ["debit", "Débito"], ["credit", "Crédito"] ] as const).map(([method, label]) => (
-                                  <button key={method} onClick={() => setCrediarioPayMethod((prev) => ({ ...prev, [d.id]: method }))}
-                                    className={cn("h-7 rounded-lg border text-[8px] font-black uppercase tracking-wide transition-all", (crediarioPayMethod[d.id] ?? "money") === method ? "bg-blue-600 border-blue-500 text-white" : "bg-white border-slate-200 text-slate-500 hover:border-blue-300")}>{label}</button>
-                                ))}
-                              </div>
-                              <div className="flex gap-2 mt-2">
-                                <input type="number" min={0} max={remaining} step="0.01"
-                                  value={crediarioPayAmount[d.id] ?? remaining.toFixed(2)}
-                                  onChange={(e) => setCrediarioPayAmount((prev) => ({ ...prev, [d.id]: e.target.value }))}
-                                  className="flex-1 h-8 px-2 rounded-lg border border-slate-200 text-[11px] font-mono focus:outline-none focus:border-blue-400" />
-                                <button onClick={() => handlePayCrediarioDebt(d)} disabled={crediarioPaying === d.id}
-                                  className="h-8 px-3 rounded-lg bg-emerald-600 text-white text-[10px] font-black uppercase tracking-wider hover:bg-emerald-700 disabled:opacity-50 transition-all">
-                                  {crediarioPaying === d.id ? <Loader2 size={12} className="animate-spin" /> : "Pagar"}
-                                </button>
-                              </div>
+                              {d.due_date && (!d.installments || d.installments.length <= 1) && (
+                                <p className="text-[10px] text-amber-600 font-semibold mt-0.5">Vencimento: {new Date(d.due_date).toLocaleDateString("pt-BR")}</p>
+                              )}
+                              {d.installments && d.installments.length > 1 ? (
+                                <div className="mt-2 space-y-1.5">
+                                  {d.installments.map((inst) => {
+                                    const instRemaining = Number(inst.amount) - Number(inst.amount_paid);
+                                    const instOverdue = inst.status === "open" && new Date(inst.due_date) < new Date();
+                                    const instOpen = inst.status === "open";
+                                    const instSuggestedInterest = instOverdue
+                                      ? suggestedInterest(instRemaining, inst.due_date, crediarioInterestRate, crediarioGraceDays)
+                                      : 0;
+                                    return (
+                                      <div key={inst.id} className={cn(
+                                        "rounded-lg border p-2",
+                                        inst.status === "paid" ? "bg-emerald-50 border-emerald-200" : instOverdue ? "bg-red-50 border-red-200" : "bg-slate-50 border-slate-200"
+                                      )}>
+                                        <div className="flex items-center justify-between gap-2">
+                                          <div className="min-w-0">
+                                            <p className="text-[10px] font-bold text-slate-700">Parcela {inst.number}/{d.installments!.length}</p>
+                                            <p className={cn("text-[9px] font-semibold", instOverdue ? "text-red-500" : "text-slate-400")}>
+                                              Vence {new Date(inst.due_date).toLocaleDateString("pt-BR")}{instOverdue && " (vencida)"}
+                                            </p>
+                                          </div>
+                                          {instOpen ? (
+                                            <span className="text-[11px] font-mono font-black text-slate-700 shrink-0">R$ {instRemaining.toFixed(2)}</span>
+                                          ) : (
+                                            <CheckCircle2 size={15} className="text-emerald-600 shrink-0" />
+                                          )}
+                                        </div>
+                                        {instOpen && (
+                                          <>
+                                            <div className="grid grid-cols-4 gap-1 mt-1.5">
+                                              {([ ["money", "Dinheiro"], ["pix", "PIX"], ["debit", "Débito"], ["credit", "Crédito"] ] as const).map(([method, label]) => (
+                                                <button key={method} onClick={() => setCrediarioInstallmentPayMethod((prev) => ({ ...prev, [inst.id]: method }))}
+                                                  className={cn("h-6 rounded-md border text-[7px] font-black uppercase tracking-wide transition-all", (crediarioInstallmentPayMethod[inst.id] ?? "money") === method ? "bg-blue-600 border-blue-500 text-white" : "bg-white border-slate-200 text-slate-500 hover:border-blue-300")}>{label}</button>
+                                              ))}
+                                            </div>
+                                            <div className="flex gap-1.5 mt-1.5">
+                                              <input type="number" min={0} max={instRemaining} step="0.01"
+                                                value={crediarioInstallmentPayAmount[inst.id] ?? instRemaining.toFixed(2)}
+                                                onChange={(e) => setCrediarioInstallmentPayAmount((prev) => ({ ...prev, [inst.id]: e.target.value }))}
+                                                className="flex-1 h-7 px-2 rounded-md border border-slate-200 text-[10px] font-mono focus:outline-none focus:border-blue-400" />
+                                              <button onClick={() => handlePayInstallment(d, inst)} disabled={crediarioPayingInstallmentId === inst.id}
+                                                className="h-7 px-2.5 rounded-md bg-emerald-600 text-white text-[9px] font-black uppercase tracking-wider hover:bg-emerald-700 disabled:opacity-50 transition-all">
+                                                {crediarioPayingInstallmentId === inst.id ? <Loader2 size={11} className="animate-spin" /> : "Pagar"}
+                                              </button>
+                                            </div>
+                                            <p className="text-[8px] text-slate-400 mt-1">Pra dividir entre formas, pague um valor parcial e repita com outra forma.</p>
+                                            {instSuggestedInterest > 0 && (
+                                              <div className="flex items-center justify-between gap-2 mt-1.5 pt-1.5 border-t border-red-200">
+                                                <p className="text-[8px] text-red-600 font-semibold">Juros sugerido: R$ {instSuggestedInterest.toFixed(2)}</p>
+                                                <button onClick={() => handleApplyInterest(d, inst, instSuggestedInterest)}
+                                                  disabled={crediarioApplyingInterestId === inst.id}
+                                                  className="h-6 px-2 rounded-md bg-red-600 text-white text-[8px] font-black uppercase tracking-wide hover:bg-red-700 disabled:opacity-50 transition-colors shrink-0">
+                                                  {crediarioApplyingInterestId === inst.id ? <Loader2 size={10} className="animate-spin" /> : "Aplicar juros"}
+                                                </button>
+                                              </div>
+                                            )}
+                                          </>
+                                        )}
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              ) : (
+                                <>
+                                  <div className="grid grid-cols-4 gap-1 mt-2">
+                                    {([ ["money", "Dinheiro"], ["pix", "PIX"], ["debit", "Débito"], ["credit", "Crédito"] ] as const).map(([method, label]) => (
+                                      <button key={method} onClick={() => setCrediarioPayMethod((prev) => ({ ...prev, [d.id]: method }))}
+                                        className={cn("h-7 rounded-lg border text-[8px] font-black uppercase tracking-wide transition-all", (crediarioPayMethod[d.id] ?? "money") === method ? "bg-blue-600 border-blue-500 text-white" : "bg-white border-slate-200 text-slate-500 hover:border-blue-300")}>{label}</button>
+                                    ))}
+                                  </div>
+                                  <div className="flex gap-2 mt-2">
+                                    <input type="number" min={0} max={remaining} step="0.01"
+                                      value={crediarioPayAmount[d.id] ?? remaining.toFixed(2)}
+                                      onChange={(e) => setCrediarioPayAmount((prev) => ({ ...prev, [d.id]: e.target.value }))}
+                                      className="flex-1 h-8 px-2 rounded-lg border border-slate-200 text-[11px] font-mono focus:outline-none focus:border-blue-400" />
+                                    <button onClick={() => handlePayCrediarioDebt(d)} disabled={crediarioPaying === d.id}
+                                      className="h-8 px-3 rounded-lg bg-emerald-600 text-white text-[10px] font-black uppercase tracking-wider hover:bg-emerald-700 disabled:opacity-50 transition-all">
+                                      {crediarioPaying === d.id ? <Loader2 size={12} className="animate-spin" /> : "Pagar"}
+                                    </button>
+                                  </div>
+                                </>
+                              )}
                             </div>
                             {isExpanded && d.order && (
                               <div className="px-3 pb-3 pt-0 space-y-1 bg-slate-50 border-t border-slate-100">
@@ -3643,6 +3921,14 @@ export default function PDV() {
           </>
         )}
       </AnimatePresence>
+
+      {/* ── VENDAS ABERTAS (segurar/retomar/cancelar) ───────────────────────── */}
+      <HeldSalesDrawer
+        open={showHeldSalesDrawer}
+        onClose={() => setShowHeldSalesDrawer(false)}
+        token={token || ""}
+        onResume={resumeFromHeldSale}
+      />
 
       {/* ── ADICIONAR PRODUTO (dentro da etapa de pagamento) ────────────────── */}
       <AnimatePresence>

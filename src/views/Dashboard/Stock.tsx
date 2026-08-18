@@ -83,6 +83,8 @@ export default function Stock() {
   const [adjustmentType, setAdjustmentType] = useState("adjustment");
   const [adjustmentReason, setAdjustmentReason] = useState("");
   const [activeView, setActiveView] = useState<'inventory' | 'history'>('inventory');
+  const [stockFilter, setStockFilter] = useState<'all' | 'out' | 'low' | 'expiring'>('all');
+  const [lowStockThreshold, setLowStockThreshold] = useState(5);
   const [inventoryPage, setInventoryPage] = useState(1);
   const [historyPage, setHistoryPage] = useState(1);
   const PAGE_SIZE = 20;
@@ -104,6 +106,15 @@ export default function Stock() {
   };
 
   useEffect(() => { fetchData(); }, []);
+
+  useEffect(() => {
+    fetch("/api/preferences/low_stock_alert", {
+      headers: { "Authorization": `Bearer ${localStorage.getItem("token")}` }
+    })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((value) => { if (value !== null && Number(value) > 0) setLowStockThreshold(Number(value)); })
+      .catch(() => {});
+  }, []);
 
   const openAdjust = (p: Product) => {
     setSelectedProduct(p);
@@ -138,16 +149,36 @@ export default function Stock() {
     }
   };
 
-  const filteredProducts = (Array.isArray(products) ? products : []).filter(p =>
+  const searchedProducts = (Array.isArray(products) ? products : []).filter(p =>
     p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     (p.sku && p.sku.toLowerCase().includes(searchTerm.toLowerCase()))
   );
 
-  const lowStockCount = filteredProducts.filter(p => p.stock_quantity <= 5).length;
-  const totalItems = filteredProducts.reduce((acc, p) => acc + p.stock_quantity, 0);
-  const totalCost = filteredProducts.reduce((acc, p) => acc + (Number(p.cost_price || 0) * p.stock_quantity), 0);
+  const expirySoonCutoff = new Date(Date.now() + 30 * 86400000);
+  const isExpiringSoon = (p: Product) => !!p.expiry_date && new Date(p.expiry_date) <= expirySoonCutoff;
 
-  useEffect(() => { setInventoryPage(1); }, [searchTerm]);
+  const outCount = searchedProducts.filter(p => p.stock_quantity === 0).length;
+  const lowOnlyCount = searchedProducts.filter(p => p.stock_quantity > 0 && p.stock_quantity <= lowStockThreshold).length;
+  const expiringCount = searchedProducts.filter(isExpiringSoon).length;
+  const lowStockCount = outCount + lowOnlyCount;
+  const totalItems = searchedProducts.reduce((acc, p) => acc + p.stock_quantity, 0);
+  const totalCost = searchedProducts.reduce((acc, p) => acc + (Number(p.cost_price || 0) * p.stock_quantity), 0);
+
+  const STOCK_FILTERS = [
+    { v: "all" as const, label: "Todos", count: searchedProducts.length },
+    { v: "out" as const, label: "Esgotado", count: outCount },
+    { v: "low" as const, label: "Baixo estoque", count: lowOnlyCount },
+    { v: "expiring" as const, label: "Vencimento", count: expiringCount },
+  ];
+
+  const filteredProducts = searchedProducts.filter(p => {
+    if (stockFilter === "out") return p.stock_quantity === 0;
+    if (stockFilter === "low") return p.stock_quantity > 0 && p.stock_quantity <= lowStockThreshold;
+    if (stockFilter === "expiring") return isExpiringSoon(p);
+    return true;
+  });
+
+  useEffect(() => { setInventoryPage(1); }, [searchTerm, stockFilter]);
 
   const inventoryTotalPages = Math.max(1, Math.ceil(filteredProducts.length / PAGE_SIZE));
   const pagedProducts = filteredProducts.slice(
@@ -243,6 +274,29 @@ export default function Stock() {
             />
           </div>
 
+          <div className="flex flex-wrap items-center gap-2">
+            {STOCK_FILTERS.map(f => (
+              <button
+                key={f.v}
+                onClick={() => setStockFilter(f.v)}
+                className={cn(
+                  "h-8 px-3 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all flex items-center gap-1.5",
+                  stockFilter === f.v
+                    ? "bg-slate-900 text-white shadow-sm"
+                    : "bg-white border border-slate-200 text-slate-500 hover:bg-slate-50"
+                )}
+              >
+                {f.label}
+                <span className={cn(
+                  "rounded-full px-1.5 py-0.5 text-[9px] font-bold",
+                  stockFilter === f.v ? "bg-white/20" : "bg-slate-100 text-slate-500"
+                )}>
+                  {f.count}
+                </span>
+              </button>
+            ))}
+          </div>
+
           {/* Desktop table */}
           <div className="hidden sm:block bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
             <table className="w-full text-left">
@@ -281,10 +335,10 @@ export default function Stock() {
                     <td className="px-6 py-4 text-[11px] font-mono font-bold text-slate-500">R$ {Number(p.cost_price || 0).toFixed(2)}</td>
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-2">
-                        <span className={cn("text-xs font-mono font-bold", p.stock_quantity <= 5 ? "text-red-500" : "text-slate-900")}>
+                        <span className={cn("text-xs font-mono font-bold", p.stock_quantity <= lowStockThreshold ? "text-red-500" : "text-slate-900")}>
                           {String(p.stock_quantity).padStart(3, '0')}
                         </span>
-                        {p.stock_quantity <= 5 && <AlertTriangle size={12} className="text-red-500" />}
+                        {p.stock_quantity <= lowStockThreshold && <AlertTriangle size={12} className="text-red-500" />}
                       </div>
                     </td>
                     <td className="px-6 py-4 text-[11px] font-mono font-bold text-slate-900">R$ {(Number(p.cost_price || 0) * p.stock_quantity).toFixed(2)}</td>
@@ -325,12 +379,12 @@ export default function Stock() {
                   <div className="flex items-center gap-2">
                     <span className={cn(
                       "text-lg font-mono font-black tracking-tighter",
-                      p.stock_quantity <= 5 ? "text-red-500" : "text-slate-900"
+                      p.stock_quantity <= lowStockThreshold ? "text-red-500" : "text-slate-900"
                     )}>
                       {p.stock_quantity}
                     </span>
                     <span className="text-[9px] font-bold text-slate-400 uppercase">un</span>
-                    {p.stock_quantity <= 5 && <AlertTriangle size={12} className="text-red-500" />}
+                    {p.stock_quantity <= lowStockThreshold && <AlertTriangle size={12} className="text-red-500" />}
                   </div>
                   <div className="text-right">
                     <p className="text-[9px] font-bold text-slate-400 uppercase">Custo unit.</p>

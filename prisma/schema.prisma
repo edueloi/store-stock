@@ -44,6 +44,10 @@ model Tenant {
   terminal_config        Json?
   require_cash_session   Boolean  @default(false)
 
+  // --- Crediário: juros configurável sobre parcela em atraso (aplicado manualmente) ---
+  crediario_interest_rate Decimal @default(0) @db.Decimal(5, 2) // % ao mês
+  crediario_grace_days    Int     @default(0)
+
   // --- Módulos habilitados por tenant (liberado manualmente pelo Super Admin) ---
   fluxo_producao_enabled Boolean  @default(false)
 
@@ -110,6 +114,8 @@ model Tenant {
   consignment_actions    ConsignmentAction[]
   customer_debt_payments CustomerDebtPayment[]
   cash_sessions          CashSession[]
+  held_sales             HeldSale[]
+  held_sale_actions      HeldSaleAction[]
 
   @@map("tenants")
 }
@@ -255,6 +261,7 @@ model Product {
   history         ProductHistory[]
   service_order_parts ServiceOrderPart[]
   consignment_items  ConsignmentItem[]
+  held_sale_items    HeldSaleItem[]
 
   @@map("products")
 }
@@ -545,6 +552,7 @@ model Seller {
   service_orders ServiceOrder[]
   goals  Goal[]
   consignments Consignment[]
+  held_sales HeldSale[]
 
   @@map("sellers")
 }
@@ -719,17 +727,22 @@ model CustomerDebt {
 }
 
 model CustomerDebtInstallment {
-  id          Int       @id @default(autoincrement())
-  tenant_id   Int
-  debt_id     Int
-  number      Int
-  due_date    DateTime  @db.Date
-  amount      Decimal   @db.Decimal(10, 2)
-  amount_paid Decimal   @default(0) @db.Decimal(10, 2)
-  status      String    @default("open")
-  paid_at     DateTime?
-  created_at  DateTime  @default(now())
-  updated_at  DateTime  @updatedAt
+  id                  Int       @id @default(autoincrement())
+  tenant_id           Int
+  debt_id             Int
+  number              Int
+  due_date            DateTime  @db.Date
+  amount              Decimal   @db.Decimal(10, 2)
+  amount_paid         Decimal   @default(0) @db.Decimal(10, 2)
+  status              String    @default("open")
+  paid_at             DateTime?
+  // Juros aplicado manualmente pelo operador sobre uma parcela vencida (nunca acumulado
+  // automaticamente em background) — soma-se em `amount`; guardado à parte só pra
+  // recibos/relatórios distinguirem principal de juros depois.
+  interest_amount     Decimal   @default(0) @db.Decimal(10, 2)
+  interest_applied_at DateTime?
+  created_at          DateTime  @default(now())
+  updated_at          DateTime  @updatedAt
 
   debt     CustomerDebt          @relation(fields: [debt_id], references: [id], onDelete: Cascade)
   payments CustomerDebtPayment[]
@@ -896,6 +909,7 @@ model ServiceOrder {
   promised_at           DateTime? @db.Date
 
   service_value         Decimal   @default(0) @db.Decimal(10, 2)
+  service_description   String?   @db.Text
   parts_total           Decimal   @default(0) @db.Decimal(10, 2)
   subtotal              Decimal   @default(0) @db.Decimal(10, 2) // service_value + parts_total, antes do desconto total
   discount_type         String    @default("percent") // percent | fixed
@@ -1085,6 +1099,85 @@ model ConsignmentAction {
   @@index([consignment_id])
   @@index([tenant_id])
   @@map("consignment_actions")
+}
+
+model HeldSale {
+  id                Int       @id @default(autoincrement())
+  tenant_id         Int
+  number            Int
+
+  customer_id       Int?
+  customer_name     String?
+  customer_phone    String?
+
+  seller_id         Int?
+  seller_name       String?
+
+  status            String    @default("held") // held | resumed | cancelled | completed
+  notes             String?   @db.Text
+  snapshot          Json? // discount/discountMode/surcharge/surchargeMode/appliedReward/customerDocument/customerPoints/selectedSellerId
+
+  resumed_by        String?
+  resumed_at        DateTime?
+
+  invoiced_order_id Int?
+  invoiced_at       DateTime?
+
+  cancelled_by      String?
+  cancel_reason     String?
+  cancelled_at      DateTime?
+
+  created_at        DateTime  @default(now())
+  updated_at        DateTime  @updatedAt
+
+  tenant  Tenant           @relation(fields: [tenant_id], references: [id])
+  seller  Seller?          @relation(fields: [seller_id], references: [id], onDelete: SetNull)
+  items   HeldSaleItem[]
+  actions HeldSaleAction[]
+
+  @@unique([tenant_id, number])
+  @@index([tenant_id])
+  @@index([tenant_id, status])
+  @@map("held_sales")
+}
+
+model HeldSaleItem {
+  id               Int       @id @default(autoincrement())
+  held_sale_id     Int
+  product_id       Int
+  name             String
+  quantity         Int
+  unit_price       Decimal   @db.Decimal(10, 2)
+  selected_options Json?
+  dimensions_label String?
+  resolution       String    @default("pending") // pending | kept | returned
+  resolved_at      DateTime?
+
+  held_sale HeldSale @relation(fields: [held_sale_id], references: [id], onDelete: Cascade)
+  product   Product  @relation(fields: [product_id], references: [id], onDelete: Cascade)
+
+  @@index([held_sale_id])
+  @@map("held_sale_items")
+}
+
+model HeldSaleAction {
+  id           Int      @id @default(autoincrement())
+  tenant_id    Int
+  held_sale_id Int
+  action       String
+  from_status  String?
+  to_status    String?
+  actor        String?
+  note         String?  @db.Text
+  meta         Json?
+  created_at   DateTime @default(now())
+
+  held_sale HeldSale @relation(fields: [held_sale_id], references: [id], onDelete: Cascade)
+  tenant    Tenant   @relation(fields: [tenant_id], references: [id])
+
+  @@index([held_sale_id])
+  @@index([tenant_id])
+  @@map("held_sale_actions")
 }
 
 model Goal {

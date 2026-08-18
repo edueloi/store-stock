@@ -113,6 +113,16 @@ function isOverdue(due_date?: string) {
   return new Date(due_date) < new Date();
 }
 
+// Sugestão de juros pro-rata sobre o valor restante da parcela — sempre calculada na
+// hora pra exibir, nunca acumulada automaticamente. `rate` é % ao mês.
+function suggestedInterest(remaining: number, due_date: string, rate: number, graceDays: number): number {
+  if (rate <= 0) return 0;
+  const daysLate = Math.floor((Date.now() - new Date(due_date).getTime()) / 86400000);
+  const billableDays = Math.max(0, daysLate - graceDays);
+  if (billableDays <= 0) return 0;
+  return Math.round(remaining * (rate / 100) * (billableDays / 30) * 100) / 100;
+}
+
 // Parser de forma de pagamento — espelha parsePaymentMethod/buildMethodSummary
 // do backend (backend/controllers/sales.controller.ts), para exibir de forma
 // legível o formato composto "method-brand-installments:amount|...".
@@ -201,11 +211,17 @@ export default function CustomerDetail() {
   // Parcelas do crediário
   const [selectedInstallmentIds, setSelectedInstallmentIds] = useState<Set<number>>(new Set());
   const [installmentPayAmounts, setInstallmentPayAmounts] = useState<Record<number, string>>({});
+  const [installmentPayMethod, setInstallmentPayMethod] = useState<Record<number, "money" | "pix" | "debit" | "credit">>({});
   const [payingInstallmentId, setPayingInstallmentId] = useState<number | null>(null);
   const [reconfigureDebtId, setReconfigureDebtId] = useState<number | null>(null);
   const [reconfigureCount, setReconfigureCount] = useState("1");
   const [reconfigureFirstDue, setReconfigureFirstDue] = useState("");
   const [reconfiguring, setReconfiguring] = useState(false);
+
+  // Juros de crediário (configurado em Settings, aplicado manualmente por parcela)
+  const [crediarioInterestRate, setCrediarioInterestRate] = useState(0);
+  const [crediarioGraceDays, setCrediarioGraceDays] = useState(0);
+  const [applyingInterestId, setApplyingInterestId] = useState<number | null>(null);
 
   // Note form
   const [noteBody, setNoteBody] = useState("");
@@ -260,6 +276,18 @@ export default function CustomerDetail() {
   useEffect(() => {
     if (customerId) fetchDetail(customerId);
   }, [customerId, fetchDetail]);
+
+  // Taxa de juros configurada em Configurações > Crediário & Juros — só usada
+  // pra calcular a sugestão exibida numa parcela vencida; nada é cobrado sozinho.
+  useEffect(() => {
+    fetch("/api/tenant", { headers: authH() })
+      .then((r) => r.json())
+      .then((d) => {
+        setCrediarioInterestRate(Number(d?.crediario_interest_rate) || 0);
+        setCrediarioGraceDays(Number(d?.crediario_grace_days) || 0);
+      })
+      .catch(() => {});
+  }, []);
 
   function openEdit() {
     if (!detail) return;
@@ -413,16 +441,34 @@ export default function CustomerDetail() {
     try {
       const res = await fetch(`/api/customers/${detail.id}/debts/${debtId}/pay-partial`, {
         method: "POST", headers: authH(),
-        body: JSON.stringify({ amount, payment_method: payMethod, installment_id: installmentId }),
+        body: JSON.stringify({ amount, payment_method: installmentPayMethod[installmentId] ?? "money", installment_id: installmentId }),
       });
       if (res.ok) {
         await downloadPaymentReceipt(installmentNumber, amount);
       }
       setSelectedInstallmentIds((prev) => { const next = new Set(prev); next.delete(installmentId); return next; });
       setInstallmentPayAmounts((prev) => { const next = { ...prev }; delete next[installmentId]; return next; });
+      setInstallmentPayMethod((prev) => { const next = { ...prev }; delete next[installmentId]; return next; });
       await fetchDetail(detail.id);
     } finally {
       setPayingInstallmentId(null);
+    }
+  }
+
+  // Aplica juros a uma parcela vencida — ação manual e explícita, sempre com
+  // confirmação (não tem "desfazer" nesta versão).
+  async function handleApplyInterest(debtId: number, installmentId: number, suggested: number) {
+    if (!detail || suggested <= 0) return;
+    if (!window.confirm(`Aplicar R$ ${suggested.toFixed(2)} de juros a esta parcela? Isso não pode ser desfeito automaticamente.`)) return;
+    setApplyingInterestId(installmentId);
+    try {
+      await fetch(`/api/customers/${detail.id}/debts/${debtId}/installments/${installmentId}/apply-interest`, {
+        method: "POST", headers: authH(),
+        body: JSON.stringify({ interest_amount: suggested }),
+      });
+      await fetchDetail(detail.id);
+    } finally {
+      setApplyingInterestId(null);
     }
   }
 
@@ -866,11 +912,15 @@ export default function CustomerDetail() {
                           {d.installments!.map((inst) => {
                             const instRemaining = Number(inst.amount) - Number(inst.amount_paid ?? 0);
                             const instOverdue = isOverdue(inst.due_date) && inst.status === "open";
+                            const suggested = instOverdue
+                              ? suggestedInterest(instRemaining, inst.due_date, crediarioInterestRate, crediarioGraceDays)
+                              : 0;
                             return (
                               <div key={inst.id} className={cn(
-                                "flex items-center gap-2 rounded-lg border p-2",
+                                "rounded-lg border p-2 space-y-1.5",
                                 inst.status === "paid" ? "bg-emerald-50 border-emerald-200" : instOverdue ? "bg-red-50 border-red-200" : "bg-slate-50 border-slate-200"
                               )}>
+                              <div className="flex items-center gap-2">
                                 {inst.status === "open" && (
                                   <input type="checkbox" checked={selectedInstallmentIds.has(inst.id)}
                                     onChange={(e) => toggleInstallmentSelection(inst.id, e.target.checked, instRemaining)}
@@ -886,10 +936,20 @@ export default function CustomerDetail() {
                                 {inst.status === "open" ? (
                                   <>
                                     {selectedInstallmentIds.has(inst.id) && (
-                                      <input type="number" min={0} max={instRemaining} step="0.01"
-                                        value={installmentPayAmounts[inst.id] ?? instRemaining.toFixed(2)}
-                                        onChange={(e) => setInstallmentPayAmounts((prev) => ({ ...prev, [inst.id]: e.target.value }))}
-                                        className="w-16 h-7 px-1.5 rounded-lg border border-slate-200 text-[10px] font-mono focus:outline-none focus:border-blue-400 shrink-0" />
+                                      <>
+                                        <select value={installmentPayMethod[inst.id] ?? "money"}
+                                          onChange={(e) => setInstallmentPayMethod((prev) => ({ ...prev, [inst.id]: e.target.value as "money" | "pix" | "debit" | "credit" }))}
+                                          className="h-7 px-1 rounded-lg border border-slate-200 text-[9px] font-bold focus:outline-none focus:border-blue-400 shrink-0">
+                                          <option value="money">Dinheiro</option>
+                                          <option value="pix">PIX</option>
+                                          <option value="debit">Débito</option>
+                                          <option value="credit">Crédito</option>
+                                        </select>
+                                        <input type="number" min={0} max={instRemaining} step="0.01"
+                                          value={installmentPayAmounts[inst.id] ?? instRemaining.toFixed(2)}
+                                          onChange={(e) => setInstallmentPayAmounts((prev) => ({ ...prev, [inst.id]: e.target.value }))}
+                                          className="w-16 h-7 px-1.5 rounded-lg border border-slate-200 text-[10px] font-mono focus:outline-none focus:border-blue-400 shrink-0" />
+                                      </>
                                     )}
                                     <button
                                       onClick={() => handlePayInstallment(d.id, inst.id, inst.number, Number(installmentPayAmounts[inst.id] ?? instRemaining))}
@@ -900,6 +960,18 @@ export default function CustomerDetail() {
                                   </>
                                 ) : (
                                   <CheckCircle2 size={15} className="text-emerald-600 shrink-0" />
+                                )}
+                              </div>
+                                {suggested > 0 && (
+                                  <div className="flex items-center justify-between gap-2 pt-1.5 border-t border-red-200">
+                                    <p className="text-[9px] text-red-600 font-semibold">Juros sugerido: {fmt(suggested)}</p>
+                                    <button
+                                      onClick={() => handleApplyInterest(d.id, inst.id, suggested)}
+                                      disabled={applyingInterestId === inst.id}
+                                      className="h-6 px-2 rounded-md bg-red-600 text-white text-[9px] font-black uppercase tracking-wide hover:bg-red-700 disabled:opacity-50 transition-colors shrink-0">
+                                      {applyingInterestId === inst.id ? <Loader2 size={10} className="animate-spin" /> : "Aplicar juros"}
+                                    </button>
+                                  </div>
                                 )}
                               </div>
                             );

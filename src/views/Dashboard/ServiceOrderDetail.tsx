@@ -92,6 +92,7 @@ export default function ServiceOrderDetail() {
   const [priority, setPriority] = useState<"normal" | "urgente">("normal");
   const [promisedAt, setPromisedAt] = useState("");
   const [serviceValue, setServiceValue] = useState("");
+  const [serviceDescription, setServiceDescription] = useState("");
   const [discountType, setDiscountType] = useState<"percent" | "fixed">("percent");
   const [discountValue, setDiscountValue] = useState(0);
   const [nfseInvoice, setNfseInvoice] = useState<NfseInvoice | null>(null);
@@ -178,6 +179,7 @@ export default function ServiceOrderDetail() {
     setPriority(so.priority);
     setPromisedAt(so.promised_at ? so.promised_at.slice(0, 10) : "");
     setServiceValue(so.service_value ? String(so.service_value) : "");
+    setServiceDescription(so.service_description ?? "");
     setDiscountType(so.discount_type ?? "percent");
     setDiscountValue(Number(so.discount_value) || 0);
     setWarrantyDays(so.warranty_days ? String(so.warranty_days) : "");
@@ -1103,6 +1105,18 @@ export default function ServiceOrderDetail() {
                 onBlur={() => autosaveField({ service_value: Number(serviceValue) || 0 }, "service_value")}
                 placeholder="0,00"
                 className="w-full pl-9 pr-3 h-10 rounded-xl border border-slate-200 text-[13px] font-mono font-bold focus:outline-none focus:border-blue-400 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none"
+              />
+            </div>
+
+            <div>
+              <label className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400 mb-1.5 block">Descrição do Serviço</label>
+              <textarea
+                value={serviceDescription}
+                onChange={(e) => setServiceDescription(e.target.value)}
+                onBlur={() => autosaveField({ service_description: serviceDescription || null }, "service_description")}
+                placeholder="O que foi feito — ex.: troca de tela, limpeza interna, revisão elétrica..."
+                rows={2}
+                className="w-full px-3 py-2 rounded-xl border border-slate-200 text-[12px] font-medium focus:outline-none focus:border-blue-400 resize-none"
               />
             </div>
 

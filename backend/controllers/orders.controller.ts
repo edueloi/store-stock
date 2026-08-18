@@ -73,19 +73,32 @@ async function revertStock(items: { product_id: number; quantity: number; select
 
 export async function listOrders(req: Request, res: Response) {
   try {
+    const tenantId = getTenantId(req);
     const limit = req.query.limit ? Number(req.query.limit) : undefined;
     const orders = await prisma.order.findMany({
-      where: { tenant_id: getTenantId(req) },
+      where: { tenant_id: tenantId },
       orderBy: { created_at: "desc" },
       take: limit,
       include: {
         items: { include: { product: { select: { name: true, image_url: true } } } },
         services: true,
+        nfce_invoice: { select: { status: true, access_key: true } },
       },
     });
 
+    // Para pedidos sem documento avulso digitado na venda, completa com o CPF/CNPJ do
+    // cliente cadastrado vinculado — usado para decidir se o pedido é elegível a NFC-e.
+    const customerIds = [...new Set(
+      orders.filter((o) => o.customer_id && !o.customer_document).map((o) => o.customer_id as number),
+    )];
+    const customers = customerIds.length
+      ? await prisma.customer.findMany({ where: { id: { in: customerIds }, tenant_id: tenantId }, select: { id: true, document: true } })
+      : [];
+    const docByCustomerId = new Map(customers.map((c) => [c.id, c.document]));
+
     res.json(orders.map((order) => ({
       ...order,
+      customer_document: order.customer_document ?? (order.customer_id ? docByCustomerId.get(order.customer_id) ?? null : null),
       items: order.items.map((item) => ({
         id: item.id,
         product_name: item.product.name,

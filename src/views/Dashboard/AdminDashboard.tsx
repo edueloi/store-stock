@@ -37,7 +37,7 @@ import {
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { cn } from "../../lib/utils";
-import { ToastProvider } from "../../components/ui/Toast";
+import { ToastProvider, useToast } from "../../components/ui/Toast";
 import { getStoredUser } from "../../lib/session";
 
 // Sub-views
@@ -110,7 +110,7 @@ function SidebarTooltip({ anchorRef, label }: { anchorRef: RefObject<HTMLElement
 
 // ── Item de nav com tooltip quando a sidebar está recolhida ──────────────────
 function SidebarNavItem({
-  to, icon: Icon, label, isActive, isSidebarOpen, badge,
+  to, icon: Icon, label, isActive, isSidebarOpen, badge, badgeLabel,
 }: {
   to: string;
   icon: ComponentType<{ size?: number; className?: string }>;
@@ -118,6 +118,7 @@ function SidebarNavItem({
   isActive: boolean;
   isSidebarOpen: boolean;
   badge?: number;
+  badgeLabel?: string;
 }) {
   const ref = useRef<HTMLAnchorElement>(null);
   return (
@@ -147,7 +148,7 @@ function SidebarNavItem({
           </span>
         )}
       </Link>
-      {!isSidebarOpen && <SidebarTooltip anchorRef={ref} label={badge ? `${label} (${badge} em atraso)` : label} />}
+      {!isSidebarOpen && <SidebarTooltip anchorRef={ref} label={badge ? `${label} (${badge} ${badgeLabel ?? "em atraso"})` : label} />}
     </>
   );
 }
@@ -209,6 +210,70 @@ async function setPreference(key: string, value: unknown) {
   } catch { /* offline: cache local já foi atualizado */ }
 }
 
+// ── Toast de estoque crítico ──────────────────────────────────────────────
+// Dispara um alerta apenas para produtos que ENTRARAM na lista de estoque
+// baixo desde a última vez que o usuário foi avisado. Essa lista de "já
+// avisados" fica em localStorage (não só em memória) — assim ela sobrevive a
+// reload/HMR e o mesmo aviso não volta a aparecer a cada checagem só porque a
+// página recarregou. Um produto só volta a avisar se sair da lista crítica
+// (voltou a ter estoque) e cair de novo depois.
+const LOW_STOCK_SEEN_KEY = "low_stock_seen_ids";
+
+function loadLowStockSeenIds(): Set<number> {
+  try {
+    const raw = localStorage.getItem(LOW_STOCK_SEEN_KEY);
+    const parsed = raw ? JSON.parse(raw) : [];
+    return new Set(Array.isArray(parsed) ? parsed : []);
+  } catch {
+    return new Set();
+  }
+}
+
+function saveLowStockSeenIds(ids: Set<number>) {
+  try { localStorage.setItem(LOW_STOCK_SEEN_KEY, JSON.stringify([...ids])); } catch { /* localStorage indisponível */ }
+}
+
+function LowStockToastWatcher({ products }: { products: { id: number; name: string; stock_quantity: number }[] }) {
+  const { warning } = useToast();
+  const seenIds = useRef<Set<number> | null>(null);
+  const gotFirstFetch = useRef(false);
+
+  useEffect(() => {
+    // Ignora o estado inicial (array vazio) até o primeiro fetch real responder,
+    // para não tratar "ainda não carregou" como "loja sem nenhum item crítico".
+    if (!gotFirstFetch.current) {
+      if (products.length === 0) return;
+      gotFirstFetch.current = true;
+    }
+
+    if (seenIds.current === null) {
+      seenIds.current = loadLowStockSeenIds();
+    }
+
+    const currentIds = new Set(products.map((p) => p.id));
+    const newlyCritical = products.filter((p) => !seenIds.current!.has(p.id));
+
+    // Mantém só quem ainda está crítico + os novos — quem voltou a ter estoque
+    // some da lista, então se cair de novo depois, avisa outra vez.
+    const updated = new Set([...seenIds.current].filter((id) => currentIds.has(id)));
+    newlyCritical.forEach((p) => updated.add(p.id));
+    seenIds.current = updated;
+    saveLowStockSeenIds(updated);
+
+    if (newlyCritical.length === 0) return;
+
+    const names = newlyCritical.slice(0, 3).map((p) => p.name).join(", ");
+    const extra = newlyCritical.length > 3 ? ` e mais ${newlyCritical.length - 3}` : "";
+    const zeroed = newlyCritical.some((p) => p.stock_quantity === 0);
+    warning(
+      `Estoque ${zeroed ? "esgotado" : "baixo"}: ${names}${extra}`,
+      8000,
+    );
+  }, [products, warning]);
+
+  return null;
+}
+
 export default function AdminDashboard() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(() => {
     if (window.innerWidth <= 1024) return false;
@@ -219,6 +284,8 @@ export default function AdminDashboard() {
   const [tenantPublicUrl, setTenantPublicUrl] = useState<string>("");
   const [tenantName, setTenantName] = useState<string>("Nexus ERP");
   const [overdueConsignments, setOverdueConsignments] = useState(0);
+  const [lowStockProducts, setLowStockProducts] = useState<{ id: number; name: string; stock_quantity: number }[]>([]);
+  const lowStockCount = lowStockProducts.length;
   const location = useLocation();
   const navigate = useNavigate();
 
@@ -239,6 +306,24 @@ export default function AdminDashboard() {
     };
     fetchOverdue();
     const interval = setInterval(fetchOverdue, 60000);
+    return () => { cancelled = true; clearInterval(interval); };
+  }, []);
+
+  // Aviso visual de estoque baixo/esgotado (<=5 un) — mesmo padrão do de consignação.
+  useEffect(() => {
+    let cancelled = false;
+    const fetchLowStock = async () => {
+      try {
+        const res = await fetch("/api/products/low-stock-count", {
+          headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
+        });
+        if (!res.ok || cancelled) return;
+        const data = await res.json();
+        if (!cancelled) setLowStockProducts(Array.isArray(data?.products) ? data.products : []);
+      } catch { /* silencioso — badge apenas não atualiza nesta rodada */ }
+    };
+    fetchLowStock();
+    const interval = setInterval(fetchLowStock, 60000);
     return () => { cancelled = true; clearInterval(interval); };
   }, []);
 
@@ -400,6 +485,7 @@ export default function AdminDashboard() {
 
   return (
     <ToastProvider>
+    <LowStockToastWatcher products={lowStockProducts} />
     <div className="flex h-screen bg-[#f8fafc] overflow-hidden font-sans text-slate-800 relative">
 
       {/* ── SIDEBAR DESKTOP ─────────────────────────────────────────────── */}
@@ -444,7 +530,12 @@ export default function AdminDashboard() {
                       label={item.label}
                       isActive={isActive}
                       isSidebarOpen={isSidebarOpen}
-                      badge={item.path === "/admin/consignacoes" ? overdueConsignments : undefined}
+                      badge={
+                        item.path === "/admin/consignacoes" ? overdueConsignments
+                          : item.path === "/admin/stock" ? lowStockCount
+                          : undefined
+                      }
+                      badgeLabel={item.path === "/admin/stock" ? "com estoque baixo" : undefined}
                     />
                   );
                 })}
@@ -502,7 +593,10 @@ export default function AdminDashboard() {
                   <div className="space-y-px">
                     {group.items.map((item) => {
                       const isActive = location.pathname === item.path || (item.path === "/admin" && location.pathname === "/admin/");
-                      const badge = item.path === "/admin/consignacoes" ? overdueConsignments : 0;
+                      const badge =
+                        item.path === "/admin/consignacoes" ? overdueConsignments
+                          : item.path === "/admin/stock" ? lowStockCount
+                          : 0;
                       return (
                         <Link key={item.path} to={item.path} onClick={() => setIsSidebarOpen(false)}
                           className={cn(

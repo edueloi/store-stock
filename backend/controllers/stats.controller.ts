@@ -1,6 +1,7 @@
 import type { Request, Response } from "express";
 
 import { prisma } from "../config/prisma";
+import { getLowStockThreshold } from "../utils/low-stock-threshold";
 import type { AuthenticatedRequest } from "../types/auth";
 
 function getTenantId(req: Request) {
@@ -86,7 +87,7 @@ export async function getDashboardStats(req: Request, res: Response) {
       }),
       prisma.product.findMany({
         where: { tenant_id: tenantId },
-        select: { stock_quantity: true, cost_price: true },
+        select: { id: true, name: true, sku: true, stock_quantity: true, cost_price: true },
       }),
       prisma.$queryRaw<{ cogs: number }[]>`
         SELECT SUM(oi.quantity * p.cost_price) as cogs
@@ -119,6 +120,12 @@ export async function getDashboardStats(req: Request, res: Response) {
     const stockValue = products.reduce(
       (acc, p) => acc + p.stock_quantity * Number(p.cost_price), 0
     );
+
+    const lowStockThreshold = await getLowStockThreshold((req as AuthenticatedRequest).user.userId);
+    const outOfStockProducts = products
+      .filter((p) => p.stock_quantity === 0)
+      .map((p) => ({ id: p.id, name: p.name, sku: p.sku }));
+    const lowStockCount = products.filter((p) => p.stock_quantity > 0 && p.stock_quantity <= lowStockThreshold).length;
 
     // Série diária — busca todos os registros do período e agrupa em JS
     // (evita dependência de timezone do MySQL em queries DATE() raw)
@@ -181,6 +188,8 @@ export async function getDashboardStats(req: Request, res: Response) {
         productsNet,
         productsGross,
         productsCount,
+        outOfStockProducts,
+        lowStockCount,
       },
       salesOverTime,
     });

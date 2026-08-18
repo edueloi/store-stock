@@ -282,6 +282,7 @@ export async function updateServiceOrder(req: Request, res: Response) {
       priority,
       promised_at,
       service_value,
+      service_description,
       discount_type,
       discount_value,
       warranty_days,
@@ -314,6 +315,7 @@ export async function updateServiceOrder(req: Request, res: Response) {
     if (discount_type !== undefined) data.discount_type = discount_type === "fixed" ? "fixed" : "percent";
     if (discount_value !== undefined) data.discount_value = Math.max(0, Number(discount_value) || 0);
     if (service_value !== undefined) data.service_value = Number(service_value) || 0;
+    if (service_description !== undefined) data.service_description = service_description || null;
 
     await prisma.serviceOrder.update({ where: { id }, data });
 

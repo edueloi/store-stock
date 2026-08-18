@@ -26,6 +26,7 @@ import {
   CreditCard,
   Package,
   ExternalLink,
+  Banknote,
 } from "lucide-react";
 import { FinanceEntry, Tenant } from "../../types";
 import { cn } from "../../lib/utils";
@@ -35,6 +36,20 @@ import Modal from "../../components/ui/Modal";
 
 const fmt = (v: number) =>
   v.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+// Estilo/rótulo por tipo de lançamento — usado nas linhas da tabela e no painel de detalhe.
+const TYPE_META: Record<string, {
+  label: string; sign: string;
+  dot: string; text: string; bgLight: string; textLight: string; badgeBg: string; borderLight: string;
+  Icon: typeof TrendingUp;
+}> = {
+  income:     { label: "Receita",  sign: "+", dot: "bg-emerald-500", text: "text-emerald-600", bgLight: "bg-emerald-50", textLight: "text-emerald-700", badgeBg: "bg-emerald-100", borderLight: "border-emerald-100", Icon: TrendingUp },
+  expense:    { label: "Despesa",  sign: "−", dot: "bg-rose-500",    text: "text-rose-600",    bgLight: "bg-rose-50",    textLight: "text-rose-700",    badgeBg: "bg-rose-100",    borderLight: "border-rose-100",    Icon: TrendingDown },
+  withdrawal: { label: "Retirada", sign: "−", dot: "bg-amber-500",   text: "text-amber-600",   bgLight: "bg-amber-50",   textLight: "text-amber-700",   badgeBg: "bg-amber-100",   borderLight: "border-amber-100",   Icon: Banknote },
+};
+function typeMeta(type: string) {
+  return TYPE_META[type] ?? TYPE_META.expense;
+}
 
 // ─── Payment badges ───────────────────────────────────────────────────────────
 interface PmSeg { method: string; brand: string; installments: number; amount: number }
@@ -233,9 +248,10 @@ async function exportToExcel(entries: FinanceEntry[], tenant: Partial<Tenant> | 
     views: [{ state: "frozen", ySplit: 9 }],
   });
 
-  const totalIncome  = entries.filter(e => e.type === "income").reduce((a, e) => a + Number(e.amount), 0);
-  const totalExpense = entries.filter(e => e.type === "expense").reduce((a, e) => a + Number(e.amount), 0);
-  const balance      = totalIncome - totalExpense;
+  const totalIncome     = entries.filter(e => e.type === "income").reduce((a, e) => a + Number(e.amount), 0);
+  const totalExpense    = entries.filter(e => e.type === "expense").reduce((a, e) => a + Number(e.amount), 0);
+  const totalWithdrawal = entries.filter(e => e.type === "withdrawal").reduce((a, e) => a + Number(e.amount), 0);
+  const balance      = totalIncome - totalExpense - totalWithdrawal;
 
   const totalGrossExcel = entries.filter(e => e.type === "income").reduce((a, e) => a + Number(e.gross_amount ?? e.amount), 0);
   const totalDiscExcel  = entries.filter(e => e.type === "income").reduce((a, e) => a + Number(e.discount_amount ?? 0), 0);
@@ -355,7 +371,7 @@ async function exportToExcel(entries: FinanceEntry[], tenant: Partial<Tenant> | 
   // ── ROW 8: stats bar ──
   ws.getRow(8).height = 14;
   const statsCell = ws.getRow(8).getCell(1);
-  statsCell.value = `${entries.length} lançamentos no período  ·  ${entries.filter(e => e.type === "income").length} receitas  ·  ${entries.filter(e => e.type === "expense").length} despesas`;
+  statsCell.value = `${entries.length} lançamentos no período  ·  ${entries.filter(e => e.type === "income").length} receitas  ·  ${entries.filter(e => e.type === "expense").length} despesas  ·  ${entries.filter(e => e.type === "withdrawal").length} retiradas`;
   statsCell.font  = font({ size: 9, color: "94A3B8", italic: true });
   statsCell.alignment = { vertical: "middle" };
 
@@ -414,10 +430,11 @@ async function exportToExcel(entries: FinanceEntry[], tenant: Partial<Tenant> | 
     styleCell(cCat, "center");
 
     // Tipo
+    const isWithdrawal = e.type === "withdrawal";
     const cType = row.getCell(5);
-    cType.value = isIncome ? "✦ Receita" : "▼ Despesa";
-    cType.font  = font({ bold: true, size: 9, color: isIncome ? "059669" : "DC2626" });
-    cType.fill  = fill(isIncome ? "D1FAE5" : "FEE2E2");
+    cType.value = isIncome ? "✦ Receita" : isWithdrawal ? "↓ Retirada" : "▼ Despesa";
+    cType.font  = font({ bold: true, size: 9, color: isIncome ? "059669" : isWithdrawal ? "B45309" : "DC2626" });
+    cType.fill  = fill(isIncome ? "D1FAE5" : isWithdrawal ? "FEF3C7" : "FEE2E2");
     cType.alignment = { horizontal: "center", vertical: "middle" };
     cType.border = border("thin");
 
@@ -463,7 +480,7 @@ async function exportToExcel(entries: FinanceEntry[], tenant: Partial<Tenant> | 
     const cVal = row.getCell(9);
     cVal.value  = isIncome ? Number(e.amount) : -Number(e.amount);
     cVal.numFmt = isIncome ? '"R$" #,##0.00' : '"R$" #,##0.00;[Red]"R$" -#,##0.00';
-    cVal.font   = font({ bold: true, size: 11, color: isIncome ? "059669" : "DC2626" });
+    cVal.font   = font({ bold: true, size: 11, color: isIncome ? "059669" : isWithdrawal ? "B45309" : "DC2626" });
     styleCell(cVal, "right");
   });
 
@@ -501,7 +518,8 @@ async function exportToExcel(entries: FinanceEntry[], tenant: Partial<Tenant> | 
   addFooterRow(footerStart + 2, "TAXAS MAQUININHA",  -totalFeesExcel,  "FFFBEB", "D97706");
   addFooterRow(footerStart + 3, "ENTRADAS LÍQUIDAS", totalIncome,      "D1FAE5", "059669");
   addFooterRow(footerStart + 4, "TOTAL SAÍDAS",      totalExpense,     "FEE2E2", "DC2626");
-  addFooterRow(footerStart + 5, "SALDO FINAL",       balance,          "1E293B", balColor);
+  addFooterRow(footerStart + 5, "TOTAL RETIRADAS",   totalWithdrawal,  "FEF3C7", "B45309");
+  addFooterRow(footerStart + 6, "SALDO FINAL",       balance,          "1E293B", balColor);
 
   // ── download ──
   const buf  = await wb.xlsx.writeBuffer();
@@ -522,7 +540,10 @@ function exportToPDF(entries: FinanceEntry[], tenant: Partial<Tenant> | null, pe
   const totalExpense = entries
     .filter((e) => e.type === "expense")
     .reduce((a, e) => a + Number(e.amount), 0);
-  const balance = totalIncome - totalExpense;
+  const totalWithdrawal = entries
+    .filter((e) => e.type === "withdrawal")
+    .reduce((a, e) => a + Number(e.amount), 0);
+  const balance = totalIncome - totalExpense - totalWithdrawal;
 
   const totalGrossPDF = entries.filter(e => e.type === "income").reduce((a, e) => a + Number(e.gross_amount ?? e.amount), 0);
   const totalDiscPDF  = entries.filter(e => e.type === "income").reduce((a, e) => a + Number(e.discount_amount ?? 0), 0);
@@ -541,7 +562,7 @@ function exportToPDF(entries: FinanceEntry[], tenant: Partial<Tenant> | null, pe
         <td style="text-align:right;color:#64748b">${gross != null ? "R$ " + fmt(gross) : "—"}</td>
         <td style="text-align:right;color:#e11d48;font-weight:700">${discount != null && discount > 0 ? "− R$ " + fmt(discount) : "—"}</td>
         <td style="text-align:right;color:#d97706;font-weight:700">${fee != null && fee > 0 ? "− R$ " + fmt(fee) : "—"}</td>
-        <td class="${e.type === "income" ? "income" : "expense"}">
+        <td class="${e.type === "income" ? "income" : e.type === "withdrawal" ? "withdrawal" : "expense"}">
           ${e.type === "income" ? "+" : "−"} R$ ${fmt(Number(e.amount))}
         </td>
       </tr>`;
@@ -563,7 +584,9 @@ function exportToPDF(entries: FinanceEntry[], tenant: Partial<Tenant> | null, pe
   .meta { text-align: right; font-size: 10px; color: #64748b; line-height: 1.8; }
   .meta strong { color: #1e293b; font-size: 11px; }
   .period { background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 8px; padding: 6px 14px; display: inline-block; font-size: 10px; font-weight: 700; color: #1d4ed8; text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 20px; }
-  .summary { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr 1fr; gap: 10px; margin-bottom: 24px; }
+  .summary { display: grid; grid-template-columns: repeat(6, 1fr); gap: 10px; margin-bottom: 24px; }
+  .card.withdrawal .val { color: #b45309; }
+  .card.withdrawal { background: #fffbeb; border-color: #fde68a; }
   .card.fees .val { color: #d97706; }
   .card.fees { background: #fffbeb; border-color: #fde68a; }
   .card.disc .val { color: #e11d48; }
@@ -582,6 +605,7 @@ function exportToPDF(entries: FinanceEntry[], tenant: Partial<Tenant> | null, pe
   tr:hover td { background: #f8fafc; }
   td.income { color: #059669; font-weight: 700; font-family: monospace; text-align: right; }
   td.expense { color: #dc2626; font-weight: 700; font-family: monospace; text-align: right; }
+  td.withdrawal { color: #b45309; font-weight: 700; font-family: monospace; text-align: right; }
   th:last-child { text-align: right; }
   .footer { margin-top: 24px; padding-top: 12px; border-top: 1px solid #e2e8f0; font-size: 9px; color: #94a3b8; display: flex; justify-content: space-between; }
   @media print { body { padding: 16px; } }
@@ -619,6 +643,10 @@ function exportToPDF(entries: FinanceEntry[], tenant: Partial<Tenant> | null, pe
   <div class="card income">
     <label>Entradas Líquidas</label>
     <div class="val">R$ ${fmt(totalIncome)}</div>
+  </div>
+  <div class="card withdrawal">
+    <label>Retiradas</label>
+    <div class="val">− R$ ${fmt(totalWithdrawal)}</div>
   </div>
   <div class="card balance">
     <label>Saldo Consolidado</label>
@@ -664,7 +692,7 @@ const PAYMENT_KEYWORDS: Record<string, string[]> = {
 };
 
 // ─── MONTH NAVIGATION ────────────────────────────────────────────────────────
-type Preset = "month" | "custom";
+type Preset = "month" | "year" | "custom";
 
 function monthRange(year: number, month: number): { from: string; to: string } {
   const pad = (n: number) => String(n).padStart(2, "0");
@@ -673,6 +701,10 @@ function monthRange(year: number, month: number): { from: string; to: string } {
     from: `${year}-${pad(month + 1)}-01`,
     to:   `${year}-${pad(month + 1)}-${pad(lastDay)}`,
   };
+}
+
+function yearRange(year: number): { from: string; to: string } {
+  return { from: `${year}-01-01`, to: `${year}-12-31` };
 }
 
 
@@ -686,7 +718,6 @@ export default function Finance() {
   const [entries, setEntries] = useState<FinanceEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [modalType, setModalType] = useState<"income" | "expense">("income");
   const [newEntry, setNewEntry] = useState<Partial<FinanceEntry>>({
     type: "income",
     date: today(),
@@ -703,7 +734,7 @@ export default function Finance() {
   const [dateFrom, setDateFrom] = useState(() => monthRange(nowRef.getFullYear(), nowRef.getMonth()).from);
   const [dateTo,   setDateTo]   = useState(() => monthRange(nowRef.getFullYear(), nowRef.getMonth()).to);
   const [searchQ, setSearchQ] = useState("");
-  const [typeFilter, setTypeFilter] = useState<"all" | "income" | "expense">("all");
+  const [typeFilter, setTypeFilter] = useState<"all" | "income" | "expense" | "withdrawal">("all");
   const [sourceFilter, setSourceFilter] = useState<Set<string>>(new Set());
   const [paymentFilter, setPaymentFilter] = useState<Set<string>>(new Set());
   const [showFilters, setShowFilters] = useState(false);
@@ -818,6 +849,10 @@ export default function Finance() {
       const range = monthRange(navYear, navMonth);
       setDateFrom(range.from);
       setDateTo(range.to);
+    } else if (p === "year") {
+      const range = yearRange(navYear);
+      setDateFrom(range.from);
+      setDateTo(range.to);
     }
   };
 
@@ -834,8 +869,16 @@ export default function Finance() {
     setDateTo(range.to);
   };
 
-  const openModal = (type: "income" | "expense") => {
-    setModalType(type);
+  const navigateYear = (delta: number) => {
+    const y = navYear + delta;
+    setNavYear(y);
+    setPreset("year");
+    const range = yearRange(y);
+    setDateFrom(range.from);
+    setDateTo(range.to);
+  };
+
+  const openModal = (type: "income" | "expense" | "withdrawal") => {
     setNewEntry({ type, date: today(), payment_method: "money" } as any);
     setPmError(null);
     setIsModalOpen(true);
@@ -976,17 +1019,30 @@ export default function Finance() {
     });
   }, [entries, dateFrom, dateTo, typeFilter, sourceFilter, searchQ, paymentFilter]);
 
-  const incomeEntries    = filtered.filter((e) => e.type === "income");
-  const expenseEntries   = filtered.filter((e) => e.type === "expense");
+  const incomeEntries     = filtered.filter((e) => e.type === "income");
+  const expenseEntries    = filtered.filter((e) => e.type === "expense");
+  const withdrawalEntries = filtered.filter((e) => e.type === "withdrawal");
   const totalIncome      = incomeEntries.reduce((a, e) => a + Number(e.amount), 0);
   const totalGross       = incomeEntries.reduce((a, e) => a + Number(e.gross_amount ?? e.amount), 0);
   const totalFees        = incomeEntries.reduce((a, e) => a + Number(e.fee_amount ?? 0), 0);
   const totalDiscounts   = incomeEntries.reduce((a, e) => a + Number(e.discount_amount ?? 0), 0);
   const totalExpense     = expenseEntries.reduce((a, e) => a + Number(e.amount), 0);
-  const balance          = totalIncome - totalExpense;
+  const totalWithdrawal  = withdrawalEntries.reduce((a, e) => a + Number(e.amount), 0);
+  const balance          = totalIncome - totalExpense - totalWithdrawal;
+
+  // Saldo acumulado — considera TODOS os lançamentos já registrados, sem o filtro
+  // de período (o "entries" completo vem sempre inteiro da API). Ao contrário do
+  // "balance" acima (que reflete só o período em navegação), este número não zera
+  // ao mudar de mês/ano — é o saldo geral do caixa.
+  const allTimeBalance = entries.reduce((a, e) => {
+    if (e.type === "income") return a + Number(e.amount);
+    return a - Number(e.amount); // expense e withdrawal reduzem o saldo
+  }, 0);
 
   const periodLabel = preset === "month"
     ? `${MONTH_NAMES[navMonth]} ${navYear}`
+    : preset === "year"
+    ? `${navYear}`
     : `${formatDateBR(dateFrom)} a ${formatDateBR(dateTo)}`;
 
   return (
@@ -1008,12 +1064,18 @@ export default function Finance() {
             >
               <Minus size={13} strokeWidth={3} /> Despesa
             </button>
+            <button
+              onClick={() => openModal("withdrawal")}
+              className="h-9 px-4 bg-amber-600 text-white rounded-xl flex items-center gap-2 text-[10px] font-black uppercase tracking-widest hover:bg-amber-500 transition-all active:scale-95"
+            >
+              <Banknote size={13} strokeWidth={3} /> Retirada
+            </button>
           </div>
         }
       />
 
       {/* ── SUMMARY CARDS ──────────────────────────────────────────────── */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
         {/* Entradas card — shows gross + fee breakdown */}
         <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm relative overflow-hidden">
           <div className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2">
@@ -1066,25 +1128,42 @@ export default function Finance() {
           </div>
         </div>
 
+        {/* Retiradas — apenas do período em navegação (mês/ano/livre) */}
+        <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm relative overflow-hidden">
+          <div className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2">
+            Retiradas
+          </div>
+          <div className="text-2xl font-mono font-black text-amber-600">
+            R$ {fmt(totalWithdrawal)}
+          </div>
+          <div className="mt-2 text-[9px] font-bold text-slate-400 uppercase">
+            {withdrawalEntries.length} no período
+          </div>
+          <div className="absolute right-4 top-4 w-10 h-10 rounded-xl bg-amber-50 flex items-center justify-center text-amber-500">
+            <Banknote size={20} />
+          </div>
+        </div>
+
+        {/* Saldo acumulado — geral, de todos os lançamentos já registrados (não zera por mês) */}
         <div
           className={cn(
             "p-5 rounded-2xl shadow-xl relative overflow-hidden",
-            balance >= 0 ? "bg-slate-900" : "bg-rose-900"
+            allTimeBalance >= 0 ? "bg-slate-900" : "bg-rose-900"
           )}
         >
           <div className="text-[9px] font-black text-slate-500 uppercase tracking-[0.2em] mb-2">
-            Saldo Consolidado
+            Saldo Acumulado
           </div>
           <div
             className={cn(
               "text-2xl font-mono font-black",
-              balance >= 0 ? "text-white" : "text-rose-300"
+              allTimeBalance >= 0 ? "text-white" : "text-rose-300"
             )}
           >
-            R$ {fmt(balance)}
+            R$ {fmt(allTimeBalance)}
           </div>
           <div className="mt-2 text-[9px] font-bold text-slate-600 uppercase">
-            Período: {periodLabel}
+            Total desde o início &middot; {periodLabel}: R$ {fmt(balance)}
           </div>
           <div className="absolute right-4 top-4 w-10 h-10 rounded-xl bg-white/5 flex items-center justify-center text-slate-600">
             <Wallet size={20} />
@@ -1169,30 +1248,52 @@ export default function Finance() {
             </div>
           </div>
 
-          {/* Row 2: month navigator + type toggles */}
+          {/* Row 2: month/year navigator + type toggles */}
           <div className="flex items-center gap-2 flex-wrap">
-            {/* ← Mês → navigator */}
+            {/* ← Mês/Ano → navigator */}
             <div className="flex items-center gap-1 bg-slate-50 border border-slate-200 rounded-xl p-1">
               <button
-                onClick={() => navigateMonth(-1)}
+                onClick={() => (preset === "year" ? navigateYear(-1) : navigateMonth(-1))}
                 className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-500 hover:bg-white hover:text-slate-900 transition-all"
               >
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
               </button>
               <button
-                onClick={() => setPreset("month")}
+                onClick={() => applyPreset(preset === "year" ? "year" : "month")}
                 className={cn(
                   "px-4 h-7 rounded-lg text-[11px] font-black uppercase tracking-widest transition-all min-w-[160px] text-center",
-                  preset === "month" ? "bg-slate-900 text-white" : "text-slate-600 hover:bg-white"
+                  preset === "month" || preset === "year" ? "bg-slate-900 text-white" : "text-slate-600 hover:bg-white"
                 )}
               >
-                {MONTH_NAMES[navMonth]} {navYear}
+                {preset === "year" ? navYear : `${MONTH_NAMES[navMonth]} ${navYear}`}
               </button>
               <button
-                onClick={() => navigateMonth(1)}
+                onClick={() => (preset === "year" ? navigateYear(1) : navigateMonth(1))}
                 className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-500 hover:bg-white hover:text-slate-900 transition-all"
               >
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+              </button>
+            </div>
+
+            {/* Mês / Ano / Livre */}
+            <div className="flex items-center gap-1 bg-slate-50 border border-slate-200 rounded-xl p-1">
+              <button
+                onClick={() => applyPreset("month")}
+                className={cn(
+                  "h-7 px-3 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all",
+                  preset === "month" ? "bg-slate-900 text-white shadow-sm" : "text-slate-500 hover:text-slate-700"
+                )}
+              >
+                Mês
+              </button>
+              <button
+                onClick={() => applyPreset("year")}
+                className={cn(
+                  "h-7 px-3 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all",
+                  preset === "year" ? "bg-slate-900 text-white shadow-sm" : "text-slate-500 hover:text-slate-700"
+                )}
+              >
+                Ano
               </button>
             </div>
 
@@ -1226,7 +1327,7 @@ export default function Finance() {
 
             {/* Type chips — always visible, pushed to the right */}
             <div className="ml-auto flex items-center gap-1 bg-slate-50 border border-slate-200 rounded-xl p-1">
-              {(["all", "income", "expense"] as const).map((t) => (
+              {(["all", "income", "expense", "withdrawal"] as const).map((t) => (
                 <button
                   key={t}
                   onClick={() => setTypeFilter(t)}
@@ -1235,11 +1336,12 @@ export default function Finance() {
                     typeFilter === t
                       ? t === "income" ? "bg-emerald-600 text-white shadow-sm"
                         : t === "expense" ? "bg-rose-600 text-white shadow-sm"
+                        : t === "withdrawal" ? "bg-amber-600 text-white shadow-sm"
                         : "bg-slate-900 text-white shadow-sm"
                       : "text-slate-500 hover:text-slate-700"
                   )}
                 >
-                  {t === "all" ? "Todos" : t === "income" ? "Receitas" : "Despesas"}
+                  {t === "all" ? "Todos" : t === "income" ? "Receitas" : t === "expense" ? "Despesas" : "Retiradas"}
                 </button>
               ))}
             </div>
@@ -1508,14 +1610,10 @@ export default function Finance() {
                           <div
                             className={cn(
                               "w-7 h-7 rounded-lg flex items-center justify-center shrink-0 text-white",
-                              entry.type === "income" ? "bg-emerald-500" : "bg-rose-500"
+                              typeMeta(entry.type).dot
                             )}
                           >
-                            {entry.type === "income" ? (
-                              <TrendingUp size={12} />
-                            ) : (
-                              <TrendingDown size={12} />
-                            )}
+                            {React.createElement(typeMeta(entry.type).Icon, { size: 12 })}
                           </div>
                           <div className="flex flex-col gap-1 min-w-0">
                             <div className="flex items-center gap-1.5 flex-wrap">
@@ -1585,10 +1683,10 @@ export default function Finance() {
                         <span
                           className={cn(
                             "font-mono font-black text-sm",
-                            entry.type === "income" ? "text-emerald-600" : "text-rose-600"
+                            typeMeta(entry.type).text
                           )}
                         >
-                          {entry.type === "income" ? "+" : "−"} R$ {fmt(Number(entry.amount))}
+                          {typeMeta(entry.type).sign} R$ {fmt(Number(entry.amount))}
                         </span>
                       </td>
                       {/* Ações */}
@@ -1703,10 +1801,10 @@ export default function Finance() {
                     onClick={() => setSelectedEntry(entry)}
                     className={cn(
                       "w-9 h-9 rounded-xl flex items-center justify-center shrink-0 text-white cursor-pointer",
-                      entry.type === "income" ? "bg-emerald-500" : "bg-rose-500"
+                      typeMeta(entry.type).dot
                     )}
                   >
-                    {entry.type === "income" ? <TrendingUp size={15} /> : <TrendingDown size={15} />}
+                    {React.createElement(typeMeta(entry.type).Icon, { size: 15 })}
                   </div>
                   <div className="flex-1 min-w-0 cursor-pointer" onClick={() => setSelectedEntry(entry)}>
                     <p className="text-[11px] font-bold text-slate-900 uppercase truncate">
@@ -1727,10 +1825,10 @@ export default function Finance() {
                     <span
                       className={cn(
                         "text-sm font-mono font-black",
-                        entry.type === "income" ? "text-emerald-600" : "text-rose-600"
+                        typeMeta(entry.type).text
                       )}
                     >
-                      {entry.type === "income" ? "+" : "−"}R$ {fmt(Number(entry.amount))}
+                      {typeMeta(entry.type).sign}R$ {fmt(Number(entry.amount))}
                     </span>
                     <div className="flex gap-1">
                       <button
@@ -1763,7 +1861,7 @@ export default function Finance() {
           const discount = e.discount_amount != null ? Number(e.discount_amount) : null;
           const fee      = e.fee_amount      != null ? Number(e.fee_amount)      : null;
           const net      = Number(e.amount);
-          const isIncome = e.type === "income";
+          const meta     = typeMeta(e.type);
 
           // Parse date — always use only YYYY-MM-DD to avoid UTC conversion shifting the day
           const rawDate = e.date;
@@ -1795,15 +1893,15 @@ export default function Finance() {
                 {/* Header */}
                 <div className={cn(
                   "px-6 py-5 flex items-start justify-between border-b border-slate-100",
-                  isIncome ? "bg-emerald-50" : "bg-rose-50"
+                  meta.bgLight
                 )}>
                   <div className="flex-1 min-w-0">
                     <div className={cn(
                       "inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[9px] font-black uppercase tracking-widest mb-2",
-                      isIncome ? "bg-emerald-100 text-emerald-700" : "bg-rose-100 text-rose-700"
+                      meta.badgeBg, meta.textLight
                     )}>
-                      {isIncome ? <TrendingUp size={10} /> : <TrendingDown size={10} />}
-                      {isIncome ? "Receita" : "Despesa"}
+                      {React.createElement(meta.Icon, { size: 10 })}
+                      {meta.label}
                     </div>
                     <p className="text-[13px] font-black text-slate-900 uppercase leading-tight">
                       {e.description}
@@ -1943,13 +2041,13 @@ export default function Finance() {
                         )}
                         <div className={cn(
                           "flex items-center justify-between px-4 py-3",
-                          isIncome ? "bg-emerald-50" : "bg-rose-50"
+                          meta.bgLight
                         )}>
-                          <span className={cn("text-[10px] font-black uppercase tracking-wider", isIncome ? "text-emerald-700" : "text-rose-700")}>
+                          <span className={cn("text-[10px] font-black uppercase tracking-wider", meta.textLight)}>
                             Líquido
                           </span>
-                          <span className={cn("font-mono text-[15px] font-black", isIncome ? "text-emerald-600" : "text-rose-600")}>
-                            {isIncome ? "+" : "−"} R$ {fmt(net)}
+                          <span className={cn("font-mono text-[15px] font-black", meta.text)}>
+                            {meta.sign} R$ {fmt(net)}
                           </span>
                         </div>
                       </div>
@@ -1958,11 +2056,11 @@ export default function Finance() {
                     /* Simple entry — just show the amount big */
                     <div className={cn(
                       "rounded-2xl border p-5 text-center",
-                      isIncome ? "bg-emerald-50 border-emerald-100" : "bg-rose-50 border-rose-100"
+                      meta.bgLight, meta.borderLight
                     )}>
                       <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-1">Valor</p>
-                      <p className={cn("text-3xl font-mono font-black", isIncome ? "text-emerald-600" : "text-rose-600")}>
-                        {isIncome ? "+" : "−"} R$ {fmt(net)}
+                      <p className={cn("text-3xl font-mono font-black", meta.text)}>
+                        {meta.sign} R$ {fmt(net)}
                       </p>
                     </div>
                   )}
@@ -2137,7 +2235,7 @@ export default function Finance() {
             <label className="text-[9px] font-black text-slate-400 uppercase tracking-[0.18em] px-1 block">
               Tipo
             </label>
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-3 gap-2">
               <button
                 type="button"
                 onClick={() => setEditForm({ ...editForm, type: "income" })}
@@ -2162,6 +2260,18 @@ export default function Finance() {
               >
                 − Despesa
               </button>
+              <button
+                type="button"
+                onClick={() => setEditForm({ ...editForm, type: "withdrawal" })}
+                className={cn(
+                  "h-10 rounded-xl text-[10px] font-black uppercase tracking-widest border transition-all",
+                  editForm.type === "withdrawal"
+                    ? "bg-amber-600 text-white border-amber-600"
+                    : "bg-white text-slate-400 border-slate-200 hover:border-amber-300"
+                )}
+              >
+                ↓ Retirada
+              </button>
             </div>
           </div>
 
@@ -2185,7 +2295,7 @@ export default function Finance() {
       <Modal
         open={isModalOpen}
         onClose={() => setIsModalOpen(false)}
-        title={`Novo Lançamento — ${modalType === "income" ? "Receita" : "Despesa"}`}
+        title={`Novo Lançamento — ${newEntry.type === "income" ? "Receita" : newEntry.type === "withdrawal" ? "Retirada" : "Despesa"}`}
         size="sm"
         footer={
           <>
@@ -2202,8 +2312,10 @@ export default function Finance() {
               disabled={saving}
               className={cn(
                 "flex-1 h-10 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shadow-lg flex items-center justify-center gap-2",
-                modalType === "income"
+                newEntry.type === "income"
                   ? "bg-emerald-600 hover:bg-emerald-500 shadow-emerald-200"
+                  : newEntry.type === "withdrawal"
+                  ? "bg-amber-600 hover:bg-amber-500 shadow-amber-200"
                   : "bg-rose-600 hover:bg-rose-500 shadow-rose-200"
               )}
             >
@@ -2215,12 +2327,12 @@ export default function Finance() {
         <form id="finance-form" onSubmit={handleSave} className="space-y-4">
           <div className="space-y-1.5">
             <label className="text-[9px] font-black text-slate-400 uppercase tracking-[0.18em] px-1 block">
-              Descrição
+              {newEntry.type === "withdrawal" ? "Motivo da Retirada" : "Descrição"}
             </label>
             <input
               type="text"
               required
-              placeholder="Ex: Venda balcão, aluguel, etc."
+              placeholder={newEntry.type === "withdrawal" ? "Ex: Retirada do sócio, pagamento pessoal..." : "Ex: Venda balcão, aluguel, etc."}
               className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 h-11 text-xs font-bold focus:ring-2 focus:ring-blue-500/10 focus:border-blue-400 outline-none transition-all"
               value={newEntry.description || ""}
               onChange={(e) => setNewEntry({ ...newEntry, description: e.target.value })}
@@ -2244,7 +2356,7 @@ export default function Finance() {
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
               <label className="text-[9px] font-black text-slate-400 uppercase tracking-[0.18em] px-1 block">
-                Data
+                Data {newEntry.type === "withdrawal" ? "da Retirada" : ""}
               </label>
               <input
                 type="date"
@@ -2256,11 +2368,11 @@ export default function Finance() {
             </div>
             <div className="space-y-1.5">
               <label className="text-[9px] font-black text-slate-400 uppercase tracking-[0.18em] px-1 block">
-                Categoria
+                {newEntry.type === "withdrawal" ? "Observação" : "Categoria"}
               </label>
               <input
                 type="text"
-                placeholder="Operacional"
+                placeholder={newEntry.type === "withdrawal" ? "Opcional" : "Operacional"}
                 className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 h-11 text-xs font-bold focus:ring-2 focus:ring-blue-500/10 focus:border-blue-400 outline-none transition-all"
                 value={newEntry.category || ""}
                 onChange={(e) => setNewEntry({ ...newEntry, category: e.target.value })}
@@ -2272,7 +2384,7 @@ export default function Finance() {
             <label className="text-[9px] font-black text-slate-400 uppercase tracking-[0.18em] px-1 block">
               Tipo
             </label>
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-3 gap-2">
               <button
                 type="button"
                 onClick={() => setNewEntry({ ...newEntry, type: "income" })}
@@ -2296,6 +2408,18 @@ export default function Finance() {
                 )}
               >
                 − Despesa
+              </button>
+              <button
+                type="button"
+                onClick={() => setNewEntry({ ...newEntry, type: "withdrawal" })}
+                className={cn(
+                  "h-10 rounded-xl text-[10px] font-black uppercase tracking-widest border transition-all",
+                  newEntry.type === "withdrawal"
+                    ? "bg-amber-600 text-white border-amber-600"
+                    : "bg-white text-slate-400 border-slate-200 hover:border-amber-300"
+                )}
+              >
+                ↓ Retirada
               </button>
             </div>
           </div>

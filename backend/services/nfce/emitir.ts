@@ -10,7 +10,7 @@ import { buildQrCodeUrl } from "./qrcode";
 import { generateDanfePdf } from "./danfe";
 
 // Traduz o "tPag" derivado do token de pagamento do PDV (ver sales.controller.ts)
-function paymentsFromOrder(paymentMethod: string | null): PaymentSegment[] {
+export function paymentsFromOrder(paymentMethod: string | null): PaymentSegment[] {
   if (!paymentMethod) return [{ method: "money", amount: 0 }];
   return paymentMethod.split("|").map((seg) => {
     const [methodPart, amountStr] = seg.split(":");

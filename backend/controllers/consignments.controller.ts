@@ -3,6 +3,7 @@ import type { Request, Response } from "express";
 import { prisma } from "../config/prisma";
 import type { AuthenticatedRequest } from "../types/auth";
 import { finalizeSaleOrderForConsignment, SaleError } from "./sales.controller";
+import { decrementProductStock, returnProductStock } from "../utils/stock-adjust";
 
 function getTenantId(req: Request) {
   return (req as AuthenticatedRequest).user.tenantId;
@@ -46,38 +47,7 @@ function isOverdue(consignment: { status: string; due_date: Date }): boolean {
 // Reverte estoque (e SKU/variação) de um item da sacola — usado tanto na
 // devolução parcial quanto no cancelamento total.
 async function returnItemToStock(item: { product_id: number; quantity: number; selected_options: unknown }) {
-  await prisma.product.update({
-    where: { id: item.product_id },
-    data: { stock_quantity: { increment: item.quantity } },
-  });
-
-  const opts = item.selected_options as Record<string, string> | null;
-  if (opts && Object.keys(opts).length > 0) {
-    const product = await prisma.product.findUnique({
-      where: { id: item.product_id },
-      select: { skus: true, variations: true },
-    });
-    if (product?.skus) {
-      type SkuEntry = { combo: Record<string, string>; stock: number };
-      const skus = product.skus as SkuEntry[];
-      const updated = skus.map((sku) => {
-        const matches = Object.entries(opts).every(([k, v]) => sku.combo[k] === v);
-        return matches ? { ...sku, stock: sku.stock + item.quantity } : sku;
-      });
-      await prisma.product.update({ where: { id: item.product_id }, data: { skus: updated } });
-    } else if (product?.variations) {
-      type LegacyVariation = { name: string; options: { value: string; stock: number }[] };
-      const variations = product.variations as LegacyVariation[];
-      const updated = variations.map((v) => ({
-        ...v,
-        options: v.options.map((o) => {
-          const matches = opts[v.name] === o.value;
-          return matches ? { ...o, stock: o.stock + item.quantity } : o;
-        }),
-      }));
-      await prisma.product.update({ where: { id: item.product_id }, data: { variations: updated } });
-    }
-  }
+  await returnProductStock(item.product_id, item.quantity, item.selected_options as Record<string, string> | null);
 
   await prisma.stockMovement.create({
     data: {
@@ -238,39 +208,7 @@ export async function createConsignment(req: Request, res: Response) {
 
     // Reserva (debita) o estoque de saída, com rastreio em StockMovement.
     for (const row of itemRows) {
-      await prisma.product.update({
-        where: { id: row.product_id },
-        data: { stock_quantity: { decrement: row.quantity } },
-      });
-
-      if (row.selected_options && Object.keys(row.selected_options).length > 0) {
-        const product = await prisma.product.findUnique({
-          where: { id: row.product_id },
-          select: { skus: true, variations: true },
-        });
-        if (product?.skus) {
-          type SkuEntry = { combo: Record<string, string>; stock: number };
-          const skus = product.skus as SkuEntry[];
-          const opts = row.selected_options as Record<string, string>;
-          const updated = skus.map((sku) => {
-            const matches = Object.entries(opts).every(([k, v]) => sku.combo[k] === v);
-            return matches ? { ...sku, stock: Math.max(0, sku.stock - row.quantity) } : sku;
-          });
-          await prisma.product.update({ where: { id: row.product_id }, data: { skus: updated } });
-        } else if (product?.variations) {
-          type LegacyVariation = { name: string; options: { value: string; stock: number }[] };
-          const variations = product.variations as LegacyVariation[];
-          const opts = row.selected_options as Record<string, string>;
-          const updated = variations.map((v) => ({
-            ...v,
-            options: v.options.map((o) => {
-              const matches = opts[v.name] === o.value;
-              return matches ? { ...o, stock: Math.max(0, o.stock - row.quantity) } : o;
-            }),
-          }));
-          await prisma.product.update({ where: { id: row.product_id }, data: { variations: updated } });
-        }
-      }
+      await decrementProductStock(row.product_id, row.quantity, row.selected_options as Record<string, string> | null);
 
       await prisma.stockMovement.create({
         data: {

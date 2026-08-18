@@ -5,6 +5,7 @@ import type { AuthenticatedRequest } from "../types/auth";
 import { awardPointsForOrder } from "./loyalty.controller";
 import { localDateString } from "../utils/date";
 import { parsePaymentMethod, buildMethodSummary } from "../utils/payment-method";
+import { decrementProductStock, returnProductStock } from "../utils/stock-adjust";
 
 function getTenantId(req: Request) {
   return (req as AuthenticatedRequest).user.tenantId;
@@ -29,6 +30,9 @@ interface SaleItemInput {
   price: number;
   selectedOptions?: Record<string, string> | null;
   dimensionsLabel?: string | null;
+  // id da HeldSaleItem de origem, quando esta linha veio de uma venda em espera
+  // retomada — usado para não debitar de novo um estoque já reservado no hold.
+  heldSaleItemId?: number | null;
 }
 
 interface ServiceItemInput { id: number; name: string; price: number; dimensionsLabel?: string | null }
@@ -53,6 +57,9 @@ interface FinalizeSaleParams {
   soldAtDate?: string;
   // false quando o estoque dos itens já foi debitado antes (ex.: saída da consignação)
   decrementStock: boolean;
+  // presente quando esta venda está finalizando uma venda em espera (comanda) retomada —
+  // os itens que carregarem heldSaleItemId correspondente não são debitados de novo.
+  heldSaleId?: number | null;
   // descrição customizada da entrada financeira (ex.: "Consignação #12 — Venda")
   descriptionPrefix?: string;
   // nº de parcelas do crediário (default 1) e vencimento da 1ª parcela (default hoje +30d)
@@ -75,7 +82,7 @@ async function finalizeSaleOrder(params: FinalizeSaleParams): Promise<{ orderId:
     discount, surcharge, sellerId, passFeeToCustomer, passFeeByMethod, clientSaleId,
     soldAtDate, decrementStock, descriptionPrefix,
     crediarioInstallments, crediarioFirstDueDate,
-    cashSessionId, isOfflineSync,
+    cashSessionId, isOfflineSync, heldSaleId,
   } = params;
 
   // Resolve se um segmento de pagamento repassa taxa ao cliente
@@ -223,6 +230,42 @@ async function finalizeSaleOrder(params: FinalizeSaleParams): Promise<{ orderId:
       }
     }
 
+    // Venda em espera (comanda) retomada e sendo finalizada agora: reivindica a venda em
+    // espera atomicamente (nenhuma outra chamada pode cancelar/finalizar a mesma ao mesmo
+    // tempo), e calcula quanto de cada linha do carrinho já teve o estoque reservado no
+    // momento do "segurar venda" — essa parte não pode ser debitada de novo.
+    // Chaveado pelo id da HeldSaleItem (não pelo product_id), porque o mesmo produto pode
+    // aparecer em mais de uma linha do carrinho com variações diferentes.
+    const reservedForItem: number[] = new Array(items.length).fill(0);
+    let heldSaleItemsToResolve: { id: number; product_id: number; selected_options: unknown; quantity: number; remaining: number }[] = [];
+
+    if (heldSaleId) {
+      const claim = await prisma.heldSale.updateMany({
+        where: { id: heldSaleId, tenant_id: tenantId, status: { in: ["held", "resumed"] } },
+        data: { status: "completed" },
+      });
+      if (claim.count === 0) {
+        throw new SaleError(409, "Esta venda em espera já foi cancelada ou finalizada em outro lugar.");
+      }
+
+      const heldItems = await prisma.heldSaleItem.findMany({
+        where: { held_sale_id: heldSaleId },
+      });
+      heldSaleItemsToResolve = heldItems.map((h) => ({
+        id: h.id, product_id: h.product_id, selected_options: h.selected_options, quantity: h.quantity, remaining: h.quantity,
+      }));
+      const remainingById = new Map(heldSaleItemsToResolve.map((h) => [h.id, h] as const));
+
+      items.forEach((item, idx) => {
+        if (!item.heldSaleItemId) return;
+        const row = remainingById.get(item.heldSaleItemId);
+        if (!row) return; // não pertence a esta venda em espera — trata como item novo, debita normal
+        const claimed = Math.min(row.remaining, item.quantity);
+        row.remaining -= claimed;
+        reservedForItem[idx] = claimed;
+      });
+    }
+
     console.log("[createSale] creating order, grossAmount:", grossAmount, "netAmount:", netAmount, "fee:", roundedFee);
     const order = await prisma.order.create({
       data: {
@@ -265,60 +308,45 @@ async function finalizeSaleOrder(params: FinalizeSaleParams): Promise<{ orderId:
 
     console.log("[createSale] order created id:", order.id, "— updating stock");
     if (decrementStock) {
-      for (const item of items) {
+      for (let idx = 0; idx < items.length; idx++) {
+        const item = items[idx];
         // Produtos vendidos por medida (m²/linear) não têm controle de estoque —
         // a peça é cortada sob medida, não há como inferir quanto resta em chapa/rolo.
         const productForStock = await prisma.product.findUnique({
           where: { id: item.id },
-          select: { sale_unit: true, skus: true, variations: true },
+          select: { sale_unit: true },
         });
         if (productForStock?.sale_unit && productForStock.sale_unit !== "unidade") {
           continue;
         }
 
-        // decrement total product stock
-        await prisma.product.update({
-          where: { id: item.id },
-          data: { stock_quantity: { decrement: item.quantity } },
-        });
-
-        // if item has specific variation options, also decrement the matching SKU in the JSON
-        if (item.selectedOptions && Object.keys(item.selectedOptions).length > 0) {
-          const product = productForStock;
-          if (product?.skus) {
-            type SkuEntry = { combo: Record<string, string>; stock: number };
-            const skus = product.skus as SkuEntry[];
-            const opts = item.selectedOptions;
-            const updated = skus.map((sku) => {
-              const matches = Object.entries(opts).every(([k, v]) => sku.combo[k] === v);
-              if (matches) return { ...sku, stock: Math.max(0, sku.stock - item.quantity) };
-              return sku;
-            });
-            await prisma.product.update({
-              where: { id: item.id },
-              data: { skus: updated },
-            });
-          } else if (product?.variations) {
-            // legacy variations format: [{ name, options: [{ value, stock }] }]
-            type LegacyVariation = { name: string; options: { value: string; stock: number }[] };
-            const variations = product.variations as LegacyVariation[];
-            const opts = item.selectedOptions;
-            const updated = variations.map((v) => ({
-              ...v,
-              options: v.options.map((o) => {
-                const matches = opts[v.name] === o.value;
-                return matches ? { ...o, stock: Math.max(0, o.stock - item.quantity) } : o;
-              }),
-            }));
-            await prisma.product.update({
-              where: { id: item.id },
-              data: { variations: updated },
-            });
-          }
+        const toDecrement = Math.max(0, item.quantity - reservedForItem[idx]);
+        if (toDecrement > 0) {
+          await decrementProductStock(item.id, toDecrement, item.selectedOptions);
         }
       }
     } else {
       console.log("[createSale] decrementStock=false — skipping (stock already debited upstream)");
+    }
+
+    // Qualquer HeldSaleItem que sobrou com quantidade não reclamada pelo carrinho final
+    // (item removido ou reduzido depois de retomar a venda em espera) devolve a sobra ao
+    // estoque agora e é marcada "returned"; o que foi reclamado vira "kept".
+    if (heldSaleId && heldSaleItemsToResolve.length > 0) {
+      for (const row of heldSaleItemsToResolve) {
+        if (row.remaining > 0) {
+          await returnProductStock(row.product_id, row.remaining, row.selected_options as Record<string, string> | null);
+        }
+        const claimed = row.quantity - row.remaining;
+        await prisma.heldSaleItem.update({
+          where: { id: row.id },
+          data: { resolution: claimed > 0 ? "kept" : "returned", resolved_at: new Date() },
+        });
+      }
+      await prisma.heldSale.update({
+        where: { id: heldSaleId },
+        data: { invoiced_order_id: order.id, invoiced_at: new Date() },
+      });
     }
 
     console.log("[createSale] stock updated — creating finance entry");
@@ -427,7 +455,7 @@ export async function createSale(req: Request, res: Response) {
   const {
     items, services, customerName, customerId, customerDocument, totalAmount, paymentMethod, discount, surcharge,
     sellerId, passFeeToCustomer, passFeeByMethod, clientSaleId, soldAtDate,
-    crediarioInstallments, crediarioFirstDueDate, cashSessionId, isOfflineSync,
+    crediarioInstallments, crediarioFirstDueDate, cashSessionId, isOfflineSync, heldSaleId,
   } = req.body as {
     items: SaleItemInput[];
     services?: ServiceItemInput[];
@@ -447,6 +475,7 @@ export async function createSale(req: Request, res: Response) {
     crediarioFirstDueDate?: string;
     cashSessionId?: number | null;
     isOfflineSync?: boolean;
+    heldSaleId?: number | null;
   };
 
   try {
@@ -458,7 +487,7 @@ export async function createSale(req: Request, res: Response) {
       discount, surcharge, sellerId, passFeeToCustomer, passFeeByMethod, clientSaleId,
       soldAtDate, decrementStock: true,
       crediarioInstallments, crediarioFirstDueDate,
-      cashSessionId, isOfflineSync,
+      cashSessionId, isOfflineSync, heldSaleId,
     });
 
     res.json({ success: true, orderId: result.orderId });

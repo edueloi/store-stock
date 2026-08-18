@@ -4,8 +4,50 @@ import type { Request, Response } from "express";
 
 import { prisma } from "../config/prisma";
 import type { AuthenticatedRequest } from "../types/auth";
-import { emitirNfce } from "../services/nfce/emitir";
+import { emitirNfce, paymentsFromOrder } from "../services/nfce/emitir";
 import { cancelarNfce } from "../services/nfce/cancelar";
+import { generateDanfePdf } from "../services/nfce/danfe";
+
+const PAYMENT_LABELS: Record<string, string> = { money: "Dinheiro", pix: "PIX", debit: "Débito", credit: "Crédito" };
+
+/** Reconstrói o PDF do DANFE a partir dos dados já salvos (sem precisar do arquivo em disco) —
+ * usado quando a nota foi autorizada em outro ambiente (ex.: produção) e este servidor não tem
+ * o arquivo localmente. */
+async function rebuildDanfePdf(orderId: number, tenantId: number, invoice: { access_key: string | null; number: number; series: number; authorized_at: Date | null; protocol: string | null; qrcode_url: string | null }) {
+  if (!invoice.access_key || !invoice.qrcode_url) return null;
+  const order = await prisma.order.findFirst({
+    where: { id: orderId, tenant_id: tenantId },
+    include: { items: { include: { product: true } } },
+  });
+  const tenant = await prisma.tenant.findUnique({ where: { id: tenantId } });
+  if (!order || !tenant) return null;
+
+  const environment = tenant.nfce_environment === "producao" ? "producao" : "homologacao";
+  const payments = paymentsFromOrder(order.payment_method);
+  const paymentSummary = payments.map((p) => `${PAYMENT_LABELS[p.method] ?? p.method}: R$ ${p.amount.toFixed(2)}`).join(" + ");
+
+  return generateDanfePdf({
+    storeName: tenant.razao_social || tenant.name,
+    storeDocument: `CNPJ: ${tenant.document ?? ""}`,
+    storeAddress: [tenant.address_street, tenant.address_number, tenant.address_city, tenant.address_state].filter(Boolean).join(", "),
+    chaveAcesso: invoice.access_key,
+    numero: invoice.number,
+    serie: invoice.series,
+    emittedAt: invoice.authorized_at ?? new Date(),
+    environment,
+    protocol: invoice.protocol,
+    items: order.items.map((item) => ({
+      name: item.product.name,
+      quantity: item.quantity,
+      unit: item.product.unidade_comercial,
+      unitPrice: Number(item.unit_price),
+      total: Number(item.unit_price) * item.quantity,
+    })),
+    totalAmount: Number(order.total_amount),
+    qrCodeUrl: invoice.qrcode_url,
+    paymentSummary,
+  });
+}
 
 function getTenantId(req: Request) {
   return (req as AuthenticatedRequest).user.tenantId;
@@ -33,8 +75,21 @@ export async function emitNfceForOrder(req: Request, res: Response) {
   try {
     const orderId = Number(req.params.orderId);
     const tenantId = getTenantId(req);
-    const order = await prisma.order.findFirst({ where: { id: orderId, tenant_id: tenantId }, select: { id: true } });
+    const order = await prisma.order.findFirst({
+      where: { id: orderId, tenant_id: tenantId },
+      select: { id: true, customer_id: true, customer_document: true },
+    });
     if (!order) { res.status(404).json({ error: "Venda não encontrada" }); return; }
+
+    let document = order.customer_document?.trim() || "";
+    if (!document && order.customer_id) {
+      const customer = await prisma.customer.findFirst({ where: { id: order.customer_id, tenant_id: tenantId }, select: { document: true } });
+      document = customer?.document?.trim() || "";
+    }
+    if (!document) {
+      res.status(422).json({ error: "CPF/CNPJ do cliente é obrigatório para emitir NFC-e. Informe o documento do cliente ou emita apenas o cupom comum." });
+      return;
+    }
 
     let invoice = await prisma.nfceInvoice.findFirst({ where: { order_id: orderId, tenant_id: tenantId } });
     if (invoice?.status === "authorized") { res.status(409).json({ error: "NFC-e já autorizada" }); return; }
@@ -216,13 +271,31 @@ export async function downloadDanfe(req: Request, res: Response) {
     const invoice = await prisma.nfceInvoice.findFirst({
       where: { order_id: orderId, tenant_id: tenantId },
     });
-    if (!invoice?.danfe_path || !fs.existsSync(invoice.danfe_path)) {
-      res.status(404).json({ error: "DANFE não disponível" });
+    if (!invoice) {
+      res.status(404).json({ error: "Nota fiscal não encontrada para este pedido" });
+      return;
+    }
+    if (invoice.status !== "authorized") {
+      res.status(409).json({ error: `DANFE indisponível — a NFC-e deste pedido ainda não foi autorizada (status atual: ${invoice.status}).` });
+      return;
+    }
+    if (invoice.danfe_path && fs.existsSync(invoice.danfe_path)) {
+      res.setHeader("Content-Type", "application/pdf");
+      res.setHeader("Content-Disposition", `inline; filename="danfe-${invoice.access_key ?? orderId}.pdf"`);
+      fs.createReadStream(invoice.danfe_path).pipe(res);
+      return;
+    }
+
+    // Arquivo não existe neste servidor (comum quando a nota foi autorizada em outro
+    // ambiente, ex.: produção) — reconstrói o PDF a partir dos dados já salvos no banco.
+    const rebuilt = await rebuildDanfePdf(orderId, tenantId, invoice);
+    if (!rebuilt) {
+      res.status(404).json({ error: "O arquivo do DANFE não está disponível neste servidor e não há dados suficientes para reconstruí-lo." });
       return;
     }
     res.setHeader("Content-Type", "application/pdf");
     res.setHeader("Content-Disposition", `inline; filename="danfe-${invoice.access_key ?? orderId}.pdf"`);
-    fs.createReadStream(invoice.danfe_path).pipe(res);
+    res.send(rebuilt);
   } catch {
     res.status(500).json({ error: "Failed to fetch DANFE" });
   }
@@ -235,8 +308,16 @@ export async function downloadNfceXml(req: Request, res: Response) {
     const invoice = await prisma.nfceInvoice.findFirst({
       where: { order_id: orderId, tenant_id: tenantId },
     });
-    if (!invoice?.xml_path || !fs.existsSync(invoice.xml_path)) {
-      res.status(404).json({ error: "XML não disponível" });
+    if (!invoice) {
+      res.status(404).json({ error: "Nota fiscal não encontrada para este pedido" });
+      return;
+    }
+    if (invoice.status !== "authorized") {
+      res.status(409).json({ error: `XML indisponível — a NFC-e deste pedido ainda não foi autorizada (status atual: ${invoice.status}).` });
+      return;
+    }
+    if (!invoice.xml_path || !fs.existsSync(invoice.xml_path)) {
+      res.status(404).json({ error: "O arquivo XML não está disponível neste servidor (a nota pode ter sido autorizada em outro ambiente, ex.: produção) e não pode ser reconstruído — o XML assinado só existe onde foi originalmente salvo." });
       return;
     }
     res.setHeader("Content-Type", "application/xml");

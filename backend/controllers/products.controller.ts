@@ -2,10 +2,26 @@ import type { Request, Response } from "express";
 
 import { prisma } from "../config/prisma";
 import { deleteProductImage } from "./upload.controller";
+import { getLowStockThreshold } from "../utils/low-stock-threshold";
 import type { AuthenticatedRequest } from "../types/auth";
 
 function getTenantId(req: Request) {
   return (req as AuthenticatedRequest).user.tenantId;
+}
+
+export async function getLowStockCount(req: Request, res: Response) {
+  try {
+    const tenantId = getTenantId(req);
+    const threshold = await getLowStockThreshold((req as AuthenticatedRequest).user.userId);
+    const products = await prisma.product.findMany({
+      where: { tenant_id: tenantId, is_active: true, stock_quantity: { lte: threshold } },
+      select: { id: true, name: true, stock_quantity: true },
+      orderBy: { stock_quantity: "asc" },
+    });
+    res.json({ count: products.length, products, threshold });
+  } catch {
+    res.status(500).json({ error: "Failed to fetch low stock count" });
+  }
 }
 
 export async function listProducts(req: Request, res: Response) {

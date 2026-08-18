@@ -4,6 +4,7 @@ import {
   adjustProductStock,
   createProduct,
   deleteProduct,
+  getLowStockCount,
   getProduct,
   getProductByBarcode,
   getProductHistory,
@@ -21,6 +22,7 @@ router.get("/", listProducts);
 router.post("/", createProduct);
 router.post("/stock-adjustment", adjustProductStock);
 router.get("/movements", listProductMovements);
+router.get("/low-stock-count", getLowStockCount);
 router.get("/by-barcode/:code", getProductByBarcode);
 router.get("/:id/history", getProductHistory);
 router.get("/:id", getProduct);

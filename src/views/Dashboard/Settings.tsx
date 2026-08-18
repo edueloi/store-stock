@@ -6,10 +6,13 @@ import {
   Bell, Sun, Moon, Package, AlertTriangle, Lock, Image, Upload, X, FileCheck, ShieldCheck,
   Smartphone, Zap, UserPlus, Trash2, Edit2, Eye, EyeOff, ShoppingCart, User,
   Monitor, Download, WifiOff, Terminal, CheckCircle2, XCircle, ClipboardList, Wallet,
+  Percent,
 } from "lucide-react";
 import PageHeader from "../../components/layout/PageHeader";
 import { cn } from "../../lib/utils";
 import { useToast } from "../../components/ui/Toast";
+import Modal from "../../components/ui/Modal";
+import Button from "../../components/ui/Button";
 import type { Tenant, BusinessHours, PaymentMethods, StorePolicies, CardFees } from "../../types";
 
 // ─── helpers ────────────────────────────────────────────────────────────────
@@ -151,6 +154,7 @@ const NAV = [
       { id: "hours", icon: Clock, label: "Horário de Funcionamento" },
       { id: "payments", icon: CreditCard, label: "Pagamentos & Políticas" },
       { id: "card_fees", icon: CreditCard, label: "Maquininha & Taxas" },
+      { id: "crediario", icon: Percent, label: "Crediário & Juros" },
       { id: "warranty", icon: FileCheck, label: "Termos de Garantia" },
       { id: "service_checklists", icon: ClipboardList, label: "Checklists de OS" },
       { id: "fiscal", icon: FileCheck, label: "Dados Fiscais" },
@@ -192,6 +196,7 @@ function TeamSection() {
   const [saving, setSaving]       = useState(false);
   const [editId, setEditId]       = useState<number | null>(null);
   const [deletingId, setDeletingId] = useState<number | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<TeamMember | null>(null);
   const [form, setForm]           = useState<MemberForm>({ name: "", email: "", password: "", role: "staff", showPass: false });
 
   const [permOptions, setPermOptions] = useState<PermissionOptions>({ menus: [], stages: [] });
@@ -293,13 +298,16 @@ function TeamSection() {
     } finally { setSaving(false); }
   };
 
-  const handleDelete = async (id: number) => {
+  const handleDelete = async () => {
+    if (!deleteTarget) return;
+    const id = deleteTarget.id;
     setDeletingId(id);
     try {
       const res = await fetch(`/api/team/${id}`, { method: "DELETE", headers });
       if (res.ok) {
         toast.success("Membro removido.");
         setMembers(ms => ms.filter(m => m.id !== id));
+        setDeleteTarget(null);
       } else {
         const data = await res.json();
         toast.error(data.error || "Erro ao remover.");
@@ -381,7 +389,7 @@ function TeamSection() {
                       <Edit2 size={13} />
                     </button>
                     <button
-                      onClick={() => handleDelete(m.id)}
+                      onClick={() => setDeleteTarget(m)}
                       disabled={deletingId === m.id}
                       className="p-1.5 rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 transition-all disabled:opacity-40"
                     >
@@ -407,164 +415,167 @@ function TeamSection() {
         </div>
       </div>
 
-      {/* Modal form */}
-      {showForm && (
-        <div className="fixed inset-0 z-[300] flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm">
-          <div className="bg-white w-full max-w-md rounded-2xl shadow-2xl border border-slate-100 overflow-hidden">
-            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
-              <div>
-                <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">
-                  {editId ? "Editar membro" : "Novo membro"}
-                </p>
-                <h3 className="text-sm font-black text-slate-800 mt-0.5">
-                  {editId ? "Atualizar dados de acesso" : "Adicionar ao time"}
-                </h3>
-              </div>
-              <button onClick={() => setShowForm(false)} className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-xl transition-all">
-                <X size={16} />
-              </button>
-            </div>
+      {/* Modal: criar/editar membro */}
+      <Modal
+        open={showForm}
+        onClose={() => setShowForm(false)}
+        title={editId ? "Editar membro" : "Novo membro"}
+        subtitle={editId ? "Atualizar dados de acesso" : "Adicionar ao time"}
+        size="md"
+        footer={
+          <>
+            <Button variant="secondary" onClick={() => setShowForm(false)}>Cancelar</Button>
+            <Button onClick={handleSave} loading={saving || savingPerms} icon={<Save size={13} />}>
+              {editId ? "Salvar" : "Criar"}
+            </Button>
+          </>
+        }
+      >
+        {/* Name */}
+        <div>
+          <label className="text-[10px] font-black uppercase tracking-widest text-slate-500 block mb-1.5">Nome</label>
+          <input
+            type="text"
+            value={form.name}
+            onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
+            placeholder="Nome completo"
+            className="w-full h-10 px-3 border border-slate-200 rounded-xl text-sm font-medium text-slate-800 placeholder:text-slate-300 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition-all"
+          />
+        </div>
 
-            <div className="p-6 space-y-4">
-              {/* Name */}
-              <div>
-                <label className="text-[10px] font-black uppercase tracking-widest text-slate-500 block mb-1.5">Nome</label>
-                <input
-                  type="text"
-                  value={form.name}
-                  onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
-                  placeholder="Nome completo"
-                  className="w-full h-10 px-3 border border-slate-200 rounded-xl text-sm font-medium text-slate-800 placeholder:text-slate-300 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition-all"
-                />
-              </div>
+        {/* Email */}
+        <div>
+          <label className="text-[10px] font-black uppercase tracking-widest text-slate-500 block mb-1.5">E-mail</label>
+          <input
+            type="email"
+            value={form.email}
+            onChange={e => setForm(f => ({ ...f, email: e.target.value }))}
+            placeholder="email@exemplo.com"
+            className="w-full h-10 px-3 border border-slate-200 rounded-xl text-sm font-medium text-slate-800 placeholder:text-slate-300 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition-all"
+          />
+        </div>
 
-              {/* Email */}
-              <div>
-                <label className="text-[10px] font-black uppercase tracking-widest text-slate-500 block mb-1.5">E-mail</label>
-                <input
-                  type="email"
-                  value={form.email}
-                  onChange={e => setForm(f => ({ ...f, email: e.target.value }))}
-                  placeholder="email@exemplo.com"
-                  className="w-full h-10 px-3 border border-slate-200 rounded-xl text-sm font-medium text-slate-800 placeholder:text-slate-300 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition-all"
-                />
-              </div>
-
-              {/* Password */}
-              <div>
-                <label className="text-[10px] font-black uppercase tracking-widest text-slate-500 block mb-1.5">
-                  Senha {editId && <span className="normal-case font-medium text-slate-400">(deixe em branco para manter)</span>}
-                </label>
-                <div className="relative">
-                  <input
-                    type={form.showPass ? "text" : "password"}
-                    value={form.password}
-                    onChange={e => setForm(f => ({ ...f, password: e.target.value }))}
-                    placeholder={editId ? "Nova senha (opcional)" : "Senha de acesso"}
-                    className="w-full h-10 px-3 pr-10 border border-slate-200 rounded-xl text-sm font-medium text-slate-800 placeholder:text-slate-300 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition-all"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setForm(f => ({ ...f, showPass: !f.showPass }))}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700"
-                  >
-                    {form.showPass ? <EyeOff size={14} /> : <Eye size={14} />}
-                  </button>
-                </div>
-              </div>
-
-              {/* Role */}
-              <div>
-                <label className="text-[10px] font-black uppercase tracking-widest text-slate-500 block mb-2">Perfil de acesso</label>
-                <div className="grid grid-cols-3 gap-2">
-                  {Object.entries(ROLE_META).map(([key, meta]) => (
-                    <button
-                      key={key}
-                      type="button"
-                      onClick={() => setForm(f => ({ ...f, role: key }))}
-                      className={cn(
-                        "flex flex-col items-center gap-1.5 p-3 rounded-xl border-2 transition-all text-center",
-                        form.role === key
-                          ? "border-current shadow-sm"
-                          : "border-slate-100 hover:border-slate-200 bg-white"
-                      )}
-                      style={form.role === key ? { borderColor: meta.color, backgroundColor: meta.bg } : {}}
-                    >
-                      <div className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ backgroundColor: meta.bg, color: meta.color }}>
-                        {meta.icon}
-                      </div>
-                      <p className="text-[9px] font-black uppercase tracking-wider leading-tight" style={{ color: form.role === key ? meta.color : undefined }}>
-                        {meta.label}
-                      </p>
-                    </button>
-                  ))}
-                </div>
-                <p className="text-[10px] text-slate-400 mt-2 font-medium">{ROLE_META[form.role]?.desc}</p>
-              </div>
-
-              {/* Permissões individuais — admin já tem acesso total, não precisa marcar nada */}
-              {form.role !== "admin" && (
-                <div className="border-t border-slate-100 pt-4 space-y-4">
-                  <div>
-                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-500 block mb-2">
-                      Menus que este usuário pode acessar
-                    </label>
-                    <div className="grid grid-cols-2 gap-1.5 max-h-40 overflow-y-auto pr-1">
-                      {permOptions.menus.map((opt) => (
-                        <label key={opt.key} className="flex items-center gap-2 text-[11px] font-medium text-slate-600 px-2 py-1.5 rounded-lg hover:bg-slate-50 cursor-pointer">
-                          <input
-                            type="checkbox"
-                            checked={selectedMenus.includes(opt.key)}
-                            onChange={() => toggleMenu(opt.key)}
-                            className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
-                          />
-                          {opt.label}
-                        </label>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-500 block mb-2">
-                      Etapas de Orçamento/OS que pode mover
-                    </label>
-                    <div className="grid grid-cols-2 gap-1.5">
-                      {permOptions.stages.map((opt) => (
-                        <label key={opt.key} className="flex items-center gap-2 text-[11px] font-medium text-slate-600 px-2 py-1.5 rounded-lg hover:bg-slate-50 cursor-pointer">
-                          <input
-                            type="checkbox"
-                            checked={selectedStages.includes(opt.key)}
-                            onChange={() => toggleStage(opt.key)}
-                            className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
-                          />
-                          {opt.label}
-                        </label>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
-
-            <div className="flex items-center gap-3 px-6 pb-6">
-              <button
-                onClick={() => setShowForm(false)}
-                className="flex-1 h-10 border border-slate-200 rounded-xl text-[11px] font-black uppercase tracking-wider text-slate-500 hover:bg-slate-50 transition-all"
-              >
-                Cancelar
-              </button>
-              <button
-                onClick={handleSave}
-                disabled={saving || savingPerms}
-                className="flex-1 h-10 bg-blue-600 text-white rounded-xl text-[11px] font-black uppercase tracking-wider hover:bg-blue-700 transition-all active:scale-95 disabled:opacity-50 flex items-center justify-center gap-2"
-              >
-                {saving || savingPerms ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
-                {editId ? "Salvar" : "Criar"}
-              </button>
-            </div>
+        {/* Password */}
+        <div>
+          <label className="text-[10px] font-black uppercase tracking-widest text-slate-500 block mb-1.5">
+            Senha {editId && <span className="normal-case font-medium text-slate-400">(deixe em branco para manter)</span>}
+          </label>
+          <div className="relative">
+            <input
+              type={form.showPass ? "text" : "password"}
+              value={form.password}
+              onChange={e => setForm(f => ({ ...f, password: e.target.value }))}
+              placeholder={editId ? "Nova senha (opcional)" : "Senha de acesso"}
+              className="w-full h-10 px-3 pr-10 border border-slate-200 rounded-xl text-sm font-medium text-slate-800 placeholder:text-slate-300 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition-all"
+            />
+            <button
+              type="button"
+              onClick={() => setForm(f => ({ ...f, showPass: !f.showPass }))}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700"
+            >
+              {form.showPass ? <EyeOff size={14} /> : <Eye size={14} />}
+            </button>
           </div>
         </div>
-      )}
+
+        {/* Role */}
+        <div>
+          <label className="text-[10px] font-black uppercase tracking-widest text-slate-500 block mb-2">Perfil de acesso</label>
+          <div className="grid grid-cols-3 gap-2">
+            {Object.entries(ROLE_META).map(([key, meta]) => (
+              <button
+                key={key}
+                type="button"
+                onClick={() => setForm(f => ({ ...f, role: key }))}
+                className={cn(
+                  "flex flex-col items-center gap-1.5 p-3 rounded-xl border-2 transition-all text-center",
+                  form.role === key
+                    ? "border-current shadow-sm"
+                    : "border-slate-100 hover:border-slate-200 bg-white"
+                )}
+                style={form.role === key ? { borderColor: meta.color, backgroundColor: meta.bg } : {}}
+              >
+                <div className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ backgroundColor: meta.bg, color: meta.color }}>
+                  {meta.icon}
+                </div>
+                <p className="text-[9px] font-black uppercase tracking-wider leading-tight" style={{ color: form.role === key ? meta.color : undefined }}>
+                  {meta.label}
+                </p>
+              </button>
+            ))}
+          </div>
+          <p className="text-[10px] text-slate-400 mt-2 font-medium">{ROLE_META[form.role]?.desc}</p>
+        </div>
+
+        {/* Permissões individuais — admin já tem acesso total, não precisa marcar nada */}
+        {form.role !== "admin" && (
+          <div className="border-t border-slate-100 pt-4 space-y-4">
+            <div>
+              <label className="text-[10px] font-black uppercase tracking-widest text-slate-500 block mb-2">
+                Menus que este usuário pode acessar
+              </label>
+              <div className="grid grid-cols-2 gap-1.5">
+                {permOptions.menus.map((opt) => (
+                  <label key={opt.key} className="flex items-center gap-2 text-[11px] font-medium text-slate-600 px-2 py-1.5 rounded-lg hover:bg-slate-50 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={selectedMenus.includes(opt.key)}
+                      onChange={() => toggleMenu(opt.key)}
+                      className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                    />
+                    {opt.label}
+                  </label>
+                ))}
+              </div>
+            </div>
+
+            <div>
+              <label className="text-[10px] font-black uppercase tracking-widest text-slate-500 block mb-2">
+                Etapas de Orçamento/OS que pode mover
+              </label>
+              <div className="grid grid-cols-2 gap-1.5">
+                {permOptions.stages.map((opt) => (
+                  <label key={opt.key} className="flex items-center gap-2 text-[11px] font-medium text-slate-600 px-2 py-1.5 rounded-lg hover:bg-slate-50 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={selectedStages.includes(opt.key)}
+                      onChange={() => toggleStage(opt.key)}
+                      className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                    />
+                    {opt.label}
+                  </label>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+      </Modal>
+
+      {/* Modal: confirmar exclusão */}
+      <Modal
+        open={!!deleteTarget}
+        onClose={() => setDeleteTarget(null)}
+        title="Remover membro"
+        subtitle="Esta ação não pode ser desfeita"
+        size="sm"
+        footer={
+          <>
+            <Button variant="secondary" onClick={() => setDeleteTarget(null)}>Cancelar</Button>
+            <Button variant="danger" loading={deletingId === deleteTarget?.id} icon={<Trash2 size={13} />} onClick={handleDelete}>
+              Remover
+            </Button>
+          </>
+        }
+      >
+        <div className="flex gap-3 items-start">
+          <div className="w-10 h-10 bg-red-50 rounded-xl flex items-center justify-center text-red-500 shrink-0">
+            <AlertTriangle size={18} />
+          </div>
+          <p className="text-sm font-semibold text-slate-800">
+            Remover <span className="text-red-600">"{deleteTarget?.name}"</span> do time? Este usuário perderá o acesso ao painel imediatamente.
+          </p>
+        </div>
+      </Modal>
     </div>
   );
 }
@@ -631,6 +642,11 @@ export default function Settings() {
     credit: false, debit: false, pix: false,
   });
 
+  // ── Crediário: juros configurável sobre parcela em atraso ───────────────────
+  const [crediarioInterestRate, setCrediarioInterestRate] = useState(0);
+  const [crediarioGraceDays, setCrediarioGraceDays] = useState(0);
+  const [savingCrediario, setSavingCrediario] = useState(false);
+
   // ── Terminal (maquininha API) ────────────────────────────────────────────────
   type TerminalProvider = "rede" | "stone" | "mercadopago" | "cielo" | "pagseguro";
   const TERMINAL_PROVIDERS: { id: TerminalProvider; label: string; color: string }[] = [
@@ -679,6 +695,8 @@ export default function Settings() {
         if (d?.max_installments) setMaxInstallments(Number(d.max_installments));
         if (d?.enabled_brands) setEnabledBrands(d.enabled_brands as Record<string, boolean>);
         if (d?.pass_fee_by_method) setPassFeeByMethod(d.pass_fee_by_method as Record<string, boolean>);
+        if (d?.crediario_interest_rate !== undefined) setCrediarioInterestRate(Number(d.crediario_interest_rate));
+        if (d?.crediario_grace_days !== undefined) setCrediarioGraceDays(Number(d.crediario_grace_days));
         setLoading(false);
       });
 
@@ -926,6 +944,30 @@ export default function Settings() {
       toast.error("Erro de conexão ao salvar taxas.");
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleSaveCrediario = async () => {
+    setSavingCrediario(true);
+    try {
+      const res = await fetch("/api/tenant", {
+        method: "PUT",
+        headers: API_HEADERS(),
+        body: JSON.stringify({
+          crediario_interest_rate: crediarioInterestRate,
+          crediario_grace_days: crediarioGraceDays,
+        }),
+      });
+      if (res.ok) {
+        toast.success("Configurações de crediário salvas!");
+      } else {
+        const err = await res.json().catch(() => ({}));
+        toast.error("Erro ao salvar: " + (err?.error ?? res.status));
+      }
+    } catch {
+      toast.error("Erro de conexão ao salvar configurações de crediário.");
+    } finally {
+      setSavingCrediario(false);
     }
   };
 
@@ -2250,6 +2292,55 @@ export default function Settings() {
                 </div>
               );
             })()}
+
+            {/* ── Crediário & Juros ──────────────────────────────────── */}
+            {active === "crediario" && (
+              <div className="space-y-6">
+                <SectionHeader
+                  title="Crediário & Juros"
+                  subtitle="Taxa de juros aplicável manualmente a parcelas em atraso — nunca cobrada automaticamente."
+                />
+
+                <div className="flex items-center justify-between gap-4 p-4 bg-white border border-slate-200 rounded-xl">
+                  <div>
+                    <p className="text-[12px] font-bold text-slate-700">Taxa de juros por atraso</p>
+                    <p className="text-[10px] text-slate-400 mt-0.5">% ao mês, aplicado pro-rata sobre os dias de atraso.</p>
+                  </div>
+                  <div className="flex items-center border border-slate-200 rounded-xl overflow-hidden focus-within:ring-2 focus-within:ring-blue-500/10 focus-within:border-blue-500 bg-slate-50 transition-all shrink-0 w-32">
+                    <input type="number" min="0" max="30" step="0.1"
+                      value={crediarioInterestRate}
+                      onChange={(e) => setCrediarioInterestRate(parseFloat(e.target.value) || 0)}
+                      className="flex-1 bg-transparent px-2 h-9 text-xs font-mono font-bold outline-none w-0 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none"
+                    />
+                    <span className="bg-slate-100 border-l border-slate-200 px-2 h-9 flex items-center text-[10px] font-black text-slate-400 shrink-0">%/mês</span>
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between gap-4 p-4 bg-white border border-slate-200 rounded-xl">
+                  <div>
+                    <p className="text-[12px] font-bold text-slate-700">Dias de carência</p>
+                    <p className="text-[10px] text-slate-400 mt-0.5">Nº de dias após o vencimento antes de sugerir juros.</p>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <button onClick={() => setCrediarioGraceDays((v) => Math.max(0, v - 1))}
+                      className="w-8 h-8 rounded-lg bg-slate-100 hover:bg-slate-200 border border-slate-200 text-slate-600 font-black text-lg flex items-center justify-center transition-all">−</button>
+                    <span className="w-10 text-center font-mono font-black text-[16px] text-slate-800">{crediarioGraceDays}d</span>
+                    <button onClick={() => setCrediarioGraceDays((v) => Math.min(90, v + 1))}
+                      className="w-8 h-8 rounded-lg bg-slate-100 hover:bg-slate-200 border border-slate-200 text-slate-600 font-black text-lg flex items-center justify-center transition-all">+</button>
+                  </div>
+                </div>
+
+                <div className="flex items-start gap-3 p-4 bg-amber-50 border border-amber-100 rounded-xl">
+                  <AlertTriangle size={16} className="text-amber-600 shrink-0 mt-0.5" />
+                  <p className="text-[10px] text-amber-700 leading-relaxed">
+                    Juros nunca é cobrado sozinho: essa taxa só serve de sugestão na tela de crediário
+                    (Cliente / PDV). Aplicar o valor a uma parcela é sempre uma ação manual do operador.
+                  </p>
+                </div>
+
+                <SaveButton onClick={handleSaveCrediario} label={savingCrediario ? "Salvando..." : "Salvar Configurações"} />
+              </div>
+            )}
 
             {/* ── Termos de Garantia ──────────────────────────────────── */}
             {active === "warranty" && (() => {
