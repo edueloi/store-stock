@@ -811,7 +811,9 @@ export default function ServiceOrderDetail() {
           {/* Equipamento */}
           <div className="bg-white rounded-2xl border border-slate-200 p-5 space-y-3">
             <div className="flex items-center justify-between gap-2">
-              <p className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400">Equipamento</p>
+              <p className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400">
+                {hasEquipment ? "Equipamento" : "Detalhes do Atendimento"}
+              </p>
               <div className="flex items-center gap-1 bg-slate-100 rounded-lg p-0.5">
                 {([
                   { v: true, label: "Tem equipamento" },
