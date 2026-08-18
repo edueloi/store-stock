@@ -95,6 +95,80 @@ export async function emitNfseForServiceOrder(req: Request, res: Response) {
   }
 }
 
+// Emite uma NFS-e de teste em homologação, sem precisar de uma Ordem de Serviço real —
+// cria uma OS-âncora só pra satisfazer o vínculo obrigatório, valida certificado A1 e
+// código do município antes de tentar, e força homologação mesmo que o tenant já
+// tenha configurado "produção" (nunca testa contra o ambiente real por engano).
+export async function testNfseEmission(req: Request, res: Response) {
+  try {
+    const tenantId = getTenantId(req);
+    const tenant = await prisma.tenant.findUnique({ where: { id: tenantId } });
+    if (!tenant) { res.status(404).json({ error: "Loja não encontrada" }); return; }
+    if (!tenant.nfce_cert_path || !tenant.nfce_cert_password) {
+      res.status(422).json({ error: "Envie o certificado digital A1 antes de testar (Configurações > Dados Fiscais)." });
+      return;
+    }
+    if (!tenant.nfse_codigo_municipio) {
+      res.status(422).json({ error: "Informe o código do município (IBGE) antes de testar (Configurações > Dados Fiscais)." });
+      return;
+    }
+
+    const last = await prisma.serviceOrder.findFirst({
+      where: { tenant_id: tenantId },
+      orderBy: { number: "desc" },
+      select: { number: true },
+    });
+
+    const { invoiceId, serviceOrderId } = await prisma.$transaction(async (tx) => {
+      const testOrder = await tx.serviceOrder.create({
+        data: {
+          tenant_id: tenantId,
+          number: (last?.number ?? 0) + 1,
+          status: "finalizado",
+          customer_name: "TESTE DE EMISSÃO NFS-e (HOMOLOGAÇÃO)",
+          has_equipment: false,
+          reported_issue: "Ordem de serviço gerada automaticamente para testar a emissão de NFS-e em homologação — pode ser excluída.",
+          service_value: 1,
+          subtotal: 1,
+          total_amount: 1,
+        },
+      });
+      const invoice = await tx.nfseInvoice.create({
+        data: {
+          tenant_id: tenantId,
+          service_order_id: testOrder.id,
+          status: "pending",
+          environment: "homologacao",
+          serie: tenant.nfse_serie,
+          numero: tenant.nfse_next_number,
+        },
+      });
+      await tx.tenant.update({ where: { id: tenantId }, data: { nfse_next_number: { increment: 1 } } });
+      return { invoiceId: invoice.id, serviceOrderId: testOrder.id };
+    });
+
+    await emitirNfse({
+      serviceOrderId,
+      codigoTributacaoNacional: "1401",
+      descricaoServico: "Teste de emissão NFS-e (homologação)",
+      valorServico: 1,
+      forceEnvironment: "homologacao",
+    });
+
+    const invoice = await prisma.nfseInvoice.findUnique({ where: { id: invoiceId } });
+    res.json({
+      success: invoice?.status === "authorized",
+      status: invoice?.status,
+      rejection_reason: invoice?.rejection_reason,
+      chave_acesso: invoice?.chave_acesso,
+      service_order_id: serviceOrderId,
+    });
+  } catch (err) {
+    console.error("[testNfseEmission] error:", err);
+    res.status(500).json({ error: "Erro ao testar emissão em homologação" });
+  }
+}
+
 export async function retryNfse(req: Request, res: Response) {
   try {
     const serviceOrderId = Number(req.params.serviceOrderId);

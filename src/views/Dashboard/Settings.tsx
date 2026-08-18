@@ -611,6 +611,10 @@ export default function Settings() {
   const [certInfo, setCertInfo] = useState<{ subjectName: string; validUntil: string } | null>(null);
   const [certFile, setCertFile] = useState<File | null>(null);
   const certInputRef = useRef<HTMLInputElement>(null);
+  const [testingNfse, setTestingNfse] = useState(false);
+  const [nfseTestResult, setNfseTestResult] = useState<{
+    success: boolean; status?: string; rejection_reason?: string | null; chave_acesso?: string | null;
+  } | null>(null);
   // system prefs (stored in UserPreference)
   const [panelTheme, setPanelTheme] = useState<"light" | "dark">("light");
   const [lowStockAlert, setLowStockAlert] = useState(5);
@@ -749,6 +753,26 @@ export default function Settings() {
       if (res.ok) showSaved();
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleTestNfse = async () => {
+    setTestingNfse(true);
+    setNfseTestResult(null);
+    try {
+      const res = await fetch("/api/nfse/test", { method: "POST", headers: API_HEADERS() });
+      const data = await res.json();
+      if (!res.ok) {
+        toast.error(data?.error || "Erro ao testar emissão.");
+        return;
+      }
+      setNfseTestResult(data);
+      if (data.success) toast.success("Nota de teste autorizada em homologação!");
+      else toast.error("Nota de teste rejeitada — veja o motivo abaixo.");
+    } catch {
+      toast.error("Erro de conexão ao testar emissão.");
+    } finally {
+      setTestingNfse(false);
     }
   };
 
@@ -1645,6 +1669,41 @@ export default function Settings() {
                       />
                     </Field>
                   </div>
+
+                  <div className="flex items-center justify-between gap-3 bg-slate-50 border border-slate-200 rounded-xl px-4 py-3">
+                    <div>
+                      <p className="text-[11px] font-bold text-slate-700">Testar emissão em homologação</p>
+                      <p className="text-[10px] text-slate-400 mt-0.5">
+                        Gera uma nota de teste de R$ 1,00 sempre em homologação (nunca em produção), pra validar
+                        certificado, código do município e comunicação com o governo sem precisar de uma Ordem de Serviço real.
+                      </p>
+                    </div>
+                    <button
+                      onClick={handleTestNfse}
+                      disabled={testingNfse}
+                      className="shrink-0 h-10 px-4 rounded-xl bg-violet-600 text-white text-[10px] font-black uppercase tracking-widest hover:bg-violet-700 disabled:opacity-50 transition-all flex items-center gap-2"
+                    >
+                      {testingNfse ? <Loader2 size={14} className="animate-spin" /> : null}
+                      {testingNfse ? "Testando..." : "Testar Emissão"}
+                    </button>
+                  </div>
+
+                  {nfseTestResult && (
+                    <div className={cn(
+                      "rounded-xl border px-4 py-3",
+                      nfseTestResult.success ? "bg-emerald-50 border-emerald-200" : "bg-red-50 border-red-200"
+                    )}>
+                      <p className={cn("text-[11px] font-black uppercase tracking-wide", nfseTestResult.success ? "text-emerald-700" : "text-red-700")}>
+                        {nfseTestResult.success ? "Autorizada ✓" : `Falhou (${nfseTestResult.status ?? "erro"})`}
+                      </p>
+                      {nfseTestResult.chave_acesso && (
+                        <p className="text-[10px] text-emerald-600 font-mono mt-1">Chave: {nfseTestResult.chave_acesso}</p>
+                      )}
+                      {nfseTestResult.rejection_reason && (
+                        <p className="text-[10px] text-red-600 mt-1">{nfseTestResult.rejection_reason}</p>
+                      )}
+                    </div>
+                  )}
                 </div>
 
                 <SaveButton onClick={handleSaveTenant} label="Salvar Dados Fiscais" />

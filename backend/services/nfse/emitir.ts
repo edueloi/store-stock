@@ -26,6 +26,9 @@ export interface EmitirNfseInput {
   codigoTributacaoNacional: string; // subitem da lista de serviços, ex: "70602"
   descricaoServico: string;
   valorServico: number; // normalmente o service_value da OS (mão de obra), não as peças
+  // Usado só pelo endpoint de teste (/nfse/test): força homologação mesmo que o
+  // tenant já tenha configurado "producao", pra nunca emitir uma nota de teste real.
+  forceEnvironment?: NfseEnvironment;
 }
 
 // Resolve nome/documento de quem contratou o serviço: cliente cadastrado (se a OS
@@ -52,7 +55,7 @@ async function resolveTomador(serviceOrder: { customer_id: number | null; custom
 }
 
 export async function emitirNfse(input: EmitirNfseInput): Promise<void> {
-  const { serviceOrderId, codigoTributacaoNacional, descricaoServico, valorServico } = input;
+  const { serviceOrderId, codigoTributacaoNacional, descricaoServico, valorServico, forceEnvironment } = input;
 
   const serviceOrder = await prisma.serviceOrder.findUnique({ where: { id: serviceOrderId } });
   if (!serviceOrder) return;
@@ -76,7 +79,7 @@ export async function emitirNfse(input: EmitirNfseInput): Promise<void> {
       throw new Error("Código do município (IBGE) não configurado para esta loja (Configurações > Dados Fiscais).");
     }
 
-    const environment: NfseEnvironment = tenant.nfse_environment === "producao" ? "producao" : "homologacao";
+    const environment: NfseEnvironment = forceEnvironment ?? (tenant.nfse_environment === "producao" ? "producao" : "homologacao");
 
     // Alíquota parametrizada pelo município (a maioria já aderiu ao Sistema Nacional
     // NFS-e) — só cai no valor manual se o município não estiver parametrizado.
