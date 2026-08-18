@@ -6,7 +6,7 @@ import {
   Printer, FileText, MessageCircle, Phone, ChevronRight, ChevronDown,
   PlusCircle, Barcode, Users, Scan, Star, Gift, UserPlus, Download,
   Maximize2, Minimize2, Wrench, WifiOff, RefreshCw, Terminal,
-  LayoutGrid, List, ChevronLeft, Clock, Wallet, ShoppingBag,
+  LayoutGrid, List, ChevronLeft, Clock, Wallet, ShoppingBag, Ruler,
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { Product, Category, NfceInvoice } from "../types";
@@ -91,7 +91,11 @@ interface CompletedSale {
 }
 
 interface SellerEntry { id: number; name: string; commission_rate: number }
-interface ServiceItem  { id: number; name: string; price: number; description?: string; unit?: string; category?: string; quantity?: number }
+interface ServiceItem  {
+  id: number; name: string; price: number; description?: string; unit?: string; category?: string; quantity?: number;
+  sale_unit?: "unidade" | "m2" | "linear"; price_per_measure?: number | null; min_billable_quantity?: number | null;
+  dimensionsLabel?: string;
+}
 
 function defaultCrediarioFirstDueDate(): string {
   const d = new Date();
@@ -256,6 +260,9 @@ export default function PDVStandalone() {
   const [measureProduct, setMeasureProduct] = useState<Product | null>(null);
   const [measureHeight, setMeasureHeight] = useState("");
   const [measureWidth, setMeasureWidth] = useState("");
+  const [measureService, setMeasureService] = useState<ServiceItem | null>(null);
+  const [measureServiceHeight, setMeasureServiceHeight] = useState("");
+  const [measureServiceWidth, setMeasureServiceWidth] = useState("");
   const [tenantName, setTenantName]   = useState("PDV");
   const [tenantAddress, setTenantAddress] = useState("");
   const [tenantDocument, setTenantDocument] = useState("");
@@ -799,6 +806,30 @@ export default function PDVStandalone() {
     setMeasureProduct(null);
     setMeasureHeight("");
     setMeasureWidth("");
+  };
+
+  // Mesmo mecanismo de venda por medida do Produto, aplicado a Serviço.
+  const measureServicePreview = measureService
+    ? computeMeasuredPrice(
+        (measureService.sale_unit as "m2" | "linear") ?? "m2",
+        Number(measureService.price_per_measure) || 0,
+        measureService.min_billable_quantity ?? null,
+        Number(measureServiceHeight) || 0,
+        Number(measureServiceWidth) || 0,
+      )
+    : null;
+
+  const addMeasuredServiceToCart = () => {
+    if (!measureService || !measureServicePreview) return;
+    setCartServices((prev) => [...prev, {
+      ...measureService,
+      price: measureServicePreview.total,
+      quantity: 1,
+      dimensionsLabel: measureServicePreview.label,
+    }]);
+    setMeasureService(null);
+    setMeasureServiceHeight("");
+    setMeasureServiceWidth("");
   };
 
   const updateQuantity = (cartItemId: string, delta: number) => {
@@ -1389,7 +1420,7 @@ ${sale.change > 0 ? `<hr class="divider"/><div class="row bold"><span>Troco:</sp
     const crediarioPayment = payments.find((p) => p.method === "crediario");
     const saleBody = {
       items: cart.map((i) => ({ id: i.id, quantity: i.quantity, price: i.price, selectedOptions: i.selectedOptions ?? null, dimensionsLabel: i.dimensionsLabel ?? null })),
-      services: cartServices.map((s) => ({ id: s.id, name: s.name, price: s.price, quantity: s.quantity ?? 1 })),
+      services: cartServices.map((s) => ({ id: s.id, name: s.name, price: s.price, quantity: s.quantity ?? 1, dimensionsLabel: s.dimensionsLabel ?? null })),
       customerName,
       customerId: selectedCustomerId ?? undefined,
       customerDocument: !selectedCustomerId && customerDocument ? customerDocument : undefined,
@@ -1877,6 +1908,12 @@ ${sale.change > 0 ? `<hr class="divider"/><div class="row bold"><span>Troco:</sp
                     return (
                       <motion.button layout key={svc.id}
                         onClick={() => {
+                          if (svc.sale_unit && svc.sale_unit !== "unidade") {
+                            setMeasureService(svc);
+                            setMeasureServiceHeight("");
+                            setMeasureServiceWidth("");
+                            return;
+                          }
                           if (cartEntry) setCartServices((prev) => prev.filter((s) => s.id !== svc.id));
                           else setCartServices((prev) => [...prev, { ...svc, price: Number(svc.price), quantity: 1 }]);
                         }}
@@ -1915,8 +1952,11 @@ ${sale.change > 0 ? `<hr class="divider"/><div class="row bold"><span>Troco:</sp
                           <p className="text-[11px] font-black text-slate-800 uppercase leading-tight line-clamp-2">{svc.name}</p>
                           {svc.description && <p className="text-[9px] text-slate-400 mt-0.5 line-clamp-1">{svc.description}</p>}
                           <p className="text-[12px] font-mono font-black text-violet-600 mt-1">
-                            R$ {Number(svc.price).toFixed(2)}{" "}
-                            <span className="text-[9px] text-slate-400 font-bold">/{unitAbbr}</span>
+                            R$ {(svc.sale_unit && svc.sale_unit !== "unidade" ? Number(svc.price_per_measure ?? 0) : Number(svc.price)).toFixed(2)}{" "}
+                            <span className="text-[9px] text-slate-400 font-bold flex items-center gap-0.5 inline-flex">
+                              {svc.sale_unit && svc.sale_unit !== "unidade" && <Ruler size={7} />}
+                              /{svc.sale_unit === "m2" ? "m²" : svc.sale_unit === "linear" ? "m" : unitAbbr}
+                            </span>
                           </p>
                         </div>
                       </motion.button>
@@ -2361,6 +2401,92 @@ ${sale.change > 0 ? `<hr class="divider"/><div class="row bold"><span>Troco:</sp
         )}
       </AnimatePresence>
 
+      {/* ── MEASURE (m²/linear) MODAL — Serviço ─────────────────────────────── */}
+      <AnimatePresence>
+        {measureService && (
+          <motion.div
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[200] flex items-end sm:items-center justify-center sm:p-4"
+            style={{ background: "rgba(5,8,20,0.88)", backdropFilter: "blur(16px)" }}>
+            <motion.div
+              initial={{ opacity: 0, y: 40, scale: 0.97 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 30, scale: 0.97 }}
+              transition={{ type: "spring", damping: 28, stiffness: 260 }}
+              className="w-full sm:max-w-sm rounded-t-[28px] sm:rounded-3xl overflow-hidden shadow-2xl bg-white"
+            >
+              <div className="px-5 pt-5 pb-3 flex items-center justify-between border-b border-slate-100">
+                <div>
+                  <p className="text-[9px] font-black uppercase tracking-widest text-violet-500">
+                    Serviço por {measureService.sale_unit === "m2" ? "m²" : "metro linear"}
+                  </p>
+                  <h3 className="text-[15px] font-black text-slate-800">{measureService.name}</h3>
+                </div>
+                <button onClick={() => setMeasureService(null)} className="w-9 h-9 rounded-xl bg-slate-100 hover:bg-slate-200 flex items-center justify-center">
+                  <X size={16} className="text-slate-500" />
+                </button>
+              </div>
+
+              <div className="p-5 space-y-3">
+                {measureService.sale_unit === "m2" ? (
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400 mb-1.5 block">Altura (m)</label>
+                      <input type="number" min="0" step="0.01" autoFocus value={measureServiceHeight}
+                        onChange={(e) => setMeasureServiceHeight(e.target.value)}
+                        placeholder="0,00"
+                        className="w-full h-11 px-3 rounded-xl border border-slate-200 text-sm font-mono font-bold text-center focus:outline-none focus:border-violet-400" />
+                    </div>
+                    <div>
+                      <label className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400 mb-1.5 block">Largura (m)</label>
+                      <input type="number" min="0" step="0.01" value={measureServiceWidth}
+                        onChange={(e) => setMeasureServiceWidth(e.target.value)}
+                        placeholder="0,00"
+                        className="w-full h-11 px-3 rounded-xl border border-slate-200 text-sm font-mono font-bold text-center focus:outline-none focus:border-violet-400" />
+                    </div>
+                  </div>
+                ) : (
+                  <div>
+                    <label className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400 mb-1.5 block">Comprimento (m)</label>
+                    <input type="number" min="0" step="0.01" autoFocus value={measureServiceHeight}
+                      onChange={(e) => setMeasureServiceHeight(e.target.value)}
+                      placeholder="0,00"
+                      className="w-full h-11 px-3 rounded-xl border border-slate-200 text-sm font-mono font-bold text-center focus:outline-none focus:border-violet-400" />
+                  </div>
+                )}
+
+                {measureServicePreview && measureServicePreview.rawQuantity > 0 && (
+                  <div className="bg-slate-900 rounded-2xl p-4 space-y-1.5">
+                    <div className="flex justify-between text-[10px] font-bold uppercase text-slate-400">
+                      <span>{measureService.sale_unit === "m2" ? "Área" : "Comprimento"}</span>
+                      <span className="font-mono text-slate-200">{measureServicePreview.label}</span>
+                    </div>
+                    {measureServicePreview.minimumApplied && (
+                      <p className="text-[10px] font-bold text-amber-400">
+                        Cobrando o mínimo de {Number(measureService.min_billable_quantity).toFixed(2)}{measureService.sale_unit === "m2" ? "m²" : "m"}
+                      </p>
+                    )}
+                    <div className="flex justify-between text-[15px] font-black uppercase text-white pt-1.5 border-t border-slate-700">
+                      <span>Total</span>
+                      <span className="font-mono">R$ {measureServicePreview.total.toFixed(2)}</span>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <div className="px-5 pb-6 pt-1">
+                <button onClick={addMeasuredServiceToCart}
+                  disabled={!measureServicePreview || measureServicePreview.rawQuantity <= 0}
+                  className="w-full h-12 rounded-2xl text-[12px] font-black uppercase tracking-[0.15em] text-white flex items-center justify-center gap-2 transition-all active:scale-[0.98] disabled:opacity-40"
+                  style={{ background: "linear-gradient(135deg, #7c3aed, #4f46e5)" }}>
+                  <Plus size={16} strokeWidth={3} /> Adicionar ao Carrinho
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Mobile Cart Drawer */}
       <AnimatePresence>
         {showCartMobile && (
@@ -2680,24 +2806,30 @@ ${sale.change > 0 ? `<hr class="divider"/><div class="row bold"><span>Troco:</sp
                         </button>
                         {cartServices.length > 0 && (
                           <div className="mt-1.5 space-y-1">
-                            {cartServices.map((s) => (
+                            {cartServices.map((s) => {
+                              const isMeasured = !!s.sale_unit && s.sale_unit !== "unidade";
+                              return (
                               <div key={s.id} className="flex items-center justify-between bg-violet-50 border border-violet-100 rounded-lg px-2 py-1.5 gap-1.5">
                                 <span className="flex items-center gap-1 text-[10px] font-bold text-slate-700 min-w-0 flex-1">
                                   <Wrench size={10} className="text-violet-400 shrink-0" />
-                                  <span className="truncate">{s.name}</span>
+                                  <span className="truncate">{s.name}{isMeasured && s.dimensionsLabel ? ` (${s.dimensionsLabel})` : ""}</span>
                                 </span>
                                 <div className="flex items-center gap-1 shrink-0">
-                                  <button
-                                    onClick={() => setCartServices(prev => (s.quantity ?? 1) <= 1 ? prev.filter(x => x.id !== s.id) : prev.map(x => x.id === s.id ? { ...x, quantity: (x.quantity ?? 1) - 1 } : x))}
-                                    className="w-5 h-5 rounded border border-violet-200 bg-white flex items-center justify-center text-violet-500 hover:bg-violet-100 transition-colors text-[10px] font-black">
-                                    −
-                                  </button>
-                                  <span className="w-5 text-center text-[10px] font-mono font-black text-violet-700">{s.quantity ?? 1}</span>
-                                  <button
-                                    onClick={() => setCartServices(prev => prev.map(x => x.id === s.id ? { ...x, quantity: (x.quantity ?? 1) + 1 } : x))}
-                                    className="w-5 h-5 rounded border border-violet-200 bg-white flex items-center justify-center text-violet-500 hover:bg-violet-100 transition-colors text-[10px] font-black">
-                                    +
-                                  </button>
+                                  {!isMeasured && (
+                                    <>
+                                      <button
+                                        onClick={() => setCartServices(prev => (s.quantity ?? 1) <= 1 ? prev.filter(x => x.id !== s.id) : prev.map(x => x.id === s.id ? { ...x, quantity: (x.quantity ?? 1) - 1 } : x))}
+                                        className="w-5 h-5 rounded border border-violet-200 bg-white flex items-center justify-center text-violet-500 hover:bg-violet-100 transition-colors text-[10px] font-black">
+                                        −
+                                      </button>
+                                      <span className="w-5 text-center text-[10px] font-mono font-black text-violet-700">{s.quantity ?? 1}</span>
+                                      <button
+                                        onClick={() => setCartServices(prev => prev.map(x => x.id === s.id ? { ...x, quantity: (x.quantity ?? 1) + 1 } : x))}
+                                        className="w-5 h-5 rounded border border-violet-200 bg-white flex items-center justify-center text-violet-500 hover:bg-violet-100 transition-colors text-[10px] font-black">
+                                        +
+                                      </button>
+                                    </>
+                                  )}
                                   <span className="text-[10px] font-mono font-black text-violet-600 ml-1">R$ {(Number(s.price) * (s.quantity ?? 1)).toFixed(2)}</span>
                                   <button onClick={() => setCartServices((prev) => prev.filter((x) => x.id !== s.id))}
                                     className="text-slate-300 hover:text-red-400 transition-colors ml-0.5">
@@ -2705,7 +2837,8 @@ ${sale.change > 0 ? `<hr class="divider"/><div class="row bold"><span>Troco:</sp
                                   </button>
                                 </div>
                               </div>
-                            ))}
+                              );
+                            })}
                           </div>
                         )}
                       </div>
@@ -2905,10 +3038,21 @@ ${sale.change > 0 ? `<hr class="divider"/><div class="row bold"><span>Troco:</sp
                       <div className="flex-1 min-w-0">
                         <p className="text-[12px] font-bold text-slate-900 uppercase truncate">{svc.name}</p>
                         {svc.description && <p className="text-[9px] text-slate-400 truncate">{svc.description}</p>}
-                        <p className="text-[11px] font-mono font-black text-blue-600 mt-0.5">R$ {Number(svc.price).toFixed(2)}</p>
+                        <p className="text-[11px] font-mono font-black text-blue-600 mt-0.5">
+                          R$ {(svc.sale_unit && svc.sale_unit !== "unidade" ? Number(svc.price_per_measure ?? 0) : Number(svc.price)).toFixed(2)}
+                          {svc.sale_unit && svc.sale_unit !== "unidade" && (
+                            <span className="text-[9px] text-slate-400 font-bold"> /{svc.sale_unit === "m2" ? "m²" : "m"}</span>
+                          )}
+                        </p>
                       </div>
                       <button
                         onClick={() => {
+                          if (svc.sale_unit && svc.sale_unit !== "unidade") {
+                            setMeasureService(svc);
+                            setMeasureServiceHeight("");
+                            setMeasureServiceWidth("");
+                            return;
+                          }
                           if (inCart) setCartServices((prev) => prev.filter((s) => s.id !== svc.id));
                           else setCartServices((prev) => [...prev, { ...svc, price: Number(svc.price) }]);
                         }}
@@ -4015,8 +4159,8 @@ function CartPanel({
   updateQuantity: (id: string, delta: number) => void;
   setQuantityDirect: (id: string, value: number, maxStock?: number) => void;
   removeFromCart: (id: string) => void;
-  cartServices: { id: number; name: string; price: number; quantity?: number }[];
-  setCartServices: React.Dispatch<React.SetStateAction<{ id: number; name: string; price: number; description?: string; unit?: string; category?: string; quantity?: number }[]>>;
+  cartServices: ServiceItem[];
+  setCartServices: React.Dispatch<React.SetStateAction<ServiceItem[]>>;
   subtotal: number;
   discountValue: number;
   surchargeValue: number;
@@ -4103,7 +4247,9 @@ function CartPanel({
         </AnimatePresence>
         {/* Serviços no carrinho */}
         <AnimatePresence initial={false}>
-          {cartServices.map((svc) => (
+          {cartServices.map((svc) => {
+            const isMeasured = !!svc.sale_unit && svc.sale_unit !== "unidade";
+            return (
             <motion.div key={`svc-${svc.id}`}
               initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20, height: 0 }}
               transition={{ duration: 0.18 }}>
@@ -4114,29 +4260,35 @@ function CartPanel({
                 <div className="flex-1 min-w-0">
                   <span className="text-[8px] font-black uppercase tracking-widest text-violet-500 bg-violet-100 px-1.5 py-0.5 rounded-md">Serviço</span>
                   <p className="text-[11px] font-bold text-slate-700 truncate leading-tight mt-0.5">{svc.name}</p>
+                  {isMeasured && svc.dimensionsLabel ? (
+                    <p className="text-[9px] text-violet-500 font-mono">{svc.dimensionsLabel}</p>
+                  ) : null}
                   <p className="text-[12px] font-mono font-black text-violet-600">R$ {(Number(svc.price) * (svc.quantity ?? 1)).toFixed(2)}</p>
                 </div>
                 <div className="flex flex-col items-center gap-1 shrink-0">
-                  <div className="flex items-center gap-1 bg-violet-100 border border-violet-200 rounded-xl overflow-hidden">
-                    <button
-                      onClick={() => setCartServices(prev => (svc.quantity ?? 1) <= 1 ? prev.filter(x => x.id !== svc.id) : prev.map(x => x.id === svc.id ? { ...x, quantity: (x.quantity ?? 1) - 1 } : x))}
-                      className="p-1.5 hover:bg-violet-200 text-violet-400 hover:text-violet-700 transition-all">
-                      <Minus size={11} />
-                    </button>
-                    <input
-                      type="number"
-                      min={1}
-                      value={svc.quantity ?? 1}
-                      onChange={(e) => { const v = parseInt(e.target.value) || 1; setCartServices(prev => prev.map(x => x.id === svc.id ? { ...x, quantity: Math.max(1, v) } : x)); }}
-                      onFocus={(e) => e.target.select()}
-                      className="w-8 text-center font-mono font-black text-[12px] text-violet-700 bg-transparent border-none outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
-                    />
-                    <button
-                      onClick={() => setCartServices(prev => prev.map(x => x.id === svc.id ? { ...x, quantity: (x.quantity ?? 1) + 1 } : x))}
-                      className="p-1.5 hover:bg-violet-200 text-violet-400 hover:text-violet-700 transition-all">
-                      <Plus size={11} />
-                    </button>
-                  </div>
+                  {/* qty controls — item por medida tem quantidade fixa em 1 */}
+                  {!isMeasured && (
+                    <div className="flex items-center gap-1 bg-violet-100 border border-violet-200 rounded-xl overflow-hidden">
+                      <button
+                        onClick={() => setCartServices(prev => (svc.quantity ?? 1) <= 1 ? prev.filter(x => x.id !== svc.id) : prev.map(x => x.id === svc.id ? { ...x, quantity: (x.quantity ?? 1) - 1 } : x))}
+                        className="p-1.5 hover:bg-violet-200 text-violet-400 hover:text-violet-700 transition-all">
+                        <Minus size={11} />
+                      </button>
+                      <input
+                        type="number"
+                        min={1}
+                        value={svc.quantity ?? 1}
+                        onChange={(e) => { const v = parseInt(e.target.value) || 1; setCartServices(prev => prev.map(x => x.id === svc.id ? { ...x, quantity: Math.max(1, v) } : x)); }}
+                        onFocus={(e) => e.target.select()}
+                        className="w-8 text-center font-mono font-black text-[12px] text-violet-700 bg-transparent border-none outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                      />
+                      <button
+                        onClick={() => setCartServices(prev => prev.map(x => x.id === svc.id ? { ...x, quantity: (x.quantity ?? 1) + 1 } : x))}
+                        className="p-1.5 hover:bg-violet-200 text-violet-400 hover:text-violet-700 transition-all">
+                        <Plus size={11} />
+                      </button>
+                    </div>
+                  )}
                   <button onClick={() => setCartServices(prev => prev.filter(x => x.id !== svc.id))}
                     className="p-1 text-slate-300 hover:text-red-500 transition-colors rounded">
                     <Trash2 size={12} />
@@ -4144,7 +4296,8 @@ function CartPanel({
                 </div>
               </div>
             </motion.div>
-          ))}
+            );
+          })}
         </AnimatePresence>
 
         {cart.length === 0 && cartServices.length === 0 && (

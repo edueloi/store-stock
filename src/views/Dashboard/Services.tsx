@@ -3,8 +3,8 @@ import {
   Wrench, Plus, Edit2, Trash2, Save, ToggleLeft, ToggleRight,
   AlertTriangle, CheckCircle, XCircle,
   Search, X, LayoutGrid, List, Clock,
-  Printer, CreditCard, Copy, Image, Scissors, Box,
-  Ruler, Package, Tag, Upload,
+  Scissors, Box, LayoutPanelTop, Hammer,
+  Ruler, Package, Tag, Upload, Percent, DollarSign,
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import Button from "../../components/ui/Button";
@@ -26,22 +26,31 @@ interface Service {
   category: string;
   is_active: boolean;
   image_url?: string | null;
+  sale_unit: "unidade" | "m2" | "linear";
+  price_per_measure: number | null;
+  min_billable_quantity: number | null;
   created_at: string;
 }
+
+export const SALE_UNIT_OPTIONS = [
+  { value: "unidade", label: "Preço fixo" },
+  { value: "m2",      label: "Por m² (área)" },
+  { value: "linear",  label: "Por metro linear" },
+] as const;
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 export const SERVICE_CATEGORIES = [
-  { value: "Impressão",        label: "Impressão",        icon: Printer,     color: "bg-violet-50 text-violet-600",   badge: "bg-violet-100 text-violet-700"  },
-  { value: "Cartão de Visita", label: "Cartão de Visita", icon: CreditCard,  color: "bg-blue-50 text-blue-600",       badge: "bg-blue-100 text-blue-700"      },
-  { value: "Xerox / Cópia",    label: "Xerox / Cópia",    icon: Copy,        color: "bg-amber-50 text-amber-600",     badge: "bg-amber-100 text-amber-700"    },
-  { value: "Banner / Adesivo", label: "Banner / Adesivo", icon: Image,       color: "bg-pink-50 text-pink-600",       badge: "bg-pink-100 text-pink-700"      },
-  { value: "Acabamento",       label: "Acabamento",       icon: Scissors,    color: "bg-emerald-50 text-emerald-600", badge: "bg-emerald-100 text-emerald-700"},
-  { value: "Embalagem",        label: "Embalagem",        icon: Box,         color: "bg-orange-50 text-orange-600",   badge: "bg-orange-100 text-orange-700"  },
-  { value: "Manutenção",       label: "Manutenção",       icon: Wrench,      color: "bg-slate-50 text-slate-600",     badge: "bg-slate-100 text-slate-700"    },
-  { value: "Geral",            label: "Geral / Outros",   icon: Package,     color: "bg-slate-50 text-slate-500",     badge: "bg-slate-100 text-slate-600"    },
+  { value: "Vidros",              label: "Vidros",              icon: LayoutPanelTop, color: "bg-blue-50 text-blue-600",       badge: "bg-blue-100 text-blue-700"      },
+  { value: "Placas / Sinalização", label: "Placas / Sinalização", icon: Tag,           color: "bg-violet-50 text-violet-600",   badge: "bg-violet-100 text-violet-700"  },
+  { value: "Corte / Gravação",     label: "Corte / Gravação",     icon: Scissors,      color: "bg-amber-50 text-amber-600",     badge: "bg-amber-100 text-amber-700"    },
+  { value: "Instalação",          label: "Instalação",          icon: Hammer,         color: "bg-orange-50 text-orange-600",   badge: "bg-orange-100 text-orange-700"  },
+  { value: "Acabamento",          label: "Acabamento",           icon: Wrench,        color: "bg-emerald-50 text-emerald-600", badge: "bg-emerald-100 text-emerald-700"},
+  { value: "Geral",               label: "Geral / Outros",       icon: Package,       color: "bg-slate-50 text-slate-500",     badge: "bg-slate-100 text-slate-600"    },
 ] as const;
 
+// Unidades de preço fixo. Serviço por medida (m²/linear) usa saleUnit à parte
+// (mesmo mecanismo de Product) — ver SALE_UNIT_OPTIONS mais abaixo.
 export const SERVICE_UNITS = [
   { value: "unidade",  label: "Unidade",        abbr: "un"  },
   { value: "kg",       label: "Quilograma",      abbr: "kg"  },
@@ -50,7 +59,6 @@ export const SERVICE_UNITS = [
   { value: "ml",       label: "Mililitro",       abbr: "mL"  },
   { value: "metro",    label: "Metro",           abbr: "m"   },
   { value: "cm",       label: "Centímetro",      abbr: "cm"  },
-  { value: "m2",       label: "Metro Quadrado",  abbr: "m²"  },
   { value: "hora",     label: "Hora",            abbr: "h"   },
   { value: "folha",    label: "Folha",           abbr: "fl"  },
   { value: "cópia",    label: "Cópia",           abbr: "cp"  },
@@ -60,6 +68,8 @@ export const SERVICE_UNITS = [
 
 const EMPTY_FORM = () => ({
   name: "", description: "", price: "", unit: "unidade", category: "Geral", is_active: true, image_url: "",
+  sale_unit: "unidade" as "unidade" | "m2" | "linear",
+  price_per_measure: "", min_billable_quantity: "",
 });
 
 const MAX_IMAGE_SIZE = 2 * 1024 * 1024; // 2 MB
@@ -90,6 +100,14 @@ function getCategoryMeta(value: string) {
 
 function getUnitAbbr(value: string) {
   return SERVICE_UNITS.find((u) => u.value === value)?.abbr ?? value;
+}
+
+// Preço de exibição: serviço por medida mostra o valor por m²/m linear
+// (price_per_measure), não o "price" vitrine que é sempre 0 nesse caso.
+function displayPrice(svc: Service): { value: string; suffix: string } {
+  if (svc.sale_unit === "m2") return { value: fmt(Number(svc.price_per_measure ?? 0)), suffix: "/m²" };
+  if (svc.sale_unit === "linear") return { value: fmt(Number(svc.price_per_measure ?? 0)), suffix: "/m linear" };
+  return { value: fmt(Number(svc.price)), suffix: `/${getUnitAbbr(svc.unit ?? "unidade")}` };
 }
 
 type ViewMode = "grid" | "list";
@@ -144,6 +162,9 @@ export default function Services() {
   const openEdit = (s: Service) => {
     setEditing(s);
     const masked = Number(s.price).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    const measureMasked = s.price_per_measure != null
+      ? Number(s.price_per_measure).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+      : "";
     setForm({
       name: s.name,
       description: s.description ?? "",
@@ -152,6 +173,9 @@ export default function Services() {
       category: s.category ?? "Geral",
       is_active: s.is_active,
       image_url: s.image_url ?? "",
+      sale_unit: s.sale_unit ?? "unidade",
+      price_per_measure: measureMasked,
+      min_billable_quantity: s.min_billable_quantity != null ? String(s.min_billable_quantity) : "",
     });
     setImagePreview(s.image_url ?? "");
     setImgToast("");
@@ -191,16 +215,25 @@ export default function Services() {
     }
   };
 
+  const isMeasuredForm = form.sale_unit !== "unidade";
+
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!form.name.trim() || !form.price) return;
+    if (!form.name.trim()) return;
+    if (isMeasuredForm ? !form.price_per_measure : !form.price) return;
     setSaving(true);
     try {
       const url    = editing ? `/api/services/${editing.id}` : "/api/services";
       const method = editing ? "PUT" : "POST";
       await fetch(url, {
         method, headers: authH(),
-        body: JSON.stringify({ ...form, price: parseMaskedPrice(form.price), image_url: form.image_url || null }),
+        body: JSON.stringify({
+          ...form,
+          price: parseMaskedPrice(form.price),
+          price_per_measure: form.price_per_measure ? parseMaskedPrice(form.price_per_measure) : null,
+          min_billable_quantity: form.min_billable_quantity ? Number(form.min_billable_quantity) : null,
+          image_url: form.image_url || null,
+        }),
       });
       closeModal();
       fetchServices();
@@ -224,7 +257,10 @@ export default function Services() {
   const handleToggle = async (s: Service) => {
     await fetch(`/api/services/${s.id}`, {
       method: "PUT", headers: authH(),
-      body: JSON.stringify({ name: s.name, description: s.description, price: Number(s.price), unit: s.unit, category: s.category, is_active: !s.is_active }),
+      body: JSON.stringify({
+        name: s.name, description: s.description, price: Number(s.price), unit: s.unit, category: s.category,
+        is_active: !s.is_active, sale_unit: s.sale_unit, price_per_measure: s.price_per_measure, min_billable_quantity: s.min_billable_quantity,
+      }),
     });
     fetchServices();
   };
@@ -456,8 +492,8 @@ export default function Services() {
 
                   {/* Preço */}
                   <div className="text-right shrink-0">
-                    <p className="text-[14px] font-mono font-black text-blue-600">{fmt(Number(svc.price))}</p>
-                    <p className="text-[9px] text-slate-400">/{getUnitAbbr(svc.unit ?? "unidade")}</p>
+                    <p className="text-[14px] font-mono font-black text-blue-600">{displayPrice(svc).value}</p>
+                    <p className="text-[9px] text-slate-400">{displayPrice(svc).suffix}</p>
                   </div>
 
                   {/* Ações */}
@@ -555,10 +591,10 @@ export default function Services() {
                           {/* Price + unit */}
                           <div className="flex items-end justify-between">
                             <div>
-                              <p className="text-[18px] font-mono font-black text-blue-600 leading-none">{fmt(Number(svc.price))}</p>
+                              <p className="text-[18px] font-mono font-black text-blue-600 leading-none">{displayPrice(svc).value}</p>
                               <p className="text-[9px] text-slate-400 mt-0.5 flex items-center gap-1">
                                 <Ruler size={8} />
-                                por {svc.unit ?? "unidade"}
+                                {displayPrice(svc).suffix}
                               </p>
                             </div>
                           </div>
@@ -613,7 +649,7 @@ export default function Services() {
         onClose={closeModal}
         title={editing ? "Editar Serviço" : "Novo Serviço"}
         subtitle={editing ? editing.name : "Preencha os dados do serviço"}
-        size="sm"
+        size="md"
         footer={
           <>
             <Button variant="secondary" onClick={closeModal}>Cancelar</Button>
@@ -623,70 +659,168 @@ export default function Services() {
           </>
         }
       >
-        <form id="service-form" onSubmit={handleSave} className="space-y-3">
-          {/* Nome */}
-          <Input
-            label="Nome do Serviço *"
-            required
-            autoFocus
-            placeholder="Ex: Impressão A4 Colorida, Cartão 9x5cm..."
-            value={form.name}
-            onChange={(e) => setForm({ ...form, name: e.target.value })}
-          />
-
-          {/* Categoria + Unidade lado a lado */}
-          <div className="grid grid-cols-2 gap-3">
-            <Combobox
-              label="Categoria"
-              placeholder="Selecionar..."
-              searchPlaceholder="Buscar ou criar..."
-              options={allCategoryOptions}
-              value={form.category}
-              onChange={(v) => setForm({ ...form, category: v })}
-              freeInput
-              onAddNew={(q) => {
-                const trimmed = q.trim();
-                if (!trimmed) return;
-                const updated = [...new Set([...customCategories, trimmed])];
-                setCustomCategories(updated);
-                localStorage.setItem("svc_custom_cats", JSON.stringify(updated));
-                setForm((f) => ({ ...f, category: trimmed }));
-              }}
+        <form id="service-form" onSubmit={handleSave} className="space-y-5">
+          {/* Identificação: imagem + nome/categoria lado a lado */}
+          <div className="flex gap-3">
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/jpeg,image/png"
+              className="hidden"
+              onChange={(e) => { const f = e.target.files?.[0]; if (f) handleImageFile(f); e.target.value = ""; }}
             />
-            <Combobox
-              label="Unidade"
-              placeholder="Unidade..."
-              searchPlaceholder="Buscar unidade..."
-              options={unitOptions}
-              value={form.unit}
-              onChange={(v) => setForm({ ...form, unit: v })}
-            />
-          </div>
+            {imagePreview ? (
+              <div className="relative w-20 h-20 rounded-2xl overflow-hidden border border-slate-200 bg-slate-50 shrink-0">
+                <img src={imagePreview} alt="preview" className="w-full h-full object-cover" />
+                <button
+                  type="button"
+                  onClick={() => { setImagePreview(""); setForm((f) => ({ ...f, image_url: "" })); }}
+                  className="absolute top-1 right-1 w-5 h-5 bg-white/90 rounded-full flex items-center justify-center text-slate-500 hover:text-red-500 shadow-sm border border-slate-200"
+                >
+                  <X size={10} />
+                </button>
+              </div>
+            ) : (
+              <button
+                type="button"
+                disabled={uploadingImg}
+                onClick={() => fileInputRef.current?.click()}
+                title="JPG ou PNG, máx. 2 MB"
+                className="w-20 h-20 shrink-0 border-2 border-dashed border-slate-200 rounded-2xl flex flex-col items-center justify-center gap-1 text-slate-300 hover:border-blue-400 hover:text-blue-500 hover:bg-blue-50/30 transition-all disabled:opacity-50"
+              >
+                {uploadingImg ? <span className="text-[8px] font-bold">Enviando</span> : <Upload size={16} strokeWidth={1.5} />}
+              </button>
+            )}
 
-          {/* Preço */}
-          <div>
-            <label className="block text-[10px] font-black text-slate-600 uppercase tracking-wider mb-1.5">
-              Preço / {SERVICE_UNITS.find((u) => u.value === form.unit)?.abbr ?? form.unit} *
-            </label>
-            <div className="relative">
-              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-[11px] font-bold pointer-events-none select-none">R$</span>
-              <input
+            <div className="flex-1 min-w-0 space-y-3">
+              <Input
+                label="Nome do Serviço *"
                 required
-                inputMode="numeric"
-                placeholder="0,00"
-                className="w-full pl-9 pr-4 py-2.5 text-sm border border-slate-200 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400 transition-all text-slate-800 font-mono"
-                value={form.price}
-                onChange={(e) => setForm({ ...form, price: applyMoneyMask(e.target.value) })}
+                autoFocus
+                placeholder="Ex: Corte de vidro temperado, Instalação de placa..."
+                value={form.name}
+                onChange={(e) => setForm({ ...form, name: e.target.value })}
+              />
+              <Combobox
+                label="Categoria"
+                placeholder="Selecionar..."
+                searchPlaceholder="Buscar ou criar..."
+                options={allCategoryOptions}
+                value={form.category}
+                onChange={(v) => setForm({ ...form, category: v })}
+                freeInput
+                onAddNew={(q) => {
+                  const trimmed = q.trim();
+                  if (!trimmed) return;
+                  const updated = [...new Set([...customCategories, trimmed])];
+                  setCustomCategories(updated);
+                  localStorage.setItem("svc_custom_cats", JSON.stringify(updated));
+                  setForm((f) => ({ ...f, category: trimmed }));
+                }}
               />
             </div>
-            {parseMaskedPrice(form.price) > 0 && (
-              <div className="mt-1.5 flex items-center gap-2 flex-wrap">
+          </div>
+          {imgToast && (
+            <p className="-mt-3 text-[10px] font-bold text-amber-600 flex items-center gap-1">
+              <AlertTriangle size={10} />
+              {imgToast}
+            </p>
+          )}
+
+          {/* Precificação */}
+          <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-3">
+            <div className="flex items-center justify-between">
+              <label className="text-[10px] font-black text-slate-600 uppercase tracking-wider">Como este serviço é cobrado</label>
+              <div className="flex bg-white rounded-lg border border-slate-200 p-0.5">
+                {SALE_UNIT_OPTIONS.map((opt) => (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    onClick={() => setForm((f) => ({ ...f, sale_unit: opt.value }))}
+                    className={`px-2.5 h-7 rounded-md text-[10px] font-bold transition-all ${
+                      form.sale_unit === opt.value ? "bg-blue-600 text-white" : "text-slate-500 hover:bg-slate-100"
+                    }`}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {!isMeasuredForm ? (
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[10px] font-black text-slate-600 uppercase tracking-wider mb-1.5">Preço *</label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-[11px] font-bold pointer-events-none select-none">R$</span>
+                    <input
+                      required
+                      inputMode="numeric"
+                      placeholder="0,00"
+                      className="w-full pl-9 pr-4 h-10 text-sm border border-slate-200 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400 transition-all text-slate-800 font-mono"
+                      value={form.price}
+                      onChange={(e) => setForm({ ...form, price: applyMoneyMask(e.target.value) })}
+                    />
+                  </div>
+                </div>
+                <Combobox
+                  label="Unidade"
+                  placeholder="Unidade..."
+                  searchPlaceholder="Buscar unidade..."
+                  options={unitOptions}
+                  value={form.unit}
+                  onChange={(v) => setForm({ ...form, unit: v })}
+                />
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[10px] font-black text-slate-600 uppercase tracking-wider mb-1.5">
+                    Preço / {form.sale_unit === "m2" ? "m²" : "metro linear"} *
+                  </label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-[11px] font-bold pointer-events-none select-none">R$</span>
+                    <input
+                      required
+                      inputMode="numeric"
+                      placeholder="0,00"
+                      className="w-full pl-9 pr-4 h-10 text-sm border border-slate-200 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400 transition-all text-slate-800 font-mono"
+                      value={form.price_per_measure}
+                      onChange={(e) => setForm({ ...form, price_per_measure: applyMoneyMask(e.target.value) })}
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-[10px] font-black text-slate-600 uppercase tracking-wider mb-1.5">
+                    Mínimo faturável ({form.sale_unit === "m2" ? "m²" : "m"})
+                  </label>
+                  <input
+                    type="number" min="0" step="0.01"
+                    placeholder="Opcional"
+                    className="w-full px-3 h-10 text-sm border border-slate-200 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400 transition-all text-slate-800 font-mono"
+                    value={form.min_billable_quantity}
+                    onChange={(e) => setForm({ ...form, min_billable_quantity: e.target.value })}
+                  />
+                </div>
+              </div>
+            )}
+
+            {!isMeasuredForm && parseMaskedPrice(form.price) > 0 && (
+              <div className="flex items-center gap-2 flex-wrap">
                 <span className="text-[9px] font-black uppercase tracking-widest text-slate-400">Exemplos:</span>
                 {[2, 5, 10, 50].map((qty) => (
-                  <span key={qty} className="text-[9px] font-mono font-black text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded-md">
+                  <span key={qty} className="text-[9px] font-mono font-black text-blue-600 bg-blue-100 px-1.5 py-0.5 rounded-md">
                     {qty}× = {fmt(parseMaskedPrice(form.price) * qty)}
                   </span>
                 ))}
+              </div>
+            )}
+            {isMeasuredForm && parseMaskedPrice(form.price_per_measure) > 0 && (
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-[9px] font-black uppercase tracking-widest text-slate-400">Exemplo:</span>
+                <span className="text-[9px] font-mono font-black text-blue-600 bg-blue-100 px-1.5 py-0.5 rounded-md">
+                  1,20{form.sale_unit === "m2" ? "m × 2,00m" : "m"} = {fmt(parseMaskedPrice(form.price_per_measure) * (form.sale_unit === "m2" ? 2.4 : 1.2))}
+                </span>
               </div>
             )}
           </div>
@@ -700,51 +834,8 @@ export default function Services() {
             onChange={(e) => setForm({ ...form, description: e.target.value })}
           />
 
-          {/* Imagem */}
-          <div>
-            <label className="block text-[10px] font-black text-slate-600 uppercase tracking-wider mb-1.5">
-              Imagem <span className="font-normal normal-case tracking-normal text-slate-400">(JPG ou PNG, máx. 2 MB)</span>
-            </label>
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="image/jpeg,image/png"
-              className="hidden"
-              onChange={(e) => { const f = e.target.files?.[0]; if (f) handleImageFile(f); e.target.value = ""; }}
-            />
-            {imagePreview ? (
-              <div className="relative w-full rounded-xl overflow-hidden border border-slate-200 bg-slate-50" style={{ height: 120 }}>
-                <img src={imagePreview} alt="preview" className="w-full h-full object-cover" />
-                <button
-                  type="button"
-                  onClick={() => { setImagePreview(""); setForm((f) => ({ ...f, image_url: "" })); }}
-                  className="absolute top-2 right-2 w-6 h-6 bg-white/90 rounded-full flex items-center justify-center text-slate-500 hover:text-red-500 shadow-sm border border-slate-200"
-                >
-                  <X size={12} />
-                </button>
-              </div>
-            ) : (
-              <button
-                type="button"
-                disabled={uploadingImg}
-                onClick={() => fileInputRef.current?.click()}
-                className="w-full h-20 border-2 border-dashed border-slate-200 rounded-xl flex flex-col items-center justify-center gap-1.5 text-slate-400 hover:border-blue-400 hover:text-blue-500 hover:bg-blue-50/30 transition-all disabled:opacity-50"
-              >
-                {uploadingImg
-                  ? <><span className="text-[10px]">Enviando...</span></>
-                  : <><Upload size={16} strokeWidth={1.5} /><span className="text-[10px] font-bold">Clique para adicionar imagem</span></>}
-              </button>
-            )}
-            {imgToast && (
-              <p className="mt-1.5 text-[10px] font-bold text-amber-600 flex items-center gap-1">
-                <AlertTriangle size={10} />
-                {imgToast}
-              </p>
-            )}
-          </div>
-
           {/* Ativo */}
-          <div className="flex items-center justify-between bg-slate-50 border border-slate-200 rounded-xl px-4 h-10">
+          <div className="flex items-center justify-between bg-slate-50 border border-slate-200 rounded-xl px-4 h-11">
             <span className="text-[11px] font-bold text-slate-600">Serviço Ativo</span>
             <button
               type="button"

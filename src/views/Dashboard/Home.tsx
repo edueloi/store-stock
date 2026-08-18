@@ -248,21 +248,29 @@ export default function Home() {
   // ── Render ────────────────────────────────────────────────────
 
   const fmt = (v: number) => `R$ ${v.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`;
+
+  // Serviços não têm custo de mercadoria (sem order_items), então ao filtrar
+  // por "Serviços" o custo é zero e o lucro é a própria receita líquida de serviços.
+  const kpiGross  = stats ? (salesView === "products" ? stats.summary.productsGross : salesView === "services" ? stats.summary.servicesGross : stats.summary.grossRevenue) : 0;
+  const kpiNet    = stats ? (salesView === "products" ? stats.summary.productsNet   : salesView === "services" ? stats.summary.servicesNet   : stats.summary.netRevenue) : 0;
+  const kpiCogs   = stats ? (salesView === "services" ? 0 : stats.summary.cogs) : 0;
+  const kpiProfit = Number(kpiNet) - Number(kpiCogs);
+
   const kpis = stats ? [
     {
-      label: "Faturamento Bruto", value: fmt(Number(stats.summary.grossRevenue)),
+      label: "Faturamento Bruto", value: fmt(Number(kpiGross)),
       icon: DollarSign, color: "text-blue-600", bg: "bg-blue-50", border: "border-blue-100",
     },
     {
-      label: "Fat. Líquido", value: fmt(Number(stats.summary.netRevenue)),
+      label: "Fat. Líquido", value: fmt(Number(kpiNet)),
       icon: TrendingUp, color: "text-emerald-600", bg: "bg-emerald-50", border: "border-emerald-100",
     },
     {
-      label: "Custo Mercadoria", value: fmt(Number(stats.summary.cogs)),
+      label: "Custo Mercadoria", value: fmt(Number(kpiCogs)),
       icon: TrendingDown, color: "text-rose-600", bg: "bg-rose-50", border: "border-rose-100",
     },
     {
-      label: "Lucro Líquido", value: fmt(Number(stats.summary.profit)),
+      label: "Lucro Líquido", value: fmt(kpiProfit),
       icon: Package, color: "text-amber-600", bg: "bg-amber-50", border: "border-amber-100",
     },
   ] : [];
@@ -317,6 +325,35 @@ export default function Home() {
         </div>
       </div>
 
+      {/* Toggle Tudo / Catálogo / Serviços — filtra os KPI Cards e o breakdown abaixo */}
+      {stats?.summary && (
+        <div className="flex items-center gap-2">
+          <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Ver:</span>
+          <div className="flex items-center gap-1 bg-slate-100 rounded-xl p-1">
+            {([
+              { v: "all",      label: "Tudo"      },
+              { v: "products", label: "Catálogo"  },
+              { v: "services", label: "Serviços"  },
+            ] as const).map(({ v, label }) => (
+              <button
+                key={v}
+                onClick={() => changeSalesView(v)}
+                className={cn(
+                  "h-7 px-3 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all",
+                  salesView === v
+                    ? v === "services" ? "bg-violet-600 text-white shadow-sm"
+                      : v === "products" ? "bg-blue-600 text-white shadow-sm"
+                      : "bg-slate-900 text-white shadow-sm"
+                    : "text-slate-500 hover:text-slate-700"
+                )}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* KPI Cards */}
       {loadingStats ? (
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
@@ -344,36 +381,9 @@ export default function Home() {
         </div>
       )}
 
-      {/* Breakdown: Produtos vs Serviços — com filtro de visualização */}
+      {/* Breakdown: Produtos vs Serviços — respeita o toggle "Ver" acima */}
       {stats?.summary && (stats.summary.servicesNet > 0 || stats.summary.productsNet > 0) && (
         <div className="space-y-3">
-          {/* Toggle Tudo / Catálogo / Serviços */}
-          <div className="flex items-center gap-2">
-            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Vendas:</span>
-            <div className="flex items-center gap-1 bg-slate-100 rounded-xl p-1">
-              {([
-                { v: "all",      label: "Tudo"      },
-                { v: "products", label: "Catálogo"  },
-                { v: "services", label: "Serviços"  },
-              ] as const).map(({ v, label }) => (
-                <button
-                  key={v}
-                  onClick={() => changeSalesView(v)}
-                  className={cn(
-                    "h-7 px-3 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all",
-                    salesView === v
-                      ? v === "services" ? "bg-violet-600 text-white shadow-sm"
-                        : v === "products" ? "bg-blue-600 text-white shadow-sm"
-                        : "bg-slate-900 text-white shadow-sm"
-                      : "text-slate-500 hover:text-slate-700"
-                  )}
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
-          </div>
-
           <div className={cn("grid gap-4", salesView === "all" ? "grid-cols-1 sm:grid-cols-2" : "grid-cols-1 sm:grid-cols-1 max-w-sm")}>
             {/* Produtos card */}
             {(salesView === "all" || salesView === "products") && (

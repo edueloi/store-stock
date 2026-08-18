@@ -4,7 +4,7 @@ import { ArrowRight, ClipboardList, FileText, Loader2 } from "lucide-react";
 import PageHeader from "../../components/layout/PageHeader";
 import { cn } from "../../lib/utils";
 import { getStoredUser } from "../../lib/session";
-import { authHeader, fmt, STATUS_ORDER, STATUS_META, type SOStatus, type ServiceOrder } from "./serviceOrders.shared";
+import { authHeader, fmt, STATUS_ORDER, STATUS_META, type SOStatus } from "./serviceOrders.shared";
 
 type Tab = "ordens_servico" | "orcamentos";
 
@@ -16,7 +16,15 @@ interface QuoteCard {
   status: string;
 }
 
-const QUOTE_STATUS_ORDER: string[] = ["rascunho", "orcamento_enviado", "aguardando_aprovacao", "aprovado", "em_producao", "finalizado", "nota_emitida", "entregue"];
+interface OrderCard {
+  id: number;
+  number: number;
+  customer_name: string;
+  total_amount: number;
+  status: SOStatus;
+}
+
+const QUOTE_STATUS_ORDER: string[] = ["rascunho", "orcamento_enviado", "aguardando_aprovacao", "aprovado", "aguardando_arte", "arte_finalizada", "em_producao", "finalizado", "nota_emitida", "entregue"];
 const BOARD_STATUSES: string[] = STATUS_ORDER.filter((s) => s !== "cancelada"); // mesmas 8 etapas para OS e Orçamento
 
 export default function WorkflowBoard() {
@@ -27,7 +35,7 @@ export default function WorkflowBoard() {
   const canMove = (stage: string) => isAdmin || allowedStages.includes(stage);
 
   const [tab, setTab] = useState<Tab>("ordens_servico");
-  const [orders, setOrders] = useState<ServiceOrder[]>([]);
+  const [orders, setOrders] = useState<OrderCard[]>([]);
   const [quotes, setQuotes] = useState<QuoteCard[]>([]);
   const [loading, setLoading] = useState(true);
   const [movingId, setMovingId] = useState<number | null>(null);
@@ -38,8 +46,8 @@ export default function WorkflowBoard() {
     setLoading(true);
     try {
       const [ordersRes, quotesRes] = await Promise.all([
-        fetch("/api/service-orders", { headers: authHeader() }),
-        fetch("/api/quotes", { headers: authHeader() }),
+        fetch("/api/workflow/board?type=ordens_servico", { headers: authHeader() }),
+        fetch("/api/workflow/board?type=orcamentos", { headers: authHeader() }),
       ]);
       if (ordersRes.ok) setOrders(await ordersRes.json());
       if (quotesRes.ok) setQuotes(await quotesRes.json());
@@ -106,6 +114,8 @@ export default function WorkflowBoard() {
       orcamento_enviado: "Orçamento Enviado",
       aguardando_aprovacao: "Aguardando Aprovação",
       aprovado: "Aprovado",
+      aguardando_arte: "Aguardando Arte",
+      arte_finalizada: "Arte Finalizada",
       em_producao: "Em Produção",
       finalizado: "Finalizado",
       nota_emitida: "Nota Emitida",

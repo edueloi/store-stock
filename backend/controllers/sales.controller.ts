@@ -31,7 +31,7 @@ interface SaleItemInput {
   dimensionsLabel?: string | null;
 }
 
-interface ServiceItemInput { id: number; name: string; price: number }
+interface ServiceItemInput { id: number; name: string; price: number; dimensionsLabel?: string | null }
 
 interface FinalizeSaleParams {
   tenantId: number;
@@ -256,6 +256,7 @@ async function finalizeSaleOrder(params: FinalizeSaleParams): Promise<{ orderId:
               name: svc.name,
               unit_price: svc.price,
               quantity: 1,
+              dimensions_label: svc.dimensionsLabel ?? null,
             })),
           },
         } : {}),

@@ -9,6 +9,8 @@ import {
   CheckCircle2,
   Clock,
   XCircle,
+  Palette,
+  PenTool,
 } from "lucide-react";
 import { cn } from "../../lib/utils";
 import PageHeader from "../../components/layout/PageHeader";
@@ -48,7 +50,7 @@ interface Quote {
   total_amount: number;
   validity_days: number;
   notes?: string;
-  status: "rascunho" | "orcamento_enviado" | "aguardando_aprovacao" | "aprovado" | "converted" | "cancelled" | "expired";
+  status: "rascunho" | "orcamento_enviado" | "aguardando_aprovacao" | "aprovado" | "aguardando_arte" | "arte_finalizada" | "converted" | "cancelled" | "expired";
   deposit_amount?: number | null;
   created_at: string;
   items: QuoteItem[];
@@ -89,6 +91,8 @@ function statusLabel(s: string) {
     orcamento_enviado: { label: "Aberto", color: "text-blue-600 bg-blue-50",    icon: <Clock size={12} /> },
     aguardando_aprovacao: { label: "Aguardando Aprovação", color: "text-amber-600 bg-amber-50", icon: <Clock size={12} /> },
     aprovado: { label: "Aprovado", color: "text-teal-600 bg-teal-50", icon: <CheckCircle2 size={12} /> },
+    aguardando_arte: { label: "Aguardando Arte", color: "text-fuchsia-600 bg-fuchsia-50", icon: <Palette size={12} /> },
+    arte_finalizada: { label: "Arte Finalizada", color: "text-pink-600 bg-pink-50", icon: <PenTool size={12} /> },
     converted: { label: "Convertido", color: "text-emerald-600 bg-emerald-50", icon: <CheckCircle2 size={12} /> },
     cancelled: { label: "Cancelado",  color: "text-red-600 bg-red-50",      icon: <XCircle size={12} /> },
     expired:   { label: "Expirado",   color: "text-orange-600 bg-orange-50",icon: <Clock size={12} /> },

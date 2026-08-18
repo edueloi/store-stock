@@ -1,4 +1,4 @@
-import { Clock, Send, Search, ThumbsUp, Wrench, Package, FileCheck, CheckCircle2, XCircle } from "lucide-react";
+import { Clock, Send, Search, ThumbsUp, Palette, PenTool, Wrench, Package, FileCheck, CheckCircle2, XCircle } from "lucide-react";
 import { createElement } from "react";
 import { downloadHtmlAsPdf } from "../../lib/pdf";
 import { buildDocumentHeaderHtml, buildDocumentTableHtml, DOCUMENT_BASE_CSS, fmtMoney } from "../../lib/documentPdf";
@@ -11,6 +11,8 @@ export type SOStatus =
   | "orcamento_enviado"
   | "aguardando_aprovacao"
   | "aprovado"
+  | "aguardando_arte"
+  | "arte_finalizada"
   | "em_producao"
   | "finalizado"
   | "nota_emitida"
@@ -217,6 +219,8 @@ export const STATUS_META: Record<SOStatus, { label: string; color: string; icon:
   orcamento_enviado: { label: "Orçamento Enviado", color: "text-blue-600 bg-blue-50", icon: createElement(Send, { size: 12 }) },
   aguardando_aprovacao: { label: "Aguardando Aprovação", color: "text-amber-600 bg-amber-50", icon: createElement(Search, { size: 12 }) },
   aprovado: { label: "Aprovado", color: "text-teal-600 bg-teal-50", icon: createElement(ThumbsUp, { size: 12 }) },
+  aguardando_arte: { label: "Aguardando Arte", color: "text-fuchsia-600 bg-fuchsia-50", icon: createElement(Palette, { size: 12 }) },
+  arte_finalizada: { label: "Arte Finalizada", color: "text-pink-600 bg-pink-50", icon: createElement(PenTool, { size: 12 }) },
   em_producao: { label: "Em Produção", color: "text-violet-600 bg-violet-50", icon: createElement(Wrench, { size: 12 }) },
   finalizado: { label: "Finalizado", color: "text-cyan-600 bg-cyan-50", icon: createElement(Package, { size: 12 }) },
   nota_emitida: { label: "Nota Emitida", color: "text-indigo-600 bg-indigo-50", icon: createElement(FileCheck, { size: 12 }) },
@@ -229,6 +233,8 @@ export const STATUS_ORDER: SOStatus[] = [
   "orcamento_enviado",
   "aguardando_aprovacao",
   "aprovado",
+  "aguardando_arte",
+  "arte_finalizada",
   "em_producao",
   "finalizado",
   "nota_emitida",

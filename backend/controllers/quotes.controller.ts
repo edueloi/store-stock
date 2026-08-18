@@ -129,7 +129,7 @@ export async function createQuote(req: Request, res: Response) {
       validity_days?: number;
       notes?: string;
       items?: Array<{ product_id?: number; name: string; quantity: number; unit_price: number; total: number; dimensions_label?: string | null }>;
-      services?: Array<{ id: number; name: string; price: number; quantity?: number }>;
+      services?: Array<{ id: number; name: string; price: number; quantity?: number; dimensions_label?: string | null }>;
     };
 
     // Sem cliente: nasce como rascunho, preenchido aos poucos na tela de detalhe
@@ -152,6 +152,7 @@ export async function createQuote(req: Request, res: Response) {
       unit_price: s.price,
       quantity: s.quantity ?? 1,
       total: Math.round(s.price * (s.quantity ?? 1) * 100) / 100,
+      dimensions_label: s.dimensions_label || null,
     }));
     const itemsSubtotal = itemRows.reduce((sum, i) => sum + i.total, 0);
     const servicesSubtotal = serviceRows.reduce((sum, s) => sum + s.total, 0);
@@ -261,7 +262,7 @@ export async function updateQuote(req: Request, res: Response) {
       validity_days?: number;
       notes?: string;
       items?: Array<{ product_id?: number; name: string; quantity: number; unit_price: number; dimensions_label?: string | null }>;
-      services?: Array<{ id: number; name: string; price: number; quantity?: number }>;
+      services?: Array<{ id: number; name: string; price: number; quantity?: number; dimensions_label?: string | null }>;
     };
 
     // Substitui items/services por completo (delete + recreate) apenas quando o body
@@ -305,6 +306,7 @@ export async function updateQuote(req: Request, res: Response) {
               unit_price: s.price,
               quantity: s.quantity ?? 1,
               total: Math.round(s.price * (s.quantity ?? 1) * 100) / 100,
+              dimensions_label: s.dimensions_label || null,
             })),
           },
         }),

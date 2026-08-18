@@ -60,6 +60,7 @@ export interface Tenant {
   enabled_brands?: Record<string, boolean>;
   pass_fee_by_method?: Record<string, boolean>;
   require_cash_session?: boolean;
+  fluxo_producao_enabled?: boolean;
   status?: 'pending_setup' | 'trial' | 'active' | 'suspended';
   trial_days?: number;
   trial_starts_at?: string;
@@ -102,6 +103,9 @@ export interface User {
   // Permissões individuais (ausentes/vazias para role "admin", que já vê/move tudo).
   menus?: string[];
   stages?: string[];
+  // Módulo habilitado pelo Super Admin para o tenant deste usuário (não é permissão
+  // individual — é feature flag da loja inteira, ver Tenant.fluxo_producao_enabled).
+  fluxo_producao_enabled?: boolean;
 }
 
 export interface Category {

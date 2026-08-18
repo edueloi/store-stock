@@ -60,6 +60,7 @@ function InputField({ label, value, onChange, placeholder, type = "text", icon, 
 
 export default function SuperAdminDashboard() {
   const navigate = useNavigate();
+  const currentUser = useMemo(() => getStoredUser(), []);
   const [page, setPage] = useState<Page>("dashboard");
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -122,6 +123,28 @@ export default function SuperAdminDashboard() {
     finally { setSubmitting(false); }
   }
 
+  const [inviteAmountDraft, setInviteAmountDraft] = useState<Record<number, string>>({});
+  const [savingInviteId, setSavingInviteId] = useState<number | null>(null);
+
+  async function handleUpdateInviteAmount(invite: SetupInvite) {
+    const raw = inviteAmountDraft[invite.id];
+    const amount = raw !== undefined ? Number(raw) : invite.subscription_amount;
+    if (Number.isNaN(amount) || amount < 0) { showToast("error", "Valor inválido."); return; }
+    setSavingInviteId(invite.id);
+    try {
+      const res = await fetch(`/api/super-admin/invites/${invite.id}`, {
+        method: "PATCH", headers: apiHeaders(),
+        body: JSON.stringify({ subscriptionAmount: amount }),
+      });
+      const data = (await res.json()) as SetupInvite & { error?: string };
+      if (!res.ok) { showToast("error", data.error || "Não foi possível atualizar o convite."); return; }
+      setInvites((c) => c.map((i) => (i.id === invite.id ? data : i)));
+      setInviteAmountDraft((c) => { const n = { ...c }; delete n[invite.id]; return n; });
+      showToast("success", "Valor da assinatura atualizado.");
+    } catch { showToast("error", "Erro ao atualizar o convite."); }
+    finally { setSavingInviteId(null); }
+  }
+
   async function handleRegenerateInvite(inviteId: number) {
     try {
       const res = await fetch(`/api/super-admin/invites/${inviteId}/regenerate`, { method: "POST", headers: apiHeaders() });
@@ -153,9 +176,10 @@ export default function SuperAdminDashboard() {
   type EditForm = {
     tenantName: string; whatsapp: string;
     userName: string; userEmail: string; userPassword: string;
+    fluxoProducaoEnabled: boolean;
   };
   const [editingTenant, setEditingTenant] = useState<ManagedTenant | null>(null);
-  const [editForm, setEditForm] = useState<EditForm>({ tenantName: "", whatsapp: "", userName: "", userEmail: "", userPassword: "" });
+  const [editForm, setEditForm] = useState<EditForm>({ tenantName: "", whatsapp: "", userName: "", userEmail: "", userPassword: "", fluxoProducaoEnabled: false });
   const [editSaving, setEditSaving] = useState(false);
   const [showEditPwd, setShowEditPwd] = useState(false);
 
@@ -167,6 +191,7 @@ export default function SuperAdminDashboard() {
       userName: user?.name || "",
       userEmail: user?.email || "",
       userPassword: "",
+      fluxoProducaoEnabled: !!tenant.fluxo_producao_enabled,
     });
     setShowEditPwd(false);
     setEditingTenant(tenant);
@@ -177,10 +202,10 @@ export default function SuperAdminDashboard() {
     if (!editingTenant) return;
     setEditSaving(true);
     try {
-      // 1. Update tenant (name + whatsapp)
+      // 1. Update tenant (name + whatsapp + módulos habilitados)
       const tRes = await fetch(`/api/super-admin/tenants/${editingTenant.id}`, {
         method: "PATCH", headers: apiHeaders(),
-        body: JSON.stringify({ name: editForm.tenantName, whatsapp: editForm.whatsapp }),
+        body: JSON.stringify({ name: editForm.tenantName, whatsapp: editForm.whatsapp, fluxoProducaoEnabled: editForm.fluxoProducaoEnabled }),
       });
       const tData = (await tRes.json()) as ManagedTenant & { error?: string };
       if (!tRes.ok) { showToast("error", tData.error || "Erro ao salvar loja."); return; }
@@ -211,6 +236,9 @@ export default function SuperAdminDashboard() {
     try { await navigator.clipboard.writeText(value); showToast("success", msg); }
     catch { showToast("error", "Não foi possível copiar."); }
   }
+
+  // ── Tenants view mode (list = compacto / card = detalhado) ───────────
+  const [tenantsView, setTenantsView] = useState<"list" | "card">("list");
 
   // ── Extend trial ─────────────────────────────────────────────────────
   const [extendingId, setExtendingId] = useState<number | null>(null);
@@ -299,13 +327,16 @@ export default function SuperAdminDashboard() {
         {/* Stats mini */}
         <div className="grid grid-cols-2 gap-2 border-b border-white/8 p-4">
           {[
-            { label: "Tenants", value: stats?.tenants ?? 0, color: "text-blue-400" },
-            { label: "Ativos", value: stats?.active_accounts ?? 0, color: "text-emerald-400" },
-            { label: "Trials", value: stats?.active_trials ?? 0, color: "text-amber-400" },
-            { label: "Convites", value: stats?.pending_invites ?? 0, color: "text-purple-400" },
+            { label: "Tenants", value: stats?.tenants ?? 0, color: "text-blue-400", icon: <Store size={12} className="text-blue-400/70" /> },
+            { label: "Ativos", value: stats?.active_accounts ?? 0, color: "text-emerald-400", icon: <BadgeCheck size={12} className="text-emerald-400/70" /> },
+            { label: "Trials", value: stats?.active_trials ?? 0, color: "text-amber-400", icon: <Clock size={12} className="text-amber-400/70" /> },
+            { label: "Convites", value: stats?.pending_invites ?? 0, color: "text-purple-400", icon: <Link2 size={12} className="text-purple-400/70" /> },
           ].map((s) => (
-            <div key={s.label} className="rounded-xl bg-white/5 px-3 py-2.5">
-              <p className={`text-lg font-black ${s.color}`}>{s.value}</p>
+            <div key={s.label} className="rounded-xl bg-white/5 px-3 py-2.5 transition-colors hover:bg-white/[0.08]">
+              <div className="flex items-center justify-between">
+                <p className={`text-lg font-black ${s.color}`}>{s.value}</p>
+                {s.icon}
+              </div>
               <p className="text-[9px] font-bold uppercase tracking-[0.14em] text-slate-500">{s.label}</p>
             </div>
           ))}
@@ -313,32 +344,49 @@ export default function SuperAdminDashboard() {
 
         {/* Nav */}
         <nav className="flex-1 space-y-1 p-3">
-          {navItems.map((item) => (
-            <button
-              key={item.id}
-              onClick={() => { setPage(item.id); setSidebarOpen(false); }}
-              className={`flex w-full items-center gap-3 rounded-xl px-4 py-3 text-sm font-semibold transition-all ${
-                page === item.id
-                  ? "bg-[#C9A227] text-white shadow-[0_4px_16px_rgba(201,162,39,0.30)]"
-                  : "text-slate-400 hover:bg-white/5 hover:text-white"
-              }`}
-            >
-              {item.icon}
-              <span className="flex-1 text-left">{item.label}</span>
-              {item.badge !== undefined && item.badge > 0 && (
-                <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${page === item.id ? "bg-white/20 text-white" : "bg-white/10 text-slate-400"}`}>
-                  {item.badge}
+          <p className="px-3 pb-2 pt-1 text-[10px] font-bold uppercase tracking-[0.22em] text-slate-600">Menu</p>
+          {navItems.map((item) => {
+            const active = page === item.id;
+            return (
+              <button
+                key={item.id}
+                onClick={() => { setPage(item.id); setSidebarOpen(false); }}
+                className={`group relative flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold transition-all ${
+                  active
+                    ? "bg-[#C9A227] text-white shadow-[0_4px_16px_rgba(201,162,39,0.30)]"
+                    : "text-slate-400 hover:bg-white/5 hover:text-white"
+                }`}
+              >
+                <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg transition-colors ${
+                  active ? "bg-white/15" : "bg-white/5 group-hover:bg-white/10"
+                }`}>
+                  {item.icon}
                 </span>
-              )}
-            </button>
-          ))}
+                <span className="flex-1 text-left">{item.label}</span>
+                {item.badge !== undefined && item.badge > 0 && (
+                  <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${active ? "bg-white/20 text-white" : "bg-white/10 text-slate-400"}`}>
+                    {item.badge}
+                  </span>
+                )}
+              </button>
+            );
+          })}
         </nav>
 
-        {/* Logout */}
-        <div className="border-t border-white/8 p-4">
+        {/* User + Logout */}
+        <div className="border-t border-white/8 p-3">
+          <div className="flex items-center gap-3 rounded-xl px-3 py-2.5">
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#C9A227]/15 text-xs font-black uppercase text-[#C9A227]">
+              {(currentUser?.name || "SA").charAt(0)}
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-xs font-bold text-white">{currentUser?.name || "Super Admin"}</p>
+              <p className="truncate text-[10px] text-slate-500">{currentUser?.email || ""}</p>
+            </div>
+          </div>
           <button
             onClick={() => { clearSession(); navigate("/login", { replace: true }); }}
-            className="flex w-full items-center gap-3 rounded-xl px-4 py-3 text-sm font-semibold text-slate-500 transition-all hover:bg-white/5 hover:text-red-400"
+            className="mt-1 flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold text-slate-500 transition-all hover:bg-white/5 hover:text-red-400"
           >
             <LogOut size={16} />
             Sair do painel
@@ -515,9 +563,29 @@ export default function SuperAdminDashboard() {
                             </div>
                             <Badge status={invite.used_at ? "used" : invite.is_expired ? "expired" : "pending"} />
                           </div>
-                          <div className="flex gap-3 text-xs text-slate-500 mb-3">
+                          <div className="flex flex-wrap items-center gap-3 text-xs text-slate-500 mb-3">
                             <span className="flex items-center gap-1"><CalendarClock size={11} /> {invite.trial_days}d trial</span>
-                            <span className="flex items-center gap-1"><CreditCard size={11} /> R$ {invite.subscription_amount.toFixed(2)}/mês</span>
+                            <div className="flex items-center gap-1.5">
+                              <CreditCard size={11} />
+                              <span>R$</span>
+                              <input
+                                type="number" min="0" step="0.01"
+                                disabled={!!invite.used_at}
+                                value={inviteAmountDraft[invite.id] ?? invite.subscription_amount}
+                                onChange={(e) => setInviteAmountDraft((c) => ({ ...c, [invite.id]: e.target.value }))}
+                                className="h-6 w-16 rounded-md border border-slate-200 bg-white px-1.5 text-xs font-bold text-slate-800 outline-none focus:border-[#C9A227] disabled:bg-slate-100 disabled:text-slate-400"
+                              />
+                              <span>/mês</span>
+                              {inviteAmountDraft[invite.id] !== undefined && Number(inviteAmountDraft[invite.id]) !== invite.subscription_amount && (
+                                <button
+                                  onClick={() => void handleUpdateInviteAmount(invite)}
+                                  disabled={savingInviteId === invite.id}
+                                  className="rounded-md bg-emerald-500 px-2 py-1 text-[9px] font-black uppercase tracking-wide text-white hover:bg-emerald-600 disabled:opacity-50"
+                                >
+                                  {savingInviteId === invite.id ? "..." : "Salvar"}
+                                </button>
+                              )}
+                            </div>
                           </div>
                           <div className="flex gap-2">
                             <button onClick={() => void copyText(invite.invite_url, "Link copiado!")}
@@ -544,18 +612,33 @@ export default function SuperAdminDashboard() {
             {/* ── TENANTS ── */}
             {page === "tenants" && (
               <motion.div key="tenants" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="space-y-6">
-                <div className="flex items-center justify-between">
+                <div className="flex flex-wrap items-center justify-between gap-3">
                   <div>
                     <h2 className="text-xl font-black text-slate-900">Clientes Provisionados</h2>
                     <p className="text-sm text-slate-500">{sortedTenants.length} lojas registradas</p>
                   </div>
-                  <button onClick={() => setPage("invites")}
-                    className="flex items-center gap-2 rounded-xl bg-[#C9A227] px-4 py-2.5 text-[11px] font-bold uppercase tracking-wider text-white shadow-[0_4px_16px_rgba(201,162,39,0.3)] hover:bg-[#b8911f]">
-                    <UserPlus2 size={14} /> Nova loja
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-1 rounded-xl bg-slate-100 p-1">
+                      {([
+                        { v: "list", label: "Lista" },
+                        { v: "card", label: "Cards" },
+                      ] as const).map(({ v, label }) => (
+                        <button key={v} onClick={() => setTenantsView(v)}
+                          className={`h-8 px-3 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all ${
+                            tenantsView === v ? "bg-slate-900 text-white shadow-sm" : "text-slate-500 hover:text-slate-700"
+                          }`}>
+                          {label}
+                        </button>
+                      ))}
+                    </div>
+                    <button onClick={() => setPage("invites")}
+                      className="flex items-center gap-2 rounded-xl bg-[#C9A227] px-4 py-2.5 text-[11px] font-bold uppercase tracking-wider text-white shadow-[0_4px_16px_rgba(201,162,39,0.3)] hover:bg-[#b8911f]">
+                      <UserPlus2 size={14} /> Nova loja
+                    </button>
+                  </div>
                 </div>
                 {sortedTenants.length === 0 ? <EmptyState message="Nenhuma conta provisionada" /> : (
-                  <div className="grid gap-5 lg:grid-cols-2">
+                  <div className={tenantsView === "card" ? "grid gap-5 lg:grid-cols-2" : "space-y-2"}>
                     {sortedTenants.map((tenant) => {
                       const now = new Date();
                       const createdAt = tenant.created_at ? new Date(tenant.created_at) : null;
@@ -583,6 +666,70 @@ export default function SuperAdminDashboard() {
                         ? { bg: "bg-amber-50", border: "border-amber-200", text: "text-amber-700", bar: trialRemaining !== null && trialRemaining <= 5 ? "bg-red-400" : "bg-amber-400" }
                         : { bg: "bg-red-50", border: "border-red-200", text: "text-red-700", bar: "bg-red-400" };
 
+                      const statusLabel = tenant.status === "active" ? "Ativo" : tenant.status === "trial" ? "Trial" : tenant.status === "suspended" ? "Suspenso" : tenant.status;
+
+                      // ── List view: linha compacta, ideal para mobile ──
+                      if (tenantsView === "list") {
+                        return (
+                          <div key={tenant.id} className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-xl border border-slate-200 bg-white px-4 py-3">
+                            <div className="flex items-center gap-3 min-w-0 basis-full sm:basis-auto sm:flex-1">
+                              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[#C9A227]/10 text-[#C9A227] font-black text-sm">
+                                {tenant.name.charAt(0).toUpperCase()}
+                              </div>
+                              <div className="min-w-0">
+                                <p className="font-bold text-slate-900 truncate text-sm">{tenant.name}</p>
+                                <p className="text-[11px] text-slate-400 truncate">{tenant.users?.[0]?.email || "Sem usuário"}</p>
+                              </div>
+                            </div>
+
+                            <span className={`rounded-full px-2.5 py-1 text-[9px] font-bold uppercase tracking-wide border shrink-0 ${statusColor.bg} ${statusColor.border} ${statusColor.text}`}>
+                              {statusLabel}
+                            </span>
+
+                            <div className="flex items-center gap-1 shrink-0">
+                              <span className="text-[10px] font-bold text-slate-400">R$</span>
+                              <input
+                                type="number" min="0" step="0.01"
+                                value={tenant.subscription_amount ?? 0}
+                                onChange={(e) => setTenantDraft(tenant.id, { subscription_amount: Number(e.target.value) })}
+                                className="h-7 w-16 rounded-lg border border-slate-200 bg-slate-50 px-1.5 text-xs font-bold text-slate-800 outline-none focus:border-[#C9A227] focus:bg-white"
+                              />
+                              <span className="text-[10px] text-slate-400">/mês</span>
+                            </div>
+
+                            <span className={`text-[11px] font-semibold whitespace-nowrap shrink-0 ${trialExpired ? "text-red-500" : trialRemaining !== null && trialRemaining <= 5 ? "text-orange-500" : "text-slate-500"}`}>
+                              {trialEnd ? (trialExpired ? "Trial vencido" : `${trialRemaining}d trial`) : "—"}
+                            </span>
+
+                            <span className="hidden sm:inline text-[11px] text-slate-400 whitespace-nowrap shrink-0">
+                              {daysActive !== null ? `${daysActive}d ativo` : "—"}
+                            </span>
+
+                            <div className="flex items-center gap-1 ml-auto shrink-0">
+                              <button onClick={() => void handleUpdateTenant(tenant)} title="Salvar alterações"
+                                className="flex h-8 w-8 items-center justify-center rounded-lg border border-emerald-200 bg-emerald-50 text-emerald-600 hover:bg-emerald-100">
+                                <CheckCircle2 size={13} />
+                              </button>
+                              {tenant.public_url && (
+                                <a href={tenant.public_url} target="_blank" rel="noopener noreferrer"
+                                  className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50">
+                                  <ExternalLink size={13} />
+                                </a>
+                              )}
+                              <button onClick={() => void copyText(tenant.public_url || "", "URL copiada!")}
+                                className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50">
+                                <Copy size={13} />
+                              </button>
+                              <button onClick={() => openEdit(tenant)}
+                                className="flex h-8 w-8 items-center justify-center rounded-lg border border-[#C9A227]/40 text-[#C9A227] hover:bg-[#C9A227]/10">
+                                <Pencil size={13} />
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      }
+
+                      // ── Card view: detalhado, com bloco de trial e extensão ──
                       return (
                         <div key={tenant.id} className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
                           {/* Header */}
@@ -636,7 +783,15 @@ export default function SuperAdminDashboard() {
                                 <div className="flex items-center justify-center gap-1 mb-0.5">
                                   <CreditCard size={11} className="text-emerald-400" />
                                 </div>
-                                <p className="text-base font-black text-slate-900">R${Number(tenant.subscription_amount || 0).toFixed(0)}</p>
+                                <div className="flex items-center justify-center gap-0.5">
+                                  <span className="text-sm font-black text-slate-400">R$</span>
+                                  <input
+                                    type="number" min="0" step="0.01"
+                                    value={tenant.subscription_amount ?? 0}
+                                    onChange={(e) => setTenantDraft(tenant.id, { subscription_amount: Number(e.target.value) })}
+                                    className="w-14 bg-transparent text-base font-black text-slate-900 text-center outline-none focus:underline"
+                                  />
+                                </div>
                                 <p className="text-[9px] text-slate-400 uppercase tracking-wide">assinatura/mês</p>
                               </div>
                               <div className="rounded-xl bg-slate-50 border border-slate-100 p-2.5">
@@ -778,68 +933,131 @@ export default function SuperAdminDashboard() {
 
             <motion.div initial={{ opacity: 0, scale: 0.95, y: 16 }} animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 16 }} transition={{ type: "spring", damping: 26, stiffness: 340 }}
-              className="relative w-full max-w-md bg-white rounded-2xl shadow-2xl overflow-hidden">
+              className="relative w-full max-w-lg bg-white rounded-2xl shadow-2xl overflow-hidden">
 
               {/* header */}
-              <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
-                <div className="flex items-center gap-3">
-                  <div className="w-9 h-9 rounded-xl bg-[#C9A227]/10 flex items-center justify-center font-black text-[#C9A227]">
+              <div className="flex items-center justify-between gap-3 bg-gradient-to-r from-[#0f172a] to-slate-800 px-6 py-4">
+                <div className="flex min-w-0 items-center gap-3">
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#C9A227]/20 text-sm font-black text-[#C9A227]">
                     {editingTenant.name.charAt(0).toUpperCase()}
                   </div>
-                  <div>
-                    <h2 className="text-sm font-black text-slate-900">Editar Cliente</h2>
-                    <p className="text-[11px] text-slate-400">{editingTenant.name}</p>
+                  <div className="min-w-0">
+                    <h2 className="text-sm font-black text-white">Editar Cliente</h2>
+                    <p className="truncate text-[11px] text-slate-400">{editingTenant.subdomain}.boxsys.com.br</p>
                   </div>
                 </div>
-                <button onClick={() => setEditingTenant(null)} className="w-8 h-8 rounded-lg hover:bg-slate-100 flex items-center justify-center">
-                  <X size={14} className="text-slate-500" />
+                <button onClick={() => setEditingTenant(null)} className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg hover:bg-white/10">
+                  <X size={14} className="text-slate-300" />
                 </button>
               </div>
 
+              {/* quick info — dados atuais, somente leitura */}
+              <div className="grid grid-cols-3 divide-x divide-slate-100 border-b border-slate-100 bg-slate-50">
+                <div className="px-3 py-3 text-center">
+                  <p className={`text-xs font-black uppercase ${
+                    editingTenant.status === "active" ? "text-emerald-600" :
+                    editingTenant.status === "trial" ? "text-amber-600" :
+                    editingTenant.status === "suspended" ? "text-red-500" : "text-slate-500"
+                  }`}>
+                    {editingTenant.status === "active" ? "Ativo" : editingTenant.status === "trial" ? "Trial" : editingTenant.status === "suspended" ? "Suspenso" : (editingTenant.status || "—")}
+                  </p>
+                  <p className="mt-0.5 text-[9px] font-bold uppercase tracking-wide text-slate-400">Status</p>
+                </div>
+                <div className="px-3 py-3 text-center">
+                  <p className="text-xs font-black text-slate-800">R$ {Number(editingTenant.subscription_amount ?? 0).toFixed(2)}</p>
+                  <p className="mt-0.5 text-[9px] font-bold uppercase tracking-wide text-slate-400">Assinatura/mês</p>
+                </div>
+                <div className="px-3 py-3 text-center">
+                  <p className="text-xs font-black text-slate-800">
+                    {editingTenant.created_at ? new Date(editingTenant.created_at).toLocaleDateString("pt-BR") : "—"}
+                  </p>
+                  <p className="mt-0.5 text-[9px] font-bold uppercase tracking-wide text-slate-400">Criado em</p>
+                </div>
+              </div>
+              {editingTenant.public_url && (
+                <div className="flex items-center gap-2 border-b border-slate-100 px-6 py-2.5">
+                  <ExternalLink size={11} className="shrink-0 text-slate-400" />
+                  <a href={editingTenant.public_url} target="_blank" rel="noopener noreferrer"
+                    className="truncate text-[11px] text-slate-500 hover:text-[#C9A227] hover:underline">
+                    {editingTenant.public_url}
+                  </a>
+                  <button type="button" onClick={() => void copyText(editingTenant.public_url || "", "URL copiada!")}
+                    className="ml-auto shrink-0 text-slate-400 hover:text-slate-600">
+                    <Copy size={12} />
+                  </button>
+                </div>
+              )}
+
               <form onSubmit={(e) => void handleSaveEdit(e)}>
-                <div className="px-6 py-5 space-y-4 max-h-[65vh] overflow-y-auto">
+                <div className="max-h-[55vh] space-y-4 overflow-y-auto px-6 py-5">
 
                   {/* Loja */}
-                  <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[#C9A227]">Dados da Loja</p>
-                  <InputField label="Nome da Loja" value={editForm.tenantName} onChange={v => setEditForm(f => ({ ...f, tenantName: v }))} placeholder="Nome da loja" />
-                  <InputField label="WhatsApp" value={editForm.whatsapp} onChange={v => setEditForm(f => ({ ...f, whatsapp: maskPhone(v) }))} placeholder="(11) 99999-9999" icon={<Phone size={14} />} />
+                  <div className="space-y-4 rounded-xl border border-slate-100 bg-slate-50/60 p-4">
+                    <p className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.2em] text-[#C9A227]">
+                      <Store size={12} /> Dados da Loja
+                    </p>
+                    <InputField label="Nome da Loja" value={editForm.tenantName} onChange={v => setEditForm(f => ({ ...f, tenantName: v }))} placeholder="Nome da loja" icon={<Store size={14} />} />
+                    <InputField label="WhatsApp" value={editForm.whatsapp} onChange={v => setEditForm(f => ({ ...f, whatsapp: maskPhone(v) }))} placeholder="(11) 99999-9999" icon={<Phone size={14} />} />
+                  </div>
+
+                  {/* Módulos */}
+                  <div className="space-y-3 rounded-xl border border-slate-100 bg-slate-50/60 p-4">
+                    <p className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.2em] text-[#C9A227]">
+                      <Settings size={12} /> Módulos Habilitados
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => setEditForm(f => ({ ...f, fluxoProducaoEnabled: !f.fluxoProducaoEnabled }))}
+                      className="flex h-12 w-full items-center justify-between rounded-xl border border-slate-200 bg-white px-4 transition-all hover:border-[#C9A227]/40"
+                    >
+                      <div className="text-left">
+                        <p className="text-[12px] font-bold text-slate-800">Fluxo de Produção</p>
+                        <p className="text-[10px] text-slate-400">Quadro Kanban de Ordens de Serviço e Orçamentos</p>
+                      </div>
+                      <div className={`flex h-6 w-10 shrink-0 items-center rounded-full px-0.5 transition-colors ${editForm.fluxoProducaoEnabled ? "justify-end bg-emerald-500" : "justify-start bg-slate-200"}`}>
+                        <div className="h-5 w-5 rounded-full bg-white shadow-sm" />
+                      </div>
+                    </button>
+                  </div>
 
                   {/* Usuário admin */}
-                  {editingTenant.users?.[0] && (<>
-                    <div className="border-t border-slate-100 pt-4">
-                      <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[#C9A227] mb-4">Usuário Admin</p>
-                    </div>
-                    <InputField label="Nome" value={editForm.userName} onChange={v => setEditForm(f => ({ ...f, userName: v }))} placeholder="Nome completo" />
-                    <InputField label="E-mail" type="email" value={editForm.userEmail} onChange={v => setEditForm(f => ({ ...f, userEmail: v }))} placeholder="email@exemplo.com" icon={<Mail size={14} />} />
+                  {editingTenant.users?.[0] && (
+                    <div className="space-y-4 rounded-xl border border-slate-100 bg-slate-50/60 p-4">
+                      <p className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.2em] text-[#C9A227]">
+                        <Users size={12} /> Usuário Admin
+                      </p>
+                      <InputField label="Nome" value={editForm.userName} onChange={v => setEditForm(f => ({ ...f, userName: v }))} placeholder="Nome completo" />
+                      <InputField label="E-mail" type="email" value={editForm.userEmail} onChange={v => setEditForm(f => ({ ...f, userEmail: v }))} placeholder="email@exemplo.com" icon={<Mail size={14} />} />
 
-                    {/* Password with toggle */}
-                    <div className="space-y-1.5">
-                      <label className="block text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500">Nova Senha <span className="normal-case text-slate-400 font-normal">(deixe em branco para não alterar)</span></label>
-                      <div className="flex h-11 items-center gap-3 rounded-xl border border-slate-200 bg-white px-3.5 transition-all focus-within:border-[#C9A227] focus-within:shadow-[0_0_0_3px_rgba(201,162,39,0.12)]">
-                        <input
-                          type={showEditPwd ? "text" : "password"}
-                          value={editForm.userPassword}
-                          onChange={e => setEditForm(f => ({ ...f, userPassword: e.target.value }))}
-                          placeholder="Mínimo 6 caracteres"
-                          className="h-full w-full bg-transparent text-sm font-medium text-slate-900 placeholder-slate-400 outline-none"
-                        />
-                        <button type="button" onClick={() => setShowEditPwd(v => !v)} className="shrink-0 text-slate-400 hover:text-slate-600">
-                          {showEditPwd ? <EyeOff size={14} /> : <Eye size={14} />}
-                        </button>
+                      {/* Password with toggle */}
+                      <div className="space-y-1.5">
+                        <label className="block text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500">Nova Senha <span className="normal-case text-slate-400 font-normal">(deixe em branco para não alterar)</span></label>
+                        <div className="flex h-11 items-center gap-3 rounded-xl border border-slate-200 bg-white px-3.5 transition-all focus-within:border-[#C9A227] focus-within:shadow-[0_0_0_3px_rgba(201,162,39,0.12)]">
+                          <input
+                            type={showEditPwd ? "text" : "password"}
+                            value={editForm.userPassword}
+                            onChange={e => setEditForm(f => ({ ...f, userPassword: e.target.value }))}
+                            placeholder="Mínimo 6 caracteres"
+                            className="h-full w-full bg-transparent text-sm font-medium text-slate-900 placeholder-slate-400 outline-none"
+                          />
+                          <button type="button" onClick={() => setShowEditPwd(v => !v)} className="shrink-0 text-slate-400 hover:text-slate-600">
+                            {showEditPwd ? <EyeOff size={14} /> : <Eye size={14} />}
+                          </button>
+                        </div>
                       </div>
                     </div>
-                  </>)}
+                  )}
                 </div>
 
                 {/* footer */}
-                <div className="px-6 py-4 border-t border-slate-100 flex items-center justify-end gap-3">
+                <div className="flex items-center justify-end gap-3 border-t border-slate-100 bg-slate-50/60 px-6 py-4">
                   <button type="button" onClick={() => setEditingTenant(null)}
-                    className="px-4 h-10 rounded-xl border border-slate-200 text-xs font-bold text-slate-600 hover:bg-slate-50">
+                    className="h-10 rounded-xl border border-slate-200 px-4 text-xs font-bold text-slate-600 hover:bg-white">
                     Cancelar
                   </button>
                   <button type="submit" disabled={editSaving}
-                    className="px-5 h-10 rounded-xl bg-[#C9A227] text-[11px] font-bold uppercase tracking-wider text-white hover:bg-[#b8911f] disabled:opacity-60 flex items-center gap-2">
-                    {editSaving && <span className="w-3.5 h-3.5 border-2 border-white/40 border-t-white rounded-full animate-spin" />}
+                    className="flex h-10 items-center gap-2 rounded-xl bg-[#C9A227] px-5 text-[11px] font-bold uppercase tracking-wider text-white hover:bg-[#b8911f] disabled:opacity-60">
+                    {editSaving && <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white/40 border-t-white" />}
                     Salvar alterações
                   </button>
                 </div>

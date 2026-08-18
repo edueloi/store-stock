@@ -205,6 +205,40 @@ export async function regenerateInvite(req: Request, res: Response) {
   }
 }
 
+export async function updateSetupInvite(req: Request, res: Response) {
+  const inviteId = Number(req.params.inviteId);
+  const { subscriptionAmount, trialDays } = req.body;
+
+  if (!inviteId) {
+    res.status(400).json({ error: "Convite inválido." });
+    return;
+  }
+
+  try {
+    const invite = await prisma.setupInvite.findUnique({ where: { id: inviteId } });
+    if (!invite) {
+      res.status(404).json({ error: "Convite não encontrado." });
+      return;
+    }
+    if (invite.used_at) {
+      res.status(400).json({ error: "Esse convite já foi utilizado e não pode mais ser editado." });
+      return;
+    }
+
+    const updated = await prisma.setupInvite.update({
+      where: { id: inviteId },
+      data: {
+        subscription_amount: subscriptionAmount !== undefined ? Number(subscriptionAmount) || 0 : undefined,
+        trial_days: trialDays !== undefined ? Math.max(1, Number(trialDays) || 30) : undefined,
+      },
+    });
+
+    res.json(serializeInvite(updated));
+  } catch {
+    res.status(500).json({ error: "Falha ao atualizar o convite." });
+  }
+}
+
 export async function updateManagedTenant(req: Request, res: Response) {
   const tenantId = Number(req.params.tenantId);
   const {
@@ -214,6 +248,7 @@ export async function updateManagedTenant(req: Request, res: Response) {
     subscriptionAmount,
     whatsapp,
     name,
+    fluxoProducaoEnabled,
   } = req.body;
 
   if (!tenantId) {
@@ -231,6 +266,7 @@ export async function updateManagedTenant(req: Request, res: Response) {
         trial_ends_at: trialEndsAt ? new Date(trialEndsAt) : undefined,
         subscription_amount: subscriptionAmount !== undefined ? Number(subscriptionAmount) || 0 : undefined,
         whatsapp: whatsapp !== undefined ? String(whatsapp).trim() : undefined,
+        fluxo_producao_enabled: fluxoProducaoEnabled !== undefined ? !!fluxoProducaoEnabled : undefined,
       },
       include: {
         users: {

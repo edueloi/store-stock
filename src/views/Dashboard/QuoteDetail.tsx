@@ -25,6 +25,8 @@ import {
   AlertTriangle,
   Trash2,
   Link2,
+  Palette,
+  PenTool,
 } from "lucide-react";
 import PageHeader from "../../components/layout/PageHeader";
 import Combobox from "../../components/ui/Combobox";
@@ -77,7 +79,7 @@ interface Quote {
   total_amount: number;
   validity_days: number;
   notes?: string;
-  status: "rascunho" | "orcamento_enviado" | "aguardando_aprovacao" | "aprovado" | "converted" | "cancelled" | "expired";
+  status: "rascunho" | "orcamento_enviado" | "aguardando_aprovacao" | "aprovado" | "aguardando_arte" | "arte_finalizada" | "converted" | "cancelled" | "expired";
   converted_order_id?: number | null;
   deposit_amount?: number | null;
   deposit_payment_method?: string | null;
@@ -107,6 +109,9 @@ interface ServiceCatalog {
   description?: string;
   price: number;
   is_active: boolean;
+  sale_unit?: "unidade" | "m2" | "linear";
+  price_per_measure?: number | null;
+  min_billable_quantity?: number | null;
 }
 
 interface Customer {
@@ -217,6 +222,8 @@ function statusLabel(s: string) {
     orcamento_enviado: { label: "Aberto", color: "text-blue-600 bg-blue-50",    icon: <Clock size={12} /> },
     aguardando_aprovacao: { label: "Aguardando Aprovação", color: "text-amber-600 bg-amber-50", icon: <Clock size={12} /> },
     aprovado: { label: "Aprovado", color: "text-teal-600 bg-teal-50", icon: <CheckCircle2 size={12} /> },
+    aguardando_arte: { label: "Aguardando Arte", color: "text-fuchsia-600 bg-fuchsia-50", icon: <Palette size={12} /> },
+    arte_finalizada: { label: "Arte Finalizada", color: "text-pink-600 bg-pink-50", icon: <PenTool size={12} /> },
     converted: { label: "Convertido", color: "text-emerald-600 bg-emerald-50", icon: <CheckCircle2 size={12} /> },
     cancelled: { label: "Cancelado",  color: "text-red-600 bg-red-50",      icon: <XCircle size={12} /> },
     expired:   { label: "Expirado",   color: "text-orange-600 bg-orange-50",icon: <Clock size={12} /> },
@@ -376,9 +383,12 @@ export default function QuoteDetail() {
   const [measureProduct, setMeasureProduct] = useState<Product | null>(null);
   const [measureHeight, setMeasureHeight] = useState("");
   const [measureWidth, setMeasureWidth] = useState("");
+  const [measureService, setMeasureService] = useState<ServiceCatalog | null>(null);
+  const [measureServiceHeight, setMeasureServiceHeight] = useState("");
+  const [measureServiceWidth, setMeasureServiceWidth] = useState("");
   const [serviceSearch, setServiceSearch] = useState("");
   const [formItems, setFormItems] = useState<QuoteItem[]>([]);
-  const [formServices, setFormServices] = useState<{ service_id: number; name: string; price: number; quantity: number }[]>([]);
+  const [formServices, setFormServices] = useState<{ service_id: number; name: string; price: number; quantity: number; dimensions_label?: string }[]>([]);
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   const [manualCustomer, setManualCustomer] = useState({ name: "", phone: "", email: "" });
   const [discountType, setDiscountType] = useState<"percent" | "fixed">("percent");
@@ -520,7 +530,7 @@ export default function QuoteDetail() {
       items: items.map((i) => ({
         product_id: i.product_id, name: i.name, quantity: i.quantity, unit_price: i.unit_price, dimensions_label: i.dimensions_label ?? null,
       })),
-      services: svcs.map((s) => ({ id: s.service_id, name: s.name, price: s.price, quantity: s.quantity })),
+      services: svcs.map((s) => ({ id: s.service_id, name: s.name, price: s.price, quantity: s.quantity, dimensions_label: s.dimensions_label ?? null })),
     }, "items");
   }, [autosaveField]);
 
@@ -593,6 +603,13 @@ export default function QuoteDetail() {
 
   // ── Service helpers ───────────────────────────────────────────────────────
   const addService = (s: ServiceCatalog) => {
+    if (s.sale_unit && s.sale_unit !== "unidade") {
+      setMeasureService(s);
+      setMeasureServiceHeight("");
+      setMeasureServiceWidth("");
+      setServiceSearch("");
+      return;
+    }
     setFormServices((prev) => {
       const existing = prev.find((fs) => fs.service_id === s.id);
       const next = existing
@@ -602,6 +619,33 @@ export default function QuoteDetail() {
       return next;
     });
     setServiceSearch("");
+  };
+
+  // Mesmo mecanismo de venda por medida do Produto, aplicado a Serviço.
+  const measureServicePreview = measureService
+    ? computeMeasuredPrice(
+        (measureService.sale_unit as "m2" | "linear") ?? "m2",
+        Number(measureService.price_per_measure) || 0,
+        measureService.min_billable_quantity ?? null,
+        Number(measureServiceHeight) || 0,
+        Number(measureServiceWidth) || 0,
+      )
+    : null;
+
+  const addMeasuredService = () => {
+    if (!measureService || !measureServicePreview) return;
+    const next = [...formServices, {
+      service_id: measureService.id,
+      name: measureService.name,
+      price: measureServicePreview.total,
+      quantity: 1,
+      dimensions_label: measureServicePreview.label,
+    }];
+    setFormServices(next);
+    autosaveItems(formItems, next);
+    setMeasureService(null);
+    setMeasureServiceHeight("");
+    setMeasureServiceWidth("");
   };
 
   const updateServiceQty = (service_id: number, qty: number) => {
@@ -946,7 +990,11 @@ export default function QuoteDetail() {
                           <span className="font-semibold">{s.name}</span>
                           {s.description && <span className="ml-2 text-xs text-slate-400">{s.description}</span>}
                         </div>
-                        <span className="text-blue-600 font-bold shrink-0">{fmt(Number(s.price))}</span>
+                        <span className="text-blue-600 font-bold shrink-0">
+                          {s.sale_unit && s.sale_unit !== "unidade"
+                            ? `${fmt(Number(s.price_per_measure ?? 0))}/${s.sale_unit === "m2" ? "m²" : "m"}`
+                            : fmt(Number(s.price))}
+                        </span>
                       </button>
                     ))
                   )}
@@ -962,7 +1010,10 @@ export default function QuoteDetail() {
                 {formServices.map((svc) => (
                   <div key={svc.service_id} className="flex flex-wrap items-center gap-2 bg-blue-50 border border-blue-100 rounded-lg px-3 py-2">
                     <Wrench size={13} className="text-blue-400 shrink-0" />
-                    <span className="flex-1 min-w-[100px] text-sm font-medium text-slate-700 truncate">{svc.name}</span>
+                    <div className="flex-1 min-w-[100px] truncate">
+                      <span className="text-sm font-medium text-slate-700">{svc.name}</span>
+                      {svc.dimensions_label && <span className="ml-1.5 text-[10px] font-mono text-blue-400">{svc.dimensions_label}</span>}
+                    </div>
                     <div className="shrink-0">
                       <label className="block text-[9px] font-bold uppercase tracking-wider text-blue-400 mb-0.5">Qtd.</label>
                       <div className="flex items-center gap-1">
@@ -1189,6 +1240,73 @@ export default function QuoteDetail() {
                 Cancelar
               </button>
               <button onClick={addMeasuredProduct} disabled={!measurePreview || measurePreview.rawQuantity <= 0}
+                className="flex-1 h-11 bg-blue-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-blue-700 transition-all disabled:opacity-50 flex items-center justify-center gap-2">
+                <PlusCircle size={14} /> Adicionar
+              </button>
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* ── Medida (m²/linear) Modal — Serviço ──────────────────────────────── */}
+      {measureService && (
+        <>
+          <div onClick={() => setMeasureService(null)} className="fixed inset-0 bg-slate-900/70 backdrop-blur-sm z-[400]" />
+          <div className="fixed inset-x-4 bottom-4 sm:inset-auto sm:top-1/2 sm:left-1/2 sm:-translate-x-1/2 sm:-translate-y-1/2 z-[401] bg-white flex flex-col overflow-hidden rounded-3xl" style={{ width: "min(420px, calc(100vw - 32px))" }}>
+            <div className="shrink-0 flex items-center justify-between px-6 py-4 border-b border-slate-100">
+              <div>
+                <p className="text-[9px] font-black uppercase tracking-widest text-blue-500">
+                  Serviço por {measureService.sale_unit === "m2" ? "m²" : "metro linear"}
+                </p>
+                <h2 className="text-[14px] font-black text-slate-800">{measureService.name}</h2>
+              </div>
+              <button onClick={() => setMeasureService(null)} className="w-8 h-8 rounded-xl bg-slate-100 hover:bg-slate-200 flex items-center justify-center">
+                <X size={14} className="text-slate-500" />
+              </button>
+            </div>
+            <div className="p-5 space-y-3">
+              {measureService.sale_unit === "m2" ? (
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400 mb-1.5 block">Altura (m)</label>
+                    <input type="number" min="0" step="0.01" autoFocus value={measureServiceHeight} onChange={(e) => setMeasureServiceHeight(e.target.value)} placeholder="0,00"
+                      className="w-full h-11 px-3 rounded-xl border border-slate-200 text-sm font-mono font-bold text-center focus:outline-none focus:border-blue-400" />
+                  </div>
+                  <div>
+                    <label className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400 mb-1.5 block">Largura (m)</label>
+                    <input type="number" min="0" step="0.01" value={measureServiceWidth} onChange={(e) => setMeasureServiceWidth(e.target.value)} placeholder="0,00"
+                      className="w-full h-11 px-3 rounded-xl border border-slate-200 text-sm font-mono font-bold text-center focus:outline-none focus:border-blue-400" />
+                  </div>
+                </div>
+              ) : (
+                <div>
+                  <label className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400 mb-1.5 block">Comprimento (m)</label>
+                  <input type="number" min="0" step="0.01" autoFocus value={measureServiceHeight} onChange={(e) => setMeasureServiceHeight(e.target.value)} placeholder="0,00"
+                    className="w-full h-11 px-3 rounded-xl border border-slate-200 text-sm font-mono font-bold text-center focus:outline-none focus:border-blue-400" />
+                </div>
+              )}
+              {measureServicePreview && measureServicePreview.rawQuantity > 0 && (
+                <div className="bg-slate-900 rounded-2xl p-4 space-y-1.5">
+                  <div className="flex justify-between text-[10px] font-bold uppercase text-slate-400">
+                    <span>{measureService.sale_unit === "m2" ? "Área" : "Comprimento"}</span>
+                    <span className="font-mono text-slate-200">{measureServicePreview.label}</span>
+                  </div>
+                  {measureServicePreview.minimumApplied && (
+                    <p className="text-[10px] font-bold text-amber-400">
+                      Cobrando o mínimo de {Number(measureService.min_billable_quantity).toFixed(2)}{measureService.sale_unit === "m2" ? "m²" : "m"}
+                    </p>
+                  )}
+                  <div className="flex justify-between text-[13px] font-black uppercase text-white pt-1.5 border-t border-slate-700">
+                    <span>Total</span><span className="font-mono">R$ {measureServicePreview.total.toFixed(2)}</span>
+                  </div>
+                </div>
+              )}
+            </div>
+            <div className="shrink-0 px-6 pb-6 pt-1 flex gap-2 border-t border-slate-100">
+              <button onClick={() => setMeasureService(null)} className="flex-1 h-11 rounded-xl border border-slate-200 text-[10px] font-black uppercase tracking-widest text-slate-600 hover:bg-slate-50 transition-colors">
+                Cancelar
+              </button>
+              <button onClick={addMeasuredService} disabled={!measureServicePreview || measureServicePreview.rawQuantity <= 0}
                 className="flex-1 h-11 bg-blue-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-blue-700 transition-all disabled:opacity-50 flex items-center justify-center gap-2">
                 <PlusCircle size={14} /> Adicionar
               </button>

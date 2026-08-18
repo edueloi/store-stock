@@ -336,8 +336,15 @@ export default function AdminDashboard() {
   const allowedMenus = currentUser?.menus ?? [];
   const canSeeMenu = (key: string) => currentUser?.role === "admin" || allowedMenus.includes(key);
 
+  // Módulos liberados pelo Super Admin por tenant (feature flag da loja inteira,
+  // independente de role/permissão individual) — some do menu pra todo mundo se desligado.
+  const tenantModuleGate: Record<string, boolean> = {
+    fluxo_producao: !!currentUser?.fluxo_producao_enabled,
+  };
+  const isTenantModuleEnabled = (key: string) => tenantModuleGate[key] ?? true;
+
   const menuGroups = allMenuGroups
-    .map((g) => ({ ...g, items: g.items.filter((item) => canSeeMenu(item.key)) }))
+    .map((g) => ({ ...g, items: g.items.filter((item) => canSeeMenu(item.key) && isTenantModuleEnabled(item.key)) }))
     .filter((g) => g.items.length > 0);
 
   // flat list for header label lookup and mobile nav

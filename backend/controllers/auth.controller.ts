@@ -135,6 +135,7 @@ export async function login(req: Request, res: Response) {
             subdomain: true,
             status: true,
             trial_ends_at: true,
+            fluxo_producao_enabled: true,
           },
         },
       },
@@ -191,6 +192,7 @@ export async function login(req: Request, res: Response) {
         slug: user.tenant.slug,
         subdomain: user.tenant.subdomain,
         public_url: buildTenantAccessUrl(user.tenant.subdomain || user.tenant.slug),
+        fluxo_producao_enabled: user.tenant.fluxo_producao_enabled,
       },
     });
   } catch {
