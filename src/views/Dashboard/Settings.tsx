@@ -1616,7 +1616,7 @@ export default function Settings() {
                       </select>
                     </Field>
                     <div />
-                    <Field label="Código IBGE do Município" hint="7 dígitos, ex: 3554003 (Tatuí/SP)">
+                    <Field label="Código IBGE do Município" hint="7 dígitos, ex: 3554003 (Tatuí/SP) — usado também na NFC-e">
                       <TextInput
                         value={tenant?.nfse_codigo_municipio ?? ""}
                         onChange={(v) => setT({ nfse_codigo_municipio: v.replace(/\D/g, "").slice(0, 7) })}

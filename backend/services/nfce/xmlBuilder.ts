@@ -66,7 +66,10 @@ export function buildNfceXml(input: BuildNfceInput): BuildNfceResult {
   ide.ele("dhEmi").txt(dhEmi);
   ide.ele("tpNF").txt("1"); // saída
   ide.ele("idDest").txt("1"); // operação interna
-  ide.ele("cMunFG").txt("3550308"); // TODO: mapear município do tenant por IBGE
+  // Reaproveita o código IBGE já cadastrado pelo tenant em Dados Fiscais (mesmo campo
+  // usado pela NFS-e) — é o mesmo estabelecimento físico, não há motivo pra duplicar.
+  const codigoMunicipio = tenant.nfse_codigo_municipio || "3550308";
+  ide.ele("cMunFG").txt(codigoMunicipio);
   ide.ele("tpImp").txt("4"); // DANFE NFC-e
   ide.ele("tpEmis").txt("1"); // emissão normal
   ide.ele("cDV").txt(chaveAcesso.slice(-1));
@@ -89,7 +92,7 @@ export function buildNfceXml(input: BuildNfceInput): BuildNfceResult {
   enderEmit.ele("nro").txt(tenant.address_number || "S/N");
   if (tenant.address_complement) enderEmit.ele("xCpl").txt(tenant.address_complement);
   enderEmit.ele("xBairro").txt(tenant.address_district || "");
-  enderEmit.ele("cMun").txt("3550308"); // TODO: mapear município do tenant por IBGE
+  enderEmit.ele("cMun").txt(codigoMunicipio);
   enderEmit.ele("xMun").txt(tenant.address_city || "");
   enderEmit.ele("UF").txt(tenant.address_state || "SP");
   enderEmit.ele("CEP").txt(onlyDigits(tenant.address_zip));
