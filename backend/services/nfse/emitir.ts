@@ -141,14 +141,33 @@ export async function emitirNfse(input: EmitirNfseInput): Promise<void> {
       const codigo = primeiro?.Codigo ?? primeiro?.codigo;
       const descricao = primeiro?.Descricao ?? primeiro?.descricao;
       const complemento = primeiro?.Complemento ?? primeiro?.complemento;
+
+      // Sem log aqui, uma falha de infraestrutura do governo (ex.: 403 devolvido pelo
+      // IIS antes de chegar na aplicação, sem o schema de erro de negócio acima) ficava
+      // completamente invisível — só o HTML bruto ia parar no rejection_reason.
+      console.error(
+        `[emitirNfse] POST /nfse rejeitado — status=${result.statusCode} tenant=${tenant.id} serviceOrder=${serviceOrderId} env=${environment}`,
+        result.error || result.raw?.slice(0, 500) || "(sem corpo)",
+      );
+
+      // Quando o servidor não devolve o schema de erro esperado (ex.: página de erro do
+      // IIS em vez de JSON), o problema é de infraestrutura/credenciamento, não de
+      // validação de negócio — não faz sentido jogar HTML bruto pro usuário.
+      const isInfraFailure = !codigo && !result.error && result.raw && /<html/i.test(result.raw);
+      const rejectionReason = codigo
+        ? [descricao, complemento].filter(Boolean).join(" — ")
+        : isInfraFailure
+          ? `O servidor do Sistema Nacional NFS-e recusou a conexão (HTTP ${result.statusCode}), sem detalhar o motivo. ` +
+            "Causas mais comuns: o CNPJ/CPF do certificado ainda não foi credenciado no Sistema Nacional NFS-e " +
+            "(gov.br/nfse > Adesão), ou o certificado não está habilitado para o ambiente de homologação."
+          : (result.error || result.raw || "Falha na comunicação com o Sistema Nacional NFS-e");
+
       await prisma.nfseInvoice.update({
         where: { id: invoice.id },
         data: {
           status: "rejected",
           rejection_code: codigo ? String(codigo) : String(result.statusCode),
-          rejection_reason: codigo
-            ? [descricao, complemento].filter(Boolean).join(" — ")
-            : (result.error || result.raw || "Falha na comunicação com o Sistema Nacional NFS-e"),
+          rejection_reason: rejectionReason,
         },
       });
       return;
@@ -225,6 +244,7 @@ export async function emitirNfse(input: EmitirNfseInput): Promise<void> {
     await advanceServiceOrderToNotaEmitida(serviceOrderId, "Sistema (NFS-e)");
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
+    console.error(`[emitirNfse] erro — tenant=${tenant.id} serviceOrder=${serviceOrderId}:`, err);
     await prisma.nfseInvoice.update({
       where: { id: invoice.id },
       data: { status: "error", rejection_reason: message },

@@ -82,10 +82,10 @@ function Field({
 }
 
 function TextInput({
-  value, onChange, placeholder, type = "text", mono = false, className = "",
+  value, onChange, placeholder, type = "text", mono = false, className = "", autoComplete = "off",
 }: {
   value: string; onChange: (v: string) => void; placeholder?: string;
-  type?: string; mono?: boolean; className?: string;
+  type?: string; mono?: boolean; className?: string; autoComplete?: string;
 }) {
   return (
     <input
@@ -93,6 +93,12 @@ function TextInput({
       value={value}
       onChange={(e) => onChange(e.target.value)}
       placeholder={placeholder}
+      autoComplete={autoComplete}
+      autoCorrect="off"
+      autoCapitalize="off"
+      spellCheck={false}
+      data-lpignore="true"
+      data-1p-ignore="true"
       className={cn(
         "w-full bg-slate-50 border border-slate-200 rounded-xl px-4 h-11 text-xs font-bold outline-none",
         "focus:ring-4 focus:ring-blue-500/8 focus:border-blue-500 transition-all",
@@ -1601,6 +1607,7 @@ export default function Settings() {
                       <TextInput
                         value={tenant?.nfce_csc_id ?? ""}
                         onChange={(v) => setT({ nfce_csc_id: v })}
+                        autoComplete="off"
                         mono
                       />
                     </Field>
@@ -1609,6 +1616,7 @@ export default function Settings() {
                         value={tenant?.nfce_csc_token ?? ""}
                         onChange={(v) => setT({ nfce_csc_token: v })}
                         type="password"
+                        autoComplete="new-password"
                         mono
                       />
                     </Field>
