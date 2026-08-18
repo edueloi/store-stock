@@ -78,6 +78,7 @@ export interface ServiceOrder {
   customer_id: number | null;
   customer_name: string;
   customer_phone: string | null;
+  has_equipment: boolean;
   equipment_category: string;
   equipment_type: string | null;
   equipment_brand: string | null;
@@ -327,6 +328,7 @@ ${header}
   </div>
 </div>
 
+${so.has_equipment ? `
 <div class="doc-section">
   <div class="doc-section-label">Equipamento / Serviço</div>
   <div class="doc-info-grid">
@@ -337,7 +339,7 @@ ${header}
     ${so.equipment_serial ? `<div class="doc-info-row">Série/IMEI: <b>${so.equipment_serial}</b></div>` : ""}
   </div>
   ${so.equipment_accessories ? `<div class="doc-obs-box"><b>Acessórios:</b> ${so.equipment_accessories}</div>` : ""}
-</div>
+</div>` : ""}
 
 ${so.reported_issue ? `
 <div class="doc-section">

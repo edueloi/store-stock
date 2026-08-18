@@ -128,6 +128,7 @@ export async function createServiceOrder(req: Request, res: Response) {
       customer_id,
       customer_name,
       customer_phone,
+      has_equipment,
       equipment_category,
       equipment_type,
       equipment_brand,
@@ -148,6 +149,7 @@ export async function createServiceOrder(req: Request, res: Response) {
       customer_id?: number;
       customer_name?: string;
       customer_phone?: string;
+      has_equipment?: boolean;
       equipment_category?: string;
       equipment_type?: string;
       equipment_brand?: string;
@@ -166,8 +168,11 @@ export async function createServiceOrder(req: Request, res: Response) {
       parts?: Array<{ product_id: number; quantity: number }>;
     };
 
-    // Sem cliente/categoria: nasce como rascunho, preenchido aos poucos na tela de detalhe.
-    const isDraft = !customer_name || !equipment_category;
+    const requiresEquipment = has_equipment !== false;
+
+    // Sem cliente/categoria (quando o atendimento envolve equipamento): nasce como
+    // rascunho, preenchido aos poucos na tela de detalhe.
+    const isDraft = !customer_name || (requiresEquipment && !equipment_category);
 
     // Server-side checklist instantiation — never trust client-submitted labels
     const tenant = await prisma.tenant.findUnique({ where: { id: tenantId }, select: { policies: true } });
@@ -210,6 +215,7 @@ export async function createServiceOrder(req: Request, res: Response) {
         customer_id: customer_id || null,
         customer_name: customer_name || "",
         customer_phone: customer_phone || null,
+        has_equipment: requiresEquipment,
         equipment_category: equipment_category || "",
         equipment_type: equipment_type || null,
         equipment_brand: equipment_brand || null,
@@ -269,6 +275,7 @@ export async function updateServiceOrder(req: Request, res: Response) {
       customer_id,
       customer_name,
       customer_phone,
+      has_equipment,
       equipment_category,
       equipment_type,
       equipment_brand,
@@ -294,6 +301,7 @@ export async function updateServiceOrder(req: Request, res: Response) {
     if (customer_id !== undefined) data.customer_id = customer_id || null;
     if (customer_name !== undefined) data.customer_name = customer_name;
     if (customer_phone !== undefined) data.customer_phone = customer_phone || null;
+    if (has_equipment !== undefined) data.has_equipment = !!has_equipment;
     if (equipment_category !== undefined) data.equipment_category = equipment_category || "";
     if (equipment_type !== undefined) data.equipment_type = equipment_type || null;
     if (equipment_brand !== undefined) data.equipment_brand = equipment_brand || null;
@@ -424,9 +432,12 @@ export async function updateServiceOrderStatus(req: Request, res: Response) {
 
     // Sair do rascunho exige os dados mínimos para iniciar o atendimento.
     if (order.status === "rascunho" && status === "orcamento_enviado") {
-      if (!order.customer_name || !order.equipment_category || !order.reported_issue) {
+      const missingEquipment = order.has_equipment && !order.equipment_category;
+      if (!order.customer_name || missingEquipment || !order.reported_issue) {
         return res.status(400).json({
-          error: "Preencha cliente, categoria do equipamento e problema relatado antes de iniciar o atendimento",
+          error: missingEquipment
+            ? "Preencha cliente, categoria do equipamento e problema relatado antes de iniciar o atendimento"
+            : "Preencha cliente e problema relatado antes de iniciar o atendimento",
         });
       }
     }

@@ -891,6 +891,9 @@ model ServiceOrder {
   customer_name         String    @default("")
   customer_phone        String?
 
+  // Nem todo atendimento envolve um aparelho (ex.: reparo de piso/calçada) — quando
+  // false, os campos de equipamento abaixo não são exigidos pra iniciar o atendimento.
+  has_equipment         Boolean   @default(true)
   equipment_category    String    @default("")
   equipment_type        String?
   equipment_brand       String?

@@ -155,7 +155,9 @@ export default function ServiceOrders() {
                     <td className="px-4 py-3 font-mono font-bold text-slate-700">#{String(o.number).padStart(4, "0")}</td>
                     <td className="px-4 py-3 font-semibold text-slate-700">{o.customer_name || "—"}</td>
                     <td className="px-4 py-3 text-slate-500">
-                      {o.equipment_category}{o.equipment_brand ? ` — ${o.equipment_brand}` : ""}{o.equipment_model ? ` ${o.equipment_model}` : ""}
+                      {o.has_equipment
+                        ? `${o.equipment_category}${o.equipment_brand ? ` — ${o.equipment_brand}` : ""}${o.equipment_model ? ` ${o.equipment_model}` : ""}`
+                        : <span className="italic text-slate-400">Sem equipamento</span>}
                     </td>
                     <td className="px-4 py-3">
                       <span className={cn("inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider", STATUS_META[o.status].color)}>

@@ -78,6 +78,9 @@ export default function ServiceOrderDetail() {
   const [customerName, setCustomerName] = useState("");
   const [customerId, setCustomerId] = useState<number | null>(null);
   const [customerPhone, setCustomerPhone] = useState("");
+  // Nem todo atendimento envolve um aparelho (ex.: reparo de piso/calçada) — quando
+  // false, os campos de equipamento abaixo não são exigidos pra iniciar o atendimento.
+  const [hasEquipment, setHasEquipment] = useState(true);
   const [equipmentCategory, setEquipmentCategory] = useState("");
   const [equipmentType, setEquipmentType] = useState("");
   const [equipmentBrand, setEquipmentBrand] = useState("");
@@ -165,6 +168,7 @@ export default function ServiceOrderDetail() {
     setCustomerName(so.customer_name);
     setCustomerId(so.customer_id);
     setCustomerPhone(so.customer_phone ?? "");
+    setHasEquipment(so.has_equipment ?? true);
     setEquipmentCategory(so.equipment_category);
     setEquipmentType(so.equipment_type ?? "");
     setEquipmentBrand(so.equipment_brand ?? "");
@@ -342,7 +346,7 @@ export default function ServiceOrderDetail() {
     }
   };
 
-  const canStartService = !!customerName && !!equipmentCategory && !!reportedIssue;
+  const canStartService = !!customerName && (!hasEquipment || !!equipmentCategory) && !!reportedIssue;
 
   // ── Parts ───────────────────────────────────────────────────────────────
   const isMeasuredProduct = !!partSelectedProduct?.sale_unit && partSelectedProduct.sale_unit !== "unidade";
@@ -677,7 +681,9 @@ export default function ServiceOrderDetail() {
                   Descartar rascunho
                 </button>
                 {!canStartService && (
-                  <span className="text-[10px] text-slate-400">Preencha cliente, categoria e defeito relatado</span>
+                  <span className="text-[10px] text-slate-400">
+                    {hasEquipment ? "Preencha cliente, categoria e defeito relatado" : "Preencha cliente e defeito relatado"}
+                  </span>
                 )}
               </div>
             ) : (
@@ -804,44 +810,71 @@ export default function ServiceOrderDetail() {
 
           {/* Equipamento */}
           <div className="bg-white rounded-2xl border border-slate-200 p-5 space-y-3">
-            <p className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400">Equipamento</p>
-            <div className="flex gap-2">
-              <div className="flex-1 min-w-0">
-                <Combobox
-                  placeholder="Selecionar categoria..."
-                  searchPlaceholder="Buscar categoria..."
-                  value={equipmentCategory}
-                  onChange={(v) => {
-                    setEquipmentCategory(v);
-                    autosaveField({ equipment_category: v }, "equipment_category");
-                  }}
-                  options={categoryOptions}
-                  hint={categoryOptions.length === 0 ? "Nenhuma categoria ainda — clique em + para criar" : undefined}
-                />
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400">Equipamento</p>
+              <div className="flex items-center gap-1 bg-slate-100 rounded-lg p-0.5">
+                {([
+                  { v: true, label: "Tem equipamento" },
+                  { v: false, label: "Sem equipamento" },
+                ] as const).map(({ v, label }) => (
+                  <button
+                    key={String(v)}
+                    type="button"
+                    onClick={() => {
+                      setHasEquipment(v);
+                      autosaveField({ has_equipment: v }, "has_equipment");
+                    }}
+                    className={cn(
+                      "h-6 px-2 rounded-md text-[8px] font-black uppercase tracking-wide transition-all",
+                      hasEquipment === v ? "bg-slate-900 text-white shadow-sm" : "text-slate-500 hover:text-slate-700"
+                    )}
+                  >
+                    {label}
+                  </button>
+                ))}
               </div>
-              <button
-                type="button"
-                onClick={() => { setNcatName(""); setNcatItems([""]); setShowNewCategory(true); }}
-                className="h-10 w-10 rounded-xl bg-blue-50 border border-blue-200 text-blue-600 hover:bg-blue-100 flex items-center justify-center shrink-0 transition-colors"
-                title="Criar nova categoria"
-              >
-                <PlusCircle size={15} />
-              </button>
             </div>
-            <div className="grid grid-cols-2 gap-2">
-              <input value={equipmentType} onChange={(e) => setEquipmentType(e.target.value)} onBlur={() => autosaveField({ equipment_type: equipmentType || null }, "equipment_type")} placeholder="Tipo (ex: Notebook Gamer)" className="h-10 px-3 rounded-xl border border-slate-200 text-[12px] font-medium focus:outline-none focus:border-blue-400" />
-              <input value={equipmentBrand} onChange={(e) => setEquipmentBrand(e.target.value)} onBlur={() => autosaveField({ equipment_brand: equipmentBrand || null }, "equipment_brand")} placeholder="Marca" className="h-10 px-3 rounded-xl border border-slate-200 text-[12px] font-medium focus:outline-none focus:border-blue-400" />
-              <input value={equipmentModel} onChange={(e) => setEquipmentModel(e.target.value)} onBlur={() => autosaveField({ equipment_model: equipmentModel || null }, "equipment_model")} placeholder="Modelo" className="h-10 px-3 rounded-xl border border-slate-200 text-[12px] font-medium focus:outline-none focus:border-blue-400" />
-              <input value={equipmentSerial} onChange={(e) => setEquipmentSerial(e.target.value)} onBlur={() => autosaveField({ equipment_serial: equipmentSerial || null }, "equipment_serial")} placeholder="Série / IMEI" className="h-10 px-3 rounded-xl border border-slate-200 text-[12px] font-medium focus:outline-none focus:border-blue-400" />
-            </div>
-            <textarea
-              value={equipmentAccessories}
-              onChange={(e) => setEquipmentAccessories(e.target.value)}
-              onBlur={() => autosaveField({ equipment_accessories: equipmentAccessories || null }, "equipment_accessories")}
-              placeholder="Acessórios entregues junto (carregador, capa, etc.)"
-              rows={2}
-              className="w-full px-3 py-2 rounded-xl border border-slate-200 text-[12px] font-medium focus:outline-none focus:border-blue-400 resize-none"
-            />
+            {hasEquipment && (
+              <>
+                <div className="flex gap-2">
+                  <div className="flex-1 min-w-0">
+                    <Combobox
+                      placeholder="Selecionar categoria..."
+                      searchPlaceholder="Buscar categoria..."
+                      value={equipmentCategory}
+                      onChange={(v) => {
+                        setEquipmentCategory(v);
+                        autosaveField({ equipment_category: v }, "equipment_category");
+                      }}
+                      options={categoryOptions}
+                      hint={categoryOptions.length === 0 ? "Nenhuma categoria ainda — clique em + para criar" : undefined}
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => { setNcatName(""); setNcatItems([""]); setShowNewCategory(true); }}
+                    className="h-10 w-10 rounded-xl bg-blue-50 border border-blue-200 text-blue-600 hover:bg-blue-100 flex items-center justify-center shrink-0 transition-colors"
+                    title="Criar nova categoria"
+                  >
+                    <PlusCircle size={15} />
+                  </button>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <input value={equipmentType} onChange={(e) => setEquipmentType(e.target.value)} onBlur={() => autosaveField({ equipment_type: equipmentType || null }, "equipment_type")} placeholder="Tipo (ex: Notebook Gamer)" className="h-10 px-3 rounded-xl border border-slate-200 text-[12px] font-medium focus:outline-none focus:border-blue-400" />
+                  <input value={equipmentBrand} onChange={(e) => setEquipmentBrand(e.target.value)} onBlur={() => autosaveField({ equipment_brand: equipmentBrand || null }, "equipment_brand")} placeholder="Marca" className="h-10 px-3 rounded-xl border border-slate-200 text-[12px] font-medium focus:outline-none focus:border-blue-400" />
+                  <input value={equipmentModel} onChange={(e) => setEquipmentModel(e.target.value)} onBlur={() => autosaveField({ equipment_model: equipmentModel || null }, "equipment_model")} placeholder="Modelo" className="h-10 px-3 rounded-xl border border-slate-200 text-[12px] font-medium focus:outline-none focus:border-blue-400" />
+                  <input value={equipmentSerial} onChange={(e) => setEquipmentSerial(e.target.value)} onBlur={() => autosaveField({ equipment_serial: equipmentSerial || null }, "equipment_serial")} placeholder="Série / IMEI" className="h-10 px-3 rounded-xl border border-slate-200 text-[12px] font-medium focus:outline-none focus:border-blue-400" />
+                </div>
+                <textarea
+                  value={equipmentAccessories}
+                  onChange={(e) => setEquipmentAccessories(e.target.value)}
+                  onBlur={() => autosaveField({ equipment_accessories: equipmentAccessories || null }, "equipment_accessories")}
+                  placeholder="Acessórios entregues junto (carregador, capa, etc.)"
+                  rows={2}
+                  className="w-full px-3 py-2 rounded-xl border border-slate-200 text-[12px] font-medium focus:outline-none focus:border-blue-400 resize-none"
+                />
+              </>
+            )}
 
             <div>
               <label className="text-[9px] font-black uppercase tracking-[0.2em] text-amber-500 mb-1.5 block">Defeito Relatado pelo Cliente</label>
