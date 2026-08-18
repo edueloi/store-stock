@@ -636,6 +636,13 @@ export default function PDV() {
     setCart(cart.map((item) => item.cartItemId !== cartItemId ? item : { ...item, quantity: clamped }).filter(Boolean));
   };
 
+  // Edição manual do preço unitário na tela de pagamento (ex.: negociar valor com o
+  // cliente) — não altera o preço de tabela do produto, só o desta venda.
+  const updateItemPrice = (cartItemId: string, value: number) => {
+    const clamped = Math.max(0, value);
+    setCart(cart.map((item) => item.cartItemId !== cartItemId ? item : { ...item, price: clamped }));
+  };
+
   const removeFromCart = (cartItemId: string) => setCart(cart.filter((i) => i.cartItemId !== cartItemId));
 
   // ── totals ────────────────────────────────────────────────────────────────────
@@ -2567,7 +2574,18 @@ export default function PDV() {
                                 <p className="text-[12px] font-semibold text-slate-700 truncate leading-tight">{item.name}</p>
                                 {item.variationLabel && <p className="text-[9px] font-bold text-blue-500 truncate">{item.variationLabel}</p>}
                               </td>
-                              <td className="px-2 py-2 text-[11px] font-mono text-slate-500 text-right whitespace-nowrap">R$ {item.price.toFixed(2)}</td>
+                              <td className="px-2 py-2 text-right whitespace-nowrap">
+                                <div className="inline-flex items-center gap-0.5">
+                                  <span className="text-[10px] font-mono text-slate-400">R$</span>
+                                  <input
+                                    type="number" min={0} step="0.01"
+                                    value={item.price}
+                                    onChange={(e) => updateItemPrice(item.cartItemId, parseFloat(e.target.value) || 0)}
+                                    onFocus={(e) => e.target.select()}
+                                    className="w-14 text-[11px] font-mono text-slate-700 text-right bg-transparent border-b border-dashed border-slate-300 focus:border-blue-500 focus:outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                                  />
+                                </div>
+                              </td>
                               <td className="px-2 py-2">
                                 <div className="flex items-center justify-center gap-0.5 bg-slate-100 border border-slate-200 rounded-lg p-0.5 mx-auto w-fit">
                                   <button onClick={() => updateQuantity(item.cartItemId, -1)} className="p-1 hover:bg-white rounded text-slate-500"><Minus size={9} /></button>
