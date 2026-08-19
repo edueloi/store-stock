@@ -1419,6 +1419,14 @@ export default function Settings() {
                     Dados da Empresa
                   </p>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                    <Field label="CPF / CNPJ" hint="Identifica o emitente perante a SEFAZ — editável em Identidade & Dados">
+                      <TextInput
+                        value={tenant?.document ?? ""}
+                        onChange={(v) => setT({ document: maskDocument(v) })}
+                        placeholder="00.000.000/0001-00"
+                        mono
+                      />
+                    </Field>
                     <Field label="Razão Social" hint="Nome jurídico oficial, usado na tag xNome do XML">
                       <TextInput
                         value={tenant?.razao_social ?? ""}
