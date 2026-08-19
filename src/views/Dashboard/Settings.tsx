@@ -745,6 +745,7 @@ export default function Settings() {
 
   const showSaved = () => {
     setSaved(true);
+    toast.success("Configurações salvas com sucesso!");
     setTimeout(() => setSaved(false), 2500);
   };
 

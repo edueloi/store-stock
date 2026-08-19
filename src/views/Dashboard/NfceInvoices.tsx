@@ -424,9 +424,21 @@ export default function NfceInvoices() {
                     <td className="px-4 py-2.5 text-xs font-bold text-slate-700">{inv.order?.customer_name || "Consumidor Final"}</td>
                     <td className="px-4 py-2.5 text-[10px] font-mono text-slate-400 truncate max-w-[220px]">{inv.access_key || "—"}</td>
                     <td className="px-4 py-2.5">
-                      <span className={cn("inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wide", meta.bg, meta.color)}>
+                      <span
+                        title={(inv.status === "error" || inv.status === "rejected") ? (inv.rejection_reason ?? undefined) : undefined}
+                        className={cn(
+                          "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wide",
+                          meta.bg, meta.color,
+                          (inv.status === "error" || inv.status === "rejected") && inv.rejection_reason && "cursor-help",
+                        )}
+                      >
                         {meta.icon} {meta.label}
                       </span>
+                      {(inv.status === "error" || inv.status === "rejected") && inv.rejection_reason && (
+                        <p className="text-[10px] text-rose-500 font-medium mt-1 max-w-[260px] truncate" title={inv.rejection_reason}>
+                          {inv.rejection_reason}
+                        </p>
+                      )}
                     </td>
                     <td className="px-4 py-2.5 text-xs text-slate-500">
                       {inv.authorized_at ? new Date(inv.authorized_at).toLocaleString("pt-BR") : "—"}

@@ -99,7 +99,17 @@ export async function emitirNfce(orderId: number): Promise<void> {
         `[emitirNfce] SEFAZ rejeitou — status=${result.statusCode} tenant=${tenant.id} order=${orderId} env=${environment}`,
         result.error || result.rawResponse?.slice(0, 1000) || "(sem corpo)",
       );
-      throw new Error(result.error || `Falha na comunicação com a SEFAZ (HTTP ${result.statusCode})`);
+      // Uma página de erro do IIS (em vez de um retorno SOAP com cStat/xMotivo) indica
+      // rejeição de infraestrutura/credenciamento da SEFAZ, não um problema de dados da
+      // nota — mensagem genérica de "falha de comunicação" seria enganosa aqui.
+      const isInfraFailure = !result.error && result.rawResponse && /<html/i.test(result.rawResponse);
+      throw new Error(
+        isInfraFailure
+          ? `A SEFAZ-SP recusou a conexão (HTTP ${result.statusCode}), sem retornar um erro de validação da nota. ` +
+            "Causa mais comum: o CNPJ/certificado ainda não está credenciado para emissão de NFC-e junto à SEFAZ-SP " +
+            "(credenciamento feito no Posto Fiscal ou no portal da Sefaz-SP, é anterior e separado do certificado digital)."
+          : (result.error || `Falha na comunicação com a SEFAZ (HTTP ${result.statusCode})`),
+      );
     }
 
     const cStat = extractTag(result.rawResponse, "cStat");
