@@ -95,6 +95,10 @@ export async function emitirNfce(orderId: number): Promise<void> {
     });
 
     if (!result.ok) {
+      console.error(
+        `[emitirNfce] SEFAZ rejeitou — status=${result.statusCode} tenant=${tenant.id} order=${orderId} env=${environment}`,
+        result.error || result.rawResponse?.slice(0, 1000) || "(sem corpo)",
+      );
       throw new Error(result.error || `Falha na comunicação com a SEFAZ (HTTP ${result.statusCode})`);
     }
 
