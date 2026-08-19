@@ -92,9 +92,13 @@ export async function callSefazSoap(input: SoapCallInput): Promise<SoapCallResul
     const response = await axios.post(url, envelope, {
       httpsAgent,
       timeout: timeoutMs,
+      // O envelope é SOAP 1.2 (namespace soap-envelope), cuja especificação exige que a
+      // action vá dentro do parâmetro "action" do Content-Type — não no header SOAPAction
+      // separado (isso é convenção do SOAP 1.1). Vários endpoints ASMX .NET (como os da
+      // SEFAZ) rejeitam a requisição com 403 puro do IIS, antes de chegar na aplicação,
+      // quando essa combinação vem errada.
       headers: {
-        "Content-Type": "application/soap+xml; charset=utf-8",
-        SOAPAction: SOAP_ACTIONS[service],
+        "Content-Type": `application/soap+xml; charset=utf-8; action="${SOAP_ACTIONS[service]}"`,
       },
       validateStatus: () => true,
     });
