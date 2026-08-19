@@ -1,7 +1,9 @@
 import https from "https";
+import tls from "tls";
 import axios from "axios";
 
 import { loadPfx } from "./signer";
+import { ICP_BRASIL_ROOT_CA } from "./icpBrasilCa";
 
 // URLs dos webservices NFC-e da SEFAZ-SP (versão 4.00)
 const URLS = {
@@ -75,9 +77,14 @@ export async function callSefazSoap(input: SoapCallInput): Promise<SoapCallResul
     return { ok: false, statusCode: 0, rawResponse: "", error: `Certificado inválido: ${message}` };
   }
 
+  // A SEFAZ-SP (e outros hosts fiscais brasileiros) usa certificados TLS emitidos sob a
+  // raiz ICP-Brasil, que não faz parte do bundle padrão de CAs confiáveis do Node — sem
+  // incluí-la explicitamente aqui, a validação da conexão falha com "unable to get local
+  // issuer certificate" mesmo com o certificado do servidor sendo legítimo.
   const httpsAgent = new https.Agent({
     key: cert.privateKeyPem,
     cert: cert.certificatePem + (cert.chainPem || ""),
+    ca: [...tls.rootCertificates, ICP_BRASIL_ROOT_CA],
     rejectUnauthorized: true,
   });
 

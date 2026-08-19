@@ -174,6 +174,7 @@ export async function emitirNfce(orderId: number): Promise<void> {
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
+    console.error(`[emitirNfce] erro — tenant=${tenant.id} order=${orderId}:`, err);
     await prisma.nfceInvoice.update({
       where: { id: invoice.id },
       data: { status: "error", rejection_reason: message },

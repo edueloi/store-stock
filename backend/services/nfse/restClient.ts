@@ -1,8 +1,10 @@
 import https from "https";
+import tls from "tls";
 import zlib from "zlib";
 import axios from "axios";
 
 import { loadPfx } from "../nfce/signer";
+import { ICP_BRASIL_ROOT_CA } from "../nfce/icpBrasilCa";
 
 // Sistema Nacional NFS-e — comunicação REST+JSON, autenticação mTLS (o certificado do
 // contribuinte identifica quem está conectando na própria camada TLS). São dois serviços
@@ -72,9 +74,12 @@ export async function callNfseRest(input: NfseRestCallInput): Promise<NfseRestCa
 
   // Envia o certificado do titular + cadeia intermediária concatenados — o servidor
   // mTLS precisa da cadeia completa para validar a confiança até a raiz ICP-Brasil.
+  // Mesma raiz ICP-Brasil usada pelo cliente SOAP da NFC-e (ver soapClient.ts/icpBrasilCa.ts)
+  // — alguns hosts do Sistema Nacional NFS-e também podem depender dela na cadeia TLS.
   const httpsAgent = new https.Agent({
     key: cert.privateKeyPem,
     cert: cert.certificatePem + (cert.chainPem || ""),
+    ca: [...tls.rootCertificates, ICP_BRASIL_ROOT_CA],
     rejectUnauthorized: true,
   });
 
