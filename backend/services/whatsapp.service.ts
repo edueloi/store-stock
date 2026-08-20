@@ -1864,6 +1864,32 @@ export async function logoutBaileysSession(tenantId: number) {
   await sendBaileysRequest(tenantId, `/sessions/${tenantId}/logout`, {});
 }
 
+// Envia um PDF (ex.: comprovante de venda do PDV) direto pelo bot próprio — só faz
+// sentido para Baileys (o único provider realmente em uso, ver comentário abaixo);
+// não passa pelo `sendProviderRequest` genérico porque o payload de documento (base64)
+// não tem equivalente no mapeamento de endpoints do Evolution.
+export async function sendWhatsappDocument(
+  tenantId: number,
+  number: string,
+  base64: string,
+  fileName: string,
+  caption?: string,
+) {
+  const normalizedPhone = normalizePhone(number);
+  if (!normalizedPhone) {
+    throw new Error("Informe um número de WhatsApp válido.");
+  }
+  if (!base64) {
+    throw new Error("Conteúdo do PDF é obrigatório.");
+  }
+
+  await sendBaileysRequest(tenantId, `/sessions/${tenantId}/send`, {
+    number: normalizedPhone,
+    messageType: "document",
+    payload: { base64, fileName, mimetype: "application/pdf", caption },
+  });
+}
+
 // Baileys é o único caminho de conexão oferecido hoje — Evolution nunca chegou a ser
 // configurado por nenhum tenant e fica só como fallback legado (acessível via
 // pingWhatsappEvolution para quem ainda tiver credenciais salvas manualmente). Por

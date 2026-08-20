@@ -12,6 +12,7 @@ import {
   pingWhatsappProvider,
   saveWhatsappWorkspace,
   sendWhatsappConversationMessageHandler,
+  sendWhatsappDocumentHandler,
   sendWhatsappMenuTest,
   updateWhatsappAgentHandler,
   whatsappWebhookHandler,
@@ -30,6 +31,7 @@ router.post("/ping", pingWhatsappProvider);
 router.get("/connection-status", getWhatsappConnectionStatusHandler);
 router.post("/connect", connectWhatsappHandler);
 router.post("/test-menu", sendWhatsappMenuTest);
+router.post("/send-document", sendWhatsappDocumentHandler);
 
 router.post("/agents", createWhatsappAgentHandler);
 router.patch("/agents/:id", updateWhatsappAgentHandler);

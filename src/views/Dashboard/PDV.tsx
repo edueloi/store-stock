@@ -16,6 +16,7 @@ import { SERVICE_CATEGORIES, SERVICE_UNITS } from "./Services";
 import { computeMeasuredPrice } from "../../utils/measurePricing";
 import { productHasStock } from "../../utils/productStock";
 import { fetchCurrentCashSession, openCashSession as apiOpenCashSession, closeCashSession as apiCloseCashSession, CashSessionInfo } from "../../lib/cashSession";
+import { htmlToPdfBase64 } from "../../lib/pdf";
 import OpenCashSessionScreen from "../../components/pdv/OpenCashSessionScreen";
 import CloseCashSessionModal from "../../components/pdv/CloseCashSessionModal";
 import HeldSalesDrawer from "../../components/pdv/HeldSalesDrawer";
@@ -282,6 +283,10 @@ export default function PDV() {
   const [printError, setPrintError]       = useState<string | null>(null);
   const [whatsappPhone, setWhatsappPhone] = useState("");
   const [showPhoneInput, setShowPhoneInput] = useState(false);
+  const [waBotConnected, setWaBotConnected] = useState<boolean | null>(null);
+  const [waSending, setWaSending]         = useState(false);
+  const [waSendError, setWaSendError]     = useState<string | null>(null);
+  const [waSent, setWaSent]               = useState(false);
 
   // right panel
   const [recentOrders, setRecentOrders]   = useState<RecentOrder[]>([]);
@@ -1297,6 +1302,38 @@ export default function PDV() {
     ].filter((l) => l !== null).join("\n");
   };
 
+  const handleSendWhatsappDocument = async () => {
+    if (!completedSale || waSending) return;
+    const cleaned = whatsappPhone.replace(/\D/g, "");
+    const full = cleaned.startsWith("55") ? cleaned : `55${cleaned}`;
+    setWaSending(true);
+    setWaSendError(null);
+    setWaSent(false);
+    try {
+      const base64 = await htmlToPdfBase64(buildPDFHtml(completedSale));
+      const res = await fetch("/api/whatsapp/send-document", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          number: full,
+          base64,
+          fileName: `comprovante-${completedSale.orderId}.pdf`,
+          caption: `Comprovante da compra #${String(completedSale.orderId).padStart(5, "0")} — ${completedSale.tenantName}`,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setWaSendError(data?.error || "Não foi possível enviar pelo WhatsApp.");
+        return;
+      }
+      setWaSent(true);
+    } catch {
+      setWaSendError("Erro de conexão ao enviar pelo WhatsApp.");
+    } finally {
+      setWaSending(false);
+    }
+  };
+
   const printViaIframe = (html: string, delay = 400) => {
     const iframe = document.createElement("iframe");
     Object.assign(iframe.style, { position: "fixed", right: "0", bottom: "0", width: "0", height: "0", border: "none" });
@@ -1430,6 +1467,7 @@ export default function PDV() {
         setShowCheckout(false);
         setShowReceipt(true);
         setWhatsappPhone(""); setShowPhoneInput(false);
+        setWaSending(false); setWaSendError(null); setWaSent(false);
         if (activeHeldSaleId) {
           setActiveHeldSaleId(null);
           if (token) getOpenHeldSalesCount(token).then(setOpenHeldSalesCount).catch(() => {});
@@ -3418,7 +3456,16 @@ export default function PDV() {
                   <ChevronRight size={15} className="text-slate-300 group-hover:text-slate-500 shrink-0" />
                 </button>
 
-                <button onClick={() => setShowPhoneInput(!showPhoneInput)}
+                <button onClick={() => {
+                  const next = !showPhoneInput;
+                  setShowPhoneInput(next);
+                  if (next && waBotConnected === null) {
+                    fetch("/api/whatsapp/connection-status", { headers: { Authorization: `Bearer ${token}` } })
+                      .then((r) => r.json())
+                      .then((d) => setWaBotConnected(Boolean(d?.connected)))
+                      .catch(() => setWaBotConnected(false));
+                  }
+                }}
                   className={cn("w-full flex items-center gap-3.5 h-16 border rounded-2xl px-4 transition-all group active:scale-[0.98]",
                     showPhoneInput ? "bg-emerald-50 border-emerald-300" : "bg-slate-50 hover:bg-slate-100 border-slate-200 hover:border-slate-300")}>
                   <div className={cn("w-10 h-10 rounded-xl flex items-center justify-center shrink-0 transition-colors", showPhoneInput ? "bg-emerald-600" : "bg-emerald-500 group-hover:bg-emerald-600")}>
@@ -3439,18 +3486,38 @@ export default function PDV() {
                           <Phone className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
                           <input type="tel" placeholder="(11) 99999-9999"
                             className="w-full pl-9 pr-4 h-12 bg-white border border-emerald-300 rounded-xl focus:outline-none focus:border-emerald-500 text-[13px] font-medium text-slate-800 placeholder:text-slate-400 transition-all"
-                            value={whatsappPhone} onChange={(e) => setWhatsappPhone(maskPhone(e.target.value))} />
+                            value={whatsappPhone} onChange={(e) => { setWhatsappPhone(maskPhone(e.target.value)); setWaSent(false); setWaSendError(null); }} />
                         </div>
-                        <button onClick={() => {
-                          const cleaned = whatsappPhone.replace(/\D/g, "");
-                          const full = cleaned.startsWith("55") ? cleaned : `55${cleaned}`;
-                          window.open(`https://wa.me/${full}?text=${encodeURIComponent(buildWhatsAppText(completedSale))}`, "_blank", "noopener,noreferrer");
-                        }}
-                          disabled={whatsappPhone.replace(/\D/g, "").length < 10}
-                          className="h-12 px-5 bg-emerald-600 disabled:bg-slate-200 disabled:text-slate-400 text-white rounded-xl font-black text-[11px] uppercase tracking-widest flex items-center gap-2 transition-all hover:bg-emerald-700 disabled:cursor-not-allowed shrink-0 shadow-lg shadow-emerald-500/25 active:scale-95">
-                          <MessageCircle size={14} /> Enviar
-                        </button>
+                        {waBotConnected ? (
+                          <button onClick={handleSendWhatsappDocument}
+                            disabled={whatsappPhone.replace(/\D/g, "").length < 10 || waSending}
+                            className="h-12 px-5 bg-emerald-600 disabled:bg-slate-200 disabled:text-slate-400 text-white rounded-xl font-black text-[11px] uppercase tracking-widest flex items-center gap-2 transition-all hover:bg-emerald-700 disabled:cursor-not-allowed shrink-0 shadow-lg shadow-emerald-500/25 active:scale-95">
+                            {waSending ? <Loader2 size={14} className="animate-spin" /> : <MessageCircle size={14} />}
+                            {waSending ? "Enviando..." : "Enviar PDF"}
+                          </button>
+                        ) : (
+                          <button onClick={() => {
+                            const cleaned = whatsappPhone.replace(/\D/g, "");
+                            const full = cleaned.startsWith("55") ? cleaned : `55${cleaned}`;
+                            window.open(`https://wa.me/${full}?text=${encodeURIComponent(buildWhatsAppText(completedSale))}`, "_blank", "noopener,noreferrer");
+                          }}
+                            disabled={whatsappPhone.replace(/\D/g, "").length < 10}
+                            className="h-12 px-5 bg-emerald-600 disabled:bg-slate-200 disabled:text-slate-400 text-white rounded-xl font-black text-[11px] uppercase tracking-widest flex items-center gap-2 transition-all hover:bg-emerald-700 disabled:cursor-not-allowed shrink-0 shadow-lg shadow-emerald-500/25 active:scale-95">
+                            <MessageCircle size={14} /> Enviar
+                          </button>
+                        )}
                       </div>
+                      {waBotConnected === false && (
+                        <p className="text-[9px] text-slate-400 font-medium pt-1.5 px-1">
+                          Bot do WhatsApp não conectado — abrindo link manual (só texto, sem o PDF anexado).
+                        </p>
+                      )}
+                      {waSendError && (
+                        <p className="text-[9px] text-rose-500 font-bold pt-1.5 px-1">{waSendError}</p>
+                      )}
+                      {waSent && (
+                        <p className="text-[9px] text-emerald-600 font-bold pt-1.5 px-1">PDF enviado pelo WhatsApp!</p>
+                      )}
                     </motion.div>
                   )}
                 </AnimatePresence>

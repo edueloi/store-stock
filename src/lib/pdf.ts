@@ -1,4 +1,8 @@
-export async function downloadHtmlAsPdf(html: string, filename: string) {
+// jsPDF é `any`-tipado no import dinâmico (sem @types específico usado aqui) — os
+// dois usos abaixo (download e base64) reaproveitam a mesma renderização (iframe +
+// html2canvas + paginação), só divergindo no output final.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function buildPdfFromHtml(html: string): Promise<any> {
   const container = document.createElement("div");
   container.style.cssText = "position:fixed;left:-9999px;top:0;width:794px;background:#fff;";
   document.body.appendChild(container);
@@ -53,8 +57,22 @@ export async function downloadHtmlAsPdf(html: string, filename: string) {
       }
     }
 
-    pdf.save(filename);
+    return pdf;
   } finally {
     document.body.removeChild(container);
   }
+}
+
+export async function downloadHtmlAsPdf(html: string, filename: string) {
+  const pdf = await buildPdfFromHtml(html);
+  pdf.save(filename);
+}
+
+// Usado para anexar o PDF em envios automáticos (ex.: bot do WhatsApp), que precisam
+// do conteúdo bruto em vez de disparar um download no navegador do caixa.
+export async function htmlToPdfBase64(html: string): Promise<string> {
+  const pdf = await buildPdfFromHtml(html);
+  const dataUri: string = pdf.output("datauristring");
+  const base64 = dataUri.split(",")[1] ?? "";
+  return base64;
 }

@@ -51,7 +51,7 @@ router.post("/sessions/:tenantId/send", async (req, res) => {
   const tenantId = Number(req.params.tenantId);
   const { number, messageType, payload } = req.body as {
     number?: string;
-    messageType?: "text" | "buttons" | "list";
+    messageType?: "text" | "buttons" | "list" | "document";
     payload?: Record<string, unknown>;
   };
 

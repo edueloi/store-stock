@@ -11,6 +11,7 @@ import {
   getWhatsappOverview,
   pingWhatsappEvolution,
   processWhatsappWebhook,
+  sendWhatsappDocument,
   sendWhatsappManualMessage,
   sendWhatsappTestMenu,
   updateWhatsappAgent,
@@ -117,6 +118,33 @@ export async function sendWhatsappMenuTest(req: Request, res: Response) {
 
   try {
     await sendWhatsappTestMenu(tenantId, phone);
+    res.json({ ok: true });
+  } catch (error) {
+    res.status(400).json({ error: getErrorMessage(error) });
+  }
+}
+
+// Envia um PDF (ex.: comprovante de venda do PDV) pelo bot próprio do WhatsApp.
+export async function sendWhatsappDocumentHandler(req: Request, res: Response) {
+  const tenantId = getTenantId(req);
+  const { number, base64, fileName, caption } = req.body as {
+    number?: string;
+    base64?: string;
+    fileName?: string;
+    caption?: string;
+  };
+
+  if (!tenantId) {
+    res.sendStatus(403);
+    return;
+  }
+  if (!number || !base64 || !fileName) {
+    res.status(422).json({ error: "Informe número, arquivo (base64) e nome do arquivo." });
+    return;
+  }
+
+  try {
+    await sendWhatsappDocument(tenantId, number, base64, fileName, caption);
     res.json({ ok: true });
   } catch (error) {
     res.status(400).json({ error: getErrorMessage(error) });

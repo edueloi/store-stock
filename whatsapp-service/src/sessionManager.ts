@@ -195,7 +195,7 @@ export async function logout(tenantId: number) {
 export async function sendMessage(
   tenantId: number,
   number: string,
-  messageType: "text" | "buttons" | "list",
+  messageType: "text" | "buttons" | "list" | "document",
   payload: Record<string, unknown>,
 ) {
   const entry = sessions.get(tenantId);
@@ -211,6 +211,15 @@ export async function sendMessage(
   let content: Record<string, unknown>;
   if (messageType === "text") {
     content = { text: String(payload.text ?? "") };
+  } else if (messageType === "document") {
+    const base64 = String(payload.base64 ?? "");
+    if (!base64) throw new Error("Conteúdo do documento (base64) é obrigatório.");
+    content = {
+      document: Buffer.from(base64, "base64"),
+      fileName: String(payload.fileName ?? "documento.pdf"),
+      mimetype: String(payload.mimetype ?? "application/pdf"),
+      caption: payload.caption ? String(payload.caption) : undefined,
+    };
   } else if (messageType === "buttons") {
     const buttons = Array.isArray(payload.buttons) ? (payload.buttons as Array<Record<string, string>>) : [];
     const lines = buttons.map((b, i) => `${i + 1}. ${b.title ?? b.displayText ?? ""}`).join("\n");
