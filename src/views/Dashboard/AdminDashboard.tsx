@@ -39,6 +39,7 @@ import { motion, AnimatePresence } from "motion/react";
 import { cn } from "../../lib/utils";
 import { ToastProvider, useToast } from "../../components/ui/Toast";
 import { getStoredUser } from "../../lib/session";
+import { listHeldSales, type HeldSale } from "../../lib/heldSales";
 
 // Sub-views
 import Home from "./Home";
@@ -274,6 +275,61 @@ function LowStockToastWatcher({ products }: { products: { id: number; name: stri
   return null;
 }
 
+// Mesma ideia do watcher de estoque baixo acima, mas para vendas em espera (comanda)
+// esquecidas — o estoque delas fica reservado indefinidamente até alguém cancelar ou
+// retomar, então uma comanda "esquecida" trava produto sem ninguém perceber.
+const HELD_SALE_WARNED_KEY = "held_sale_warned_ids";
+const HELD_SALE_ALERT_HOURS = 24;
+
+function loadHeldSaleWarnedIds(): Set<number> {
+  try {
+    const raw = localStorage.getItem(HELD_SALE_WARNED_KEY);
+    const parsed = raw ? JSON.parse(raw) : [];
+    return new Set(Array.isArray(parsed) ? parsed : []);
+  } catch {
+    return new Set();
+  }
+}
+
+function saveHeldSaleWarnedIds(ids: Set<number>) {
+  try { localStorage.setItem(HELD_SALE_WARNED_KEY, JSON.stringify([...ids])); } catch { /* localStorage indisponível */ }
+}
+
+function HeldSalesToastWatcher({ sales }: { sales: HeldSale[] }) {
+  const { warning } = useToast();
+  const warnedIds = useRef<Set<number> | null>(null);
+
+  useEffect(() => {
+    if (warnedIds.current === null) {
+      warnedIds.current = loadHeldSaleWarnedIds();
+    }
+
+    const staleSales = sales.filter(
+      (s) => (Date.now() - new Date(s.created_at).getTime()) / 3_600_000 >= HELD_SALE_ALERT_HOURS,
+    );
+    const currentIds = new Set(sales.map((s) => s.id));
+
+    // Mantém só quem ainda está em espera — se cancelada/retomada some da lista de
+    // avisos (não que vá reaparecer com o mesmo id, mas mantém o storage enxuto).
+    const updated = new Set([...warnedIds.current].filter((id) => currentIds.has(id)));
+    const newlyStale = staleSales.filter((s) => !updated.has(s.id));
+    newlyStale.forEach((s) => updated.add(s.id));
+    warnedIds.current = updated;
+    saveHeldSaleWarnedIds(updated);
+
+    if (newlyStale.length === 0) return;
+
+    if (newlyStale.length === 1) {
+      const s = newlyStale[0];
+      warning(`Venda em espera #${String(s.number).padStart(4, "0")} está aberta há mais de ${HELD_SALE_ALERT_HOURS}h — o estoque reservado continua preso.`, 10000);
+    } else {
+      warning(`${newlyStale.length} vendas em espera estão abertas há mais de ${HELD_SALE_ALERT_HOURS}h — o estoque reservado continua preso.`, 10000);
+    }
+  }, [sales, warning]);
+
+  return null;
+}
+
 export default function AdminDashboard() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(() => {
     if (window.innerWidth <= 1024) return false;
@@ -286,6 +342,7 @@ export default function AdminDashboard() {
   const [overdueConsignments, setOverdueConsignments] = useState(0);
   const [lowStockProducts, setLowStockProducts] = useState<{ id: number; name: string; stock_quantity: number }[]>([]);
   const lowStockCount = lowStockProducts.length;
+  const [heldSales, setHeldSales] = useState<HeldSale[]>([]);
   const location = useLocation();
   const navigate = useNavigate();
 
@@ -324,6 +381,20 @@ export default function AdminDashboard() {
     };
     fetchLowStock();
     const interval = setInterval(fetchLowStock, 60000);
+    return () => { cancelled = true; clearInterval(interval); };
+  }, []);
+
+  // Vendas em espera (comanda) esquecidas há muito tempo — mesmo padrão de polling.
+  useEffect(() => {
+    let cancelled = false;
+    const fetchHeldSales = async () => {
+      try {
+        const data = await listHeldSales(localStorage.getItem("token") ?? "", "held");
+        if (!cancelled) setHeldSales(data);
+      } catch { /* silencioso — nesta rodada só não atualiza */ }
+    };
+    fetchHeldSales();
+    const interval = setInterval(fetchHeldSales, 60000);
     return () => { cancelled = true; clearInterval(interval); };
   }, []);
 
@@ -486,6 +557,7 @@ export default function AdminDashboard() {
   return (
     <ToastProvider>
     <LowStockToastWatcher products={lowStockProducts} />
+    <HeldSalesToastWatcher sales={heldSales} />
     <div className="flex h-screen bg-[#f8fafc] overflow-hidden font-sans text-slate-800 relative">
 
       {/* ── SIDEBAR DESKTOP ─────────────────────────────────────────────── */}

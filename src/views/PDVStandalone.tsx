@@ -25,6 +25,7 @@ import OpenCashSessionScreen from "../components/pdv/OpenCashSessionScreen";
 import CloseCashSessionModal from "../components/pdv/CloseCashSessionModal";
 import HeldSalesDrawer from "../components/pdv/HeldSalesDrawer";
 import { cancelHeldSale, createHeldSale, getOpenHeldSalesCount, type HeldSale } from "../lib/heldSales";
+import { ToastProvider } from "../components/ui/Toast";
 
 type PaymentMethod = "money" | "debit" | "credit" | "pix" | "crediario";
 type CardBrand = "visa" | "master" | "elo" | "amex" | "hiper" | "other";
@@ -4262,12 +4263,17 @@ ${sale.change > 0 ? `<hr class="divider"/><div class="row bold"><span>Troco:</sp
       </AnimatePresence>
 
       {/* ── VENDAS ABERTAS (segurar/retomar/cancelar) ───────────────────────── */}
-      <HeldSalesDrawer
-        open={showHeldSalesDrawer}
-        onClose={() => setShowHeldSalesDrawer(false)}
-        token={token || ""}
-        onResume={resumeFromHeldSale}
-      />
+      {/* HeldSalesDrawer usa toast (useToast) pra erros/confirmação — esta página
+          não tem um <ToastProvider> global como o AdminDashboard, então envolve só
+          aqui; o container do toast é fixed (independe de onde é montado). */}
+      <ToastProvider>
+        <HeldSalesDrawer
+          open={showHeldSalesDrawer}
+          onClose={() => setShowHeldSalesDrawer(false)}
+          token={token || ""}
+          onResume={resumeFromHeldSale}
+        />
+      </ToastProvider>
 
       {/* ── ADICIONAR PRODUTO (dentro da etapa de pagamento) ────────────────── */}
       <AnimatePresence>
