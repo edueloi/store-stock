@@ -37,8 +37,12 @@ async function buildPdfFromHtml(html: string): Promise<any> {
     const imgW = pageW;
     const imgH = (canvas.height * imgW) / canvas.width;
 
+    // JPEG em vez de PNG: um recibo é texto/fundo sólido sobre um canvas em scale:2,
+    // e o PNG (sem perdas) desse conteúdo passava de 8MB em base64 — grande o
+    // suficiente pra estourar o limite de payload da API. JPEG com qualidade alta é
+    // imperceptível aqui e cai pra uma fração do tamanho.
     if (imgH <= pageH) {
-      pdf.addImage(canvas.toDataURL("image/png"), "PNG", 0, 0, imgW, imgH);
+      pdf.addImage(canvas.toDataURL("image/jpeg", 0.92), "JPEG", 0, 0, imgW, imgH);
     } else {
       let remaining = canvas.height;
       let position = 0;
@@ -49,9 +53,11 @@ async function buildPdfFromHtml(html: string): Promise<any> {
         sliceCanvas.width = canvas.width;
         sliceCanvas.height = sliceH;
         const ctx = sliceCanvas.getContext("2d")!;
+        ctx.fillStyle = "#ffffff";
+        ctx.fillRect(0, 0, sliceCanvas.width, sliceCanvas.height);
         ctx.drawImage(canvas, 0, position, canvas.width, sliceH, 0, 0, canvas.width, sliceH);
         if (position > 0) pdf.addPage();
-        pdf.addImage(sliceCanvas.toDataURL("image/png"), "PNG", 0, 0, imgW, (sliceH * imgW) / canvas.width);
+        pdf.addImage(sliceCanvas.toDataURL("image/jpeg", 0.92), "JPEG", 0, 0, imgW, (sliceH * imgW) / canvas.width);
         position += sliceH;
         remaining -= sliceH;
       }

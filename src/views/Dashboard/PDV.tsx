@@ -1465,6 +1465,7 @@ export default function PDV() {
         setCustomerPoints(0); setAppliedReward(null); setDiscount(""); setSurcharge("");
         setPayments([newPayment()]); setSelectedSellerId(null);
         setShowCheckout(false);
+        setPdvStep("cart");
         setShowReceipt(true);
         setWhatsappPhone(""); setShowPhoneInput(false);
         setWaSending(false); setWaSendError(null); setWaSent(false);

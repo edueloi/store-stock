@@ -1694,6 +1694,7 @@ ${sale.change > 0 ? `<hr class="divider"/><div class="row bold"><span>Troco:</sp
       setPayments([newPayment()]);
       setShowCartMobile(false);
       setShowCheckoutModal(false);
+      setPdvStep("cart");
       setShowReceipt(true);
       setWhatsappPhone(""); setShowPhoneInput(false);
       setWaSending(false); setWaSendError(null); setWaSent(false);

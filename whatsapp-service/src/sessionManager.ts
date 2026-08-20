@@ -212,7 +212,22 @@ export async function sendMessage(
     throw new Error("WhatsApp não está conectado para este tenant.");
   }
 
-  const jid = number.includes("@") ? number : `${number}@s.whatsapp.net`;
+  let jid = number.includes("@") ? number : `${number}@s.whatsapp.net`;
+
+  // O WhatsApp vem migrando contatos para um identificador "@lid" (Linked ID) no lugar
+  // do JID por telefone em algumas conversas — a mensagem chega certinho (conseguimos
+  // identificar o remetente), mas mandar a resposta de volta pro @lid direto não
+  // garante entrega real nesta versão da lib: a chamada devolve sucesso (por isso o
+  // painel mostrava "enviado"), só que a mensagem nunca chegava no aparelho. Resolve
+  // pro JID de telefone real antes de enviar, quando o mapeamento já existe.
+  if (jid.endsWith("@lid")) {
+    try {
+      const resolvedPn = await entry.sock.signalRepository.lidMapping.getPNForLID(jid);
+      if (resolvedPn) jid = resolvedPn;
+    } catch (err) {
+      logger.warn({ tenantId, jid, err }, "failed to resolve @lid to phone JID, sending to @lid as-is");
+    }
+  }
 
   // Baileys não tem um equivalente nativo de "botões"/"lista" interativa estável na
   // v7 (a Meta restringiu esses templates a contas Business API oficiais) — para
