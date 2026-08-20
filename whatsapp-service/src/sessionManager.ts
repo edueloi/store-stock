@@ -2,7 +2,7 @@ import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync
 import path from "path";
 import axios from "axios";
 import QRCode from "qrcode";
-import { makeWASocket, DisconnectReason, useMultiFileAuthState, jidDecode } from "@whiskeysockets/baileys";
+import { makeWASocket, DisconnectReason, useMultiFileAuthState, jidDecode, fetchLatestBaileysVersion } from "@whiskeysockets/baileys";
 import type { WASocket } from "@whiskeysockets/baileys";
 import { Boom } from "@hapi/boom";
 import pino from "pino";
@@ -71,16 +71,23 @@ async function forwardMessageToWebhook(tenantSlug: string, webhookSecret: string
   }
 }
 
-async function startSocket(tenantId: number, tenantSlug: string, webhookSecret: string): Promise<SessionEntry> {
+async function startSocket(tenantId: number, tenantSlug: string, webhookSecret: string, reconnectAttempt = 0): Promise<SessionEntry> {
   if (tenantSlug && webhookSecret) {
     saveMeta(tenantId, tenantSlug, webhookSecret);
   }
 
   const { state, saveCreds } = await useMultiFileAuthState(sessionFolder(tenantId));
 
+  // A versão do protocolo WA Web vem fixa no build da lib (pin "7.0.0-rc13") — o
+  // WhatsApp já invalidou essa versão no servidor deles, então toda conexão morria
+  // com "statusCode 405" antes mesmo de chegar a emitir um QR. Buscar a versão atual
+  // evita depender de uma versão travada na hora em que essa dependência foi publicada.
+  const { version } = await fetchLatestBaileysVersion().catch(() => ({ version: undefined }));
+
   const sock = makeWASocket({
     auth: state,
     logger: logger.child({ tenantId }),
+    ...(version ? { version } : {}),
   });
 
   const entry: SessionEntry = {
@@ -108,6 +115,7 @@ async function startSocket(tenantId: number, tenantSlug: string, webhookSecret: 
       current.connected = update.connection === "open";
       if (update.connection === "open") {
         current.qr = null;
+        reconnectAttempt = 0; // conexão estável de novo — próxima queda recomeça o backoff do zero
       }
     }
 
@@ -120,9 +128,13 @@ async function startSocket(tenantId: number, tenantSlug: string, webhookSecret: 
         sessions.delete(tenantId);
         rmSync(sessionFolder(tenantId), { recursive: true, force: true });
       } else {
-        logger.warn({ tenantId, statusCode }, "connection dropped, reconnecting");
+        // Sem backoff aqui, isso reconectava em loop apertado (às vezes múltiplas
+        // vezes por segundo) sem nunca dar tempo do lado do WhatsApp — mantém um
+        // atraso crescente, com teto, entre tentativas.
+        const delayMs = Math.min(2000 * (reconnectAttempt + 1), 30_000);
+        logger.warn({ tenantId, statusCode, reconnectAttempt, delayMs }, "connection dropped, reconnecting");
         sessions.delete(tenantId);
-        void startSocket(tenantId, tenantSlug, webhookSecret);
+        setTimeout(() => { void startSocket(tenantId, tenantSlug, webhookSecret, reconnectAttempt + 1); }, delayMs);
       }
     }
   });
