@@ -3439,7 +3439,7 @@ export default function PDV() {
                           <Phone className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
                           <input type="tel" placeholder="(11) 99999-9999"
                             className="w-full pl-9 pr-4 h-12 bg-white border border-emerald-300 rounded-xl focus:outline-none focus:border-emerald-500 text-[13px] font-medium text-slate-800 placeholder:text-slate-400 transition-all"
-                            value={whatsappPhone} onChange={(e) => setWhatsappPhone(e.target.value)} />
+                            value={whatsappPhone} onChange={(e) => setWhatsappPhone(maskPhone(e.target.value))} />
                         </div>
                         <button onClick={() => {
                           const cleaned = whatsappPhone.replace(/\D/g, "");

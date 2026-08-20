@@ -3781,7 +3781,7 @@ ${sale.change > 0 ? `<hr class="divider"/><div class="row bold"><span>Troco:</sp
                           <Phone className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-600" size={14} />
                           <input type="tel" placeholder="(11) 99999-9999"
                             className="w-full pl-9 pr-4 h-11 bg-slate-800 border border-emerald-600/60 rounded-xl focus:outline-none text-[13px] font-medium text-white placeholder:text-slate-600 transition-all"
-                            value={whatsappPhone} onChange={(e) => setWhatsappPhone(e.target.value)} />
+                            value={whatsappPhone} onChange={(e) => setWhatsappPhone(maskPhone(e.target.value))} />
                         </div>
                         <button onClick={() => {
                           const cleaned = whatsappPhone.replace(/\D/g, "");
