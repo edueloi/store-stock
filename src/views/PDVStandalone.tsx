@@ -87,7 +87,7 @@ interface CompletedSale {
   customerName: string;
   sellerName: string;
   payments: PaymentEntry[];
-  items: { name: string; quantity: number; price: number; image_url?: string }[];
+  items: { name: string; quantity: number; price: number; image_url?: string; dimensionsLabel?: string }[];
   subtotal: number;
   discountValue: number;
   surchargeValue: number;
@@ -1415,77 +1415,119 @@ ${sale.change > 0 ? `<hr class="divider"/><div class="row bold"><span>Troco:</sp
   const buildPDFHtml = (sale: CompletedSale) => {
     const now = new Date().toLocaleString("pt-BR");
     const orderId = sale.offline ? "OFFLINE" : String(sale.orderId).padStart(5, "0");
-    const payLines = sale.payments.map((p) => {
+    const accent = sale.tenantColor || "#2563eb";
+    const payRows = sale.payments.map((p) => {
       const brand = (p.method === "debit" || p.method === "credit") && p.cardBrand !== "other" ? ` · ${p.cardBrand.toUpperCase()}` : "";
-      const inst  = p.method === "credit" && p.installments > 1 ? ` ${p.installments}×` : "";
-      return `<div style="display:flex;justify-content:space-between;font-size:13px;color:#93c5fd;padding:3px 0"><span>${PM_LABEL[p.method]}${brand}${inst}</span><span>R$ ${Number(p.amount).toFixed(2)}</span></div>`;
+      const inst  = p.method === "credit" && p.installments > 1 ? ` em ${p.installments}×` : "";
+      return `<tr><td>${PM_LABEL[p.method]}${brand}${inst}</td><td class="pay-amount">R$ ${Number(p.amount).toFixed(2)}</td></tr>`;
     }).join("");
-    return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Nota PDV #${orderId}</title>
+
+    return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Comprovante #${orderId}</title>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
-  * { box-sizing:border-box; margin:0; padding:0; }
-  body { font-family:'Inter',sans-serif; background:#fff; color:#0f172a; padding:40px; max-width:700px; margin:0 auto; }
-  .header { display:flex; align-items:flex-start; justify-content:space-between; margin-bottom:32px; padding-bottom:24px; border-bottom:3px solid #0f172a; }
-  .store-name { font-size:22px; font-weight:900; text-transform:uppercase; letter-spacing:1px; }
-  .store-addr { font-size:12px; color:#64748b; margin-top:4px; }
-  .header-right { text-align:right; }
-  .receipt-num { font-size:28px; font-weight:900; }
-  .section { margin-bottom:24px; }
-  .section-title { font-size:10px; font-weight:800; color:#94a3b8; text-transform:uppercase; letter-spacing:3px; margin-bottom:10px; }
-  .customer-box { background:#f8fafc; border:1px solid #e2e8f0; border-radius:12px; padding:14px 18px; }
-  table { width:100%; border-collapse:collapse; }
-  thead tr th { font-size:10px; font-weight:800; text-transform:uppercase; letter-spacing:2px; color:#94a3b8; padding:8px 0; border-bottom:1px solid #e2e8f0; text-align:left; }
-  thead tr th:last-child { text-align:right; }
-  tbody tr td { padding:10px 0; border-bottom:1px solid #f1f5f9; vertical-align:middle; }
-  .totals-box { background:#0f172a; border-radius:16px; padding:20px 24px; color:#fff; margin-top:24px; }
-  .totals-row { display:flex; justify-content:space-between; font-size:13px; padding:4px 0; color:#94a3b8; }
-  .totals-row.main { font-size:24px; font-weight:900; color:#fff; padding-top:12px; border-top:1px solid #334155; margin-top:8px; }
-  .footer { margin-top:40px; padding-top:20px; border-top:1px solid #e2e8f0; text-align:center; font-size:11px; color:#94a3b8; }
-  @media print { @page { size:A4; margin:20mm 15mm; } body { padding:0; } }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Inter', sans-serif; background: #fff; color: #0f172a; padding: 36px; max-width: 720px; margin: 0 auto; font-size: 13px; }
+  .doc { border: 1.5px solid #cbd5e1; border-radius: 4px; overflow: hidden; }
+  .doc-header { display: flex; align-items: center; justify-content: space-between; gap: 20px; padding: 22px 26px; border-bottom: 2px solid ${accent}; }
+  .logo { max-height: 52px; max-width: 150px; object-fit: contain; margin-bottom: 6px; display: block; }
+  .store-name { font-size: 19px; font-weight: 900; letter-spacing: 0.2px; }
+  .store-meta { font-size: 11px; color: #64748b; margin-top: 3px; line-height: 1.5; }
+  .doc-badge { text-align: right; flex-shrink: 0; }
+  .doc-badge .kind { font-size: 9px; font-weight: 800; color: #fff; background: ${accent}; text-transform: uppercase; letter-spacing: 2px; padding: 4px 10px; border-radius: 3px; display: inline-block; }
+  .doc-badge .num { font-size: 24px; font-weight: 900; margin-top: 8px; }
+  .doc-badge .date { font-size: 11px; color: #64748b; margin-top: 2px; }
+  .doc-body { padding: 22px 26px; }
+  .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; padding: 12px 0; border-bottom: 1px solid #e2e8f0; }
+  .field-row .field-label { font-size: 9px; font-weight: 800; color: #94a3b8; text-transform: uppercase; letter-spacing: 1.5px; margin-bottom: 3px; }
+  .field-row .field-value { font-size: 13px; font-weight: 700; }
+  .section-title { font-size: 10px; font-weight: 800; color: #94a3b8; text-transform: uppercase; letter-spacing: 2.5px; margin: 20px 0 10px; }
+  table.items { width: 100%; border-collapse: collapse; }
+  table.items thead th { font-size: 9px; font-weight: 800; text-transform: uppercase; letter-spacing: 1.5px; color: #94a3b8; padding: 0 0 8px; border-bottom: 1.5px solid #cbd5e1; text-align: left; }
+  table.items thead th:not(:first-child) { text-align: right; }
+  table.items tbody tr:nth-child(even) { background: #f8fafc; }
+  table.items tbody td { padding: 9px 6px; font-size: 12.5px; border-bottom: 1px solid #f1f5f9; }
+  table.items tbody td:first-child { padding-left: 4px; }
+  table.items tbody td:not(:first-child) { text-align: right; color: #475569; }
+  table.items tbody td.total-cell { font-weight: 700; color: #0f172a; }
+  .item-dims { font-size: 10.5px; color: #94a3b8; margin-top: 1px; }
+  table.pay { width: 100%; border-collapse: collapse; margin-top: 4px; }
+  table.pay td { padding: 6px 0; font-size: 12.5px; border-bottom: 1px solid #f1f5f9; }
+  table.pay .pay-amount { text-align: right; font-weight: 700; }
+  .totals { margin-top: 18px; padding-top: 14px; border-top: 2px solid #0f172a; }
+  .totals-row { display: flex; justify-content: space-between; font-size: 12.5px; padding: 3px 0; color: #64748b; }
+  .totals-row.discount { color: #059669; }
+  .totals-row.change { color: #059669; font-weight: 700; }
+  .totals-row.main { font-size: 22px; font-weight: 900; color: #0f172a; padding-top: 10px; margin-top: 4px; }
+  .doc-footer { text-align: center; font-size: 10px; color: #94a3b8; padding: 14px 26px; background: #f8fafc; border-top: 1px solid #e2e8f0; }
+  @media print { @page { size: A4; margin: 18mm 14mm; } body { padding: 0; } }
 </style></head><body>
-<div class="header">
-  <div>
-    ${sale.tenantLogo ? `<img src="${sale.tenantLogo}" style="max-height:56px;max-width:140px;object-fit:contain;margin-bottom:8px;display:block" alt="logo"/>` : ""}
-    <div class="store-name">${sale.tenantName}</div>
-    ${sale.tenantAddress ? `<div class="store-addr">${sale.tenantAddress}</div>` : ""}
+<div class="doc">
+  <div class="doc-header">
+    <div>
+      ${sale.tenantLogo ? `<img src="${sale.tenantLogo}" class="logo" alt="logo"/>` : ""}
+      <div class="store-name">${sale.tenantName}</div>
+      <div class="store-meta">
+        ${sale.tenantDocument ? `CNPJ/CPF: ${sale.tenantDocument}<br/>` : ""}
+        ${sale.tenantAddress ? `${sale.tenantAddress}<br/>` : ""}
+        ${sale.tenantWhatsapp ? `Tel/WhatsApp: ${sale.tenantWhatsapp}` : ""}
+      </div>
+    </div>
+    <div class="doc-badge">
+      <span class="kind">Comprovante de Venda</span>
+      <div class="num">#${orderId}</div>
+      <div class="date">${now}</div>
+    </div>
   </div>
-  <div class="header-right">
-    <div style="font-size:10px;font-weight:800;color:#94a3b8;text-transform:uppercase;letter-spacing:3px">Comprovante PDV</div>
-    <div class="receipt-num">#${orderId}</div>
-    <div style="font-size:12px;color:#64748b;margin-top:4px">${now}</div>
+  <div class="doc-body">
+    <div class="field-row">
+      <div>
+        <div class="field-label">Cliente</div>
+        <div class="field-value">${sale.customerName || "Consumidor Final"}</div>
+      </div>
+      <div>
+        <div class="field-label">Forma de Pagamento</div>
+        <div class="field-value">${sale.payments.map((p) => PM_LABEL[p.method]).join(" + ")}</div>
+      </div>
+    </div>
+    ${sale.sellerName ? `
+    <div class="field-row">
+      <div>
+        <div class="field-label">Vendedor</div>
+        <div class="field-value">${sale.sellerName}</div>
+      </div>
+      <div></div>
+    </div>` : ""}
+
+    <div class="section-title">Itens da Venda</div>
+    <table class="items">
+      <thead><tr><th>Produto</th><th>Qtd</th><th>Unit.</th><th>Total</th></tr></thead>
+      <tbody>${sale.items.map((item) => `
+        <tr>
+          <td>${item.name}${item.dimensionsLabel ? `<div class="item-dims">${item.dimensionsLabel}</div>` : ""}</td>
+          <td>${item.dimensionsLabel ? "—" : item.quantity}</td>
+          <td>R$ ${item.price.toFixed(2)}</td>
+          <td class="total-cell">R$ ${(item.price * item.quantity).toFixed(2)}</td>
+        </tr>`).join("")}
+      </tbody>
+    </table>
+
+    <div class="section-title">Detalhamento do Pagamento</div>
+    <table class="pay"><tbody>${payRows}</tbody></table>
+
+    <div class="totals">
+      ${(sale.discountValue > 0 || sale.surchargeValue > 0) ? `<div class="totals-row"><span>Subtotal</span><span>R$ ${sale.subtotal.toFixed(2)}</span></div>` : ""}
+      ${sale.discountValue > 0 ? `<div class="totals-row discount"><span>Desconto</span><span>− R$ ${sale.discountValue.toFixed(2)}</span></div>` : ""}
+      ${sale.surchargeValue > 0 ? `<div class="totals-row"><span>Acréscimo</span><span>+ R$ ${sale.surchargeValue.toFixed(2)}</span></div>` : ""}
+      ${sale.feeAmount > 0 ? `<div class="totals-row"><span>Juros máquina</span><span>+ R$ ${sale.feeAmount.toFixed(2)}</span></div>` : ""}
+      <div class="totals-row main"><span>TOTAL</span><span>R$ ${sale.total.toFixed(2)}</span></div>
+      ${sale.change > 0 ? `<div class="totals-row change"><span>Troco devolvido</span><span>R$ ${sale.change.toFixed(2)}</span></div>` : ""}
+    </div>
+  </div>
+  <div class="doc-footer">
+    Este documento é um comprovante de venda e não possui valor fiscal.<br/>
+    Gerado por BoxSys Store em ${now}
   </div>
 </div>
-<div class="section">
-  <div class="section-title">Cliente</div>
-  <div class="customer-box">
-    <div style="font-size:16px;font-weight:700">${sale.customerName || "Consumidor Final"}</div>
-    ${sale.sellerName ? `<div style="font-size:13px;color:#64748b;margin-top:4px">Vendedor: ${sale.sellerName}</div>` : ""}
-  </div>
-</div>
-<div class="section">
-  <div class="section-title">Itens da Venda</div>
-  <table>
-    <thead><tr><th>Produto</th><th>Qtd</th><th>Unit.</th><th>Total</th></tr></thead>
-    <tbody>${sale.items.map((item) => `
-      <tr>
-        <td style="font-weight:700;font-size:13px">${item.name}</td>
-        <td><span style="font-size:12px;color:#64748b;background:#f1f5f9;border-radius:6px;padding:2px 8px">${item.quantity}</span></td>
-        <td style="font-size:13px;color:#64748b">R$ ${item.price.toFixed(2)}</td>
-        <td style="text-align:right;font-weight:700;font-size:13px">R$ ${(item.price * item.quantity).toFixed(2)}</td>
-      </tr>`).join("")}
-    </tbody>
-  </table>
-</div>
-<div class="totals-box">
-  ${(sale.discountValue > 0 || sale.surchargeValue > 0) ? `<div class="totals-row"><span>Subtotal</span><span>R$ ${sale.subtotal.toFixed(2)}</span></div>` : ""}
-  ${sale.discountValue > 0 ? `<div class="totals-row" style="color:#34d399"><span>Desconto</span><span>− R$ ${sale.discountValue.toFixed(2)}</span></div>` : ""}
-  ${sale.surchargeValue > 0 ? `<div class="totals-row" style="color:#fbbf24"><span>Acréscimo</span><span>+ R$ ${sale.surchargeValue.toFixed(2)}</span></div>` : ""}
-  ${sale.feeAmount > 0 ? `<div class="totals-row" style="color:#fb923c"><span>Juros máquina</span><span>+ R$ ${sale.feeAmount.toFixed(2)}</span></div>` : ""}
-  <div class="totals-row main"><span>TOTAL</span><span>R$ ${sale.total.toFixed(2)}</span></div>
-  ${sale.change > 0 ? `<div class="totals-row" style="color:#34d399;font-weight:700"><span>Troco devolvido</span><span>R$ ${sale.change.toFixed(2)}</span></div>` : ""}
-  <div style="margin-top:16px;padding-top:12px;border-top:1px solid #1e293b">${payLines}</div>
-</div>
-<div class="footer">Documento gerado pelo BoxSys PDV · ${now}</div>
 </body></html>`;
   };
 
@@ -1680,7 +1722,10 @@ ${sale.change > 0 ? `<hr class="divider"/><div class="row bold"><span>Troco:</sp
         customerName,
         sellerName: selectedSeller?.name || "",
         payments: payments.map((p) => ({ ...p })),
-        items: cart.map((i) => ({ name: i.name, quantity: i.quantity, price: i.price, image_url: i.image_url })),
+        items: [
+          ...cart.map((i) => ({ name: i.name, quantity: i.quantity, price: i.price, image_url: i.image_url, dimensionsLabel: i.dimensionsLabel })),
+          ...cartServices.map((s) => ({ name: s.name, quantity: s.quantity ?? 1, price: s.price, dimensionsLabel: s.dimensionsLabel })),
+        ],
         subtotal, discountValue, surchargeValue, feeAmount: passedFeeAmount, total,
         change: change > 0 ? change : 0,
         tenantName, tenantAddress, tenantDocument, tenantLogo, tenantColor, tenantWhatsapp,
