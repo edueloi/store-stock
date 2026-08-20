@@ -2726,8 +2726,8 @@ export default function PDV() {
                 <div className="w-full sm:w-[440px] xl:w-[min(42%,560px)] shrink-0 flex flex-col overflow-y-auto admin-scroll border-b sm:border-b-0 sm:border-r border-slate-200 bg-slate-50 max-h-[45vh] sm:max-h-none shadow-[8px_0_22px_rgba(15,23,42,0.03)]">
 
                   {/* Itens do pedido */}
-                  <div className="p-5 border-b border-slate-100">
-                    <div className="flex items-center justify-between mb-3">
+                  <div className="p-4 sm:p-5 border-b border-slate-100">
+                    <div className="flex items-center justify-between mb-2.5 sm:mb-3">
                       <p className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400">Itens do pedido</p>
                       <button onClick={() => setShowAddProductModal(true)}
                         className="flex items-center gap-1 h-6 px-2 rounded-lg bg-blue-50 border border-blue-200 text-blue-600 hover:bg-blue-100 transition-colors">
@@ -2783,7 +2783,7 @@ export default function PDV() {
                     </div>
 
                     {/* Mini totais */}
-                    <div className="mt-3 pt-3 border-t border-slate-200 space-y-1">
+                    <div className="mt-2.5 sm:mt-3 pt-2.5 sm:pt-3 border-t border-slate-200 space-y-1">
                       {servicesTotal > 0 && (
                         <div className="flex justify-between text-[10px]">
                           <span className="flex items-center gap-1 text-slate-400"><Wrench size={9} /> Serviços</span>
@@ -2816,7 +2816,7 @@ export default function PDV() {
                   </div>
 
                   {/* Cliente, Serviços, Desconto, Vendedor */}
-                  <div className="p-4 space-y-4 flex-1">
+                  <div className="p-3 sm:p-4 space-y-2.5 sm:space-y-4 flex-1">
 
                     {/* Cliente */}
                     <div>
@@ -2865,7 +2865,7 @@ export default function PDV() {
 
                       {/* Loyalty panel */}
                       {selectedCustomerId && loyaltyProgram?.is_active && (
-                        <div className="mt-2 bg-amber-50 border border-amber-200 rounded-xl p-3 space-y-2">
+                        <div className="mt-2 bg-amber-50 border border-amber-200 rounded-xl p-2.5 sm:p-3 space-y-2">
                           <div className="flex items-center justify-between">
                             <div className="flex items-center gap-1.5">
                               <Star size={12} className="text-amber-500" fill="currentColor" />
@@ -3014,7 +3014,7 @@ export default function PDV() {
 
                 {/* COLUNA DIREITA — formas de pagamento + confirmar */}
                 <div className="flex flex-1 flex-col overflow-hidden bg-slate-100 min-h-0">
-                  <div className="shrink-0 flex items-center justify-between px-5 lg:px-8 py-3 border-b border-slate-200 bg-white">
+                  <div className="shrink-0 flex items-center justify-between px-4 sm:px-5 lg:px-8 py-2.5 sm:py-3 border-b border-slate-200 bg-white">
                     <div>
                       <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-800">Finalizar venda</p>
                     </div>
@@ -3025,8 +3025,8 @@ export default function PDV() {
                       <span className="rounded-md border border-slate-200 bg-slate-50 px-2 py-1"><b className="text-slate-700">F9</b> confirmar</span>
                     </div>
                   </div>
-                  <div className="flex-1 overflow-y-auto admin-scroll p-4 sm:p-5 lg:px-8 lg:py-6">
-                   <div className="w-full max-w-[760px] mx-auto space-y-4">
+                  <div className="flex-1 overflow-y-auto admin-scroll p-3 sm:p-5 lg:px-8 lg:py-6">
+                   <div className="w-full max-w-[760px] mx-auto space-y-2.5 sm:space-y-4">
 
                     {/* Label + adicionar */}
                     <div className="flex items-center justify-between mb-1">
@@ -3037,7 +3037,7 @@ export default function PDV() {
                       </button>
                     </div>
 
-                    <div className="grid grid-cols-2 gap-3 rounded-2xl border border-slate-200 bg-white p-3">
+                    <div className="grid grid-cols-2 gap-2.5 sm:gap-3 rounded-2xl border border-slate-200 bg-white p-2.5 sm:p-3">
                       <div>
                         <label className="text-[9px] font-black uppercase tracking-[0.16em] text-slate-400 mb-1.5 block">Desconto</label>
                         <div className="flex gap-1.5">
@@ -3069,7 +3069,7 @@ export default function PDV() {
                       const otherPayments = paidAmount - pAmt;
                       const thisMoneyChange = p.method === "money" && pAmt > 0 ? Math.max(0, pAmt - Math.max(0, total - otherPayments)) : 0;
                       return (
-                        <div key={p.id} className="bg-slate-50 rounded-2xl border border-slate-200 p-3 space-y-2.5">
+                        <div key={p.id} className="bg-slate-50 rounded-2xl border border-slate-200 p-2.5 sm:p-3 space-y-2 sm:space-y-2.5">
                           {/* method row */}
                           <div className="flex items-center gap-2">
                             {payments.length > 1 && (
@@ -3275,7 +3275,7 @@ export default function PDV() {
                     })}
 
                     {/* Resumo financeiro */}
-                    <div className="rounded-2xl px-4 py-3 bg-slate-50 border border-slate-200 shadow-sm space-y-1.5">
+                    <div className="rounded-2xl px-3 sm:px-4 py-2.5 sm:py-3 bg-slate-50 border border-slate-200 shadow-sm space-y-1.5">
                       <div className="flex items-center justify-between">
                         <span className="text-[10px] font-bold text-slate-400">Subtotal</span>
                         <span className="text-[11px] font-mono font-bold text-slate-600">R$ {subtotal.toFixed(2)}</span>
@@ -3323,7 +3323,7 @@ export default function PDV() {
                         </p>
                       </div>
                     )}
-                    <div className="flex gap-2.5">
+                    <div className="flex gap-2 sm:gap-2.5">
                       <button onClick={cancelSale} disabled={finishing}
                         className="h-11 px-4 rounded-xl text-[11px] font-bold uppercase tracking-wide text-red-500 border border-red-200 hover:bg-red-50 transition-all disabled:opacity-40 active:scale-[0.98] flex items-center justify-center gap-2 shrink-0">
                         <Trash2 size={14} /> Cancelar
