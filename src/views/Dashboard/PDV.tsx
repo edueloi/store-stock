@@ -276,6 +276,9 @@ export default function PDV() {
   const [showReceipt, setShowReceipt]     = useState(false);
   const [nfceInvoice, setNfceInvoice]     = useState<NfceInvoice | null>(null);
   const [nfceRetrying, setNfceRetrying]   = useState(false);
+  const [nfceRequested, setNfceRequested] = useState(false);
+  const [nfceEmitting, setNfceEmitting]   = useState(false);
+  const [nfceEmitError, setNfceEmitError] = useState<string | null>(null);
   const [printError, setPrintError]       = useState<string | null>(null);
   const [whatsappPhone, setWhatsappPhone] = useState("");
   const [showPhoneInput, setShowPhoneInput] = useState(false);
@@ -449,8 +452,11 @@ export default function PDV() {
   }, [products, token, addToCartDirect]);
 
   // ── Polling do status da NFC-e emitida em segundo plano após a venda ──────────
+  // Só roda depois que o operador escolhe explicitamente emitir (nfceRequested) —
+  // nunca automático, senão fica "Emitindo nota fiscal..." pra sempre numa venda que
+  // ninguém pediu nota fiscal nenhuma.
   useEffect(() => {
-    if (!showReceipt || !completedSale?.orderId) return;
+    if (!showReceipt || !completedSale?.orderId || !nfceRequested) return;
     let cancelled = false;
     let attempts = 0;
 
@@ -469,7 +475,30 @@ export default function PDV() {
     poll();
 
     return () => { cancelled = true; };
-  }, [showReceipt, completedSale?.orderId, token]);
+  }, [showReceipt, completedSale?.orderId, token, nfceRequested]);
+
+  const handleEmitNfce = async () => {
+    if (!completedSale?.orderId || nfceEmitting) return;
+    setNfceEmitting(true);
+    setNfceEmitError(null);
+    try {
+      const res = await fetch(`/api/nfce/${completedSale.orderId}/emit`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setNfceEmitError(data?.error || "Não foi possível iniciar a emissão da NFC-e.");
+        return;
+      }
+      setNfceInvoice(data);
+      setNfceRequested(true);
+    } catch {
+      setNfceEmitError("Erro de conexão ao iniciar a emissão da NFC-e.");
+    } finally {
+      setNfceEmitting(false);
+    }
+  };
 
   const handleRetryNfce = async () => {
     if (!completedSale?.orderId || nfceRetrying) return;
@@ -1394,6 +1423,7 @@ export default function PDV() {
         };
         setCompletedSale(sale);
         setNfceInvoice(null);
+        setNfceRequested(false); setNfceEmitting(false); setNfceEmitError(null);
         setCart([]); setCartServices([]); setCustomerName(""); setSelectedCustomerId(null);
         setCustomerPoints(0); setAppliedReward(null); setDiscount(""); setSurcharge("");
         setPayments([newPayment()]); setSelectedSellerId(null);
@@ -1404,8 +1434,14 @@ export default function PDV() {
           setActiveHeldSaleId(null);
           if (token) getOpenHeldSalesCount(token).then(setOpenHeldSalesCount).catch(() => {});
         }
+        // Sem .catch(): se essa chamada falhar (ou devolver o corpo de erro em vez de um
+        // array), Array.isArray(d) já cai em "[]" e apaga o catálogo inteiro da tela — o
+        // usuário via isso como "o PDV sumiu" ao fechar o modal da venda. Mantém a lista
+        // atual em caso de falha em vez de zerar o grid.
         fetch("/api/products", { headers: { Authorization: `Bearer ${token}` } })
-          .then((r) => r.json()).then((d) => setProducts(Array.isArray(d) ? d : []));
+          .then((r) => r.json())
+          .then((d) => { if (Array.isArray(d)) setProducts(d); })
+          .catch(() => {});
         fetchRecentOrders();
     } catch (e) {
       console.error("Sale failed", e);
@@ -3263,7 +3299,29 @@ export default function PDV() {
 
               {/* actions */}
               <div className="flex-1 overflow-y-auto overscroll-contain p-4 space-y-2">
-                {/* status da NFC-e */}
+                {/* escolha: emitir NFC-e ou só cupom — nada é emitido sem essa decisão explícita */}
+                {!nfceRequested && !nfceInvoice && (
+                  <div className="w-full rounded-2xl px-4 py-3 border bg-slate-50 border-slate-200 space-y-2.5">
+                    <div>
+                      <p className="text-[11px] font-black text-slate-700 uppercase tracking-wide">Emitir nota fiscal?</p>
+                      <p className="text-[10px] text-slate-500 font-medium">Ou emita só o cupom não-fiscal abaixo.</p>
+                    </div>
+                    {nfceEmitError && (
+                      <p className="text-[10px] text-rose-600 font-bold">{nfceEmitError}</p>
+                    )}
+                    <button
+                      onClick={handleEmitNfce}
+                      disabled={nfceEmitting}
+                      className="w-full h-10 bg-blue-600 hover:bg-blue-700 disabled:opacity-60 text-white rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-all"
+                    >
+                      {nfceEmitting ? <Loader2 size={14} className="animate-spin" /> : <FileText size={14} />}
+                      {nfceEmitting ? "Iniciando emissão..." : "Emitir Nota Fiscal (NFC-e)"}
+                    </button>
+                  </div>
+                )}
+
+                {/* status da NFC-e — só depois que o operador pediu a emissão acima */}
+                {nfceRequested && (
                 <div className={cn(
                   "w-full flex items-center gap-3.5 rounded-2xl px-4 py-3 border",
                   nfceInvoice?.status === "authorized" ? "bg-emerald-50 border-emerald-200"
@@ -3312,6 +3370,7 @@ export default function PDV() {
                     </>
                   )}
                 </div>
+                )}
 
                 <p className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] pb-1">Emitir Comprovante</p>
 
