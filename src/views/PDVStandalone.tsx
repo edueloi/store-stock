@@ -2820,10 +2820,13 @@ ${sale.change > 0 ? `<hr class="divider"/><div class="row bold"><span>Troco:</sp
           <div className="flex-1 flex flex-col overflow-hidden bg-[#e9eef5]">
 
               {/* ── Corpo em duas colunas ──────────────────────────────────── */}
-              <div className="flex-1 flex flex-col sm:flex-row overflow-hidden">
+              {/* No celular vira uma única página rolável (mesma correção do PDV interno) —
+                  antes cada coluna tinha seu próprio scroll interno, e empilhadas
+                  verticalmente isso parecia duas telas presas uma embaixo da outra. */}
+              <div className="flex-1 flex flex-col sm:flex-row overflow-y-auto sm:overflow-hidden">
 
                 {/* COLUNA ESQUERDA */}
-                <div className="w-full sm:w-[460px] xl:w-[min(40%,560px)] shrink-0 flex flex-col overflow-y-auto pdv-scroll-light border-b sm:border-b-0 sm:border-r border-slate-200 bg-white max-h-[45vh] sm:max-h-none shadow-[10px_0_30px_rgba(15,23,42,0.06)]">
+                <div className="w-full sm:w-[460px] xl:w-[min(40%,560px)] shrink-0 flex flex-col sm:overflow-y-auto pdv-scroll-light border-b sm:border-b-0 sm:border-r border-slate-200 bg-white sm:max-h-none shadow-[10px_0_30px_rgba(15,23,42,0.06)]">
 
                   {/* Itens do pedido */}
                   <div className="p-5 border-b border-slate-200">
@@ -3151,7 +3154,7 @@ ${sale.change > 0 ? `<hr class="divider"/><div class="row bold"><span>Troco:</sp
                 </div>
 
                 {/* COLUNA DIREITA — pagamentos */}
-                <div className="flex-1 flex flex-col overflow-hidden bg-[#e9eef5] min-h-0">
+                <div className="flex-1 flex flex-col sm:overflow-hidden bg-[#e9eef5] min-h-0">
                   <div className="shrink-0 flex items-center justify-between px-5 lg:px-9 py-4 bg-slate-950 text-white shadow-lg">
                     <div className="flex items-center gap-3">
                       <div className="w-9 h-9 rounded-xl bg-blue-500/15 border border-blue-400/30 flex items-center justify-center text-blue-300"><Terminal size={17} /></div>
@@ -3172,7 +3175,7 @@ ${sale.change > 0 ? `<hr class="divider"/><div class="row bold"><span>Troco:</sp
                       </div>
                     </div>
                   </div>
-                  <div className="flex-1 overflow-y-auto pdv-scroll-light p-4 sm:p-6 lg:px-10 lg:py-8">
+                  <div className="flex-1 sm:overflow-y-auto pdv-scroll-light p-4 sm:p-6 lg:px-10 lg:py-8">
                    <div className="w-full max-w-[820px] mx-auto space-y-4">
 
                     {/* Label + adicionar */}

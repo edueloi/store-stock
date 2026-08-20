@@ -2720,10 +2720,14 @@ export default function PDV() {
           <div className="flex-1 flex flex-col overflow-hidden bg-slate-100">
 
               {/* ── Corpo em duas colunas ────────────────────────────────── */}
-              <div className="flex-1 flex flex-col sm:flex-row overflow-hidden">
+              {/* No celular vira uma única página rolável (overflow-y-auto aqui, sem
+                  scroll independente nas colunas abaixo) — antes cada coluna tinha seu
+                  próprio scroll interno, e empilhadas verticalmente isso parecia duas
+                  telas presas uma embaixo da outra em vez de uma rolagem contínua. */}
+              <div className="flex-1 flex flex-col sm:flex-row overflow-y-auto sm:overflow-hidden">
 
                 {/* COLUNA ESQUERDA — itens, cliente, serviços, descontos, vendedores */}
-                <div className="w-full sm:w-[440px] xl:w-[min(42%,560px)] shrink-0 flex flex-col overflow-y-auto admin-scroll border-b sm:border-b-0 sm:border-r border-slate-200 bg-slate-50 max-h-[45vh] sm:max-h-none shadow-[8px_0_22px_rgba(15,23,42,0.03)]">
+                <div className="w-full sm:w-[440px] xl:w-[min(42%,560px)] shrink-0 flex flex-col sm:overflow-y-auto admin-scroll border-b sm:border-b-0 sm:border-r border-slate-200 bg-slate-50 sm:max-h-none shadow-[8px_0_22px_rgba(15,23,42,0.03)]">
 
                   {/* Itens do pedido */}
                   <div className="p-4 sm:p-5 border-b border-slate-100">
@@ -3013,7 +3017,7 @@ export default function PDV() {
                 </div>
 
                 {/* COLUNA DIREITA — formas de pagamento + confirmar */}
-                <div className="flex flex-1 flex-col overflow-hidden bg-slate-100 min-h-0">
+                <div className="flex flex-1 flex-col sm:overflow-hidden bg-slate-100 min-h-0">
                   <div className="shrink-0 flex items-center justify-between px-4 sm:px-5 lg:px-8 py-2.5 sm:py-3 border-b border-slate-200 bg-white">
                     <div>
                       <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-800">Finalizar venda</p>
@@ -3025,7 +3029,7 @@ export default function PDV() {
                       <span className="rounded-md border border-slate-200 bg-slate-50 px-2 py-1"><b className="text-slate-700">F9</b> confirmar</span>
                     </div>
                   </div>
-                  <div className="flex-1 overflow-y-auto admin-scroll p-3 sm:p-5 lg:px-8 lg:py-6">
+                  <div className="flex-1 sm:overflow-y-auto admin-scroll p-3 sm:p-5 lg:px-8 lg:py-6">
                    <div className="w-full max-w-[760px] mx-auto space-y-2.5 sm:space-y-4">
 
                     {/* Label + adicionar */}
