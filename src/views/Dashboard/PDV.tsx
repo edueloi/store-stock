@@ -6,7 +6,7 @@ import {
   Printer, FileText, MessageCircle, Phone, Clock, Receipt,
   ChevronDown, PlusCircle, Users, Barcode, Wrench, ChevronUp,
   Star, Gift, UserPlus, Store, Terminal, Ruler,
-  LayoutGrid, List, ShoppingBag, Wallet,
+  LayoutGrid, List, ShoppingBag, Wallet, MoreVertical,
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { Product, Category, NfceInvoice } from "../../types";
@@ -287,6 +287,7 @@ export default function PDV() {
   const [waSending, setWaSending]         = useState(false);
   const [waSendError, setWaSendError]     = useState<string | null>(null);
   const [waSent, setWaSent]               = useState(false);
+  const [showMobileActionsMenu, setShowMobileActionsMenu] = useState(false);
 
   // right panel
   const [recentOrders, setRecentOrders]   = useState<RecentOrder[]>([]);
@@ -1640,9 +1641,9 @@ export default function PDV() {
           </div>
         </div>
 
-        {/* Scanner status — centro (some durante o pagamento) */}
+        {/* Scanner status — centro (some durante o pagamento e em telas pequenas, sem leitor físico) */}
         {!(pdvStep === "payment" && showCheckout) && (
-          <div className="flex-1 flex justify-center px-6">
+          <div className="hidden lg:flex flex-1 justify-center px-6">
             <div className={cn(
               "flex items-center gap-2 px-3 h-7 rounded-xl border text-[10px] font-bold uppercase tracking-widest transition-all duration-300",
               scanFeedback === "ok"  ? "bg-emerald-50 border-emerald-300 text-emerald-600" :
@@ -1671,18 +1672,18 @@ export default function PDV() {
             </div>
           </div>
         ) : (
-          <div className="flex items-center gap-2">
+          <div className="hidden lg:flex items-center gap-2">
             {requireCashSession && cashSession && (
               <button onClick={() => setShowCloseCashModal(true)} title="Fechar Caixa"
                 className="flex items-center gap-1.5 px-3 h-8 rounded-xl text-[10px] font-bold uppercase tracking-widest text-slate-500 border border-slate-200 hover:bg-emerald-50 hover:text-emerald-600 hover:border-emerald-200 transition-all">
                 <Wallet size={11} />
-                <span className="hidden sm:block">Fechar Caixa</span>
+                <span>Fechar Caixa</span>
               </button>
             )}
             <button onClick={refreshProducts} title="Atualizar produtos"
               className="flex items-center gap-1.5 px-3 h-8 rounded-xl text-[10px] font-bold uppercase tracking-widest text-slate-500 border border-slate-200 hover:bg-slate-50 hover:text-slate-700 transition-all">
               <RefreshCw size={11} className={loading ? "animate-spin" : ""} />
-              <span className="hidden sm:block">Atualizar</span>
+              <span>Atualizar</span>
             </button>
             <button onClick={() => { setShowRightPanel(!showRightPanel); if (!showRightPanel) fetchRecentOrders(); }}
               className={cn(
@@ -1692,40 +1693,113 @@ export default function PDV() {
                   : "text-slate-500 border-slate-200 hover:bg-slate-50 hover:text-slate-700"
               )}>
               <Receipt size={11} />
-              <span className="hidden sm:block">Recentes</span>
+              <span>Recentes</span>
             </button>
             <button onClick={() => window.open("/pdv", "_blank", "noopener,noreferrer")}
               className="flex items-center gap-1.5 px-3 h-8 rounded-xl text-[10px] font-bold uppercase tracking-widest text-white border border-blue-600 transition-all shadow"
               style={{ background: "linear-gradient(135deg,#3b82f6,#1d4ed8)" }}>
               <ExternalLink size={11} />
-              <span className="hidden sm:block">PDV Externo</span>
+              <span>PDV Externo</span>
             </button>
-            <div className="hidden md:block w-px h-5 bg-slate-200 mx-0.5" />
+            <div className="w-px h-5 bg-slate-200 mx-0.5" />
             <button onClick={() => setShowCrediarioModal(true)} title="Crediário (F6)"
               className="flex items-center gap-1.5 px-3 h-8 rounded-xl text-[10px] font-bold uppercase tracking-widest text-slate-500 border border-slate-200 hover:bg-amber-50 hover:text-amber-600 hover:border-amber-200 transition-all">
               <Wallet size={11} />
-              <span className="hidden sm:block">Crediário</span>
+              <span>Crediário</span>
             </button>
             <button onClick={() => setShowCustomerLookup(true)} title="Consultar Cliente (F7)"
               className="flex items-center gap-1.5 px-3 h-8 rounded-xl text-[10px] font-bold uppercase tracking-widest text-slate-500 border border-slate-200 hover:bg-blue-50 hover:text-blue-600 hover:border-blue-200 transition-all">
               <User size={11} />
-              <span className="hidden sm:block">Cliente</span>
+              <span>Cliente</span>
             </button>
             <button onClick={() => setShowConsignmentLookup(true)} title="Consultar Consignado (F8)"
               className="flex items-center gap-1.5 px-3 h-8 rounded-xl text-[10px] font-bold uppercase tracking-widest text-slate-500 border border-slate-200 hover:bg-violet-50 hover:text-violet-600 hover:border-violet-200 transition-all">
               <ShoppingBag size={11} />
-              <span className="hidden sm:block">Consignado</span>
+              <span>Consignado</span>
             </button>
             <button onClick={() => setShowHeldSalesDrawer(true)} title="Vendas Abertas"
               className="relative flex items-center gap-1.5 px-3 h-8 rounded-xl text-[10px] font-bold uppercase tracking-widest text-slate-500 border border-slate-200 hover:bg-amber-50 hover:text-amber-600 hover:border-amber-200 transition-all">
               <Clock size={11} />
-              <span className="hidden sm:block">Vendas Abertas</span>
+              <span>Vendas Abertas</span>
               {openHeldSalesCount > 0 && (
                 <span className="absolute -top-1.5 -right-1.5 min-w-[16px] h-[16px] px-1 rounded-full bg-amber-500 text-white text-[9px] font-black flex items-center justify-center leading-none">
                   {openHeldSalesCount > 99 ? "99+" : openHeldSalesCount}
                 </span>
               )}
             </button>
+          </div>
+        )}
+
+        {/* Ações direita — mobile: refresh + menu "mais" com o resto */}
+        {!(pdvStep === "payment" && showCheckout) && (
+          <div className="flex lg:hidden items-center gap-1.5 relative">
+            <button onClick={refreshProducts} title="Atualizar produtos"
+              className="flex items-center justify-center w-9 h-9 rounded-xl text-slate-500 border border-slate-200 hover:bg-slate-50 hover:text-slate-700 transition-all">
+              <RefreshCw size={15} className={loading ? "animate-spin" : ""} />
+            </button>
+            <button onClick={() => setShowMobileActionsMenu((v) => !v)} title="Mais ações"
+              className={cn(
+                "relative flex items-center justify-center w-9 h-9 rounded-xl border transition-all",
+                showMobileActionsMenu ? "bg-slate-900 border-slate-900 text-white" : "text-slate-500 border-slate-200 hover:bg-slate-50 hover:text-slate-700"
+              )}>
+              <MoreVertical size={16} />
+              {openHeldSalesCount > 0 && !showMobileActionsMenu && (
+                <span className="absolute -top-1 -right-1 min-w-[15px] h-[15px] px-1 rounded-full bg-amber-500 text-white text-[8px] font-black flex items-center justify-center leading-none">
+                  {openHeldSalesCount > 99 ? "99+" : openHeldSalesCount}
+                </span>
+              )}
+            </button>
+            <AnimatePresence>
+              {showMobileActionsMenu && (
+                <>
+                  <div className="fixed inset-0 z-40" onClick={() => setShowMobileActionsMenu(false)} />
+                  <motion.div
+                    initial={{ opacity: 0, y: -6, scale: 0.98 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: -6, scale: 0.98 }}
+                    transition={{ duration: 0.12 }}
+                    className="absolute right-0 top-11 w-60 bg-white rounded-2xl border border-slate-200 shadow-xl z-50 p-1.5"
+                  >
+                    {requireCashSession && cashSession && (
+                      <button onClick={() => { setShowCloseCashModal(true); setShowMobileActionsMenu(false); }}
+                        className="w-full flex items-center gap-2.5 px-3 h-10 rounded-xl text-[12px] font-bold text-slate-600 hover:bg-slate-50 transition-all">
+                        <Wallet size={14} /> Fechar Caixa
+                      </button>
+                    )}
+                    <button onClick={() => { setShowRightPanel(!showRightPanel); if (!showRightPanel) fetchRecentOrders(); setShowMobileActionsMenu(false); }}
+                      className="w-full flex items-center gap-2.5 px-3 h-10 rounded-xl text-[12px] font-bold text-slate-600 hover:bg-slate-50 transition-all">
+                      <Receipt size={14} /> Recentes
+                    </button>
+                    <button onClick={() => { window.open("/pdv", "_blank", "noopener,noreferrer"); setShowMobileActionsMenu(false); }}
+                      className="w-full flex items-center gap-2.5 px-3 h-10 rounded-xl text-[12px] font-bold text-slate-600 hover:bg-slate-50 transition-all">
+                      <ExternalLink size={14} /> PDV Externo
+                    </button>
+                    <div className="h-px bg-slate-100 my-1" />
+                    <button onClick={() => { setShowCrediarioModal(true); setShowMobileActionsMenu(false); }}
+                      className="w-full flex items-center gap-2.5 px-3 h-10 rounded-xl text-[12px] font-bold text-slate-600 hover:bg-slate-50 transition-all">
+                      <Wallet size={14} /> Crediário
+                    </button>
+                    <button onClick={() => { setShowCustomerLookup(true); setShowMobileActionsMenu(false); }}
+                      className="w-full flex items-center gap-2.5 px-3 h-10 rounded-xl text-[12px] font-bold text-slate-600 hover:bg-slate-50 transition-all">
+                      <User size={14} /> Cliente
+                    </button>
+                    <button onClick={() => { setShowConsignmentLookup(true); setShowMobileActionsMenu(false); }}
+                      className="w-full flex items-center gap-2.5 px-3 h-10 rounded-xl text-[12px] font-bold text-slate-600 hover:bg-slate-50 transition-all">
+                      <ShoppingBag size={14} /> Consignado
+                    </button>
+                    <button onClick={() => { setShowHeldSalesDrawer(true); setShowMobileActionsMenu(false); }}
+                      className="w-full flex items-center justify-between px-3 h-10 rounded-xl text-[12px] font-bold text-slate-600 hover:bg-slate-50 transition-all">
+                      <span className="flex items-center gap-2.5"><Clock size={14} /> Vendas Abertas</span>
+                      {openHeldSalesCount > 0 && (
+                        <span className="min-w-[18px] h-[18px] px-1 rounded-full bg-amber-500 text-white text-[10px] font-black flex items-center justify-center leading-none">
+                          {openHeldSalesCount > 99 ? "99+" : openHeldSalesCount}
+                        </span>
+                      )}
+                    </button>
+                  </motion.div>
+                </>
+              )}
+            </AnimatePresence>
           </div>
         )}
       </header>
