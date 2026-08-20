@@ -122,11 +122,20 @@ async function startSocket(tenantId: number, tenantSlug: string, webhookSecret: 
     if (update.connection === "close") {
       const statusCode = (update.lastDisconnect?.error as Boom | undefined)?.output?.statusCode;
       const loggedOut = statusCode === DisconnectReason.loggedOut;
+      const restartRequired = statusCode === DisconnectReason.restartRequired;
 
       if (loggedOut) {
         logger.warn({ tenantId }, "session logged out from the phone, clearing local session");
         sessions.delete(tenantId);
         rmSync(sessionFolder(tenantId), { recursive: true, force: true });
+      } else if (restartRequired) {
+        // O próprio Baileys fecha a conexão com 515 logo após o QR ser escaneado pela
+        // primeira vez — faz parte do fluxo normal de pareamento, e é esperado reconectar
+        // na hora. Com o backoff abaixo isso ficava esperando alguns segundos bons demais
+        // pra completar o login, e no celular parecia que o QR tinha sido lido à toa.
+        logger.info({ tenantId }, "restart required after pairing, reconnecting immediately");
+        sessions.delete(tenantId);
+        void startSocket(tenantId, tenantSlug, webhookSecret, 0);
       } else {
         // Sem backoff aqui, isso reconectava em loop apertado (às vezes múltiplas
         // vezes por segundo) sem nunca dar tempo do lado do WhatsApp — mantém um
