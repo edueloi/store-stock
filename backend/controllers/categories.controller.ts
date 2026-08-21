@@ -2,6 +2,7 @@ import type { Request, Response } from "express";
 
 import { prisma } from "../config/prisma";
 import type { AuthenticatedRequest } from "../types/auth";
+import { emitToTenant } from "../services/realtime.service";
 
 function getTenantId(req: Request) {
   return (req as AuthenticatedRequest).user.tenantId;
@@ -22,12 +23,15 @@ export async function listCategories(req: Request, res: Response) {
 
 export async function createCategory(req: Request, res: Response) {
   try {
+    const tenantId = getTenantId(req);
     const category = await prisma.category.create({
       data: {
         name: req.body.name,
-        tenant_id: getTenantId(req),
+        tenant_id: tenantId,
       },
     });
+
+    emitToTenant(tenantId, "category:changed", { categoryId: category.id });
 
     res.json({ id: category.id });
   } catch {
@@ -37,13 +41,18 @@ export async function createCategory(req: Request, res: Response) {
 
 export async function updateCategory(req: Request, res: Response) {
   try {
+    const tenantId = getTenantId(req);
+    const categoryId = Number(req.params.id);
+
     await prisma.category.updateMany({
       where: {
-        id: Number(req.params.id),
-        tenant_id: getTenantId(req),
+        id: categoryId,
+        tenant_id: tenantId,
       },
       data: { name: req.body.name },
     });
+
+    emitToTenant(tenantId, "category:changed", { categoryId });
 
     res.json({ success: true });
   } catch {
@@ -53,12 +62,17 @@ export async function updateCategory(req: Request, res: Response) {
 
 export async function deleteCategory(req: Request, res: Response) {
   try {
+    const tenantId = getTenantId(req);
+    const categoryId = Number(req.params.id);
+
     await prisma.category.deleteMany({
       where: {
-        id: Number(req.params.id),
-        tenant_id: getTenantId(req),
+        id: categoryId,
+        tenant_id: tenantId,
       },
     });
+
+    emitToTenant(tenantId, "category:changed", { categoryId });
 
     res.json({ success: true });
   } catch {

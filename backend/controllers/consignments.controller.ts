@@ -4,6 +4,7 @@ import { prisma } from "../config/prisma";
 import type { AuthenticatedRequest } from "../types/auth";
 import { finalizeSaleOrderForConsignment, SaleError } from "./sales.controller";
 import { decrementProductStock, returnProductStock } from "../utils/stock-adjust";
+import { emitToTenant } from "../services/realtime.service";
 
 function getTenantId(req: Request) {
   return (req as AuthenticatedRequest).user.tenantId;
@@ -223,6 +224,9 @@ export async function createConsignment(req: Request, res: Response) {
 
     await logAction(tenantId, consignment.id, "created", { toStatus: consignment.status, actor: getActor(req) });
 
+    emitToTenant(tenantId, "consignment:changed", { consignmentId: consignment.id });
+    emitToTenant(tenantId, "stock:changed", { consignmentId: consignment.id });
+
     res.json(consignment);
   } catch (err) {
     console.error(err);
@@ -263,6 +267,8 @@ export async function updateConsignment(req: Request, res: Response) {
     }
 
     await prisma.consignment.update({ where: { id }, data });
+
+    emitToTenant(tenantId, "consignment:changed", { consignmentId: id });
 
     const updated = await prisma.consignment.findFirst({ where: { id, tenant_id: tenantId }, include: CONSIGNMENT_INCLUDE });
     res.json(updated);
@@ -323,6 +329,9 @@ export async function addConsignmentItem(req: Request, res: Response) {
       meta: { product_id: product.id, quantity: qty },
     });
 
+    emitToTenant(tenantId, "consignment:changed", { consignmentId: id });
+    emitToTenant(tenantId, "stock:changed", { consignmentId: id, productId: product.id });
+
     const updated = await prisma.consignment.findFirst({ where: { id, tenant_id: tenantId }, include: CONSIGNMENT_INCLUDE });
     res.json(updated);
   } catch (err) {
@@ -353,6 +362,9 @@ export async function removeConsignmentItem(req: Request, res: Response) {
       note: `${item.name} x${item.quantity}`,
       meta: { product_id: item.product_id, quantity: item.quantity },
     });
+
+    emitToTenant(tenantId, "consignment:changed", { consignmentId: id });
+    emitToTenant(tenantId, "stock:changed", { consignmentId: id, productId: item.product_id });
 
     const updated = await prisma.consignment.findFirst({ where: { id, tenant_id: tenantId }, include: CONSIGNMENT_INCLUDE });
     res.json(updated);
@@ -488,6 +500,13 @@ export async function resolveConsignment(req: Request, res: Response) {
       },
     });
 
+    emitToTenant(tenantId, "consignment:changed", { consignmentId: id });
+    emitToTenant(tenantId, "stock:changed", { consignmentId: id });
+    if (invoicedOrderId) {
+      emitToTenant(tenantId, "order:created", { orderId: invoicedOrderId, consignmentId: id });
+      emitToTenant(tenantId, "finance:changed", { orderId: invoicedOrderId });
+    }
+
     const updated = await prisma.consignment.findFirst({ where: { id, tenant_id: tenantId }, include: CONSIGNMENT_INCLUDE });
     res.json({ ...updated, orderId: invoicedOrderId });
   } catch (err) {
@@ -532,6 +551,9 @@ export async function cancelConsignment(req: Request, res: Response) {
     await logAction(tenantId, id, "cancelled", {
       fromStatus: consignment.status, toStatus: "cancelada", actor: getActor(req), note: cancel_reason,
     });
+
+    emitToTenant(tenantId, "consignment:changed", { consignmentId: id });
+    emitToTenant(tenantId, "stock:changed", { consignmentId: id });
 
     const updated = await prisma.consignment.findFirst({ where: { id, tenant_id: tenantId }, include: CONSIGNMENT_INCLUDE });
     res.json(updated);

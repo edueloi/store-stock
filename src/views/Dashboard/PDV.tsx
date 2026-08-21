@@ -21,6 +21,7 @@ import OpenCashSessionScreen from "../../components/pdv/OpenCashSessionScreen";
 import CloseCashSessionModal from "../../components/pdv/CloseCashSessionModal";
 import HeldSalesDrawer from "../../components/pdv/HeldSalesDrawer";
 import { cancelHeldSale, createHeldSale, getOpenHeldSalesCount, type HeldSale } from "../../lib/heldSales";
+import { onRealtimeAny } from "../../lib/realtime";
 
 function maskPhone(v: string) {
   const d = v.replace(/\D/g, "").slice(0, 11);
@@ -156,6 +157,14 @@ export default function PDV() {
   const [cart, setCart]             = useState<CartItem[]>([]);
   const [loading, setLoading]       = useState(true);
   const [finishing, setFinishing]   = useState(false);
+  // Trava síncrona contra clique duplo/Enter+clique quase simultâneos: `finishing`
+  // (estado do React) só reflete depois de um re-render, então dois disparos podem
+  // passar pelo `if (finishing) return` antes de qualquer um setar o estado — o que já
+  // causou estoque virar negativo (venda registrada em dobro). O ref é síncrono, fecha
+  // essa brecha. O clientSaleId reaproveita a idempotência que o backend já suporta
+  // (usada hoje só no PDV offline) pra também proteger contra reenvio de rede.
+  const finishingRef = useRef(false);
+  const saleClientIdRef = useRef<string | null>(null);
   const [saleError, setSaleError]   = useState<string | null>(null);
   const [terminalConfigured, setTerminalConfigured] = useState(false);
   const [terminalCharging, setTerminalCharging] = useState(false);
@@ -393,6 +402,21 @@ export default function PDV() {
       setLoyaltyRewards(Array.isArray(rw) ? rw.filter((r: { is_active: boolean }) => r.is_active) : []);
     }).catch(() => {});
   }, []);
+
+  // Mantém o grid de produtos e o contador de vendas em espera sincronizados com
+  // outros terminais/telas, sem o "flash" de loading do refreshProducts() (o
+  // caixa pode estar no meio de uma venda quando o evento chega).
+  useEffect(() => onRealtimeAny(["stock:changed", "product:changed", "category:changed"], () => {
+    const headers = { Authorization: `Bearer ${token}` };
+    fetch("/api/products", { headers })
+      .then((r) => r.json())
+      .then((d) => { if (Array.isArray(d)) setProducts(d); })
+      .catch(() => {});
+  }), [token]);
+
+  useEffect(() => onRealtimeAny(["order:updated"], () => {
+    if (token) getOpenHeldSalesCount(token).then(setOpenHeldSalesCount).catch(() => {});
+  }), [token]);
 
   const fetchRecentOrders = useCallback(async () => {
     setLoadingOrders(true);
@@ -937,6 +961,7 @@ export default function PDV() {
     setShowCheckout(false);
     setPdvStep("cart");
     setActiveHeldSaleId(null);
+    saleClientIdRef.current = null;
     refreshProducts();
   };
 
@@ -1396,13 +1421,15 @@ export default function PDV() {
 
   // ── finish sale ───────────────────────────────────────────────────────────────
   const handleFinishSale = async () => {
-    if (!canFinish || finishing) return;
+    if (!canFinish || finishing || finishingRef.current) return;
     if (payments.some((p) => p.method === "crediario") && !selectedCustomerId) {
       setSaleError("Selecione um cliente para vender no crediário");
       return;
     }
+    finishingRef.current = true;
     setFinishing(true);
     setSaleError(null);
+    if (!saleClientIdRef.current) saleClientIdRef.current = crypto.randomUUID();
     try {
       const pmString = payments.map((p) => {
         const brand = (p.method === "debit" || p.method === "credit") ? `-${p.cardBrand}` : "";
@@ -1432,6 +1459,7 @@ export default function PDV() {
           crediarioFirstDueDate: crediarioPayment?.crediarioFirstDueDate ?? undefined,
           cashSessionId: cashSession?.id ?? null,
           heldSaleId: activeHeldSaleId ?? undefined,
+          clientSaleId: saleClientIdRef.current,
         }),
       });
       if (!res.ok) {
@@ -1489,6 +1517,7 @@ export default function PDV() {
           tenantColor:    tenant.primary_color ?? "#2563eb",
           cardFees, pointsEarned, rewardApplied,
         };
+        saleClientIdRef.current = null;
         setCompletedSale(sale);
         setNfceInvoice(null);
         setNfceRequested(false); setNfceEmitting(false); setNfceEmitError(null);
@@ -1517,7 +1546,7 @@ export default function PDV() {
       console.error("Sale failed", e);
       setSaleError("Erro inesperado ao processar venda. Tente novamente.");
     }
-    finally { setFinishing(false); }
+    finally { finishingRef.current = false; setFinishing(false); }
   };
 
   const handleChargeTerminal = async () => {

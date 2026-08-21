@@ -10,6 +10,7 @@ import { cn } from "../../lib/utils";
 import Modal from "../../components/ui/Modal";
 import Button from "../../components/ui/Button";
 import { useToast } from "../../components/ui/Toast";
+import { onRealtime } from "../../lib/realtime";
 
 const PRAZO_CANCELAMENTO_MINUTOS = 30;
 
@@ -131,6 +132,7 @@ export default function NfceInvoices() {
   };
 
   useEffect(() => { fetchInvoices(); }, []);
+  useEffect(() => onRealtime("nfce:changed", () => { fetchInvoices(); }), []);
 
   const handleRetry = async (orderId: number) => {
     setRetrying(orderId);

@@ -30,6 +30,7 @@ import { cn } from "../../lib/utils";
 import { motion, AnimatePresence } from "motion/react";
 import { downloadHtmlAsPdf } from "../../lib/pdf";
 import { useToast } from "../../components/ui/Toast";
+import { onRealtimeAny } from "../../lib/realtime";
 
 // Baixa um arquivo autenticado (Bearer token) via fetch+blob — um <a href> direto
 // não envia o header Authorization e o backend responde 401.
@@ -484,6 +485,12 @@ export default function Orders() {
       })
       .catch(() => {});
   }, []);
+
+  // Reflete na hora pedidos criados/cancelados/excluídos em outro terminal/tela.
+  useEffect(() => onRealtimeAny(
+    ["order:created", "order:updated", "order:cancelled", "order:deleted", "nfce:changed"],
+    () => { fetchOrders(); },
+  ), []);
 
   const fetchOrderDetails = async (id: number) => {
     try {

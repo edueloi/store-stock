@@ -1,5 +1,7 @@
 import type { User } from "../types";
 
+import { disconnectRealtime } from "./realtime";
+
 export function saveSession(token: string, user: Partial<User> & { role: string }) {
   localStorage.setItem("token", token);
   localStorage.setItem("user", JSON.stringify(user));
@@ -8,6 +10,7 @@ export function saveSession(token: string, user: Partial<User> & { role: string 
 export function clearSession() {
   localStorage.removeItem("token");
   localStorage.removeItem("user");
+  disconnectRealtime();
 }
 
 export function getStoredUser(): (Partial<User> & { role?: string; superAdmin?: boolean }) | null {

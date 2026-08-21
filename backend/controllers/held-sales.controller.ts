@@ -3,6 +3,7 @@ import type { Request, Response } from "express";
 import { prisma } from "../config/prisma";
 import type { AuthenticatedRequest } from "../types/auth";
 import { decrementProductStock, returnProductStock } from "../utils/stock-adjust";
+import { emitToTenant } from "../services/realtime.service";
 
 function getTenantId(req: Request) {
   return (req as AuthenticatedRequest).user.tenantId;
@@ -187,6 +188,9 @@ export async function createHeldSale(req: Request, res: Response) {
 
     await logAction(tenantId, heldSale.id, "created", { toStatus: heldSale.status, actor: getActor(req) });
 
+    emitToTenant(tenantId, "order:updated", { heldSaleId: heldSale.id });
+    emitToTenant(tenantId, "stock:changed", { heldSaleId: heldSale.id });
+
     res.status(201).json(heldSale);
   } catch (err) {
     console.error(err);
@@ -217,6 +221,8 @@ export async function resumeHeldSale(req: Request, res: Response) {
     });
 
     await logAction(tenantId, id, "resumed", { fromStatus: existing.status, toStatus: "resumed", actor });
+
+    emitToTenant(tenantId, "order:updated", { heldSaleId: id });
 
     res.json(updated);
   } catch (err) {
@@ -264,6 +270,10 @@ export async function cancelHeldSale(req: Request, res: Response) {
       where: { id, tenant_id: tenantId },
       include: { ...HELD_SALE_INCLUDE, actions: { orderBy: { created_at: "desc" } } },
     });
+
+    emitToTenant(tenantId, "order:updated", { heldSaleId: id });
+    emitToTenant(tenantId, "stock:changed", { heldSaleId: id });
+
     res.json(updated);
   } catch (err) {
     console.error(err);

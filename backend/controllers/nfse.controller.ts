@@ -4,6 +4,7 @@ import type { Request, Response } from "express";
 import { prisma } from "../config/prisma";
 import type { AuthenticatedRequest } from "../types/auth";
 import { emitirNfse } from "../services/nfse/emitir";
+import { emitToTenant } from "../services/realtime.service";
 
 function getTenantId(req: Request) {
   return (req as AuthenticatedRequest).user.tenantId;
@@ -81,6 +82,7 @@ export async function emitNfseForServiceOrder(req: Request, res: Response) {
     const descricao = descricao_servico
       || `${serviceOrder.equipment_category ?? "Serviço"}${serviceOrder.equipment_type ? ` — ${serviceOrder.equipment_type}` : ""}`;
 
+    emitToTenant(tenantId, "nfse:changed", { serviceOrderId });
     emitirNfse({
       serviceOrderId,
       codigoTributacaoNacional: codigo_tributacao_nacional,
@@ -190,6 +192,7 @@ export async function retryNfse(req: Request, res: Response) {
     }
 
     await prisma.nfseInvoice.update({ where: { id: invoice.id }, data: { status: "pending" } });
+    emitToTenant(tenantId, "nfse:changed", { serviceOrderId });
     emitirNfse({
       serviceOrderId,
       codigoTributacaoNacional: codigo_tributacao_nacional,

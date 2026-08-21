@@ -19,6 +19,7 @@ import PageHeader from "../../components/layout/PageHeader";
 import { Product } from "../../types";
 import { cn } from "../../lib/utils";
 import Modal from "../../components/ui/Modal";
+import { onRealtimeAny } from "../../lib/realtime";
 
 interface StockMovement {
   id: number;
@@ -106,6 +107,10 @@ export default function Stock() {
   };
 
   useEffect(() => { fetchData(); }, []);
+
+  // Atualiza sozinho quando uma venda, cancelamento, ajuste ou OS mexe no estoque
+  // em outra tela/terminal — sem precisar de F5.
+  useEffect(() => onRealtimeAny(["stock:changed", "product:changed"], () => { fetchData(); }), []);
 
   useEffect(() => {
     fetch("/api/preferences/low_stock_alert", {

@@ -4,6 +4,7 @@ import { prisma } from "../config/prisma";
 import { deleteProductImage } from "./upload.controller";
 import { getLowStockThreshold } from "../utils/low-stock-threshold";
 import type { AuthenticatedRequest } from "../types/auth";
+import { emitToTenant } from "../services/realtime.service";
 
 function getTenantId(req: Request) {
   return (req as AuthenticatedRequest).user.tenantId;
@@ -107,6 +108,8 @@ export async function createProduct(req: Request, res: Response) {
         skus: Array.isArray(skus) ? skus : undefined,
       },
     });
+
+    emitToTenant(getTenantId(req), "product:changed", { productId: product.id });
 
     res.json({ id: product.id });
   } catch {
@@ -218,6 +221,9 @@ export async function updateProduct(req: Request, res: Response) {
       }
     }
 
+    emitToTenant(tenantId, "product:changed", { productId: id });
+    emitToTenant(tenantId, "stock:changed", { productId: id });
+
     res.json({ success: true });
   } catch {
     res.status(500).json({ error: "Failed to update product" });
@@ -250,6 +256,8 @@ export async function deleteProduct(req: Request, res: Response) {
     extraImages.forEach(url => deleteProductImage(url));
 
     await prisma.product.deleteMany({ where: { id, tenant_id: tenantId } });
+
+    emitToTenant(tenantId, "product:changed", { productId: id });
 
     res.json({ success: true });
   } catch {
@@ -291,6 +299,8 @@ export async function adjustProductStock(req: Request, res: Response) {
         },
       }),
     ]);
+
+    emitToTenant(tenantId, "stock:changed", { productId });
 
     res.json({ success: true });
   } catch {

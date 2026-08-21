@@ -24,6 +24,7 @@ import { cn } from "../../lib/utils";
 import PageHeader from "../../components/layout/PageHeader";
 import Combobox from "../../components/ui/Combobox";
 import { useToast } from "../../components/ui/Toast";
+import { onRealtime } from "../../lib/realtime";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -229,6 +230,7 @@ export default function Consignments() {
   }, []);
 
   useEffect(() => { fetchAll(); }, [fetchAll]);
+  useEffect(() => onRealtime("consignment:changed", () => { fetchAll(); }), [fetchAll]);
 
   const refreshSelected = useCallback(async (id: number) => {
     const res = await fetch(`/api/consignments/${id}`, { headers: authHeaderNoJson() });

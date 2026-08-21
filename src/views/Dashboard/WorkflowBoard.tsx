@@ -5,6 +5,7 @@ import PageHeader from "../../components/layout/PageHeader";
 import { cn } from "../../lib/utils";
 import { getStoredUser } from "../../lib/session";
 import { authHeader, fmt, STATUS_ORDER, STATUS_META, type SOStatus } from "./serviceOrders.shared";
+import { onRealtimeAny } from "../../lib/realtime";
 
 type Tab = "ordens_servico" | "orcamentos";
 
@@ -57,6 +58,7 @@ export default function WorkflowBoard() {
   }, []);
 
   useEffect(() => { load(); }, [load]);
+  useEffect(() => onRealtimeAny(["service-order:changed", "order:updated"], () => { load(); }), [load]);
 
   const columns = tab === "ordens_servico" ? BOARD_STATUSES : QUOTE_STATUS_ORDER;
 

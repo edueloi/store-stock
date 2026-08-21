@@ -1,4 +1,5 @@
 import fs from "fs";
+import http from "http";
 import path from "path";
 
 import express from "express";
@@ -11,6 +12,7 @@ import { startWhatsappMaintenanceLoop } from "./services/whatsapp.service";
 import { startPointsReminderLoop } from "./services/loyalty-notifications.service";
 import { startQuoteExpirationLoop } from "./controllers/quotes.controller";
 import { initStoreSeoTemplate, handleProductSeo } from "./controllers/store-seo.controller";
+import { initRealtime } from "./services/realtime.service";
 
 async function attachFrontend(app: express.Express) {
   if (env.nodeEnv !== "production") {
@@ -49,7 +51,10 @@ export async function startServer() {
   const app = createApp();
   await attachFrontend(app);
 
-  app.listen(env.port, "0.0.0.0", () => {
+  const httpServer = http.createServer(app);
+  initRealtime(httpServer);
+
+  httpServer.listen(env.port, "0.0.0.0", () => {
     console.log(`Server running on http://localhost:${env.port}`);
   });
 }

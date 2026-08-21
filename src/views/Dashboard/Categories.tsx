@@ -9,6 +9,7 @@ import SearchBar from "../../components/layout/SearchBar";
 import { EmptyState, LoadingState } from "../../components/layout/EmptyState";
 import { StatCard } from "../../components/ui/Card";
 import { Category } from "../../types";
+import { onRealtime } from "../../lib/realtime";
 
 export default function Categories() {
   const [categories, setCategories] = useState<Category[]>([]);
@@ -33,6 +34,7 @@ export default function Categories() {
   };
 
   useEffect(() => { fetchCategories(); }, []);
+  useEffect(() => onRealtime("category:changed", () => { fetchCategories(); }), []);
 
   const openNew = () => { setEditing({ name: "" }); setIsModalOpen(true); };
   const openEdit = (c: Category) => { setEditing(c); setIsModalOpen(true); };

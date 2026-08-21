@@ -5,6 +5,7 @@ import type { AuthenticatedRequest } from "../types/auth";
 import { localDateString } from "../utils/date";
 import { canMoveToStage } from "../utils/stage-permissions";
 import { isWorkflowStage, WORKFLOW_STAGES } from "../utils/workflow-stages";
+import { emitToTenant } from "../services/realtime.service";
 
 function getTenantId(req: Request) {
   return (req as AuthenticatedRequest).user.tenantId;
@@ -535,6 +536,9 @@ export async function convertToOrder(req: Request, res: Response) {
     await logQuoteAction(tenantId, quoteId, "converted", {
       fromStatus: quote.status, toStatus: "converted", actor: getActor(req), meta: { order_id: order.id },
     });
+
+    emitToTenant(tenantId, "order:created", { orderId: order.id, quoteId });
+    emitToTenant(tenantId, "stock:changed", { orderId: order.id });
 
     res.json({ success: true, orderId: order.id });
   } catch (err) {

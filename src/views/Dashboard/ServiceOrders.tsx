@@ -5,6 +5,7 @@ import { cn } from "../../lib/utils";
 import PageHeader from "../../components/layout/PageHeader";
 import Modal from "../../components/ui/Modal";
 import Combobox, { type ComboboxOption } from "../../components/ui/Combobox";
+import { onRealtime } from "../../lib/realtime";
 import {
   ServiceOrder,
   Seller,
@@ -47,6 +48,7 @@ export default function ServiceOrders() {
   }, []);
 
   useEffect(() => { fetchAll(); }, [fetchAll]);
+  useEffect(() => onRealtime("service-order:changed", () => { fetchAll(); }), [fetchAll]);
 
   const handleDelete = async () => {
     if (!deleteTarget) return;

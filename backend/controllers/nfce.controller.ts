@@ -7,6 +7,7 @@ import type { AuthenticatedRequest } from "../types/auth";
 import { emitirNfce, paymentsFromOrder } from "../services/nfce/emitir";
 import { cancelarNfce } from "../services/nfce/cancelar";
 import { generateDanfePdf } from "../services/nfce/danfe";
+import { emitToTenant } from "../services/realtime.service";
 
 const PAYMENT_LABELS: Record<string, string> = { money: "Dinheiro", pix: "PIX", debit: "Débito", credit: "Crédito" };
 
@@ -111,6 +112,7 @@ export async function emitNfceForOrder(req: Request, res: Response) {
     } else {
       invoice = await prisma.nfceInvoice.update({ where: { id: invoice.id }, data: { status: "pending" } });
     }
+    emitToTenant(tenantId, "nfce:changed", { orderId });
     emitirNfce(orderId).catch((error) => console.error("[emitNfceForOrder] erro:", error));
     res.json(invoice);
   } catch {
@@ -138,6 +140,7 @@ export async function retryNfce(req: Request, res: Response) {
       where: { id: invoice.id },
       data: { status: "pending" },
     });
+    emitToTenant(tenantId, "nfce:changed", { orderId });
     emitirNfce(orderId).catch((e) => console.error("[retryNfce] erro:", e));
 
     res.json({ success: true });
@@ -166,6 +169,7 @@ export async function cancelNfce(req: Request, res: Response) {
       return;
     }
 
+    emitToTenant(tenantId, "nfce:changed", { orderId });
     res.json({ success: true });
   } catch {
     res.status(500).json({ error: "Failed to cancel NFC-e" });
@@ -195,6 +199,7 @@ export async function retryNfceBatch(req: Request, res: Response) {
     });
 
     for (const invoice of invoices) {
+      emitToTenant(tenantId, "nfce:changed", { orderId: invoice.order_id });
       emitirNfce(invoice.order_id).catch((e) => console.error("[retryNfceBatch] erro:", e));
     }
 

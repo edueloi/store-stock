@@ -4,6 +4,7 @@ import { prisma } from "../config/prisma";
 import type { AuthenticatedRequest } from "../types/auth";
 import { localDateString } from "../utils/date";
 import { cancelarNfce } from "../services/nfce/cancelar";
+import { emitToTenant } from "../services/realtime.service";
 
 function getTenantId(req: Request) {
   return (req as AuthenticatedRequest).user.tenantId;
@@ -207,8 +208,10 @@ export async function updateOrderStatus(req: Request, res: Response) {
       });
 
       await logAction(tenantId, orderId, "finance_created", getActor(req), `Entrada financeira criada: R$ ${net.toFixed(2)}`);
+      emitToTenant(tenantId, "finance:changed", { orderId });
     }
 
+    emitToTenant(tenantId, "order:updated", { orderId, status: newStatus });
     res.json({ success: true });
   } catch {
     res.status(500).json({ error: "Failed to update order status" });
@@ -286,7 +289,12 @@ export async function cancelOrder(req: Request, res: Response) {
       const result = await cancelarNfce(orderId, cancel_reason || "Cancelamento do pedido pelo operador");
       nfceCancel.success = result.success;
       if (!result.success) nfceCancel.error = result.error;
+      emitToTenant(tenantId, "nfce:changed", { orderId });
     }
+
+    emitToTenant(tenantId, "order:cancelled", { orderId });
+    emitToTenant(tenantId, "stock:changed", { orderId });
+    emitToTenant(tenantId, "finance:changed", { orderId });
 
     res.json({ success: true, nfce: nfceCancel });
   } catch (err) {
@@ -304,12 +312,25 @@ export async function deleteOrder(req: Request, res: Response) {
 
     const order = await prisma.order.findFirst({
       where: { id: orderId, tenant_id: tenantId },
-      include: { items: true },
+      include: { items: true, nfce_invoice: true },
     });
 
     if (!order) { res.status(404).json({ error: "Pedido não encontrado" }); return; }
 
-    if (order.status === "completed") {
+    // Uma NFC-e autorizada é um documento fiscal válido perante a SEFAZ — não dá
+    // pra simplesmente apagar o pedido por baixo dela. É preciso cancelar a nota
+    // primeiro (via "Cancelar pedido", que já faz esse evento fiscal).
+    if (order.nfce_invoice && order.nfce_invoice.status === "authorized") {
+      res.status(409).json({
+        error: "Este pedido tem uma NFC-e autorizada. Cancele o pedido (o que também cancela a nota fiscal) antes de excluí-lo.",
+      });
+      return;
+    }
+
+    // "completed" (venda no PDV) e "pending" (pedido da loja online, ainda não
+    // confirmado) já debitam estoque na criação — precisam devolver ao excluir.
+    // "cancelled" já teve o estoque revertido pelo cancelamento, não reverte de novo.
+    if (order.status === "completed" || order.status === "pending") {
       if (shouldRevertStock) {
         const itemsWithOptions = order.items.map((item) => ({
           product_id: item.product_id,
@@ -331,9 +352,19 @@ export async function deleteOrder(req: Request, res: Response) {
       }
     }
 
+    // Nota não-autorizada (pending/rejected/error/cancelled) não tem validade fiscal —
+    // pode ser removida junto com o pedido, senão a FK trava a exclusão do pedido.
+    if (order.nfce_invoice) {
+      await prisma.nfceInvoice.delete({ where: { id: order.nfce_invoice.id } });
+    }
+
     await prisma.orderItem.deleteMany({ where: { order_id: orderId } });
     await prisma.orderService.deleteMany({ where: { order_id: orderId } });
     await prisma.order.delete({ where: { id: orderId } });
+
+    emitToTenant(tenantId, "order:deleted", { orderId });
+    emitToTenant(tenantId, "stock:changed", { orderId });
+    emitToTenant(tenantId, "finance:changed", { orderId });
 
     res.json({ success: true });
   } catch (err) {
@@ -355,15 +386,19 @@ export async function bulkDeleteOrders(req: Request, res: Response) {
 
     const orders = await prisma.order.findMany({
       where: { id: { in: ids }, tenant_id: tenantId },
-      include: { items: true },
+      include: { items: true, nfce_invoice: true },
     });
 
     if (orders.length === 0) { res.status(404).json({ error: "Nenhum pedido encontrado" }); return; }
 
-    const validIds = orders.map((o) => o.id);
+    // Pedidos com NFC-e autorizada são documentos fiscais válidos — não entram no
+    // hard-delete. Precisam ser cancelados primeiro (o que cancela a nota também).
+    const blocked  = orders.filter((o) => o.nfce_invoice && o.nfce_invoice.status === "authorized");
+    const deletable = orders.filter((o) => !blocked.includes(o));
+    const validIds = deletable.map((o) => o.id);
 
-    for (const order of orders) {
-      if (order.status === "completed") {
+    for (const order of deletable) {
+      if (order.status === "completed" || order.status === "pending") {
         if (shouldRevertStock) {
           const itemsWithOptions = order.items.map((item) => ({
             product_id: item.product_id,
@@ -384,13 +419,29 @@ export async function bulkDeleteOrders(req: Request, res: Response) {
           }
         }
       }
+
+      // Nota não-autorizada não tem validade fiscal — some junto com o pedido,
+      // senão a FK do nfce_invoices trava o delete do pedido.
+      if (order.nfce_invoice) {
+        await prisma.nfceInvoice.delete({ where: { id: order.nfce_invoice.id } });
+      }
     }
 
     await prisma.orderItem.deleteMany({ where: { order_id: { in: validIds } } });
     await prisma.orderService.deleteMany({ where: { order_id: { in: validIds } } });
     await prisma.order.deleteMany({ where: { id: { in: validIds } } });
 
-    res.json({ success: true, deleted: validIds.length });
+    if (validIds.length > 0) {
+      emitToTenant(tenantId, "order:deleted", { orderIds: validIds });
+      emitToTenant(tenantId, "stock:changed", { orderIds: validIds });
+      emitToTenant(tenantId, "finance:changed", { orderIds: validIds });
+    }
+
+    res.json({
+      success: true,
+      deleted: validIds.length,
+      blocked: blocked.map((o) => ({ id: o.id, reason: "NFC-e autorizada — cancele o pedido antes de excluir" })),
+    });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Falha ao deletar pedidos" });

@@ -22,6 +22,7 @@ import {
 import { AccountPayable, AccountStatus } from "../../types";
 import { cn } from "../../lib/utils";
 import { useToast } from "../../components/ui/Toast";
+import { onRealtime } from "../../lib/realtime";
 
 const fmt = (v: number) =>
   v.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -97,6 +98,7 @@ export default function ContasPagar() {
   };
 
   useEffect(() => { fetchItems(); }, []);
+  useEffect(() => onRealtime("finance:changed", () => { fetchItems(); }), []);
 
   const openCreate = () => {
     setSelected(null);

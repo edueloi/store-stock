@@ -31,6 +31,7 @@ import {
 import { FinanceEntry, Tenant } from "../../types";
 import { cn } from "../../lib/utils";
 import Modal from "../../components/ui/Modal";
+import { onRealtimeAny } from "../../lib/realtime";
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
 
@@ -842,6 +843,9 @@ export default function Finance() {
       .then((d) => setTenant(d))
       .catch(() => {});
   }, []);
+
+  // Novo lançamento, venda ou cancelamento em outro terminal atualiza a lista sozinho.
+  useEffect(() => onRealtimeAny(["finance:changed", "order:created", "order:cancelled", "order:deleted"], () => { fetchFinance(); }), []);
 
   const applyPreset = (p: Preset) => {
     setPreset(p);

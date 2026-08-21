@@ -32,6 +32,7 @@ import PageHeader from "../../components/layout/PageHeader";
 import Modal from "../../components/ui/Modal";
 import Combobox from "../../components/ui/Combobox";
 import { computeMeasuredPrice } from "../../utils/measurePricing";
+import { onRealtimeAny } from "../../lib/realtime";
 import {
   ServiceOrder,
   ChecklistItem,
@@ -229,6 +230,12 @@ export default function ServiceOrderDetail() {
     })();
     fetchOrder();
   }, [fetchOrder]);
+
+  // Reflete sozinho mudanças feitas por outro usuário/tela nesta mesma OS
+  // (status, faturamento, NFS-e), sem apagar o que está sendo digitado agora.
+  useEffect(() => onRealtimeAny(["service-order:changed", "nfse:changed"], (payload) => {
+    if (payload?.id === orderId || payload?.serviceOrderId === orderId) fetchOrder(true);
+  }), [orderId, fetchOrder]);
 
   const checklistTemplates = tenant?.policies?.service_order_checklists ?? {};
   const categoryOptions = Object.keys(checklistTemplates).map((cat) => ({ value: cat, label: cat }));

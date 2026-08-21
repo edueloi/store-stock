@@ -1,6 +1,7 @@
 import type { Request, Response } from "express";
 import { prisma } from "../config/prisma";
 import type { AuthenticatedRequest } from "../types/auth";
+import { emitToTenant } from "../services/realtime.service";
 
 function getTenantId(req: Request) {
   return (req as AuthenticatedRequest).user.tenantId;
@@ -31,9 +32,11 @@ function parseBody(body: Record<string, unknown>) {
 
 export async function createAccountPayable(req: Request, res: Response) {
   try {
+    const tenantId = getTenantId(req);
     const item = await prisma.accountPayable.create({
-      data: { ...parseBody(req.body), tenant_id: getTenantId(req) } as Parameters<typeof prisma.accountPayable.create>[0]["data"],
+      data: { ...parseBody(req.body), tenant_id: tenantId } as Parameters<typeof prisma.accountPayable.create>[0]["data"],
     });
+    emitToTenant(tenantId, "finance:changed", { id: item.id });
     res.json(item);
   } catch (err) {
     console.error("createAccountPayable error:", err);
@@ -52,6 +55,7 @@ export async function updateAccountPayable(req: Request, res: Response) {
       where: { id },
       data: parseBody(req.body),
     });
+    emitToTenant(tenantId, "finance:changed", { id: updated.id });
     res.json(updated);
   } catch (err) {
     console.error("updateAccountPayable error:", err);
@@ -67,6 +71,7 @@ export async function deleteAccountPayable(req: Request, res: Response) {
     if (!existing) return res.status(404).json({ error: "Not found" });
 
     await prisma.accountPayable.delete({ where: { id } });
+    emitToTenant(tenantId, "finance:changed", { id });
     res.json({ ok: true });
   } catch {
     res.status(500).json({ error: "Failed to delete account payable" });
@@ -85,6 +90,7 @@ export async function payAccount(req: Request, res: Response) {
       where: { id },
       data: { status: "paid", paid_date: new Date(paid_date + "T12:00:00") },
     });
+    emitToTenant(tenantId, "finance:changed", { id: updated.id });
     res.json(updated);
   } catch {
     res.status(500).json({ error: "Failed to mark as paid" });

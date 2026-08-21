@@ -6,6 +6,7 @@ import { awardPointsForOrder } from "./loyalty.controller";
 import { localDateString } from "../utils/date";
 import { parsePaymentMethod, buildMethodSummary } from "../utils/payment-method";
 import { decrementProductStock, returnProductStock } from "../utils/stock-adjust";
+import { emitToTenant } from "../services/realtime.service";
 
 function getTenantId(req: Request) {
   return (req as AuthenticatedRequest).user.tenantId;
@@ -489,6 +490,10 @@ export async function createSale(req: Request, res: Response) {
       crediarioInstallments, crediarioFirstDueDate,
       cashSessionId, isOfflineSync, heldSaleId,
     });
+
+    emitToTenant(tenantId, "order:created", { orderId: result.orderId });
+    emitToTenant(tenantId, "stock:changed", { orderId: result.orderId });
+    emitToTenant(tenantId, "finance:changed", { orderId: result.orderId });
 
     res.json({ success: true, orderId: result.orderId });
   } catch (err) {

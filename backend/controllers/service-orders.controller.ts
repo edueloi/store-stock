@@ -6,6 +6,8 @@ import { localDateString } from "../utils/date";
 import { computeMeasuredPrice } from "../utils/measurePricing";
 import { advanceServiceOrderToNotaEmitida, canMoveToStage } from "../utils/stage-permissions";
 import { WORKFLOW_STAGES } from "../utils/workflow-stages";
+import { cancelarNfce } from "../services/nfce/cancelar";
+import { emitToTenant } from "../services/realtime.service";
 
 function getTenantId(req: Request) {
   return (req as AuthenticatedRequest).user.tenantId;
@@ -409,9 +411,9 @@ export async function updateServiceOrderStatus(req: Request, res: Response) {
       include: { parts: true },
     });
     if (!order) return res.status(404).json({ error: "Ordem de serviço não encontrada" });
-    // Faturada só pode seguir para "entregue" (passo manual final) — qualquer outra
-    // mudança de status depois de faturar é bloqueada.
-    if (order.invoiced_order_id && status !== "entregue") {
+    // Faturada só pode seguir para "entregue" ou ser cancelada (o que cancela o
+    // pedido/nota gerados) — qualquer outra mudança depois de faturar é bloqueada.
+    if (order.invoiced_order_id && status !== "entregue" && status !== "cancelada") {
       return res.status(400).json({ error: "Ordem de serviço já foi faturada" });
     }
 
@@ -444,17 +446,73 @@ export async function updateServiceOrderStatus(req: Request, res: Response) {
 
     const fromStatus = order.status;
     const data: Record<string, any> = { status };
+    const warnings: string[] = [];
 
     if (status === "cancelada") {
-      // Revert stock for any parts still attached
-      for (const p of order.parts) {
-        if (p.product_id) {
-          await prisma.product.update({
-            where: { id: p.product_id },
-            data: { stock_quantity: { increment: p.quantity } },
+      if (order.invoiced_order_id) {
+        // OS já faturada: as peças viraram itens do pedido gerado — cancela esse
+        // pedido (devolve estoque, remove financeiro, cancela a NFC-e se houver)
+        // em vez de reverter o estoque das peças de novo aqui.
+        const linkedOrder = await prisma.order.findFirst({
+          where: { id: order.invoiced_order_id, tenant_id: tenantId },
+          include: { items: true },
+        });
+
+        if (linkedOrder && linkedOrder.status !== "cancelled") {
+          for (const item of linkedOrder.items) {
+            await prisma.product.update({
+              where: { id: item.product_id },
+              data: { stock_quantity: { increment: item.quantity } },
+            });
+          }
+
+          await prisma.order.update({
+            where: { id: linkedOrder.id },
+            data: {
+              status:        "cancelled",
+              cancelled_by:  getActor(req),
+              cancel_reason: cancel_reason || "Ordem de serviço cancelada",
+              cancelled_at:  new Date(),
+            },
           });
+
+          const deletedFinance = await (prisma.finance as any).deleteMany({
+            where: { tenant_id: tenantId, order_id: linkedOrder.id },
+          });
+          if (deletedFinance.count === 0) {
+            await prisma.finance.deleteMany({
+              where: { tenant_id: tenantId, description: { contains: `#${linkedOrder.id}` }, type: "income" },
+            });
+          }
+
+          const nfceInvoice = await prisma.nfceInvoice.findUnique({ where: { order_id: linkedOrder.id } });
+          if (nfceInvoice && nfceInvoice.status === "authorized") {
+            const result = await cancelarNfce(linkedOrder.id, cancel_reason || "Cancelamento da ordem de serviço");
+            if (!result.success) {
+              warnings.push(`Não foi possível cancelar a NFC-e das peças automaticamente: ${result.error}`);
+            }
+          }
+        }
+
+        const nfseInvoice = await prisma.nfseInvoice.findUnique({ where: { service_order_id: id } });
+        if (nfseInvoice && nfseInvoice.status === "authorized") {
+          warnings.push(
+            "Esta OS tem uma NFS-e autorizada. O cancelamento automático da NFS-e ainda não é suportado pelo sistema — " +
+            "cancele-a manualmente no portal da prefeitura/gov.br/nfse, se necessário.",
+          );
+        }
+      } else {
+        // Ainda não faturada: reverte estoque das peças anexadas normalmente.
+        for (const p of order.parts) {
+          if (p.product_id) {
+            await prisma.product.update({
+              where: { id: p.product_id },
+              data: { stock_quantity: { increment: p.quantity } },
+            });
+          }
         }
       }
+
       data.cancelled_by = getActor(req);
       data.cancel_reason = cancel_reason || null;
       data.cancelled_at = new Date();
@@ -469,7 +527,17 @@ export async function updateServiceOrderStatus(req: Request, res: Response) {
       where: { id, tenant_id: tenantId },
       include: SERVICE_ORDER_INCLUDE,
     });
-    res.json(updated);
+
+    emitToTenant(tenantId, "service-order:changed", { id, status });
+    if (status === "cancelada") {
+      emitToTenant(tenantId, "stock:changed", { serviceOrderId: id });
+      if (order.invoiced_order_id) {
+        emitToTenant(tenantId, "order:cancelled", { orderId: order.invoiced_order_id });
+        emitToTenant(tenantId, "finance:changed", { orderId: order.invoiced_order_id });
+      }
+    }
+
+    res.json(warnings.length > 0 ? { ...updated, warnings } : updated);
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Falha ao atualizar status" });
@@ -934,6 +1002,10 @@ export async function invoiceServiceOrder(req: Request, res: Response) {
     // Faturar (NFC-e das peças) avança para "nota_emitida" — não regride se a
     // NFS-e da mão de obra já tiver avançado a etapa antes.
     await advanceServiceOrderToNotaEmitida(id, getActor(req));
+
+    emitToTenant(tenantId, "order:created", { orderId: newOrder.id, serviceOrderId: id });
+    emitToTenant(tenantId, "service-order:changed", { id });
+    emitToTenant(tenantId, "finance:changed", { orderId: newOrder.id });
 
     res.json({ success: true, orderId: newOrder.id });
   } catch (err) {

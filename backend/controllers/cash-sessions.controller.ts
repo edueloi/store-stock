@@ -3,6 +3,7 @@ import type { Request, Response } from "express";
 import { prisma } from "../config/prisma";
 import type { AuthenticatedRequest } from "../types/auth";
 import { parsePaymentMethod } from "../utils/payment-method";
+import { emitToTenant } from "../services/realtime.service";
 
 function getTenantId(req: Request) {
   return (req as AuthenticatedRequest).user.tenantId;
@@ -62,6 +63,7 @@ export async function openCashSession(req: Request, res: Response) {
       },
     });
 
+    emitToTenant(tenantId, "cash-session:changed", { cashSessionId: session.id });
     res.status(201).json({ session });
   } catch (err) {
     console.error("[openCashSession] error:", err);
@@ -135,6 +137,7 @@ export async function closeCashSession(req: Request, res: Response) {
       },
     });
 
+    emitToTenant(tenantId, "cash-session:changed", { cashSessionId: updated.id });
     res.json({ session: updated });
   } catch (err) {
     console.error("[closeCashSession] error:", err);
