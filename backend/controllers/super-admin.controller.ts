@@ -249,6 +249,7 @@ export async function updateManagedTenant(req: Request, res: Response) {
     whatsapp,
     name,
     fluxoProducaoEnabled,
+    graficaEnabled,
   } = req.body;
 
   if (!tenantId) {
@@ -267,6 +268,7 @@ export async function updateManagedTenant(req: Request, res: Response) {
         subscription_amount: subscriptionAmount !== undefined ? Number(subscriptionAmount) || 0 : undefined,
         whatsapp: whatsapp !== undefined ? String(whatsapp).trim() : undefined,
         fluxo_producao_enabled: fluxoProducaoEnabled !== undefined ? !!fluxoProducaoEnabled : undefined,
+        grafica_enabled: graficaEnabled !== undefined ? !!graficaEnabled : undefined,
       },
       include: {
         users: {

@@ -51,7 +51,7 @@ import {
   authHeader,
   authHeaderNoJson,
   STATUS_META,
-  STATUS_ORDER,
+  getStatusOrderForTenant,
   downloadServiceOrderPdf,
   newPayment,
   buildPmString,
@@ -240,6 +240,8 @@ export default function ServiceOrderDetail() {
   const checklistTemplates = tenant?.policies?.service_order_checklists ?? {};
   const categoryOptions = Object.keys(checklistTemplates).map((cat) => ({ value: cat, label: cat }));
   const isDraft = selected?.status === "rascunho";
+  // Loja sem o módulo Gráfica não vê/avança pelas etapas de arte (ver Tenant.grafica_enabled).
+  const statusOrderForTenant = getStatusOrderForTenant(tenant?.grafica_enabled);
 
   // ── Autosave ────────────────────────────────────────────────────────────
   const autosaveField = useCallback(async (patch: Record<string, unknown>, fieldKey: string) => {
@@ -696,9 +698,9 @@ export default function ServiceOrderDetail() {
             ) : (
               <>
                 <div className="flex items-center gap-1 mb-3">
-                  {STATUS_ORDER.filter((s) => s !== "rascunho" && s !== "cancelada").map((s) => {
-                    const currentIdx = STATUS_ORDER.indexOf(selected.status);
-                    const idx = STATUS_ORDER.indexOf(s);
+                  {statusOrderForTenant.filter((s) => s !== "rascunho" && s !== "cancelada").map((s) => {
+                    const currentIdx = statusOrderForTenant.indexOf(selected.status);
+                    const idx = statusOrderForTenant.indexOf(s);
                     const isDone = idx <= currentIdx;
                     return (
                       <div key={s} className="flex-1 flex items-center gap-1">
@@ -708,9 +710,9 @@ export default function ServiceOrderDetail() {
                   })}
                 </div>
                 <div className="flex flex-wrap gap-1.5 mb-2">
-                  {STATUS_ORDER.filter((s) => s !== "rascunho" && s !== "cancelada").map((s) => {
-                    const currentIdx = STATUS_ORDER.indexOf(selected.status);
-                    const idx = STATUS_ORDER.indexOf(s);
+                  {statusOrderForTenant.filter((s) => s !== "rascunho" && s !== "cancelada").map((s) => {
+                    const currentIdx = statusOrderForTenant.indexOf(selected.status);
+                    const idx = statusOrderForTenant.indexOf(s);
                     const isCurrent = idx === currentIdx;
                     const isDone = idx < currentIdx;
                     return (
@@ -723,8 +725,8 @@ export default function ServiceOrderDetail() {
                 </div>
                 <div className="flex items-center gap-2">
                   {(() => {
-                    const currentIdx = STATUS_ORDER.indexOf(selected.status);
-                    const next = STATUS_ORDER[currentIdx + 1];
+                    const currentIdx = statusOrderForTenant.indexOf(selected.status);
+                    const next = statusOrderForTenant[currentIdx + 1];
                     // Faturada só pode seguir para "entregue" — as demais ações (cancelar/excluir/pular etapa) ficam bloqueadas.
                     if (selected.invoiced_order_id) {
                       return next === "entregue" ? (

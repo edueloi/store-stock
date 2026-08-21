@@ -60,7 +60,12 @@ export default function WorkflowBoard() {
   useEffect(() => { load(); }, [load]);
   useEffect(() => onRealtimeAny(["service-order:changed", "order:updated"], () => { load(); }), [load]);
 
-  const columns = tab === "ordens_servico" ? BOARD_STATUSES : QUOTE_STATUS_ORDER;
+  // Loja sem o módulo Gráfica não vê "Aguardando arte"/"Arte finalizada" no quadro
+  // (ver Tenant.grafica_enabled, refletido em currentUser.grafica_enabled no login).
+  const graficaEnabled = !!currentUser?.grafica_enabled;
+  const hideGraficaStages = (stages: string[]) =>
+    graficaEnabled ? stages : stages.filter((s) => s !== "aguardando_arte" && s !== "arte_finalizada");
+  const columns = hideGraficaStages(tab === "ordens_servico" ? BOARD_STATUSES : QUOTE_STATUS_ORDER);
 
   const cardsByStage = useMemo(() => {
     const map = new Map<string, { id: number; number: number; title: string; subtitle: string }[]>();

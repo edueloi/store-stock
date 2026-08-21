@@ -13,6 +13,7 @@ import {
   deleteServiceOrderPhoto,
   invoiceServiceOrder,
   deleteServiceOrder,
+  bulkDeleteServiceOrders,
 } from "../controllers/service-orders.controller";
 import { authenticateToken } from "../middlewares/auth.middleware";
 import { requireMenuPermission } from "../middlewares/menu-permission.middleware";
@@ -34,6 +35,7 @@ router.delete("/:id/parts/:partId", removeServiceOrderPart);
 router.post("/:id/photos", attachServiceOrderPhoto);
 router.delete("/:id/photos/:photoId", deleteServiceOrderPhoto);
 router.post("/:id/faturar", invoiceServiceOrder);
+router.delete("/bulk", bulkDeleteServiceOrders);
 router.delete("/:id", deleteServiceOrder);
 
 export default router;

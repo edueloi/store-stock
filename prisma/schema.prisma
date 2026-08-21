@@ -50,6 +50,10 @@ model Tenant {
 
   // --- Módulos habilitados por tenant (liberado manualmente pelo Super Admin) ---
   fluxo_producao_enabled Boolean  @default(false)
+  // Libera as etapas "Aguardando arte"/"Arte finalizada" no fluxo de Ordem de Serviço —
+  // só faz sentido pra lojas do ramo gráfico; para os demais ramos (roupa, eletrônicos,
+  // etc.) essas etapas ficam ocultas e inacessíveis mesmo para admin.
+  grafica_enabled        Boolean  @default(false)
 
   status                 String   @default("active")
   trial_days       Int      @default(30)

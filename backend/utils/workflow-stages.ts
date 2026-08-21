@@ -56,6 +56,16 @@ export function isWorkflowStage(value: string): value is WorkflowStage {
   return (WORKFLOW_STAGES as readonly string[]).includes(value);
 }
 
+// Etapas exclusivas de lojas do ramo gráfico (liberadas por tenant pelo Super Admin,
+// ver Tenant.grafica_enabled) — para os demais ramos, nem admin passa por elas.
+export const GRAFICA_ONLY_STAGES: readonly WorkflowStage[] = ["aguardando_arte", "arte_finalizada"];
+
+export function getWorkflowStagesForTenant(graficaEnabled: boolean): WorkflowStage[] {
+  return graficaEnabled
+    ? [...WORKFLOW_STAGES]
+    : WORKFLOW_STAGES.filter((s) => !GRAFICA_ONLY_STAGES.includes(s));
+}
+
 export function nextStage(stage: string): WorkflowStage | null {
   const idx = WORKFLOW_STAGES.indexOf(stage as WorkflowStage);
   if (idx === -1 || idx === WORKFLOW_STAGES.length - 1) return null;

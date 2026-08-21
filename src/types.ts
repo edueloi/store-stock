@@ -61,6 +61,7 @@ export interface Tenant {
   pass_fee_by_method?: Record<string, boolean>;
   require_cash_session?: boolean;
   fluxo_producao_enabled?: boolean;
+  grafica_enabled?: boolean;
   status?: 'pending_setup' | 'trial' | 'active' | 'suspended';
   trial_days?: number;
   trial_starts_at?: string;
@@ -106,6 +107,9 @@ export interface User {
   // Módulo habilitado pelo Super Admin para o tenant deste usuário (não é permissão
   // individual — é feature flag da loja inteira, ver Tenant.fluxo_producao_enabled).
   fluxo_producao_enabled?: boolean;
+  // Idem, para as etapas "Aguardando arte"/"Arte finalizada" da Ordem de Serviço —
+  // ver Tenant.grafica_enabled.
+  grafica_enabled?: boolean;
 }
 
 export interface Category {

@@ -5,7 +5,7 @@ import type { AuthenticatedRequest } from "../types/auth";
 import { localDateString } from "../utils/date";
 import { computeMeasuredPrice } from "../utils/measurePricing";
 import { advanceServiceOrderToNotaEmitida, canMoveToStage } from "../utils/stage-permissions";
-import { WORKFLOW_STAGES } from "../utils/workflow-stages";
+import { getWorkflowStagesForTenant } from "../utils/workflow-stages";
 import { cancelarNfce } from "../services/nfce/cancelar";
 import { emitToTenant } from "../services/realtime.service";
 
@@ -26,8 +26,6 @@ function getActor(req: Request): string {
   return (u as any).name ?? (u as any).email ?? "Sistema";
 }
 
-const ALLOWED_STATUSES = [...WORKFLOW_STAGES, "cancelada"];
-const STATUS_ORDER: string[] = [...WORKFLOW_STAGES];
 const ALLOWED_PRIORITIES = ["normal", "urgente"];
 
 async function logAction(
@@ -402,7 +400,13 @@ export async function updateServiceOrderStatus(req: Request, res: Response) {
     const id = Number(req.params.id);
     const { status, note, cancel_reason } = req.body as { status: string; note?: string; cancel_reason?: string };
 
-    if (!ALLOWED_STATUSES.includes(status)) {
+    const tenantForStages = await prisma.tenant.findUnique({ where: { id: tenantId }, select: { grafica_enabled: true } });
+    const stagesForTenant: string[] = getWorkflowStagesForTenant(!!tenantForStages?.grafica_enabled);
+    const allowedStatuses: string[] = [...stagesForTenant, "cancelada"];
+
+    // Loja sem o módulo Gráfica habilitado: "aguardando_arte"/"arte_finalizada" nem
+    // existem pra ela — bloqueado pra qualquer papel, inclusive admin.
+    if (!allowedStatuses.includes(status)) {
       return res.status(400).json({ error: "Status inválido" });
     }
 
@@ -420,8 +424,8 @@ export async function updateServiceOrderStatus(req: Request, res: Response) {
     // Fluxo guiado: só avança uma etapa por vez (stepper na UI), exceto o
     // cancelamento, que continua acessível de qualquer estado não terminal.
     if (status !== "cancelada") {
-      const fromIdx = STATUS_ORDER.indexOf(order.status);
-      const toIdx = STATUS_ORDER.indexOf(status);
+      const fromIdx = stagesForTenant.indexOf(order.status);
+      const toIdx = stagesForTenant.indexOf(status);
       if (fromIdx === -1 || toIdx !== fromIdx + 1) {
         return res.status(400).json({ error: "Só é possível avançar para a próxima etapa do fluxo" });
       }
@@ -849,10 +853,62 @@ export async function deleteServiceOrder(req: Request, res: Response) {
     }
 
     await prisma.serviceOrder.delete({ where: { id } });
+    emitToTenant(tenantId, "service-order:changed", { id });
+    emitToTenant(tenantId, "stock:changed", { serviceOrderId: id });
     res.json({ success: true });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Falha ao excluir ordem de serviço" });
+  }
+}
+
+export async function bulkDeleteServiceOrders(req: Request, res: Response) {
+  try {
+    const tenantId = getTenantId(req);
+    const { ids } = req.body as { ids: number[] };
+
+    if (!Array.isArray(ids) || ids.length === 0) {
+      return res.status(400).json({ error: "IDs inválidos" });
+    }
+
+    const orders = await prisma.serviceOrder.findMany({
+      where: { id: { in: ids }, tenant_id: tenantId },
+      include: { parts: true },
+    });
+    if (orders.length === 0) return res.status(404).json({ error: "Nenhuma ordem de serviço encontrada" });
+
+    // Faturada é um documento fiscal/financeiro vivo — não entra no bulk-delete,
+    // precisa ser cancelada primeiro (ver updateServiceOrderStatus).
+    const blocked = orders.filter((o) => o.invoiced_order_id);
+    const deletable = orders.filter((o) => !o.invoiced_order_id);
+
+    for (const order of deletable) {
+      for (const p of order.parts) {
+        if (p.product_id) {
+          await prisma.product.update({
+            where: { id: p.product_id },
+            data: { stock_quantity: { increment: p.quantity } },
+          });
+        }
+      }
+    }
+
+    const deletableIds = deletable.map((o) => o.id);
+    await prisma.serviceOrder.deleteMany({ where: { id: { in: deletableIds } } });
+
+    if (deletableIds.length > 0) {
+      emitToTenant(tenantId, "service-order:changed", { ids: deletableIds });
+      emitToTenant(tenantId, "stock:changed", { serviceOrderIds: deletableIds });
+    }
+
+    res.json({
+      success: true,
+      deleted: deletableIds.length,
+      blocked: blocked.map((o) => ({ id: o.id, reason: "Ordem de serviço já faturada — cancele antes de excluir" })),
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Falha ao excluir ordens de serviço" });
   }
 }
 

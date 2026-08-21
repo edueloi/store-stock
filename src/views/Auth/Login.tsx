@@ -63,7 +63,11 @@ export default function Login() {
         localStorage.removeItem("remembered_identifier");
         localStorage.removeItem("remembered_password");
       }
-      saveSession(data.token, { ...data.user, fluxo_producao_enabled: !!data.tenant?.fluxo_producao_enabled });
+      saveSession(data.token, {
+        ...data.user,
+        fluxo_producao_enabled: !!data.tenant?.fluxo_producao_enabled,
+        grafica_enabled: !!data.tenant?.grafica_enabled,
+      });
       setRedirectTo(data.user?.role === "super_admin" ? "/super-admin" : "/admin");
       setShowLoader(true);
     } catch {

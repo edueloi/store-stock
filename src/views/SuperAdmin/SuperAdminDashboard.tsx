@@ -177,9 +177,10 @@ export default function SuperAdminDashboard() {
     tenantName: string; whatsapp: string;
     userName: string; userEmail: string; userPassword: string;
     fluxoProducaoEnabled: boolean;
+    graficaEnabled: boolean;
   };
   const [editingTenant, setEditingTenant] = useState<ManagedTenant | null>(null);
-  const [editForm, setEditForm] = useState<EditForm>({ tenantName: "", whatsapp: "", userName: "", userEmail: "", userPassword: "", fluxoProducaoEnabled: false });
+  const [editForm, setEditForm] = useState<EditForm>({ tenantName: "", whatsapp: "", userName: "", userEmail: "", userPassword: "", fluxoProducaoEnabled: false, graficaEnabled: false });
   const [editSaving, setEditSaving] = useState(false);
   const [showEditPwd, setShowEditPwd] = useState(false);
 
@@ -192,6 +193,7 @@ export default function SuperAdminDashboard() {
       userEmail: user?.email || "",
       userPassword: "",
       fluxoProducaoEnabled: !!tenant.fluxo_producao_enabled,
+      graficaEnabled: !!tenant.grafica_enabled,
     });
     setShowEditPwd(false);
     setEditingTenant(tenant);
@@ -205,7 +207,7 @@ export default function SuperAdminDashboard() {
       // 1. Update tenant (name + whatsapp + módulos habilitados)
       const tRes = await fetch(`/api/super-admin/tenants/${editingTenant.id}`, {
         method: "PATCH", headers: apiHeaders(),
-        body: JSON.stringify({ name: editForm.tenantName, whatsapp: editForm.whatsapp, fluxoProducaoEnabled: editForm.fluxoProducaoEnabled }),
+        body: JSON.stringify({ name: editForm.tenantName, whatsapp: editForm.whatsapp, fluxoProducaoEnabled: editForm.fluxoProducaoEnabled, graficaEnabled: editForm.graficaEnabled }),
       });
       const tData = (await tRes.json()) as ManagedTenant & { error?: string };
       if (!tRes.ok) { showToast("error", tData.error || "Erro ao salvar loja."); return; }
@@ -1015,6 +1017,19 @@ export default function SuperAdminDashboard() {
                         <p className="text-[10px] text-slate-400">Quadro Kanban de Ordens de Serviço e Orçamentos</p>
                       </div>
                       <div className={`flex h-6 w-10 shrink-0 items-center rounded-full px-0.5 transition-colors ${editForm.fluxoProducaoEnabled ? "justify-end bg-emerald-500" : "justify-start bg-slate-200"}`}>
+                        <div className="h-5 w-5 rounded-full bg-white shadow-sm" />
+                      </div>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setEditForm(f => ({ ...f, graficaEnabled: !f.graficaEnabled }))}
+                      className="flex h-12 w-full items-center justify-between rounded-xl border border-slate-200 bg-white px-4 transition-all hover:border-[#C9A227]/40"
+                    >
+                      <div className="text-left">
+                        <p className="text-[12px] font-bold text-slate-800">Gráfica</p>
+                        <p className="text-[10px] text-slate-400">Etapas "Aguardando arte" e "Arte finalizada" na Ordem de Serviço</p>
+                      </div>
+                      <div className={`flex h-6 w-10 shrink-0 items-center rounded-full px-0.5 transition-colors ${editForm.graficaEnabled ? "justify-end bg-emerald-500" : "justify-start bg-slate-200"}`}>
                         <div className="h-5 w-5 rounded-full bg-white shadow-sm" />
                       </div>
                     </button>

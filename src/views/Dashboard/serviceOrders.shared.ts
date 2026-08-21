@@ -148,6 +148,7 @@ export type Tenant = Pick<
   | "address_street" | "address_number" | "address_complement" | "address_district"
   | "address_city" | "address_state" | "address_zip" | "address"
   | "primary_color" | "razao_social" | "inscricao_estadual" | "inscricao_municipal"
+  | "grafica_enabled"
 > & {
   card_fees?: Record<string, number[]>;
   policies?: { service_order_checklists?: Record<string, { label: string }[]> };
@@ -243,6 +244,15 @@ export const STATUS_ORDER: SOStatus[] = [
   "entregue",
   "cancelada",
 ];
+
+// Etapas exclusivas de lojas do ramo gráfico (Tenant.grafica_enabled, liberado pelo
+// Super Admin) — não fazem sentido pra loja de roupa, eletrônicos etc. Espelha
+// backend/utils/workflow-stages.ts (GRAFICA_ONLY_STAGES / getWorkflowStagesForTenant).
+export const GRAFICA_ONLY_STATUSES: SOStatus[] = ["aguardando_arte", "arte_finalizada"];
+
+export function getStatusOrderForTenant(graficaEnabled: boolean | undefined): SOStatus[] {
+  return graficaEnabled ? STATUS_ORDER : STATUS_ORDER.filter((s) => !GRAFICA_ONLY_STATUSES.includes(s));
+}
 
 // ─── PDF template ─────────────────────────────────────────────────────────────
 
