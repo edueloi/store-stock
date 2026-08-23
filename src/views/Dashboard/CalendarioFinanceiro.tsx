@@ -66,8 +66,16 @@ export default function CalendarioFinanceiro() {
   const [viewYear, setViewYear] = useState(now.getFullYear());
   const [viewMonth, setViewMonth] = useState(now.getMonth());
   const [selectedDay, setSelectedDay] = useState<string | null>(null);
+  const [entryFilter, setEntryFilter] = useState<"all" | "settled" | "pending" | "overdue">("all");
 
   const token = () => localStorage.getItem("token");
+
+  function matchesEntryFilter(status: string) {
+    if (entryFilter === "all") return true;
+    if (entryFilter === "settled") return status === "paid" || status === "received";
+    if (entryFilter === "pending") return status === "pending";
+    return status === "overdue";
+  }
 
   const fetchData = async () => {
     setLoading(true);
@@ -95,16 +103,23 @@ export default function CalendarioFinanceiro() {
       arr.push(entry);
       map.set(key, arr);
     };
+    // "overdue" nunca é um status real do backend — é derivado aqui, do mesmo jeito que
+    // ContasPagar/ContasReceber fazem, pra poder filtrar/exibir "vencido" no calendário.
+    const effectiveStatus = (key: string, status: string) =>
+      status === "pending" && key < dateKey(now.getFullYear(), now.getMonth(), now.getDate()) ? "overdue" : status;
+
     for (const p of payables) {
-      push(p.due_date.substring(0, 10), {
-        kind: "payable", id: p.id, description: p.description, amount: Number(p.amount), status: p.status,
+      const key = p.due_date.substring(0, 10);
+      push(key, {
+        kind: "payable", id: p.id, description: p.description, amount: Number(p.amount), status: effectiveStatus(key, p.status),
         party: p.supplier_name, isRecurring: p.is_recurring,
         seriesLabel: p.series ? `${p.installment_number}/${p.series.installments_count}` : undefined,
       });
     }
     for (const r of receivables) {
-      push(r.due_date.substring(0, 10), {
-        kind: "receivable", id: r.id, description: r.description, amount: Number(r.amount), status: r.status,
+      const key = r.due_date.substring(0, 10);
+      push(key, {
+        kind: "receivable", id: r.id, description: r.description, amount: Number(r.amount), status: effectiveStatus(key, r.status),
         party: r.customer_name, isRecurring: r.is_recurring,
         seriesLabel: r.series ? `${r.installment_number}/${r.series.installments_count}` : undefined,
       });
@@ -120,12 +135,14 @@ export default function CalendarioFinanceiro() {
       if (!cell.inMonth) continue;
       const entries = byDay.get(dateKey(cell.year, cell.month, cell.day)) ?? [];
       for (const e of entries) {
-        if (e.kind === "payable" && e.status !== "cancelled") pagar += e.amount;
-        if (e.kind === "receivable" && e.status !== "cancelled") receber += e.amount;
+        if (e.status === "cancelled" || !matchesEntryFilter(e.status)) continue;
+        if (e.kind === "payable") pagar += e.amount;
+        if (e.kind === "receivable") receber += e.amount;
       }
     }
     return { pagar, receber, saldo: receber - pagar };
-  }, [grid, byDay]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [grid, byDay, entryFilter]);
 
   const goToday = () => { setViewYear(now.getFullYear()); setViewMonth(now.getMonth()); setSelectedDay(null); };
   const shiftMonth = (delta: number) => {
@@ -136,7 +153,7 @@ export default function CalendarioFinanceiro() {
     setSelectedDay(null);
   };
 
-  const selectedEntries = selectedDay ? (byDay.get(selectedDay) ?? []) : [];
+  const selectedEntries = selectedDay ? (byDay.get(selectedDay) ?? []).filter((e) => matchesEntryFilter(e.status)) : [];
 
   return (
     <div className="space-y-6">
@@ -202,6 +219,26 @@ export default function CalendarioFinanceiro() {
           </select>
         </div>
 
+        <div className="flex gap-1.5 flex-wrap mb-4">
+          {([
+            ["all", "Todos"],
+            ["pending", "Pendentes"],
+            ["overdue", "Vencidos"],
+            ["settled", "Histórico (pago/recebido)"],
+          ] as const).map(([k, l]) => (
+            <button
+              key={k}
+              onClick={() => setEntryFilter(k)}
+              className={cn(
+                "h-8 px-3 rounded-lg text-[9px] font-black uppercase tracking-widest border transition-all",
+                entryFilter === k
+                  ? "bg-slate-900 text-white border-slate-900"
+                  : "bg-white text-slate-400 border-slate-200 hover:border-slate-400"
+              )}
+            >{l}</button>
+          ))}
+        </div>
+
         {loading ? (
           <div className="flex items-center justify-center py-16">
             <Loader2 size={22} className="animate-spin text-slate-300" />
@@ -213,7 +250,8 @@ export default function CalendarioFinanceiro() {
             ))}
             {grid.map((cell, idx) => {
               const key = dateKey(cell.year, cell.month, cell.day);
-              const entries = byDay.get(key) ?? [];
+              const allEntries = byDay.get(key) ?? [];
+              const entries = allEntries.filter((e) => matchesEntryFilter(e.status));
               const pagar = entries.filter((e) => e.kind === "payable" && e.status !== "cancelled").reduce((a, e) => a + e.amount, 0);
               const receber = entries.filter((e) => e.kind === "receivable" && e.status !== "cancelled").reduce((a, e) => a + e.amount, 0);
               const isToday = key === dateKey(now.getFullYear(), now.getMonth(), now.getDate());

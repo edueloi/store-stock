@@ -44,6 +44,13 @@ function isOverdue(due: string, status: AccountStatus) {
   return new Date(due + "T23:59:59") < new Date();
 }
 
+const DUE_SOON_DAYS = 3;
+function isDueSoon(due: string, status: AccountStatus) {
+  if (status !== "pending") return false;
+  const daysUntil = (new Date(due + "T23:59:59").getTime() - Date.now()) / 86_400_000;
+  return daysUntil >= 0 && daysUntil <= DUE_SOON_DAYS;
+}
+
 // Sugestão de juros pro-rata sobre o valor restante — sempre calculada na hora pra
 // exibir, nunca acumulada automaticamente (mesmo padrão do crediário em PDV.tsx).
 function suggestedInterest(remaining: number, due_date: string, rate: number, period: "day" | "month", graceDays: number): number {
@@ -71,6 +78,7 @@ const STATUS_CONFIG: Record<AccountStatus, { label: string; color: string; bg: s
 };
 
 const CATEGORIES = ["Venda", "Serviço", "Aluguel", "Comissão", "Empréstimo", "Outro"];
+const MONTHS = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
 
 type ModalMode = "create" | "edit" | "receive" | "delete" | null;
 
@@ -105,6 +113,8 @@ export default function ContasReceber() {
 
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<AccountStatus | "all">("all");
+  const [monthFilter, setMonthFilter] = useState<number | "all">("all");
+  const [yearFilter, setYearFilter] = useState<number | "all">("all");
 
   // Parcelamento/recorrência (só na criação — editar uma parcela já gerada não
   // reconfigura a série inteira, isso fica fora do escopo desta primeira etapa)
@@ -407,15 +417,25 @@ export default function ContasReceber() {
       }))
       .filter(item => {
         if (statusFilter !== "all" && item.status !== statusFilter) return false;
+        if (monthFilter !== "all" && new Date(item.due_date).getMonth() !== monthFilter) return false;
+        if (yearFilter !== "all" && new Date(item.due_date).getFullYear() !== yearFilter) return false;
         if (search && !item.description.toLowerCase().includes(search.toLowerCase()) &&
             !(item.customer_name || "").toLowerCase().includes(search.toLowerCase())) return false;
         return true;
       });
-  }, [items, statusFilter, search]);
+  }, [items, statusFilter, monthFilter, yearFilter, search]);
+
+  const availableYears = useMemo(() => {
+    const years = new Set(items.map((i) => new Date(i.due_date).getFullYear()));
+    years.add(new Date().getFullYear());
+    return Array.from(years).sort((a, b) => b - a);
+  }, [items]);
 
   const totalPending  = items.filter(i => i.status === "pending" && !isOverdue(i.due_date, i.status as AccountStatus)).reduce((a, i) => a + Number(i.amount), 0);
   const totalOverdue  = items.filter(i => isOverdue(i.due_date, i.status as AccountStatus)).reduce((a, i) => a + Number(i.amount), 0);
   const totalReceived = items.filter(i => i.status === "received").reduce((a, i) => a + Number(i.amount), 0);
+  const dueSoonItems = items.filter(i => isDueSoon(i.due_date, i.status as AccountStatus));
+  const totalDueSoon = dueSoonItems.reduce((a, i) => a + Number(i.amount), 0);
 
   const isFormModal = modalMode === "create" || modalMode === "edit";
 
@@ -435,7 +455,7 @@ export default function ContasReceber() {
       />
 
       {/* Summary cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
         <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm relative overflow-hidden">
           <div className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2">A Receber</div>
           <div className="text-2xl font-mono font-black text-amber-600">R$ {fmt(totalPending)}</div>
@@ -444,6 +464,17 @@ export default function ContasReceber() {
           </div>
           <div className="absolute right-4 top-4 w-10 h-10 rounded-xl bg-amber-50 flex items-center justify-center text-amber-400">
             <Clock size={20} />
+          </div>
+        </div>
+
+        <div className="bg-white p-5 rounded-2xl border border-amber-200 shadow-sm relative overflow-hidden">
+          <div className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2">Vencendo em Breve</div>
+          <div className="text-2xl font-mono font-black text-amber-700">R$ {fmt(totalDueSoon)}</div>
+          <div className="mt-1 text-[9px] font-bold text-slate-400 uppercase">
+            {dueSoonItems.length} nos próximos {DUE_SOON_DAYS} dias
+          </div>
+          <div className="absolute right-4 top-4 w-10 h-10 rounded-xl bg-amber-100 flex items-center justify-center text-amber-600">
+            <AlertCircle size={20} />
           </div>
         </div>
 
@@ -498,6 +529,24 @@ export default function ContasReceber() {
                   )}
                 >{l}</button>
               ))}
+            </div>
+            <div className="flex gap-1.5">
+              <select
+                value={monthFilter}
+                onChange={(e) => setMonthFilter(e.target.value === "all" ? "all" : Number(e.target.value))}
+                className="h-9 px-2.5 bg-slate-50 border border-slate-200 rounded-lg text-[10px] font-bold outline-none focus:border-blue-400 transition-all"
+              >
+                <option value="all">Todos os meses</option>
+                {MONTHS.map((m, i) => <option key={m} value={i}>{m}</option>)}
+              </select>
+              <select
+                value={yearFilter}
+                onChange={(e) => setYearFilter(e.target.value === "all" ? "all" : Number(e.target.value))}
+                className="h-9 px-2.5 bg-slate-50 border border-slate-200 rounded-lg text-[10px] font-bold outline-none focus:border-blue-400 transition-all"
+              >
+                <option value="all">Todos os anos</option>
+                {availableYears.map((y) => <option key={y} value={y}>{y}</option>)}
+              </select>
             </div>
           </div>
           {selectedIds.size > 0 && (
@@ -582,7 +631,9 @@ export default function ContasReceber() {
                       <td className="px-5 py-3">
                         <span className={cn(
                           "text-[10px] font-mono font-bold px-2 py-0.5 rounded-md",
-                          item.status === "overdue" ? "bg-rose-50 text-rose-600" : "bg-slate-100 text-slate-500"
+                          item.status === "overdue" ? "bg-rose-50 text-rose-600"
+                            : isDueSoon(item.due_date, item.status) ? "bg-amber-50 text-amber-700"
+                            : "bg-slate-100 text-slate-500"
                         )}>
                           {formatDateBR(item.due_date)}
                         </span>
@@ -755,6 +806,7 @@ export default function ContasReceber() {
                     options={customersList.map((c) => ({ value: c.name, label: c.name }))}
                     onAddNew={handleCreateCustomer}
                   />
+                  <p className="text-[9px] text-slate-400 px-1">Não achou? Digite o nome e clique em "Adicionar" pra cadastrar.</p>
                 </div>
                 <div className="space-y-1.5">
                   <label className="flex items-center gap-1.5 text-[9px] font-black text-slate-400 uppercase tracking-[0.18em]">
@@ -777,11 +829,11 @@ export default function ContasReceber() {
                     <label className="flex items-center gap-1.5 text-[9px] font-black text-slate-400 uppercase tracking-[0.16em]">
                       <Repeat size={10} /> Tipo de lançamento
                     </label>
-                    <div className="flex bg-white border border-slate-200 rounded-lg p-0.5 gap-0.5">
+                    <div className="grid grid-cols-3 gap-1 bg-white border border-slate-200 rounded-lg p-0.5">
                       {([
                         ["single", "Única"],
-                        ["installments", "Parcelada (valor conhecido)"],
-                        ["recurring", "Recorrente (valor varia)"],
+                        ["installments", "Parcelada"],
+                        ["recurring", "Recorrente"],
                       ] as const).map(([mode, label]) => {
                         const active = mode === "installments" ? recurrenceEnabled : mode === "recurring" ? recurringVariable : (!recurrenceEnabled && !recurringVariable);
                         return (
@@ -792,11 +844,18 @@ export default function ContasReceber() {
                               setRecurringVariable(mode === "recurring");
                               if (mode === "installments" && valueMode === "variable") syncVariableAmounts(Number(installmentsCount) || 2, form.amount);
                             }}
-                            className={cn("flex-1 h-8 px-2 rounded-md text-[9px] font-black uppercase tracking-wide transition-all", active ? "bg-emerald-600 text-white" : "text-slate-500")}
+                            className={cn("h-8 px-1 rounded-md text-[9px] font-black uppercase tracking-wide transition-all whitespace-nowrap", active ? "bg-emerald-600 text-white" : "text-slate-500")}
                           >{label}</button>
                         );
                       })}
                     </div>
+                    <p className="text-[9px] text-slate-400">
+                      {recurrenceEnabled
+                        ? "Nº de parcelas e valores já conhecidos (ex.: venda parcelada)."
+                        : recurringVariable
+                          ? "Valor muda a cada vez — gera o próximo lançamento sozinho ao receber."
+                          : "Um lançamento avulso, sem repetição."}
+                    </p>
                   </div>
 
                   {recurringVariable && (

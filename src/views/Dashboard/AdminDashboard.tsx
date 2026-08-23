@@ -332,6 +332,59 @@ function HeldSalesToastWatcher({ sales }: { sales: HeldSale[] }) {
   return null;
 }
 
+// Mesmo padrão dos dois watchers acima, agora para contas a pagar vencendo em breve —
+// evita a surpresa de só descobrir que uma conta vence hoje quando ela já está atrasada.
+const DUE_SOON_BILLS_SEEN_KEY = "due_soon_bills_seen_ids";
+const DUE_SOON_DAYS = 3;
+
+function loadDueSoonSeenIds(): Set<number> {
+  try {
+    const raw = localStorage.getItem(DUE_SOON_BILLS_SEEN_KEY);
+    const parsed = raw ? JSON.parse(raw) : [];
+    return new Set(Array.isArray(parsed) ? parsed : []);
+  } catch {
+    return new Set();
+  }
+}
+
+function saveDueSoonSeenIds(ids: Set<number>) {
+  try { localStorage.setItem(DUE_SOON_BILLS_SEEN_KEY, JSON.stringify([...ids])); } catch { /* localStorage indisponível */ }
+}
+
+interface DueSoonBill { id: number; description: string; due_date: string; amount: number }
+
+function DueSoonBillsToastWatcher({ bills }: { bills: DueSoonBill[] }) {
+  const { warning } = useToast();
+  const seenIds = useRef<Set<number> | null>(null);
+
+  useEffect(() => {
+    if (seenIds.current === null) {
+      seenIds.current = loadDueSoonSeenIds();
+    }
+
+    const currentIds = new Set(bills.map((b) => b.id));
+    const newlyDueSoon = bills.filter((b) => !seenIds.current!.has(b.id));
+
+    // Mantém só quem ainda está vencendo em breve — se foi paga ou já venceu (virou
+    // "vencida", sai desta lista) some do storage, e pode avisar de novo se reaparecer.
+    const updated = new Set([...seenIds.current].filter((id) => currentIds.has(id)));
+    newlyDueSoon.forEach((b) => updated.add(b.id));
+    seenIds.current = updated;
+    saveDueSoonSeenIds(updated);
+
+    if (newlyDueSoon.length === 0) return;
+
+    if (newlyDueSoon.length === 1) {
+      const b = newlyDueSoon[0];
+      warning(`Conta a pagar vencendo em breve: ${b.description} — R$ ${Number(b.amount).toFixed(2)}`, 8000);
+    } else {
+      warning(`${newlyDueSoon.length} contas a pagar vencendo nos próximos ${DUE_SOON_DAYS} dias`, 8000);
+    }
+  }, [bills, warning]);
+
+  return null;
+}
+
 export default function AdminDashboard() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(() => {
     if (window.innerWidth <= 1024) return false;
@@ -345,6 +398,7 @@ export default function AdminDashboard() {
   const [lowStockProducts, setLowStockProducts] = useState<{ id: number; name: string; stock_quantity: number }[]>([]);
   const lowStockCount = lowStockProducts.length;
   const [heldSales, setHeldSales] = useState<HeldSale[]>([]);
+  const [dueSoonBills, setDueSoonBills] = useState<DueSoonBill[]>([]);
   const location = useLocation();
   const navigate = useNavigate();
 
@@ -397,6 +451,32 @@ export default function AdminDashboard() {
     };
     fetchHeldSales();
     const interval = setInterval(fetchHeldSales, 60000);
+    return () => { cancelled = true; clearInterval(interval); };
+  }, []);
+
+  // Contas a pagar vencendo nos próximos dias — filtra no cliente, sem endpoint dedicado
+  // (a mesma lista que Contas a Pagar já busca no mount, aqui só reaproveitada).
+  useEffect(() => {
+    let cancelled = false;
+    const fetchDueSoon = async () => {
+      try {
+        const res = await fetch("/api/accounts-payable", {
+          headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
+        });
+        if (!res.ok || cancelled) return;
+        const data = await res.json();
+        if (!Array.isArray(data)) return;
+        const now = Date.now();
+        const soon = data.filter((b: { status: string; due_date: string }) => {
+          if (b.status !== "pending") return false;
+          const daysUntil = (new Date(b.due_date).getTime() - now) / 86_400_000;
+          return daysUntil >= 0 && daysUntil <= DUE_SOON_DAYS;
+        });
+        if (!cancelled) setDueSoonBills(soon);
+      } catch { /* silencioso — nesta rodada só não atualiza */ }
+    };
+    fetchDueSoon();
+    const interval = setInterval(fetchDueSoon, 60000);
     return () => { cancelled = true; clearInterval(interval); };
   }, []);
 
@@ -561,6 +641,7 @@ export default function AdminDashboard() {
     <ToastProvider>
     <LowStockToastWatcher products={lowStockProducts} />
     <HeldSalesToastWatcher sales={heldSales} />
+    <DueSoonBillsToastWatcher bills={dueSoonBills} />
     <div className="flex h-screen bg-[#f8fafc] overflow-hidden font-sans text-slate-800 relative">
 
       {/* ── SIDEBAR DESKTOP ─────────────────────────────────────────────── */}
@@ -608,9 +689,14 @@ export default function AdminDashboard() {
                       badge={
                         item.path === "/admin/consignacoes" ? overdueConsignments
                           : item.path === "/admin/stock" ? lowStockCount
+                          : item.path === "/admin/contas-pagar" ? dueSoonBills.length
                           : undefined
                       }
-                      badgeLabel={item.path === "/admin/stock" ? "com estoque baixo" : undefined}
+                      badgeLabel={
+                        item.path === "/admin/stock" ? "com estoque baixo"
+                          : item.path === "/admin/contas-pagar" ? "vencendo em breve"
+                          : undefined
+                      }
                     />
                   );
                 })}
@@ -671,6 +757,7 @@ export default function AdminDashboard() {
                       const badge =
                         item.path === "/admin/consignacoes" ? overdueConsignments
                           : item.path === "/admin/stock" ? lowStockCount
+                          : item.path === "/admin/contas-pagar" ? dueSoonBills.length
                           : 0;
                       return (
                         <Link key={item.path} to={item.path} onClick={() => setIsSidebarOpen(false)}
