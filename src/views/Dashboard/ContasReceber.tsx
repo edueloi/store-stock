@@ -27,6 +27,7 @@ import { AccountReceivable, AccountStatus } from "../../types";
 import { cn } from "../../lib/utils";
 import { useToast } from "../../components/ui/Toast";
 import { onRealtime } from "../../lib/realtime";
+import Combobox from "../../components/ui/Combobox";
 
 const fmt = (v: number) =>
   v.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -108,6 +109,7 @@ export default function ContasReceber() {
   // Parcelamento/recorrência (só na criação — editar uma parcela já gerada não
   // reconfigura a série inteira, isso fica fora do escopo desta primeira etapa)
   const [recurrenceEnabled, setRecurrenceEnabled] = useState(false);
+  const [recurringVariable, setRecurringVariable] = useState(false);
   const [installmentsCount, setInstallmentsCount] = useState("2");
   const [intervalUnit, setIntervalUnit] = useState<"day" | "week" | "month">("month");
   const [intervalCount, setIntervalCount] = useState("1");
@@ -124,7 +126,40 @@ export default function ContasReceber() {
   const [interestValue, setInterestValue] = useState("0");
   const [applyingInterest, setApplyingInterest] = useState(false);
 
+  // Cadastro de clientes — dropdown com busca pra evitar duplicar nomes digitados,
+  // com criação rápida sem sair do modal.
+  const [customersList, setCustomersList] = useState<{ id: number; name: string }[]>([]);
+
   const token = () => localStorage.getItem("token");
+
+  const fetchCustomersList = async () => {
+    try {
+      const res = await fetch("/api/customers", { headers: { Authorization: `Bearer ${token()}` } });
+      const data = await res.json();
+      setCustomersList(Array.isArray(data) ? data.map((c: { id: number; name: string }) => ({ id: c.id, name: c.name })) : []);
+    } catch {}
+  };
+
+  const handleCreateCustomer = async (name: string) => {
+    const trimmed = name.trim();
+    if (!trimmed) return;
+    try {
+      const res = await fetch("/api/customers", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token()}` },
+        body: JSON.stringify({ name: trimmed }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data.id) {
+        setCustomersList((prev) => [...prev, { id: data.id, name: trimmed }]);
+        setForm((prev) => ({ ...prev, customer_name: trimmed }));
+      } else {
+        toastError(data.error || "Erro ao cadastrar cliente.");
+      }
+    } catch {
+      toastError("Erro de conexão. Verifique sua internet.");
+    }
+  };
 
   const fetchItems = async () => {
     setLoading(true);
@@ -138,13 +173,14 @@ export default function ContasReceber() {
     setLoading(false);
   };
 
-  useEffect(() => { fetchItems(); }, []);
+  useEffect(() => { fetchItems(); fetchCustomersList(); }, []);
   useEffect(() => onRealtime("finance:changed", () => { fetchItems(); }), []);
 
   const openCreate = () => {
     setSelected(null);
     setForm(EMPTY_FORM);
     setRecurrenceEnabled(false);
+    setRecurringVariable(false);
     setInstallmentsCount("2");
     setIntervalUnit("month");
     setIntervalCount("1");
@@ -220,6 +256,10 @@ export default function ContasReceber() {
           interest_period: interestPeriod,
           interest_grace_days: Math.max(0, Number(interestGraceDays) || 0),
         };
+      } else if (modalMode === "create" && recurringVariable) {
+        body.is_recurring = true;
+        body.recurrence_interval_unit = intervalUnit;
+        body.recurrence_interval_count = Math.max(1, Number(intervalCount) || 1);
       }
       const url = modalMode === "edit" ? `/api/accounts-receivable/${selected!.id}` : "/api/accounts-receivable";
       const method = modalMode === "edit" ? "PUT" : "POST";
@@ -234,7 +274,9 @@ export default function ContasReceber() {
             ? "Conta atualizada com sucesso!"
             : recurrenceEnabled
               ? `${Math.max(2, Number(installmentsCount) || 2)} parcelas cadastradas com sucesso!`
-              : "Conta cadastrada com sucesso!"
+              : recurringVariable
+                ? "Conta recorrente cadastrada! O próximo lançamento é criado ao receber este."
+                : "Conta cadastrada com sucesso!"
         );
         closeModal();
         fetchItems();
@@ -530,6 +572,11 @@ export default function ContasReceber() {
                             <Layers size={9} /> {item.installment_number}/{item.series.installments_count}
                           </span>
                         )}
+                        {item.is_recurring && (
+                          <span className="ml-2 inline-flex items-center gap-1 text-[9px] font-black uppercase tracking-widest text-blue-500 bg-blue-50 border border-blue-100 px-1.5 py-0.5 rounded">
+                            <Repeat size={9} /> Recorrente
+                          </span>
+                        )}
                       </td>
                       <td className="px-5 py-3 text-[10px] text-slate-500 font-bold">{item.customer_name || "—"}</td>
                       <td className="px-5 py-3">
@@ -698,11 +745,15 @@ export default function ContasReceber() {
                   <label className="flex items-center gap-1.5 text-[9px] font-black text-slate-400 uppercase tracking-[0.18em]">
                     <User size={10} /> Cliente
                   </label>
-                  <input
-                    type="text" placeholder="Nome do cliente"
+                  <Combobox
+                    placeholder="Selecionar ou digitar cliente..."
+                    searchPlaceholder="Buscar cliente..."
+                    clearable
+                    freeInput
                     value={form.customer_name}
-                    onChange={e => setForm({ ...form, customer_name: e.target.value })}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 h-11 text-xs font-bold focus:ring-2 focus:ring-emerald-500/10 focus:border-emerald-400 outline-none transition-all"
+                    onChange={(v) => setForm({ ...form, customer_name: v })}
+                    options={customersList.map((c) => ({ value: c.name, label: c.name }))}
+                    onAddNew={handleCreateCustomer}
                   />
                 </div>
                 <div className="space-y-1.5">
@@ -722,22 +773,56 @@ export default function ContasReceber() {
 
               {modalMode === "create" && (
                 <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-3.5 space-y-3">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const next = !recurrenceEnabled;
-                      setRecurrenceEnabled(next);
-                      if (next && valueMode === "variable") syncVariableAmounts(Number(installmentsCount) || 2, form.amount);
-                    }}
-                    className="w-full flex items-center justify-between"
-                  >
-                    <span className="flex items-center gap-1.5 text-[10px] font-black text-slate-600 uppercase tracking-[0.18em]">
-                      <Repeat size={12} /> Parcelar / repetir esta conta
-                    </span>
-                    <span className={cn("w-9 h-5 rounded-full relative transition-all shrink-0", recurrenceEnabled ? "bg-emerald-500" : "bg-slate-300")}>
-                      <span className={cn("absolute top-0.5 h-4 w-4 rounded-full bg-white shadow-sm transition-all", recurrenceEnabled ? "left-4" : "left-0.5")} />
-                    </span>
-                  </button>
+                  <div className="space-y-1.5">
+                    <label className="flex items-center gap-1.5 text-[9px] font-black text-slate-400 uppercase tracking-[0.16em]">
+                      <Repeat size={10} /> Tipo de lançamento
+                    </label>
+                    <div className="flex bg-white border border-slate-200 rounded-lg p-0.5 gap-0.5">
+                      {([
+                        ["single", "Única"],
+                        ["installments", "Parcelada (valor conhecido)"],
+                        ["recurring", "Recorrente (valor varia)"],
+                      ] as const).map(([mode, label]) => {
+                        const active = mode === "installments" ? recurrenceEnabled : mode === "recurring" ? recurringVariable : (!recurrenceEnabled && !recurringVariable);
+                        return (
+                          <button
+                            key={mode} type="button"
+                            onClick={() => {
+                              setRecurrenceEnabled(mode === "installments");
+                              setRecurringVariable(mode === "recurring");
+                              if (mode === "installments" && valueMode === "variable") syncVariableAmounts(Number(installmentsCount) || 2, form.amount);
+                            }}
+                            className={cn("flex-1 h-8 px-2 rounded-md text-[9px] font-black uppercase tracking-wide transition-all", active ? "bg-emerald-600 text-white" : "text-slate-500")}
+                          >{label}</button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {recurringVariable && (
+                    <div className="space-y-1.5 pt-1">
+                      <label className="text-[9px] font-black text-slate-400 uppercase tracking-[0.16em]">Repete a cada</label>
+                      <div className="flex gap-1.5 w-1/2">
+                        <input
+                          type="number" min={1} value={intervalCount}
+                          onChange={(e) => setIntervalCount(e.target.value)}
+                          className="w-14 bg-white border border-slate-200 rounded-lg px-2 h-9 text-xs font-bold outline-none focus:border-emerald-400"
+                        />
+                        <select
+                          value={intervalUnit}
+                          onChange={(e) => setIntervalUnit(e.target.value as "day" | "week" | "month")}
+                          className="flex-1 bg-white border border-slate-200 rounded-lg px-2 h-9 text-xs font-bold outline-none focus:border-emerald-400 appearance-none"
+                        >
+                          <option value="day">Dia(s)</option>
+                          <option value="week">Semana(s)</option>
+                          <option value="month">Mês(es)</option>
+                        </select>
+                      </div>
+                      <p className="text-[9px] text-slate-400">
+                        Ao marcar essa conta como recebida, o próximo lançamento é criado automaticamente com o mesmo valor (só como estimativa) — edite o valor real antes de receber.
+                      </p>
+                    </div>
+                  )}
 
                   {recurrenceEnabled && (
                     <div className="space-y-3 pt-1">
@@ -914,6 +999,13 @@ export default function ContasReceber() {
                 <p className="text-[9px] font-black uppercase tracking-[0.2em] text-emerald-400/70 mb-1">Valor Recebido</p>
                 <p className="text-3xl font-mono font-black text-emerald-400">R$ {fmt(Number(selected.amount))}</p>
               </div>
+
+              {selected.is_recurring && (
+                <div className="flex items-center gap-2 bg-white/5 border border-white/10 rounded-xl px-3 py-2.5">
+                  <Repeat size={13} className="text-slate-400 shrink-0" />
+                  <p className="text-[10px] text-slate-400">O próximo lançamento será criado automaticamente ao confirmar.</p>
+                </div>
+              )}
 
               {/* Data recebimento */}
               <form id="receive-form" onSubmit={handleReceive}>

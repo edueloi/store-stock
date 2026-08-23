@@ -2,7 +2,7 @@ import type { Request, Response } from "express";
 import { prisma } from "../config/prisma";
 import type { AuthenticatedRequest } from "../types/auth";
 import { emitToTenant } from "../services/realtime.service";
-import { generateInstallments, type RecurrenceInput } from "../utils/finance-series";
+import { generateInstallments, advanceDate, type RecurrenceInput, type IntervalUnit } from "../utils/finance-series";
 
 function getTenantId(req: Request) {
   return (req as AuthenticatedRequest).user.tenantId;
@@ -153,10 +153,30 @@ export async function bulkPayAccountsPayable(req: Request, res: Response) {
     }
 
     const date = new Date(`${paid_date || new Date().toISOString().split("T")[0]}T12:00:00`);
+    const recurring = await prisma.accountPayable.findMany({
+      where: { id: { in: ids.map(Number) }, tenant_id: tenantId, is_recurring: true, recurrence_interval_unit: { not: null } },
+    });
     const result = await prisma.accountPayable.updateMany({
       where: { id: { in: ids.map(Number) }, tenant_id: tenantId },
       data: { status: "paid", paid_date: date },
     });
+    for (const existing of recurring) {
+      const nextDue = advanceDate(new Date(existing.due_date), existing.recurrence_interval_unit as IntervalUnit, existing.recurrence_interval_count ?? 1);
+      await prisma.accountPayable.create({
+        data: {
+          tenant_id: tenantId,
+          description: existing.description,
+          amount: existing.amount,
+          due_date: nextDue,
+          category: existing.category,
+          supplier_name: existing.supplier_name,
+          notes: existing.notes,
+          is_recurring: true,
+          recurrence_interval_unit: existing.recurrence_interval_unit,
+          recurrence_interval_count: existing.recurrence_interval_count,
+        },
+      });
+    }
     emitToTenant(tenantId, "finance:changed", { count: result.count });
     res.json({ success: true, count: result.count });
   } catch (err) {
@@ -211,6 +231,28 @@ export async function payAccount(req: Request, res: Response) {
       where: { id },
       data: { status: "paid", paid_date: new Date(paid_date + "T12:00:00") },
     });
+
+    // Conta de valor variável que se repete indefinidamente (água, energia) — ao pagar,
+    // já cria o lançamento do próximo período como estimativa (mesmo valor), pendente,
+    // pra não depender de o operador lembrar de cadastrar de novo todo mês.
+    if (existing.is_recurring && existing.recurrence_interval_unit) {
+      const nextDue = advanceDate(new Date(existing.due_date), existing.recurrence_interval_unit as IntervalUnit, existing.recurrence_interval_count ?? 1);
+      await prisma.accountPayable.create({
+        data: {
+          tenant_id: tenantId,
+          description: existing.description,
+          amount: existing.amount,
+          due_date: nextDue,
+          category: existing.category,
+          supplier_name: existing.supplier_name,
+          notes: existing.notes,
+          is_recurring: true,
+          recurrence_interval_unit: existing.recurrence_interval_unit,
+          recurrence_interval_count: existing.recurrence_interval_count,
+        },
+      });
+    }
+
     emitToTenant(tenantId, "finance:changed", { id: updated.id });
     res.json(updated);
   } catch {

@@ -245,6 +245,9 @@ export interface AccountReceivable {
   interest_amount?: number;
   interest_applied_at?: string | null;
   series?: FinanceSeriesRef | null;
+  is_recurring?: boolean;
+  recurrence_interval_unit?: "day" | "week" | "month" | null;
+  recurrence_interval_count?: number | null;
   created_at: string;
   updated_at: string;
 }
@@ -265,6 +268,9 @@ export interface AccountPayable {
   interest_amount?: number;
   interest_applied_at?: string | null;
   series?: FinanceSeriesRef | null;
+  is_recurring?: boolean;
+  recurrence_interval_unit?: "day" | "week" | "month" | null;
+  recurrence_interval_count?: number | null;
   created_at: string;
   updated_at: string;
 }

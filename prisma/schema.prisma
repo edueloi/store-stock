@@ -651,6 +651,14 @@ model AccountReceivable {
   // pra relatórios distinguirem principal de juros depois (mesmo padrão do crediário).
   interest_amount     Decimal   @default(0) @db.Decimal(10, 2)
   interest_applied_at DateTime?
+  // Conta que se repete por prazo indeterminado com valor que varia a cada ocorrência
+  // (água, energia — ao contrário de um financiamento parcelado, o valor não é conhecido
+  // de antemão). Ao marcar como recebida, uma nova linha é criada automaticamente pro
+  // próximo período, com o mesmo valor como estimativa de partida — nunca via FinanceSeries,
+  // que é pra séries de valor/quantidade já conhecidos no ato da criação.
+  is_recurring              Boolean  @default(false)
+  recurrence_interval_unit  String? // "day" | "week" | "month"
+  recurrence_interval_count Int?
   created_at          DateTime  @default(now())
   updated_at          DateTime  @updatedAt
 
@@ -677,6 +685,9 @@ model AccountPayable {
   installment_number  Int?
   interest_amount     Decimal   @default(0) @db.Decimal(10, 2)
   interest_applied_at DateTime?
+  is_recurring              Boolean  @default(false)
+  recurrence_interval_unit  String?
+  recurrence_interval_count Int?
   created_at          DateTime  @default(now())
   updated_at          DateTime  @updatedAt
 

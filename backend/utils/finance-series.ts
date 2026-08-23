@@ -21,6 +21,16 @@ export interface GeneratedInstallment {
   amount: number;
 }
 
+// Avança uma data em N dias/semanas/meses — usado tanto pra gerar parcelas quanto pra
+// calcular a próxima ocorrência de uma conta recorrente de valor variável.
+export function advanceDate(date: Date, unit: IntervalUnit, count: number): Date {
+  const next = new Date(date);
+  if (unit === "day") next.setDate(next.getDate() + count);
+  else if (unit === "week") next.setDate(next.getDate() + count * 7);
+  else next.setMonth(next.getMonth() + count);
+  return next;
+}
+
 export function generateInstallments(
   totalAmount: number,
   firstDueDate: Date,
@@ -41,11 +51,7 @@ export function generateInstallments(
   const result: GeneratedInstallment[] = [];
 
   for (let i = 0; i < count; i++) {
-    const dueDate = new Date(firstDueDate);
-    const step = i * intervalCount;
-    if (recurrence.interval_unit === "day") dueDate.setDate(dueDate.getDate() + step);
-    else if (recurrence.interval_unit === "week") dueDate.setDate(dueDate.getDate() + step * 7);
-    else dueDate.setMonth(dueDate.getMonth() + step);
+    const dueDate = advanceDate(firstDueDate, recurrence.interval_unit, i * intervalCount);
 
     let amount: number;
     if (variable) {
