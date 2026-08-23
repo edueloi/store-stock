@@ -17,6 +17,7 @@ import { Switch } from "../../components/ui/Switch";
 import ConfirmDialog from "../../components/ui/ConfirmDialog";
 import { DropdownMenu } from "../../components/ui/Dropdown";
 import PdfImportModal from "../../components/ui/PdfImportModal";
+import { useToast } from "../../components/ui/Toast";
 
 // ── helpers ────────────────────────────────────────────────────────────────
 function toSlug(name: string) {
@@ -275,8 +276,12 @@ function GalleryUploader({ images, onChange }: GalleryUploaderProps) {
 
 // ── Main component ─────────────────────────────────────────────────────────
 export default function Inventory() {
+  const toast = useToast();
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
+  const [creatingCategory, setCreatingCategory] = useState(false);
+  const [newCategoryName, setNewCategoryName] = useState("");
+  const [savingCategory, setSavingCategory] = useState(false);
   const [taxRegime, setTaxRegime] = useState<string>("simples_nacional");
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -337,6 +342,32 @@ export default function Inventory() {
     finally { setLoading(false); }
   };
 
+  // Cria categoria sem sair do modal de produto — a categoria nova já vem selecionada.
+  const handleCreateCategory = async () => {
+    const name = newCategoryName.trim();
+    if (!name) return;
+    setSavingCategory(true);
+    try {
+      const res = await fetch("/api/categories", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${localStorage.getItem("token")}` },
+        body: JSON.stringify({ name }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data.id) {
+        setCategories((prev) => [...prev, { id: data.id, tenant_id: 0, name }]);
+        setEditingProduct((prev) => prev ? { ...prev, category_id: data.id } : prev);
+        setNewCategoryName("");
+        setCreatingCategory(false);
+      } else {
+        toast.error(data.error || "Erro ao criar categoria.");
+      }
+    } catch {
+      toast.error("Erro de conexão. Verifique sua internet.");
+    }
+    setSavingCategory(false);
+  };
+
   useEffect(() => { fetchInventory(); }, []);
 
   const resetVarState = () => { setNewAttrName(""); setNewAttrValue(""); setShowPresets(false); };
@@ -345,6 +376,8 @@ export default function Inventory() {
     setEditingProduct({ type: "sale", is_active: false, is_featured: false, stock_quantity: 0, attributes: [], skus: [] });
     setEditingImages([]);
     resetVarState();
+    setCreatingCategory(false);
+    setNewCategoryName("");
     setIsModalOpen(true);
   };
 
@@ -362,6 +395,8 @@ export default function Inventory() {
     setEditingProduct({ ...p, attributes: attrs, skus });
     setEditingImages(Array.isArray(p.images) ? p.images : p.image_url ? [p.image_url] : []);
     resetVarState();
+    setCreatingCategory(false);
+    setNewCategoryName("");
     setIsModalOpen(true);
   };
 
@@ -1165,12 +1200,38 @@ export default function Inventory() {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-1">
               <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest px-1">Categoria</label>
-              <select className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs font-bold outline-none h-10 focus:border-blue-400 transition-all"
-                value={editingProduct?.category_id || ""}
-                onChange={e => setEditingProduct(prev => ({ ...prev!, category_id: Number(e.target.value) }))}>
-                <option value="">Sem categoria</option>
-                {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-              </select>
+              {creatingCategory ? (
+                <div className="flex gap-1.5">
+                  <input
+                    autoFocus type="text" placeholder="Nome da categoria"
+                    value={newCategoryName}
+                    onChange={(e) => setNewCategoryName(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); handleCreateCategory(); } if (e.key === "Escape") { setCreatingCategory(false); setNewCategoryName(""); } }}
+                    className="flex-1 bg-slate-50 border border-blue-300 rounded-xl px-3 py-2.5 text-xs font-bold outline-none h-10 focus:border-blue-500 transition-all"
+                  />
+                  <button type="button" onClick={handleCreateCategory} disabled={savingCategory || !newCategoryName.trim()}
+                    className="h-10 px-3 rounded-xl bg-blue-600 hover:bg-blue-700 disabled:opacity-40 text-white flex items-center justify-center transition-all shrink-0">
+                    {savingCategory ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
+                  </button>
+                  <button type="button" onClick={() => { setCreatingCategory(false); setNewCategoryName(""); }}
+                    className="h-10 w-10 rounded-xl border border-slate-200 text-slate-400 hover:bg-slate-50 flex items-center justify-center transition-all shrink-0">
+                    <X size={14} />
+                  </button>
+                </div>
+              ) : (
+                <div className="flex gap-1.5">
+                  <select className="flex-1 min-w-0 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs font-bold outline-none h-10 focus:border-blue-400 transition-all"
+                    value={editingProduct?.category_id || ""}
+                    onChange={e => setEditingProduct(prev => ({ ...prev!, category_id: Number(e.target.value) }))}>
+                    <option value="">Sem categoria</option>
+                    {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                  </select>
+                  <button type="button" onClick={() => setCreatingCategory(true)} title="Criar nova categoria"
+                    className="h-10 w-10 rounded-xl border border-slate-200 text-slate-500 hover:bg-blue-50 hover:border-blue-300 hover:text-blue-600 flex items-center justify-center transition-all shrink-0">
+                    <Plus size={14} />
+                  </button>
+                </div>
+              )}
             </div>
             <div className="space-y-1">
               <label className="text-[10px] font-bold text-blue-500 uppercase tracking-widest px-1">Data de Validade</label>

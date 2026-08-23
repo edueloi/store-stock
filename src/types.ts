@@ -221,6 +221,14 @@ export interface FinanceEntry {
 
 export type AccountStatus = 'pending' | 'received' | 'paid' | 'overdue' | 'cancelled';
 
+export interface FinanceSeriesRef {
+  installments_count: number;
+  total_amount: number;
+  interest_rate: number;
+  interest_period: "day" | "month";
+  interest_grace_days: number;
+}
+
 export interface AccountReceivable {
   id: number;
   tenant_id: number;
@@ -232,6 +240,11 @@ export interface AccountReceivable {
   category?: string;
   customer_name?: string;
   notes?: string;
+  series_id?: number | null;
+  installment_number?: number | null;
+  interest_amount?: number;
+  interest_applied_at?: string | null;
+  series?: FinanceSeriesRef | null;
   created_at: string;
   updated_at: string;
 }
@@ -247,6 +260,11 @@ export interface AccountPayable {
   category?: string;
   supplier_name?: string;
   notes?: string;
+  series_id?: number | null;
+  installment_number?: number | null;
+  interest_amount?: number;
+  interest_applied_at?: string | null;
+  series?: FinanceSeriesRef | null;
   created_at: string;
   updated_at: string;
 }

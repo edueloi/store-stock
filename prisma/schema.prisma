@@ -97,6 +97,7 @@ model Tenant {
   finance              Finance[]
   accounts_receivable  AccountReceivable[]
   accounts_payable     AccountPayable[]
+  finance_series       FinanceSeries[]
   customers            Customer[]
   suppliers       Supplier[]
   setup_invites   SetupInvite[]
@@ -633,41 +634,89 @@ model Finance {
 }
 
 model AccountReceivable {
-  id            Int       @id @default(autoincrement())
-  tenant_id     Int
-  description   String
-  amount        Decimal   @db.Decimal(10, 2)
-  due_date      DateTime  @db.Date
-  received_date DateTime? @db.Date
-  status        String    @default("pending")
-  category      String?
-  customer_name String?
-  notes         String?   @db.Text
-  created_at    DateTime  @default(now())
-  updated_at    DateTime  @updatedAt
+  id                  Int       @id @default(autoincrement())
+  tenant_id           Int
+  description         String
+  amount              Decimal   @db.Decimal(10, 2)
+  due_date            DateTime  @db.Date
+  received_date       DateTime? @db.Date
+  status              String    @default("pending")
+  category            String?
+  customer_name       String?
+  notes               String?   @db.Text
+  series_id           Int?
+  installment_number  Int?
+  // Juros aplicado manualmente pelo operador sobre um lançamento vencido (nunca
+  // acumulado automaticamente em background) — soma-se em `amount`; guardado à parte só
+  // pra relatórios distinguirem principal de juros depois (mesmo padrão do crediário).
+  interest_amount     Decimal   @default(0) @db.Decimal(10, 2)
+  interest_applied_at DateTime?
+  created_at          DateTime  @default(now())
+  updated_at          DateTime  @updatedAt
 
-  tenant Tenant @relation(fields: [tenant_id], references: [id])
+  tenant Tenant         @relation(fields: [tenant_id], references: [id])
+  series FinanceSeries? @relation(fields: [series_id], references: [id], onDelete: Cascade)
 
+  @@unique([series_id, installment_number])
+  @@index([series_id])
   @@map("accounts_receivable")
 }
 
 model AccountPayable {
-  id            Int       @id @default(autoincrement())
-  tenant_id     Int
-  description   String
-  amount        Decimal   @db.Decimal(10, 2)
-  due_date      DateTime  @db.Date
-  paid_date     DateTime? @db.Date
-  status        String    @default("pending")
-  category      String?
-  supplier_name String?
-  notes         String?   @db.Text
-  created_at    DateTime  @default(now())
-  updated_at    DateTime  @updatedAt
+  id                  Int       @id @default(autoincrement())
+  tenant_id           Int
+  description         String
+  amount              Decimal   @db.Decimal(10, 2)
+  due_date            DateTime  @db.Date
+  paid_date           DateTime? @db.Date
+  status              String    @default("pending")
+  category            String?
+  supplier_name       String?
+  notes               String?   @db.Text
+  series_id           Int?
+  installment_number  Int?
+  interest_amount     Decimal   @default(0) @db.Decimal(10, 2)
+  interest_applied_at DateTime?
+  created_at          DateTime  @default(now())
+  updated_at          DateTime  @updatedAt
 
-  tenant Tenant @relation(fields: [tenant_id], references: [id])
+  tenant Tenant         @relation(fields: [tenant_id], references: [id])
+  series FinanceSeries? @relation(fields: [series_id], references: [id], onDelete: Cascade)
 
+  @@unique([series_id, installment_number])
+  @@index([series_id])
   @@map("accounts_payable")
+}
+
+// Configuração de uma recorrência/parcelamento — os lançamentos em si continuam sendo
+// linhas normais de AccountPayable/AccountReceivable (uma por parcela), esta tabela só
+// guarda os parâmetros usados pra gerá-las (compartilhada pelas duas direções via `kind`
+// porque a config é idêntica; sem isso duplicaria o mesmo modelo duas vezes).
+model FinanceSeries {
+  id                  Int      @id @default(autoincrement())
+  tenant_id           Int
+  kind                String // "payable" | "receivable"
+  description         String
+  category            String?
+  party_name          String? // supplier_name (payable) ou customer_name (receivable)
+  total_amount        Decimal  @db.Decimal(10, 2)
+  installments_count  Int
+  interval_unit       String // "day" | "week" | "month"
+  interval_count      Int      @default(1) // "a cada N dias/semanas/meses"
+  value_mode          String   @default("fixed") // "fixed" | "variable"
+  interest_rate       Decimal  @default(0) @db.Decimal(5, 2) // % ao período
+  interest_period     String   @default("month") // "day" | "month"
+  interest_grace_days Int      @default(0)
+  notes               String?  @db.Text
+  created_at          DateTime @default(now())
+  updated_at          DateTime @updatedAt
+
+  tenant      Tenant              @relation(fields: [tenant_id], references: [id])
+  payables    AccountPayable[]
+  receivables AccountReceivable[]
+
+  @@index([tenant_id])
+  @@map("finance_series")
 }
 
 model Customer {

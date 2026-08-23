@@ -19,6 +19,9 @@ import {
   Edit2,
   Trash2,
   StickyNote,
+  Repeat,
+  Percent,
+  Layers,
 } from "lucide-react";
 import { AccountReceivable, AccountStatus } from "../../types";
 import { cn } from "../../lib/utils";
@@ -38,6 +41,24 @@ function formatDateBR(d: string | null | undefined) {
 function isOverdue(due: string, status: AccountStatus) {
   if (status !== "pending") return false;
   return new Date(due + "T23:59:59") < new Date();
+}
+
+// Sugestão de juros pro-rata sobre o valor restante — sempre calculada na hora pra
+// exibir, nunca acumulada automaticamente (mesmo padrão do crediário em PDV.tsx).
+function suggestedInterest(remaining: number, due_date: string, rate: number, period: "day" | "month", graceDays: number): number {
+  if (rate <= 0) return 0;
+  const daysLate = Math.floor((Date.now() - new Date(due_date + "T00:00:00").getTime()) / 86400000);
+  const billableDays = Math.max(0, daysLate - graceDays);
+  if (billableDays <= 0) return 0;
+  const factor = period === "day" ? billableDays : billableDays / 30;
+  return Math.round(remaining * (rate / 100) * factor * 100) / 100;
+}
+
+function splitEvenly(total: number, count: number): string[] {
+  const base = Math.floor((total / count) * 100) / 100;
+  return Array.from({ length: count }, (_, i) =>
+    (i === count - 1 ? Math.round((total - base * (count - 1)) * 100) / 100 : base).toFixed(2)
+  );
 }
 
 const STATUS_CONFIG: Record<AccountStatus, { label: string; color: string; bg: string; icon: React.ReactNode }> = {
@@ -84,6 +105,25 @@ export default function ContasReceber() {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<AccountStatus | "all">("all");
 
+  // Parcelamento/recorrência (só na criação — editar uma parcela já gerada não
+  // reconfigura a série inteira, isso fica fora do escopo desta primeira etapa)
+  const [recurrenceEnabled, setRecurrenceEnabled] = useState(false);
+  const [installmentsCount, setInstallmentsCount] = useState("2");
+  const [intervalUnit, setIntervalUnit] = useState<"day" | "week" | "month">("month");
+  const [intervalCount, setIntervalCount] = useState("1");
+  const [valueMode, setValueMode] = useState<"fixed" | "variable">("fixed");
+  const [variableAmounts, setVariableAmounts] = useState<string[]>([]);
+  const [interestRate, setInterestRate] = useState("0");
+  const [interestPeriod, setInterestPeriod] = useState<"day" | "month">("month");
+  const [interestGraceDays, setInterestGraceDays] = useState("0");
+
+  // Seleção em massa (receber várias parcelas de uma vez, em qualquer ordem)
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
+  const [bulkReceiving, setBulkReceiving] = useState(false);
+  const [interestTarget, setInterestTarget] = useState<AccountReceivable | null>(null);
+  const [interestValue, setInterestValue] = useState("0");
+  const [applyingInterest, setApplyingInterest] = useState(false);
+
   const token = () => localStorage.getItem("token");
 
   const fetchItems = async () => {
@@ -104,8 +144,28 @@ export default function ContasReceber() {
   const openCreate = () => {
     setSelected(null);
     setForm(EMPTY_FORM);
+    setRecurrenceEnabled(false);
+    setInstallmentsCount("2");
+    setIntervalUnit("month");
+    setIntervalCount("1");
+    setValueMode("fixed");
+    setVariableAmounts([]);
+    setInterestRate("0");
+    setInterestPeriod("month");
+    setInterestGraceDays("0");
     setModalMode("create");
   };
+
+  // Mantém variableAmounts em sincronia com o nº de parcelas / valor total sempre que o
+  // operador estiver no modo "personalizar valores" — reparte igual como ponto de
+  // partida editável, não força o operador a preencher tudo do zero.
+  const syncVariableAmounts = (count: number, totalStr: string) => {
+    const total = Number(totalStr) || 0;
+    setVariableAmounts(count > 0 && total > 0 ? splitEvenly(total, count) : Array(Math.max(0, count)).fill("0.00"));
+  };
+
+  const variableSum = valueMode === "variable" ? variableAmounts.reduce((a, v) => a + (Number(v) || 0), 0) : 0;
+  const variableMismatch = valueMode === "variable" && Math.abs(variableSum - (Number(form.amount) || 0)) > 0.01;
 
   const openEdit = (item: AccountReceivable) => {
     setSelected(item);
@@ -135,9 +195,13 @@ export default function ContasReceber() {
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (modalMode === "create" && recurrenceEnabled && valueMode === "variable" && variableMismatch) {
+      toastError("A soma dos valores das parcelas precisa bater com o valor total.");
+      return;
+    }
     setSaving(true);
     try {
-      const body = {
+      const body: Record<string, unknown> = {
         description: form.description,
         amount: Number(form.amount),
         due_date: form.due_date,
@@ -145,6 +209,18 @@ export default function ContasReceber() {
         category: form.category || null,
         notes: form.notes || null,
       };
+      if (modalMode === "create" && recurrenceEnabled) {
+        body.recurrence = {
+          installments_count: Math.max(2, Number(installmentsCount) || 2),
+          interval_unit: intervalUnit,
+          interval_count: Math.max(1, Number(intervalCount) || 1),
+          value_mode: valueMode,
+          amounts: valueMode === "variable" ? variableAmounts.map((v) => Number(v) || 0) : undefined,
+          interest_rate: Number(interestRate) || 0,
+          interest_period: interestPeriod,
+          interest_grace_days: Math.max(0, Number(interestGraceDays) || 0),
+        };
+      }
       const url = modalMode === "edit" ? `/api/accounts-receivable/${selected!.id}` : "/api/accounts-receivable";
       const method = modalMode === "edit" ? "PUT" : "POST";
       const res = await fetch(url, {
@@ -153,7 +229,13 @@ export default function ContasReceber() {
         body: JSON.stringify(body),
       });
       if (res.ok) {
-        success(modalMode === "edit" ? "Conta atualizada com sucesso!" : "Conta cadastrada com sucesso!");
+        success(
+          modalMode === "edit"
+            ? "Conta atualizada com sucesso!"
+            : recurrenceEnabled
+              ? `${Math.max(2, Number(installmentsCount) || 2)} parcelas cadastradas com sucesso!`
+              : "Conta cadastrada com sucesso!"
+        );
         closeModal();
         fetchItems();
       } else {
@@ -208,6 +290,71 @@ export default function ContasReceber() {
       toastError("Erro de conexão. Verifique sua internet.");
     }
     setSaving(false);
+  };
+
+  const toggleSelected = (id: number) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+
+  const handleBulkReceive = async () => {
+    if (selectedIds.size === 0) return;
+    setBulkReceiving(true);
+    try {
+      const res = await fetch("/api/accounts-receivable/bulk-receive", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token()}` },
+        body: JSON.stringify({ ids: [...selectedIds], received_date: today() }),
+      });
+      if (res.ok) {
+        success(`${selectedIds.size} conta(s) marcada(s) como recebida(s)!`);
+        setSelectedIds(new Set());
+        fetchItems();
+      } else {
+        const data = await res.json().catch(() => ({}));
+        toastError(data.error || "Erro ao marcar contas como recebidas.");
+      }
+    } catch {
+      toastError("Erro de conexão. Verifique sua internet.");
+    }
+    setBulkReceiving(false);
+  };
+
+  const openApplyInterest = (item: AccountReceivable) => {
+    const rate = item.series?.interest_rate ?? 0;
+    const period = item.series?.interest_period ?? "month";
+    const grace = item.series?.interest_grace_days ?? 0;
+    const suggestion = suggestedInterest(Number(item.amount), item.due_date, rate, period, grace);
+    setInterestTarget(item);
+    setInterestValue(suggestion > 0 ? suggestion.toFixed(2) : "0.00");
+  };
+
+  const handleApplyInterest = async () => {
+    if (!interestTarget) return;
+    const amount = Number(interestValue);
+    if (!amount || amount <= 0) { toastError("Informe um valor de juros válido."); return; }
+    setApplyingInterest(true);
+    try {
+      const res = await fetch(`/api/accounts-receivable/${interestTarget.id}/apply-interest`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token()}` },
+        body: JSON.stringify({ interest_amount: amount }),
+      });
+      if (res.ok) {
+        success("Juros aplicado!");
+        setInterestTarget(null);
+        fetchItems();
+      } else {
+        const data = await res.json().catch(() => ({}));
+        toastError(data.error || "Erro ao aplicar juros.");
+      }
+    } catch {
+      toastError("Erro de conexão. Verifique sua internet.");
+    }
+    setApplyingInterest(false);
   };
 
   const filtered = useMemo(() => {
@@ -311,6 +458,24 @@ export default function ContasReceber() {
               ))}
             </div>
           </div>
+          {selectedIds.size > 0 && (
+            <div className="flex items-center gap-2 px-1">
+              <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest mr-1">
+                {selectedIds.size} selecionada{selectedIds.size > 1 ? "s" : ""}
+              </span>
+              <button
+                onClick={handleBulkReceive}
+                disabled={bulkReceiving}
+                className="h-8 px-3 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white rounded-lg text-[9px] font-black uppercase tracking-widest flex items-center gap-1.5 transition-all"
+              >
+                {bulkReceiving ? <Loader2 size={12} className="animate-spin" /> : <CheckCircle2 size={12} />}
+                Marcar como recebida(s)
+              </button>
+              <button onClick={() => setSelectedIds(new Set())} className="text-[9px] font-bold text-slate-400 hover:text-slate-600 uppercase">
+                Limpar
+              </button>
+            </div>
+          )}
         </div>
 
         {/* Desktop table */}
@@ -323,6 +488,19 @@ export default function ContasReceber() {
             <table className="w-full text-left border-collapse">
               <thead>
                 <tr className="bg-slate-50/80 border-b border-slate-100">
+                  <th className="px-5 py-3 w-8">
+                    <input
+                      type="checkbox"
+                      checked={filtered.length > 0 && filtered.every((i) => selectedIds.has(i.id))}
+                      onChange={() => {
+                        setSelectedIds((prev) => {
+                          const allSelected = filtered.length > 0 && filtered.every((i) => prev.has(i.id));
+                          return allSelected ? new Set() : new Set(filtered.map((i) => i.id));
+                        });
+                      }}
+                      className="rounded border-slate-300"
+                    />
+                  </th>
                   <th className="px-5 py-3 text-[9px] font-black text-slate-400 uppercase tracking-widest">Descrição</th>
                   <th className="px-5 py-3 text-[9px] font-black text-slate-400 uppercase tracking-widest">Cliente</th>
                   <th className="px-5 py-3 text-[9px] font-black text-slate-400 uppercase tracking-widest">Vencimento</th>
@@ -338,10 +516,18 @@ export default function ContasReceber() {
                   return (
                     <tr key={item.id} className={cn("border-b border-slate-50 hover:bg-slate-50/50 transition-colors", idx % 2 !== 0 && "bg-slate-50/20")}>
                       <td className="px-5 py-3">
+                        <input type="checkbox" checked={selectedIds.has(item.id)} onChange={() => toggleSelected(item.id)} className="rounded border-slate-300" />
+                      </td>
+                      <td className="px-5 py-3">
                         <span className="text-[11px] font-bold text-slate-800 uppercase">{item.description}</span>
                         {item.category && (
                           <span className="ml-2 text-[9px] font-black uppercase tracking-widest text-indigo-500 bg-indigo-50 border border-indigo-100 px-1.5 py-0.5 rounded">
                             {item.category}
+                          </span>
+                        )}
+                        {item.series && (
+                          <span className="ml-2 inline-flex items-center gap-1 text-[9px] font-black uppercase tracking-widest text-violet-500 bg-violet-50 border border-violet-100 px-1.5 py-0.5 rounded">
+                            <Layers size={9} /> {item.installment_number}/{item.series.installments_count}
                           </span>
                         )}
                       </td>
@@ -377,6 +563,15 @@ export default function ContasReceber() {
                               <CheckCircle2 size={11} /> Receber
                             </button>
                           ) : null}
+                          {item.status === "overdue" && (item.series?.interest_rate ?? 0) > 0 && (
+                            <button
+                              onClick={() => openApplyInterest(item)}
+                              title="Aplicar juros"
+                              className="h-7 px-2 bg-amber-50 border border-amber-200 text-amber-600 rounded-lg text-[9px] font-black uppercase tracking-widest hover:bg-amber-100 transition-all flex items-center gap-1"
+                            >
+                              <Percent size={11} />
+                            </button>
+                          )}
                           <button onClick={() => openEdit(item)} className="h-7 w-7 flex items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 transition-all">
                             <Edit2 size={13} />
                           </button>
@@ -390,7 +585,7 @@ export default function ContasReceber() {
                 })}
                 {filtered.length === 0 && (
                   <tr>
-                    <td colSpan={7} className="px-5 py-14 text-center text-[10px] font-black uppercase tracking-widest text-slate-300">
+                    <td colSpan={8} className="px-5 py-14 text-center text-[10px] font-black uppercase tracking-widest text-slate-300">
                       Nenhuma conta encontrada
                     </td>
                   </tr>
@@ -414,7 +609,12 @@ export default function ContasReceber() {
                   {st.icon}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-[11px] font-bold text-slate-900 uppercase truncate">{item.description}</p>
+                  <p className="text-[11px] font-bold text-slate-900 uppercase truncate">
+                    {item.description}
+                    {item.series && (
+                      <span className="ml-1.5 text-[9px] font-black text-violet-500">{item.installment_number}/{item.series.installments_count}</span>
+                    )}
+                  </p>
                   <p className="text-[9px] text-slate-400 font-bold uppercase mt-0.5">
                     Vence: {formatDateBR(item.due_date)} · {item.customer_name || "Sem cliente"}
                   </p>
@@ -519,6 +719,124 @@ export default function ContasReceber() {
                   </select>
                 </div>
               </div>
+
+              {modalMode === "create" && (
+                <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-3.5 space-y-3">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const next = !recurrenceEnabled;
+                      setRecurrenceEnabled(next);
+                      if (next && valueMode === "variable") syncVariableAmounts(Number(installmentsCount) || 2, form.amount);
+                    }}
+                    className="w-full flex items-center justify-between"
+                  >
+                    <span className="flex items-center gap-1.5 text-[10px] font-black text-slate-600 uppercase tracking-[0.18em]">
+                      <Repeat size={12} /> Parcelar / repetir esta conta
+                    </span>
+                    <span className={cn("w-9 h-5 rounded-full relative transition-all shrink-0", recurrenceEnabled ? "bg-emerald-500" : "bg-slate-300")}>
+                      <span className={cn("absolute top-0.5 h-4 w-4 rounded-full bg-white shadow-sm transition-all", recurrenceEnabled ? "left-4" : "left-0.5")} />
+                    </span>
+                  </button>
+
+                  {recurrenceEnabled && (
+                    <div className="space-y-3 pt-1">
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="space-y-1">
+                          <label className="text-[9px] font-black text-slate-400 uppercase tracking-[0.16em]">Nº de parcelas</label>
+                          <input
+                            type="number" min={2} value={installmentsCount}
+                            onChange={(e) => {
+                              setInstallmentsCount(e.target.value);
+                              if (valueMode === "variable") syncVariableAmounts(Number(e.target.value) || 2, form.amount);
+                            }}
+                            className="w-full bg-white border border-slate-200 rounded-lg px-3 h-9 text-xs font-bold outline-none focus:border-emerald-400"
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <label className="text-[9px] font-black text-slate-400 uppercase tracking-[0.16em]">A cada</label>
+                          <div className="flex gap-1.5">
+                            <input
+                              type="number" min={1} value={intervalCount}
+                              onChange={(e) => setIntervalCount(e.target.value)}
+                              className="w-14 bg-white border border-slate-200 rounded-lg px-2 h-9 text-xs font-bold outline-none focus:border-emerald-400"
+                            />
+                            <select
+                              value={intervalUnit}
+                              onChange={(e) => setIntervalUnit(e.target.value as "day" | "week" | "month")}
+                              className="flex-1 bg-white border border-slate-200 rounded-lg px-2 h-9 text-xs font-bold outline-none focus:border-emerald-400 appearance-none"
+                            >
+                              <option value="day">Dia(s)</option>
+                              <option value="week">Semana(s)</option>
+                              <option value="month">Mês(es)</option>
+                            </select>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="space-y-1.5">
+                        <label className="text-[9px] font-black text-slate-400 uppercase tracking-[0.16em]">Valor das parcelas</label>
+                        <div className="flex bg-white border border-slate-200 rounded-lg p-0.5 gap-0.5 w-fit">
+                          {([["fixed", "Dividir igualmente"], ["variable", "Personalizar valores"]] as const).map(([m, l]) => (
+                            <button
+                              key={m} type="button"
+                              onClick={() => {
+                                setValueMode(m);
+                                if (m === "variable") syncVariableAmounts(Number(installmentsCount) || 2, form.amount);
+                              }}
+                              className={cn("h-8 px-3 rounded-md text-[9px] font-black uppercase tracking-wide transition-all", valueMode === m ? "bg-emerald-600 text-white" : "text-slate-500")}
+                            >{l}</button>
+                          ))}
+                        </div>
+                      </div>
+
+                      {valueMode === "variable" && (
+                        <div className="space-y-1.5 max-h-40 overflow-y-auto pr-1">
+                          {variableAmounts.map((v, i) => (
+                            <div key={i} className="flex items-center gap-2">
+                              <span className="text-[9px] font-black text-slate-400 w-6 shrink-0">{i + 1}ª</span>
+                              <input
+                                type="number" step="0.01" min="0" value={v}
+                                onChange={(e) => setVariableAmounts((prev) => prev.map((p, idx) => idx === i ? e.target.value : p))}
+                                className="flex-1 bg-white border border-slate-200 rounded-lg px-3 h-8 text-xs font-mono font-bold outline-none focus:border-emerald-400"
+                              />
+                            </div>
+                          ))}
+                          <p className={cn("text-[9px] font-bold text-right", variableMismatch ? "text-rose-500" : "text-emerald-600")}>
+                            Soma: R$ {fmt(variableSum)} {variableMismatch && `(total informado: R$ ${fmt(Number(form.amount) || 0)})`}
+                          </p>
+                        </div>
+                      )}
+
+                      <div className="pt-1 border-t border-slate-200 space-y-1.5">
+                        <label className="flex items-center gap-1.5 text-[9px] font-black text-slate-400 uppercase tracking-[0.16em]">
+                          <Percent size={10} /> Juros por atraso (opcional)
+                        </label>
+                        <div className="grid grid-cols-3 gap-2">
+                          <div>
+                            <label className="text-[8px] font-bold text-slate-400 uppercase">Taxa (%)</label>
+                            <input type="number" step="0.01" min="0" value={interestRate} onChange={(e) => setInterestRate(e.target.value)}
+                              className="w-full bg-white border border-slate-200 rounded-lg px-2 h-9 text-xs font-bold outline-none focus:border-emerald-400" />
+                          </div>
+                          <div>
+                            <label className="text-[8px] font-bold text-slate-400 uppercase">Por</label>
+                            <select value={interestPeriod} onChange={(e) => setInterestPeriod(e.target.value as "day" | "month")}
+                              className="w-full bg-white border border-slate-200 rounded-lg px-2 h-9 text-xs font-bold outline-none focus:border-emerald-400 appearance-none">
+                              <option value="day">Dia</option>
+                              <option value="month">Mês</option>
+                            </select>
+                          </div>
+                          <div>
+                            <label className="text-[8px] font-bold text-slate-400 uppercase">Carência (dias)</label>
+                            <input type="number" min="0" value={interestGraceDays} onChange={(e) => setInterestGraceDays(e.target.value)}
+                              className="w-full bg-white border border-slate-200 rounded-lg px-2 h-9 text-xs font-bold outline-none focus:border-emerald-400" />
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
 
               {/* Observações */}
               <div className="space-y-1.5">
@@ -653,6 +971,48 @@ export default function ContasReceber() {
                 className="flex-1 h-11 bg-rose-600 hover:bg-rose-500 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2"
               >
                 {saving ? <Loader2 size={14} className="animate-spin" /> : "Excluir"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Apply Interest Modal */}
+      {interestTarget && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={() => setInterestTarget(null)} />
+          <div className="relative w-full max-w-sm bg-white rounded-2xl shadow-2xl overflow-hidden">
+            <div className="px-6 py-5">
+              <div className="w-14 h-14 bg-amber-50 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                <Percent size={22} className="text-amber-500" />
+              </div>
+              <h2 className="text-[13px] font-black uppercase tracking-widest text-slate-900 mb-1 text-center">Aplicar Juros</h2>
+              <p className="text-xs text-slate-500 text-center">{interestTarget.description}</p>
+              <p className="text-[10px] text-slate-400 text-center mt-1">
+                Vencida em {formatDateBR(interestTarget.due_date)} · Valor atual R$ {fmt(Number(interestTarget.amount))}
+              </p>
+              <div className="mt-4 space-y-1.5">
+                <label className="text-[9px] font-black text-slate-400 uppercase tracking-[0.16em]">Valor do juros (R$)</label>
+                <input
+                  type="number" step="0.01" min="0.01" autoFocus
+                  value={interestValue}
+                  onChange={(e) => setInterestValue(e.target.value)}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 h-11 text-sm font-mono font-bold outline-none focus:ring-2 focus:ring-amber-500/10 focus:border-amber-400 transition-all"
+                />
+                <p className="text-[9px] text-slate-400">
+                  Novo valor da conta: R$ {fmt(Number(interestTarget.amount) + (Number(interestValue) || 0))}. Essa ação não pode ser desfeita.
+                </p>
+              </div>
+            </div>
+            <div className="px-6 pb-5 flex gap-3">
+              <button onClick={() => setInterestTarget(null)} className="flex-1 h-11 border border-slate-200 text-[10px] font-black uppercase tracking-widest rounded-xl hover:bg-slate-50 transition-colors">
+                Cancelar
+              </button>
+              <button
+                onClick={handleApplyInterest} disabled={applyingInterest}
+                className="flex-1 h-11 bg-amber-500 hover:bg-amber-400 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2"
+              >
+                {applyingInterest ? <Loader2 size={14} className="animate-spin" /> : "Aplicar Juros"}
               </button>
             </div>
           </div>
