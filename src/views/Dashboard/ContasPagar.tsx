@@ -910,7 +910,9 @@ export default function ContasPagar() {
                 >{l}</button>
               ))}
             </div>
-            <div className="flex gap-1.5">
+          </div>
+          <div className="flex items-center gap-3 flex-wrap justify-between">
+            <div className="flex items-center gap-1.5 flex-wrap">
               <select
                 value={monthFilter}
                 onChange={(e) => setMonthFilter(e.target.value === "all" ? "all" : Number(e.target.value))}
@@ -927,20 +929,20 @@ export default function ContasPagar() {
                 <option value="all">Todos os anos</option>
                 {availableYears.map((y) => <option key={y} value={y}>{y}</option>)}
               </select>
+              <div className="flex gap-1.5">
+                {([["all", "Todos"], ["fixed", "Fixo"], ["variable", "Variável"]] as const).map(([k, l]) => (
+                  <button
+                    key={k}
+                    onClick={() => setCostTypeFilter(k)}
+                    className={cn(
+                      "h-9 px-3 rounded-lg text-[9px] font-black uppercase tracking-widest border transition-all",
+                      costTypeFilter === k ? "bg-slate-900 text-white border-slate-900" : "bg-white text-slate-400 border-slate-200 hover:border-slate-400"
+                    )}
+                  >{l}</button>
+                ))}
+              </div>
             </div>
-            <div className="flex gap-1.5">
-              {([["all", "Todos"], ["fixed", "Fixo"], ["variable", "Variável"]] as const).map(([k, l]) => (
-                <button
-                  key={k}
-                  onClick={() => setCostTypeFilter(k)}
-                  className={cn(
-                    "h-9 px-3 rounded-lg text-[9px] font-black uppercase tracking-widest border transition-all",
-                    costTypeFilter === k ? "bg-slate-900 text-white border-slate-900" : "bg-white text-slate-400 border-slate-200 hover:border-slate-400"
-                  )}
-                >{l}</button>
-              ))}
-            </div>
-            <div className="relative ml-auto" ref={exportRef}>
+            <div className="relative" ref={exportRef}>
               <button
                 onClick={() => setShowExport(!showExport)}
                 className="h-9 px-3 rounded-lg flex items-center gap-1.5 text-[9px] font-black uppercase tracking-widest border border-slate-200 bg-white text-slate-500 hover:border-slate-400 transition-all"
