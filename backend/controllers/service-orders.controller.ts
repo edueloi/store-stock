@@ -77,6 +77,7 @@ const SERVICE_ORDER_INCLUDE = {
   parts: true,
   photos: { orderBy: { created_at: "asc" as const } },
   technician: { select: { id: true, name: true } },
+  accounts_receivable: { select: { id: true, status: true, due_date: true }, take: 1 },
 };
 
 export async function listServiceOrders(req: Request, res: Response) {
@@ -1059,6 +1060,14 @@ export async function invoiceServiceOrder(req: Request, res: Response) {
     // NFS-e da mão de obra já tiver avançado a etapa antes.
     await advanceServiceOrderToNotaEmitida(id, getActor(req));
 
+    // Se essa OS já tinha sido lançada em Contas a Receber (pagamento previsto pra
+    // depois) e agora foi faturada (pagamento imediato capturado), a receivable
+    // pendente precisa sumir — senão o mesmo dinheiro conta duas vezes (Finance +
+    // Contas a Receber).
+    await prisma.accountReceivable.deleteMany({
+      where: { service_order_id: id, tenant_id: tenantId, status: "pending" },
+    });
+
     emitToTenant(tenantId, "order:created", { orderId: newOrder.id, serviceOrderId: id });
     emitToTenant(tenantId, "service-order:changed", { id });
     emitToTenant(tenantId, "finance:changed", { orderId: newOrder.id });
@@ -1067,5 +1076,60 @@ export async function invoiceServiceOrder(req: Request, res: Response) {
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Falha ao faturar ordem de serviço" });
+  }
+}
+
+// "Lançar a Receber" — quando a OS foi finalizada (às vezes já com NFS-e emitida) mas o
+// cliente só paga depois de um prazo, registra o valor pendente em Contas a Receber sem
+// exigir forma de pagamento imediata (isso é o que "Faturar" faz). Nunca automático —
+// só quando o operador escolhe explicitamente essa ação.
+export async function createServiceOrderReceivable(req: Request, res: Response) {
+  try {
+    const tenantId = getTenantId(req);
+    const id = Number(req.params.id);
+    const { due_date } = req.body as { due_date?: string };
+
+    if (!due_date) {
+      res.status(422).json({ error: "Informe a data prevista de recebimento" });
+      return;
+    }
+
+    const order = await prisma.serviceOrder.findFirst({ where: { id, tenant_id: tenantId } });
+    if (!order) { res.status(404).json({ error: "Ordem de serviço não encontrada" }); return; }
+    if (order.status === "cancelada") { res.status(400).json({ error: "Ordem de serviço está cancelada" }); return; }
+    if (order.status !== "finalizado" && order.status !== "nota_emitida") {
+      res.status(400).json({ error: "Só é possível lançar a receber uma ordem de serviço finalizada" });
+      return;
+    }
+    if (order.invoiced_order_id) {
+      res.status(400).json({ error: "Esta ordem já foi faturada — não é preciso lançar a receber" });
+      return;
+    }
+
+    const existingReceivable = await prisma.accountReceivable.findFirst({ where: { service_order_id: id, tenant_id: tenantId } });
+    if (existingReceivable) {
+      res.status(400).json({ error: "Esta ordem já foi lançada em Contas a Receber" });
+      return;
+    }
+
+    const receivable = await prisma.accountReceivable.create({
+      data: {
+        tenant_id: tenantId,
+        description: `Serviço OS #${String(order.number).padStart(4, "0")} — ${order.customer_name}`,
+        amount: order.total_amount,
+        due_date: new Date(`${due_date}T12:00:00`),
+        customer_name: order.customer_name,
+        category: "Serviço",
+        service_order_id: id,
+      },
+    });
+
+    emitToTenant(tenantId, "finance:changed", { id: receivable.id });
+    emitToTenant(tenantId, "service-order:changed", { id });
+
+    res.json(receivable);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Falha ao lançar ordem de serviço em Contas a Receber" });
   }
 }

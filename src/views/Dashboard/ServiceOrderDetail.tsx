@@ -150,6 +150,9 @@ export default function ServiceOrderDetail() {
   const [invoicePayments, setInvoicePayments] = useState<InvoicePayment[]>([newPayment()]);
   const [invoiceSellerId, setInvoiceSellerId] = useState<number | "">("");
   const [invoicing, setInvoicing] = useState(false);
+  const [showReceivableModal, setShowReceivableModal] = useState(false);
+  const [receivableDueDate, setReceivableDueDate] = useState("");
+  const [launchingReceivable, setLaunchingReceivable] = useState(false);
 
   const [generatingPdf, setGeneratingPdf] = useState(false);
 
@@ -604,6 +607,40 @@ export default function ServiceOrderDetail() {
       }
     } finally {
       setInvoicing(false);
+    }
+  };
+
+  const receivable = selected?.accounts_receivable?.[0] || null;
+
+  const formatDueDate = (iso: string) => {
+    const [y, m, d] = iso.substring(0, 10).split("-");
+    return `${d}/${m}/${y}`;
+  };
+
+  const defaultReceivableDueDate = () => {
+    const d = new Date();
+    d.setDate(d.getDate() + 30);
+    return d.toISOString().substring(0, 10);
+  };
+
+  const handleLaunchReceivable = async () => {
+    if (!selected || !receivableDueDate) return;
+    setLaunchingReceivable(true);
+    try {
+      const res = await fetch(`/api/service-orders/${selected.id}/receivable`, {
+        method: "POST",
+        headers: authHeader(),
+        body: JSON.stringify({ due_date: receivableDueDate }),
+      });
+      if (res.ok) {
+        setShowReceivableModal(false);
+        await fetchOrder(true);
+      } else {
+        const err = await res.json().catch(() => ({}));
+        alert(err.error || "Falha ao lançar em Contas a Receber");
+      }
+    } finally {
+      setLaunchingReceivable(false);
     }
   };
 
@@ -1315,6 +1352,23 @@ export default function ServiceOrderDetail() {
               </button>
             )}
           </div>
+
+          {!selected.invoiced_order_id && (selected.status === "finalizado" || selected.status === "nota_emitida") && (
+            receivable ? (
+              <div className="flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl bg-amber-50 border border-amber-200">
+                <CalendarClock size={13} className="text-amber-600" />
+                <span className="text-[10px] font-black text-amber-700 uppercase tracking-wider">
+                  A receber — vence em {formatDueDate(receivable.due_date)}
+                </span>
+              </div>
+            ) : (
+              <button
+                onClick={() => { setReceivableDueDate(defaultReceivableDueDate()); setShowReceivableModal(true); }}
+                className="w-full h-11 bg-amber-500 hover:bg-amber-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-all">
+                <CalendarClock size={14} /> Lançar a Receber
+              </button>
+            )
+          )}
         </div>
       </div>
 
@@ -1812,6 +1866,45 @@ export default function ServiceOrderDetail() {
             </div>
           )}
         </div>
+      </Modal>
+
+      {/* ── LANÇAR A RECEBER MODAL ───────────────────────────────────────── */}
+      <Modal
+        open={showReceivableModal}
+        onClose={() => setShowReceivableModal(false)}
+        title={`Lançar a Receber — OS #${String(selected.number).padStart(4, "0")}`}
+        subtitle="O cliente ainda não pagou, mas a OS já foi finalizada"
+        footer={
+          <>
+            <button onClick={() => setShowReceivableModal(false)} className="flex-1 h-11 rounded-xl border border-slate-200 text-[10px] font-black uppercase tracking-widest text-slate-600 hover:bg-slate-50 transition-colors">
+              Cancelar
+            </button>
+            <button onClick={handleLaunchReceivable} disabled={launchingReceivable || !receivableDueDate}
+              className="flex-1 h-11 bg-amber-500 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-amber-600 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2">
+              {launchingReceivable ? <Loader2 size={14} className="animate-spin" /> : <CalendarClock size={14} />}
+              Lançar a Receber
+            </button>
+          </>
+        }
+      >
+        <div>
+          <label className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400 mb-1.5 block">Data prevista de recebimento</label>
+          <input type="date" autoFocus value={receivableDueDate} onChange={(e) => setReceivableDueDate(e.target.value)}
+            className="w-full h-10 px-3 rounded-xl border border-slate-200 text-[12px] font-medium focus:outline-none focus:border-blue-400" />
+        </div>
+        <div className="bg-slate-50 rounded-2xl p-3 space-y-1.5">
+          <div className="flex justify-between text-[10px] font-bold uppercase text-slate-500">
+            <span>Valor</span>
+            <span className="font-mono text-slate-800">{fmt(selected.total_amount)}</span>
+          </div>
+          <div className="flex justify-between text-[10px] font-bold uppercase text-slate-500">
+            <span>Cliente</span>
+            <span className="text-slate-800">{selected.customer_name}</span>
+          </div>
+        </div>
+        <p className="text-[10px] text-slate-400">
+          Isso cria um lançamento em Contas a Receber com a categoria "Serviço". Se você faturar essa OS depois com pagamento imediato, este lançamento é removido automaticamente.
+        </p>
       </Modal>
 
       {/* ── CANCELAR MODAL ───────────────────────────────────────────────── */}

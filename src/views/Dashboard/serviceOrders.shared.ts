@@ -105,6 +105,7 @@ export interface ServiceOrder {
   observations: string | null;
   invoiced_order_id: number | null;
   invoiced_at: string | null;
+  accounts_receivable?: { id: number; status: string; due_date: string }[];
   cancel_reason: string | null;
   created_at: string;
   checklist_items: ChecklistItem[];

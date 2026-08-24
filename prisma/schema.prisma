@@ -659,14 +659,20 @@ model AccountReceivable {
   is_recurring              Boolean  @default(false)
   recurrence_interval_unit  String? // "day" | "week" | "month"
   recurrence_interval_count Int?
+  // Ordem de serviço finalizada (às vezes já com NFS-e emitida) cujo pagamento ainda não
+  // foi capturado via "Faturar" (pagamento imediato) — o cliente paga só depois de um
+  // prazo. onDelete SetNull: excluir a OS não deve apagar o histórico financeiro já gerado.
+  service_order_id    Int?
   created_at          DateTime  @default(now())
   updated_at          DateTime  @updatedAt
 
-  tenant Tenant         @relation(fields: [tenant_id], references: [id])
-  series FinanceSeries? @relation(fields: [series_id], references: [id], onDelete: Cascade)
+  tenant       Tenant         @relation(fields: [tenant_id], references: [id])
+  series       FinanceSeries? @relation(fields: [series_id], references: [id], onDelete: Cascade)
+  serviceOrder ServiceOrder?  @relation(fields: [service_order_id], references: [id], onDelete: SetNull)
 
   @@unique([series_id, installment_number])
   @@index([series_id])
+  @@index([service_order_id])
   @@map("accounts_receivable")
 }
 
@@ -1006,6 +1012,7 @@ model ServiceOrder {
   photos           ServiceOrderPhoto[]
   actions          ServiceOrderAction[]
   nfse_invoice     NfseInvoice?
+  accounts_receivable AccountReceivable[]
 
   @@unique([tenant_id, number])
   @@index([tenant_id])
