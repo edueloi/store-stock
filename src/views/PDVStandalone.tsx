@@ -664,7 +664,7 @@ export default function PDVStandalone() {
       if (existing) {
         return prev.map((i) => i.cartItemId === cartItemId ? { ...i, quantity: i.quantity + 1 } : i);
       }
-      return [...prev, { ...product, price: Number(product.price), quantity: 1, cartItemId, variationLabel: "", selectedOptions: undefined }];
+      return [...prev, { ...product, price: Number(product.discount_price || product.price), quantity: 1, cartItemId, variationLabel: "", selectedOptions: undefined }];
     });
   }, []);
 
@@ -820,7 +820,7 @@ export default function PDVStandalone() {
     if (existing) {
       setCart(cart.map((i) => i.cartItemId === cartItemId ? { ...i, quantity: i.quantity + 1 } : i));
     } else {
-      setCart([...cart, { ...product, price: Number(product.price), quantity: 1, cartItemId, selectedOptions: options, variationLabel }]);
+      setCart([...cart, { ...product, price: Number(product.discount_price || product.price), quantity: 1, cartItemId, selectedOptions: options, variationLabel }]);
     }
     setConfigProduct(null); setSelectedOptions({});
   };
@@ -2315,7 +2315,16 @@ ${sale.change > 0 ? `<hr class="divider"/><div class="row bold"><span>Troco:</sp
                       </div>
 
                       {/* Preço */}
-                      <p className="text-[13px] font-mono font-black text-blue-600 shrink-0 w-20 text-right">R$ {Number(product.price).toFixed(2)}</p>
+                      {product.discount_price ? (
+                        <div className="shrink-0 w-20 text-right">
+                          <p className="text-[9px] font-mono text-slate-400 line-through leading-none">R$ {Number(product.price).toFixed(2)}</p>
+                          <p className="text-[13px] font-mono font-black text-emerald-600 leading-tight flex items-center justify-end gap-1">
+                            <Tag size={10} /> R$ {Number(product.discount_price).toFixed(2)}
+                          </p>
+                        </div>
+                      ) : (
+                        <p className="text-[13px] font-mono font-black text-blue-600 shrink-0 w-20 text-right">R$ {Number(product.price).toFixed(2)}</p>
+                      )}
 
                       {/* Add */}
                       <div className="w-7 h-7 rounded-full flex items-center justify-center text-white shrink-0 opacity-0 group-hover:opacity-100 transition-opacity"
@@ -2363,6 +2372,14 @@ ${sale.change > 0 ? `<hr class="divider"/><div class="row bold"><span>Troco:</sp
                           </motion.div>
                         )}
 
+                        {/* Badge promoção */}
+                        {!!product.discount_price && (
+                          <div className="absolute bottom-2 left-2 flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[8px] font-black uppercase tracking-wide bg-emerald-500 text-white shadow-sm">
+                            <Tag size={9} />
+                            -{Math.round((1 - Number(product.discount_price) / Number(product.price)) * 100)}%
+                          </div>
+                        )}
+
                         {/* Overlay hover */}
                         {(
                           <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all duration-200 bg-blue-500/10">
@@ -2383,9 +2400,16 @@ ${sale.change > 0 ? `<hr class="divider"/><div class="row bold"><span>Troco:</sp
                         {hasVariations && (
                           <p className="text-[8px] font-black text-blue-500 uppercase tracking-widest mb-1">variações</p>
                         )}
-                        <p className="text-[14px] font-mono font-black text-blue-600">
-                          R$ {Number(product.price).toFixed(2)}
-                        </p>
+                        {product.discount_price ? (
+                          <div className="flex flex-col">
+                            <span className="text-[9px] font-mono text-slate-400 line-through leading-none">R$ {Number(product.price).toFixed(2)}</span>
+                            <span className="text-[14px] font-mono font-black text-emerald-600 leading-tight">R$ {Number(product.discount_price).toFixed(2)}</span>
+                          </div>
+                        ) : (
+                          <p className="text-[14px] font-mono font-black text-blue-600">
+                            R$ {Number(product.price).toFixed(2)}
+                          </p>
+                        )}
                       </div>
                     </motion.button>
                   );
