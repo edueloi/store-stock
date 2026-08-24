@@ -7,6 +7,7 @@ import {
   payAccount,
   applyInterestPayable,
   bulkPayAccountsPayable,
+  bulkDeleteAccountsPayable,
   importAccountsPayable,
 } from "../controllers/accounts-payable.controller";
 import { authenticateToken } from "../middlewares/auth.middleware";
@@ -17,6 +18,7 @@ router.use(authenticateToken);
 router.get("/", listAccountsPayable);
 router.post("/", createAccountPayable);
 router.post("/bulk-pay", bulkPayAccountsPayable);
+router.post("/bulk-delete", bulkDeleteAccountsPayable);
 router.post("/import", importAccountsPayable);
 router.put("/:id", updateAccountPayable);
 router.delete("/:id", deleteAccountPayable);

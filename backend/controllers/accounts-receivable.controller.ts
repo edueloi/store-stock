@@ -142,6 +142,27 @@ export async function applyInterestReceivable(req: Request, res: Response) {
   }
 }
 
+export async function bulkDeleteAccountsReceivable(req: Request, res: Response) {
+  try {
+    const tenantId = getTenantId(req);
+    const { ids } = req.body as { ids?: number[] };
+
+    if (!Array.isArray(ids) || ids.length === 0) {
+      res.status(422).json({ error: "Informe ao menos uma conta para excluir" });
+      return;
+    }
+
+    const result = await prisma.accountReceivable.deleteMany({
+      where: { id: { in: ids.map(Number) }, tenant_id: tenantId },
+    });
+    emitToTenant(tenantId, "finance:changed", { count: result.count });
+    res.json({ success: true, count: result.count });
+  } catch (err) {
+    console.error("bulkDeleteAccountsReceivable error:", err);
+    res.status(500).json({ error: "Falha ao excluir contas" });
+  }
+}
+
 export async function bulkReceiveAccountsReceivable(req: Request, res: Response) {
   try {
     const tenantId = getTenantId(req);

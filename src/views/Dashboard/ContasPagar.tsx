@@ -391,6 +391,8 @@ export default function ContasPagar() {
   // Seleção em massa (pagar várias parcelas de uma vez, em qualquer ordem)
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [bulkPaying, setBulkPaying] = useState(false);
+  const [bulkDeleting, setBulkDeleting] = useState(false);
+  const [showBulkDeleteConfirm, setShowBulkDeleteConfirm] = useState(false);
   const [interestTarget, setInterestTarget] = useState<AccountPayable | null>(null);
   const [interestValue, setInterestValue] = useState("0");
   const [applyingInterest, setApplyingInterest] = useState(false);
@@ -754,6 +756,30 @@ export default function ContasPagar() {
     setBulkPaying(false);
   };
 
+  const handleBulkDelete = async () => {
+    if (selectedIds.size === 0) return;
+    setBulkDeleting(true);
+    try {
+      const res = await fetch("/api/accounts-payable/bulk-delete", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token()}` },
+        body: JSON.stringify({ ids: [...selectedIds] }),
+      });
+      if (res.ok) {
+        success(`${selectedIds.size} conta(s) excluída(s)!`);
+        setSelectedIds(new Set());
+        setShowBulkDeleteConfirm(false);
+        fetchItems();
+      } else {
+        const data = await res.json().catch(() => ({}));
+        toastError(data.error || "Erro ao excluir contas.");
+      }
+    } catch {
+      toastError("Erro de conexão. Verifique sua internet.");
+    }
+    setBulkDeleting(false);
+  };
+
   const openApplyInterest = (item: AccountPayable) => {
     const rate = item.series?.interest_rate ?? 0;
     const period = item.series?.interest_period ?? "month";
@@ -990,6 +1016,12 @@ export default function ContasPagar() {
                 {bulkPaying ? <Loader2 size={12} className="animate-spin" /> : <CheckCircle2 size={12} />}
                 Marcar como paga(s)
               </button>
+              <button
+                onClick={() => setShowBulkDeleteConfirm(true)}
+                className="h-8 px-3 bg-white border border-rose-200 hover:bg-rose-50 text-rose-600 rounded-lg text-[9px] font-black uppercase tracking-widest flex items-center gap-1.5 transition-all"
+              >
+                <Trash2 size={12} /> Excluir selecionada(s)
+              </button>
               <button onClick={() => setSelectedIds(new Set())} className="text-[9px] font-bold text-slate-400 hover:text-slate-600 uppercase">
                 Limpar
               </button>
@@ -1004,7 +1036,7 @@ export default function ContasPagar() {
               <Loader2 size={22} className="animate-spin text-slate-300" />
             </div>
           ) : (
-            <table className="w-full text-left border-collapse">
+            <table className="w-full text-left border-collapse whitespace-nowrap">
               <thead>
                 <tr className="bg-slate-50/80 border-b border-slate-100">
                   <th className="px-5 py-3 w-8">
@@ -1606,6 +1638,33 @@ export default function ContasPagar() {
                 className="flex-1 h-11 bg-rose-600 hover:bg-rose-500 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2"
               >
                 {saving ? <Loader2 size={14} className="animate-spin" /> : "Excluir"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Bulk Delete Confirm Modal */}
+      {showBulkDeleteConfirm && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={() => setShowBulkDeleteConfirm(false)} />
+          <div className="relative w-full max-w-sm bg-white rounded-2xl shadow-2xl overflow-hidden">
+            <div className="px-6 py-5 text-center">
+              <div className="w-14 h-14 bg-rose-50 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                <Trash2 size={24} className="text-rose-500" />
+              </div>
+              <h2 className="text-[13px] font-black uppercase tracking-widest text-slate-900 mb-1">Excluir {selectedIds.size} Conta{selectedIds.size > 1 ? "s" : ""}?</h2>
+              <p className="text-xs text-slate-500">Essa ação não pode ser desfeita.</p>
+            </div>
+            <div className="px-6 pb-5 flex gap-3">
+              <button onClick={() => setShowBulkDeleteConfirm(false)} className="flex-1 h-11 border border-slate-200 text-[10px] font-black uppercase tracking-widest rounded-xl hover:bg-slate-50 transition-colors">
+                Cancelar
+              </button>
+              <button
+                onClick={handleBulkDelete} disabled={bulkDeleting}
+                className="flex-1 h-11 bg-rose-600 hover:bg-rose-500 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2"
+              >
+                {bulkDeleting ? <Loader2 size={14} className="animate-spin" /> : "Excluir"}
               </button>
             </div>
           </div>
