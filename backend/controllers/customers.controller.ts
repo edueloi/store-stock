@@ -97,7 +97,7 @@ export async function getCustomer(req: Request, res: Response) {
 export async function createCustomer(req: Request, res: Response) {
   try {
     const {
-      name, email, phone, document, address, notes, credit_limit, risk_flag, risk_reason, birth_date,
+      name, email, phone, document, address, notes, credit_limit, consignment_limit, risk_flag, risk_reason, birth_date,
       address_street, address_number, address_complement, address_district, address_city, address_state, address_zip, address_country,
     } = req.body;
     const customer = await prisma.customer.create({
@@ -118,6 +118,7 @@ export async function createCustomer(req: Request, res: Response) {
         address_country: address_country || "Brasil",
         notes: notes || null,
         credit_limit: credit_limit || null,
+        consignment_limit: consignment_limit || null,
         risk_flag: risk_flag ?? false,
         risk_reason: risk_reason || null,
         birth_date: birth_date ? new Date(birth_date) : null,
@@ -135,7 +136,7 @@ export async function updateCustomer(req: Request, res: Response) {
     const tenantId = getTenantId(req);
     const id = Number(req.params.id);
     const {
-      name, email, phone, document, address, notes, credit_limit, risk_flag, risk_reason, birth_date,
+      name, email, phone, document, address, notes, credit_limit, consignment_limit, risk_flag, risk_reason, birth_date,
       address_street, address_number, address_complement, address_district, address_city, address_state, address_zip, address_country,
     } = req.body;
 
@@ -157,6 +158,7 @@ export async function updateCustomer(req: Request, res: Response) {
         ...(address_country !== undefined && { address_country: address_country || null }),
         ...(notes !== undefined && { notes: notes || null }),
         ...(credit_limit !== undefined && { credit_limit: credit_limit || null }),
+        ...(consignment_limit !== undefined && { consignment_limit: consignment_limit || null }),
         ...(risk_flag !== undefined && { risk_flag }),
         ...(risk_reason !== undefined && { risk_reason: risk_reason || null }),
         ...(birth_date !== undefined && { birth_date: birth_date ? new Date(birth_date) : null }),

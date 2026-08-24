@@ -31,6 +31,7 @@ interface Customer {
   address_country?: string;
   notes?: string;
   credit_limit?: number;
+  consignment_limit?: number;
   birth_date?: string;
   risk_flag: boolean;
   risk_reason?: string;
@@ -187,6 +188,7 @@ export default function CustomerDetail() {
   const [fCountry, setFCountry] = useState("Brasil");
   const [cepLoading, setCepLoading] = useState(false);
   const [fCredit, setFCredit] = useState("");
+  const [fConsignmentLimit, setFConsignmentLimit] = useState("");
   const [fBirth, setFBirth] = useState("");
   const [fNotes, setFNotes] = useState("");
   const [fRisk, setFRisk] = useState(false);
@@ -297,6 +299,7 @@ export default function CustomerDetail() {
     setFDistrict(detail.address_district ?? ""); setFCity(detail.address_city ?? ""); setFState(detail.address_state ?? ""); setFZip(detail.address_zip ?? "");
     setFCountry(detail.address_country ?? "Brasil");
     setFCredit(detail.credit_limit ? String(detail.credit_limit) : "");
+    setFConsignmentLimit(detail.consignment_limit ? String(detail.consignment_limit) : "");
     setFBirth(detail.birth_date ? detail.birth_date.slice(0, 10) : "");
     setFRisk(detail.risk_flag); setFRiskReason(detail.risk_reason ?? "");
     setShowForm(true);
@@ -348,6 +351,7 @@ export default function CustomerDetail() {
           address_zip: fZip.replace(/\D/g, "") || null,
           address_country: fCountry || null,
           credit_limit: fCredit ? Number(fCredit) : null,
+          consignment_limit: fConsignmentLimit ? Number(fConsignmentLimit) : null,
           birth_date: fBirth || null,
           risk_flag: fRisk, risk_reason: fRiskReason || null,
         }),
@@ -746,6 +750,10 @@ export default function CustomerDetail() {
                 <div>
                   <p className="text-[9px] font-black uppercase tracking-wider text-slate-400">Limite de Crédito</p>
                   <p className="text-slate-700 font-medium">{detail.credit_limit ? fmt(Number(detail.credit_limit)) : "Sem limite definido"}</p>
+                </div>
+                <div>
+                  <p className="text-[9px] font-black uppercase tracking-wider text-slate-400">Limite de Consignação</p>
+                  <p className="text-slate-700 font-medium">{detail.consignment_limit ? fmt(Number(detail.consignment_limit)) : "Sem limite definido"}</p>
                 </div>
                 <div>
                   <p className="text-[9px] font-black uppercase tracking-wider text-slate-400">Cliente desde</p>
@@ -1345,6 +1353,10 @@ export default function CustomerDetail() {
           <div>
             <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block mb-1">Limite de Crédito (R$)</label>
             <input type="number" min={0} value={fCredit} onChange={(e) => setFCredit(e.target.value)} className="w-full h-9 px-3 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+          </div>
+          <div>
+            <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block mb-1">Limite de Consignação (R$)</label>
+            <input type="number" min={0} value={fConsignmentLimit} onChange={(e) => setFConsignmentLimit(e.target.value)} className="w-full h-9 px-3 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
           </div>
           <div>
             <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block mb-1">Observações</label>

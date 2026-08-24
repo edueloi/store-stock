@@ -32,6 +32,7 @@ interface Customer {
   address_country?: string;
   notes?: string;
   credit_limit?: number;
+  consignment_limit?: number;
   birth_date?: string;
   risk_flag: boolean;
   risk_reason?: string;
@@ -107,6 +108,7 @@ export default function Customers() {
   const [cepLoading, setCepLoading] = useState(false);
   const [fNotes, setFNotes]       = useState("");
   const [fCredit, setFCredit]     = useState("");
+  const [fConsignmentLimit, setFConsignmentLimit] = useState("");
   const [fBirth, setFBirth]       = useState("");
   const [fRisk, setFRisk]         = useState(false);
   const [fRiskReason, setFRiskReason] = useState("");
@@ -146,7 +148,7 @@ export default function Customers() {
     setEditCust(null);
     setFName(""); setFEmail(""); setFPhone(""); setFDoc("");
     setFAddr(""); setFStreet(""); setFNumber(""); setFComplement(""); setFDistrict(""); setFCity(""); setFState(""); setFZip(""); setFCountry("Brasil");
-    setFNotes(""); setFCredit(""); setFBirth(""); setFRisk(false); setFRiskReason("");
+    setFNotes(""); setFCredit(""); setFConsignmentLimit(""); setFBirth(""); setFRisk(false); setFRiskReason("");
     setShowForm(true);
   }
 
@@ -158,6 +160,7 @@ export default function Customers() {
     setFDistrict(c.address_district ?? ""); setFCity(c.address_city ?? ""); setFState(c.address_state ?? ""); setFZip(c.address_zip ?? "");
     setFCountry(c.address_country ?? "Brasil");
     setFCredit(c.credit_limit ? String(c.credit_limit) : "");
+    setFConsignmentLimit(c.consignment_limit ? String(c.consignment_limit) : "");
     setFBirth(c.birth_date ? c.birth_date.slice(0, 10) : "");
     setFRisk(c.risk_flag); setFRiskReason(c.risk_reason ?? "");
     setShowForm(true);
@@ -209,6 +212,7 @@ export default function Customers() {
         address_zip: fZip.replace(/\D/g, "") || null,
         address_country: fCountry || null,
         credit_limit: fCredit ? Number(fCredit) : null,
+        consignment_limit: fConsignmentLimit ? Number(fConsignmentLimit) : null,
         birth_date: fBirth || null,
         risk_flag: fRisk,
         risk_reason: fRiskReason || null,
@@ -592,6 +596,10 @@ export default function Customers() {
                 <div>
                   <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block mb-1">Limite de Crédito (R$)</label>
                   <input type="number" min={0} value={fCredit} onChange={(e) => setFCredit(e.target.value)} placeholder="0,00" className="w-full h-9 px-3 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                </div>
+                <div>
+                  <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block mb-1">Limite de Consignação (R$)</label>
+                  <input type="number" min={0} value={fConsignmentLimit} onChange={(e) => setFConsignmentLimit(e.target.value)} placeholder="0,00" className="w-full h-9 px-3 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
                 </div>
                 <div>
                   <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block mb-1">Observações</label>

@@ -65,6 +65,70 @@ const CONSIGNMENT_INCLUDE = {
   items: true,
 };
 
+function isDueToday(dueDate: Date): boolean {
+  const today = new Date();
+  return dueDate.getFullYear() === today.getFullYear()
+    && dueDate.getMonth() === today.getMonth()
+    && dueDate.getDate() === today.getDate();
+}
+
+// Status "de exibição": não mexe no campo `status` persistido (aberta|fechada|cancelada),
+// só refina "aberta" em parcial/vencendo/atrasada com base nos itens e no prazo.
+function deriveStatus(consignment: { status: string; due_date: Date; items: { resolution: string }[] }): string {
+  if (consignment.status !== "aberta") return consignment.status;
+  const hasPending = consignment.items.some((it) => it.resolution === "pending");
+  const hasResolved = consignment.items.some((it) => it.resolution !== "pending");
+  if (hasPending && hasResolved) return "parcial";
+  if (hasPending && consignment.due_date.getTime() < Date.now() && !isDueToday(consignment.due_date)) return "atrasada";
+  if (hasPending && isDueToday(consignment.due_date)) return "vencendo_hoje";
+  return "aberta";
+}
+
+// Bloqueia consignação para cliente de risco ou que ultrapasse o limite dedicado de
+// consignação — mesmo princípio (e mesmo formato de erro) do limite de crediário em
+// sales.controller.ts, mas com campo próprio (customer.consignment_limit), já que são
+// exposições financeiras diferentes.
+async function checkConsignmentEligibility(
+  tenantId: number,
+  customerId: number | null | undefined,
+  additionalAmount: number,
+): Promise<{ status: number; error: string; extra?: object } | null> {
+  if (!customerId) return null;
+
+  const customer = await prisma.customer.findFirst({
+    where: { id: customerId, tenant_id: tenantId },
+    select: { risk_flag: true, consignment_limit: true, name: true },
+  });
+  if (!customer) return null;
+
+  if (customer.risk_flag) {
+    return { status: 400, error: "Este cliente está bloqueado para novas consignações." };
+  }
+
+  const limit = customer.consignment_limit ? Number(customer.consignment_limit) : 0;
+  if (limit > 0) {
+    const openConsignments = await prisma.consignment.findMany({
+      where: { tenant_id: tenantId, customer_id: customerId, status: "aberta" },
+      include: { items: true },
+    });
+    const openTotal = openConsignments.reduce(
+      (sum, c) => sum + c.items
+        .filter((it) => it.resolution === "pending")
+        .reduce((s, it) => s + Number(it.unit_price) * it.quantity, 0),
+      0,
+    );
+    if (openTotal + additionalAmount > limit + 0.005) {
+      return {
+        status: 422,
+        error: `Limite de consignação excedido: em aberto R$ ${openTotal.toFixed(2)} + R$ ${additionalAmount.toFixed(2)} > limite R$ ${limit.toFixed(2)}`,
+        extra: { limit, openTotal, requested: additionalAmount },
+      };
+    }
+  }
+
+  return null;
+}
+
 export async function listConsignments(req: Request, res: Response) {
   try {
     const tenantId = getTenantId(req);
@@ -80,7 +144,7 @@ export async function listConsignments(req: Request, res: Response) {
       include: CONSIGNMENT_INCLUDE,
       orderBy: { created_at: "desc" },
     });
-    res.json(consignments);
+    res.json(consignments.map((c) => ({ ...c, overdue: isOverdue(c), derived_status: deriveStatus(c) })));
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Falha ao listar consignações" });
@@ -121,7 +185,7 @@ export async function getConsignmentById(req: Request, res: Response) {
       },
     });
     if (!consignment) return res.status(404).json({ error: "Consignação não encontrada" });
-    res.json({ ...consignment, overdue: isOverdue(consignment) });
+    res.json({ ...consignment, overdue: isOverdue(consignment), derived_status: deriveStatus(consignment) });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Falha ao buscar consignação" });
@@ -174,6 +238,10 @@ export async function createConsignment(req: Request, res: Response) {
         selected_options: it.selectedOptions ?? null,
       });
     }
+
+    const totalAmount = itemRows.reduce((sum, row) => sum + row.unit_price * row.quantity, 0);
+    const eligibilityError = await checkConsignmentEligibility(tenantId, customer_id, totalAmount);
+    if (eligibilityError) return res.status(eligibilityError.status).json({ error: eligibilityError.error, ...eligibilityError.extra });
 
     const last = await prisma.consignment.findFirst({
       where: { tenant_id: tenantId },
@@ -266,7 +334,33 @@ export async function updateConsignment(req: Request, res: Response) {
       data.due_date = addDays(existing.created_at, Number(due_days));
     }
 
+    // Registra no histórico só o que de fato mudou, com valor anterior → novo.
+    const changes: string[] = [];
+    if (data.due_date && data.due_date.getTime() !== existing.due_date.getTime()) {
+      changes.push(`Prazo alterado de ${existing.due_date.toLocaleDateString("pt-BR")} para ${data.due_date.toLocaleDateString("pt-BR")}`);
+    }
+    if (data.seller_name !== undefined && data.seller_name !== existing.seller_name) {
+      changes.push(`Vendedor alterado de "${existing.seller_name ?? "—"}" para "${data.seller_name ?? "—"}"`);
+    }
+    if (data.notes !== undefined && data.notes !== existing.notes) {
+      changes.push("Observações atualizadas");
+    }
+    if (data.customer_name !== undefined && data.customer_name !== existing.customer_name) {
+      changes.push(`Cliente alterado de "${existing.customer_name}" para "${data.customer_name}"`);
+    }
+
     await prisma.consignment.update({ where: { id }, data });
+
+    if (changes.length > 0) {
+      await logAction(tenantId, id, "updated", {
+        actor: getActor(req),
+        note: changes.join(" · "),
+        meta: {
+          before: { due_date: existing.due_date, seller_name: existing.seller_name, notes: existing.notes, customer_name: existing.customer_name },
+          after: { due_date: data.due_date ?? existing.due_date, seller_name: data.seller_name ?? existing.seller_name, notes: data.notes ?? existing.notes, customer_name: data.customer_name ?? existing.customer_name },
+        },
+      });
+    }
 
     emitToTenant(tenantId, "consignment:changed", { consignmentId: id });
 
@@ -300,6 +394,10 @@ export async function addConsignmentItem(req: Request, res: Response) {
     if (product.stock_quantity < qty) {
       return res.status(400).json({ error: `Estoque insuficiente para "${product.name}"` });
     }
+
+    const addedAmount = Number(product.discount_price ?? product.price) * qty;
+    const eligibilityError = await checkConsignmentEligibility(tenantId, consignment.customer_id, addedAmount);
+    if (eligibilityError) return res.status(eligibilityError.status).json({ error: eligibilityError.error, ...eligibilityError.extra });
 
     const item = await prisma.consignmentItem.create({
       data: {
@@ -414,10 +512,13 @@ export async function resolveConsignment(req: Request, res: Response) {
 
     const resolutionMap = new Map(resolutions.map((r) => [r.item_id, r.resolution]));
     const pendingItems = consignment.items.filter((it) => it.resolution === "pending");
+    const pendingIds = new Set(pendingItems.map((it) => it.id));
 
-    for (const item of pendingItems) {
-      if (!resolutionMap.has(item.id)) {
-        return res.status(400).json({ error: `Item ${item.id} não teve resolução informada` });
+    // Aceita resolver só um SUBCONJUNTO dos itens pendentes (conversão parcial) — não exige
+    // mais que todos venham no payload. Só valida que o que veio realmente está pendente.
+    for (const itemId of resolutionMap.keys()) {
+      if (!pendingIds.has(itemId)) {
+        return res.status(400).json({ error: `Item ${itemId} não está pendente nesta sacola` });
       }
     }
 
@@ -476,19 +577,25 @@ export async function resolveConsignment(req: Request, res: Response) {
     }
 
     const allReturned = keptItems.length === 0;
-    const newStatus = "fechada";
+    // Só fecha a sacola se não sobrar NENHUM item pendente — se o pedido resolveu só parte,
+    // ela continua "aberta" (aparece como "parcial" via derived_status) para o restante.
+    const stillPending = pendingItems.some((it) => !resolutionMap.has(it.id));
+    const closingNow = !stillPending;
+    const newStatus = closingNow ? "fechada" : "aberta";
 
     await prisma.consignment.update({
       where: { id },
-      data: {
-        status: newStatus,
-        invoiced_order_id: invoicedOrderId,
-        invoiced_at: invoicedOrderId ? new Date() : null,
-        closed_at: new Date(),
-      },
+      data: closingNow
+        ? {
+            status: newStatus,
+            invoiced_order_id: invoicedOrderId,
+            invoiced_at: invoicedOrderId ? new Date() : null,
+            closed_at: new Date(),
+          }
+        : {},
     });
 
-    await logAction(tenantId, id, "resolved", {
+    await logAction(tenantId, id, closingNow ? "resolved" : "partial_resolved", {
       fromStatus: consignment.status,
       toStatus: newStatus,
       actor: getActor(req),
@@ -497,6 +604,7 @@ export async function resolveConsignment(req: Request, res: Response) {
         returned: returnedItems.map((i) => i.id),
         order_id: invoicedOrderId,
         all_returned: allReturned,
+        still_pending: stillPending,
       },
     });
 
@@ -549,7 +657,13 @@ export async function cancelConsignment(req: Request, res: Response) {
     });
 
     await logAction(tenantId, id, "cancelled", {
-      fromStatus: consignment.status, toStatus: "cancelada", actor: getActor(req), note: cancel_reason,
+      fromStatus: consignment.status,
+      toStatus: "cancelada",
+      actor: getActor(req),
+      note: cancel_reason,
+      // guarda quais itens foram devolvidos POR ESTE cancelamento — necessário pra reabertura
+      // saber exatamente o que restaurar, já que outros itens podem já ter sido resolvidos antes.
+      meta: { returned_item_ids: pendingItems.map((it) => it.id) },
     });
 
     emitToTenant(tenantId, "consignment:changed", { consignmentId: id });
@@ -560,5 +674,92 @@ export async function cancelConsignment(req: Request, res: Response) {
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Falha ao cancelar consignação" });
+  }
+}
+
+// Reabre uma sacola CANCELADA (não fechada — uma sacola fechada já gerou venda/pagamento
+// reais e desfazer isso é estorno financeiro, fora do escopo desta ação). Restaura ao
+// estoque consignado só os itens que essa cancelação específica devolveu.
+export async function reopenConsignment(req: Request, res: Response) {
+  try {
+    const authReq = req as AuthenticatedRequest;
+    if (authReq.user.role !== "admin" && !authReq.user.superAdmin) {
+      return res.status(403).json({ error: "Somente administradores podem reabrir uma consignação" });
+    }
+
+    const tenantId = getTenantId(req);
+    const id = Number(req.params.id);
+    const { reason } = req.body as { reason?: string };
+    if (!reason || !reason.trim()) {
+      return res.status(400).json({ error: "Informe o motivo da reabertura" });
+    }
+
+    const consignment = await prisma.consignment.findFirst({
+      where: { id, tenant_id: tenantId },
+      include: { items: true },
+    });
+    if (!consignment) return res.status(404).json({ error: "Consignação não encontrada" });
+    if (consignment.status !== "cancelada") {
+      return res.status(400).json({ error: "Só é possível reabrir consignações canceladas" });
+    }
+
+    const lastCancelAction = await prisma.consignmentAction.findFirst({
+      where: { consignment_id: id, action: "cancelled" },
+      orderBy: { created_at: "desc" },
+    });
+    const returnedItemIds: number[] = (lastCancelAction?.meta as any)?.returned_item_ids ?? [];
+    const itemsToRestore = consignment.items.filter((it) => returnedItemIds.includes(it.id));
+
+    for (const item of itemsToRestore) {
+      const product = await prisma.product.findFirst({ where: { id: item.product_id, tenant_id: tenantId } });
+      if (!product || product.stock_quantity < item.quantity) {
+        return res.status(400).json({ error: `Estoque insuficiente para reabrir "${item.name}" — só ${product?.stock_quantity ?? 0} disponível(is)` });
+      }
+    }
+
+    for (const item of itemsToRestore) {
+      await decrementProductStock(item.product_id, item.quantity, item.selected_options as Record<string, string> | null);
+      await prisma.stockMovement.create({
+        data: {
+          tenant_id: tenantId,
+          product_id: item.product_id,
+          quantity: -item.quantity,
+          type: "consignment_out",
+          reason: `Reabertura da consignação #${consignment.number}`,
+        },
+      });
+      await prisma.consignmentItem.update({
+        where: { id: item.id },
+        data: { resolution: "pending", resolved_at: null },
+      });
+    }
+
+    await prisma.consignment.update({
+      where: { id },
+      data: {
+        status: "aberta",
+        cancelled_by: null,
+        cancel_reason: null,
+        cancelled_at: null,
+        closed_at: null,
+      },
+    });
+
+    await logAction(tenantId, id, "reopened", {
+      fromStatus: "cancelada",
+      toStatus: "aberta",
+      actor: getActor(req),
+      note: reason,
+      meta: { restored_item_ids: itemsToRestore.map((it) => it.id) },
+    });
+
+    emitToTenant(tenantId, "consignment:changed", { consignmentId: id });
+    emitToTenant(tenantId, "stock:changed", { consignmentId: id });
+
+    const updated = await prisma.consignment.findFirst({ where: { id, tenant_id: tenantId }, include: CONSIGNMENT_INCLUDE });
+    res.json(updated);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Falha ao reabrir consignação" });
   }
 }

@@ -18,6 +18,10 @@ import {
   Trash2,
   Ban,
   Package,
+  Pencil,
+  History,
+  RotateCcw,
+  ShieldAlert,
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { cn } from "../../lib/utils";
@@ -25,10 +29,12 @@ import PageHeader from "../../components/layout/PageHeader";
 import Combobox from "../../components/ui/Combobox";
 import { useToast } from "../../components/ui/Toast";
 import { onRealtime } from "../../lib/realtime";
+import { getStoredUser } from "../../lib/session";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 type ConsignmentStatus = "aberta" | "fechada" | "cancelada";
+type DerivedStatus = ConsignmentStatus | "parcial" | "vencendo_hoje" | "atrasada";
 type ItemResolution = "pending" | "kept" | "returned";
 
 interface ConsignmentItem {
@@ -70,6 +76,7 @@ interface Consignment {
   items: ConsignmentItem[];
   actions?: ConsignmentActionLog[];
   overdue?: boolean;
+  derived_status?: DerivedStatus;
 }
 
 interface Product {
@@ -86,6 +93,8 @@ interface Customer {
   id: number;
   name: string;
   phone?: string;
+  consignment_limit?: number | null;
+  risk_flag?: boolean;
 }
 
 interface Seller {
@@ -156,6 +165,28 @@ const STATUS_META: Record<ConsignmentStatus, { label: string; color: string; ico
   cancelada: { label: "Cancelada", color: "text-red-600 bg-red-50", icon: <XCircle size={12} /> },
 };
 
+const DERIVED_STATUS_META: Record<DerivedStatus, { label: string; color: string; icon: React.ReactNode }> = {
+  ...STATUS_META,
+  parcial: { label: "Parcial", color: "text-violet-600 bg-violet-50", icon: <ShoppingBag size={12} /> },
+  vencendo_hoje: { label: "Vencendo Hoje", color: "text-amber-600 bg-amber-50", icon: <AlertTriangle size={12} /> },
+  atrasada: { label: "Em Atraso", color: "text-red-600 bg-red-50", icon: <AlertTriangle size={12} /> },
+};
+
+function displayStatus(c: Consignment): DerivedStatus {
+  return c.derived_status ?? c.status;
+}
+
+const ACTION_LABELS: Record<string, string> = {
+  created: "Sacola criada",
+  item_added: "Item adicionado",
+  item_removed: "Item removido",
+  updated: "Sacola atualizada",
+  partial_resolved: "Resolução parcial",
+  resolved: "Sacola resolvida",
+  cancelled: "Sacola cancelada",
+  reopened: "Sacola reaberta",
+};
+
 const STATUS_ORDER: ConsignmentStatus[] = ["aberta", "fechada", "cancelada"];
 
 function emptyForm() {
@@ -177,6 +208,7 @@ function isOverdue(c: Consignment): boolean {
 
 export default function Consignments() {
   const { success, error: toastError } = useToast();
+  const isAdmin = getStoredUser()?.role === "admin";
   const [consignments, setConsignments] = useState<Consignment[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
@@ -184,7 +216,7 @@ export default function Consignments() {
   const [tenant, setTenant] = useState<Tenant | null>(null);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
-  const [statusFilter, setStatusFilter] = useState<"all" | "overdue" | ConsignmentStatus>("all");
+  const [statusFilter, setStatusFilter] = useState<"all" | "overdue" | "vencendo_hoje" | "parcial" | ConsignmentStatus>("all");
 
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState(emptyForm());
@@ -199,12 +231,21 @@ export default function Consignments() {
   const [productSearch, setProductSearch] = useState("");
 
   const [selected, setSelected] = useState<Consignment | null>(null);
+  const [detailTab, setDetailTab] = useState<"items" | "history">("items");
   const [resolutions, setResolutions] = useState<Record<number, ItemResolution>>({});
 
   const [showResolveModal, setShowResolveModal] = useState(false);
   const [invoicePayments, setInvoicePayments] = useState<InvoicePayment[]>([newPayment()]);
   const [invoiceSellerId, setInvoiceSellerId] = useState<number | "">("");
   const [resolving, setResolving] = useState(false);
+
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editDueDays, setEditDueDays] = useState("7");
+  const [editSellerId, setEditSellerId] = useState<number | null>(null);
+  const [editNotes, setEditNotes] = useState("");
+  const [savingEdit, setSavingEdit] = useState(false);
+
+  const [reopening, setReopening] = useState(false);
 
   const fetchAll = useCallback(async () => {
     const h = authHeaderNoJson();
@@ -237,6 +278,13 @@ export default function Consignments() {
     if (res.ok) setSelected(await res.json());
     fetchAll();
   }, [fetchAll]);
+
+  // A listagem não traz `actions` (histórico) — busca o detalhe completo ao abrir o modal.
+  const openDetail = (c: Consignment) => {
+    setSelected(c);
+    setDetailTab("items");
+    refreshSelected(c.id);
+  };
 
   // ── New customer quick-create ───────────────────────────────────────────
   const handleCreateCustomer = async () => {
@@ -287,6 +335,15 @@ export default function Consignments() {
   const customerOpenConsignments = form.customer_id
     ? consignments.filter((c) => c.status === "aberta" && c.customer_id === form.customer_id)
     : [];
+
+  const selectedCustomer = form.customer_id ? customers.find((c) => c.id === form.customer_id) : undefined;
+  const selectedCustomerOpenAmount = customerOpenConsignments.reduce(
+    (sum, c) => sum + c.items.filter((it) => it.resolution === "pending").reduce((s, it) => s + Number(it.unit_price) * it.quantity, 0),
+    0,
+  );
+  const draftTotal = draftItems.reduce((sum, d) => sum + Number(d.product.discount_price ?? d.product.price) * d.quantity, 0);
+  const consignmentLimit = selectedCustomer?.consignment_limit ? Number(selectedCustomer.consignment_limit) : 0;
+  const overLimit = consignmentLimit > 0 && selectedCustomerOpenAmount + draftTotal > consignmentLimit + 0.005;
 
   // ── Create ──────────────────────────────────────────────────────────────
   const handleCreate = async () => {
@@ -339,6 +396,65 @@ export default function Consignments() {
     await refreshSelected(selected.id);
   };
 
+  // ── Edit (prazo/vendedor/observações de sacola aberta) ──────────────────
+  const openEditModal = () => {
+    if (!selected) return;
+    setEditDueDays(String(selected.due_days));
+    setEditSellerId(selected.seller_id);
+    setEditNotes(selected.notes ?? "");
+    setShowEditModal(true);
+  };
+
+  const handleSaveEdit = async () => {
+    if (!selected) return;
+    setSavingEdit(true);
+    try {
+      const res = await fetch(`/api/consignments/${selected.id}`, {
+        method: "PUT",
+        headers: authHeader(),
+        body: JSON.stringify({
+          due_days: Number(editDueDays) || selected.due_days,
+          seller_id: editSellerId || null,
+          notes: editNotes || null,
+        }),
+      });
+      if (res.ok) {
+        setShowEditModal(false);
+        await refreshSelected(selected.id);
+        success("Sacola atualizada");
+      } else {
+        const err = await res.json().catch(() => ({}));
+        toastError(err.error || "Falha ao atualizar consignação");
+      }
+    } finally {
+      setSavingEdit(false);
+    }
+  };
+
+  // ── Reopen (só cancelada, só admin) ──────────────────────────────────────
+  const handleReopen = async () => {
+    if (!selected) return;
+    const reason = window.prompt("Motivo da reabertura (obrigatório):");
+    if (!reason || !reason.trim()) return;
+    setReopening(true);
+    try {
+      const res = await fetch(`/api/consignments/${selected.id}/reopen`, {
+        method: "POST",
+        headers: authHeader(),
+        body: JSON.stringify({ reason }),
+      });
+      if (res.ok) {
+        await refreshSelected(selected.id);
+        success("Sacola reaberta");
+      } else {
+        const err = await res.json().catch(() => ({}));
+        toastError(err.error || "Falha ao reabrir consignação");
+      }
+    } finally {
+      setReopening(false);
+    }
+  };
+
   // ── Resolve (ficou/voltou + faturar) ────────────────────────────────────
   const openResolveModal = () => {
     if (!selected) return;
@@ -364,6 +480,12 @@ export default function Consignments() {
   const paidTotal = invoicePayments.reduce((s, p) => s + (Number(p.amount) || 0), 0);
   const remaining = Math.max(0, keptTotal - paidTotal);
   const hasKeptItems = selected ? selected.items.filter((it) => it.resolution === "pending").some((it) => resolutions[it.id] === "kept") : false;
+  const decidedCount = selected
+    ? selected.items.filter((it) => it.resolution === "pending" && resolutions[it.id] && resolutions[it.id] !== "pending").length
+    : 0;
+  const leftPendingCount = selected
+    ? selected.items.filter((it) => it.resolution === "pending" && (!resolutions[it.id] || resolutions[it.id] === "pending")).length
+    : 0;
 
   const updateInvoicePayment = (id: string, patch: Partial<InvoicePayment>) => {
     setInvoicePayments((prev) => prev.map((p) => (p.id === id ? { ...p, ...patch } : p)));
@@ -375,9 +497,12 @@ export default function Consignments() {
     if (!selected) return;
     setResolving(true);
     try {
+      // "Pendente" no toggle = deixar pra decidir depois — não entra no payload, e a sacola
+      // continua aberta/parcial pro que sobrar (o backend fecha só quando não sobra pendência).
       const pendingItems = selected.items.filter((it) => it.resolution === "pending");
+      const decidedItems = pendingItems.filter((it) => resolutions[it.id] && resolutions[it.id] !== "pending");
       const payload = {
-        resolutions: pendingItems.map((it) => ({ item_id: it.id, resolution: resolutions[it.id] ?? "returned" })),
+        resolutions: decidedItems.map((it) => ({ item_id: it.id, resolution: resolutions[it.id] })),
         payment_method: hasKeptItems ? (buildPmString(invoicePayments) || "money") : undefined,
         seller_id: invoiceSellerId || undefined,
       };
@@ -405,7 +530,9 @@ export default function Consignments() {
   const filtered = consignments.filter((c) => {
     const matchStatus =
       statusFilter === "all" ? true :
-      statusFilter === "overdue" ? isOverdue(c) :
+      statusFilter === "overdue" ? displayStatus(c) === "atrasada" :
+      statusFilter === "vencendo_hoje" ? displayStatus(c) === "vencendo_hoje" :
+      statusFilter === "parcial" ? displayStatus(c) === "parcial" :
       c.status === statusFilter;
     const matchSearch =
       !searchTerm ||
@@ -418,7 +545,9 @@ export default function Consignments() {
     acc[s] = consignments.filter((c) => c.status === s).length;
     return acc;
   }, {} as Record<ConsignmentStatus, number>);
-  const overdueCount = consignments.filter(isOverdue).length;
+  const overdueCount = consignments.filter((c) => displayStatus(c) === "atrasada").length;
+  const dueTodayCount = consignments.filter((c) => displayStatus(c) === "vencendo_hoje").length;
+  const partialCount = consignments.filter((c) => displayStatus(c) === "parcial").length;
 
   return (
     <div className="space-y-5">
@@ -436,10 +565,14 @@ export default function Consignments() {
       />
 
       {/* Stat cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
         <div className="rounded-xl p-4 border border-blue-100 bg-blue-50/50 shadow-sm">
           <p className="text-[9px] font-black uppercase tracking-widest text-blue-500 mb-1">Abertas</p>
           <p className="text-[22px] font-black text-slate-800">{statusCounts.aberta ?? 0}</p>
+        </div>
+        <div className="rounded-xl p-4 border border-amber-100 bg-amber-50/50 shadow-sm">
+          <p className="text-[9px] font-black uppercase tracking-widest text-amber-500 mb-1">Vencendo Hoje</p>
+          <p className="text-[22px] font-black text-slate-800">{dueTodayCount}</p>
         </div>
         <div className="rounded-xl p-4 border border-red-100 bg-red-50/50 shadow-sm">
           <p className="text-[9px] font-black uppercase tracking-widest text-red-500 mb-1">Em Atraso</p>
@@ -488,6 +621,24 @@ export default function Consignments() {
         >
           <AlertTriangle size={12} /> Em Atraso ({overdueCount})
         </button>
+        <button
+          onClick={() => setStatusFilter("vencendo_hoje")}
+          className={cn(
+            "shrink-0 h-8 px-3 rounded-lg text-[10px] font-black uppercase tracking-wider border transition-all flex items-center gap-1.5",
+            statusFilter === "vencendo_hoje" ? "bg-amber-600 border-amber-600 text-white" : "bg-white border-amber-200 text-amber-600 hover:border-amber-300"
+          )}
+        >
+          <AlertTriangle size={12} /> Vencendo Hoje ({dueTodayCount})
+        </button>
+        <button
+          onClick={() => setStatusFilter("parcial")}
+          className={cn(
+            "shrink-0 h-8 px-3 rounded-lg text-[10px] font-black uppercase tracking-wider border transition-all flex items-center gap-1.5",
+            statusFilter === "parcial" ? "bg-violet-600 border-violet-600 text-white" : "bg-white border-violet-200 text-violet-600 hover:border-violet-300"
+          )}
+        >
+          <ShoppingBag size={12} /> Parcial ({partialCount})
+        </button>
         {STATUS_ORDER.map((s) => (
           <button
             key={s}
@@ -525,11 +676,12 @@ export default function Consignments() {
               <tbody>
                 {filtered.map((c) => {
                   const overdue = isOverdue(c);
+                  const dstatus = displayStatus(c);
                   const total = c.items.reduce((s, it) => s + Number(it.unit_price) * it.quantity, 0);
                   return (
                     <tr
                       key={c.id}
-                      onClick={() => setSelected(c)}
+                      onClick={() => openDetail(c)}
                       className={cn(
                         "border-b border-slate-50 last:border-0 hover:bg-slate-50 cursor-pointer transition-colors",
                         overdue && "bg-red-50/40"
@@ -539,8 +691,8 @@ export default function Consignments() {
                       <td className="px-4 py-3 font-semibold text-slate-700">{c.customer_name}</td>
                       <td className="px-4 py-3 text-slate-500">{c.items.length} item(ns)</td>
                       <td className="px-4 py-3">
-                        <span className={cn("inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider", STATUS_META[c.status].color)}>
-                          {STATUS_META[c.status].icon} {STATUS_META[c.status].label}
+                        <span className={cn("inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider", DERIVED_STATUS_META[dstatus].color)}>
+                          {DERIVED_STATUS_META[dstatus].icon} {DERIVED_STATUS_META[dstatus].label}
                         </span>
                       </td>
                       <td className="px-4 py-3">
@@ -641,6 +793,36 @@ export default function Consignments() {
                       </span>
                     </div>
                   )}
+                  {selectedCustomer?.risk_flag && (
+                    <div className="mt-2 flex items-start gap-2 bg-red-50 border border-red-200 rounded-xl px-3 py-2.5 text-[11px] text-red-700">
+                      <ShieldAlert size={14} className="shrink-0 mt-0.5" />
+                      <span>Este cliente está marcado como risco — não será possível criar consignação para ele.</span>
+                    </div>
+                  )}
+                  {consignmentLimit > 0 && (
+                    <div className={cn(
+                      "mt-2 grid grid-cols-3 gap-2 rounded-xl px-3 py-2.5 border text-[10px]",
+                      overLimit ? "bg-red-50 border-red-200" : "bg-slate-50 border-slate-200"
+                    )}>
+                      <div>
+                        <p className="font-black uppercase tracking-wider text-slate-400">Limite</p>
+                        <p className="font-mono font-bold text-slate-700">{fmt(consignmentLimit)}</p>
+                      </div>
+                      <div>
+                        <p className="font-black uppercase tracking-wider text-slate-400">Em Consignação</p>
+                        <p className="font-mono font-bold text-slate-700">{fmt(selectedCustomerOpenAmount + draftTotal)}</p>
+                      </div>
+                      <div>
+                        <p className="font-black uppercase tracking-wider text-slate-400">Disponível</p>
+                        <p className={cn("font-mono font-bold", overLimit ? "text-red-600" : "text-emerald-600")}>
+                          {fmt(Math.max(0, consignmentLimit - selectedCustomerOpenAmount - draftTotal))}
+                        </p>
+                      </div>
+                      {overLimit && (
+                        <p className="col-span-3 text-red-600 font-bold">Limite de consignação excedido — remova itens ou aumente o limite do cliente.</p>
+                      )}
+                    </div>
+                  )}
                 </div>
 
                 <div className="grid grid-cols-2 gap-2">
@@ -735,7 +917,7 @@ export default function Consignments() {
                 </button>
                 <button
                   onClick={handleCreate}
-                  disabled={saving || !form.customer_name || draftItems.length === 0}
+                  disabled={saving || !form.customer_name || draftItems.length === 0 || !!selectedCustomer?.risk_flag || overLimit}
                   className="flex-1 h-11 bg-blue-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-blue-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                 >
                   {saving ? <Loader2 size={14} className="animate-spin" /> : <ShoppingBag size={14} />}
@@ -817,12 +999,34 @@ export default function Consignments() {
                 </div>
                 <div className="flex items-center gap-2">
                   <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider bg-white/15 text-white">
-                    {STATUS_META[selected.status].icon} {STATUS_META[selected.status].label}
+                    {DERIVED_STATUS_META[displayStatus(selected)].icon} {DERIVED_STATUS_META[displayStatus(selected)].label}
                   </span>
                   <button onClick={() => setSelected(null)} className="w-9 h-9 rounded-xl bg-white/15 hover:bg-white/25 flex items-center justify-center transition-colors">
                     <X size={16} className="text-white" />
                   </button>
                 </div>
+              </div>
+
+              {/* Abas Itens / Histórico */}
+              <div className="shrink-0 flex gap-1 px-6 pt-3 bg-white border-b border-slate-100">
+                <button
+                  onClick={() => setDetailTab("items")}
+                  className={cn(
+                    "px-3 pb-2.5 text-[10px] font-black uppercase tracking-widest border-b-2 transition-colors",
+                    detailTab === "items" ? "border-blue-600 text-blue-600" : "border-transparent text-slate-400 hover:text-slate-600"
+                  )}
+                >
+                  Itens ({selected.items.length})
+                </button>
+                <button
+                  onClick={() => setDetailTab("history")}
+                  className={cn(
+                    "px-3 pb-2.5 text-[10px] font-black uppercase tracking-widest border-b-2 transition-colors flex items-center gap-1.5",
+                    detailTab === "history" ? "border-blue-600 text-blue-600" : "border-transparent text-slate-400 hover:text-slate-600"
+                  )}
+                >
+                  <History size={12} /> Histórico ({selected.actions?.length ?? 0})
+                </button>
               </div>
 
               <div className="flex-1 overflow-y-auto p-6 space-y-4 bg-slate-50/50">
@@ -832,57 +1036,84 @@ export default function Consignments() {
                   </div>
                 )}
 
-                <div className="grid grid-cols-2 gap-2 text-[11px]">
-                  <div className="bg-white rounded-xl px-3 py-2.5 border border-slate-200 shadow-sm">
-                    <span className="text-slate-400 font-bold uppercase text-[9px] block mb-0.5">Prazo</span>
-                    <span className="font-semibold text-slate-700">{new Date(selected.due_date).toLocaleDateString("pt-BR")} ({selected.due_days}d)</span>
-                  </div>
-                  <div className="bg-white rounded-xl px-3 py-2.5 border border-slate-200 shadow-sm">
-                    <span className="text-slate-400 font-bold uppercase text-[9px] block mb-0.5">Vendedor</span>
-                    <span className="font-semibold text-slate-700">{selected.seller_name || "—"}</span>
-                  </div>
-                </div>
-
-                {selected.notes && (
-                  <div className="bg-amber-50 border border-amber-200 rounded-xl px-3 py-2.5 text-[11px] text-amber-800 shadow-sm">{selected.notes}</div>
-                )}
-
-                <div>
-                  <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2">Itens ({selected.items.length})</p>
-                  <div className="space-y-1.5">
-                    {selected.items.map((it) => (
-                      <div key={it.id} className="flex items-center gap-3 bg-white border border-slate-200 rounded-xl px-3 py-2.5 shadow-sm">
-                        <div className="w-9 h-9 rounded-lg bg-slate-100 flex items-center justify-center shrink-0">
-                          <Package size={15} className="text-slate-400" />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-[12px] font-semibold text-slate-700 truncate">{it.name} × {it.quantity}</p>
-                          <p className="text-[10px] text-slate-400 font-mono">{fmt(Number(it.unit_price) * it.quantity)}</p>
-                        </div>
-                        {it.resolution !== "pending" ? (
-                          <span className={cn(
-                            "px-2 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider shrink-0",
-                            it.resolution === "kept" ? "text-emerald-600 bg-emerald-50" : "text-slate-500 bg-slate-100"
-                          )}>
-                            {it.resolution === "kept" ? "Ficou" : "Voltou"}
-                          </span>
-                        ) : (
-                          <span className="px-2 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider text-blue-600 bg-blue-50 shrink-0">Pendente</span>
-                        )}
+                {detailTab === "items" ? (
+                  <>
+                    <div className="grid grid-cols-2 gap-2 text-[11px]">
+                      <div className="bg-white rounded-xl px-3 py-2.5 border border-slate-200 shadow-sm">
+                        <span className="text-slate-400 font-bold uppercase text-[9px] block mb-0.5">Prazo</span>
+                        <span className="font-semibold text-slate-700">{new Date(selected.due_date).toLocaleDateString("pt-BR")} ({selected.due_days}d)</span>
                       </div>
-                    ))}
-                  </div>
-                </div>
+                      <div className="bg-white rounded-xl px-3 py-2.5 border border-slate-200 shadow-sm">
+                        <span className="text-slate-400 font-bold uppercase text-[9px] block mb-0.5">Vendedor</span>
+                        <span className="font-semibold text-slate-700">{selected.seller_name || "—"}</span>
+                      </div>
+                    </div>
 
-                {selected.cancel_reason && (
-                  <div className="bg-red-50 border border-red-200 rounded-xl px-3 py-2.5 text-[11px] text-red-600 shadow-sm">
-                    <strong>Motivo do cancelamento:</strong> {selected.cancel_reason}
+                    {selected.notes && (
+                      <div className="bg-amber-50 border border-amber-200 rounded-xl px-3 py-2.5 text-[11px] text-amber-800 shadow-sm">{selected.notes}</div>
+                    )}
+
+                    <div>
+                      <div className="space-y-1.5">
+                        {selected.items.map((it) => (
+                          <div key={it.id} className="flex items-center gap-3 bg-white border border-slate-200 rounded-xl px-3 py-2.5 shadow-sm">
+                            <div className="w-9 h-9 rounded-lg bg-slate-100 flex items-center justify-center shrink-0">
+                              <Package size={15} className="text-slate-400" />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-[12px] font-semibold text-slate-700 truncate">{it.name} × {it.quantity}</p>
+                              <p className="text-[10px] text-slate-400 font-mono">{fmt(Number(it.unit_price) * it.quantity)}</p>
+                            </div>
+                            {it.resolution !== "pending" ? (
+                              <span className={cn(
+                                "px-2 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider shrink-0",
+                                it.resolution === "kept" ? "text-emerald-600 bg-emerald-50" : "text-slate-500 bg-slate-100"
+                              )}>
+                                {it.resolution === "kept" ? "Ficou" : "Voltou"}
+                              </span>
+                            ) : (
+                              <span className="px-2 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider text-blue-600 bg-blue-50 shrink-0">Pendente</span>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    {selected.cancel_reason && (
+                      <div className="bg-red-50 border border-red-200 rounded-xl px-3 py-2.5 text-[11px] text-red-600 shadow-sm">
+                        <strong>Motivo do cancelamento:</strong> {selected.cancel_reason}
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  <div className="space-y-2">
+                    {(!selected.actions || selected.actions.length === 0) ? (
+                      <p className="text-[11px] text-slate-400 text-center py-8">Nenhum evento registrado ainda</p>
+                    ) : (
+                      selected.actions.map((a) => (
+                        <div key={a.id} className="flex items-start gap-3 bg-white border border-slate-200 rounded-xl px-3 py-2.5 shadow-sm">
+                          <div className="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center shrink-0 mt-0.5">
+                            <History size={13} className="text-slate-400" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-[11px] font-bold text-slate-700">{ACTION_LABELS[a.action] ?? a.action}</p>
+                            {a.note && <p className="text-[10px] text-slate-500 mt-0.5">{a.note}</p>}
+                            <p className="text-[9px] text-slate-400 font-medium mt-1">
+                              {a.actor ?? "Sistema"} · {new Date(a.created_at).toLocaleString("pt-BR")}
+                            </p>
+                          </div>
+                        </div>
+                      ))
+                    )}
                   </div>
                 )}
               </div>
 
               {selected.status === "aberta" && (
                 <div className="shrink-0 px-6 pb-6 pt-3 flex gap-2 border-t border-slate-100 bg-white">
+                  <button onClick={openEditModal} className="h-11 px-4 rounded-xl border border-slate-200 text-slate-600 text-[10px] font-black uppercase tracking-widest hover:bg-slate-50 transition-colors flex items-center gap-2">
+                    <Pencil size={14} /> Editar
+                  </button>
                   <button onClick={handleCancel} className="h-11 px-4 rounded-xl border border-red-200 text-red-600 text-[10px] font-black uppercase tracking-widest hover:bg-red-50 transition-colors flex items-center gap-2">
                     <Ban size={14} /> Cancelar
                   </button>
@@ -891,6 +1122,17 @@ export default function Consignments() {
                     className="flex-1 h-11 bg-emerald-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-emerald-700 transition-all flex items-center justify-center gap-2 shadow-md shadow-emerald-500/20"
                   >
                     <CheckCircle2 size={14} /> Resolver Sacola
+                  </button>
+                </div>
+              )}
+              {selected.status === "cancelada" && isAdmin && (
+                <div className="shrink-0 px-6 pb-6 pt-3 flex gap-2 border-t border-slate-100 bg-white">
+                  <button
+                    onClick={handleReopen}
+                    disabled={reopening}
+                    className="flex-1 h-11 bg-slate-900 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-slate-700 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+                  >
+                    {reopening ? <Loader2 size={14} className="animate-spin" /> : <RotateCcw size={14} />} Reabrir Sacola
                   </button>
                 </div>
               )}
@@ -924,7 +1166,7 @@ export default function Consignments() {
               <div className="flex-1 overflow-y-auto p-5 space-y-4">
                 {/* Ficou / Voltou por item */}
                 <div>
-                  <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2">Marque o que ficou e o que voltou</p>
+                  <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2">Marque o que ficou, o que voltou — ou deixe pendente pra decidir depois</p>
                   <div className="space-y-2">
                     {selected.items.filter((it) => it.resolution === "pending").map((it) => (
                       <div key={it.id} className="bg-slate-50 border border-slate-200 rounded-xl p-3">
@@ -944,6 +1186,12 @@ export default function Consignments() {
                             className={cn("flex-1 h-8 rounded-md text-[10px] font-black uppercase tracking-wider transition-all", resolutions[it.id] === "returned" ? "bg-slate-600 text-white" : "text-slate-500 hover:bg-slate-50")}
                           >
                             Voltou
+                          </button>
+                          <button
+                            onClick={() => toggleResolution(it.id, "pending")}
+                            className={cn("flex-1 h-8 rounded-md text-[10px] font-black uppercase tracking-wider transition-all", resolutions[it.id] === "pending" ? "bg-blue-600 text-white" : "text-slate-500 hover:bg-slate-50")}
+                          >
+                            Pendente
                           </button>
                         </div>
                       </div>
@@ -1083,7 +1331,11 @@ export default function Consignments() {
                   </>
                 )}
 
-                {!hasKeptItems && (
+                {leftPendingCount > 0 ? (
+                  <div className="bg-violet-50 border border-violet-200 rounded-xl px-3 py-3 text-[11px] text-violet-700 text-center">
+                    {leftPendingCount} item(ns) ficará(ão) pendente(s) — a sacola continua aberta como "parcial" até você decidir o restante.
+                  </div>
+                ) : !hasKeptItems && (
                   <div className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-3 text-[11px] text-slate-500 text-center">
                     Nenhum item ficou — a sacola será fechada como devolução total, sem gerar venda.
                   </div>
@@ -1094,10 +1346,78 @@ export default function Consignments() {
                 <button onClick={() => setShowResolveModal(false)} className="flex-1 h-11 rounded-xl border border-slate-200 text-[10px] font-black uppercase tracking-widest text-slate-600 hover:bg-slate-50 transition-colors">
                   Cancelar
                 </button>
-                <button onClick={handleResolve} disabled={resolving || (hasKeptItems && paidTotal <= 0)}
+                <button onClick={handleResolve} disabled={resolving || decidedCount === 0 || (hasKeptItems && paidTotal <= 0)}
                   className="flex-1 h-11 bg-emerald-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-emerald-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2">
                   {resolving ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle2 size={14} />}
                   Confirmar
+                </button>
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+
+      {/* ── EDIT MODAL (prazo/vendedor/observações de sacola aberta) ─────── */}
+      <AnimatePresence>
+        {showEditModal && selected && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              onClick={() => setShowEditModal(false)}
+              className="fixed inset-0 bg-slate-900/70 backdrop-blur-sm z-[400]"
+            />
+            <motion.div
+              initial={{ opacity: 0, y: 16, scale: 0.98 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 12, scale: 0.98 }}
+              transition={{ type: "spring", damping: 32, stiffness: 300 }}
+              className="fixed inset-x-4 bottom-4 sm:inset-auto sm:top-1/2 sm:left-1/2 sm:-translate-x-1/2 sm:-translate-y-1/2 z-[401] bg-white flex flex-col overflow-hidden rounded-3xl"
+              style={{ width: "min(420px, calc(100vw - 32px))" }}
+            >
+              <div className="shrink-0 flex items-center justify-between px-6 py-4 border-b border-slate-100">
+                <h2 className="text-[14px] font-black text-slate-800">Editar Sacola #{String(selected.number).padStart(4, "0")}</h2>
+                <button onClick={() => setShowEditModal(false)} className="w-8 h-8 rounded-xl bg-slate-100 hover:bg-slate-200 flex items-center justify-center">
+                  <X size={14} className="text-slate-500" />
+                </button>
+              </div>
+              <div className="p-5 space-y-3">
+                <div>
+                  <label className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400 mb-1.5 block">Prazo (dias, a partir da criação)</label>
+                  <input
+                    type="number" min="1"
+                    value={editDueDays}
+                    onChange={(e) => setEditDueDays(e.target.value)}
+                    className="w-full h-10 px-3 rounded-xl border border-slate-200 text-[12px] font-medium focus:outline-none focus:border-blue-400"
+                  />
+                </div>
+                <div>
+                  <label className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400 mb-1.5 block">Vendedor</label>
+                  <div className="relative">
+                    <select
+                      value={editSellerId ?? ""}
+                      onChange={(e) => setEditSellerId(e.target.value === "" ? null : Number(e.target.value))}
+                      className="w-full pl-3 pr-8 h-10 rounded-xl border border-slate-200 text-[11px] font-bold appearance-none focus:outline-none focus:border-blue-400 bg-white"
+                    >
+                      <option value="">Sem vendedor</option>
+                      {sellers.map((s) => (<option key={s.id} value={s.id}>{s.name}</option>))}
+                    </select>
+                    <ChevronDown size={12} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                  </div>
+                </div>
+                <div>
+                  <label className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400 mb-1.5 block">Observações</label>
+                  <textarea
+                    value={editNotes}
+                    onChange={(e) => setEditNotes(e.target.value)}
+                    rows={3}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 text-[12px] font-medium focus:outline-none focus:border-blue-400 resize-none"
+                  />
+                </div>
+              </div>
+              <div className="shrink-0 px-5 pb-5 pt-2 flex gap-2">
+                <button onClick={() => setShowEditModal(false)} className="flex-1 h-10 rounded-xl border border-slate-200 text-[10px] font-black uppercase tracking-widest text-slate-600 hover:bg-slate-50 transition-colors">
+                  Cancelar
+                </button>
+                <button onClick={handleSaveEdit} disabled={savingEdit} className="flex-1 h-10 bg-blue-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-blue-700 transition-all disabled:opacity-50 flex items-center justify-center gap-2">
+                  {savingEdit ? <Loader2 size={13} className="animate-spin" /> : "Salvar"}
                 </button>
               </div>
             </motion.div>
