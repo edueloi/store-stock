@@ -1866,10 +1866,13 @@ ${sale.change > 0 ? `<hr class="divider"/><div class="row bold"><span>Troco:</sp
           )}
           <div className="min-w-0">
             <p className="text-[13px] font-black text-slate-800 tracking-wide leading-none truncate">{tenantName}</p>
-            <div className="flex items-center gap-1.5 mt-0.5">
+            <div className={cn(
+              "inline-flex items-center gap-1.5 mt-1 px-2 h-[18px] rounded-full border",
+              isOnline ? "bg-emerald-50 border-emerald-200" : "bg-amber-50 border-amber-200"
+            )}>
               <div className={cn("w-1.5 h-1.5 rounded-full animate-pulse shrink-0", isOnline ? "bg-emerald-500" : "bg-amber-500")} />
-              <span className={cn("text-[9px] font-semibold uppercase tracking-widest truncate", isOnline ? "text-slate-400" : "text-amber-600")}>
-                {isOnline ? "Terminal PDV" : "Modo Offline"}
+              <span className={cn("text-[9px] font-black uppercase tracking-widest truncate", isOnline ? "text-emerald-600" : "text-amber-600")}>
+                {isOnline ? "Terminal Online" : "Modo Offline"}
               </span>
             </div>
           </div>
@@ -1879,15 +1882,15 @@ ${sale.change > 0 ? `<hr class="divider"/><div class="row bold"><span>Troco:</sp
         {!(pdvStep === "payment" && showCheckoutModal) && (
           <div className="hidden md:flex flex-1 justify-center px-6">
             <div className={cn(
-              "flex items-center gap-2 px-3 h-7 rounded-xl border text-[10px] font-bold uppercase tracking-widest transition-all duration-300",
+              "flex items-center gap-2 px-3.5 h-7 rounded-full border text-[10px] font-black uppercase tracking-widest transition-all duration-300",
               scanFeedback === "ok"
                 ? "bg-emerald-50 border-emerald-300 text-emerald-600"
                 : scanFeedback === "err"
                 ? "bg-red-50 border-red-300 text-red-500"
-                : "bg-slate-100 border-slate-200 text-slate-400"
+                : "bg-blue-50 border-blue-200 text-blue-600"
             )}>
               <Scan size={11} />
-              {scanFeedback === "ok" ? "Adicionado!" : scanFeedback === "err" ? "Não encontrado" : "Scanner pronto"}
+              {scanFeedback === "ok" ? "Adicionado!" : scanFeedback === "err" ? "Não encontrado" : "Scanner Pronto"}
             </div>
           </div>
         )}
@@ -1909,7 +1912,7 @@ ${sale.change > 0 ? `<hr class="divider"/><div class="row bold"><span>Troco:</sp
         <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
           {/* Offline status / pending sales */}
           {!isOnline && (
-            <span className="flex items-center gap-1.5 px-2 sm:px-3 h-8 rounded-xl text-[10px] font-bold uppercase tracking-widest text-amber-700 border border-amber-300 bg-amber-50">
+            <span className="flex items-center gap-1.5 px-2 sm:px-3 h-8 rounded-full text-[10px] font-black uppercase tracking-widest text-amber-700 border border-amber-300 bg-amber-50">
               <WifiOff size={11} /> <span className="hidden sm:inline">Offline</span>
             </span>
           )}
@@ -1918,7 +1921,7 @@ ${sale.change > 0 ? `<hr class="divider"/><div class="row bold"><span>Troco:</sp
               onClick={async () => { setPendingSalesList(await getPendingSales()); setShowPendingModal(true); }}
               title="Ver vendas aguardando sincronização"
               className={cn(
-                "flex items-center gap-1.5 px-2 sm:px-3 h-8 rounded-xl text-[10px] font-bold uppercase tracking-widest border transition-all",
+                "flex items-center gap-1.5 px-2 sm:px-3 h-8 rounded-full text-[10px] font-black uppercase tracking-widest border transition-all",
                 isOnline
                   ? "text-blue-600 border-blue-200 bg-blue-50 hover:bg-blue-100"
                   : "text-amber-700 border-amber-300 bg-amber-50 hover:bg-amber-100"
@@ -1932,28 +1935,28 @@ ${sale.change > 0 ? `<hr class="divider"/><div class="row bold"><span>Troco:</sp
             <button onClick={() => setShowCloseCashModal(true)}
               disabled={!isOnline}
               title={isOnline ? "Fechar Caixa" : "Requer conexão com a internet"}
-              className="flex items-center gap-1.5 px-3 h-8 rounded-xl text-[10px] font-bold uppercase tracking-widest text-slate-500 border border-slate-200 hover:bg-emerald-50 hover:text-emerald-600 hover:border-emerald-200 transition-all disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-slate-500">
+              className="flex items-center gap-1.5 px-3 h-8 rounded-full text-[10px] font-black uppercase tracking-widest text-slate-500 border border-slate-200 hover:bg-emerald-50 hover:text-emerald-600 hover:border-emerald-200 transition-all disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-slate-500">
               <Wallet size={11} />
               <span className="hidden sm:block">Fechar Caixa</span>
             </button>
           )}
           <button onClick={() => setShowCrediarioModal(true)} title="Crediário (F6)"
-            className="flex items-center gap-1.5 px-3 h-8 rounded-xl text-[10px] font-bold uppercase tracking-widest text-slate-500 border border-slate-200 hover:bg-amber-50 hover:text-amber-600 hover:border-amber-200 transition-all">
+            className="flex items-center gap-1.5 px-3 h-8 rounded-full text-[10px] font-black uppercase tracking-widest text-slate-500 border border-slate-200 hover:bg-amber-50 hover:text-amber-600 hover:border-amber-200 transition-all">
             <Wallet size={11} />
             <span className="hidden sm:block">Crediário</span>
           </button>
           <button onClick={() => setShowCustomerLookup(true)} title="Consultar Cliente (F7)"
-            className="flex items-center gap-1.5 px-3 h-8 rounded-xl text-[10px] font-bold uppercase tracking-widest text-slate-500 border border-slate-200 hover:bg-blue-50 hover:text-blue-600 hover:border-blue-200 transition-all">
+            className="flex items-center gap-1.5 px-3 h-8 rounded-full text-[10px] font-black uppercase tracking-widest text-slate-500 border border-slate-200 hover:bg-blue-50 hover:text-blue-600 hover:border-blue-200 transition-all">
             <User size={11} />
             <span className="hidden sm:block">Cliente</span>
           </button>
           <button onClick={() => setShowConsignmentLookup(true)} title="Consultar Consignado (F8)"
-            className="flex items-center gap-1.5 px-3 h-8 rounded-xl text-[10px] font-bold uppercase tracking-widest text-slate-500 border border-slate-200 hover:bg-violet-50 hover:text-violet-600 hover:border-violet-200 transition-all">
+            className="flex items-center gap-1.5 px-3 h-8 rounded-full text-[10px] font-black uppercase tracking-widest text-slate-500 border border-slate-200 hover:bg-violet-50 hover:text-violet-600 hover:border-violet-200 transition-all">
             <ShoppingBag size={11} />
             <span className="hidden sm:block">Consignado</span>
           </button>
           <button onClick={() => setShowHeldSalesDrawer(true)} title="Vendas Abertas"
-            className="relative flex items-center gap-1.5 px-3 h-8 rounded-xl text-[10px] font-bold uppercase tracking-widest text-slate-500 border border-slate-200 hover:bg-amber-50 hover:text-amber-600 hover:border-amber-200 transition-all">
+            className="relative flex items-center gap-1.5 px-3 h-8 rounded-full text-[10px] font-black uppercase tracking-widest text-slate-500 border border-slate-200 hover:bg-amber-50 hover:text-amber-600 hover:border-amber-200 transition-all">
             <Clock size={11} />
             <span className="hidden sm:block">Vendas Abertas</span>
             {openHeldSalesCount > 0 && (
@@ -1964,7 +1967,7 @@ ${sale.change > 0 ? `<hr class="divider"/><div class="row bold"><span>Troco:</sp
           </button>
           {/* Fullscreen toggle */}
           <button onClick={toggleFullscreen} title={isFullscreen ? "Sair de tela cheia" : "Tela cheia"}
-            className="hidden sm:flex items-center gap-1.5 px-3 h-8 rounded-xl text-[10px] font-bold uppercase tracking-widest text-slate-500 border border-slate-200 hover:bg-slate-50 hover:text-slate-700 transition-all">
+            className="hidden sm:flex items-center gap-1.5 px-3 h-8 rounded-full text-[10px] font-black uppercase tracking-widest text-slate-500 border border-slate-200 hover:bg-slate-50 hover:text-slate-700 transition-all">
             {isFullscreen ? <Minimize2 size={11} /> : <Maximize2 size={11} />}
             {isFullscreen ? "Sair" : "Tela Cheia"}
           </button>
@@ -1972,18 +1975,18 @@ ${sale.change > 0 ? `<hr class="divider"/><div class="row bold"><span>Troco:</sp
           {/* Instalar PWA */}
           {!pwaInstalled && (installPrompt || isSafari || isIos) && (
             <button onClick={handleInstallPwa} title="Instalar App"
-              className="flex items-center gap-1.5 px-2 sm:px-3 h-8 rounded-xl text-[10px] font-bold uppercase tracking-widest text-blue-600 border border-blue-200 bg-blue-50 hover:bg-blue-100 transition-all">
+              className="flex items-center gap-1.5 px-2 sm:px-3 h-8 rounded-full text-[10px] font-black uppercase tracking-widest text-blue-600 border border-blue-200 bg-blue-50 hover:bg-blue-100 transition-all">
               <Download size={11} /> <span className="hidden sm:inline">Instalar App</span>
             </button>
           )}
           {pwaInstalled && (
-            <span className="hidden sm:flex items-center gap-1.5 px-3 h-8 rounded-xl text-[10px] font-bold uppercase tracking-widest text-emerald-600 border border-emerald-200 bg-emerald-50">
+            <span className="hidden sm:flex items-center gap-1.5 px-3 h-8 rounded-full text-[10px] font-black uppercase tracking-widest text-white bg-gradient-to-r from-blue-600 to-blue-700 shadow-sm shadow-blue-200">
               <CheckCircle2 size={11} /> Instalado
             </span>
           )}
           {/* Sair */}
           <button onClick={handleLogout} title="Sair"
-            className="flex items-center gap-1.5 px-2 sm:px-3 h-8 rounded-xl text-[10px] font-bold uppercase tracking-widest text-slate-400 hover:text-red-500 transition-all border border-slate-200 hover:border-red-200 hover:bg-red-50">
+            className="flex items-center gap-1.5 px-2 sm:px-3 h-8 rounded-full text-[10px] font-black uppercase tracking-widest text-slate-400 hover:text-red-500 transition-all border border-slate-200 hover:border-red-200 hover:bg-red-50">
             <LogOut size={11} /> <span className="hidden sm:inline">Sair</span>
           </button>
         </div>
@@ -2107,10 +2110,16 @@ ${sale.change > 0 ? `<hr class="divider"/><div class="row bold"><span>Troco:</sp
           <div className="flex gap-2 items-center">
             <div className="relative flex-1">
               <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
-              <input type="text" placeholder="Buscar produto..." value={searchTerm}
+              <input type="text" placeholder="Buscar produto por nome, código ou código de barras..." value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="w-full pl-10 pr-4 h-11 bg-white rounded-xl text-[13px] font-medium text-slate-700 placeholder:text-slate-400 focus:outline-none transition-all border border-slate-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 shadow-sm" />
             </div>
+            <button onClick={() => scanInputRef.current?.focus()} title="Ativar leitura por código de barras"
+              className="hidden sm:flex items-center gap-2 h-11 px-4 rounded-xl text-[11px] font-black uppercase tracking-wide text-white shadow-sm shrink-0"
+              style={{ background: "linear-gradient(135deg, #3b82f6, #1d4ed8)" }}>
+              <Barcode size={14} />
+              Usar Código de Barras
+            </button>
             <button onClick={() => setShowCartMobile(true)}
               className="lg:hidden relative h-10 px-4 rounded-xl flex items-center gap-2 text-[11px] font-black text-white shadow"
               style={{ background: "linear-gradient(135deg, #3b82f6, #1d4ed8)" }}>
@@ -2128,7 +2137,7 @@ ${sale.change > 0 ? `<hr class="divider"/><div class="row bold"><span>Troco:</sp
               <button
                 onClick={() => { setShowServicesTab(true); setSelectedCategory(null); }}
                 className={cn(
-                  "shrink-0 h-7 px-3 rounded-lg text-[10px] font-bold tracking-wide transition-all border flex items-center gap-1.5",
+                  "shrink-0 h-8 px-3.5 rounded-full text-[10px] font-black uppercase tracking-wide transition-all border flex items-center gap-1.5",
                   showServicesTab
                     ? "text-white border-violet-500 shadow"
                     : "bg-white text-slate-500 border-slate-200 hover:border-violet-300 hover:text-violet-600"
@@ -2147,7 +2156,7 @@ ${sale.change > 0 ? `<hr class="divider"/><div class="row bold"><span>Troco:</sp
               <button key={cat.id ?? "all"}
                 onClick={() => { setShowServicesTab(false); setSelectedCategory(cat.id); }}
                 className={cn(
-                  "shrink-0 h-7 px-3 rounded-lg text-[10px] font-bold tracking-wide transition-all border flex items-center gap-1",
+                  "shrink-0 h-8 px-3.5 rounded-full text-[10px] font-black uppercase tracking-wide transition-all border flex items-center gap-1",
                   !showServicesTab && selectedCategory === cat.id
                     ? "text-white border-blue-500 shadow"
                     : "bg-white text-slate-500 border-slate-200 hover:border-blue-300 hover:text-blue-600"
@@ -2342,7 +2351,7 @@ ${sale.change > 0 ? `<hr class="divider"/><div class="row bold"><span>Troco:</sp
 
                         {/* Badge estoque */}
                         <div className="absolute top-2 right-2 px-1.5 py-0.5 rounded-md text-[8px] font-mono font-bold bg-white/90 border border-slate-200 text-slate-500 shadow-sm">
-                          {product.stock_quantity}
+                          {product.stock_quantity} un.
                         </div>
 
                         {/* Badge carrinho */}
@@ -2367,7 +2376,10 @@ ${sale.change > 0 ? `<hr class="divider"/><div class="row bold"><span>Troco:</sp
 
                       {/* Info */}
                       <div className="p-2.5 w-full">
-                        <p className="text-[11px] font-semibold text-slate-700 leading-tight line-clamp-2 mb-1.5 min-h-[2.2em]">{product.name}</p>
+                        <p className="text-[11px] font-black text-slate-700 uppercase leading-tight line-clamp-2 mb-0.5 min-h-[2.2em]">{product.name}</p>
+                        {product.barcode && (
+                          <p className="text-[9px] font-mono text-slate-400 mb-1">{product.barcode}</p>
+                        )}
                         {hasVariations && (
                           <p className="text-[8px] font-black text-blue-500 uppercase tracking-widest mb-1">variações</p>
                         )}
@@ -2403,6 +2415,7 @@ ${sale.change > 0 ? `<hr class="divider"/><div class="row bold"><span>Troco:</sp
             onHold={holdSale}
             holding={holdingSale}
             canHold={isOnline && (cart.length > 0 || cartServices.length > 0)}
+            onClear={cancelSale}
           />
         </div>
       </div>
@@ -2809,6 +2822,7 @@ ${sale.change > 0 ? `<hr class="divider"/><div class="row bold"><span>Troco:</sp
                   onHold={() => { setShowCartMobile(false); holdSale(); }}
                   holding={holdingSale}
                   canHold={isOnline && (cart.length > 0 || cartServices.length > 0)}
+                  onClear={() => { setShowCartMobile(false); cancelSale(); }}
                 />
               </div>
             </motion.div>
@@ -4383,39 +4397,43 @@ const PaymentRow = React.memo(function PaymentRow({
         {showRemove && (
           <span className="w-6 h-6 rounded-full flex items-center justify-center text-[9px] font-black shrink-0 bg-slate-100 text-slate-400 border border-slate-200">{idx + 1}</span>
         )}
-        <div className="grid grid-cols-4 gap-1.5 flex-1">
+        <div className="grid grid-cols-4 gap-2.5 flex-1">
           <button onClick={() => onMethodChange(p.id, p.method === "debit" ? "debit" : "credit")}
-            className="h-11 rounded-xl border text-[9px] font-black uppercase tracking-wider transition-all flex flex-col items-center justify-center gap-1"
+            className="relative h-16 rounded-2xl border-2 text-[10px] font-black uppercase tracking-wider transition-all flex flex-col items-center justify-center gap-1.5"
             style={(p.method === "credit" || p.method === "debit")
-              ? { background: "#059669", border: "1px solid rgba(16,185,129,0.5)", color: "white", boxShadow: "0 4px 10px rgba(16,185,129,0.25)" }
-              : { background: "#f8fafc", border: "1px solid #e2e8f0", color: "#94a3b8" }}>
-            <CreditCard size={14} />
-            <span className="text-[8px]">Cartão</span>
+              ? { background: "#059669", border: "2px solid #059669", color: "white", boxShadow: "0 4px 12px rgba(16,185,129,0.3)" }
+              : { background: "#ffffff", border: "2px solid #e2e8f0", color: "#64748b" }}>
+            {(p.method === "credit" || p.method === "debit") && <CheckCircle2 size={13} className="absolute top-1.5 right-1.5 text-white/90" />}
+            <CreditCard size={20} />
+            <span>Cartão</span>
           </button>
           <button onClick={() => onMethodChange(p.id, "pix")}
-            className="h-11 rounded-xl border text-[9px] font-black uppercase tracking-wider transition-all flex flex-col items-center justify-center gap-1"
+            className="relative h-16 rounded-2xl border-2 text-[10px] font-black uppercase tracking-wider transition-all flex flex-col items-center justify-center gap-1.5"
             style={p.method === "pix"
-              ? { background: "#2563eb", border: "1px solid rgba(59,130,246,0.5)", color: "white", boxShadow: "0 4px 10px rgba(59,130,246,0.25)" }
-              : { background: "#f8fafc", border: "1px solid #e2e8f0", color: "#94a3b8" }}>
-            <QrCode size={14} />
-            <span className="text-[8px]">{PM_LABEL.pix}</span>
+              ? { background: "#2563eb", border: "2px solid #2563eb", color: "white", boxShadow: "0 4px 12px rgba(59,130,246,0.3)" }
+              : { background: "#ffffff", border: "2px solid #e2e8f0", color: "#64748b" }}>
+            {p.method === "pix" && <CheckCircle2 size={13} className="absolute top-1.5 right-1.5 text-white/90" />}
+            <QrCode size={20} />
+            <span>{PM_LABEL.pix}</span>
           </button>
           <button onClick={() => onMethodChange(p.id, "money")}
-            className="h-11 rounded-xl border text-[9px] font-black uppercase tracking-wider transition-all flex flex-col items-center justify-center gap-1"
+            className="relative h-16 rounded-2xl border-2 text-[10px] font-black uppercase tracking-wider transition-all flex flex-col items-center justify-center gap-1.5"
             style={p.method === "money"
-              ? { background: "#0284c7", border: "1px solid rgba(2,132,199,0.5)", color: "white", boxShadow: "0 4px 10px rgba(2,132,199,0.25)" }
-              : { background: "#f8fafc", border: "1px solid #e2e8f0", color: "#94a3b8" }}>
-            <Banknote size={14} />
-            <span className="text-[8px]">{PM_LABEL.money}</span>
+              ? { background: "#2563eb", border: "2px solid #2563eb", color: "white", boxShadow: "0 4px 12px rgba(37,99,235,0.3)" }
+              : { background: "#ffffff", border: "2px solid #e2e8f0", color: "#64748b" }}>
+            {p.method === "money" && <CheckCircle2 size={13} className="absolute top-1.5 right-1.5 text-white/90" />}
+            <Banknote size={20} />
+            <span>{PM_LABEL.money}</span>
           </button>
           <div className="relative">
             <button onClick={(e) => { e.stopPropagation(); onToggleMoreMenu(p.id); }}
-              className="h-11 w-full rounded-xl border text-[9px] font-black uppercase tracking-wider transition-all flex flex-col items-center justify-center gap-1"
+              className="relative h-16 w-full rounded-2xl border-2 text-[10px] font-black uppercase tracking-wider transition-all flex flex-col items-center justify-center gap-1.5"
               style={p.method === "crediario"
-                ? { background: "#d97706", border: "1px solid rgba(217,119,6,0.5)", color: "white", boxShadow: "0 4px 10px rgba(217,119,6,0.25)" }
-                : { background: "#f8fafc", border: "1px solid #e2e8f0", color: "#94a3b8" }}>
-              <PlusCircle size={14} />
-              <span className="text-[8px]">Mais</span>
+                ? { background: "#d97706", border: "2px solid #d97706", color: "white", boxShadow: "0 4px 12px rgba(217,119,6,0.3)" }
+                : { background: "#ffffff", border: "2px solid #e2e8f0", color: "#64748b" }}>
+              {p.method === "crediario" && <CheckCircle2 size={13} className="absolute top-1.5 right-1.5 text-white/90" />}
+              <PlusCircle size={20} />
+              <span>Mais</span>
             </button>
             {morePaymentMenuFor === p.id && (
               <div className="absolute z-20 top-full mt-1 right-0 w-40 bg-white border border-slate-200 rounded-xl shadow-lg overflow-hidden">
@@ -4520,45 +4538,99 @@ const PaymentRow = React.memo(function PaymentRow({
       )}
 
       {/* Valor recebido + indicadores */}
-      <div>
-        <label className="text-[8px] font-black uppercase tracking-[0.2em] text-slate-400 mb-1 block">
-          {p.method === "money" ? "Valor recebido" : "Valor"}
-        </label>
-        <div className="flex gap-2 items-center">
-          <div className="relative flex-1">
-            <Banknote className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
-            <input type="number" min="0" step="0.01"
-              placeholder={idx === 0 ? (total > 0 ? total.toFixed(2) : "0,00") : "Valor"}
-              className="w-full pl-10 pr-3 h-11 rounded-xl text-[15px] font-mono font-bold text-slate-800 placeholder:text-slate-300 bg-white focus:outline-none focus:ring-2 focus:ring-blue-100 transition-all [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none"
-              style={{
-                border: p.method === "money" && pAmt > 0 && pAmt < (total - othersPaid)
-                  ? "1px solid #fca5a5" : "1px solid #e2e8f0"
-              }}
-              value={p.amount}
-              onChange={(e) => onUpdate(p.id, { amount: e.target.value })} />
-          </div>
-          {feeRate > 0 && pAmt > 0 && (
-            <div className="rounded-xl px-3 py-2 shrink-0 text-center bg-amber-50 border border-amber-200">
-              <p className="text-[8px] font-black uppercase text-amber-600">Taxa</p>
-              <p className="text-[12px] font-mono font-black text-amber-700">+R$ {(pAmt * feeRate / 100).toFixed(2)}</p>
+      {p.method === "money" && idx === 0 ? (
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <label className="text-[8px] font-black uppercase tracking-[0.2em] text-slate-400 mb-1 block">Valor recebido</label>
+            <div className="relative">
+              <Banknote className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+              <input type="number" min="0" step="0.01" inputMode="decimal"
+                placeholder={total > 0 ? total.toFixed(2) : "0,00"}
+                className="w-full pl-10 pr-3 h-14 rounded-xl text-[22px] font-mono font-black text-slate-800 placeholder:text-slate-300 bg-white focus:outline-none focus:ring-2 focus:ring-blue-100 transition-all [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none"
+                style={{ border: pAmt > 0 && pAmt < (total - othersPaid) ? "1px solid #fca5a5" : "1px solid #e2e8f0" }}
+                value={p.amount}
+                onChange={(e) => onUpdate(p.id, { amount: e.target.value })} />
             </div>
-          )}
-          {p.method === "credit" && p.installments > 1 && pAmt > 0 && (
-            <div className="rounded-xl px-3 py-2 shrink-0 text-center bg-blue-50 border border-blue-200">
-              <p className="text-[8px] font-black uppercase text-blue-600">{p.installments}×</p>
-              <p className="text-[12px] font-mono font-black text-blue-700">R$ {(pAmt / p.installments).toFixed(2)}</p>
+            <div className="mt-2.5 rounded-xl px-3 py-2 bg-emerald-50 border border-emerald-200 flex items-center justify-between">
+              <span className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest text-emerald-600"><Banknote size={12} /> Troco</span>
+              <span className={cn("text-[16px] font-mono font-black", pAmt > 0 && pAmt >= (total - othersPaid) ? "text-emerald-600" : "text-slate-400")}>
+                R$ {(pAmt > 0 ? Math.max(0, pAmt - (total - othersPaid)) : 0).toFixed(2)}
+              </span>
+            </div>
+          </div>
+          {/* Teclado numérico — entrada rápida sem depender de teclado físico (uso em monitor pequeno) */}
+          <div className="grid grid-cols-3 gap-1.5">
+            {["7", "8", "9", "4", "5", "6", "1", "2", "3"].map((d) => (
+              <button key={d} type="button"
+                onClick={() => onUpdate(p.id, { amount: (p.amount || "") + d })}
+                className="h-9 rounded-lg bg-slate-50 border border-slate-200 text-[13px] font-black text-slate-700 hover:bg-slate-100 active:scale-95 transition-all">
+                {d}
+              </button>
+            ))}
+            <button type="button" onClick={() => onUpdate(p.id, { amount: (p.amount || "").includes(".") ? p.amount : `${p.amount || "0"}.` })}
+              className="h-9 rounded-lg bg-slate-50 border border-slate-200 text-[13px] font-black text-slate-700 hover:bg-slate-100 active:scale-95 transition-all">
+              ,
+            </button>
+            <button type="button" onClick={() => onUpdate(p.id, { amount: (p.amount || "") + "0" })}
+              className="h-9 rounded-lg bg-slate-50 border border-slate-200 text-[13px] font-black text-slate-700 hover:bg-slate-100 active:scale-95 transition-all">
+              0
+            </button>
+            <button type="button" onClick={() => onUpdate(p.id, { amount: (p.amount || "").slice(0, -1) })}
+              className="h-9 rounded-lg bg-slate-50 border border-slate-200 text-slate-500 hover:bg-red-50 hover:text-red-500 active:scale-95 transition-all flex items-center justify-center">
+              <ChevronLeft size={13} />
+            </button>
+            <button type="button" onClick={() => onUpdate(p.id, { amount: "" })}
+              className="h-9 rounded-lg bg-slate-50 border border-slate-200 text-[11px] font-black text-slate-500 hover:bg-red-50 hover:text-red-500 active:scale-95 transition-all col-span-1">
+              CE
+            </button>
+            <button type="button" onClick={() => onUpdate(p.id, { amount: total > 0 ? total.toFixed(2) : p.amount })}
+              className="h-9 rounded-lg text-[11px] font-black text-white active:scale-95 transition-all col-span-2"
+              style={{ background: "linear-gradient(135deg,#3b82f6,#1d4ed8)" }}>
+              OK
+            </button>
+          </div>
+        </div>
+      ) : (
+        <div>
+          <label className="text-[8px] font-black uppercase tracking-[0.2em] text-slate-400 mb-1 block">
+            {p.method === "money" ? "Valor recebido" : "Valor"}
+          </label>
+          <div className="flex gap-2 items-center">
+            <div className="relative flex-1">
+              <Banknote className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
+              <input type="number" min="0" step="0.01"
+                placeholder="Valor"
+                className="w-full pl-10 pr-3 h-11 rounded-xl text-[15px] font-mono font-bold text-slate-800 placeholder:text-slate-300 bg-white focus:outline-none focus:ring-2 focus:ring-blue-100 transition-all [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none"
+                style={{
+                  border: p.method === "money" && pAmt > 0 && pAmt < (total - othersPaid)
+                    ? "1px solid #fca5a5" : "1px solid #e2e8f0"
+                }}
+                value={p.amount}
+                onChange={(e) => onUpdate(p.id, { amount: e.target.value })} />
+            </div>
+            {feeRate > 0 && pAmt > 0 && (
+              <div className="rounded-xl px-3 py-2 shrink-0 text-center bg-amber-50 border border-amber-200">
+                <p className="text-[8px] font-black uppercase text-amber-600">Taxa</p>
+                <p className="text-[12px] font-mono font-black text-amber-700">+R$ {(pAmt * feeRate / 100).toFixed(2)}</p>
+              </div>
+            )}
+            {p.method === "credit" && p.installments > 1 && pAmt > 0 && (
+              <div className="rounded-xl px-3 py-2 shrink-0 text-center bg-blue-50 border border-blue-200">
+                <p className="text-[8px] font-black uppercase text-blue-600">{p.installments}×</p>
+                <p className="text-[12px] font-mono font-black text-blue-700">R$ {(pAmt / p.installments).toFixed(2)}</p>
+              </div>
+            )}
+          </div>
+          {p.method === "money" && (
+            <div className="mt-1.5 flex items-center justify-between">
+              <span className="text-[9px] font-black uppercase tracking-widest text-slate-400">Troco</span>
+              <span className={cn("text-[12px] font-mono font-black", pAmt > 0 && pAmt >= (total - othersPaid) ? "text-emerald-600" : "text-slate-400")}>
+                R$ {(pAmt > 0 ? Math.max(0, pAmt - (total - othersPaid)) : 0).toFixed(2)}
+              </span>
             </div>
           )}
         </div>
-        {p.method === "money" && (
-          <div className="mt-1.5 flex items-center justify-between">
-            <span className="text-[9px] font-black uppercase tracking-widest text-slate-400">Troco</span>
-            <span className={cn("text-[12px] font-mono font-black", pAmt > 0 && pAmt >= (total - othersPaid) ? "text-emerald-600" : "text-slate-400")}>
-              R$ {(pAmt > 0 ? Math.max(0, pAmt - (total - othersPaid)) : 0).toFixed(2)}
-            </span>
-          </div>
-        )}
-      </div>
+      )}
     </div>
   );
 });
@@ -4569,7 +4641,7 @@ function CartPanel({
   cartServices, setCartServices,
   subtotal, discountValue, surchargeValue, feeAmount, total, cartQty,
   onCheckout, canFinish, onClose,
-  onHold, holding, canHold,
+  onHold, holding, canHold, onClear,
 }: {
   cart: CartItem[];
   updateQuantity: (id: string, delta: number) => void;
@@ -4589,7 +4661,9 @@ function CartPanel({
   onHold?: () => void;
   holding?: boolean;
   canHold?: boolean;
+  onClear?: () => void;
 }) {
+  const hasItems = cart.length > 0 || cartServices.length > 0;
   return (
     <>
       {/* Header */}
@@ -4600,14 +4674,23 @@ function CartPanel({
           </div>
           <div>
             <h3 className="text-[12px] font-black uppercase tracking-widest text-white">Carrinho</h3>
-            <span className="text-[9px] text-slate-400 font-bold uppercase tracking-widest">{cartQty} {cartQty === 1 ? "item" : "itens"} na venda</span>
+            <span className="text-[9px] text-slate-400 font-bold uppercase tracking-widest">{cartQty} {cartQty === 1 ? "item" : "itens"}</span>
           </div>
         </div>
-        {onClose && (
-          <button onClick={onClose} className="p-1.5 hover:bg-white/10 rounded-xl text-slate-400 transition-colors">
-            <X size={18} />
-          </button>
-        )}
+        <div className="flex items-center gap-1">
+          {onClear && hasItems && (
+            <button onClick={onClear} title="Limpar Carrinho"
+              className="flex items-center gap-1.5 h-7 px-2.5 rounded-full text-[9px] font-black uppercase tracking-widest text-slate-300 border border-white/10 hover:bg-red-500/10 hover:text-red-400 hover:border-red-400/30 transition-colors">
+              <Trash2 size={11} />
+              <span className="hidden sm:inline">Limpar Carrinho</span>
+            </button>
+          )}
+          {onClose && (
+            <button onClick={onClose} className="p-1.5 hover:bg-white/10 rounded-xl text-slate-400 transition-colors">
+              <X size={18} />
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Items */}
@@ -4721,10 +4804,12 @@ function CartPanel({
 
         {cart.length === 0 && cartServices.length === 0 && (
           <div className="h-full flex flex-col items-center justify-center text-slate-300 gap-4 py-16">
-            <ShoppingCart size={40} strokeWidth={1} />
-            <div className="text-center">
-              <p className="text-[11px] font-black uppercase tracking-[0.2em] mb-1 text-slate-400">Carrinho Vazio</p>
-              <p className="text-[10px] text-slate-400">Selecione produtos ao lado</p>
+            <div className="w-20 h-20 rounded-full bg-slate-100 flex items-center justify-center">
+              <ShoppingCart size={32} strokeWidth={1.5} className="text-slate-300" />
+            </div>
+            <div className="text-center px-6">
+              <p className="text-[13px] font-black mb-1 text-slate-500">Carrinho vazio</p>
+              <p className="text-[10px] text-slate-400 leading-relaxed">Adicione produtos ao carrinho<br />para iniciar a venda.</p>
             </div>
           </div>
         )}
@@ -4732,34 +4817,35 @@ function CartPanel({
 
       {/* Footer summary + checkout button */}
       <div className="shrink-0 border-t border-slate-200 p-4 space-y-3 bg-white shadow-[0_-6px_20px_rgba(15,23,42,0.04)]">
-        {cart.length > 0 && (
-          <div className="space-y-1.5">
-            {(discountValue > 0 || surchargeValue > 0) && (
-              <div className="flex justify-between text-[10px] font-medium text-slate-400">
-                <span>Subtotal</span><span className="font-mono">R$ {subtotal.toFixed(2)}</span>
-              </div>
-            )}
-            {discountValue > 0 && (
-              <div className="flex justify-between text-[10px] font-bold text-emerald-600">
-                <span>Desconto</span><span className="font-mono">− R$ {discountValue.toFixed(2)}</span>
-              </div>
-            )}
-            {surchargeValue > 0 && (
-              <div className="flex justify-between text-[10px] font-bold text-amber-500">
-                <span>Acréscimo</span><span className="font-mono">+ R$ {surchargeValue.toFixed(2)}</span>
-              </div>
-            )}
-            {feeAmount > 0 && (
-              <div className="flex justify-between text-[10px] font-bold text-orange-500">
-                <span>Juros máquina</span><span className="font-mono">+ R$ {feeAmount.toFixed(2)}</span>
-              </div>
-            )}
-            <div className="flex justify-between items-baseline pt-1.5 border-t border-slate-100">
-              <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Total</span>
-              <span className="text-2xl font-mono font-black text-slate-800">R$ {total.toFixed(2)}</span>
-            </div>
+        <div className="space-y-1.5">
+          <div className="flex justify-between text-[10px] font-bold text-slate-400">
+            <span>Subtotal</span><span className="font-mono">R$ {subtotal.toFixed(2)}</span>
           </div>
-        )}
+          {discountValue > 0 && (
+            <div className="flex justify-between text-[10px] font-bold text-emerald-600">
+              <span>Descontos</span><span className="font-mono">− R$ {discountValue.toFixed(2)}</span>
+            </div>
+          )}
+          {discountValue === 0 && (
+            <div className="flex justify-between text-[10px] font-bold text-slate-400">
+              <span>Descontos</span><span className="font-mono">R$ 0,00</span>
+            </div>
+          )}
+          {surchargeValue > 0 && (
+            <div className="flex justify-between text-[10px] font-bold text-amber-500">
+              <span>Acréscimo</span><span className="font-mono">+ R$ {surchargeValue.toFixed(2)}</span>
+            </div>
+          )}
+          {feeAmount > 0 && (
+            <div className="flex justify-between text-[10px] font-bold text-orange-500">
+              <span>Juros máquina</span><span className="font-mono">+ R$ {feeAmount.toFixed(2)}</span>
+            </div>
+          )}
+          <div className="flex justify-between items-baseline pt-1.5 border-t border-slate-100">
+            <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Total</span>
+            <span className="text-2xl font-mono font-black text-slate-800">R$ {total.toFixed(2)}</span>
+          </div>
+        </div>
 
         <div className="flex gap-2">
           {onHold && canHold && (
