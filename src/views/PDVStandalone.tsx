@@ -161,8 +161,8 @@ function PDVLogin({ onLogin }: { onLogin: (token: string) => void }) {
       if (res.ok) {
         localStorage.setItem("token", data.token);
         localStorage.setItem("user", JSON.stringify(data.user));
-        if (data.user?.role && data.user.role !== "pdv") {
-          window.location.href = data.user.role === "super_admin" ? "/super-admin" : "/admin";
+        if (data.user?.role === "super_admin") {
+          window.location.href = "/super-admin";
           return;
         }
         onLogin(data.token);
@@ -2841,10 +2841,12 @@ ${sale.change > 0 ? `<hr class="divider"/><div class="row bold"><span>Troco:</sp
               <div className="flex-1 flex flex-col sm:flex-row overflow-y-auto sm:overflow-hidden">
 
                 {/* COLUNA ESQUERDA */}
-                <div className="w-full sm:w-[460px] xl:w-[min(40%,560px)] shrink-0 flex flex-col sm:overflow-y-auto pdv-scroll-light border-b sm:border-b-0 sm:border-r border-slate-200 bg-white sm:max-h-none shadow-[10px_0_30px_rgba(15,23,42,0.06)]">
+                <div className="w-full sm:w-[460px] xl:w-[min(40%,560px)] shrink-0 flex flex-col border-b sm:border-b-0 sm:border-r border-slate-200 bg-white sm:max-h-none shadow-[10px_0_30px_rgba(15,23,42,0.06)]">
 
-                  {/* Itens do pedido */}
-                  <div className="p-5 border-b border-slate-200">
+                  {/* Itens do pedido — só esta área rola; Cliente/Vendedor/Desconto
+                      abaixo fica sempre visível, fixo, sem precisar rolar a página
+                      inteira pra achar o campo de cliente. */}
+                  <div className="p-5 border-b border-slate-200 sm:flex-1 sm:min-h-0 sm:overflow-y-auto pdv-scroll-light">
                     <div className="flex items-center justify-between mb-3">
                       <div>
                         <p className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400">Pedido atual</p>
@@ -2935,8 +2937,8 @@ ${sale.change > 0 ? `<hr class="divider"/><div class="row bold"><span>Troco:</sp
                     </div>
                   </div>
 
-                  {/* Cliente + Vendedor + Descontos */}
-                  <div className="p-5 space-y-4 flex-1 bg-slate-50/70">
+                  {/* Cliente + Vendedor + Descontos — fixo, nunca rola junto com os itens */}
+                  <div className="p-5 space-y-4 shrink-0 bg-slate-50/70">
                     {/* Cliente */}
                     <div>
                       <label className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400 mb-1.5 block">Cliente</label>
@@ -4399,40 +4401,40 @@ const PaymentRow = React.memo(function PaymentRow({
         )}
         <div className="grid grid-cols-4 gap-2.5 flex-1">
           <button onClick={() => onMethodChange(p.id, p.method === "debit" ? "debit" : "credit")}
-            className="relative h-16 rounded-2xl border-2 text-[10px] font-black uppercase tracking-wider transition-all flex flex-col items-center justify-center gap-1.5"
+            className="relative h-11 rounded-xl border-2 text-[9px] font-black uppercase tracking-wider transition-all flex items-center justify-center gap-1.5"
             style={(p.method === "credit" || p.method === "debit")
               ? { background: "#059669", border: "2px solid #059669", color: "white", boxShadow: "0 4px 12px rgba(16,185,129,0.3)" }
               : { background: "#ffffff", border: "2px solid #e2e8f0", color: "#64748b" }}>
             {(p.method === "credit" || p.method === "debit") && <CheckCircle2 size={13} className="absolute top-1.5 right-1.5 text-white/90" />}
-            <CreditCard size={20} />
+            <CreditCard size={14} />
             <span>Cartão</span>
           </button>
           <button onClick={() => onMethodChange(p.id, "pix")}
-            className="relative h-16 rounded-2xl border-2 text-[10px] font-black uppercase tracking-wider transition-all flex flex-col items-center justify-center gap-1.5"
+            className="relative h-11 rounded-xl border-2 text-[9px] font-black uppercase tracking-wider transition-all flex items-center justify-center gap-1.5"
             style={p.method === "pix"
               ? { background: "#2563eb", border: "2px solid #2563eb", color: "white", boxShadow: "0 4px 12px rgba(59,130,246,0.3)" }
               : { background: "#ffffff", border: "2px solid #e2e8f0", color: "#64748b" }}>
             {p.method === "pix" && <CheckCircle2 size={13} className="absolute top-1.5 right-1.5 text-white/90" />}
-            <QrCode size={20} />
+            <QrCode size={14} />
             <span>{PM_LABEL.pix}</span>
           </button>
           <button onClick={() => onMethodChange(p.id, "money")}
-            className="relative h-16 rounded-2xl border-2 text-[10px] font-black uppercase tracking-wider transition-all flex flex-col items-center justify-center gap-1.5"
+            className="relative h-11 rounded-xl border-2 text-[9px] font-black uppercase tracking-wider transition-all flex items-center justify-center gap-1.5"
             style={p.method === "money"
               ? { background: "#2563eb", border: "2px solid #2563eb", color: "white", boxShadow: "0 4px 12px rgba(37,99,235,0.3)" }
               : { background: "#ffffff", border: "2px solid #e2e8f0", color: "#64748b" }}>
             {p.method === "money" && <CheckCircle2 size={13} className="absolute top-1.5 right-1.5 text-white/90" />}
-            <Banknote size={20} />
+            <Banknote size={14} />
             <span>{PM_LABEL.money}</span>
           </button>
           <div className="relative">
             <button onClick={(e) => { e.stopPropagation(); onToggleMoreMenu(p.id); }}
-              className="relative h-16 w-full rounded-2xl border-2 text-[10px] font-black uppercase tracking-wider transition-all flex flex-col items-center justify-center gap-1.5"
+              className="relative h-11 w-full rounded-xl border-2 text-[9px] font-black uppercase tracking-wider transition-all flex items-center justify-center gap-1.5"
               style={p.method === "crediario"
                 ? { background: "#d97706", border: "2px solid #d97706", color: "white", boxShadow: "0 4px 12px rgba(217,119,6,0.3)" }
                 : { background: "#ffffff", border: "2px solid #e2e8f0", color: "#64748b" }}>
               {p.method === "crediario" && <CheckCircle2 size={13} className="absolute top-1.5 right-1.5 text-white/90" />}
-              <PlusCircle size={20} />
+              <PlusCircle size={14} />
               <span>Mais</span>
             </button>
             {morePaymentMenuFor === p.id && (
