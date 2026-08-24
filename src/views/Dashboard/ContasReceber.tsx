@@ -547,24 +547,24 @@ export default function ContasReceber() {
                 >{l}</button>
               ))}
             </div>
-            <div className="flex gap-1.5">
-              <select
-                value={monthFilter}
-                onChange={(e) => setMonthFilter(e.target.value === "all" ? "all" : Number(e.target.value))}
-                className="h-9 px-2.5 bg-slate-50 border border-slate-200 rounded-lg text-[10px] font-bold outline-none focus:border-blue-400 transition-all"
-              >
-                <option value="all">Todos os meses</option>
-                {MONTHS.map((m, i) => <option key={m} value={i}>{m}</option>)}
-              </select>
-              <select
-                value={yearFilter}
-                onChange={(e) => setYearFilter(e.target.value === "all" ? "all" : Number(e.target.value))}
-                className="h-9 px-2.5 bg-slate-50 border border-slate-200 rounded-lg text-[10px] font-bold outline-none focus:border-blue-400 transition-all"
-              >
-                <option value="all">Todos os anos</option>
-                {availableYears.map((y) => <option key={y} value={y}>{y}</option>)}
-              </select>
-            </div>
+          </div>
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <select
+              value={monthFilter}
+              onChange={(e) => setMonthFilter(e.target.value === "all" ? "all" : Number(e.target.value))}
+              className="h-9 px-2.5 bg-slate-50 border border-slate-200 rounded-lg text-[10px] font-bold outline-none focus:border-blue-400 transition-all"
+            >
+              <option value="all">Todos os meses</option>
+              {MONTHS.map((m, i) => <option key={m} value={i}>{m}</option>)}
+            </select>
+            <select
+              value={yearFilter}
+              onChange={(e) => setYearFilter(e.target.value === "all" ? "all" : Number(e.target.value))}
+              className="h-9 px-2.5 bg-slate-50 border border-slate-200 rounded-lg text-[10px] font-bold outline-none focus:border-blue-400 transition-all"
+            >
+              <option value="all">Todos os anos</option>
+              {availableYears.map((y) => <option key={y} value={y}>{y}</option>)}
+            </select>
           </div>
           {selectedIds.size > 0 && (
             <div className="flex items-center gap-2 px-1">
