@@ -38,15 +38,20 @@ function formatDateBR(d: string | null | undefined) {
   return new Date(d + (d.length === 10 ? "T12:00:00" : "")).toLocaleDateString("pt-BR");
 }
 
+// due_date vem da API como ISO completo ("2026-12-30T00:00:00.000Z"), não como
+// "YYYY-MM-DD" puro — concatenar "T23:59:59" direto nisso vira uma string inválida
+// ("...000ZT23:59:59"), e Date inválida em qualquer comparação sempre dá false. Por
+// isso "Vencidas"/"Vencendo em Breve" ficavam sempre zerados. Corta pros 10 primeiros
+// caracteres primeiro, que funciona tanto pro formato completo quanto pro puro.
 function isOverdue(due: string, status: AccountStatus) {
   if (status !== "pending") return false;
-  return new Date(due + "T23:59:59") < new Date();
+  return new Date(due.substring(0, 10) + "T23:59:59") < new Date();
 }
 
 const DUE_SOON_DAYS = 3;
 function isDueSoon(due: string, status: AccountStatus) {
   if (status !== "pending") return false;
-  const daysUntil = (new Date(due + "T23:59:59").getTime() - Date.now()) / 86_400_000;
+  const daysUntil = (new Date(due.substring(0, 10) + "T23:59:59").getTime() - Date.now()) / 86_400_000;
   return daysUntil >= 0 && daysUntil <= DUE_SOON_DAYS;
 }
 
@@ -109,6 +114,7 @@ export default function ContasPagar() {
   const [selected, setSelected] = useState<AccountPayable | null>(null);
   const [form, setForm] = useState<FormData>(EMPTY_FORM);
   const [paidDate, setPaidDate] = useState(today());
+  const [continueRecurring, setContinueRecurring] = useState(true);
 
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<AccountStatus | "all">("all");
@@ -232,6 +238,7 @@ export default function ContasPagar() {
   const openPay = (item: AccountPayable) => {
     setSelected(item);
     setPaidDate(today());
+    setContinueRecurring(true);
     setModalMode("pay");
   };
 
@@ -310,7 +317,7 @@ export default function ContasPagar() {
       const res = await fetch(`/api/accounts-payable/${selected!.id}/pay`, {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token()}` },
-        body: JSON.stringify({ paid_date: paidDate }),
+        body: JSON.stringify({ paid_date: paidDate, continue_recurring: continueRecurring }),
       });
       if (res.ok) {
         success("Pagamento confirmado!");
@@ -573,7 +580,7 @@ export default function ContasPagar() {
         </div>
 
         {/* Desktop table */}
-        <div className="hidden sm:block overflow-x-auto">
+        <div className="hidden lg:block overflow-x-auto">
           {loading ? (
             <div className="flex items-center justify-center py-16">
               <Loader2 size={22} className="animate-spin text-slate-300" />
@@ -697,7 +704,7 @@ export default function ContasPagar() {
         </div>
 
         {/* Mobile list */}
-        <div className="sm:hidden divide-y divide-slate-50">
+        <div className="lg:hidden divide-y divide-slate-50">
           {loading ? (
             <div className="flex items-center justify-center py-10"><Loader2 size={20} className="animate-spin text-slate-300" /></div>
           ) : filtered.length === 0 ? (
@@ -1068,10 +1075,21 @@ export default function ContasPagar() {
               </div>
 
               {selected.is_recurring && (
-                <div className="flex items-center gap-2 bg-white/5 border border-white/10 rounded-xl px-3 py-2.5">
+                <button
+                  type="button"
+                  onClick={() => setContinueRecurring((v) => !v)}
+                  className="w-full flex items-center gap-2.5 bg-white/5 border border-white/10 rounded-xl px-3 py-2.5 text-left"
+                >
                   <Repeat size={13} className="text-slate-400 shrink-0" />
-                  <p className="text-[10px] text-slate-400">O próximo lançamento será criado automaticamente ao confirmar.</p>
-                </div>
+                  <p className="text-[10px] text-slate-400 flex-1">
+                    {continueRecurring
+                      ? "Gerar o próximo lançamento automaticamente após confirmar."
+                      : "Não gerar mais lançamentos — encerra a recorrência aqui."}
+                  </p>
+                  <span className={cn("w-9 h-5 rounded-full relative transition-all shrink-0", continueRecurring ? "bg-rose-500" : "bg-slate-600")}>
+                    <span className={cn("absolute top-0.5 h-4 w-4 rounded-full bg-white shadow-sm transition-all", continueRecurring ? "left-4" : "left-0.5")} />
+                  </span>
+                </button>
               )}
 
               {/* Data pagamento */}

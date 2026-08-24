@@ -226,7 +226,8 @@ export async function payAccount(req: Request, res: Response) {
     const existing = await prisma.accountPayable.findFirst({ where: { id, tenant_id: tenantId } });
     if (!existing) return res.status(404).json({ error: "Not found" });
 
-    const paid_date = req.body.paid_date || new Date().toISOString().split("T")[0];
+    const { paid_date: bodyPaidDate, continue_recurring } = req.body as { paid_date?: string; continue_recurring?: boolean };
+    const paid_date = bodyPaidDate || new Date().toISOString().split("T")[0];
     const updated = await prisma.accountPayable.update({
       where: { id },
       data: { status: "paid", paid_date: new Date(paid_date + "T12:00:00") },
@@ -234,8 +235,10 @@ export async function payAccount(req: Request, res: Response) {
 
     // Conta de valor variável que se repete indefinidamente (água, energia) — ao pagar,
     // já cria o lançamento do próximo período como estimativa (mesmo valor), pendente,
-    // pra não depender de o operador lembrar de cadastrar de novo todo mês.
-    if (existing.is_recurring && existing.recurrence_interval_unit) {
+    // pra não depender de o operador lembrar de cadastrar de novo todo mês. O operador
+    // pode desmarcar "continue_recurring" nesse pagamento pra encerrar a recorrência
+    // aqui (senão ela se perpetuaria pra sempre sem nenhum jeito de parar).
+    if (existing.is_recurring && existing.recurrence_interval_unit && continue_recurring !== false) {
       const nextDue = advanceDate(new Date(existing.due_date), existing.recurrence_interval_unit as IntervalUnit, existing.recurrence_interval_count ?? 1);
       await prisma.accountPayable.create({
         data: {

@@ -226,15 +226,17 @@ export async function receiveAccount(req: Request, res: Response) {
     const existing = await prisma.accountReceivable.findFirst({ where: { id, tenant_id: tenantId } });
     if (!existing) return res.status(404).json({ error: "Not found" });
 
-    const received_date = req.body.received_date || new Date().toISOString().split("T")[0];
+    const { received_date: bodyReceivedDate, continue_recurring } = req.body as { received_date?: string; continue_recurring?: boolean };
+    const received_date = bodyReceivedDate || new Date().toISOString().split("T")[0];
     const updated = await prisma.accountReceivable.update({
       where: { id },
       data: { status: "received", received_date: new Date(received_date + "T12:00:00") },
     });
 
     // Conta de valor variável que se repete indefinidamente — ao receber, já cria o
-    // lançamento do próximo período como estimativa (mesmo valor), pendente.
-    if (existing.is_recurring && existing.recurrence_interval_unit) {
+    // lançamento do próximo período como estimativa (mesmo valor), pendente. O operador
+    // pode desmarcar "continue_recurring" pra encerrar a recorrência neste pagamento.
+    if (existing.is_recurring && existing.recurrence_interval_unit && continue_recurring !== false) {
       const nextDue = advanceDate(new Date(existing.due_date), existing.recurrence_interval_unit as IntervalUnit, existing.recurrence_interval_count ?? 1);
       await prisma.accountReceivable.create({
         data: {
