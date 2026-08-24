@@ -125,6 +125,7 @@ export default function ContasReceber() {
   // reconfigura a série inteira, isso fica fora do escopo desta primeira etapa)
   const [recurrenceEnabled, setRecurrenceEnabled] = useState(false);
   const [recurringVariable, setRecurringVariable] = useState(false);
+  const [recurringValueMode, setRecurringValueMode] = useState<"fixed" | "variable">("variable");
   const [installmentsCount, setInstallmentsCount] = useState("2");
   const [intervalUnit, setIntervalUnit] = useState<"day" | "week" | "month">("month");
   const [intervalCount, setIntervalCount] = useState("1");
@@ -196,6 +197,7 @@ export default function ContasReceber() {
     setForm(EMPTY_FORM);
     setRecurrenceEnabled(false);
     setRecurringVariable(false);
+    setRecurringValueMode("variable");
     setInstallmentsCount("2");
     setIntervalUnit("month");
     setIntervalCount("1");
@@ -228,6 +230,11 @@ export default function ContasReceber() {
       category: item.category || "",
       notes: item.notes || "",
     });
+    setRecurrenceEnabled(false);
+    setRecurringVariable(!!item.is_recurring);
+    setRecurringValueMode("variable");
+    setIntervalUnit((item.recurrence_interval_unit as "day" | "week" | "month") || "month");
+    setIntervalCount(String(item.recurrence_interval_count || 1));
     setModalMode("edit");
   };
 
@@ -276,6 +283,10 @@ export default function ContasReceber() {
         body.is_recurring = true;
         body.recurrence_interval_unit = intervalUnit;
         body.recurrence_interval_count = Math.max(1, Number(intervalCount) || 1);
+      } else if (modalMode === "edit") {
+        body.is_recurring = recurringVariable;
+        body.recurrence_interval_unit = recurringVariable ? intervalUnit : null;
+        body.recurrence_interval_count = recurringVariable ? Math.max(1, Number(intervalCount) || 1) : null;
       }
       const url = modalMode === "edit" ? `/api/accounts-receivable/${selected!.id}` : "/api/accounts-receivable";
       const method = modalMode === "edit" ? "PUT" : "POST";
@@ -829,18 +840,17 @@ export default function ContasReceber() {
                 </div>
               </div>
 
-              {modalMode === "create" && (
+              {(modalMode === "create" || modalMode === "edit") && (
                 <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-3.5 space-y-3">
                   <div className="space-y-1.5">
                     <label className="flex items-center gap-1.5 text-[9px] font-black text-slate-400 uppercase tracking-[0.16em]">
                       <Repeat size={10} /> Tipo de lançamento
                     </label>
-                    <div className="grid grid-cols-3 gap-1 bg-white border border-slate-200 rounded-lg p-0.5">
-                      {([
-                        ["single", "Única"],
-                        ["installments", "Parcelada"],
-                        ["recurring", "Recorrente"],
-                      ] as const).map(([mode, label]) => {
+                    <div className={cn("grid gap-1 bg-white border border-slate-200 rounded-lg p-0.5", modalMode === "create" ? "grid-cols-3" : "grid-cols-2")}>
+                      {(modalMode === "create"
+                        ? ([["single", "Única"], ["installments", "Parcelada"], ["recurring", "Recorrente"]] as const)
+                        : ([["single", "Única"], ["recurring", "Recorrente"]] as const)
+                      ).map(([mode, label]) => {
                         const active = mode === "installments" ? recurrenceEnabled : mode === "recurring" ? recurringVariable : (!recurrenceEnabled && !recurringVariable);
                         return (
                           <button
@@ -859,37 +869,57 @@ export default function ContasReceber() {
                       {recurrenceEnabled
                         ? "Nº de parcelas e valores já conhecidos (ex.: venda parcelada)."
                         : recurringVariable
-                          ? "Valor muda a cada vez — gera o próximo lançamento sozinho ao receber."
+                          ? "Repete indefinidamente até você encerrar a recorrência."
                           : "Um lançamento avulso, sem repetição."}
                     </p>
                   </div>
 
                   {recurringVariable && (
-                    <div className="space-y-1.5 pt-1">
-                      <label className="text-[9px] font-black text-slate-400 uppercase tracking-[0.16em]">Repete a cada</label>
-                      <div className="flex gap-1.5 w-1/2">
-                        <input
-                          type="number" min={1} value={intervalCount}
-                          onChange={(e) => setIntervalCount(e.target.value)}
-                          className="w-14 bg-white border border-slate-200 rounded-lg px-2 h-9 text-xs font-bold outline-none focus:border-emerald-400"
-                        />
-                        <select
-                          value={intervalUnit}
-                          onChange={(e) => setIntervalUnit(e.target.value as "day" | "week" | "month")}
-                          className="flex-1 bg-white border border-slate-200 rounded-lg px-2 h-9 text-xs font-bold outline-none focus:border-emerald-400 appearance-none"
-                        >
-                          <option value="day">Dia(s)</option>
-                          <option value="week">Semana(s)</option>
-                          <option value="month">Mês(es)</option>
-                        </select>
+                    <div className="space-y-3 pt-1">
+                      <div className="space-y-1.5">
+                        <label className="text-[9px] font-black text-slate-400 uppercase tracking-[0.16em]">Valor</label>
+                        <div className="flex bg-white border border-slate-200 rounded-lg p-0.5 gap-0.5 w-fit">
+                          {([["fixed", "Fixo"], ["variable", "Variável"]] as const).map(([m, l]) => (
+                            <button
+                              key={m} type="button"
+                              onClick={() => setRecurringValueMode(m)}
+                              className={cn("h-8 px-3 rounded-md text-[9px] font-black uppercase tracking-wide transition-all", recurringValueMode === m ? "bg-emerald-600 text-white" : "text-slate-500")}
+                            >{l}</button>
+                          ))}
+                        </div>
+                        <p className="text-[9px] text-slate-400">
+                          {recurringValueMode === "fixed"
+                            ? "Mesmo valor sempre (ex.: mensalidade, aluguel recebido)."
+                            : "Valor muda a cada vez — edite o valor antes de receber cada lançamento."}
+                        </p>
                       </div>
-                      <p className="text-[9px] text-slate-400">
-                        Ao marcar essa conta como recebida, o próximo lançamento é criado automaticamente com o mesmo valor (só como estimativa) — edite o valor real antes de receber.
-                      </p>
+
+                      <div className="space-y-1.5">
+                        <label className="text-[9px] font-black text-slate-400 uppercase tracking-[0.16em]">Repete a cada</label>
+                        <div className="flex gap-1.5 w-1/2">
+                          <input
+                            type="number" min={1} value={intervalCount}
+                            onChange={(e) => setIntervalCount(e.target.value)}
+                            className="w-14 bg-white border border-slate-200 rounded-lg px-2 h-9 text-xs font-bold outline-none focus:border-emerald-400"
+                          />
+                          <select
+                            value={intervalUnit}
+                            onChange={(e) => setIntervalUnit(e.target.value as "day" | "week" | "month")}
+                            className="flex-1 bg-white border border-slate-200 rounded-lg px-2 h-9 text-xs font-bold outline-none focus:border-emerald-400 appearance-none"
+                          >
+                            <option value="day">Dia(s)</option>
+                            <option value="week">Semana(s)</option>
+                            <option value="month">Mês(es)</option>
+                          </select>
+                        </div>
+                        <p className="text-[9px] text-slate-400">
+                          Ao marcar essa conta como recebida, o próximo lançamento é criado automaticamente com o mesmo valor{recurringValueMode === "variable" ? " (só como estimativa — edite o valor real antes de receber esse próximo)" : ""}.
+                        </p>
+                      </div>
                     </div>
                   )}
 
-                  {recurrenceEnabled && (
+                  {modalMode === "create" && recurrenceEnabled && (
                     <div className="space-y-3 pt-1">
                       <div className="grid grid-cols-2 gap-3">
                         <div className="space-y-1">

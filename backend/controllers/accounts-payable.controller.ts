@@ -21,6 +21,62 @@ export async function listAccountsPayable(req: Request, res: Response) {
   }
 }
 
+interface ImportRow {
+  description?: string;
+  amount?: number | string;
+  due_date?: string;
+  supplier_name?: string;
+  category?: string;
+  cost_type?: string;
+}
+
+// Importação de planilha — best-effort por linha (uma linha inválida não derruba as
+// outras); o front já valida antes de mandar, isso aqui é a segunda linha de defesa.
+export async function importAccountsPayable(req: Request, res: Response) {
+  try {
+    const tenantId = getTenantId(req);
+    const { rows } = req.body as { rows?: ImportRow[] };
+    if (!Array.isArray(rows) || rows.length === 0) {
+      res.status(422).json({ error: "Nenhuma linha para importar" });
+      return;
+    }
+
+    let created = 0;
+    const errors: { row: number; error: string }[] = [];
+
+    for (let i = 0; i < rows.length; i++) {
+      const r = rows[i];
+      const description = (r.description || "").toString().trim();
+      const amount = Number(r.amount);
+      const dueDateStr = (r.due_date || "").toString().trim().substring(0, 10);
+      const costType = r.cost_type === "fixed" || r.cost_type === "variable" ? r.cost_type : null;
+
+      if (!description) { errors.push({ row: i + 1, error: "Descrição vazia" }); continue; }
+      if (!amount || amount <= 0) { errors.push({ row: i + 1, error: "Valor inválido" }); continue; }
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(dueDateStr)) { errors.push({ row: i + 1, error: "Vencimento inválido" }); continue; }
+
+      await prisma.accountPayable.create({
+        data: {
+          tenant_id: tenantId,
+          description,
+          amount,
+          due_date: new Date(`${dueDateStr}T12:00:00`),
+          supplier_name: r.supplier_name?.toString().trim() || null,
+          category: r.category?.toString().trim() || null,
+          cost_type: costType,
+        },
+      });
+      created++;
+    }
+
+    if (created > 0) emitToTenant(tenantId, "finance:changed", { count: created });
+    res.json({ created, errors });
+  } catch (err) {
+    console.error("importAccountsPayable error:", err);
+    res.status(500).json({ error: "Falha ao importar planilha" });
+  }
+}
+
 function parseBody(body: Record<string, unknown>) {
   const data = { ...body };
   if (typeof data.due_date === "string" && data.due_date.length === 10) {
@@ -93,6 +149,7 @@ export async function createAccountPayable(req: Request, res: Response) {
             notes: (parsedBody.notes as string) ?? null,
             series_id: series.id,
             installment_number: inst.installment_number,
+            cost_type: (parsedBody.cost_type as string) ?? null,
           },
         }));
       }
@@ -174,6 +231,7 @@ export async function bulkPayAccountsPayable(req: Request, res: Response) {
           is_recurring: true,
           recurrence_interval_unit: existing.recurrence_interval_unit,
           recurrence_interval_count: existing.recurrence_interval_count,
+          cost_type: existing.cost_type,
         },
       });
     }
@@ -252,6 +310,7 @@ export async function payAccount(req: Request, res: Response) {
           is_recurring: true,
           recurrence_interval_unit: existing.recurrence_interval_unit,
           recurrence_interval_count: existing.recurrence_interval_count,
+          cost_type: existing.cost_type,
         },
       });
     }

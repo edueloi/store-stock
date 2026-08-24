@@ -694,6 +694,9 @@ model AccountPayable {
   is_recurring              Boolean  @default(false)
   recurrence_interval_unit  String?
   recurrence_interval_count Int?
+  // Classificação contábil pra relatórios (Excel/PDF) — "fixed" (aluguel, salário,
+  // financiamento) ou "variable" (fornecedor, comissão, insumo). Null = não classificado.
+  cost_type           String?
   created_at          DateTime  @default(now())
   updated_at          DateTime  @updatedAt
 
@@ -754,6 +757,7 @@ model Customer {
   address_country    String?  @default("Brasil")
   notes        String?  @db.Text
   credit_limit Decimal? @db.Decimal(10, 2)
+  consignment_limit Decimal? @db.Decimal(10, 2)
   birth_date   DateTime?
   risk_flag    Boolean  @default(false)
   risk_reason  String?  @db.Text

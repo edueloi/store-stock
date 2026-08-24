@@ -271,6 +271,7 @@ export interface AccountPayable {
   is_recurring?: boolean;
   recurrence_interval_unit?: "day" | "week" | "month" | null;
   recurrence_interval_count?: number | null;
+  cost_type?: "fixed" | "variable" | null;
   created_at: string;
   updated_at: string;
 }
