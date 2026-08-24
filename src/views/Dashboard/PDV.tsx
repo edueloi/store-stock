@@ -1672,7 +1672,7 @@ export default function PDV() {
 
         {/* Scanner status — centro (some durante o pagamento e em telas pequenas, sem leitor físico) */}
         {!(pdvStep === "payment" && showCheckout) && (
-          <div className="hidden lg:flex flex-1 justify-center px-6">
+          <div className="hidden lg:flex flex-1 min-w-0 justify-center px-2 2xl:px-6 shrink">
             <div className={cn(
               "flex items-center gap-2 px-3 h-7 rounded-xl border text-[10px] font-bold uppercase tracking-widest transition-all duration-300",
               scanFeedback === "ok"  ? "bg-emerald-50 border-emerald-300 text-emerald-600" :
@@ -1701,57 +1701,57 @@ export default function PDV() {
             </div>
           </div>
         ) : (
-          <div className="hidden lg:flex items-center gap-1 xl:gap-2">
+          <div className="hidden lg:flex items-center gap-1 2xl:gap-2 min-w-0 overflow-x-auto pdv-scroll-light shrink">
             {requireCashSession && cashSession && (
               <button onClick={() => setShowCloseCashModal(true)} title="Fechar Caixa"
-                className="flex items-center gap-1.5 px-2 xl:px-3 h-8 rounded-xl text-[10px] font-bold uppercase tracking-widest text-slate-500 border border-slate-200 hover:bg-emerald-50 hover:text-emerald-600 hover:border-emerald-200 transition-all shrink-0">
+                className="flex items-center gap-1.5 px-2 22xl:px-3 h-8 rounded-xl text-[10px] font-bold uppercase tracking-widest text-slate-500 border border-slate-200 hover:bg-emerald-50 hover:text-emerald-600 hover:border-emerald-200 transition-all shrink-0">
                 <Wallet size={11} />
-                <span className="hidden xl:inline">Fechar Caixa</span>
+                <span className="hidden 22xl:inline">Fechar Caixa</span>
               </button>
             )}
             <button onClick={refreshProducts} title="Atualizar produtos"
-              className="flex items-center gap-1.5 px-2 xl:px-3 h-8 rounded-xl text-[10px] font-bold uppercase tracking-widest text-slate-500 border border-slate-200 hover:bg-slate-50 hover:text-slate-700 transition-all shrink-0">
+              className="flex items-center gap-1.5 px-2 2xl:px-3 h-8 rounded-xl text-[10px] font-bold uppercase tracking-widest text-slate-500 border border-slate-200 hover:bg-slate-50 hover:text-slate-700 transition-all shrink-0">
               <RefreshCw size={11} className={loading ? "animate-spin" : ""} />
-              <span className="hidden xl:inline">Atualizar</span>
+              <span className="hidden 2xl:inline">Atualizar</span>
             </button>
             <button onClick={() => { setShowRightPanel(!showRightPanel); if (!showRightPanel) fetchRecentOrders(); }}
               title="Pedidos Recentes"
               className={cn(
-                "flex items-center gap-1.5 px-2 xl:px-3 h-8 rounded-xl text-[10px] font-bold uppercase tracking-widest border transition-all shrink-0",
+                "flex items-center gap-1.5 px-2 2xl:px-3 h-8 rounded-xl text-[10px] font-bold uppercase tracking-widest border transition-all shrink-0",
                 showRightPanel
                   ? "bg-slate-900 border-slate-900 text-white"
                   : "text-slate-500 border-slate-200 hover:bg-slate-50 hover:text-slate-700"
               )}>
               <Receipt size={11} />
-              <span className="hidden xl:inline">Recentes</span>
+              <span className="hidden 2xl:inline">Recentes</span>
             </button>
             <button onClick={() => window.open("/pdv", "_blank", "noopener,noreferrer")}
               title="Abrir PDV Externo"
-              className="flex items-center gap-1.5 px-2 xl:px-3 h-8 rounded-xl text-[10px] font-bold uppercase tracking-widest text-white border border-blue-600 transition-all shadow shrink-0"
+              className="flex items-center gap-1.5 px-2 2xl:px-3 h-8 rounded-xl text-[10px] font-bold uppercase tracking-widest text-white border border-blue-600 transition-all shadow shrink-0"
               style={{ background: "linear-gradient(135deg,#3b82f6,#1d4ed8)" }}>
               <ExternalLink size={11} />
-              <span className="hidden xl:inline">PDV Externo</span>
+              <span className="hidden 2xl:inline">PDV Externo</span>
             </button>
             <div className="w-px h-5 bg-slate-200 mx-0.5 shrink-0" />
             <button onClick={() => setShowCrediarioModal(true)} title="Crediário (F6)"
-              className="flex items-center gap-1.5 px-2 xl:px-3 h-8 rounded-xl text-[10px] font-bold uppercase tracking-widest text-slate-500 border border-slate-200 hover:bg-amber-50 hover:text-amber-600 hover:border-amber-200 transition-all shrink-0">
+              className="flex items-center gap-1.5 px-2 2xl:px-3 h-8 rounded-xl text-[10px] font-bold uppercase tracking-widest text-slate-500 border border-slate-200 hover:bg-amber-50 hover:text-amber-600 hover:border-amber-200 transition-all shrink-0">
               <Wallet size={11} />
-              <span className="hidden xl:inline">Crediário</span>
+              <span className="hidden 2xl:inline">Crediário</span>
             </button>
             <button onClick={() => setShowCustomerLookup(true)} title="Consultar Cliente (F7)"
-              className="flex items-center gap-1.5 px-2 xl:px-3 h-8 rounded-xl text-[10px] font-bold uppercase tracking-widest text-slate-500 border border-slate-200 hover:bg-blue-50 hover:text-blue-600 hover:border-blue-200 transition-all shrink-0">
+              className="flex items-center gap-1.5 px-2 2xl:px-3 h-8 rounded-xl text-[10px] font-bold uppercase tracking-widest text-slate-500 border border-slate-200 hover:bg-blue-50 hover:text-blue-600 hover:border-blue-200 transition-all shrink-0">
               <User size={11} />
-              <span className="hidden xl:inline">Cliente</span>
+              <span className="hidden 2xl:inline">Cliente</span>
             </button>
             <button onClick={() => setShowConsignmentLookup(true)} title="Consultar Consignado (F8)"
-              className="flex items-center gap-1.5 px-2 xl:px-3 h-8 rounded-xl text-[10px] font-bold uppercase tracking-widest text-slate-500 border border-slate-200 hover:bg-violet-50 hover:text-violet-600 hover:border-violet-200 transition-all shrink-0">
+              className="flex items-center gap-1.5 px-2 2xl:px-3 h-8 rounded-xl text-[10px] font-bold uppercase tracking-widest text-slate-500 border border-slate-200 hover:bg-violet-50 hover:text-violet-600 hover:border-violet-200 transition-all shrink-0">
               <ShoppingBag size={11} />
-              <span className="hidden xl:inline">Consignado</span>
+              <span className="hidden 2xl:inline">Consignado</span>
             </button>
             <button onClick={() => setShowHeldSalesDrawer(true)} title="Vendas Abertas"
-              className="relative flex items-center gap-1.5 px-2 xl:px-3 h-8 rounded-xl text-[10px] font-bold uppercase tracking-widest text-slate-500 border border-slate-200 hover:bg-amber-50 hover:text-amber-600 hover:border-amber-200 transition-all shrink-0">
+              className="relative flex items-center gap-1.5 px-2 2xl:px-3 h-8 rounded-xl text-[10px] font-bold uppercase tracking-widest text-slate-500 border border-slate-200 hover:bg-amber-50 hover:text-amber-600 hover:border-amber-200 transition-all shrink-0">
               <Clock size={11} />
-              <span className="hidden xl:inline">Vendas Abertas</span>
+              <span className="hidden 2xl:inline">Vendas Abertas</span>
               {openHeldSalesCount > 0 && (
                 <span className="absolute -top-1.5 -right-1.5 min-w-[16px] h-[16px] px-1 rounded-full bg-amber-500 text-white text-[9px] font-black flex items-center justify-center leading-none">
                   {openHeldSalesCount > 99 ? "99+" : openHeldSalesCount}
