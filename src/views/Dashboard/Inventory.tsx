@@ -3,7 +3,7 @@ import {
   Plus, Edit2, Trash2, Image as ImageIcon, Save, X, Package,
   TrendingUp, Upload, LayoutGrid, List, Tag, Search, AlertTriangle,
   Star, ChevronLeft, ChevronRight, GripVertical, Zap, ArrowUpDown, FileUp, CheckSquare,
-  History, ArrowRight, Loader2, ArrowUp, ArrowDown, SlidersHorizontal,
+  History, ArrowRight, Loader2, ArrowUp, ArrowDown, SlidersHorizontal, Camera,
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { cn } from "../../lib/utils";
@@ -91,6 +91,7 @@ interface GalleryUploaderProps {
 
 function GalleryUploader({ images, onChange }: GalleryUploaderProps) {
   const inputRef = useRef<HTMLInputElement>(null);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
   const [dragging, setDragging] = useState(false);
   const [selected, setSelected] = useState(0);
@@ -158,9 +159,14 @@ function GalleryUploader({ images, onChange }: GalleryUploaderProps) {
           Fotos do Produto <span className="text-slate-400 normal-case font-normal">({images.length}/10)</span>
         </label>
         {images.length > 0 && (
-          <button type="button" onClick={() => inputRef.current?.click()} className="text-[10px] font-bold text-blue-600 hover:text-blue-800 flex items-center gap-1">
-            <Plus size={10} /> Adicionar foto
-          </button>
+          <div className="flex items-center gap-3">
+            <button type="button" onClick={() => cameraInputRef.current?.click()} className="text-[10px] font-bold text-blue-600 hover:text-blue-800 flex items-center gap-1">
+              <Camera size={10} /> Tirar foto
+            </button>
+            <button type="button" onClick={() => inputRef.current?.click()} className="text-[10px] font-bold text-blue-600 hover:text-blue-800 flex items-center gap-1">
+              <Plus size={10} /> Adicionar foto
+            </button>
+          </div>
         )}
       </div>
 
@@ -194,10 +200,9 @@ function GalleryUploader({ images, onChange }: GalleryUploaderProps) {
             onDragOver={e => { e.preventDefault(); setDragging(true); }}
             onDragLeave={() => setDragging(false)}
             onDrop={handleDrop}
-            onClick={() => inputRef.current?.click()}
             className={cn(
-              "w-full h-full flex flex-col items-center justify-center gap-2 cursor-pointer transition-all",
-              dragging ? "bg-blue-50" : "hover:bg-slate-100/80"
+              "w-full h-full flex flex-col items-center justify-center gap-2 transition-all",
+              dragging ? "bg-blue-50" : ""
             )}
           >
             {uploading ? (
@@ -208,8 +213,18 @@ function GalleryUploader({ images, onChange }: GalleryUploaderProps) {
                   <Upload size={20} className={dragging ? "text-blue-500" : "text-slate-300"} />
                 </div>
                 <div className="text-center">
-                  <p className="text-xs font-semibold text-slate-500">Arraste ou clique para adicionar fotos</p>
+                  <p className="text-xs font-semibold text-slate-500">Arraste ou escolha uma opção pra adicionar fotos</p>
                   <p className="text-[10px] text-slate-400 mt-0.5">JPG, PNG, WEBP · max 5 MB · até 10 fotos</p>
+                </div>
+                <div className="flex items-center gap-2 mt-1">
+                  <button type="button" onClick={() => inputRef.current?.click()}
+                    className="flex items-center gap-1.5 h-8 px-3 rounded-lg bg-white border border-slate-200 text-[10px] font-bold text-slate-600 hover:border-blue-300 hover:text-blue-600 transition-all shadow-sm">
+                    <ImageIcon size={12} /> Galeria
+                  </button>
+                  <button type="button" onClick={() => cameraInputRef.current?.click()}
+                    className="flex items-center gap-1.5 h-8 px-3 rounded-lg bg-white border border-slate-200 text-[10px] font-bold text-slate-600 hover:border-blue-300 hover:text-blue-600 transition-all shadow-sm">
+                    <Camera size={12} /> Tirar foto
+                  </button>
                 </div>
               </>
             )}
@@ -269,6 +284,7 @@ function GalleryUploader({ images, onChange }: GalleryUploaderProps) {
       )}
 
       <input ref={inputRef} type="file" accept="image/*" multiple className="hidden" onChange={e => { if (e.target.files) doUpload(e.target.files); e.target.value = ""; }} />
+      <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={e => { if (e.target.files) doUpload(e.target.files); e.target.value = ""; }} />
       <p className="text-[9px] text-slate-400 px-1">A primeira foto é a capa. Arraste as miniaturas para reordenar.</p>
     </div>
   );
