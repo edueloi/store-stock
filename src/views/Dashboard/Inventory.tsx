@@ -3,7 +3,7 @@ import {
   Plus, Edit2, Trash2, Image as ImageIcon, Save, X, Package,
   TrendingUp, Upload, LayoutGrid, List, Tag, Search, AlertTriangle,
   Star, ChevronLeft, ChevronRight, GripVertical, Zap, ArrowUpDown, FileUp, CheckSquare,
-  History, ArrowRight, Loader2, ArrowUp, ArrowDown, SlidersHorizontal, Camera,
+  History, ArrowRight, Loader2, ArrowUp, ArrowDown, SlidersHorizontal, Camera, FileCode,
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { cn } from "../../lib/utils";
@@ -17,6 +17,7 @@ import { Switch } from "../../components/ui/Switch";
 import ConfirmDialog from "../../components/ui/ConfirmDialog";
 import { DropdownMenu } from "../../components/ui/Dropdown";
 import PdfImportModal from "../../components/ui/PdfImportModal";
+import XmlImportModal from "../../components/ui/XmlImportModal";
 import { useToast } from "../../components/ui/Toast";
 
 // ── helpers ────────────────────────────────────────────────────────────────
@@ -178,17 +179,19 @@ function GalleryUploader({ images, onChange }: GalleryUploaderProps) {
             {images.length > 1 && (
               <>
                 <button type="button" onClick={() => setSelected(i => (i - 1 + images.length) % images.length)}
-                  className="absolute left-2 top-1/2 -translate-y-1/2 w-7 h-7 bg-white/90 rounded-full flex items-center justify-center shadow hover:bg-white transition-all opacity-0 group-hover:opacity-100">
+                  className="absolute left-2 top-1/2 -translate-y-1/2 w-7 h-7 bg-white/90 rounded-full flex items-center justify-center shadow hover:bg-white transition-all">
                   <ChevronLeft size={13} />
                 </button>
                 <button type="button" onClick={() => setSelected(i => (i + 1) % images.length)}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 w-7 h-7 bg-white/90 rounded-full flex items-center justify-center shadow hover:bg-white transition-all opacity-0 group-hover:opacity-100">
+                  className="absolute right-2 top-1/2 -translate-y-1/2 w-7 h-7 bg-white/90 rounded-full flex items-center justify-center shadow hover:bg-white transition-all">
                   <ChevronRight size={13} />
                 </button>
               </>
             )}
+            {/* Sem group-hover: em touch (celular/tablet) não existe hover, então o X
+                ficaria invisível/impossível de tocar — sempre visível em qualquer tela. */}
             <button type="button" onClick={() => removeImage(selected)}
-              className="absolute top-2 right-2 w-6 h-6 bg-red-500 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity shadow">
+              className="absolute top-2 right-2 w-6 h-6 bg-red-500 text-white rounded-full flex items-center justify-center shadow hover:bg-red-600 transition-colors">
               <X size={10} strokeWidth={3} />
             </button>
             <div className="absolute bottom-2 right-2 bg-black/50 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full">
@@ -262,7 +265,7 @@ function GalleryUploader({ images, onChange }: GalleryUploaderProps) {
               <button
                 type="button"
                 onClick={e => { e.stopPropagation(); removeImage(i); }}
-                className="absolute top-0.5 right-0.5 w-4 h-4 bg-red-500 text-white rounded-full items-center justify-center hidden group-hover/thumb:flex shadow"
+                className="absolute top-0.5 right-0.5 w-4 h-4 bg-red-500 text-white rounded-full flex items-center justify-center shadow"
               >
                 <X size={8} strokeWidth={3} />
               </button>
@@ -331,6 +334,7 @@ export default function Inventory() {
   const [showPresets, setShowPresets] = useState(false);
 
   const [isPdfModalOpen, setIsPdfModalOpen] = useState(false);
+  const [isXmlModalOpen, setIsXmlModalOpen] = useState(false);
 
   // ── bulk selection ──────────────────────────────────────────────────
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
@@ -660,6 +664,9 @@ export default function Inventory() {
             </Button>
             <Button variant="secondary" icon={<FileUp size={14} />} onClick={() => setIsPdfModalOpen(true)}>
               Importar PDF
+            </Button>
+            <Button variant="secondary" icon={<FileCode size={14} />} onClick={() => setIsXmlModalOpen(true)}>
+              Importar XML
             </Button>
             <Button icon={<Plus size={14} />} onClick={openNew}>
               Novo Produto
@@ -1630,6 +1637,12 @@ export default function Inventory() {
       <PdfImportModal
         open={isPdfModalOpen}
         onClose={() => setIsPdfModalOpen(false)}
+        onImported={() => { fetchInventory(); }}
+      />
+
+      <XmlImportModal
+        open={isXmlModalOpen}
+        onClose={() => setIsXmlModalOpen(false)}
         onImported={() => { fetchInventory(); }}
       />
     </div>
