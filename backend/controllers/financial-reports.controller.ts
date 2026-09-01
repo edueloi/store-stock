@@ -20,14 +20,19 @@ interface CostItem {
   source: "financeiro" | "contas_pagar";
 }
 
+interface EntradasBucket {
+  byOperator: Record<string, Record<PmKey, number>>;
+  totalByMethod: Record<PmKey, number>;
+  total: number;
+}
+
 interface MonthReport {
   year: number;
   month: number; // 0-based
-  entradas: {
-    byOperator: Record<string, Record<PmKey, number>>;
-    totalByMethod: Record<PmKey, number>;
-    total: number;
-  };
+  entradas: EntradasBucket;
+  // Mesma estrutura de `entradas`, só que uma por dia do mês (chave = dia 1-31) —
+  // permite a visão "Dia" sem precisar de outra ida ao banco.
+  entradasByDay: Record<number, EntradasBucket>;
   custoFixo: { total: number; items: CostItem[] };
   custoVariavel: { total: number; items: CostItem[] };
 }
@@ -36,14 +41,26 @@ function emptyPmTotals(): Record<PmKey, number> {
   return { money: 0, pix: 0, debit: 0, credit: 0 };
 }
 
+function emptyEntradasBucket(): EntradasBucket {
+  return { byOperator: {}, totalByMethod: emptyPmTotals(), total: 0 };
+}
+
 function emptyMonth(year: number, month: number): MonthReport {
   return {
     year,
     month,
-    entradas: { byOperator: {}, totalByMethod: emptyPmTotals(), total: 0 },
+    entradas: emptyEntradasBucket(),
+    entradasByDay: {},
     custoFixo: { total: 0, items: [] },
     custoVariavel: { total: 0, items: [] },
   };
+}
+
+function addEntry(bucket: EntradasBucket, operator: string, key: PmKey, amt: number) {
+  if (!bucket.byOperator[operator]) bucket.byOperator[operator] = emptyPmTotals();
+  bucket.byOperator[operator][key] += amt;
+  bucket.totalByMethod[key] += amt;
+  bucket.total += amt;
 }
 
 // Busca e monta o relatório do ano inteiro numa passada só (em vez de 12 idas ao banco) —
@@ -82,17 +99,17 @@ export async function getYearlyFinancialReport(req: Request, res: Response) {
     const sellerByOrder = new Map(orders.map(o => [o.id, o.seller_name || "Geral"]));
 
     for (const entry of incomeEntries) {
-      const m = new Date(entry.date).getUTCMonth();
+      const entryDate = new Date(entry.date);
+      const m = entryDate.getUTCMonth();
+      const day = entryDate.getUTCDate();
       const operator = entry.order_id != null ? (sellerByOrder.get(entry.order_id) ?? "Geral") : "Geral";
       const segs = parsePaymentMethod(entry.payment_method || "money");
-      const bucket = months[m].entradas;
-      if (!bucket.byOperator[operator]) bucket.byOperator[operator] = emptyPmTotals();
+      if (!months[m].entradasByDay[day]) months[m].entradasByDay[day] = emptyEntradasBucket();
       for (const seg of segs) {
         const key = pmKey(seg.method);
         const amt = seg.amount > 0 ? seg.amount : Number(entry.amount);
-        bucket.byOperator[operator][key] += amt;
-        bucket.totalByMethod[key] += amt;
-        bucket.total += amt;
+        addEntry(months[m].entradas, operator, key, amt);
+        addEntry(months[m].entradasByDay[day], operator, key, amt);
       }
     }
 
