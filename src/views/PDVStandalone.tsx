@@ -263,6 +263,7 @@ export default function PDVStandalone() {
   const [discardTarget, setDiscardTarget] = useState<PendingSale | null>(null);
   const [showCartMobile, setShowCartMobile] = useState(false);
   const [showCheckoutModal, setShowCheckoutModal] = useState(false);
+  const [showCancelSaleConfirm, setShowCancelSaleConfirm] = useState(false);
   // Etapa de tela cheia (substitui a área principal, sem overlay) em vez de
   // modal sobreposto — "cart" = grade de produtos/carrinho, "payment" = pagamento.
   const [pdvStep, setPdvStep] = useState<"cart" | "payment">("cart");
@@ -1073,12 +1074,14 @@ export default function PDVStandalone() {
   // Cancela a venda em andamento: limpa carrinho/cliente/pagamentos e volta pra grade.
   // Se o carrinho veio de uma venda em espera retomada, cancela ela de verdade no
   // servidor (devolve o estoque reservado) — senão a reserva ficaria presa pra sempre.
-  const cancelSale = async () => {
+  const cancelSale = () => {
     if (finishing) return;
-    const msg = activeHeldSaleId
-      ? "Cancelar esta venda? Os itens do carrinho serão descartados e o estoque reservado na venda em espera será devolvido."
-      : "Cancelar esta venda? Os itens do carrinho serão descartados.";
-    if (!window.confirm(msg)) return;
+    setShowCancelSaleConfirm(true);
+  };
+
+  const confirmCancelSale = async () => {
+    if (finishing) return;
+    setShowCancelSaleConfirm(false);
     if (activeHeldSaleId && token) {
       try { await cancelHeldSale(token, activeHeldSaleId); } catch (err) { console.error(err); }
       getOpenHeldSalesCount(token).then(setOpenHeldSalesCount).catch(() => {});
@@ -1845,7 +1848,7 @@ ${sale.change > 0 ? `<hr class="divider"/><div class="row bold"><span>Troco:</sp
     <div className="h-screen flex flex-col overflow-hidden font-sans bg-slate-100">
 
       {/* ── Top Bar ──────────────────────────────────────────────────────────── */}
-      <header className="h-14 flex items-center justify-between px-3 sm:px-5 shrink-0 bg-white border-b border-slate-200 shadow-sm gap-2">
+      <header className="h-14 flex items-center justify-between px-2.5 sm:px-4 shrink-0 bg-white border-b border-slate-200 shadow-sm gap-2">
 
         {/* Logo + nome */}
         <div className="flex items-center gap-2 sm:gap-3 min-w-0">
@@ -1880,7 +1883,7 @@ ${sale.change > 0 ? `<hr class="divider"/><div class="row bold"><span>Troco:</sp
 
         {/* Scanner status — centro (oculto em telas pequenas ou durante o pagamento) */}
         {!(pdvStep === "payment" && showCheckoutModal) && (
-          <div className="hidden md:flex flex-1 justify-center px-6">
+          <div className="hidden 2xl:flex flex-1 justify-center px-4">
             <div className={cn(
               "flex items-center gap-2 px-3.5 h-7 rounded-full border text-[10px] font-black uppercase tracking-widest transition-all duration-300",
               scanFeedback === "ok"
@@ -1909,7 +1912,7 @@ ${sale.change > 0 ? `<hr class="divider"/><div class="row bold"><span>Troco:</sp
             </div>
           </div>
         ) : (
-        <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+        <div className="flex items-center gap-1 sm:gap-1.5 min-w-0 overflow-x-auto pdv-scroll-light shrink pr-2">
           {/* Offline status / pending sales */}
           {!isOnline && (
             <span className="flex items-center gap-1.5 px-2 sm:px-3 h-8 rounded-full text-[10px] font-black uppercase tracking-widest text-amber-700 border border-amber-300 bg-amber-50">
@@ -1935,30 +1938,30 @@ ${sale.change > 0 ? `<hr class="divider"/><div class="row bold"><span>Troco:</sp
             <button onClick={() => setShowCloseCashModal(true)}
               disabled={!isOnline}
               title={isOnline ? "Fechar Caixa" : "Requer conexão com a internet"}
-              className="flex items-center gap-1.5 px-3 h-8 rounded-full text-[10px] font-black uppercase tracking-widest text-slate-500 border border-slate-200 hover:bg-emerald-50 hover:text-emerald-600 hover:border-emerald-200 transition-all disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-slate-500">
+              className="flex items-center gap-1.5 px-2.5 h-8 rounded-lg text-[10px] font-bold text-slate-500 border border-slate-200 hover:bg-emerald-50 hover:text-emerald-600 hover:border-emerald-200 transition-all disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-slate-500">
               <Wallet size={11} />
-              <span className="hidden sm:block">Fechar Caixa</span>
+              <span className="hidden 2xl:block">Fechar caixa</span>
             </button>
           )}
           <button onClick={() => setShowCrediarioModal(true)} title="Crediário (F6)"
-            className="flex items-center gap-1.5 px-3 h-8 rounded-full text-[10px] font-black uppercase tracking-widest text-slate-500 border border-slate-200 hover:bg-amber-50 hover:text-amber-600 hover:border-amber-200 transition-all">
+            className="flex items-center gap-1.5 px-2.5 h-8 rounded-lg text-[10px] font-bold text-slate-500 border border-slate-200 hover:bg-amber-50 hover:text-amber-600 hover:border-amber-200 transition-all">
             <Wallet size={11} />
-            <span className="hidden sm:block">Crediário</span>
+            <span className="hidden xl:block">Crediário</span>
           </button>
           <button onClick={() => setShowCustomerLookup(true)} title="Consultar Cliente (F7)"
-            className="flex items-center gap-1.5 px-3 h-8 rounded-full text-[10px] font-black uppercase tracking-widest text-slate-500 border border-slate-200 hover:bg-blue-50 hover:text-blue-600 hover:border-blue-200 transition-all">
+            className="flex items-center gap-1.5 px-2.5 h-8 rounded-lg text-[10px] font-bold text-slate-500 border border-slate-200 hover:bg-blue-50 hover:text-blue-600 hover:border-blue-200 transition-all">
             <User size={11} />
-            <span className="hidden sm:block">Cliente</span>
+            <span className="hidden xl:block">Cliente</span>
           </button>
           <button onClick={() => setShowConsignmentLookup(true)} title="Consultar Consignado (F8)"
-            className="flex items-center gap-1.5 px-3 h-8 rounded-full text-[10px] font-black uppercase tracking-widest text-slate-500 border border-slate-200 hover:bg-violet-50 hover:text-violet-600 hover:border-violet-200 transition-all">
+            className="flex items-center gap-1.5 px-2.5 h-8 rounded-lg text-[10px] font-bold text-slate-500 border border-slate-200 hover:bg-violet-50 hover:text-violet-600 hover:border-violet-200 transition-all">
             <ShoppingBag size={11} />
-            <span className="hidden sm:block">Consignado</span>
+            <span className="hidden 2xl:block">Consignado</span>
           </button>
           <button onClick={() => setShowHeldSalesDrawer(true)} title="Vendas Abertas"
-            className="relative flex items-center gap-1.5 px-3 h-8 rounded-full text-[10px] font-black uppercase tracking-widest text-slate-500 border border-slate-200 hover:bg-amber-50 hover:text-amber-600 hover:border-amber-200 transition-all">
+            className="relative flex items-center gap-1.5 px-2.5 h-8 rounded-lg text-[10px] font-bold text-slate-500 border border-slate-200 hover:bg-amber-50 hover:text-amber-600 hover:border-amber-200 transition-all">
             <Clock size={11} />
-            <span className="hidden sm:block">Vendas Abertas</span>
+            <span className="hidden 2xl:block">Vendas abertas</span>
             {openHeldSalesCount > 0 && (
               <span className="absolute -top-1.5 -right-1.5 min-w-[16px] h-[16px] px-1 rounded-full bg-amber-500 text-white text-[9px] font-black flex items-center justify-center leading-none">
                 {openHeldSalesCount > 99 ? "99+" : openHeldSalesCount}
@@ -1967,7 +1970,7 @@ ${sale.change > 0 ? `<hr class="divider"/><div class="row bold"><span>Troco:</sp
           </button>
           {/* Fullscreen toggle */}
           <button onClick={toggleFullscreen} title={isFullscreen ? "Sair de tela cheia" : "Tela cheia"}
-            className="hidden sm:flex items-center gap-1.5 px-3 h-8 rounded-full text-[10px] font-black uppercase tracking-widest text-slate-500 border border-slate-200 hover:bg-slate-50 hover:text-slate-700 transition-all">
+            className="hidden xl:flex items-center gap-1.5 px-2.5 h-8 rounded-full text-[10px] font-black uppercase tracking-widest text-slate-500 border border-slate-200 hover:bg-slate-50 hover:text-slate-700 transition-all">
             {isFullscreen ? <Minimize2 size={11} /> : <Maximize2 size={11} />}
             {isFullscreen ? "Sair" : "Tela Cheia"}
           </button>
@@ -1975,12 +1978,12 @@ ${sale.change > 0 ? `<hr class="divider"/><div class="row bold"><span>Troco:</sp
           {/* Instalar PWA */}
           {!pwaInstalled && (installPrompt || isSafari || isIos) && (
             <button onClick={handleInstallPwa} title="Instalar App"
-              className="flex items-center gap-1.5 px-2 sm:px-3 h-8 rounded-full text-[10px] font-black uppercase tracking-widest text-blue-600 border border-blue-200 bg-blue-50 hover:bg-blue-100 transition-all">
-              <Download size={11} /> <span className="hidden sm:inline">Instalar App</span>
+              className="flex items-center gap-1.5 px-2 sm:px-2.5 h-8 rounded-full text-[10px] font-black uppercase tracking-widest text-blue-600 border border-blue-200 bg-blue-50 hover:bg-blue-100 transition-all">
+              <Download size={11} /> <span className="hidden 2xl:inline">Instalar App</span>
             </button>
           )}
           {pwaInstalled && (
-            <span className="hidden sm:flex items-center gap-1.5 px-3 h-8 rounded-full text-[10px] font-black uppercase tracking-widest text-white bg-gradient-to-r from-blue-600 to-blue-700 shadow-sm shadow-blue-200">
+            <span className="hidden 2xl:flex items-center gap-1.5 px-3 h-8 rounded-full text-[10px] font-black uppercase tracking-widest text-white bg-gradient-to-r from-blue-600 to-blue-700 shadow-sm shadow-blue-200">
               <CheckCircle2 size={11} /> Instalado
             </span>
           )}
@@ -2104,7 +2107,7 @@ ${sale.change > 0 ? `<hr class="divider"/><div class="row bold"><span>Troco:</sp
       <div className="flex-1 flex overflow-hidden">
 
         {/* ── Produtos ─────────────────────────────────────────────────────── */}
-        <div className="flex-1 flex flex-col gap-3 overflow-hidden p-5 bg-[#edf2f7]">
+        <div className="flex-1 flex flex-col gap-2.5 overflow-hidden p-3 sm:p-4 bg-[#eef2f6]">
 
           {/* Barra de busca */}
           <div className="flex gap-2 items-center">
@@ -2121,7 +2124,7 @@ ${sale.change > 0 ? `<hr class="divider"/><div class="row bold"><span>Troco:</sp
               Usar Código de Barras
             </button>
             <button onClick={() => setShowCartMobile(true)}
-              className="lg:hidden relative h-10 px-4 rounded-xl flex items-center gap-2 text-[11px] font-black text-white shadow"
+              className="xl:hidden relative h-10 px-3 sm:px-4 rounded-xl flex items-center gap-2 text-[10px] font-black text-white shadow"
               style={{ background: "linear-gradient(135deg, #3b82f6, #1d4ed8)" }}>
               <ShoppingCart size={14} />
               {cartQty > 0 && (
@@ -2194,7 +2197,7 @@ ${sale.change > 0 ? `<hr class="divider"/><div class="row bold"><span>Troco:</sp
                   <p className="text-[11px] font-black uppercase tracking-widest text-slate-400">Nenhum serviço cadastrado</p>
                 </div>
               ) : (
-                <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-2.5">
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 2xl:grid-cols-5 gap-2 sm:gap-2.5">
                   {services.map((svc) => {
                     const inCart = cartServices.some((s) => s.id === svc.id);
                     const catMeta = SERVICE_CATEGORIES.find((c) => c.value === svc.category) ?? SERVICE_CATEGORIES[SERVICE_CATEGORIES.length - 1];
@@ -2275,7 +2278,7 @@ ${sale.change > 0 ? `<hr class="divider"/><div class="row bold"><span>Troco:</sp
                 <p className="text-[11px] font-black uppercase tracking-widest text-slate-400">Nenhum produto encontrado</p>
               </div>
             ) : viewMode === "list" ? (
-              <div className="grid grid-cols-1 lg:grid-cols-2 2xl:grid-cols-3 gap-2">
+              <div className="grid grid-cols-1 lg:grid-cols-2 2xl:grid-cols-3 gap-1.5 sm:gap-2">
                 {filteredProducts.map((product) => {
                   const qtyInCart = cart.filter((i) => i.id === product.id).reduce((a, b) => a + b.quantity, 0);
                   const hasVariations = (Array.isArray(product.attributes) && product.attributes.length > 0) ||
@@ -2296,7 +2299,9 @@ ${sale.change > 0 ? `<hr class="divider"/><div class="row bold"><span>Troco:</sp
                           ? <img src={product.image_url} alt={product.name} className="object-contain w-full h-full p-0.5" />
                           : <Package size={18} className="text-slate-300" />}
                         {qtyInCart > 0 && (
-                          <span className="absolute -top-1 -left-1 w-4.5 h-4.5 min-w-[18px] rounded-full flex items-center justify-center text-[9px] font-black text-white shadow"
+                          <span
+                            title={`${qtyInCart} ${qtyInCart === 1 ? "unidade adicionada" : "unidades adicionadas"}`}
+                            className="absolute top-1 left-1 min-w-5 h-5 px-1 rounded-md flex items-center justify-center text-[9px] leading-none font-black text-white shadow-md ring-2 ring-white"
                             style={{ background: "linear-gradient(135deg,#3b82f6,#1d4ed8)" }}>
                             {qtyInCart}
                           </span>
@@ -2336,7 +2341,7 @@ ${sale.change > 0 ? `<hr class="divider"/><div class="row bold"><span>Troco:</sp
                 })}
               </div>
             ) : (
-              <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-2.5">
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 2xl:grid-cols-5 gap-2 sm:gap-2.5">
                 {filteredProducts.map((product) => {
                   const qtyInCart = cart.filter((i) => i.id === product.id).reduce((a, b) => a + b.quantity, 0);
                   const hasVariations = (Array.isArray(product.attributes) && product.attributes.length > 0) ||
@@ -2346,14 +2351,14 @@ ${sale.change > 0 ? `<hr class="divider"/><div class="row bold"><span>Troco:</sp
                       onClick={() => addToCart(product)}
                       whileTap={{ scale: 0.97 }}
                       className={cn(
-                        "bg-white rounded-2xl border flex flex-col items-start group relative text-left overflow-hidden transition-all duration-200",
+                        "bg-white rounded-xl border flex flex-col items-start group relative text-left overflow-hidden transition-all duration-200",
                         qtyInCart > 0
                           ? "cursor-pointer border-blue-400 shadow-md shadow-blue-100"
                           : "cursor-pointer border-slate-200 hover:border-blue-300 hover:shadow-md hover:shadow-blue-50"
                       )}>
 
                       {/* Imagem */}
-                      <div className="w-full aspect-[4/3] overflow-hidden relative flex items-center justify-center bg-slate-50">
+                      <div className="w-full aspect-[16/10] overflow-hidden relative flex items-center justify-center bg-slate-50">
                         {product.image_url
                           ? <img src={product.image_url} alt={product.name} className="object-contain w-full h-full group-hover:scale-105 transition-transform duration-500 p-1" />
                           : <div className="w-full h-full flex items-center justify-center"><Package size={24} className="text-slate-300" /></div>}
@@ -2392,7 +2397,7 @@ ${sale.change > 0 ? `<hr class="divider"/><div class="row bold"><span>Troco:</sp
                       </div>
 
                       {/* Info */}
-                      <div className="p-2.5 w-full">
+                      <div className="px-2.5 py-2 w-full">
                         <p className="text-[11px] font-black text-slate-700 uppercase leading-tight line-clamp-2 mb-0.5 min-h-[2.2em]">{product.name}</p>
                         {product.barcode && (
                           <p className="text-[9px] font-mono text-slate-400 mb-1">{product.barcode}</p>
@@ -2420,7 +2425,7 @@ ${sale.change > 0 ? `<hr class="divider"/><div class="row bold"><span>Troco:</sp
         </div>
 
         {/* ── Carrinho Desktop ──────────────────────────────────────────────── */}
-        <div className="hidden lg:flex w-[390px] flex-col overflow-hidden shrink-0 border-l border-slate-200 bg-white shadow-[-8px_0_24px_rgba(15,23,42,0.05)]">
+        <aside className="hidden xl:flex w-[clamp(340px,28vw,400px)] flex-col overflow-hidden shrink-0 border-l border-slate-200 bg-white shadow-[-8px_0_24px_rgba(15,23,42,0.05)]">
           <CartPanel
             cart={cart}
             updateQuantity={updateQuantity}
@@ -2441,7 +2446,7 @@ ${sale.change > 0 ? `<hr class="divider"/><div class="row bold"><span>Troco:</sp
             canHold={isOnline && (cart.length > 0 || cartServices.length > 0)}
             onClear={cancelSale}
           />
-        </div>
+        </aside>
       </div>
       )}
 
@@ -2820,11 +2825,11 @@ ${sale.change > 0 ? `<hr class="divider"/><div class="row bold"><span>Troco:</sp
           <>
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
               onClick={() => setShowCartMobile(false)}
-              className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-[150] lg:hidden" />
+              className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-[150] xl:hidden" />
             <motion.div
               initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }}
               transition={{ type: "spring", damping: 25, stiffness: 200 }}
-              className="fixed inset-x-0 bottom-0 h-[92vh] bg-white rounded-t-[28px] shadow-2xl z-[151] lg:hidden flex flex-col overflow-hidden border-t border-slate-200">
+              className="fixed inset-x-0 bottom-0 h-[92vh] bg-white rounded-t-[24px] shadow-2xl z-[151] xl:hidden flex flex-col overflow-hidden border-t border-slate-200">
               <div className="w-12 h-1.5 bg-slate-200 rounded-full mx-auto my-4 shrink-0" />
               <div className="flex-1 overflow-hidden flex flex-col">
                 <CartPanel
@@ -2862,15 +2867,15 @@ ${sale.change > 0 ? `<hr class="divider"/><div class="row bold"><span>Troco:</sp
               {/* No celular vira uma única página rolável (mesma correção do PDV interno) —
                   antes cada coluna tinha seu próprio scroll interno, e empilhadas
                   verticalmente isso parecia duas telas presas uma embaixo da outra. */}
-              <div className="flex-1 flex flex-col sm:flex-row overflow-y-auto sm:overflow-hidden">
+              <div className="flex-1 flex flex-col lg:flex-row overflow-y-auto lg:overflow-hidden">
 
                 {/* COLUNA ESQUERDA */}
-                <div className="w-full sm:w-[460px] xl:w-[min(40%,560px)] shrink-0 flex flex-col border-b sm:border-b-0 sm:border-r border-slate-200 bg-white sm:max-h-none shadow-[10px_0_30px_rgba(15,23,42,0.06)]">
+                <aside className="w-full lg:w-[400px] xl:w-[420px] 2xl:w-[440px] shrink-0 flex flex-col lg:overflow-y-auto pdv-scroll-light border-b lg:border-b-0 lg:border-r border-slate-200 bg-white shadow-[8px_0_24px_rgba(15,23,42,0.05)]">
 
                   {/* Itens do pedido — só esta área rola; Cliente/Vendedor/Desconto
                       abaixo fica sempre visível, fixo, sem precisar rolar a página
                       inteira pra achar o campo de cliente. */}
-                  <div className="p-5 border-b border-slate-200 sm:flex-1 sm:min-h-0 sm:overflow-y-auto pdv-scroll-light">
+                  <div className="p-4 border-b border-slate-200 shrink-0">
                     <div className="flex items-center justify-between mb-3">
                       <div>
                         <p className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400">Pedido atual</p>
@@ -2962,7 +2967,7 @@ ${sale.change > 0 ? `<hr class="divider"/><div class="row bold"><span>Troco:</sp
                   </div>
 
                   {/* Cliente + Vendedor + Descontos — fixo, nunca rola junto com os itens */}
-                  <div className="p-5 space-y-4 shrink-0 bg-slate-50/70">
+                  <div className="p-4 space-y-3 shrink-0 bg-slate-50/70">
                     {/* Cliente */}
                     <div>
                       <label className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400 mb-1.5 block">Cliente</label>
@@ -3192,11 +3197,11 @@ ${sale.change > 0 ? `<hr class="divider"/><div class="row bold"><span>Troco:</sp
                     )}
 
                   </div>
-                </div>
+                </aside>
 
                 {/* COLUNA DIREITA — pagamentos */}
-                <div className="flex-1 flex flex-col sm:overflow-hidden bg-[#e9eef5] min-h-0">
-                  <div className="shrink-0 flex items-center justify-between px-5 lg:px-9 py-4 bg-slate-950 text-white shadow-lg">
+                <main className="flex-1 flex flex-col lg:overflow-hidden bg-[#e9eef5] min-h-0">
+                  <div className="shrink-0 flex items-center justify-between px-4 lg:px-6 py-3 bg-slate-950 text-white shadow-lg">
                     <div className="flex items-center gap-3">
                       <div className="w-9 h-9 rounded-xl bg-blue-500/15 border border-blue-400/30 flex items-center justify-center text-blue-300"><Terminal size={17} /></div>
                       <div>
@@ -3212,12 +3217,12 @@ ${sale.change > 0 ? `<hr class="divider"/><div class="row bold"><span>Troco:</sp
                       </div>
                       <div className="text-right">
                         <p className="text-[8px] font-black uppercase tracking-[0.18em] text-slate-400">Total da venda</p>
-                        <p className="mt-0.5 text-[21px] leading-none font-mono font-black text-white">R$ {total.toFixed(2)}</p>
+                        <p className="mt-0.5 text-[19px] leading-none font-mono font-black text-white">R$ {total.toFixed(2)}</p>
                       </div>
                     </div>
                   </div>
-                  <div className="flex-1 sm:overflow-y-auto pdv-scroll-light p-4 sm:p-6 lg:px-10 lg:py-8">
-                   <div className="w-full max-w-[820px] mx-auto space-y-4">
+                  <div className="flex-1 lg:overflow-y-auto pdv-scroll-light p-3 sm:p-4 lg:p-5">
+                   <div className="w-full max-w-[1120px] mx-auto space-y-3">
 
                     {/* Label + adicionar */}
                     <div className="flex items-center justify-between mb-1">
@@ -3228,7 +3233,7 @@ ${sale.change > 0 ? `<hr class="divider"/><div class="row bold"><span>Troco:</sp
                       </button>
                     </div>
 
-                    <div className="grid grid-cols-2 gap-3 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5 rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
                       <div>
                         <label className="text-[9px] font-black uppercase tracking-[0.16em] text-slate-400 mb-1.5 block">Desconto</label>
                         <div className="flex gap-1.5">
@@ -3249,30 +3254,34 @@ ${sale.change > 0 ? `<hr class="divider"/><div class="row bold"><span>Troco:</sp
                       </div>
                     </div>
 
-                    {payments.map((p, idx) => (
-                      <PaymentRow
-                        key={p.id}
-                        payment={p}
-                        idx={idx}
-                        total={total}
-                        paidAmount={paidAmount}
-                        showRemove={payments.length > 1}
-                        cardFees={cardFees}
-                        maxInstallments={maxInstallments}
-                        passFeeByMethod={passFeeByMethod}
-                        enabledBrands={enabledBrands}
-                        onMethodChange={handleMethodChange}
-                        onUpdate={updatePayment}
-                        onRemove={removePayment}
-                        crediarioEnabled={!!selectedCustomerId}
-                        onCrediarioBlocked={() => setSaleError("Selecione um cliente para vender no crediário")}
-                        morePaymentMenuFor={morePaymentMenuFor}
-                        onToggleMoreMenu={(id) => setMorePaymentMenuFor(morePaymentMenuFor === id ? null : id)}
-                      />
-                    ))}
+                    <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_260px] xl:items-start">
+                      <div className="space-y-3 min-w-0">
+                        {payments.map((p, idx) => (
+                          <PaymentRow
+                            key={p.id}
+                            payment={p}
+                            idx={idx}
+                            total={total}
+                            paidAmount={paidAmount}
+                            showRemove={payments.length > 1}
+                            cardFees={cardFees}
+                            maxInstallments={maxInstallments}
+                            passFeeByMethod={passFeeByMethod}
+                            enabledBrands={enabledBrands}
+                            onMethodChange={handleMethodChange}
+                            onUpdate={updatePayment}
+                            onRemove={removePayment}
+                            crediarioEnabled={!!selectedCustomerId}
+                            onCrediarioBlocked={() => setSaleError("Selecione um cliente para vender no crediário")}
+                            morePaymentMenuFor={morePaymentMenuFor}
+                            onToggleMoreMenu={(id) => setMorePaymentMenuFor(morePaymentMenuFor === id ? null : id)}
+                          />
+                        ))}
+                      </div>
 
+                      <div className="space-y-3 xl:sticky xl:top-0">
                     {/* Resumo financeiro */}
-                    <div className="rounded-2xl px-4 py-3 bg-slate-50 border border-slate-200 shadow-sm space-y-1.5">
+                    <div className="rounded-xl px-4 py-3 bg-white border border-slate-200 shadow-sm space-y-1.5">
                       <div className="flex items-center justify-between">
                         <span className="text-[10px] font-bold text-slate-400">Subtotal</span>
                         <span className="text-[11px] font-mono font-bold text-slate-600">R$ {subtotal.toFixed(2)}</span>
@@ -3305,7 +3314,7 @@ ${sale.change > 0 ? `<hr class="divider"/><div class="row bold"><span>Troco:</sp
                             <p className="text-[10px] font-bold text-emerald-600">Troco R$ {change.toFixed(2)}</p>
                           )}
                         </div>
-                        <span className="text-[28px] font-mono font-black text-slate-800">R$ {total.toFixed(2)}</span>
+                        <span className="text-[22px] font-mono font-black text-slate-800">R$ {total.toFixed(2)}</span>
                       </div>
                     </div>
 
@@ -3324,28 +3333,90 @@ ${sale.change > 0 ? `<hr class="divider"/><div class="row bold"><span>Troco:</sp
                         </p>
                       </div>
                     )}
-                    <div className="flex gap-2.5">
-                      <button onClick={cancelSale} disabled={finishing}
-                        className="h-11 px-4 rounded-xl text-[11px] font-bold uppercase tracking-wide text-red-500 border border-red-200 hover:bg-red-50 transition-all disabled:opacity-40 active:scale-[0.98] flex items-center justify-center gap-2 shrink-0">
-                        <Trash2 size={14} /> Cancelar
-                      </button>
-                      <button onClick={shouldSendToTerminal ? handleChargeTerminal : handleFinishSale} disabled={!canFinish || finishing || terminalCharging}
-                        className="flex-1 h-11 rounded-xl text-[11px] font-bold uppercase tracking-wide text-white transition-all disabled:opacity-40 active:scale-[0.98] flex items-center justify-center gap-2"
-                        style={{
-                          background: remaining > 0.009 ? "linear-gradient(135deg,#f59e0b,#d97706)" : "linear-gradient(135deg,#3b82f6,#1d4ed8)",
-                          boxShadow: remaining > 0.009 ? "0 3px 10px rgba(245,158,11,0.25)" : "0 3px 10px rgba(59,130,246,0.25)",
-                        }}>
-                        {finishing || terminalCharging
-                          ? <><Loader2 size={14} className="animate-spin" /> {terminalCharging ? "Aguardando maquininha…" : "Finalizando…"}</>
-                          : <><CheckCircle2 size={14} /> Confirmar Venda</>}
-                      </button>
+                      </div>
                     </div>
                    </div>
                   </div>
-                </div>
+
+                  {/* Ações da venda ficam fora da rolagem para não sumirem. */}
+                  <div className="shrink-0 border-t border-slate-200 bg-white/95 px-3 py-3 sm:px-4 lg:px-5 shadow-[0_-8px_24px_rgba(15,23,42,0.06)]">
+                    <div className="w-full max-w-[1120px] mx-auto flex items-center gap-3">
+                      <button onClick={cancelSale} disabled={finishing}
+                        className="h-11 px-4 rounded-xl text-[10px] font-bold text-red-500 border border-red-200 hover:bg-red-50 hover:border-red-300 transition-all disabled:opacity-40 active:scale-[0.98] flex items-center justify-center gap-2 shrink-0">
+                        <Trash2 size={14} /> Cancelar venda
+                      </button>
+                      <button onClick={shouldSendToTerminal ? handleChargeTerminal : handleFinishSale} disabled={!canFinish || finishing || terminalCharging}
+                        className="flex-1 h-12 rounded-xl text-[11px] font-black uppercase tracking-wide text-white transition-all disabled:opacity-40 active:scale-[0.98] flex items-center justify-center gap-2"
+                        style={{
+                          background: remaining > 0.009 ? "linear-gradient(135deg,#f59e0b,#d97706)" : "linear-gradient(135deg,#3b82f6,#1d4ed8)",
+                          boxShadow: remaining > 0.009 ? "0 4px 14px rgba(245,158,11,0.25)" : "0 4px 14px rgba(59,130,246,0.25)",
+                        }}>
+                        {finishing || terminalCharging
+                          ? <><Loader2 size={14} className="animate-spin" /> {terminalCharging ? "Aguardando maquininha…" : "Finalizando…"}</>
+                          : <><CheckCircle2 size={15} /> Confirmar venda · R$ {total.toFixed(2)}</>}
+                      </button>
+                    </div>
+                  </div>
+                </main>
               </div>
           </div>
       )}
+
+      {/* Confirmação de cancelamento — evita apagar uma venda por toque acidental. */}
+      <AnimatePresence>
+        {showCancelSaleConfirm && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              onClick={() => setShowCancelSaleConfirm(false)}
+              className="fixed inset-0 z-[500] bg-slate-950/70 backdrop-blur-sm"
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.96, y: 16 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.96, y: 16 }}
+              transition={{ type: "spring", damping: 26, stiffness: 320 }}
+              role="alertdialog"
+              aria-modal="true"
+              aria-labelledby="cancel-sale-title"
+              className="fixed z-[501] left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[calc(100%-2rem)] max-w-sm overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl"
+            >
+              <div className="p-5">
+                <div className="flex items-start gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-red-50 border border-red-100 flex items-center justify-center text-red-500 shrink-0">
+                    <Trash2 size={17} />
+                  </div>
+                  <div className="min-w-0">
+                    <h2 id="cancel-sale-title" className="text-[14px] font-black text-slate-900">Cancelar esta venda?</h2>
+                    <p className="mt-1 text-[11px] leading-relaxed text-slate-500">
+                      Os {cartQty} {cartQty === 1 ? "item" : "itens"}, pagamentos e dados do cliente serão removidos. Esta ação não pode ser desfeita.
+                    </p>
+                    {activeHeldSaleId && (
+                      <p className="mt-2 text-[10px] font-bold leading-relaxed text-amber-600">
+                        O estoque reservado desta venda em espera será devolvido.
+                      </p>
+                    )}
+                  </div>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-2 border-t border-slate-100 bg-slate-50 p-3">
+                <button
+                  onClick={() => setShowCancelSaleConfirm(false)}
+                  className="h-10 rounded-xl border border-slate-200 bg-white text-[10px] font-bold text-slate-600 hover:bg-slate-100 transition-colors"
+                >
+                  Continuar venda
+                </button>
+                <button
+                  onClick={confirmCancelSale}
+                  className="h-10 rounded-xl bg-red-600 text-[10px] font-black text-white hover:bg-red-500 transition-colors flex items-center justify-center gap-2"
+                >
+                  <Trash2 size={13} /> Sim, cancelar
+                </button>
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
 
       {/* ── SERVICES MODAL ─────────────────────────────────────────────────── */}
       <AnimatePresence>
@@ -4416,47 +4487,47 @@ const PaymentRow = React.memo(function PaymentRow({
   const activeBrands = CARD_BRANDS.filter((b) => enabledBrands[b.key] !== false);
 
   return (
-    <div className="rounded-2xl p-4 space-y-3 bg-white border border-slate-200 shadow-sm">
+    <div className="rounded-xl p-3 space-y-2.5 bg-white border border-slate-200 shadow-sm">
 
       {/* Método */}
       <div className="flex items-center gap-2">
         {showRemove && (
           <span className="w-6 h-6 rounded-full flex items-center justify-center text-[9px] font-black shrink-0 bg-slate-100 text-slate-400 border border-slate-200">{idx + 1}</span>
         )}
-        <div className="grid grid-cols-4 gap-2.5 flex-1">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 flex-1">
           <button onClick={() => onMethodChange(p.id, p.method === "debit" ? "debit" : "credit")}
-            className="relative h-11 rounded-xl border-2 text-[9px] font-black uppercase tracking-wider transition-all flex items-center justify-center gap-1.5"
+            className="relative h-10 rounded-lg border text-[9px] font-black uppercase tracking-wide transition-all flex items-center justify-center gap-1.5"
             style={(p.method === "credit" || p.method === "debit")
-              ? { background: "#059669", border: "2px solid #059669", color: "white", boxShadow: "0 4px 12px rgba(16,185,129,0.3)" }
-              : { background: "#ffffff", border: "2px solid #e2e8f0", color: "#64748b" }}>
+              ? { background: "#059669", border: "1px solid #059669", color: "white", boxShadow: "0 3px 10px rgba(16,185,129,0.22)" }
+              : { background: "#ffffff", border: "1px solid #dbe3ee", color: "#64748b" }}>
             {(p.method === "credit" || p.method === "debit") && <CheckCircle2 size={13} className="absolute top-1.5 right-1.5 text-white/90" />}
             <CreditCard size={14} />
             <span>Cartão</span>
           </button>
           <button onClick={() => onMethodChange(p.id, "pix")}
-            className="relative h-11 rounded-xl border-2 text-[9px] font-black uppercase tracking-wider transition-all flex items-center justify-center gap-1.5"
+            className="relative h-10 rounded-lg border text-[9px] font-black uppercase tracking-wide transition-all flex items-center justify-center gap-1.5"
             style={p.method === "pix"
-              ? { background: "#2563eb", border: "2px solid #2563eb", color: "white", boxShadow: "0 4px 12px rgba(59,130,246,0.3)" }
-              : { background: "#ffffff", border: "2px solid #e2e8f0", color: "#64748b" }}>
+              ? { background: "#2563eb", border: "1px solid #2563eb", color: "white", boxShadow: "0 3px 10px rgba(59,130,246,0.22)" }
+              : { background: "#ffffff", border: "1px solid #dbe3ee", color: "#64748b" }}>
             {p.method === "pix" && <CheckCircle2 size={13} className="absolute top-1.5 right-1.5 text-white/90" />}
             <QrCode size={14} />
             <span>{PM_LABEL.pix}</span>
           </button>
           <button onClick={() => onMethodChange(p.id, "money")}
-            className="relative h-11 rounded-xl border-2 text-[9px] font-black uppercase tracking-wider transition-all flex items-center justify-center gap-1.5"
+            className="relative h-10 rounded-lg border text-[9px] font-black uppercase tracking-wide transition-all flex items-center justify-center gap-1.5"
             style={p.method === "money"
-              ? { background: "#2563eb", border: "2px solid #2563eb", color: "white", boxShadow: "0 4px 12px rgba(37,99,235,0.3)" }
-              : { background: "#ffffff", border: "2px solid #e2e8f0", color: "#64748b" }}>
+              ? { background: "#2563eb", border: "1px solid #2563eb", color: "white", boxShadow: "0 3px 10px rgba(37,99,235,0.22)" }
+              : { background: "#ffffff", border: "1px solid #dbe3ee", color: "#64748b" }}>
             {p.method === "money" && <CheckCircle2 size={13} className="absolute top-1.5 right-1.5 text-white/90" />}
             <Banknote size={14} />
             <span>{PM_LABEL.money}</span>
           </button>
           <div className="relative">
             <button onClick={(e) => { e.stopPropagation(); onToggleMoreMenu(p.id); }}
-              className="relative h-11 w-full rounded-xl border-2 text-[9px] font-black uppercase tracking-wider transition-all flex items-center justify-center gap-1.5"
+              className="relative h-10 w-full rounded-lg border text-[9px] font-black uppercase tracking-wide transition-all flex items-center justify-center gap-1.5"
               style={p.method === "crediario"
-                ? { background: "#d97706", border: "2px solid #d97706", color: "white", boxShadow: "0 4px 12px rgba(217,119,6,0.3)" }
-                : { background: "#ffffff", border: "2px solid #e2e8f0", color: "#64748b" }}>
+                ? { background: "#d97706", border: "1px solid #d97706", color: "white", boxShadow: "0 3px 10px rgba(217,119,6,0.22)" }
+                : { background: "#ffffff", border: "1px solid #dbe3ee", color: "#64748b" }}>
               {p.method === "crediario" && <CheckCircle2 size={13} className="absolute top-1.5 right-1.5 text-white/90" />}
               <PlusCircle size={14} />
               <span>Mais</span>
@@ -4565,19 +4636,19 @@ const PaymentRow = React.memo(function PaymentRow({
 
       {/* Valor recebido + indicadores */}
       {p.method === "money" && idx === 0 ? (
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_240px] gap-3">
           <div>
             <label className="text-[8px] font-black uppercase tracking-[0.2em] text-slate-400 mb-1 block">Valor recebido</label>
             <div className="relative">
               <Banknote className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
               <input type="number" min="0" step="0.01" inputMode="decimal"
                 placeholder={total > 0 ? total.toFixed(2) : "0,00"}
-                className="w-full pl-10 pr-3 h-14 rounded-xl text-[22px] font-mono font-black text-slate-800 placeholder:text-slate-300 bg-white focus:outline-none focus:ring-2 focus:ring-blue-100 transition-all [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none"
+                className="w-full pl-10 pr-3 h-12 rounded-xl text-[20px] font-mono font-black text-slate-800 placeholder:text-slate-300 bg-white focus:outline-none focus:ring-2 focus:ring-blue-100 transition-all [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none"
                 style={{ border: pAmt > 0 && pAmt < (total - othersPaid) ? "1px solid #fca5a5" : "1px solid #e2e8f0" }}
                 value={p.amount}
                 onChange={(e) => onUpdate(p.id, { amount: e.target.value })} />
             </div>
-            <div className="mt-2.5 rounded-xl px-3 py-2 bg-emerald-50 border border-emerald-200 flex items-center justify-between">
+            <div className="mt-2 rounded-xl px-3 py-2 bg-emerald-50 border border-emerald-200 flex items-center justify-between">
               <span className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest text-emerald-600"><Banknote size={12} /> Troco</span>
               <span className={cn("text-[16px] font-mono font-black", pAmt > 0 && pAmt >= (total - othersPaid) ? "text-emerald-600" : "text-slate-400")}>
                 R$ {(pAmt > 0 ? Math.max(0, pAmt - (total - othersPaid)) : 0).toFixed(2)}
@@ -4589,28 +4660,28 @@ const PaymentRow = React.memo(function PaymentRow({
             {["7", "8", "9", "4", "5", "6", "1", "2", "3"].map((d) => (
               <button key={d} type="button"
                 onClick={() => onUpdate(p.id, { amount: (p.amount || "") + d })}
-                className="h-9 rounded-lg bg-slate-50 border border-slate-200 text-[13px] font-black text-slate-700 hover:bg-slate-100 active:scale-95 transition-all">
+                className="h-8 rounded-lg bg-slate-50 border border-slate-200 text-[12px] font-black text-slate-700 hover:bg-slate-100 active:scale-95 transition-all">
                 {d}
               </button>
             ))}
             <button type="button" onClick={() => onUpdate(p.id, { amount: (p.amount || "").includes(".") ? p.amount : `${p.amount || "0"}.` })}
-              className="h-9 rounded-lg bg-slate-50 border border-slate-200 text-[13px] font-black text-slate-700 hover:bg-slate-100 active:scale-95 transition-all">
+              className="h-8 rounded-lg bg-slate-50 border border-slate-200 text-[12px] font-black text-slate-700 hover:bg-slate-100 active:scale-95 transition-all">
               ,
             </button>
             <button type="button" onClick={() => onUpdate(p.id, { amount: (p.amount || "") + "0" })}
-              className="h-9 rounded-lg bg-slate-50 border border-slate-200 text-[13px] font-black text-slate-700 hover:bg-slate-100 active:scale-95 transition-all">
+              className="h-8 rounded-lg bg-slate-50 border border-slate-200 text-[12px] font-black text-slate-700 hover:bg-slate-100 active:scale-95 transition-all">
               0
             </button>
             <button type="button" onClick={() => onUpdate(p.id, { amount: (p.amount || "").slice(0, -1) })}
-              className="h-9 rounded-lg bg-slate-50 border border-slate-200 text-slate-500 hover:bg-red-50 hover:text-red-500 active:scale-95 transition-all flex items-center justify-center">
+              className="h-8 rounded-lg bg-slate-50 border border-slate-200 text-slate-500 hover:bg-red-50 hover:text-red-500 active:scale-95 transition-all flex items-center justify-center">
               <ChevronLeft size={13} />
             </button>
             <button type="button" onClick={() => onUpdate(p.id, { amount: "" })}
-              className="h-9 rounded-lg bg-slate-50 border border-slate-200 text-[11px] font-black text-slate-500 hover:bg-red-50 hover:text-red-500 active:scale-95 transition-all col-span-1">
+              className="h-8 rounded-lg bg-slate-50 border border-slate-200 text-[10px] font-black text-slate-500 hover:bg-red-50 hover:text-red-500 active:scale-95 transition-all col-span-1">
               CE
             </button>
             <button type="button" onClick={() => onUpdate(p.id, { amount: total > 0 ? total.toFixed(2) : p.amount })}
-              className="h-9 rounded-lg text-[11px] font-black text-white active:scale-95 transition-all col-span-2"
+              className="h-8 rounded-lg text-[10px] font-black text-white active:scale-95 transition-all col-span-2"
               style={{ background: "linear-gradient(135deg,#3b82f6,#1d4ed8)" }}>
               OK
             </button>
@@ -4693,9 +4764,9 @@ function CartPanel({
   return (
     <>
       {/* Header */}
-      <div className="px-5 py-4 border-b border-slate-900 flex items-center justify-between shrink-0 bg-slate-950 text-white">
+      <div className="px-4 py-3 border-b border-slate-800 flex items-center justify-between shrink-0 bg-slate-950 text-white">
         <div className="flex items-center gap-2.5">
-          <div className="w-8 h-8 bg-blue-500/15 border border-blue-400/30 rounded-xl flex items-center justify-center">
+          <div className="w-8 h-8 bg-blue-500/15 border border-blue-400/30 rounded-lg flex items-center justify-center">
             <ShoppingCart size={15} className="text-blue-300" />
           </div>
           <div>
@@ -4706,7 +4777,7 @@ function CartPanel({
         <div className="flex items-center gap-1">
           {onClear && hasItems && (
             <button onClick={onClear} title="Limpar Carrinho"
-              className="flex items-center gap-1.5 h-7 px-2.5 rounded-full text-[9px] font-black uppercase tracking-widest text-slate-300 border border-white/10 hover:bg-red-500/10 hover:text-red-400 hover:border-red-400/30 transition-colors">
+              className="flex items-center gap-1.5 h-7 px-2.5 rounded-lg text-[9px] font-bold text-slate-300 border border-white/10 hover:bg-red-500/10 hover:text-red-400 hover:border-red-400/30 transition-colors">
               <Trash2 size={11} />
               <span className="hidden sm:inline">Limpar Carrinho</span>
             </button>
@@ -4720,7 +4791,7 @@ function CartPanel({
       </div>
 
       {/* Items */}
-      <div className="flex-1 overflow-y-auto p-3 space-y-2 bg-slate-50 pdv-scroll-light">
+      <div className="flex-1 overflow-y-auto p-2.5 space-y-1.5 bg-slate-50 pdv-scroll-light">
         <AnimatePresence initial={false}>
           {cart.map((item) => (
             <motion.div
@@ -4729,7 +4800,7 @@ function CartPanel({
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: -20, height: 0 }}
               transition={{ duration: 0.18 }}>
-              <div className="flex items-center gap-3 p-3 rounded-2xl border border-slate-200 bg-white hover:border-blue-200 transition-colors group shadow-sm">
+              <div className="flex items-center gap-2.5 p-2.5 rounded-xl border border-slate-200 bg-white hover:border-blue-200 transition-colors group shadow-sm">
                 {/* Thumbnail */}
                 {item.image_url ? (
                   <img src={item.image_url} alt={item.name} className="w-10 h-10 rounded-xl object-contain shrink-0 border border-slate-200 p-0.5 bg-slate-50" />
@@ -4739,7 +4810,7 @@ function CartPanel({
                   </div>
                 )}
                 <div className="flex-1 min-w-0">
-                  <p className="text-[11px] font-bold text-slate-700 truncate leading-tight">{item.name}</p>
+                  <p className="text-[11px] font-semibold text-slate-700 truncate leading-tight">{item.name}</p>
                   {item.variationLabel && (
                     <p className="text-[9px] font-bold text-blue-500 uppercase tracking-widest">{item.variationLabel}</p>
                   )}
@@ -4781,7 +4852,7 @@ function CartPanel({
             <motion.div key={`svc-${svc.id}`}
               initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20, height: 0 }}
               transition={{ duration: 0.18 }}>
-              <div className="flex items-center gap-2 p-3 rounded-2xl border border-violet-200 bg-violet-50/70 shadow-sm">
+              <div className="flex items-center gap-2 p-2.5 rounded-xl border border-violet-200 bg-violet-50/70 shadow-sm">
                 <div className="w-10 h-10 rounded-xl bg-violet-100 border border-violet-200 flex items-center justify-center shrink-0">
                   <Wrench size={14} className="text-violet-500" />
                 </div>
@@ -4842,7 +4913,7 @@ function CartPanel({
       </div>
 
       {/* Footer summary + checkout button */}
-      <div className="shrink-0 border-t border-slate-200 p-4 space-y-3 bg-white shadow-[0_-6px_20px_rgba(15,23,42,0.04)]">
+      <div className="shrink-0 border-t border-slate-200 p-3.5 space-y-2.5 bg-white shadow-[0_-6px_20px_rgba(15,23,42,0.04)]">
         <div className="space-y-1.5">
           <div className="flex justify-between text-[10px] font-bold text-slate-400">
             <span>Subtotal</span><span className="font-mono">R$ {subtotal.toFixed(2)}</span>
@@ -4869,7 +4940,7 @@ function CartPanel({
           )}
           <div className="flex justify-between items-baseline pt-1.5 border-t border-slate-100">
             <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Total</span>
-            <span className="text-2xl font-mono font-black text-slate-800">R$ {total.toFixed(2)}</span>
+            <span className="text-xl font-mono font-black text-slate-800">R$ {total.toFixed(2)}</span>
           </div>
         </div>
 
@@ -4879,7 +4950,7 @@ function CartPanel({
               onClick={onHold}
               disabled={holding}
               title="Segurar Venda"
-              className="h-12 px-3.5 rounded-xl text-[11px] font-bold uppercase tracking-wide text-amber-600 border border-amber-200 hover:bg-amber-50 transition-all disabled:opacity-40 active:scale-[0.98] flex items-center justify-center gap-2 shrink-0">
+              className="h-11 px-3 rounded-xl text-[10px] font-bold text-amber-600 border border-amber-200 hover:bg-amber-50 transition-all disabled:opacity-40 active:scale-[0.98] flex items-center justify-center gap-2 shrink-0">
               {holding ? <Loader2 size={14} className="animate-spin" /> : <Clock size={14} />}
               <span className="hidden sm:inline">Segurar</span>
             </button>
@@ -4887,7 +4958,7 @@ function CartPanel({
           <button
             onClick={onCheckout}
             disabled={!canFinish}
-            className="flex-1 h-12 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-500 hover:to-blue-600 disabled:opacity-25 text-white rounded-xl text-[11px] font-black uppercase tracking-wide transition-all active:scale-[0.98] flex items-center justify-center gap-2 shadow-lg shadow-blue-200">
+            className="flex-1 h-11 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-500 hover:to-blue-600 disabled:opacity-25 text-white rounded-xl text-[10px] font-black uppercase tracking-wide transition-all active:scale-[0.98] flex items-center justify-center gap-2 shadow-lg shadow-blue-200">
             <CreditCard size={14} />
             Ir para Pagamento
             {cartQty > 0 && (
