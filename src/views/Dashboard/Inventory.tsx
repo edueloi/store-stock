@@ -650,7 +650,7 @@ export default function Inventory() {
         title="Catálogo & Inventário"
         subtitle="Gestão de produtos e controle de estoque"
         action={
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <Button
               variant="secondary"
               icon={viewMode === "table" ? <LayoutGrid size={14} /> : <List size={14} />}
