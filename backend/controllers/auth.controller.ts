@@ -124,8 +124,10 @@ export async function login(req: Request, res: Response) {
   const { password } = req.body;
 
   try {
-    const user = await prisma.user.findUnique({
-      where: { email: identifier },
+    // Aceita e-mail OU nick (nickname) como identificador de login — ambos únicos
+    // em todo o sistema, então essa busca nunca é ambígua entre lojas diferentes.
+    const user = await prisma.user.findFirst({
+      where: { OR: [{ email: identifier }, { nickname: identifier }] },
       include: {
         tenant: {
           select: {

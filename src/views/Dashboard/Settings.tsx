@@ -183,8 +183,8 @@ const NAV = [
 
 // ─── TeamSection ─────────────────────────────────────────────────────────────
 
-type TeamMember = { id: number; name: string; email: string; role: string; created_at: string };
-type MemberForm = { name: string; email: string; password: string; role: string; showPass: boolean };
+type TeamMember = { id: number; name: string; email: string; phone?: string | null; nickname?: string | null; role: string; created_at: string };
+type MemberForm = { name: string; email: string; password: string; role: string; phone: string; nickname: string; showPass: boolean };
 type PermissionOption = { key: string; label: string };
 type PermissionOptions = { menus: PermissionOption[]; stages: PermissionOption[] };
 
@@ -203,7 +203,7 @@ function TeamSection() {
   const [editId, setEditId]       = useState<number | null>(null);
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<TeamMember | null>(null);
-  const [form, setForm]           = useState<MemberForm>({ name: "", email: "", password: "", role: "staff", showPass: false });
+  const [form, setForm]           = useState<MemberForm>({ name: "", email: "", password: "", role: "staff", phone: "", nickname: "", showPass: false });
 
   const [permOptions, setPermOptions] = useState<PermissionOptions>({ menus: [], stages: [] });
   const [selectedMenus, setSelectedMenus] = useState<string[]>([]);
@@ -231,7 +231,7 @@ function TeamSection() {
 
   const openCreate = () => {
     setEditId(null);
-    setForm({ name: "", email: "", password: "", role: "staff", showPass: false });
+    setForm({ name: "", email: "", password: "", role: "staff", phone: "", nickname: "", showPass: false });
     setSelectedMenus([]);
     setSelectedStages([]);
     setShowForm(true);
@@ -239,7 +239,7 @@ function TeamSection() {
 
   const openEdit = async (m: TeamMember) => {
     setEditId(m.id);
-    setForm({ name: m.name, email: m.email, password: "", role: m.role, showPass: false });
+    setForm({ name: m.name, email: m.email, password: "", role: m.role, phone: m.phone || "", nickname: m.nickname || "", showPass: false });
     setSelectedMenus([]);
     setSelectedStages([]);
     setShowForm(true);
@@ -282,7 +282,7 @@ function TeamSection() {
 
     setSaving(true);
     try {
-      const body: Record<string, string> = { name: form.name, email: form.email, role: form.role };
+      const body: Record<string, string> = { name: form.name, email: form.email, role: form.role, phone: form.phone, nickname: form.nickname };
       if (form.password) body.password = form.password;
 
       const res = await fetch(editId ? `/api/team/${editId}` : "/api/team", {
@@ -459,6 +459,30 @@ function TeamSection() {
             placeholder="email@exemplo.com"
             className="w-full h-10 px-3 border border-slate-200 rounded-xl text-sm font-medium text-slate-800 placeholder:text-slate-300 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition-all"
           />
+        </div>
+
+        {/* Telefone + Nick */}
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="text-[10px] font-black uppercase tracking-widest text-slate-500 block mb-1.5">Telefone</label>
+            <input
+              type="text"
+              value={form.phone}
+              onChange={e => setForm(f => ({ ...f, phone: e.target.value }))}
+              placeholder="(00) 00000-0000"
+              className="w-full h-10 px-3 border border-slate-200 rounded-xl text-sm font-medium text-slate-800 placeholder:text-slate-300 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition-all"
+            />
+          </div>
+          <div>
+            <label className="text-[10px] font-black uppercase tracking-widest text-slate-500 block mb-1.5">Nick <span className="normal-case font-medium text-slate-400">(login alternativo)</span></label>
+            <input
+              type="text"
+              value={form.nickname}
+              onChange={e => setForm(f => ({ ...f, nickname: e.target.value }))}
+              placeholder="Ex: eduardo"
+              className="w-full h-10 px-3 border border-slate-200 rounded-xl text-sm font-medium text-slate-800 placeholder:text-slate-300 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition-all"
+            />
+          </div>
         </div>
 
         {/* Password */}

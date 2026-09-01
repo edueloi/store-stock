@@ -36,6 +36,7 @@ import cashSessionsRoutes from "./cash-sessions.routes";
 import heldSalesRoutes from "./held-sales.routes";
 import workflowRoutes from "./workflow.routes";
 import financialReportsRoutes from "./financial-reports.routes";
+import profileRoutes from "./profile.routes";
 
 export function registerRoutes(app: Express) {
   // Serve uploaded images
@@ -57,6 +58,7 @@ export function registerRoutes(app: Express) {
   app.use("/api/accounts-receivable", accountsReceivableRoutes);
   app.use("/api/accounts-payable", accountsPayableRoutes);
   app.use("/api/financial-reports", financialReportsRoutes);
+  app.use("/api/profile", profileRoutes);
   app.use("/api/tenant", tenantRoutes);
   app.use("/api/upload", uploadRoutes);
   app.use("/api/preferences", preferencesRoutes);

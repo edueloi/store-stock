@@ -154,6 +154,10 @@ model User {
   email      String   @unique
   password   String
   role       String   @default("admin")
+  phone      String?
+  // Login alternativo ao e-mail — único em todo o sistema (todas as lojas), igual
+  // e-mail já é hoje. Null permitido (nem todo usuário precisa cadastrar um).
+  nickname   String?  @unique
   created_at DateTime @default(now())
   updated_at DateTime @updatedAt
 

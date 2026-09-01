@@ -14,7 +14,7 @@ export async function listTeam(req: Request, res: Response) {
   try {
     const users = await prisma.user.findMany({
       where: { tenant_id: tenantId },
-      select: { id: true, name: true, email: true, role: true, created_at: true },
+      select: { id: true, name: true, email: true, phone: true, nickname: true, role: true, created_at: true },
       orderBy: { created_at: "asc" },
     });
     res.json(users);
@@ -35,7 +35,7 @@ export async function createTeamMember(req: Request, res: Response) {
     return;
   }
 
-  const { name, email, password, role } = req.body;
+  const { name, email, password, role, phone, nickname } = req.body;
 
   const ALLOWED_ROLES = ["admin", "staff", "pdv"];
   if (!ALLOWED_ROLES.includes(role)) {
@@ -48,11 +48,22 @@ export async function createTeamMember(req: Request, res: Response) {
     return;
   }
 
+  const nick = typeof nickname === "string" ? nickname.trim() : "";
+
   try {
     const existing = await prisma.user.findUnique({ where: { email: email.trim().toLowerCase() }, select: { id: true } });
     if (existing) {
       res.status(400).json({ error: "Já existe um usuário com este e-mail." });
       return;
+    }
+
+    if (nick) {
+      // Nick é único em TODO o sistema (não só nesta loja) — mesma regra do e-mail.
+      const nickTaken = await prisma.user.findUnique({ where: { nickname: nick }, select: { id: true } });
+      if (nickTaken) {
+        res.status(400).json({ error: "Esse nick já está em uso por outro usuário." });
+        return;
+      }
     }
 
     const hashed = await bcrypt.hash(password, 10);
@@ -63,8 +74,10 @@ export async function createTeamMember(req: Request, res: Response) {
         email: email.trim().toLowerCase(),
         password: hashed,
         role,
+        phone: typeof phone === "string" && phone.trim() ? phone.trim() : null,
+        nickname: nick || null,
       },
-      select: { id: true, name: true, email: true, role: true, created_at: true },
+      select: { id: true, name: true, email: true, phone: true, nickname: true, role: true, created_at: true },
     });
 
     res.status(201).json(user);
@@ -97,19 +110,30 @@ export async function updateTeamMember(req: Request, res: Response) {
       return;
     }
 
-    const { name, email, password, role } = req.body;
+    const { name, email, password, role, phone, nickname } = req.body;
     const ALLOWED_ROLES = ["admin", "staff", "pdv"];
+
+    if (typeof nickname === "string" && nickname.trim()) {
+      const nick = nickname.trim();
+      const nickTaken = await prisma.user.findFirst({ where: { nickname: nick, id: { not: memberId } }, select: { id: true } });
+      if (nickTaken) {
+        res.status(400).json({ error: "Esse nick já está em uso por outro usuário." });
+        return;
+      }
+    }
 
     const data: Record<string, unknown> = {};
     if (name) data.name = name.trim();
     if (email) data.email = email.trim().toLowerCase();
     if (role && ALLOWED_ROLES.includes(role)) data.role = role;
     if (password) data.password = await bcrypt.hash(password, 10);
+    if (phone !== undefined) data.phone = typeof phone === "string" && phone.trim() ? phone.trim() : null;
+    if (nickname !== undefined) data.nickname = typeof nickname === "string" && nickname.trim() ? nickname.trim() : null;
 
     const updated = await prisma.user.update({
       where: { id: memberId },
       data,
-      select: { id: true, name: true, email: true, role: true, created_at: true },
+      select: { id: true, name: true, email: true, phone: true, nickname: true, role: true, created_at: true },
     });
 
     res.json(updated);

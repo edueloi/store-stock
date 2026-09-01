@@ -4,6 +4,7 @@ import { Routes, Route, Link, useLocation, useNavigate } from "react-router-dom"
 import {
   BarChart3,
   FileBarChart,
+  UserCircle,
   Package,
   ShoppingCart,
   Menu,
@@ -56,6 +57,7 @@ import ContasReceber from "./ContasReceber";
 import ContasPagar from "./ContasPagar";
 import CalendarioFinanceiro from "./CalendarioFinanceiro";
 import RelatorioFinanceiro from "./RelatorioFinanceiro";
+import MeuPerfil from "./MeuPerfil";
 import Settings from "./Settings";
 import Customers from "./Customers";
 import CustomerDetail from "./CustomerDetail";
@@ -710,6 +712,7 @@ export default function AdminDashboard() {
 
         {/* Footer */}
         <div className="border-t border-white/5 p-2 space-y-px">
+          <SidebarFooterButton onClick={() => navigate("/admin/meu-perfil")} icon={UserCircle} label="Meu Perfil" isSidebarOpen={isSidebarOpen} />
           <SidebarFooterButton onClick={viewPublicStore} icon={Package} label="Ver Loja" isSidebarOpen={isSidebarOpen} />
           <SidebarFooterButton onClick={handleLogout} icon={LogOut} label="Sair" isSidebarOpen={isSidebarOpen} danger />
         </div>
@@ -786,6 +789,10 @@ export default function AdminDashboard() {
             </nav>
 
             <div className="border-t border-white/5 p-2 space-y-px">
+              <button onClick={() => { setIsSidebarOpen(false); navigate("/admin/meu-perfil"); }}
+                className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-[13px] font-semibold text-slate-400 transition-all hover:bg-white/5 hover:text-white">
+                <UserCircle size={16} /><span>Meu Perfil</span>
+              </button>
               <button onClick={() => { setIsSidebarOpen(false); viewPublicStore(); }}
                 className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-[13px] font-semibold text-slate-400 transition-all hover:bg-white/5 hover:text-white">
                 <Package size={16} /><span>Ver Loja</span>
@@ -863,6 +870,7 @@ export default function AdminDashboard() {
               <Route path="contas-pagar" element={<ContasPagar />} />
               <Route path="calendario-financeiro" element={<CalendarioFinanceiro />} />
               <Route path="relatorio-financeiro" element={<RelatorioFinanceiro />} />
+              <Route path="meu-perfil" element={<MeuPerfil />} />
               <Route path="analytics" element={<Analytics />} />
               <Route path="orcamentos" element={<Quotes />} />
               <Route path="orcamentos/novo" element={<QuoteNew />} />
