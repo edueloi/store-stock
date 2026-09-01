@@ -28,7 +28,7 @@ function parseDateField(raw: unknown): Date | undefined {
 }
 
 // Parses "credit-visa-2x:120.00|money:30.00" into structured segments
-function parsePaymentMethod(pm: string) {
+export function parsePaymentMethod(pm: string) {
   return pm.split("|").map((seg) => {
     const [methodPart, amountStr] = seg.split(":");
     const tokens = methodPart.split("-");

@@ -2279,6 +2279,28 @@ export default function Finance() {
             </div>
           </div>
 
+          {editForm.type === "expense" && (
+            <div className="space-y-1.5">
+              <label className="text-[9px] font-black text-slate-400 uppercase tracking-[0.18em] px-1 block">
+                Tipo de Custo <span className="text-slate-300 normal-case font-normal">(opcional)</span>
+              </label>
+              <div className="grid grid-cols-3 gap-2">
+                {([["", "Não classificar"], ["fixed", "Fixo"], ["variable", "Variável"]] as const).map(([v, l]) => (
+                  <button
+                    key={v} type="button"
+                    onClick={() => setEditForm({ ...editForm, cost_type: (v || null) as "fixed" | "variable" | null })}
+                    className={cn(
+                      "h-10 rounded-xl text-[10px] font-black uppercase tracking-wide border transition-all",
+                      (editForm.cost_type ?? "") === v
+                        ? "bg-rose-600 text-white border-rose-600"
+                        : "bg-white text-slate-400 border-slate-200 hover:border-rose-300"
+                    )}
+                  >{l}</button>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* Payment method picker */}
           <div className="space-y-1.5">
             <label className="text-[9px] font-black text-slate-400 uppercase tracking-[0.18em] px-1 block">
@@ -2427,6 +2449,29 @@ export default function Finance() {
               </button>
             </div>
           </div>
+
+          {/* Custo fixo/variável — só faz sentido pra despesa; usado no Relatório Financeiro */}
+          {newEntry.type === "expense" && (
+            <div className="space-y-1.5">
+              <label className="text-[9px] font-black text-slate-400 uppercase tracking-[0.18em] px-1 block">
+                Tipo de Custo <span className="text-slate-300 normal-case font-normal">(opcional)</span>
+              </label>
+              <div className="grid grid-cols-3 gap-2">
+                {([["", "Não classificar"], ["fixed", "Fixo"], ["variable", "Variável"]] as const).map(([v, l]) => (
+                  <button
+                    key={v} type="button"
+                    onClick={() => setNewEntry({ ...newEntry, cost_type: (v || null) as "fixed" | "variable" | null })}
+                    className={cn(
+                      "h-10 rounded-xl text-[10px] font-black uppercase tracking-wide border transition-all",
+                      (newEntry.cost_type ?? "") === v
+                        ? "bg-rose-600 text-white border-rose-600"
+                        : "bg-white text-slate-400 border-slate-200 hover:border-rose-300"
+                    )}
+                  >{l}</button>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* Payment method picker */}
           <div className="space-y-1.5">

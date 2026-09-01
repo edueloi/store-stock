@@ -625,6 +625,10 @@ model Finance {
   payment_method  String?
   source          String?
   order_id        Int?
+  // Classificação contábil pra relatórios (fixo/variável) — só faz sentido pra
+  // lançamentos type="expense" feitos direto aqui (fora de Contas a Pagar, que já
+  // tem seu próprio cost_type). Null = não classificado.
+  cost_type       String?
   created_at      DateTime @default(now())
   updated_at      DateTime @updatedAt
 

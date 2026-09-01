@@ -217,6 +217,7 @@ export interface FinanceEntry {
   date: string;
   category?: string;
   payment_method?: string | null;
+  cost_type?: "fixed" | "variable" | null;
 }
 
 export type AccountStatus = 'pending' | 'received' | 'paid' | 'overdue' | 'cancelled';

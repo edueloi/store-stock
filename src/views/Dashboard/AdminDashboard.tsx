@@ -3,6 +3,7 @@ import { createPortal } from "react-dom";
 import { Routes, Route, Link, useLocation, useNavigate } from "react-router-dom";
 import {
   BarChart3,
+  FileBarChart,
   Package,
   ShoppingCart,
   Menu,
@@ -54,6 +55,7 @@ import Finance from "./Finance";
 import ContasReceber from "./ContasReceber";
 import ContasPagar from "./ContasPagar";
 import CalendarioFinanceiro from "./CalendarioFinanceiro";
+import RelatorioFinanceiro from "./RelatorioFinanceiro";
 import Settings from "./Settings";
 import Customers from "./Customers";
 import CustomerDetail from "./CustomerDetail";
@@ -546,6 +548,7 @@ export default function AdminDashboard() {
         { icon: ArrowDownCircle,  label: "Contas a Receber",  path: "/admin/contas-receber", key: "contas_receber" },
         { icon: ArrowUpCircle,    label: "Contas a Pagar",    path: "/admin/contas-pagar",   key: "contas_pagar" },
         { icon: CalendarDays,     label: "Calendário Financeiro", path: "/admin/calendario-financeiro", key: "calendario_financeiro" },
+        { icon: FileBarChart,     label: "Relatório Financeiro", path: "/admin/relatorio-financeiro", key: "relatorio_financeiro" },
         { icon: Target,           label: "Metas",             path: "/admin/metas",          key: "metas" },
         { icon: LineChart,        label: "Relatórios",        path: "/admin/analytics",      key: "analytics" },
       ],
@@ -859,6 +862,7 @@ export default function AdminDashboard() {
               <Route path="contas-receber" element={<ContasReceber />} />
               <Route path="contas-pagar" element={<ContasPagar />} />
               <Route path="calendario-financeiro" element={<CalendarioFinanceiro />} />
+              <Route path="relatorio-financeiro" element={<RelatorioFinanceiro />} />
               <Route path="analytics" element={<Analytics />} />
               <Route path="orcamentos" element={<Quotes />} />
               <Route path="orcamentos/novo" element={<QuoteNew />} />
