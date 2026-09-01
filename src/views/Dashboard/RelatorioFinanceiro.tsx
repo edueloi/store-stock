@@ -349,13 +349,13 @@ export default function RelatorioFinanceiro() {
               <h3 className="text-[11px] font-black text-slate-700 uppercase tracking-widest">Entradas por Operador</h3>
             </div>
             <div className="overflow-x-auto">
-              <div className="min-w-[520px]">
+              <div className="min-w-[680px]">
                 <table className="w-full text-left border-collapse">
                   <thead>
                     <tr className="bg-slate-50/80 border-b border-slate-100">
-                      <th className="px-5 py-2.5 text-[9px] font-black text-slate-400 uppercase tracking-widest">Operador</th>
-                      {PM_KEYS.map(k => <th key={k} className="px-5 py-2.5 text-[9px] font-black text-slate-400 uppercase tracking-widest text-right">{PM_LABELS[k]}</th>)}
-                      <th className="px-5 py-2.5 text-[9px] font-black text-slate-400 uppercase tracking-widest text-right">Total</th>
+                      <th className="px-5 py-2.5 text-[9px] font-black text-slate-400 uppercase tracking-widest whitespace-nowrap">Operador</th>
+                      {PM_KEYS.map(k => <th key={k} className="px-5 py-2.5 text-[9px] font-black text-slate-400 uppercase tracking-widest text-right whitespace-nowrap">{PM_LABELS[k]}</th>)}
+                      <th className="px-5 py-2.5 text-[9px] font-black text-slate-400 uppercase tracking-widest text-right whitespace-nowrap">Total</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -363,9 +363,9 @@ export default function RelatorioFinanceiro() {
                       const total = PM_KEYS.reduce((s, k) => s + pm[k], 0);
                       return (
                         <tr key={op} className="border-b border-slate-50">
-                          <td className="px-5 py-2.5 text-xs font-bold text-slate-700">{op}</td>
-                          {PM_KEYS.map(k => <td key={k} className="px-5 py-2.5 text-xs font-mono text-slate-600 text-right">R$ {fmt(pm[k])}</td>)}
-                          <td className="px-5 py-2.5 text-xs font-mono font-black text-slate-800 text-right">R$ {fmt(total)}</td>
+                          <td className="px-5 py-2.5 text-xs font-bold text-slate-700 whitespace-nowrap">{op}</td>
+                          {PM_KEYS.map(k => <td key={k} className="px-5 py-2.5 text-xs font-mono text-slate-600 text-right whitespace-nowrap">R$ {fmt(pm[k])}</td>)}
+                          <td className="px-5 py-2.5 text-xs font-mono font-black text-slate-800 text-right whitespace-nowrap">R$ {fmt(total)}</td>
                         </tr>
                       );
                     })}
@@ -375,9 +375,9 @@ export default function RelatorioFinanceiro() {
                   </tbody>
                   <tfoot>
                     <tr className="bg-emerald-50/60">
-                      <td className="px-5 py-2.5 text-xs font-black text-emerald-700 uppercase">Total</td>
-                      {PM_KEYS.map(k => <td key={k} className="px-5 py-2.5 text-xs font-mono font-black text-emerald-700 text-right">R$ {fmt(m!.entradas.totalByMethod[k])}</td>)}
-                      <td className="px-5 py-2.5 text-xs font-mono font-black text-emerald-700 text-right">R$ {fmt(m!.entradas.total)}</td>
+                      <td className="px-5 py-2.5 text-xs font-black text-emerald-700 uppercase whitespace-nowrap">Total</td>
+                      {PM_KEYS.map(k => <td key={k} className="px-5 py-2.5 text-xs font-mono font-black text-emerald-700 text-right whitespace-nowrap">R$ {fmt(m!.entradas.totalByMethod[k])}</td>)}
+                      <td className="px-5 py-2.5 text-xs font-mono font-black text-emerald-700 text-right whitespace-nowrap">R$ {fmt(m!.entradas.total)}</td>
                     </tr>
                   </tfoot>
                 </table>
@@ -426,13 +426,13 @@ export default function RelatorioFinanceiro() {
             )}
           </div>
           <div className="overflow-x-auto">
-            <div className="min-w-[900px]">
+            <div className="min-w-[1320px]">
               <table className="w-full text-left border-collapse">
                 <thead>
                   <tr className="bg-slate-50/80 border-b border-slate-100">
-                    <th className="px-4 py-2.5 text-[9px] font-black text-slate-400 uppercase tracking-widest sticky left-0 bg-slate-50">&nbsp;</th>
-                    {MONTHS_SHORT.map(lbl => <th key={lbl} className="px-4 py-2.5 text-[9px] font-black text-slate-400 uppercase tracking-widest text-right">{lbl}</th>)}
-                    <th className="px-4 py-2.5 text-[9px] font-black text-slate-600 uppercase tracking-widest text-right">Total Ano</th>
+                    <th className="px-4 py-2.5 text-[9px] font-black text-slate-400 uppercase tracking-widest sticky left-0 bg-slate-50 whitespace-nowrap">&nbsp;</th>
+                    {MONTHS_SHORT.map(lbl => <th key={lbl} className="px-4 py-2.5 text-[9px] font-black text-slate-400 uppercase tracking-widest text-right whitespace-nowrap">{lbl}</th>)}
+                    <th className="px-4 py-2.5 text-[9px] font-black text-slate-600 uppercase tracking-widest text-right whitespace-nowrap">Total Ano</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -449,9 +449,9 @@ export default function RelatorioFinanceiro() {
                     const total = values.reduce((a, b) => a + b, 0);
                     return (
                       <tr key={label} className={cn("border-b border-slate-50", rowClass)}>
-                        <td className="px-4 py-2.5 text-xs font-bold sticky left-0 bg-white">{label}</td>
-                        {values.map((v, i) => <td key={i} className="px-4 py-2.5 text-xs font-mono text-right">R$ {fmt(v)}</td>)}
-                        <td className="px-4 py-2.5 text-xs font-mono font-black text-right">R$ {fmt(total)}</td>
+                        <td className="px-4 py-2.5 text-xs font-bold sticky left-0 bg-white whitespace-nowrap">{label}</td>
+                        {values.map((v, i) => <td key={i} className="px-4 py-2.5 text-xs font-mono text-right whitespace-nowrap">R$ {fmt(v)}</td>)}
+                        <td className="px-4 py-2.5 text-xs font-mono font-black text-right whitespace-nowrap">R$ {fmt(total)}</td>
                       </tr>
                     );
                   })}
