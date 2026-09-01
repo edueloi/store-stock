@@ -15,6 +15,9 @@ interface ModalProps {
   size?: ModalSize;
   /** Impede fechar ao clicar no overlay */
   persistent?: boolean;
+  /** Sobrepõe o z-index padrão (100) — necessário quando o modal precisa abrir por
+   * cima de um painel/drawer que já usa um z-index maior (ex.: HeldSalesDrawer). */
+  zIndex?: number;
 }
 
 const sizeClasses: Record<ModalSize, string> = {
@@ -33,11 +36,12 @@ export default function Modal({
   footer,
   size = "md",
   persistent = false,
+  zIndex = 100,
 }: ModalProps) {
   return (
     <AnimatePresence>
       {open && (
-        <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-0 sm:p-4">
+        <div className="fixed inset-0 flex items-end sm:items-center justify-center p-0 sm:p-4" style={{ zIndex }}>
           {/* Overlay */}
           <motion.div
             initial={{ opacity: 0 }}

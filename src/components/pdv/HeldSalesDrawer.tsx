@@ -186,6 +186,7 @@ export default function HeldSalesDrawer({ open, onClose, token, onResume }: Held
       title="Cancelar venda em espera"
       subtitle={cancelTarget ? `#${String(cancelTarget.number).padStart(4, "0")} · ${cancelTarget.customer_name || "Sem cliente"}` : undefined}
       size="sm"
+      zIndex={520}
       footer={
         <>
           <Button variant="secondary" onClick={() => setCancelTarget(null)} disabled={busyId !== null}>Voltar</Button>
