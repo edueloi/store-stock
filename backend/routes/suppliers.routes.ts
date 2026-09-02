@@ -3,6 +3,7 @@ import { Router } from "express";
 import {
   createSupplier,
   deleteSupplier,
+  getSupplierSummary,
   listSuppliers,
   updateSupplier,
 } from "../controllers/suppliers.controller";
@@ -16,5 +17,6 @@ router.get("/", listSuppliers);
 router.post("/", createSupplier);
 router.put("/:id", updateSupplier);
 router.delete("/:id", deleteSupplier);
+router.get("/:id/summary", getSupplierSummary);
 
 export default router;

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from "react";
+import { useSearchParams } from "react-router-dom";
 import ExcelJS from "exceljs";
 import PageHeader from "../../components/layout/PageHeader";
 import {
@@ -348,7 +349,8 @@ export default function ContasPagar() {
   const [paidDate, setPaidDate] = useState(today());
   const [continueRecurring, setContinueRecurring] = useState(true);
 
-  const [search, setSearch] = useState("");
+  const [searchParams] = useSearchParams();
+  const [search, setSearch] = useState(() => searchParams.get("fornecedor") || "");
   const [statusFilter, setStatusFilter] = useState<AccountStatus | "all">("all");
   const [monthFilter, setMonthFilter] = useState<number | "all">("all");
   const [yearFilter, setYearFilter] = useState<number | "all">("all");

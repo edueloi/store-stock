@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from "react";
+import { Link } from "react-router-dom";
 import {
   Truck, Plus, Phone, MapPin, User, MessageCircle, Tag, Info,
   Edit3, Trash2, Globe, Mail, Building2, CreditCard, X,
   ExternalLink, ChevronDown, ChevronUp, Search, Package,
+  Wallet, Loader2, ArrowRight, AlertCircle,
 } from "lucide-react";
 import Button from "../../components/ui/Button";
 import { Input, Textarea } from "../../components/ui/Input";
@@ -96,9 +98,43 @@ function QuickContact({ supplier }: { supplier: Supplier }) {
   );
 }
 
+interface SupplierBill {
+  id: number;
+  description: string;
+  amount: number;
+  due_date: string;
+  paid_date: string | null;
+  status: string;
+}
+interface SupplierSummary {
+  totalPending: number;
+  totalPaid: number;
+  billsCount: number;
+  recentBills: SupplierBill[];
+}
+const fmtMoney = (v: number) => v.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const STATUS_LABEL: Record<string, { label: string; color: string; bg: string }> = {
+  pending:   { label: "Pendente", color: "text-amber-600", bg: "bg-amber-50 border-amber-200" },
+  overdue:   { label: "Vencido",  color: "text-rose-600",  bg: "bg-rose-50 border-rose-200" },
+  paid:      { label: "Pago",     color: "text-emerald-600", bg: "bg-emerald-50 border-emerald-200" },
+  cancelled: { label: "Cancelado", color: "text-slate-400", bg: "bg-slate-50 border-slate-200" },
+};
+
 function SupplierDetailModal({ supplier, onClose, onEdit }: {
   supplier: Supplier; onClose: () => void; onEdit: () => void;
 }) {
+  const [summary, setSummary] = useState<SupplierSummary | null>(null);
+  const [loadingSummary, setLoadingSummary] = useState(true);
+
+  useEffect(() => {
+    setLoadingSummary(true);
+    fetch(`/api/suppliers/${supplier.id}/summary`, { headers: { Authorization: `Bearer ${localStorage.getItem("token")}` } })
+      .then(r => r.json())
+      .then(setSummary)
+      .catch(() => setSummary(null))
+      .finally(() => setLoadingSummary(false));
+  }, [supplier.id]);
+
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
       <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
@@ -190,6 +226,62 @@ function SupplierDetailModal({ supplier, onClose, onEdit }: {
                 </a>
               )}
             </div>
+          </section>
+
+          {/* Contas a Pagar deste fornecedor — casado por nome (sem vínculo formal ainda) */}
+          <section>
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Contas a Pagar</p>
+              {summary && summary.billsCount > 0 && (
+                <Link
+                  to={`/admin/contas-pagar?fornecedor=${encodeURIComponent(supplier.name)}`}
+                  className="flex items-center gap-1 text-[9px] font-black text-blue-600 hover:text-blue-800 uppercase tracking-widest"
+                >
+                  Ver todas <ArrowRight size={10} />
+                </Link>
+              )}
+            </div>
+            {loadingSummary ? (
+              <div className="flex items-center justify-center py-6"><Loader2 size={16} className="animate-spin text-slate-300" /></div>
+            ) : !summary || summary.billsCount === 0 ? (
+              <div className="flex items-center gap-2.5 bg-slate-50 rounded-xl px-3 py-3 border border-slate-100 text-slate-400">
+                <Wallet size={13} className="shrink-0" />
+                <p className="text-[11px] font-medium">Nenhuma conta a pagar lançada para este fornecedor ainda.</p>
+              </div>
+            ) : (
+              <div className="space-y-2.5">
+                <div className="grid grid-cols-2 gap-2.5">
+                  <div className="bg-amber-50 rounded-xl px-3 py-2.5 border border-amber-100">
+                    <p className="text-[9px] text-amber-600 font-bold uppercase flex items-center gap-1"><AlertCircle size={10} /> Em aberto</p>
+                    <p className="text-sm font-mono font-black text-amber-700">R$ {fmtMoney(summary.totalPending)}</p>
+                  </div>
+                  <div className="bg-emerald-50 rounded-xl px-3 py-2.5 border border-emerald-100">
+                    <p className="text-[9px] text-emerald-600 font-bold uppercase">Total pago</p>
+                    <p className="text-sm font-mono font-black text-emerald-700">R$ {fmtMoney(summary.totalPaid)}</p>
+                  </div>
+                </div>
+                <div className="rounded-xl border border-slate-100 divide-y divide-slate-50 overflow-hidden">
+                  {summary.recentBills.map((b) => {
+                    // due_date vem como ISO completo — corta pros 10 primeiros caracteres
+                    // antes de comparar (concatenar direto gera uma Date inválida).
+                    const isOverdue = b.status === "pending" && new Date(b.due_date.substring(0, 10) + "T23:59:59") < new Date();
+                    const st = STATUS_LABEL[isOverdue ? "overdue" : b.status] ?? STATUS_LABEL.pending;
+                    return (
+                      <div key={b.id} className="flex items-center justify-between gap-2 px-3 py-2 bg-white">
+                        <div className="min-w-0">
+                          <p className="text-[11px] font-semibold text-slate-700 truncate">{b.description}</p>
+                          <p className="text-[9px] text-slate-400">Venc. {new Date(b.due_date).toLocaleDateString("pt-BR")}</p>
+                        </div>
+                        <div className="flex items-center gap-2 shrink-0">
+                          <span className="text-[10px] font-mono font-bold text-slate-700">R$ {fmtMoney(b.amount)}</span>
+                          <span className={`text-[8px] font-black uppercase tracking-wide px-1.5 py-0.5 rounded-full border ${st.bg} ${st.color}`}>{st.label}</span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
           </section>
 
           {/* Localização */}
