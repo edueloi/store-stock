@@ -1701,7 +1701,7 @@ export default function PDV() {
             </div>
           </div>
         ) : (
-          <div className="hidden lg:flex items-center gap-1 min-[1800px]:gap-2 min-w-0 overflow-x-auto pdv-scroll-light shrink pr-2">
+          <div className="hidden lg:flex items-center gap-1 min-[1800px]:gap-2 min-w-0 overflow-x-auto pdv-scroll-light shrink pr-2 pt-2 -mt-2">
             {requireCashSession && cashSession && (
               <button onClick={() => setShowCloseCashModal(true)} title="Fechar Caixa"
                 className="flex items-center gap-1.5 px-2 min-[1800px]:px-3 h-8 rounded-xl text-[10px] font-bold uppercase tracking-widest text-slate-500 border border-slate-200 hover:bg-emerald-50 hover:text-emerald-600 hover:border-emerald-200 transition-all shrink-0">

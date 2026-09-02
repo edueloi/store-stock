@@ -1912,7 +1912,7 @@ ${sale.change > 0 ? `<hr class="divider"/><div class="row bold"><span>Troco:</sp
             </div>
           </div>
         ) : (
-        <div className="flex items-center gap-1 sm:gap-1.5 min-w-0 overflow-x-auto pdv-scroll-light shrink pr-2">
+        <div className="flex items-center gap-1 sm:gap-1.5 min-w-0 overflow-x-auto pdv-scroll-light shrink pr-2 pt-2 -mt-2">
           {/* Offline status / pending sales */}
           {!isOnline && (
             <span className="flex items-center gap-1.5 px-2 sm:px-3 h-8 rounded-full text-[10px] font-black uppercase tracking-widest text-amber-700 border border-amber-300 bg-amber-50">
