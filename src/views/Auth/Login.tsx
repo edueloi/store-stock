@@ -9,7 +9,7 @@ import LoginLoading from "./LoginLoading";
 export default function Login() {
   const navigate = useNavigate();
   const [identifier, setIdentifier] = useState(() => localStorage.getItem("remembered_identifier") || "");
-  const [password, setPassword] = useState(() => localStorage.getItem("remembered_password") || "");
+  const [password, setPassword] = useState("");
   const [rememberMe, setRememberMe] = useState(() => !!localStorage.getItem("remembered_identifier"));
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -39,17 +39,26 @@ export default function Login() {
     setToast("");
 
     const trimmedIdentifier = identifier.trim();
-    const isSuperAdminAttempt = !trimmedIdentifier.includes("@");
-    const endpoint = isSuperAdminAttempt ? "/api/auth/super-admin/login" : "/api/auth/login";
 
     try {
-      const response = await fetch(endpoint, {
+      // Tenta sempre o login normal primeiro (aceita e-mail OU nick) — só cai pro
+      // super admin se esse usuário realmente não existir e o identificador não
+      // parecer um e-mail (evita quebrar login por nick, que nunca tem "@").
+      let response = await fetch("/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ identifier: trimmedIdentifier, password }),
       });
+      let data = await response.json();
 
-      const data = await response.json();
+      if (!response.ok && !trimmedIdentifier.includes("@")) {
+        response = await fetch("/api/auth/super-admin/login", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ identifier: trimmedIdentifier, password }),
+        });
+        data = await response.json();
+      }
 
       if (!response.ok) {
         showToast(data.error || "Não foi possível entrar.");
@@ -57,12 +66,14 @@ export default function Login() {
       }
 
       if (rememberMe) {
-        localStorage.setItem("remembered_identifier", identifier.trim());
-        localStorage.setItem("remembered_password", password);
+        localStorage.setItem("remembered_identifier", trimmedIdentifier);
       } else {
         localStorage.removeItem("remembered_identifier");
-        localStorage.removeItem("remembered_password");
       }
+      // Nunca guardamos a senha em localStorage (texto puro, legível por qualquer
+      // script/extensão) — só o identificador, pra poupar de digitar o e-mail/nick de
+      // novo. A senha em si fica a cargo do gerenciador de senhas do navegador.
+      localStorage.removeItem("remembered_password");
       saveSession(data.token, {
         ...data.user,
         fluxo_producao_enabled: !!data.tenant?.fluxo_producao_enabled,
@@ -187,7 +198,7 @@ export default function Login() {
       </div>
 
       {/* ── Painel direito (formulário) ── */}
-      <div className="flex flex-1 flex-col items-center justify-center bg-white px-6 py-10 sm:px-10">
+      <div className="flex flex-1 flex-col items-center justify-center overflow-y-auto bg-white px-6 py-10 sm:px-10">
         {/* Logo mobile */}
         <div className="mb-8 lg:hidden">
           <img
@@ -221,7 +232,7 @@ export default function Login() {
             {/* Identifier */}
             <div className="space-y-1.5">
               <label className="block text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500">
-                E-mail
+                E-mail ou Nick
               </label>
               <div className="flex h-12 items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 px-4 transition-all focus-within:border-blue-500 focus-within:bg-white focus-within:shadow-[0_0_0_3px_rgba(59,130,246,0.12)]">
                 <User size={15} className="shrink-0 text-slate-400" />
@@ -229,7 +240,7 @@ export default function Login() {
                   type="text"
                   autoComplete="username"
                   className="h-full w-full bg-transparent text-sm text-slate-900 placeholder-slate-400 outline-none"
-                  placeholder="seu@email.com.br"
+                  placeholder="seu@email.com.br ou seu nick"
                   value={identifier}
                   onChange={(e) => setIdentifier(e.target.value)}
                   required
