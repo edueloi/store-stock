@@ -122,9 +122,9 @@ export default function Login() {
           </motion.div>
         )}
       </AnimatePresence>
-    <div className="flex min-h-screen">
+    <div className="flex h-screen overflow-hidden">
       {/* ── Painel esquerdo (branding) ── */}
-      <div className="relative hidden w-[55%] flex-col justify-between overflow-hidden bg-[#090e1a] p-10 lg:flex xl:p-14">
+      <div className="relative hidden w-[55%] flex-col justify-between overflow-y-auto bg-[#090e1a] p-6 lg:flex lg:p-8 xl:p-10">
         {/* Gradientes + textura de fundo */}
         <div className="pointer-events-none absolute inset-0">
           <div className="absolute inset-0 bg-[radial-gradient(ellipse_80%_60%_at_50%_-10%,rgba(29,78,216,0.35),transparent)]" />
@@ -149,13 +149,13 @@ export default function Login() {
         </div>
 
         {/* Headline central */}
-        <div className="relative space-y-7">
+        <div className="relative space-y-3 xl:space-y-5">
           <p className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-1.5 text-[11px] font-semibold uppercase tracking-[0.22em] text-blue-300">
             <span className="h-1.5 w-1.5 rounded-full bg-blue-400" />
             Painel Administrativo
           </p>
 
-          <h1 className="text-5xl font-black leading-[1.08] tracking-[-0.03em] text-white xl:text-6xl">
+          <h1 className="text-3xl font-black leading-[1.1] tracking-[-0.03em] text-white xl:text-5xl">
             Seu negócio<br />
             <span className="text-amber-400">na palma</span><br />
             <span className="text-slate-400">da mão</span>
@@ -166,7 +166,7 @@ export default function Login() {
           </p>
 
           {/* Checklist de destaques */}
-          <ul className="space-y-2.5 pt-1">
+          <ul className="space-y-2 pt-1">
             {[
               "Catálogo digital sempre atualizado",
               "Controle de estoque em tempo real",
@@ -184,14 +184,14 @@ export default function Login() {
           </ul>
 
           {/* Stats */}
-          <div className="flex divide-x divide-white/10 rounded-2xl border border-white/10 bg-white/[0.03] py-4">
+          <div className="flex divide-x divide-white/10 rounded-2xl border border-white/10 bg-white/[0.03] py-2.5">
             {[
               { value: "100%", label: "Online" },
               { value: "24/7", label: "Suporte" },
               { value: "∞", label: "Produtos" },
             ].map((s) => (
               <div key={s.label} className="flex-1 px-2 text-center">
-                <p className="text-xl font-black text-amber-400">{s.value}</p>
+                <p className="text-lg font-black text-amber-400">{s.value}</p>
                 <p className="mt-0.5 text-[10px] font-semibold uppercase tracking-wider text-slate-500">{s.label}</p>
               </div>
             ))}
@@ -199,7 +199,7 @@ export default function Login() {
         </div>
 
         {/* Footer esquerdo */}
-        <p className="relative text-xs text-slate-600">
+        <p className="relative pt-4 text-xs text-slate-600">
           &copy; {new Date().getFullYear()} BoxSys &middot; Sistema de Gestão para Lojas
         </p>
       </div>
