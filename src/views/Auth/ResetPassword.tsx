@@ -1,7 +1,7 @@
 import { type FormEvent, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { motion, AnimatePresence } from "motion/react";
-import { ArrowLeft, CheckCircle, Eye, EyeOff, KeyRound, Lock } from "lucide-react";
+import { ArrowLeft, CheckCircle, Eye, EyeOff, Lock } from "lucide-react";
 
 export default function ResetPassword() {
   const { token } = useParams<{ token: string }>();
@@ -54,56 +54,51 @@ export default function ResetPassword() {
   };
 
   return (
-    <div className="flex min-h-screen">
+    <div className="flex min-h-screen bg-white">
       {/* Painel esquerdo */}
-      <div className="relative hidden w-[55%] flex-col justify-between overflow-hidden bg-[#090e1a] p-10 lg:flex xl:p-14">
+      <aside className="relative hidden w-[44%] min-w-[420px] flex-col justify-between overflow-hidden bg-[#081226] p-10 lg:flex xl:p-14">
         <div className="pointer-events-none absolute inset-0">
-          <div className="absolute inset-0 bg-[radial-gradient(ellipse_80%_60%_at_50%_-10%,rgba(29,78,216,0.35),transparent)]" />
-          <div className="absolute bottom-0 left-0 h-80 w-80 rounded-full bg-blue-700/10 blur-[100px]" />
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_15%_15%,rgba(37,99,235,0.28),transparent_38%)]" />
+          <div className="absolute -bottom-24 -right-24 h-96 w-96 rounded-full bg-blue-600/10 blur-[100px]" />
+          <div className="absolute inset-0 opacity-[0.07] [background-image:radial-gradient(rgba(255,255,255,0.6)_1px,transparent_1px)] [background-size:32px_32px]" />
         </div>
 
-        <div className="relative flex flex-col gap-1">
-          <img src="/system/logo-boxsys-vazado.png" alt="BoxSys" className="h-12 w-auto object-contain" />
-          <p className="text-[2.6rem] font-black leading-none tracking-[-0.03em]">
-            <span className="text-white">Sto</span><span className="text-blue-400">re</span>
-          </p>
+        <div className="relative">
+          <img src="/system/logo-boxsys-vazado.png" alt="BoxSys" className="h-11 w-auto object-contain" />
         </div>
 
-        <div className="relative space-y-4">
-          <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-amber-500/20 border border-amber-500/30">
-            <KeyRound size={24} className="text-amber-400" />
-          </div>
-          <h1 className="text-4xl font-black leading-tight tracking-[-0.03em] text-white xl:text-5xl">
-            Crie uma<br />
-            <span className="text-amber-400">nova senha</span><br />
-            <span className="text-slate-400">forte e segura.</span>
+        <div className="relative max-w-md">
+          <span className="mb-6 block h-1 w-10 rounded-full bg-amber-400" />
+          <h1 className="text-4xl font-bold leading-[1.12] tracking-[-0.035em] text-white xl:text-5xl">
+            Crie uma nova senha<br />
+            <span className="text-blue-300">forte e segura.</span>
           </h1>
-          <p className="max-w-xs text-sm leading-relaxed text-slate-400">
-            Use uma combinação de letras, números e símbolos para manter sua conta protegida.
+          <p className="mt-5 max-w-sm text-base leading-7 text-slate-400">
+            Proteja sua conta com uma senha que só você conhece.
           </p>
         </div>
 
-        <p className="relative text-xs text-slate-600">
-          &copy; {new Date().getFullYear()} BoxSys &middot; Sistema de Gestão para Lojas
+        <p className="relative text-xs text-slate-500">
+          &copy; {new Date().getFullYear()} BoxSys
         </p>
-      </div>
+      </aside>
 
       {/* Painel direito */}
-      <div className="flex flex-1 flex-col items-center justify-center bg-white px-6 py-10 sm:px-10">
-        <div className="mb-8 lg:hidden">
-          <img src="/system/logo-boxsys-vazado.png" alt="BoxSys" className="h-10 w-auto object-contain" />
+      <main className="relative flex flex-1 flex-col items-center justify-center bg-white px-6 py-10 sm:px-10">
+        <div className="mb-12 lg:hidden">
+          <img src="/system/logo-boxsys-vazado.png" alt="BoxSys" className="h-11 w-auto object-contain" />
         </div>
 
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.35, ease: "easeOut" }}
-          className="w-full max-w-sm"
+          className="w-full max-w-[400px]"
         >
           {!done && (
             <Link
               to="/login"
-              className="mb-8 inline-flex items-center gap-2 text-sm font-medium text-slate-400 transition-colors hover:text-slate-700"
+              className="mb-9 inline-flex items-center gap-2 text-sm font-medium text-slate-500 transition-colors hover:text-slate-800"
             >
               <ArrowLeft size={15} />
               Voltar ao login
@@ -138,29 +133,26 @@ export default function ResetPassword() {
               </motion.div>
             ) : (
               <motion.div key="form" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-                <div className="mb-8">
-                  <p className="mb-1 text-[11px] font-bold uppercase tracking-[0.22em] text-amber-500">
-                    Nova senha
-                  </p>
-                  <h2 className="text-3xl font-black tracking-[-0.03em] text-slate-900">
-                    Redefinir senha
+                <div className="mb-9">
+                  <h2 className="text-3xl font-bold tracking-[-0.03em] text-slate-950 sm:text-4xl">
+                    Crie uma nova senha
                   </h2>
                   <p className="mt-1.5 text-sm text-slate-500">
                     Escolha uma nova senha para sua conta.
                   </p>
                 </div>
 
-                <form onSubmit={handleSubmit} className="space-y-5">
+                <form onSubmit={handleSubmit} className="space-y-6">
                   {/* Nova senha */}
                   <div className="space-y-1.5">
-                    <label className="block text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500">
+                    <label className="block text-sm font-semibold text-slate-700">
                       Nova senha
                     </label>
-                    <div className="flex h-12 items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 px-4 transition-all focus-within:border-blue-500 focus-within:bg-white focus-within:shadow-[0_0_0_3px_rgba(59,130,246,0.12)]">
-                      <Lock size={15} className="shrink-0 text-slate-400" />
+                    <div className="flex h-[52px] items-center gap-3 rounded-xl border border-slate-300 bg-white px-4 transition-all focus-within:border-blue-500 focus-within:shadow-[0_0_0_3px_rgba(59,130,246,0.12)]">
+                      <Lock size={18} className="shrink-0 text-slate-400" />
                       <input
                         type={showPassword ? "text" : "password"}
-                        className="h-full w-full bg-transparent text-sm text-slate-900 placeholder-slate-400 outline-none"
+                        className="h-full w-full bg-transparent text-[15px] text-slate-900 placeholder-slate-400 outline-none"
                         placeholder="Mínimo 6 caracteres"
                         value={password}
                         onChange={(e) => setPassword(e.target.value)}
@@ -179,14 +171,14 @@ export default function ResetPassword() {
 
                   {/* Confirmar senha */}
                   <div className="space-y-1.5">
-                    <label className="block text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500">
+                    <label className="block text-sm font-semibold text-slate-700">
                       Confirmar senha
                     </label>
-                    <div className="flex h-12 items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 px-4 transition-all focus-within:border-blue-500 focus-within:bg-white focus-within:shadow-[0_0_0_3px_rgba(59,130,246,0.12)]">
-                      <Lock size={15} className="shrink-0 text-slate-400" />
+                    <div className="flex h-[52px] items-center gap-3 rounded-xl border border-slate-300 bg-white px-4 transition-all focus-within:border-blue-500 focus-within:shadow-[0_0_0_3px_rgba(59,130,246,0.12)]">
+                      <Lock size={18} className="shrink-0 text-slate-400" />
                       <input
                         type={showConfirm ? "text" : "password"}
-                        className="h-full w-full bg-transparent text-sm text-slate-900 placeholder-slate-400 outline-none"
+                        className="h-full w-full bg-transparent text-[15px] text-slate-900 placeholder-slate-400 outline-none"
                         placeholder="Repita a nova senha"
                         value={confirm}
                         onChange={(e) => setConfirm(e.target.value)}
@@ -239,7 +231,7 @@ export default function ResetPassword() {
                   <button
                     type="submit"
                     disabled={loading}
-                    className="flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-slate-900 text-sm font-bold text-white shadow-[0_4px_20px_rgba(15,23,42,0.2)] transition-all hover:bg-slate-800 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60"
+                    className="flex h-[52px] w-full items-center justify-center gap-2 rounded-xl bg-blue-600 text-sm font-bold text-white shadow-[0_8px_20px_rgba(37,99,235,0.22)] transition-all hover:bg-blue-700 hover:shadow-[0_10px_24px_rgba(37,99,235,0.28)] active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-60"
                   >
                     {loading ? (
                       <svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none">
@@ -255,11 +247,11 @@ export default function ResetPassword() {
             )}
           </AnimatePresence>
 
-          <p className="mt-10 text-center text-xs text-slate-400">
-            &copy; {new Date().getFullYear()} BoxSys &middot; Sistema de Gestão para Lojas
+          <p className="absolute bottom-6 left-0 right-0 text-center text-xs text-slate-400 lg:hidden">
+            &copy; {new Date().getFullYear()} BoxSys
           </p>
         </motion.div>
-      </div>
+      </main>
     </div>
   );
 }
