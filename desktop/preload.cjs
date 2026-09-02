@@ -15,6 +15,15 @@ contextBridge.exposeInMainWorld("boxsysDesktop", {
   testPrinter: (cfg) => ipcRenderer.invoke("printer:test", cfg),
   listSerialPorts: () => ipcRenderer.invoke("printer:list-ports"),
 
+  // Banco local (SQLite) — cache de catálogo e fila de operações offline
+  dbSaveCache: (key, value) => ipcRenderer.invoke("db:save-cache", key, value),
+  dbGetCache: (key) => ipcRenderer.invoke("db:get-cache", key),
+  dbEnqueueOp: (type, localId, payload, createdAt) =>
+    ipcRenderer.invoke("db:enqueue-op", type, localId, payload, createdAt),
+  dbListOps: (type) => ipcRenderer.invoke("db:list-ops", type),
+  dbCountOps: (type) => ipcRenderer.invoke("db:count-ops", type),
+  dbRemoveOp: (localId) => ipcRenderer.invoke("db:remove-op", localId),
+
   // Atalhos rápidos do PDV (F2/F4/F8/F9) disparados pelo menu nativo
   onShortcut: (callback) => {
     const listener = (_e, action) => callback(action);

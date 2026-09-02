@@ -3,6 +3,9 @@ export interface CashSessionInfo {
   opened_at: string;
   opening_amount: number | string;
   opened_by_name: string;
+  // set only for a session opened while offline, not yet synced to the server —
+  // `id` is a placeholder (0) until the sync worker resolves the real one
+  localId?: string;
 }
 
 export interface CashSessionPaymentBreakdownEntry {
@@ -20,6 +23,9 @@ export interface ClosedCashSession {
   payment_breakdown: Record<string, CashSessionPaymentBreakdownEntry> | null;
   opened_at: string;
   closed_at: string;
+  // true when the close was only queued locally (offline) — the real
+  // per-method breakdown is computed server-side once it syncs
+  pendingSync?: boolean;
 }
 
 export async function fetchCurrentCashSession(

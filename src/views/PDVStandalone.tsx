@@ -16,6 +16,7 @@ import { SERVICE_CATEGORIES, SERVICE_UNITS } from "./Dashboard/Services";
 import {
   cacheSet, cacheGet, queueSale, getPendingSales,
   removePendingSale, countPendingSales, PendingSale,
+  queueCashOp, getPendingCashOps, removePendingCashOp, countPendingCashOps, PendingCashOp,
 } from "../lib/offlineDb";
 import { computeMeasuredPrice } from "../utils/measurePricing";
 import { productHasStock } from "../utils/productStock";
@@ -455,46 +456,138 @@ export default function PDVStandalone() {
 
   // ── offline sync ─────────────────────────────────────────────────────────────
   const refreshPendingCount = useCallback(() => {
-    countPendingSales().then(setPendingCount);
+    Promise.all([countPendingSales(), countPendingCashOps()]).then(([a, b]) => setPendingCount(a + b));
+  }, []);
+
+  // Local id (negative, cashSession.localId) → real server session id, resolved
+  // as cash_open ops sync — lets a sale queued against an offline-opened
+  // session find the real id once it exists.
+  const resolveCashSessionId = useCallback(async (localId: string, token: string): Promise<number | null> => {
+    try {
+      const res = await fetch("/api/cash-sessions/current", { headers: { Authorization: `Bearer ${token}` } });
+      if (!res.ok) return null;
+      const data = await res.json();
+      return data?.session?.id ?? null;
+    } catch {
+      return null;
+    }
   }, []);
 
   const syncPendingSales = useCallback(async () => {
     if (!token || !navigator.onLine) return;
-    const pending = await getPendingSales();
-    if (pending.length === 0) return;
+    const [sales, cashOps] = await Promise.all([getPendingSales(), getPendingCashOps()]);
+    if (sales.length === 0 && cashOps.length === 0) return;
+
     setSyncing(true);
     let syncedCount = 0;
+    // maps a cash_open's localId to the real server session id once synced
+    const sessionIdByLocalId = new Map<string, number>();
     try {
-      // oldest first, so server-side order ids follow the real sale order
-      pending.sort((a, b) => a.createdAt.localeCompare(b.createdAt));
-      for (const sale of pending) {
+      // process every op (sale + cash open/close) oldest-first, so a sale
+      // never syncs before the cash_open it depends on
+      type Item = { kind: "sale"; data: PendingSale } | { kind: "cash"; data: PendingCashOp };
+      const items: Item[] = [
+        ...sales.map((data): Item => ({ kind: "sale", data })),
+        ...cashOps.map((data): Item => ({ kind: "cash", data })),
+      ].sort((a, b) => a.data.createdAt.localeCompare(b.data.createdAt));
+
+      for (const item of items) {
         try {
-          const res = await fetch("/api/sales", {
-            method: "POST",
-            headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-            body: JSON.stringify({ ...sale.body, isOfflineSync: true }),
-          });
-          if (res.ok) {
-            await removePendingSale(sale.localId);
-            syncedCount++;
-          } else if (res.status === 401) {
-            break; // session expired — stop, retry after next login
-          } else {
-            // server rejected this sale — record the error and move on to the next
-            let msg = `Erro ${res.status}`;
-            try { const j = await res.json(); if (j?.error) msg = j.error; } catch { /* keep status */ }
-            await queueSale({ ...sale, attempts: (sale.attempts ?? 0) + 1, lastError: msg });
+          if (item.kind === "cash" && item.data.type === "cash_open") {
+            const op = item.data;
+            const res = await fetch("/api/cash-sessions/open", {
+              method: "POST",
+              headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+              body: JSON.stringify({ openingAmount: op.openingAmount ?? 0, openingNote: op.openingNote }),
+            });
+            if (res.ok) {
+              const data = await res.json();
+              sessionIdByLocalId.set(op.localId, data.session.id);
+              await removePendingCashOp(op.localId);
+              syncedCount++;
+            } else if (res.status === 401) {
+              break;
+            } else if (res.status === 409) {
+              // another attempt already opened it (retry after a dropped response) — reuse it
+              const serverId = await resolveCashSessionId(op.localId, token);
+              if (serverId != null) sessionIdByLocalId.set(op.localId, serverId);
+              await removePendingCashOp(op.localId);
+            } else {
+              let msg = `Erro ${res.status}`;
+              try { const j = await res.json(); if (j?.error) msg = j.error; } catch { /* keep status */ }
+              await queueCashOp({ ...op, attempts: (op.attempts ?? 0) + 1, lastError: msg });
+            }
+          } else if (item.kind === "cash" && item.data.type === "cash_close") {
+            const op = item.data;
+            const sessionId = op.sessionId ?? (op.sessionLocalId ? sessionIdByLocalId.get(op.sessionLocalId) : undefined);
+            if (sessionId == null) {
+              // the matching cash_open hasn't synced yet in this pass — try again next round
+              await queueCashOp({ ...op, attempts: (op.attempts ?? 0) + 1, lastError: "Aguardando abertura de caixa sincronizar" });
+              continue;
+            }
+            const res = await fetch(`/api/cash-sessions/${sessionId}/close`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+              body: JSON.stringify({ countedAmount: op.countedAmount ?? 0, countedBreakdown: op.countedBreakdown, closingNote: op.closingNote }),
+            });
+            if (res.ok || res.status === 404) {
+              // 404 = already closed by a previous attempt whose response was lost — treat as done
+              await removePendingCashOp(op.localId);
+              syncedCount++;
+            } else if (res.status === 401) {
+              break;
+            } else {
+              let msg = `Erro ${res.status}`;
+              try { const j = await res.json(); if (j?.error) msg = j.error; } catch { /* keep status */ }
+              await queueCashOp({ ...op, attempts: (op.attempts ?? 0) + 1, lastError: msg });
+            }
+          } else if (item.kind === "sale") {
+            const sale = item.data;
+            const body: Record<string, unknown> = { ...sale.body, isOfflineSync: true };
+            const localCashId = typeof body.cashSessionLocalId === "string" ? body.cashSessionLocalId : undefined;
+            if (localCashId) {
+              const resolved = sessionIdByLocalId.get(localCashId);
+              if (resolved == null) {
+                // cash_open for this sale hasn't synced yet — retry next round
+                await queueSale({ ...sale, attempts: (sale.attempts ?? 0) + 1, lastError: "Aguardando abertura de caixa sincronizar" });
+                continue;
+              }
+              body.cashSessionId = resolved;
+              delete body.cashSessionLocalId;
+            }
+            const res = await fetch("/api/sales", {
+              method: "POST",
+              headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+              body: JSON.stringify(body),
+            });
+            if (res.ok) {
+              await removePendingSale(sale.localId);
+              syncedCount++;
+            } else if (res.status === 401) {
+              break; // session expired — stop, retry after next login
+            } else {
+              // server rejected this sale — record the error and move on to the next
+              let msg = `Erro ${res.status}`;
+              try { const j = await res.json(); if (j?.error) msg = j.error; } catch { /* keep status */ }
+              await queueSale({ ...sale, attempts: (sale.attempts ?? 0) + 1, lastError: msg });
+            }
           }
         } catch {
-          break; // network dropped mid-sync — remaining sales stay queued
+          break; // network dropped mid-sync — remaining ops stay queued
         }
       }
     } finally {
       setSyncing(false);
       refreshPendingCount();
       setPendingSalesList(await getPendingSales());
+      // the cash session shown on screen may now have a real server id
+      if (cashSession?.localId && sessionIdByLocalId.has(cashSession.localId)) {
+        const refreshed = { ...cashSession, id: sessionIdByLocalId.get(cashSession.localId)!, localId: undefined };
+        setCashSession(refreshed);
+        cacheSet("cashSession", refreshed);
+      }
       if (syncedCount > 0) {
-        setSyncToast(`${syncedCount} venda${syncedCount > 1 ? "s" : ""} sincronizada${syncedCount > 1 ? "s" : ""}!`);
+        setSyncToast(`${syncedCount} registro${syncedCount > 1 ? "s" : ""} sincronizado${syncedCount > 1 ? "s" : ""}!`);
         setTimeout(() => setSyncToast(null), 4000);
         // refresh stock after syncing
         fetch("/api/products", { headers: { Authorization: `Bearer ${token}` } })
@@ -505,7 +598,7 @@ export default function PDVStandalone() {
           .catch(() => {});
       }
     }
-  }, [token, refreshPendingCount]);
+  }, [token, refreshPendingCount, resolveCashSessionId, cashSession]);
 
   // connection listeners + periodic sync
   useEffect(() => {
@@ -1703,7 +1796,10 @@ ${sale.change > 0 ? `<hr class="divider"/><div class="row bold"><span>Troco:</sp
       passFeeByMethod,
       crediarioInstallments: crediarioPayment?.crediarioInstallments ?? undefined,
       crediarioFirstDueDate: crediarioPayment?.crediarioFirstDueDate ?? undefined,
-      cashSessionId: cashSession?.id ?? null,
+      // when the open session itself was created offline, `id` is a placeholder —
+      // cashSessionLocalId lets the sync worker swap in the real id once it exists
+      cashSessionId: cashSession?.localId ? null : cashSession?.id ?? null,
+      cashSessionLocalId: cashSession?.localId ?? undefined,
       heldSaleId: activeHeldSaleId ?? undefined,
       clientSaleId,
       // calendar day of the sale in the device's local timezone — keeps the
@@ -1777,7 +1873,10 @@ ${sale.change > 0 ? `<hr class="divider"/><div class="row bold"><span>Troco:</sp
     };
 
     try {
-      if (!navigator.onLine) {
+      // also queue offline while the current cash session was opened offline
+      // and hasn't synced yet — the online path has no way to send a session
+      // id the server doesn't know about
+      if (!navigator.onLine || cashSession?.localId) {
         await finishOffline();
         return;
       }
@@ -1833,9 +1932,23 @@ ${sale.change > 0 ? `<hr class="divider"/><div class="row bold"><span>Troco:</sp
     return (
       <OpenCashSessionScreen
         operatorName={operatorName}
-        disabled={!isOnline}
-        disabledMessage={!isOnline ? "Abertura de caixa requer conexão com a internet." : undefined}
         onOpen={async (amount, note) => {
+          if (!isOnline) {
+            const localId = crypto.randomUUID();
+            const openedAt = new Date().toISOString();
+            const session: CashSessionInfo = {
+              id: 0,
+              localId,
+              opened_at: openedAt,
+              opening_amount: amount,
+              opened_by_name: operatorName || "Operador",
+            };
+            await queueCashOp({ localId, type: "cash_open", createdAt: openedAt, openingAmount: amount, openingNote: note });
+            setCashSession(session);
+            cacheSet("cashSession", session);
+            refreshPendingCount();
+            return;
+          }
           const session = await apiOpenCashSession(token, amount, note);
           setCashSession(session);
           cacheSet("cashSession", session);
@@ -1936,9 +2049,8 @@ ${sale.change > 0 ? `<hr class="divider"/><div class="row bold"><span>Troco:</sp
           )}
           {requireCashSession && cashSession && (
             <button onClick={() => setShowCloseCashModal(true)}
-              disabled={!isOnline}
-              title={isOnline ? "Fechar Caixa" : "Requer conexão com a internet"}
-              className="flex items-center gap-1.5 px-2.5 h-8 rounded-lg text-[10px] font-bold text-slate-500 border border-slate-200 hover:bg-emerald-50 hover:text-emerald-600 hover:border-emerald-200 transition-all disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-slate-500">
+              title="Fechar Caixa"
+              className="flex items-center gap-1.5 px-2.5 h-8 rounded-lg text-[10px] font-bold text-slate-500 border border-slate-200 hover:bg-emerald-50 hover:text-emerald-600 hover:border-emerald-200 transition-all">
               <Wallet size={11} />
               <span className="hidden 2xl:block">Fechar caixa</span>
             </button>
@@ -3268,6 +3380,7 @@ ${sale.change > 0 ? `<hr class="divider"/><div class="row bold"><span>Troco:</sp
                             maxInstallments={maxInstallments}
                             passFeeByMethod={passFeeByMethod}
                             enabledBrands={enabledBrands}
+                            isOnline={isOnline}
                             onMethodChange={handleMethodChange}
                             onUpdate={updatePayment}
                             onRemove={removePayment}
@@ -4449,8 +4562,36 @@ ${sale.change > 0 ? `<hr class="divider"/><div class="row bold"><span>Troco:</sp
           onClose={() => {
             setShowCloseCashModal(false);
             setCashSession(null);
+            cacheSet("cashSession", null);
           }}
-          onConfirm={(counted, breakdown, note) => apiCloseCashSession(token, cashSession.id, counted, breakdown, note)}
+          onConfirm={async (counted, breakdown, note) => {
+            if (!navigator.onLine || cashSession.localId) {
+              const localId = crypto.randomUUID();
+              await queueCashOp({
+                localId,
+                type: "cash_close",
+                createdAt: new Date().toISOString(),
+                sessionId: cashSession.localId ? undefined : cashSession.id,
+                sessionLocalId: cashSession.localId,
+                countedAmount: counted,
+                countedBreakdown: breakdown,
+                closingNote: note,
+              });
+              refreshPendingCount();
+              return {
+                id: cashSession.id,
+                opening_amount: cashSession.opening_amount,
+                counted_amount: counted,
+                expected_amount: 0,
+                difference_amount: 0,
+                payment_breakdown: null,
+                opened_at: cashSession.opened_at,
+                closed_at: new Date().toISOString(),
+                pendingSync: true,
+              };
+            }
+            return apiCloseCashSession(token, cashSession.id, counted, breakdown, note);
+          }}
         />
       )}
     </div>
@@ -4459,7 +4600,7 @@ ${sale.change > 0 ? `<hr class="divider"/><div class="row bold"><span>Troco:</sp
 
 // ─── PAYMENT ROW (memoizado para não perder foco no input) ───────────────────
 const PaymentRow = React.memo(function PaymentRow({
-  payment: p, idx, total, paidAmount, showRemove, cardFees, maxInstallments, passFeeByMethod, enabledBrands, onMethodChange, onUpdate, onRemove,
+  payment: p, idx, total, paidAmount, showRemove, cardFees, maxInstallments, passFeeByMethod, enabledBrands, isOnline, onMethodChange, onUpdate, onRemove,
   crediarioEnabled, onCrediarioBlocked, morePaymentMenuFor, onToggleMoreMenu,
 }: {
   payment: PaymentEntry; idx: number; total: number; paidAmount: number;
@@ -4467,6 +4608,7 @@ const PaymentRow = React.memo(function PaymentRow({
   maxInstallments: number;
   passFeeByMethod: Record<string, boolean>;
   enabledBrands: Record<string, boolean>;
+  isOnline: boolean;
   onMethodChange: (id: string, m: PaymentMethod) => void;
   onUpdate: (id: string, patch: Partial<PaymentEntry>) => void;
   onRemove: (id: string) => void;
@@ -4495,8 +4637,10 @@ const PaymentRow = React.memo(function PaymentRow({
           <span className="w-6 h-6 rounded-full flex items-center justify-center text-[9px] font-black shrink-0 bg-slate-100 text-slate-400 border border-slate-200">{idx + 1}</span>
         )}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 flex-1">
-          <button onClick={() => onMethodChange(p.id, p.method === "debit" ? "debit" : "credit")}
-            className="relative h-10 rounded-lg border text-[9px] font-black uppercase tracking-wide transition-all flex items-center justify-center gap-1.5"
+          <button onClick={() => isOnline && onMethodChange(p.id, p.method === "debit" ? "debit" : "credit")}
+            disabled={!isOnline}
+            title={!isOnline ? "Cartão requer conexão com a internet" : undefined}
+            className="relative h-10 rounded-lg border text-[9px] font-black uppercase tracking-wide transition-all flex items-center justify-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed"
             style={(p.method === "credit" || p.method === "debit")
               ? { background: "#059669", border: "1px solid #059669", color: "white", boxShadow: "0 3px 10px rgba(16,185,129,0.22)" }
               : { background: "#ffffff", border: "1px solid #dbe3ee", color: "#64748b" }}>
@@ -4504,8 +4648,10 @@ const PaymentRow = React.memo(function PaymentRow({
             <CreditCard size={14} />
             <span>Cartão</span>
           </button>
-          <button onClick={() => onMethodChange(p.id, "pix")}
-            className="relative h-10 rounded-lg border text-[9px] font-black uppercase tracking-wide transition-all flex items-center justify-center gap-1.5"
+          <button onClick={() => isOnline && onMethodChange(p.id, "pix")}
+            disabled={!isOnline}
+            title={!isOnline ? "PIX requer conexão com a internet" : undefined}
+            className="relative h-10 rounded-lg border text-[9px] font-black uppercase tracking-wide transition-all flex items-center justify-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed"
             style={p.method === "pix"
               ? { background: "#2563eb", border: "1px solid #2563eb", color: "white", boxShadow: "0 3px 10px rgba(59,130,246,0.22)" }
               : { background: "#ffffff", border: "1px solid #dbe3ee", color: "#64748b" }}>

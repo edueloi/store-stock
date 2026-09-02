@@ -116,6 +116,23 @@ export default function CloseCashSessionModal({ onClose, onConfirm }: CloseCashS
               {submitting ? "Confirmando..." : "Confirmar Fechamento"}
             </button>
           </div>
+        ) : result?.pendingSync ? (
+          <div className="p-5 space-y-4">
+            <div className="flex items-center gap-2 rounded-xl px-3 py-2.5 border bg-amber-50 border-amber-100">
+              <AlertTriangle size={16} className="text-amber-500" />
+              <p className="text-[12px] font-black text-amber-700">Fechamento registrado offline</p>
+            </div>
+            <p className="text-[11px] text-slate-500 font-medium leading-relaxed">
+              O caixa foi encerrado neste terminal e a conferência por forma de pagamento será
+              calculada assim que a internet voltar e os dados sincronizarem com o servidor.
+            </p>
+            <button
+              onClick={onClose}
+              className="w-full h-11 rounded-xl bg-slate-900 text-white text-[12px] font-black uppercase tracking-widest hover:bg-slate-800 transition-all"
+            >
+              Concluir
+            </button>
+          </div>
         ) : (
           <div className="p-5 space-y-4">
             <div className={`flex items-center gap-2 rounded-xl px-3 py-2.5 border ${

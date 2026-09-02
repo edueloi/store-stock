@@ -5,6 +5,7 @@ const https = require("https");
 const { SerialPort } = require("serialport");
 const { autoUpdater } = require("electron-updater");
 const printerModule = require("./printer.cjs");
+const offlineDb = require("./db.cjs");
 
 // ─── Config persistence (userData/config.json) ──────────────────────────────
 const configPath = () => path.join(app.getPath("userData"), "config.json");
@@ -275,6 +276,16 @@ ipcMain.handle("printer:open-drawer", async () => {
   return printerModule.openCashDrawer(config);
 });
 
+// ─── Offline SQLite IPC ──────────────────────────────────────────────────────
+ipcMain.handle("db:save-cache", (_e, key, value) => offlineDb.saveCache(key, value));
+ipcMain.handle("db:get-cache", (_e, key) => offlineDb.getCache(key));
+ipcMain.handle("db:enqueue-op", (_e, type, localId, payload, createdAt) =>
+  offlineDb.enqueueOp(type, localId, payload, createdAt)
+);
+ipcMain.handle("db:list-ops", (_e, type) => offlineDb.listOps(type));
+ipcMain.handle("db:count-ops", (_e, type) => offlineDb.countOps(type));
+ipcMain.handle("db:remove-op", (_e, localId) => offlineDb.removeOp(localId));
+
 // ─── Auto-update ─────────────────────────────────────────────────────────────
 // Checa e baixa a atualização em segundo plano; só instala quando o app fechar
 // (nunca no meio de uma venda) ou se o operador confirmar manualmente pelo aviso.
@@ -307,6 +318,7 @@ function checkForUpdates() {
 
 // ─── Lifecycle ───────────────────────────────────────────────────────────────
 app.whenReady().then(() => {
+  offlineDb.initDb(app);
   buildMenu();
   createWindow();
 

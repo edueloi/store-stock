@@ -35,7 +35,10 @@
     ],
     "asarUnpack": [
       "node_modules/@serialport/**/*",
-      "node_modules/serialport/**/*"
+      "node_modules/serialport/**/*",
+      "node_modules/better-sqlite3/**/*",
+      "node_modules/bindings/**/*",
+      "node_modules/file-uri-to-path/**/*"
     ],
     "publish": {
       "provider": "github",
@@ -89,11 +92,15 @@
     }
   },
   "dependencies": {
+    "better-sqlite3": "^11.8.1",
     "electron-updater": "^6.8.9",
     "node-thermal-printer": "^4.6.0",
     "serialport": "^13.0.0"
   },
   "overrides": {
     "node-gyp": "^10.2.0"
+  },
+  "allowScripts": {
+    "better-sqlite3@11.10.0": true
   }
 }
