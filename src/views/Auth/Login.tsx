@@ -124,7 +124,7 @@ export default function Login() {
       </AnimatePresence>
     <div className="flex h-screen overflow-hidden">
       {/* ── Painel esquerdo (branding) ── */}
-      <div className="relative hidden w-[55%] flex-col justify-between overflow-y-auto bg-[#090e1a] p-6 lg:flex lg:p-8 xl:p-10">
+      <div className="relative hidden w-[55%] flex-col justify-between overflow-hidden bg-[#090e1a] p-6 lg:flex lg:p-8 xl:p-10">
         {/* Gradientes + textura de fundo */}
         <div className="pointer-events-none absolute inset-0">
           <div className="absolute inset-0 bg-[radial-gradient(ellipse_80%_60%_at_50%_-10%,rgba(29,78,216,0.35),transparent)]" />
@@ -205,7 +205,7 @@ export default function Login() {
       </div>
 
       {/* ── Painel direito (formulário) ── */}
-      <div className="flex flex-1 flex-col items-center justify-center overflow-y-auto bg-slate-50 px-6 py-10 sm:px-10 lg:bg-[radial-gradient(ellipse_120%_80%_at_50%_0%,rgba(59,130,246,0.06),transparent)]">
+      <div className="flex flex-1 flex-col items-center justify-center overflow-hidden bg-slate-50 px-6 py-10 sm:px-10 lg:bg-[radial-gradient(ellipse_120%_80%_at_50%_0%,rgba(59,130,246,0.06),transparent)]">
         {/* Logo mobile */}
         <div className="mb-8 lg:hidden">
           <img
