@@ -1,25 +1,44 @@
 import { type FormEvent, useEffect, useMemo, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import {
   CalendarClock, CreditCard, LogOut, RefreshCcw, ShieldCheck,
   Store, UserPlus2, Copy, Users, Link2, CheckCircle2, AlertCircle,
   X, LayoutDashboard, Settings, ChevronRight, Phone, Mail,
   ExternalLink, Clock, BadgeCheck, Pencil, Eye, EyeOff, PlusCircle,
-  CalendarCheck, Activity, Timer,
+  CalendarCheck, Activity, Timer, Search, TrendingUp, Crown,
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 
 import { clearSession, getStoredToken, getStoredUser } from "../../lib/session";
-import type { ManagedTenant, SetupInvite } from "../../types";
+import type { ManagedTenant, SetupInvite, SubscriptionPlan } from "../../types";
 import { Badge, EmptyState, SelectField } from "./components";
+import PlansPage from "./PlansPage";
 
 type OverviewResponse = {
   stats: { tenants: number; active_trials: number; active_accounts: number; pending_invites: number };
   tenants: ManagedTenant[];
   invites: SetupInvite[];
+  plans: SubscriptionPlan[];
 };
 type Toast = { type: "success" | "error"; message: string };
-type Page = "dashboard" | "invites" | "tenants" | "settings";
+type Page = "dashboard" | "invites" | "tenants" | "plans" | "settings";
+
+const PAGE_PATHS: Record<Page, string> = {
+  dashboard: "/super-admin/dashboard",
+  invites: "/super-admin/convites",
+  tenants: "/super-admin/clientes",
+  plans: "/super-admin/planos",
+  settings: "/super-admin/configuracoes",
+};
+
+function pageFromPath(pathname: string): Page {
+  const segment = pathname.split("/").filter(Boolean)[1];
+  if (segment === "convites") return "invites";
+  if (segment === "clientes") return "tenants";
+  if (segment === "planos") return "plans";
+  if (segment === "configuracoes") return "settings";
+  return "dashboard";
+}
 
 function apiHeaders() {
   return { "Content-Type": "application/json", Authorization: `Bearer ${getStoredToken()}` };
@@ -36,6 +55,17 @@ function maskPhone(value: string) {
   if (d.length <= 6) return `(${d.slice(0, 2)}) ${d.slice(2)}`;
   if (d.length <= 10) return `(${d.slice(0, 2)}) ${d.slice(2, 6)}-${d.slice(6)}`;
   return `(${d.slice(0, 2)}) ${d.slice(2, 7)}-${d.slice(7)}`;
+}
+
+function buildTenantPreviewUrl(subdomain: string) {
+  if (typeof window === "undefined" || !subdomain) return "";
+  const { protocol, hostname, port } = window.location;
+  if (hostname === "localhost" || hostname === "127.0.0.1" || hostname.endsWith(".localhost")) {
+    return `${protocol}//${hostname}${port ? `:${port}` : ""}/s/${subdomain}`;
+  }
+  const parts = hostname.split(".");
+  const rootDomain = parts.length > 2 ? parts.slice(-2).join(".") : hostname;
+  return `${protocol}//${subdomain}.${rootDomain}`;
 }
 
 function InputField({ label, value, onChange, placeholder, type = "text", icon, hint }: {
@@ -60,18 +90,22 @@ function InputField({ label, value, onChange, placeholder, type = "text", icon, 
 
 export default function SuperAdminDashboard() {
   const navigate = useNavigate();
+  const location = useLocation();
   const currentUser = useMemo(() => getStoredUser(), []);
-  const [page, setPage] = useState<Page>("dashboard");
+  const page = pageFromPath(location.pathname);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [stats, setStats] = useState<OverviewResponse["stats"] | null>(null);
   const [tenants, setTenants] = useState<ManagedTenant[]>([]);
   const [invites, setInvites] = useState<SetupInvite[]>([]);
+  const [plans, setPlans] = useState<SubscriptionPlan[]>([]);
   const [toast, setToast] = useState<Toast | null>(null);
+  const [tenantSearch, setTenantSearch] = useState("");
+  const [tenantStatus, setTenantStatus] = useState<"all" | ManagedTenant["status"]>("all");
   const [form, setForm] = useState({
     storeName: "", subdomain: "", whatsapp: "", ownerName: "",
-    ownerEmail: "", trialDays: "30", subscriptionAmount: "0",
+    ownerEmail: "", trialDays: "30", subscriptionAmount: "0", planId: "",
   });
 
   const showToast = (type: Toast["type"], message: string) => {
@@ -85,8 +119,32 @@ export default function SuperAdminDashboard() {
     void loadOverview();
   }, [navigate]);
 
+  useEffect(() => {
+    if (location.pathname === "/super-admin" || location.pathname === "/super-admin/") {
+      navigate(PAGE_PATHS.dashboard, { replace: true });
+    }
+  }, [location.pathname, navigate]);
+
+  function goToPage(nextPage: Page) {
+    navigate(PAGE_PATHS[nextPage]);
+    setSidebarOpen(false);
+  }
+
   const sortedInvites = useMemo(() => [...invites].sort((a, b) => +new Date(b.created_at) - +new Date(a.created_at)), [invites]);
   const sortedTenants = useMemo(() => [...tenants].sort((a, b) => +new Date(b.created_at as string) - +new Date(a.created_at as string)), [tenants]);
+  const filteredTenants = useMemo(() => {
+    const query = tenantSearch.trim().toLocaleLowerCase("pt-BR");
+    return sortedTenants.filter((tenant) => {
+      const matchesStatus = tenantStatus === "all" || tenant.status === tenantStatus;
+      const matchesQuery = !query || [tenant.name, tenant.subdomain, tenant.whatsapp, tenant.users?.[0]?.name, tenant.users?.[0]?.email]
+        .some((value) => String(value || "").toLocaleLowerCase("pt-BR").includes(query));
+      return matchesStatus && matchesQuery;
+    });
+  }, [sortedTenants, tenantSearch, tenantStatus]);
+
+  const monthlyRevenue = useMemo(() => tenants
+    .filter((tenant) => tenant.status === "active")
+    .reduce((total, tenant) => total + Number(tenant.subscription_amount || 0), 0), [tenants]);
 
   async function loadOverview() {
     setLoading(true);
@@ -94,7 +152,7 @@ export default function SuperAdminDashboard() {
       const res = await fetch("/api/super-admin/overview", { headers: apiHeaders() });
       const data = (await res.json()) as OverviewResponse & { error?: string };
       if (!res.ok) { showToast("error", data.error || "Falha ao carregar."); return; }
-      setStats(data.stats); setTenants(data.tenants); setInvites(data.invites);
+      setStats(data.stats); setTenants(data.tenants); setInvites(data.invites); setPlans(data.plans || []);
     } catch { showToast("error", "Não foi possível carregar o painel."); }
     finally { setLoading(false); }
   }
@@ -110,6 +168,7 @@ export default function SuperAdminDashboard() {
           ownerName: form.ownerName, ownerEmail: form.ownerEmail,
           trialDays: Number(form.trialDays) || 30,
           subscriptionAmount: Number(form.subscriptionAmount) || 0,
+          planId: form.planId ? Number(form.planId) : null,
         }),
       });
       const data = (await res.json()) as SetupInvite & { error?: string };
@@ -118,7 +177,7 @@ export default function SuperAdminDashboard() {
       setStats((c) => c ? { ...c, pending_invites: c.pending_invites + 1 } : c);
       showToast("success", "Convite criado com sucesso!");
       setForm((c) => ({ ...c, storeName: "", subdomain: "", whatsapp: "", ownerName: "", ownerEmail: "" }));
-      setPage("invites");
+      goToPage("invites");
     } catch { showToast("error", "Erro ao gerar o convite."); }
     finally { setSubmitting(false); }
   }
@@ -272,6 +331,7 @@ export default function SuperAdminDashboard() {
     { id: "dashboard", label: "Dashboard", icon: <LayoutDashboard size={18} /> },
     { id: "invites", label: "Convites", icon: <Link2 size={18} />, badge: stats?.pending_invites },
     { id: "tenants", label: "Clientes", icon: <Users size={18} />, badge: stats?.tenants },
+    { id: "plans", label: "Planos e assinaturas", icon: <Crown size={18} />, badge: plans.filter((plan) => plan.is_active).length },
     { id: "settings", label: "Configurações", icon: <Settings size={18} /> },
   ];
 
@@ -287,7 +347,7 @@ export default function SuperAdminDashboard() {
   }
 
   return (
-    <div className="flex min-h-screen bg-slate-50">
+    <div className="flex h-screen overflow-hidden bg-[#f6f8fc]">
       {/* Toast */}
       <AnimatePresence>
         {toast && (
@@ -314,53 +374,35 @@ export default function SuperAdminDashboard() {
       </AnimatePresence>
 
       {/* Sidebar */}
-      <aside className={`fixed inset-y-0 left-0 z-30 flex w-64 flex-col bg-[#0f172a] transition-transform duration-300 lg:static lg:translate-x-0 ${sidebarOpen ? "translate-x-0" : "-translate-x-full"}`}>
+      <aside className={`fixed inset-y-0 left-0 z-30 flex h-screen w-[280px] shrink-0 flex-col overflow-y-auto bg-[#0b1324] shadow-2xl transition-transform duration-300 lg:static lg:translate-x-0 lg:shadow-none ${sidebarOpen ? "translate-x-0" : "-translate-x-full"}`}>
         {/* Logo */}
-        <div className="flex items-center gap-3 border-b border-white/8 px-5 py-5">
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white shadow">
-            <img src="/system/logo.png" alt="BoxSys" className="h-6 w-6 object-contain" />
-          </div>
-          <div>
-            <p className="text-[11px] font-black uppercase tracking-[0.2em] text-[#C9A227]">BoxSys Store</p>
-            <p className="text-[10px] text-slate-500">Super Admin</p>
-          </div>
+        <div className="flex h-[88px] items-center justify-between border-b border-white/8 px-6">
+          <img src="/system/logo-boxsys-vazado.png" alt="BoxSys" className="h-9 w-auto object-contain" />
+          <button onClick={() => setSidebarOpen(false)} className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/5 text-slate-400 hover:bg-white/10 lg:hidden"><X size={15} /></button>
         </div>
 
-        {/* Stats mini */}
-        <div className="grid grid-cols-2 gap-2 border-b border-white/8 p-4">
-          {[
-            { label: "Tenants", value: stats?.tenants ?? 0, color: "text-blue-400", icon: <Store size={12} className="text-blue-400/70" /> },
-            { label: "Ativos", value: stats?.active_accounts ?? 0, color: "text-emerald-400", icon: <BadgeCheck size={12} className="text-emerald-400/70" /> },
-            { label: "Trials", value: stats?.active_trials ?? 0, color: "text-amber-400", icon: <Clock size={12} className="text-amber-400/70" /> },
-            { label: "Convites", value: stats?.pending_invites ?? 0, color: "text-purple-400", icon: <Link2 size={12} className="text-purple-400/70" /> },
-          ].map((s) => (
-            <div key={s.label} className="rounded-xl bg-white/5 px-3 py-2.5 transition-colors hover:bg-white/[0.08]">
-              <div className="flex items-center justify-between">
-                <p className={`text-lg font-black ${s.color}`}>{s.value}</p>
-                {s.icon}
-              </div>
-              <p className="text-[9px] font-bold uppercase tracking-[0.14em] text-slate-500">{s.label}</p>
-            </div>
-          ))}
+        <div className="mx-4 mt-5 rounded-2xl border border-blue-400/15 bg-gradient-to-br from-blue-500/15 to-cyan-400/5 p-4">
+          <div className="flex items-center gap-2 text-blue-300"><ShieldCheck size={14} /><span className="text-[10px] font-black uppercase tracking-[0.18em]">Central SaaS</span></div>
+          <p className="mt-2 text-xs leading-5 text-slate-400">Gerencie clientes, planos e receita da plataforma.</p>
         </div>
 
         {/* Nav */}
-        <nav className="flex-1 space-y-1 p-3">
-          <p className="px-3 pb-2 pt-1 text-[10px] font-bold uppercase tracking-[0.22em] text-slate-600">Menu</p>
+        <nav className="flex-1 space-y-1.5 p-4 pt-6">
+          <p className="px-3 pb-2 text-[9px] font-bold uppercase tracking-[0.24em] text-slate-600">Navegação</p>
           {navItems.map((item) => {
             const active = page === item.id;
             return (
               <button
                 key={item.id}
-                onClick={() => { setPage(item.id); setSidebarOpen(false); }}
-                className={`group relative flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold transition-all ${
+                onClick={() => goToPage(item.id)}
+                className={`group relative flex w-full items-center gap-3 rounded-xl px-3 py-3 text-sm font-semibold transition-all ${
                   active
-                    ? "bg-[#C9A227] text-white shadow-[0_4px_16px_rgba(201,162,39,0.30)]"
-                    : "text-slate-400 hover:bg-white/5 hover:text-white"
+                    ? "bg-blue-600 text-white shadow-[0_8px_24px_rgba(37,99,235,0.28)]"
+                    : "text-slate-400 hover:bg-white/[0.06] hover:text-white"
                 }`}
               >
                 <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg transition-colors ${
-                  active ? "bg-white/15" : "bg-white/5 group-hover:bg-white/10"
+                  active ? "bg-white/15" : "bg-white/[0.04] group-hover:bg-white/10"
                 }`}>
                   {item.icon}
                 </span>
@@ -378,7 +420,7 @@ export default function SuperAdminDashboard() {
         {/* User + Logout */}
         <div className="border-t border-white/8 p-3">
           <div className="flex items-center gap-3 rounded-xl px-3 py-2.5">
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#C9A227]/15 text-xs font-black uppercase text-[#C9A227]">
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-blue-500/15 text-xs font-black uppercase text-blue-400">
               {(currentUser?.name || "SA").charAt(0)}
             </div>
             <div className="min-w-0 flex-1">
@@ -397,25 +439,27 @@ export default function SuperAdminDashboard() {
       </aside>
 
       {/* Main */}
-      <div className="flex flex-1 flex-col min-w-0">
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col">
         {/* Topbar */}
-        <header className="flex h-16 items-center justify-between border-b border-slate-200 bg-white px-4 sm:px-6 lg:px-8">
+        <header className="relative z-10 flex h-[72px] shrink-0 items-center justify-between border-b border-slate-200/80 bg-white/95 px-4 backdrop-blur sm:px-6 lg:px-8">
           <div className="flex items-center gap-3">
             <button onClick={() => setSidebarOpen(true)} className="lg:hidden rounded-lg p-2 text-slate-500 hover:bg-slate-100">
               <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" /></svg>
             </button>
             <div>
-              <h1 className="text-base font-black text-slate-900">
+              <div className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-400">
+                <span>Super Admin</span><ChevronRight size={10} /><span className="text-blue-600">{navItems.find(n => n.id === page)?.label}</span>
+              </div>
+              <h1 className="mt-0.5 text-lg font-black tracking-[-0.02em] text-slate-900">
                 {navItems.find(n => n.id === page)?.label}
               </h1>
-              <p className="text-[10px] text-slate-400 hidden sm:block">Painel de gerenciamento BoxSys</p>
             </div>
           </div>
           <div className="flex items-center gap-2">
             <button onClick={() => void loadOverview()} className="flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 text-slate-500 transition-all hover:bg-slate-50">
               <RefreshCcw size={14} />
             </button>
-            <span className="flex items-center gap-1.5 rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.16em] text-slate-600">
+            <span className="hidden items-center gap-1.5 rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.16em] text-slate-600 sm:flex">
               <ShieldCheck size={11} className="text-[#C9A227]" />
               Super Admin
             </span>
@@ -423,23 +467,25 @@ export default function SuperAdminDashboard() {
         </header>
 
         {/* Content */}
-        <main className="flex-1 overflow-auto p-4 sm:p-6 lg:p-8">
+        <main className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-4 sm:p-6 lg:p-8">
+          <div className="mx-auto w-full max-w-[1600px]">
           <AnimatePresence mode="wait">
 
             {/* ── DASHBOARD ── */}
             {page === "dashboard" && (
               <motion.div key="dashboard" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="space-y-6">
-                <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-5">
                   {[
                     { label: "Tenants", value: stats?.tenants ?? 0, icon: <Store size={20} className="text-blue-500" />, color: "bg-blue-50 border-blue-100", change: "Total de lojas" },
                     { label: "Em Trial", value: stats?.active_trials ?? 0, icon: <Clock size={20} className="text-amber-500" />, color: "bg-amber-50 border-amber-100", change: "Período gratuito" },
                     { label: "Ativos", value: stats?.active_accounts ?? 0, icon: <BadgeCheck size={20} className="text-emerald-500" />, color: "bg-emerald-50 border-emerald-100", change: "Assinantes ativos" },
                     { label: "Convites", value: stats?.pending_invites ?? 0, icon: <Link2 size={20} className="text-purple-500" />, color: "bg-purple-50 border-purple-100", change: "Aguardando ativação" },
+                    { label: "Receita mensal", value: monthlyRevenue.toLocaleString("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 }), icon: <TrendingUp size={20} className="text-cyan-600" />, color: "bg-cyan-50 border-cyan-100", change: "Contas ativas" },
                   ].map((s) => (
-                    <div key={s.label} className={`flex items-center gap-4 rounded-2xl border p-4 ${s.color}`}>
+                    <div key={s.label} className={`flex min-w-0 items-center gap-3 rounded-2xl border p-4 ${s.color}`}>
                       <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-white/70">{s.icon}</div>
-                      <div>
-                        <p className="text-2xl font-black text-slate-900">{s.value}</p>
+                      <div className="min-w-0">
+                        <p className="truncate text-xl font-black text-slate-900">{s.value}</p>
                         <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-slate-500">{s.label}</p>
                         <p className="text-[9px] text-slate-400 mt-0.5">{s.change}</p>
                       </div>
@@ -449,17 +495,17 @@ export default function SuperAdminDashboard() {
 
                 {/* Quick actions */}
                 <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                  <button onClick={() => setPage("invites")} className="flex items-center gap-4 rounded-2xl border border-[#C9A227]/20 bg-[#C9A227]/5 p-5 text-left transition-all hover:bg-[#C9A227]/10">
+                  <button onClick={() => goToPage("invites")} className="flex items-center gap-4 rounded-2xl border border-[#C9A227]/20 bg-[#C9A227]/5 p-5 text-left transition-all hover:bg-[#C9A227]/10">
                     <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-[#C9A227]/15"><UserPlus2 size={22} className="text-[#C9A227]" /></div>
                     <div><p className="font-bold text-slate-900">Gerar Convite</p><p className="text-xs text-slate-500 mt-0.5">Criar novo link de ativação</p></div>
                     <ChevronRight size={16} className="ml-auto text-slate-400" />
                   </button>
-                  <button onClick={() => setPage("tenants")} className="flex items-center gap-4 rounded-2xl border border-emerald-200 bg-emerald-50 p-5 text-left transition-all hover:bg-emerald-100">
+                  <button onClick={() => goToPage("tenants")} className="flex items-center gap-4 rounded-2xl border border-emerald-200 bg-emerald-50 p-5 text-left transition-all hover:bg-emerald-100">
                     <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-emerald-100"><Users size={22} className="text-emerald-600" /></div>
                     <div><p className="font-bold text-slate-900">Ver Clientes</p><p className="text-xs text-slate-500 mt-0.5">{stats?.tenants ?? 0} lojas provisionadas</p></div>
                     <ChevronRight size={16} className="ml-auto text-slate-400" />
                   </button>
-                  <button onClick={() => setPage("invites")} className="flex items-center gap-4 rounded-2xl border border-purple-200 bg-purple-50 p-5 text-left transition-all hover:bg-purple-100">
+                  <button onClick={() => goToPage("invites")} className="flex items-center gap-4 rounded-2xl border border-purple-200 bg-purple-50 p-5 text-left transition-all hover:bg-purple-100">
                     <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-purple-100"><Link2 size={22} className="text-purple-600" /></div>
                     <div><p className="font-bold text-slate-900">Links Gerados</p><p className="text-xs text-slate-500 mt-0.5">{sortedInvites.length} convites criados</p></div>
                     <ChevronRight size={16} className="ml-auto text-slate-400" />
@@ -470,7 +516,7 @@ export default function SuperAdminDashboard() {
                 <div className="rounded-2xl border border-slate-200 bg-white p-6">
                   <div className="flex items-center justify-between mb-5">
                     <h2 className="font-black text-slate-900">Clientes Recentes</h2>
-                    <button onClick={() => setPage("tenants")} className="text-[11px] font-bold uppercase tracking-wider text-[#C9A227] hover:underline">Ver todos</button>
+                    <button onClick={() => goToPage("tenants")} className="text-[11px] font-bold uppercase tracking-wider text-[#C9A227] hover:underline">Ver todos</button>
                   </div>
                   {sortedTenants.length === 0 ? <EmptyState message="Nenhuma loja provisionada ainda" /> : (
                     <div className="space-y-3">
@@ -519,7 +565,7 @@ export default function SuperAdminDashboard() {
                       <InputField label="Subdomínio" value={form.subdomain}
                         onChange={(v) => setForm((c) => ({ ...c, subdomain: normalizeSubdomain(v) }))}
                         placeholder="voganstore" icon={<Link2 size={14} />}
-                        hint={form.subdomain ? `→ ${form.subdomain}.boxsys.com.br` : undefined} />
+                        hint={form.subdomain ? `→ ${buildTenantPreviewUrl(form.subdomain)}` : undefined} />
                       <div className="grid gap-4 sm:grid-cols-2">
                         <InputField label="WhatsApp" value={form.whatsapp}
                           onChange={(v) => setForm((c) => ({ ...c, whatsapp: maskPhone(v) }))}
@@ -532,6 +578,24 @@ export default function SuperAdminDashboard() {
                       <InputField label="E-mail" value={form.ownerEmail}
                         onChange={(v) => setForm((c) => ({ ...c, ownerEmail: v }))}
                         placeholder="cliente@empresa.com.br" type="email" icon={<Mail size={14} />} />
+                      <div className="space-y-1.5">
+                        <label className="block text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500">Plano da assinatura</label>
+                        <select
+                          value={form.planId}
+                          onChange={(event) => {
+                            const selected = plans.find((plan) => plan.id === Number(event.target.value));
+                            setForm((current) => ({ ...current, planId: event.target.value,
+                              subscriptionAmount: selected ? String(selected.price) : current.subscriptionAmount,
+                              trialDays: selected ? String(selected.trial_days) : current.trialDays }));
+                          }}
+                          className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3.5 text-sm font-semibold text-slate-800 outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10"
+                        >
+                          <option value="">Personalizado / sem plano</option>
+                          {plans.filter((plan) => plan.is_active).map((plan) => (
+                            <option key={plan.id} value={plan.id}>{plan.name} — R$ {Number(plan.price).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</option>
+                          ))}
+                        </select>
+                      </div>
                       <div className="grid gap-4 sm:grid-cols-2">
                         <InputField label="Trial (dias)" value={form.trialDays}
                           onChange={(v) => setForm((c) => ({ ...c, trialDays: v }))}
@@ -561,7 +625,7 @@ export default function SuperAdminDashboard() {
                           <div className="flex items-start justify-between gap-2 mb-2">
                             <div className="min-w-0">
                               <p className="font-bold text-slate-900 truncate">{invite.store_name}</p>
-                              <p className="text-xs text-slate-400">{invite.subdomain}.boxsys.com.br</p>
+                              <p className="truncate text-xs text-slate-400">{invite.access_url || buildTenantPreviewUrl(invite.subdomain)}</p>
                             </div>
                             <Badge status={invite.used_at ? "used" : invite.is_expired ? "expired" : "pending"} />
                           </div>
@@ -614,12 +678,31 @@ export default function SuperAdminDashboard() {
             {/* ── TENANTS ── */}
             {page === "tenants" && (
               <motion.div key="tenants" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="space-y-6">
-                <div className="flex flex-wrap items-center justify-between gap-3">
+                <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
                   <div>
                     <h2 className="text-xl font-black text-slate-900">Clientes Provisionados</h2>
-                    <p className="text-sm text-slate-500">{sortedTenants.length} lojas registradas</p>
+                    <p className="text-sm text-slate-500">{filteredTenants.length} de {sortedTenants.length} lojas</p>
                   </div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex w-full flex-col gap-2 sm:flex-row xl:w-auto">
+                    <div className="relative min-w-0 flex-1 sm:min-w-[260px]">
+                      <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                      <input
+                        value={tenantSearch}
+                        onChange={(event) => setTenantSearch(event.target.value)}
+                        placeholder="Buscar loja, domínio ou e-mail"
+                        className="h-10 w-full rounded-xl border border-slate-200 bg-white pl-9 pr-3 text-sm text-slate-800 outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10"
+                      />
+                    </div>
+                    <select
+                      value={tenantStatus}
+                      onChange={(event) => setTenantStatus(event.target.value as typeof tenantStatus)}
+                      className="h-10 rounded-xl border border-slate-200 bg-white px-3 text-xs font-bold text-slate-600 outline-none focus:border-blue-500"
+                    >
+                      <option value="all">Todos os status</option>
+                      <option value="active">Ativos</option>
+                      <option value="trial">Em trial</option>
+                      <option value="suspended">Suspensos</option>
+                    </select>
                     <div className="flex items-center gap-1 rounded-xl bg-slate-100 p-1">
                       {([
                         { v: "list", label: "Lista" },
@@ -633,15 +716,15 @@ export default function SuperAdminDashboard() {
                         </button>
                       ))}
                     </div>
-                    <button onClick={() => setPage("invites")}
-                      className="flex items-center gap-2 rounded-xl bg-[#C9A227] px-4 py-2.5 text-[11px] font-bold uppercase tracking-wider text-white shadow-[0_4px_16px_rgba(201,162,39,0.3)] hover:bg-[#b8911f]">
+                    <button onClick={() => goToPage("invites")}
+                      className="flex h-10 shrink-0 items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 text-[11px] font-bold uppercase tracking-wider text-white shadow-[0_4px_16px_rgba(37,99,235,0.25)] hover:bg-blue-700">
                       <UserPlus2 size={14} /> Nova loja
                     </button>
                   </div>
                 </div>
-                {sortedTenants.length === 0 ? <EmptyState message="Nenhuma conta provisionada" /> : (
+                {filteredTenants.length === 0 ? <EmptyState message={sortedTenants.length === 0 ? "Nenhuma conta provisionada" : "Nenhum cliente encontrado com esses filtros"} /> : (
                   <div className={tenantsView === "card" ? "grid gap-5 lg:grid-cols-2" : "space-y-2"}>
-                    {sortedTenants.map((tenant) => {
+                    {filteredTenants.map((tenant) => {
                       const now = new Date();
                       const createdAt = tenant.created_at ? new Date(tenant.created_at) : null;
                       const trialStart = tenant.trial_starts_at ? new Date(tenant.trial_starts_at) : createdAt;
@@ -886,6 +969,17 @@ export default function SuperAdminDashboard() {
               </motion.div>
             )}
 
+            {/* ── PLANS & SUBSCRIPTIONS ── */}
+            {page === "plans" && (
+              <PlansPage
+                plans={plans}
+                tenants={sortedTenants}
+                onPlansChange={setPlans}
+                onTenantChange={(updated) => setTenants((current) => current.map((tenant) => tenant.id === updated.id ? updated : tenant))}
+                notify={showToast}
+              />
+            )}
+
             {/* ── SETTINGS ── */}
             {page === "settings" && (
               <motion.div key="settings" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="space-y-6">
@@ -894,8 +988,8 @@ export default function SuperAdminDashboard() {
                   <div className="space-y-3">
                     {[
                       { label: "Versão", value: "1.0.0" },
-                      { label: "Domínio", value: "boxsys.com.br" },
-                      { label: "Painel principal", value: "store.boxsys.com.br" },
+                      { label: "Ambiente", value: window.location.origin },
+                      { label: "Painel principal", value: window.location.host },
                       { label: "Total de lojas", value: String(stats?.tenants ?? 0) },
                       { label: "Lojas ativas", value: String(stats?.active_accounts ?? 0) },
                     ].map((item) => (
@@ -923,6 +1017,7 @@ export default function SuperAdminDashboard() {
             )}
 
           </AnimatePresence>
+          </div>
         </main>
       </div>
 
@@ -945,7 +1040,7 @@ export default function SuperAdminDashboard() {
                   </div>
                   <div className="min-w-0">
                     <h2 className="text-sm font-black text-white">Editar Cliente</h2>
-                    <p className="truncate text-[11px] text-slate-400">{editingTenant.subdomain}.boxsys.com.br</p>
+                    <p className="truncate text-[11px] text-slate-400">{editingTenant.public_url || buildTenantPreviewUrl(editingTenant.subdomain)}</p>
                   </div>
                 </div>
                 <button onClick={() => setEditingTenant(null)} className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg hover:bg-white/10">

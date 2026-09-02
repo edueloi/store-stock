@@ -139,6 +139,7 @@ export async function login(req: Request, res: Response) {
             trial_ends_at: true,
             fluxo_producao_enabled: true,
             grafica_enabled: true,
+            plan: { select: { features: true } },
           },
         },
       },
@@ -197,6 +198,7 @@ export async function login(req: Request, res: Response) {
         public_url: buildTenantAccessUrl(user.tenant.subdomain || user.tenant.slug),
         fluxo_producao_enabled: user.tenant.fluxo_producao_enabled,
         grafica_enabled: user.tenant.grafica_enabled,
+        plan_features: Array.isArray(user.tenant.plan?.features) ? user.tenant.plan.features.map(String) : null,
       },
     });
   } catch {
@@ -277,6 +279,7 @@ export async function claimSetupInvite(req: Request, res: Response) {
   try {
     const invite = await prisma.setupInvite.findUnique({
       where: { token },
+      include: { plan: true },
     });
 
     if (!invite) {
@@ -309,6 +312,7 @@ export async function claimSetupInvite(req: Request, res: Response) {
     const trialEndsAt = addDays(now, invite.trial_days);
 
     const result = await prisma.$transaction(async (tx) => {
+      const planFeatures = Array.isArray(invite.plan?.features) ? invite.plan.features.map(String) : [];
       const tenant = await tx.tenant.create({
         data: {
           name: invite.store_name,
@@ -320,6 +324,9 @@ export async function claimSetupInvite(req: Request, res: Response) {
           trial_starts_at: now,
           trial_ends_at: trialEndsAt,
           subscription_amount: invite.subscription_amount,
+          plan_id: invite.plan_id,
+          fluxo_producao_enabled: planFeatures.includes("fluxo_producao"),
+          grafica_enabled: planFeatures.includes("grafica"),
           setup_completed_at: now,
         },
       });

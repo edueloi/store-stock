@@ -578,7 +578,12 @@ export default function AdminDashboard() {
   // explicitamente (user.menus, gravado no login — ver Settings > Time & Acessos).
   const currentUser = getStoredUser();
   const allowedMenus = currentUser?.menus ?? [];
-  const canSeeMenu = (key: string) => currentUser?.role === "admin" || allowedMenus.includes(key);
+  const planFeatures = currentUser?.plan_features;
+  const alwaysAvailable = ["dashboard", "settings"];
+  const canSeeMenu = (key: string) => {
+    const isIncludedInPlan = !Array.isArray(planFeatures) || alwaysAvailable.includes(key) || planFeatures.includes(key);
+    return isIncludedInPlan && (currentUser?.role === "admin" || allowedMenus.includes(key));
+  };
 
   // Módulos liberados pelo Super Admin por tenant (feature flag da loja inteira,
   // independente de role/permissão individual) — some do menu pra todo mundo se desligado.

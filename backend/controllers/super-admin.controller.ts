@@ -63,10 +63,12 @@ function serializeTenant(tenant: {
   trial_starts_at: Date | null;
   trial_ends_at: Date | null;
   subscription_amount: unknown;
+  plan_id: number | null;
   setup_completed_at: Date | null;
   created_at: Date;
   updated_at: Date;
   users?: { id: number; name: string; email: string; role: string }[];
+  plan?: { id: number; name: string; color: string } | null;
 }) {
   const url = buildTenantAccessUrl(tenant.subdomain || tenant.slug);
   return {
@@ -87,6 +89,7 @@ function serializeInvite(invite: {
   owner_email: string | null;
   trial_days: number;
   subscription_amount: unknown;
+  plan_id: number | null;
   invite_expires_at: Date;
   used_at: Date | null;
   created_at: Date;
@@ -103,10 +106,11 @@ function serializeInvite(invite: {
 
 export async function getSuperAdminOverview(_req: Request, res: Response) {
   try {
-    const [tenants, invites] = await Promise.all([
+    const [tenants, invites, plans] = await Promise.all([
       prisma.tenant.findMany({
         orderBy: { created_at: "desc" },
         include: {
+          plan: { select: { id: true, name: true, color: true } },
           users: {
             orderBy: { created_at: "asc" },
             select: {
@@ -121,6 +125,7 @@ export async function getSuperAdminOverview(_req: Request, res: Response) {
       prisma.setupInvite.findMany({
         orderBy: { created_at: "desc" },
       }),
+      prisma.subscriptionPlan.findMany({ orderBy: [{ sort_order: "asc" }, { price: "asc" }] }),
     ]);
 
     res.json({
@@ -134,6 +139,7 @@ export async function getSuperAdminOverview(_req: Request, res: Response) {
       },
       tenants: tenants.map(serializeTenant),
       invites: invites.map(serializeInvite),
+      plans: plans.map((plan) => ({ ...plan, price: Number(plan.price) })),
     });
   } catch {
     res.status(500).json({ error: "Falha ao carregar o painel do super admin." });
@@ -149,6 +155,7 @@ export async function createSetupInvite(req: Request, res: Response) {
     ownerEmail,
     trialDays,
     subscriptionAmount,
+    planId,
   } = req.body;
 
   try {
@@ -159,6 +166,7 @@ export async function createSetupInvite(req: Request, res: Response) {
       return;
     }
 
+    const selectedPlan = planId ? await prisma.subscriptionPlan.findUnique({ where: { id: Number(planId) } }) : null;
     const invite = await prisma.setupInvite.create({
       data: {
         token: crypto.randomBytes(24).toString("hex"),
@@ -167,8 +175,9 @@ export async function createSetupInvite(req: Request, res: Response) {
         whatsapp: String(whatsapp || "").trim(),
         owner_name: ownerName ? String(ownerName).trim() : null,
         owner_email: ownerEmail ? String(ownerEmail).trim().toLowerCase() : null,
-        trial_days: Math.max(1, Number(trialDays) || 30),
-        subscription_amount: Number(subscriptionAmount) || 0,
+        plan_id: selectedPlan?.id,
+        trial_days: Math.max(1, Number(trialDays) || selectedPlan?.trial_days || 30),
+        subscription_amount: Number(subscriptionAmount) || Number(selectedPlan?.price) || 0,
         invite_expires_at: addDays(new Date(), env.inviteExpirationDays),
       },
     });
@@ -250,6 +259,7 @@ export async function updateManagedTenant(req: Request, res: Response) {
     name,
     fluxoProducaoEnabled,
     graficaEnabled,
+    planId,
   } = req.body;
 
   if (!tenantId) {
@@ -258,6 +268,10 @@ export async function updateManagedTenant(req: Request, res: Response) {
   }
 
   try {
+    const selectedPlan = planId !== undefined && planId !== null
+      ? await prisma.subscriptionPlan.findUnique({ where: { id: Number(planId) } })
+      : null;
+    const selectedFeatures = Array.isArray(selectedPlan?.features) ? selectedPlan.features.map(String) : [];
     const tenant = await prisma.tenant.update({
       where: { id: tenantId },
       data: {
@@ -265,12 +279,14 @@ export async function updateManagedTenant(req: Request, res: Response) {
         status: status || undefined,
         trial_days: trialDays !== undefined ? Math.max(1, Number(trialDays) || 30) : undefined,
         trial_ends_at: trialEndsAt ? new Date(trialEndsAt) : undefined,
-        subscription_amount: subscriptionAmount !== undefined ? Number(subscriptionAmount) || 0 : undefined,
         whatsapp: whatsapp !== undefined ? String(whatsapp).trim() : undefined,
-        fluxo_producao_enabled: fluxoProducaoEnabled !== undefined ? !!fluxoProducaoEnabled : undefined,
-        grafica_enabled: graficaEnabled !== undefined ? !!graficaEnabled : undefined,
+        plan_id: planId !== undefined ? (planId ? Number(planId) : null) : undefined,
+        subscription_amount: planId !== undefined && selectedPlan ? selectedPlan.price : subscriptionAmount !== undefined ? Number(subscriptionAmount) || 0 : undefined,
+        fluxo_producao_enabled: planId !== undefined && selectedPlan ? selectedFeatures.includes("fluxo_producao") : fluxoProducaoEnabled !== undefined ? !!fluxoProducaoEnabled : undefined,
+        grafica_enabled: planId !== undefined && selectedPlan ? selectedFeatures.includes("grafica") : graficaEnabled !== undefined ? !!graficaEnabled : undefined,
       },
       include: {
+        plan: { select: { id: true, name: true, color: true } },
         users: {
           orderBy: { created_at: "asc" },
           select: { id: true, name: true, email: true, role: true },
@@ -327,5 +343,72 @@ export async function updateTenantUser(req: Request, res: Response) {
     res.json(updated);
   } catch {
     res.status(500).json({ error: "Falha ao atualizar o usuário." });
+  }
+}
+
+function planPayload(body: Record<string, unknown>) {
+  const features = Array.isArray(body.features) ? body.features.map(String).filter(Boolean) : [];
+  const limits = body.limits && typeof body.limits === "object" ? body.limits : {};
+  return {
+    name: String(body.name || "").trim(),
+    description: body.description ? String(body.description).trim() : null,
+    price: Math.max(0, Number(body.price) || 0),
+    billing_cycle: body.billingCycle === "yearly" ? "yearly" : "monthly",
+    trial_days: Math.max(0, Number(body.trialDays) || 0),
+    features,
+    limits,
+    color: /^#[0-9a-f]{6}$/i.test(String(body.color || "")) ? String(body.color) : "#2563eb",
+    is_featured: !!body.isFeatured,
+    is_active: body.isActive !== false,
+    sort_order: Number(body.sortOrder) || 0,
+  };
+}
+
+export async function listSubscriptionPlans(_req: Request, res: Response) {
+  try {
+    const plans = await prisma.subscriptionPlan.findMany({
+      orderBy: [{ sort_order: "asc" }, { price: "asc" }],
+      include: { _count: { select: { tenants: true } } },
+    });
+    res.json(plans.map((plan) => ({ ...plan, price: Number(plan.price), subscribers: plan._count.tenants })));
+  } catch {
+    res.status(500).json({ error: "Falha ao carregar os planos." });
+  }
+}
+
+export async function createSubscriptionPlan(req: Request, res: Response) {
+  const data = planPayload(req.body || {});
+  if (!data.name) { res.status(400).json({ error: "Informe o nome do plano." }); return; }
+  if (data.features.length === 0) { res.status(400).json({ error: "Selecione ao menos um recurso." }); return; }
+  try {
+    const plan = await prisma.subscriptionPlan.create({ data });
+    res.status(201).json({ ...plan, price: Number(plan.price), subscribers: 0 });
+  } catch {
+    res.status(500).json({ error: "Falha ao criar o plano." });
+  }
+}
+
+export async function updateSubscriptionPlan(req: Request, res: Response) {
+  const id = Number(req.params.planId);
+  if (!id) { res.status(400).json({ error: "Plano inválido." }); return; }
+  const data = planPayload(req.body || {});
+  if (!data.name) { res.status(400).json({ error: "Informe o nome do plano." }); return; }
+  try {
+    const plan = await prisma.subscriptionPlan.update({ where: { id }, data });
+    const subscribers = await prisma.tenant.count({ where: { plan_id: id } });
+    res.json({ ...plan, price: Number(plan.price), subscribers });
+  } catch {
+    res.status(500).json({ error: "Falha ao atualizar o plano." });
+  }
+}
+
+export async function archiveSubscriptionPlan(req: Request, res: Response) {
+  const id = Number(req.params.planId);
+  if (!id) { res.status(400).json({ error: "Plano inválido." }); return; }
+  try {
+    const plan = await prisma.subscriptionPlan.update({ where: { id }, data: { is_active: false } });
+    res.json({ ...plan, price: Number(plan.price) });
+  } catch {
+    res.status(500).json({ error: "Falha ao arquivar o plano." });
   }
 }

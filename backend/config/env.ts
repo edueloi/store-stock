@@ -11,7 +11,7 @@ export const env = {
   appDomain: process.env.APP_DOMAIN || "boxsys.com.br",
   primarySubdomain: process.env.PRIMARY_SUBDOMAIN || "store",
   superAdminUser: process.env.SUPER_ADMIN_USER || "Admin",
-  superAdminPassword: process.env.SUPER_ADMIN_PASSWORD || "Edu@06051992",
+  superAdminPassword: process.env.SUPER_ADMIN_PASSWORD || "Admin@123",
   inviteExpirationDays: Number(process.env.INVITE_EXPIRATION_DAYS || 7),
   smtpHost: process.env.SMTP_HOST || "smtp.gmail.com",
   smtpPort: Number(process.env.SMTP_PORT || 465),

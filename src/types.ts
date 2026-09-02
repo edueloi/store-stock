@@ -62,11 +62,14 @@ export interface Tenant {
   require_cash_session?: boolean;
   fluxo_producao_enabled?: boolean;
   grafica_enabled?: boolean;
+  plan_features?: string[] | null;
   status?: 'pending_setup' | 'trial' | 'active' | 'suspended';
   trial_days?: number;
   trial_starts_at?: string;
   trial_ends_at?: string;
   subscription_amount?: number;
+  plan_id?: number | null;
+  plan?: { id: number; name: string; color: string } | null;
   setup_completed_at?: string;
   public_url?: string;
   created_at?: string;
@@ -110,6 +113,7 @@ export interface User {
   // Idem, para as etapas "Aguardando arte"/"Arte finalizada" da Ordem de Serviço —
   // ver Tenant.grafica_enabled.
   grafica_enabled?: boolean;
+  plan_features?: string[] | null;
 }
 
 export interface Category {
@@ -287,6 +291,7 @@ export interface SetupInvite {
   owner_email?: string | null;
   trial_days: number;
   subscription_amount: number;
+  plan_id?: number | null;
   invite_expires_at: string;
   used_at?: string | null;
   created_at: string;
@@ -294,6 +299,24 @@ export interface SetupInvite {
   invite_url: string;
   access_url: string;
   is_expired: boolean;
+}
+
+export interface SubscriptionPlan {
+  id: number;
+  name: string;
+  description?: string | null;
+  price: number;
+  billing_cycle: "monthly" | "yearly";
+  trial_days: number;
+  features: string[];
+  limits?: { users?: number; products?: number; storageGb?: number } | null;
+  color: string;
+  is_featured: boolean;
+  is_active: boolean;
+  sort_order: number;
+  subscribers?: number;
+  created_at: string;
+  updated_at: string;
 }
 
 export type NfceStatus = 'pending' | 'processing' | 'authorized' | 'rejected' | 'error' | 'cancelled';
