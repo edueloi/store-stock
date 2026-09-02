@@ -125,11 +125,18 @@ export default function Login() {
     <div className="flex min-h-screen">
       {/* ── Painel esquerdo (branding) ── */}
       <div className="relative hidden w-[55%] flex-col justify-between overflow-hidden bg-[#090e1a] p-10 lg:flex xl:p-14">
-        {/* Gradientes de fundo */}
+        {/* Gradientes + textura de fundo */}
         <div className="pointer-events-none absolute inset-0">
           <div className="absolute inset-0 bg-[radial-gradient(ellipse_80%_60%_at_50%_-10%,rgba(29,78,216,0.35),transparent)]" />
           <div className="absolute bottom-0 left-0 h-80 w-80 rounded-full bg-blue-700/10 blur-[100px]" />
           <div className="absolute right-0 top-1/2 h-64 w-64 -translate-y-1/2 rounded-full bg-sky-500/8 blur-[80px]" />
+          <div
+            className="absolute inset-0 opacity-[0.07]"
+            style={{
+              backgroundImage: "radial-gradient(rgba(255,255,255,0.6) 1px, transparent 1px)",
+              backgroundSize: "28px 28px",
+            }}
+          />
         </div>
 
         {/* Logo */}
@@ -142,7 +149,7 @@ export default function Login() {
         </div>
 
         {/* Headline central */}
-        <div className="relative space-y-6">
+        <div className="relative space-y-7">
           <p className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-1.5 text-[11px] font-semibold uppercase tracking-[0.22em] text-blue-300">
             <span className="h-1.5 w-1.5 rounded-full bg-blue-400" />
             Painel Administrativo
@@ -158,34 +165,34 @@ export default function Login() {
             Catálogo digital, gestão de estoque, vendas e relatórios — tudo integrado em um só lugar.
           </p>
 
-          {/* Feature pills */}
-          <div className="flex flex-wrap gap-2 pt-2">
+          {/* Checklist de destaques */}
+          <ul className="space-y-2.5 pt-1">
             {[
-              "Catálogo Digital",
-              "Gestão de Estoque",
-              "Controle de Vendas",
-              "Múltiplas Lojas",
-              "Relatórios",
+              "Catálogo digital sempre atualizado",
+              "Controle de estoque em tempo real",
+              "PDV, vendas e relatórios integrados",
             ].map((feat) => (
-              <span
-                key={feat}
-                className="rounded-full border border-white/10 bg-white/5 px-3.5 py-1.5 text-xs font-medium text-slate-300"
-              >
+              <li key={feat} className="flex items-center gap-2.5 text-sm text-slate-300">
+                <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-emerald-400/15 text-emerald-400">
+                  <svg viewBox="0 0 12 12" className="h-2.5 w-2.5" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <polyline points="1.5 6 4.5 9 10.5 3" />
+                  </svg>
+                </span>
                 {feat}
-              </span>
+              </li>
             ))}
-          </div>
+          </ul>
 
           {/* Stats */}
-          <div className="flex gap-6 pt-4">
+          <div className="flex divide-x divide-white/10 rounded-2xl border border-white/10 bg-white/[0.03] py-4">
             {[
               { value: "100%", label: "Online" },
               { value: "24/7", label: "Suporte" },
               { value: "∞", label: "Produtos" },
             ].map((s) => (
-              <div key={s.label}>
-                <p className="text-2xl font-black text-amber-400">{s.value}</p>
-                <p className="text-xs text-slate-500">{s.label}</p>
+              <div key={s.label} className="flex-1 px-2 text-center">
+                <p className="text-xl font-black text-amber-400">{s.value}</p>
+                <p className="mt-0.5 text-[10px] font-semibold uppercase tracking-wider text-slate-500">{s.label}</p>
               </div>
             ))}
           </div>
@@ -198,7 +205,7 @@ export default function Login() {
       </div>
 
       {/* ── Painel direito (formulário) ── */}
-      <div className="flex flex-1 flex-col items-center justify-center overflow-y-auto bg-white px-6 py-10 sm:px-10">
+      <div className="flex flex-1 flex-col items-center justify-center overflow-y-auto bg-slate-50 px-6 py-10 sm:px-10 lg:bg-[radial-gradient(ellipse_120%_80%_at_50%_0%,rgba(59,130,246,0.06),transparent)]">
         {/* Logo mobile */}
         <div className="mb-8 lg:hidden">
           <img
@@ -212,7 +219,7 @@ export default function Login() {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.35, ease: "easeOut" }}
-          className="w-full max-w-sm"
+          className="w-full max-w-sm rounded-3xl border border-slate-200 bg-white p-7 shadow-[0_8px_40px_rgba(15,23,42,0.08)] sm:p-9"
         >
           {/* Header */}
           <div className="mb-8">
@@ -325,12 +332,12 @@ export default function Login() {
               )}
             </button>
           </form>
-
-          {/* Footer */}
-          <p className="mt-10 text-center text-xs text-slate-400">
-            &copy; {new Date().getFullYear()} BoxSys &middot; Sistema de Gestão para Lojas
-          </p>
         </motion.div>
+
+        {/* Footer */}
+        <p className="mt-8 text-center text-xs text-slate-400">
+          &copy; {new Date().getFullYear()} BoxSys &middot; Sistema de Gestão para Lojas
+        </p>
       </div>
     </div>
     </>
