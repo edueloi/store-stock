@@ -12,12 +12,14 @@ export default defineConfig(({mode}) => {
       tailwindcss(),
       VitePWA({
         registerType: 'autoUpdate',
-        // Only cache PDV assets — leave admin/store untouched
+        // Manifests are served as static files (public/app-manifest.json, public/pdv-manifest.json)
+        // and linked manually in index.html, so the plugin doesn't need to generate one.
+        manifest: false,
         workbox: {
           skipWaiting: true,
           clientsClaim: true,
           navigateFallback: '/index.html',
-          navigateFallbackAllowlist: [/^\/pdv/],
+          navigateFallbackAllowlist: [/^\/(?!api)/],
           globPatterns: ['**/*.{js,css,html,png,jpg,svg,ico,woff2}'],
           // exclude heavy chunks that exceed 2 MB workbox limit
           globIgnores: [
@@ -27,7 +29,7 @@ export default defineConfig(({mode}) => {
             '**/pdf-*.js',
             '**/logo-boxsys-vazado.png',
           ],
-          maximumFileSizeToCacheInBytes: 3 * 1024 * 1024, // 3 MB
+          maximumFileSizeToCacheInBytes: 5 * 1024 * 1024, // 5 MB — covers the full-app main chunk now that the PWA scope isn't limited to /pdv
           runtimeCaching: [
             {
               urlPattern: /^\/api\/products/,
@@ -38,22 +40,6 @@ export default defineConfig(({mode}) => {
                 expiration: { maxEntries: 500, maxAgeSeconds: 300 },
               },
             },
-          ],
-        },
-        manifest: {
-          name: 'BoxSys PDV',
-          short_name: 'PDV',
-          description: 'Terminal de Vendas BoxSys',
-          start_url: '/pdv',
-          scope: '/pdv',
-          display: 'standalone',
-          orientation: 'landscape',
-          background_color: '#0f172a',
-          theme_color: '#0f172a',
-          lang: 'pt-BR',
-          icons: [
-            { src: '/system/logo.png', sizes: '192x192', type: 'image/png', purpose: 'any maskable' },
-            { src: '/system/logo.png', sizes: '512x512', type: 'image/png', purpose: 'any maskable' },
           ],
         },
         devOptions: { enabled: false },

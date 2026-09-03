@@ -20,16 +20,17 @@
     <link rel="apple-touch-icon" sizes="180x180" href="/system/logo.png" />
     <link rel="apple-touch-icon" sizes="167x167" href="/system/logo.png" />
     <title>BoxSys Store</title>
-    <!-- PWA manifest injected for /pdv route -->
+    <!-- PWA manifest: /pdv route gets the landscape PDV-only manifest, everything else gets the full-system manifest -->
     <script>
+      var l = document.createElement('link');
+      l.rel = 'manifest';
       if (window.location.pathname.startsWith('/pdv')) {
-        var l = document.createElement('link');
-        l.rel = 'manifest'; l.href = '/pdv-manifest.json';
-        document.head.appendChild(l);
+        l.href = '/pdv-manifest.json';
         document.title = 'BoxSys PDV';
-        var t = document.querySelector('meta[name="theme-color"]');
-        if (t) t.content = '#0f172a';
+      } else {
+        l.href = '/app-manifest.json';
       }
+      document.head.appendChild(l);
     </script>
   </head>
   <body>

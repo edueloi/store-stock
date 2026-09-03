@@ -17,7 +17,7 @@ PM2_NAME="store-boxsys"
 PORT=3001
 DB_NAME="store_boxsys"
 DB_USER="root"
-DB_PASS="Edu@06051992"
+DB_PASS="COLOQUE_AQUI_A_SENHA_ROOT_DO_MYSQL"
 
 # ── 1. Node via NVM ──────────────────────────────────────────────
 echo "▶ Verificando Node.js..."
@@ -69,7 +69,7 @@ if [ ! -f "$APP_DIR/.env" ]; then
   echo "▶ Criando .env de produção..."
   cat > "$APP_DIR/.env" << EOF
 DATABASE_URL="mysql://${DB_USER}:${DB_PASS}@localhost:3306/${DB_NAME}"
-JWT_SECRET="Edu@06051992"
+JWT_SECRET="COLOQUE_AQUI_UM_SEGREDO_FORTE_E_UNICO"
 PORT=${PORT}
 NODE_ENV="production"
 
@@ -79,7 +79,7 @@ PRIMARY_SUBDOMAIN="store"
 INVITE_EXPIRATION_DAYS=7
 
 SUPER_ADMIN_USER="Admin"
-SUPER_ADMIN_PASSWORD="Edu@06051992"
+SUPER_ADMIN_PASSWORD="COLOQUE_AQUI_UMA_SENHA_FORTE"
 
 SMTP_HOST="smtp.gmail.com"
 SMTP_PORT=465
