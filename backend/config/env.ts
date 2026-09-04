@@ -5,6 +5,10 @@ dotenv.config();
 
 export const env = {
   jwtSecret: process.env.JWT_SECRET || "nexus-super-secret-key-123",
+  // Chave para criptografar segredos em repouso (senha do certificado A1, CSC token).
+  // Recomendado ter uma chave própria; cai para jwtSecret se não configurada para
+  // não quebrar ambientes existentes, mas o ideal é sempre definir a variável dedicada.
+  secretEncryptionKey: process.env.SECRET_ENCRYPTION_KEY || "",
   nodeEnv: process.env.NODE_ENV || "development",
   port: Number(process.env.PORT || 3000),
   appBaseUrl: process.env.APP_BASE_URL || `http://localhost:${process.env.PORT || 3000}`,

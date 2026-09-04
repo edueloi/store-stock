@@ -3,6 +3,7 @@ import path from "path";
 
 import { prisma } from "../../config/prisma";
 import { env } from "../../config/env";
+import { decryptSecret } from "../../utils/secretCrypto";
 import { buildCancelamentoXml } from "./eventoXml";
 import { loadPfx, assinarEvento } from "./signer";
 import { callSefazSoap, extractTag } from "./soapClient";
@@ -39,6 +40,7 @@ export async function cancelarNfce(orderId: number, justificativa: string): Prom
 
   const tenant = await prisma.tenant.findUnique({ where: { id: invoice.tenant_id } });
   if (!tenant) return { success: false, error: "Loja não encontrada" };
+  tenant.nfce_cert_password = decryptSecret(tenant.nfce_cert_password);
   if (!tenant.nfce_cert_path || !tenant.nfce_cert_password) {
     return { success: false, error: "Certificado digital A1 não configurado para esta loja" };
   }

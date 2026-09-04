@@ -3,6 +3,7 @@ import path from "path";
 
 import { prisma } from "../../config/prisma";
 import { env } from "../../config/env";
+import { decryptSecret } from "../../utils/secretCrypto";
 import { buildDpsXml, type TomadorInput } from "./dpsXmlBuilder";
 import { loadPfx, assinarDPS } from "../nfce/signer";
 import { callNfseRest, gzipBase64, ungzipBase64, type NfseEnvironment } from "./restClient";
@@ -62,6 +63,7 @@ export async function emitirNfse(input: EmitirNfseInput): Promise<void> {
 
   const tenant = await prisma.tenant.findUnique({ where: { id: serviceOrder.tenant_id } });
   if (!tenant) return;
+  tenant.nfce_cert_password = decryptSecret(tenant.nfce_cert_password);
 
   const invoice = await prisma.nfseInvoice.findUnique({ where: { service_order_id: serviceOrderId } });
   if (!invoice) return;

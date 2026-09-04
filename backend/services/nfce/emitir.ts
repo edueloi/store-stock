@@ -3,6 +3,7 @@ import path from "path";
 
 import { prisma } from "../../config/prisma";
 import { env } from "../../config/env";
+import { decryptSecret } from "../../utils/secretCrypto";
 import { buildNfceXml, type PaymentSegment } from "./xmlBuilder";
 import { loadPfx, assinarNfce } from "./signer";
 import { callSefazSoap, extractTag } from "./soapClient";
@@ -32,6 +33,8 @@ export async function emitirNfce(orderId: number): Promise<void> {
 
   const tenant = await prisma.tenant.findUnique({ where: { id: order.tenant_id } });
   if (!tenant) return;
+  tenant.nfce_cert_password = decryptSecret(tenant.nfce_cert_password);
+  tenant.nfce_csc_token = decryptSecret(tenant.nfce_csc_token);
 
   const invoice = await prisma.nfceInvoice.findUnique({ where: { order_id: orderId } });
   if (!invoice) return;

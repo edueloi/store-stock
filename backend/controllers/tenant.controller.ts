@@ -9,6 +9,7 @@ import { prisma } from "../config/prisma";
 import { env } from "../config/env";
 import type { AuthenticatedRequest } from "../types/auth";
 import { buildTenantAccessUrl, normalizeSubdomain } from "../utils/tenant-domain";
+import { encryptSecret } from "../utils/secretCrypto";
 import { parsePfx } from "../services/nfce/signer";
 
 function getTenantId(req: Request) {
@@ -95,7 +96,7 @@ export async function updateTenant(req: Request, res: Response) {
     if (b.nfce_series !== undefined)       data.nfce_series       = Number(b.nfce_series);
     if (b.nfce_next_number !== undefined)  data.nfce_next_number  = Number(b.nfce_next_number);
     if (b.nfce_csc_id !== undefined)       data.nfce_csc_id       = b.nfce_csc_id;
-    if (b.nfce_csc_token !== undefined)    data.nfce_csc_token    = b.nfce_csc_token;
+    if (b.nfce_csc_token !== undefined)    data.nfce_csc_token    = b.nfce_csc_token ? encryptSecret(b.nfce_csc_token) : b.nfce_csc_token;
 
     // NFS-e (Sistema Nacional NFS-e)
     if (b.nfse_environment !== undefined)         data.nfse_environment         = b.nfse_environment;
@@ -171,7 +172,7 @@ export async function uploadNfceCertificate(req: Request, res: Response) {
     const previous = await prisma.tenant.findUnique({ where: { id: tenantId }, select: { nfce_cert_path: true } });
     await prisma.tenant.update({
       where: { id: tenantId },
-      data: { nfce_cert_path: destPath, nfce_cert_password: password },
+      data: { nfce_cert_path: destPath, nfce_cert_password: encryptSecret(password) },
     });
     if (previous?.nfce_cert_path && previous.nfce_cert_path !== destPath) {
       fs.unlink(previous.nfce_cert_path, () => {});
