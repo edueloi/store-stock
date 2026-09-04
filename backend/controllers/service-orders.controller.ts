@@ -837,11 +837,17 @@ export async function deleteServiceOrder(req: Request, res: Response) {
 
     const order = await prisma.serviceOrder.findFirst({
       where: { id, tenant_id: tenantId },
-      include: { parts: true },
+      include: { parts: true, nfse_invoice: true },
     });
     if (!order) return res.status(404).json({ error: "Ordem de serviço não encontrada" });
     if (order.invoiced_order_id) {
       return res.status(400).json({ error: "Não é possível excluir uma ordem de serviço já faturada" });
+    }
+    // NFS-e autorizada é documento fiscal válido — bloqueia a exclusão. Uma NFS-e
+    // que só ficou registrada como tentativa (rejected/error/pending/cancelled,
+    // nunca autorizada) não impede excluir a ordem; o registro é removido junto.
+    if (order.nfse_invoice?.status === "authorized") {
+      return res.status(400).json({ error: "Não é possível excluir uma ordem de serviço com NFS-e autorizada — cancele a nota antes" });
     }
 
     for (const p of order.parts) {
@@ -853,6 +859,9 @@ export async function deleteServiceOrder(req: Request, res: Response) {
       }
     }
 
+    if (order.nfse_invoice) {
+      await prisma.nfseInvoice.delete({ where: { id: order.nfse_invoice.id } });
+    }
     await prisma.serviceOrder.delete({ where: { id } });
     emitToTenant(tenantId, "service-order:changed", { id });
     emitToTenant(tenantId, "stock:changed", { serviceOrderId: id });
@@ -874,14 +883,19 @@ export async function bulkDeleteServiceOrders(req: Request, res: Response) {
 
     const orders = await prisma.serviceOrder.findMany({
       where: { id: { in: ids }, tenant_id: tenantId },
-      include: { parts: true },
+      include: { parts: true, nfse_invoice: true },
     });
     if (orders.length === 0) return res.status(404).json({ error: "Nenhuma ordem de serviço encontrada" });
 
     // Faturada é um documento fiscal/financeiro vivo — não entra no bulk-delete,
-    // precisa ser cancelada primeiro (ver updateServiceOrderStatus).
-    const blocked = orders.filter((o) => o.invoiced_order_id);
-    const deletable = orders.filter((o) => !o.invoiced_order_id);
+    // precisa ser cancelada primeiro (ver updateServiceOrderStatus). Mesma coisa
+    // para ordens com NFS-e autorizada (FK RESTRICT em NfseInvoice.service_order_id).
+    // Uma NFS-e que ficou só como tentativa (rejected/error/pending/cancelled,
+    // nunca autorizada) não bloqueia — o registro é removido junto com a ordem.
+    const isBlocked = (o: (typeof orders)[number]) =>
+      Boolean(o.invoiced_order_id) || o.nfse_invoice?.status === "authorized";
+    const blocked = orders.filter(isBlocked);
+    const deletable = orders.filter((o) => !isBlocked(o));
 
     for (const order of deletable) {
       for (const p of order.parts) {
@@ -895,6 +909,10 @@ export async function bulkDeleteServiceOrders(req: Request, res: Response) {
     }
 
     const deletableIds = deletable.map((o) => o.id);
+    const nfseIdsToDelete = deletable.filter((o) => o.nfse_invoice).map((o) => o.nfse_invoice!.id);
+    if (nfseIdsToDelete.length > 0) {
+      await prisma.nfseInvoice.deleteMany({ where: { id: { in: nfseIdsToDelete } } });
+    }
     await prisma.serviceOrder.deleteMany({ where: { id: { in: deletableIds } } });
 
     if (deletableIds.length > 0) {
@@ -905,7 +923,12 @@ export async function bulkDeleteServiceOrders(req: Request, res: Response) {
     res.json({
       success: true,
       deleted: deletableIds.length,
-      blocked: blocked.map((o) => ({ id: o.id, reason: "Ordem de serviço já faturada — cancele antes de excluir" })),
+      blocked: blocked.map((o) => ({
+        id: o.id,
+        reason: o.invoiced_order_id
+          ? "Ordem de serviço já faturada — cancele antes de excluir"
+          : "Ordem de serviço com NFS-e autorizada — cancele a nota antes de excluir",
+      })),
     });
   } catch (err) {
     console.error(err);

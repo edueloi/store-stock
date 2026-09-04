@@ -104,7 +104,8 @@ export default function ServiceOrders() {
         return;
       }
       if (Array.isArray(data.blocked) && data.blocked.length > 0) {
-        alert(`${data.deleted} excluída(s). ${data.blocked.length} não puderam ser excluídas por já estarem faturadas.`);
+        const reasons = data.blocked.map((b: { reason: string }) => `• ${b.reason}`).join("\n");
+        alert(`${data.deleted} excluída(s). ${data.blocked.length} não puderam ser excluídas:\n${reasons}`);
       }
       setSelectedIds(new Set());
       setShowBulkDeleteModal(false);
@@ -365,7 +366,7 @@ export default function ServiceOrders() {
       >
         <p className="text-[12px] text-slate-600">
           Tem certeza que deseja excluir {selectedIds.size} ordem(ns) de serviço? Peças já debitadas do estoque serão devolvidas.
-          Ordens já faturadas não serão excluídas — cancele-as antes.
+          Ordens já faturadas ou com NFS-e autorizada não serão excluídas — cancele-as antes.
         </p>
       </Modal>
     </div>
