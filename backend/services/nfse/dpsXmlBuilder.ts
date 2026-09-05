@@ -121,16 +121,17 @@ export function buildDpsXml(input: BuildDpsInput): BuildDpsResult {
   if (opSimpNac === 3) regTrib.ele("regApTribSN").txt("1");
   regTrib.ele("regEspTrib").txt("0"); // 0 = Nenhum regime especial
 
-  if (tomador && (tomador.nome || tomador.cpf || tomador.cnpj)) {
+  // O grupo "toma" exige um identificador (CNPJ, CPF ou NIF) logo no início — cNaoNIF só
+  // existe pra tomador ESTRANGEIRO sem NIF (ligado ao grupo endExt), não serve como
+  // fallback genérico pra "sem documento". Pra consumidor final doméstico sem CPF/CNPJ
+  // cadastrado (comum no PDV), o layout nacional exige omitir "toma" inteiro — não há como
+  // declarar um tomador sem identificação fiscal nesse cenário.
+  const tomCpf = onlyDigits(tomador?.cpf);
+  const tomCnpj = onlyDigits(tomador?.cnpj);
+  if (tomador && (tomCpf || tomCnpj)) {
     const toma = infDPS.ele("toma");
-    const tomCpf = onlyDigits(tomador.cpf);
-    const tomCnpj = onlyDigits(tomador.cnpj);
-    // O XSD exige que "toma" comece por um identificador (CNPJ, CPF, NIF ou cNaoNIF) antes
-    // de qualquer outro campo — sem CPF/CNPJ cadastrado, cNaoNIF="0" (não informado) é o
-    // fallback do layout nacional pra tomador sem identificação fiscal.
     if (tomCnpj) toma.ele("CNPJ").txt(tomCnpj);
-    else if (tomCpf) toma.ele("CPF").txt(tomCpf);
-    else toma.ele("cNaoNIF").txt("0");
+    else toma.ele("CPF").txt(tomCpf);
     toma.ele("xNome").txt(tomador.nome || "Consumidor Final");
   }
 
