@@ -595,23 +595,117 @@ const NFSE_STATUS_META: Record<NfseStatus, { label: string; color: string; bg: s
   cancelled:  { label: "Cancelada",   color: "text-slate-500",   bg: "bg-slate-100",  icon: <XCircle size={12} /> },
 };
 
-// Listagem de NFS-e ainda somente leitura — o módulo de emissão de NFS-e (Ordem de
-// Serviço) está sendo revisado à parte, este painel só espelha o histórico já existente.
+async function exportNfseToExcel(invoices: NfseInvoice[]) {
+  const wb = new ExcelJS.Workbook();
+  wb.creator = "BoxSys Store";
+  wb.created = new Date();
+
+  const ws = wb.addWorksheet("Notas Fiscais de Serviço", {
+    pageSetup: { paperSize: 9, orientation: "landscape", fitToPage: true },
+  });
+
+  ws.columns = [
+    { header: "Número",     key: "numero",  width: 12 },
+    { header: "Série",      key: "serie",   width: 8 },
+    { header: "Ordem de Serviço", key: "os", width: 14 },
+    { header: "Cliente",    key: "customer", width: 28 },
+    { header: "Chave de Acesso", key: "key", width: 46 },
+    { header: "Status",     key: "status",  width: 14 },
+    { header: "Valor (R$)", key: "value",   width: 14 },
+    { header: "Emitida em", key: "date",    width: 18 },
+  ];
+
+  ws.getRow(1).font = { bold: true, color: { argb: "FFFFFFFF" } };
+  ws.getRow(1).fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF1E3A5F" } };
+
+  invoices.forEach((inv) => {
+    ws.addRow({
+      numero: inv.numero,
+      serie: inv.serie,
+      os: inv.service_order_id,
+      customer: inv.service_order?.customer_name || "Consumidor Final",
+      key: inv.chave_acesso || "—",
+      status: NFSE_STATUS_META[inv.status]?.label ?? inv.status,
+      value: inv.service_order?.service_value ?? 0,
+      date: inv.authorized_at ? new Date(inv.authorized_at).toLocaleString("pt-BR") : "—",
+    });
+  });
+
+  ws.getColumn("value").numFmt = '"R$" #,##0.00';
+
+  const buffer = await wb.xlsx.writeBuffer();
+  const blob = new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `notas-fiscais-servico-${new Date().toISOString().slice(0, 10)}.xlsx`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
 function NfseTabContent() {
   const [invoices, setInvoices] = useState<NfseInvoice[]>([]);
   const [loading, setLoading] = useState(true);
+  const [exporting, setExporting] = useState(false);
+  const [retrying, setRetrying] = useState<number | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<NfseStatus | "all">("all");
+  const [deleteTarget, setDeleteTarget] = useState<NfseInvoice | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+  const notify = useToast();
   const token = localStorage.getItem("token");
 
-  useEffect(() => {
+  const fetchInvoices = () => {
     setLoading(true);
     fetch("/api/nfse?pageSize=200", { headers: { Authorization: `Bearer ${token}` } })
       .then((r) => r.json())
       .then((data) => setInvoices(Array.isArray(data.invoices) ? data.invoices : []))
       .catch(() => {})
       .finally(() => setLoading(false));
-  }, []);
+  };
+
+  useEffect(fetchInvoices, []);
+  useEffect(() => onRealtime("nfse:changed", () => { fetchInvoices(); }), []);
+
+  const handleRetry = async (serviceOrderId: number) => {
+    setRetrying(serviceOrderId);
+    try {
+      await fetch(`/api/nfse/${serviceOrderId}/retry`, { method: "POST", headers: { Authorization: `Bearer ${token}` } });
+      setTimeout(fetchInvoices, 1500);
+    } finally {
+      setRetrying(null);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!deleteTarget) return;
+    setDeleting(true);
+    setDeleteError(null);
+    try {
+      const res = await fetch(`/api/nfse/${deleteTarget.service_order_id}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setDeleteError(data.error || "Falha ao excluir a nota fiscal");
+        return;
+      }
+      setDeleteTarget(null);
+      fetchInvoices();
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  const handleDownloadXml = (inv: NfseInvoice) =>
+    downloadAuthenticated(`/api/nfse/${inv.service_order_id}/xml`, token, `nfse-${inv.chave_acesso ?? inv.service_order_id}.xml`)
+      .catch((e) => notify.error(e instanceof Error ? e.message : "Não foi possível baixar o XML."));
+
+  const handleDownloadPdf = (inv: NfseInvoice) =>
+    downloadAuthenticated(`/api/nfse/${inv.service_order_id}/pdf`, token, `nfse-${inv.chave_acesso ?? inv.service_order_id}.pdf`)
+      .catch((e) => notify.error(e instanceof Error ? e.message : "Não foi possível baixar o PDF."));
 
   const filtered = useMemo(() => {
     return invoices.filter((inv) => {
@@ -634,6 +728,16 @@ function NfseTabContent() {
 
   return (
     <div className="space-y-6">
+      <div className="flex items-center justify-end">
+        <button
+          onClick={async () => { setExporting(true); try { await exportNfseToExcel(filtered); } finally { setExporting(false); } }}
+          disabled={exporting || filtered.length === 0}
+          className="h-9 bg-white border border-slate-200 px-4 rounded-xl flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest hover:bg-slate-50 transition-all text-slate-600 shadow-sm disabled:opacity-40"
+        >
+          {exporting ? <Loader2 size={13} className="animate-spin" /> : <Download size={13} />} Exportar
+        </button>
+      </div>
+
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm">
         <div className="flex items-center gap-0 border-b border-slate-100 divide-x divide-slate-100">
           {[
@@ -676,17 +780,17 @@ function NfseTabContent() {
           <table className="w-full text-left border-collapse">
             <thead>
               <tr className="border-t border-slate-100 bg-slate-50/60">
-                {["Nº", "Série", "Ordem de Serviço", "Cliente", "Chave de Acesso", "Status", "Emitida em"].map((h) => (
+                {["Nº", "Série", "Ordem de Serviço", "Cliente", "Chave de Acesso", "Status", "Emitida em", ""].map((h) => (
                   <th key={h} className="px-4 py-2.5 text-[9px] font-black text-slate-400 uppercase tracking-widest whitespace-nowrap">{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
               {loading && (
-                <tr><td colSpan={7} className="px-4 py-10 text-center text-slate-400 text-xs">Carregando...</td></tr>
+                <tr><td colSpan={8} className="px-4 py-10 text-center text-slate-400 text-xs">Carregando...</td></tr>
               )}
               {!loading && filtered.length === 0 && (
-                <tr><td colSpan={7} className="px-4 py-10 text-center text-slate-400 text-xs">Nenhuma nota fiscal de serviço encontrada</td></tr>
+                <tr><td colSpan={8} className="px-4 py-10 text-center text-slate-400 text-xs">Nenhuma nota fiscal de serviço encontrada</td></tr>
               )}
               {!loading && filtered.map((inv) => {
                 const meta = NFSE_STATUS_META[inv.status];
@@ -717,6 +821,39 @@ function NfseTabContent() {
                     <td className="px-4 py-2.5 text-xs text-slate-500">
                       {inv.authorized_at ? new Date(inv.authorized_at).toLocaleString("pt-BR") : "—"}
                     </td>
+                    <td className="px-4 py-2.5">
+                      <div className="flex items-center gap-2 justify-end">
+                        {(inv.status === "error" || inv.status === "rejected") && (
+                          <>
+                            <button
+                              onClick={() => handleRetry(inv.service_order_id)}
+                              disabled={retrying === inv.service_order_id}
+                              className="h-8 px-3 bg-rose-600 hover:bg-rose-700 disabled:opacity-50 text-white rounded-lg text-[9px] font-black uppercase tracking-widest flex items-center gap-1.5 transition-all"
+                            >
+                              {retrying === inv.service_order_id ? <Loader2 size={12} className="animate-spin" /> : <RefreshCw size={12} />} Reemitir
+                            </button>
+                            <button
+                              onClick={() => { setDeleteTarget(inv); setDeleteError(null); }}
+                              className="h-8 px-3 bg-white border border-slate-200 hover:bg-slate-50 text-slate-500 rounded-lg text-[9px] font-black uppercase tracking-widest flex items-center gap-1.5 transition-all"
+                            >
+                              <Trash2 size={12} /> Excluir
+                            </button>
+                          </>
+                        )}
+                        {inv.status === "authorized" && (
+                          <>
+                            <button onClick={() => handleDownloadPdf(inv)}
+                              className="h-8 px-3 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-[9px] font-black uppercase tracking-widest flex items-center gap-1.5 transition-all">
+                              <FileText size={12} /> PDF
+                            </button>
+                            <button onClick={() => handleDownloadXml(inv)}
+                              className="h-8 px-3 bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 rounded-lg text-[9px] font-black uppercase tracking-widest flex items-center gap-1.5 transition-all">
+                              <FileCheck size={12} /> XML
+                            </button>
+                          </>
+                        )}
+                      </div>
+                    </td>
                   </tr>
                 );
               })}
@@ -724,6 +861,34 @@ function NfseTabContent() {
           </table>
         </div>
       </div>
+
+      <Modal
+        open={!!deleteTarget}
+        onClose={() => { if (!deleting) { setDeleteTarget(null); setDeleteError(null); } }}
+        title="Excluir tentativa de NFS-e"
+        subtitle={deleteTarget ? `Ordem de Serviço #${String(deleteTarget.service_order_id).padStart(6, "0")}` : undefined}
+        size="sm"
+        footer={
+          <>
+            <Button variant="secondary" onClick={() => setDeleteTarget(null)} disabled={deleting}>Voltar</Button>
+            <Button variant="danger" onClick={handleDelete} disabled={deleting} loading={deleting}>
+              Excluir
+            </Button>
+          </>
+        }
+      >
+        <div className="space-y-3">
+          <p className="text-xs text-slate-500">
+            Remove esta tentativa de emissão (rejeitada/com erro) para permitir reemitir do zero.
+            A ordem de serviço em si não é afetada — permanece no histórico normalmente.
+          </p>
+          {deleteError && (
+            <div className="bg-rose-50 border border-rose-200 rounded-xl px-3 py-2.5 text-[11px] font-bold text-rose-600">
+              {deleteError}
+            </div>
+          )}
+        </div>
+      </Modal>
     </div>
   );
 }

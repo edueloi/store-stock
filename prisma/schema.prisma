@@ -545,6 +545,12 @@ model NfseInvoice {
   attempts           Int       @default(0)
   last_attempt_at    DateTime?
 
+  // Guardados da tentativa original pra permitir reemitir sem o operador digitar de novo
+  // (retryNfse exige esses dois campos e não há outro lugar pra recuperá-los).
+  codigo_tributacao_nacional String?
+  descricao_servico          String? @db.Text
+  valor_servico              Decimal? @db.Decimal(10, 2)
+
   // Cancelamento (evento de substituição/cancelamento)
   cancel_reason String?   @db.Text
   cancelled_at  DateTime?

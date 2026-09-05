@@ -5,6 +5,7 @@ import {
   emitNfseForServiceOrder,
   testNfseEmission,
   retryNfse,
+  deleteNfse,
   downloadNfseXml,
   downloadNfsePdf,
   listNfse,
@@ -20,6 +21,7 @@ router.post("/test", testNfseEmission);
 router.get("/:serviceOrderId", getNfseByServiceOrder);
 router.post("/:serviceOrderId/emit", emitNfseForServiceOrder);
 router.post("/:serviceOrderId/retry", retryNfse);
+router.delete("/:serviceOrderId", deleteNfse);
 router.get("/:serviceOrderId/xml", downloadNfseXml);
 router.get("/:serviceOrderId/pdf", downloadNfsePdf);
 

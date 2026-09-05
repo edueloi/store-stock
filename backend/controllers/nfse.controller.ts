@@ -61,6 +61,14 @@ export async function emitNfseForServiceOrder(req: Request, res: Response) {
     let invoice = await prisma.nfseInvoice.findFirst({ where: { service_order_id: serviceOrderId, tenant_id: tenantId } });
     if (invoice?.status === "authorized") { res.status(409).json({ error: "NFS-e já autorizada" }); return; }
 
+    const descricao = descricao_servico
+      || `${serviceOrder.equipment_category ?? "Serviço"}${serviceOrder.equipment_type ? ` — ${serviceOrder.equipment_type}` : ""}`;
+
+    // Guarda os dados desta tentativa — sem persistir isso, reemitir depois de um erro
+    // exigiria que o operador digitasse tudo de novo (retryNfse não tem outro lugar pra
+    // recuperar código de tributação/descrição/valor).
+    const retryData = { codigo_tributacao_nacional, descricao_servico: descricao, valor_servico: valorServico };
+
     if (!invoice) {
       const tenant = await prisma.tenant.findUnique({
         where: { id: tenantId },
@@ -71,16 +79,14 @@ export async function emitNfseForServiceOrder(req: Request, res: Response) {
         const created = await tx.nfseInvoice.create({ data: {
           tenant_id: tenantId, service_order_id: serviceOrderId, status: "pending",
           environment: tenant.nfse_environment, serie: tenant.nfse_serie, numero: tenant.nfse_next_number,
+          ...retryData,
         }});
         await tx.tenant.update({ where: { id: tenantId }, data: { nfse_next_number: { increment: 1 } } });
         return created;
       });
     } else {
-      invoice = await prisma.nfseInvoice.update({ where: { id: invoice.id }, data: { status: "pending" } });
+      invoice = await prisma.nfseInvoice.update({ where: { id: invoice.id }, data: { status: "pending", ...retryData } });
     }
-
-    const descricao = descricao_servico
-      || `${serviceOrder.equipment_category ?? "Serviço"}${serviceOrder.equipment_type ? ` — ${serviceOrder.equipment_type}` : ""}`;
 
     emitToTenant(tenantId, "nfse:changed", { serviceOrderId });
     emitirNfse({
@@ -143,6 +149,9 @@ export async function testNfseEmission(req: Request, res: Response) {
           environment: "homologacao",
           serie: tenant.nfse_serie,
           numero: tenant.nfse_next_number,
+          codigo_tributacao_nacional: "140101",
+          descricao_servico: "Teste de emissão NFS-e (homologação)",
+          valor_servico: 1,
         },
       });
       await tx.tenant.update({ where: { id: tenantId }, data: { nfse_next_number: { increment: 1 } } });
@@ -189,23 +198,65 @@ export async function retryNfse(req: Request, res: Response) {
     });
     if (!invoice) { res.status(404).json({ error: "NFS-e não encontrada" }); return; }
     if (invoice.status === "authorized") { res.status(409).json({ error: "NFS-e já autorizada" }); return; }
-    if (!codigo_tributacao_nacional || !valor_servico) {
+
+    // Reaproveita os dados da tentativa original (salvos em emitNfseForServiceOrder) quando
+    // o chamador não manda nada — permite reemitir com 1 clique, sem redigitar tudo.
+    const codigoTributacao = codigo_tributacao_nacional || invoice.codigo_tributacao_nacional;
+    const descricao = descricao_servico || invoice.descricao_servico;
+    const valorServico = valor_servico ?? (invoice.valor_servico ? Number(invoice.valor_servico) : undefined);
+    if (!codigoTributacao || !valorServico) {
       res.status(422).json({ error: "Informe código de tributação e valor do serviço" });
       return;
     }
 
-    await prisma.nfseInvoice.update({ where: { id: invoice.id }, data: { status: "pending" } });
+    await prisma.nfseInvoice.update({
+      where: { id: invoice.id },
+      data: {
+        status: "pending",
+        codigo_tributacao_nacional: codigoTributacao,
+        descricao_servico: descricao,
+        valor_servico: valorServico,
+      },
+    });
     emitToTenant(tenantId, "nfse:changed", { serviceOrderId });
     emitirNfse({
       serviceOrderId,
-      codigoTributacaoNacional: codigo_tributacao_nacional,
-      descricaoServico: descricao_servico || "Serviço prestado",
-      valorServico: valor_servico,
+      codigoTributacaoNacional: codigoTributacao,
+      descricaoServico: descricao || "Serviço prestado",
+      valorServico,
     }).catch((e) => console.error("[retryNfse] erro:", e));
 
     res.json({ success: true });
   } catch {
     res.status(500).json({ error: "Failed to retry NFS-e" });
+  }
+}
+
+/** Remove a tentativa de NFS-e (rejeitada/com erro), mantendo a ordem de serviço intacta —
+ * permite reemitir do zero depois. Nunca permite excluir uma nota AUTORIZADA: essa tem
+ * valor fiscal e só pode ser cancelada, nunca apagada do banco. */
+export async function deleteNfse(req: Request, res: Response) {
+  try {
+    const serviceOrderId = Number(req.params.serviceOrderId);
+    const tenantId = getTenantId(req);
+    const invoice = await prisma.nfseInvoice.findFirst({
+      where: { service_order_id: serviceOrderId, tenant_id: tenantId },
+    });
+    if (!invoice) {
+      res.status(404).json({ error: "NFS-e não encontrada para esta ordem de serviço" });
+      return;
+    }
+    if (invoice.status === "authorized") {
+      res.status(400).json({ error: "NFS-e autorizada não pode ser excluída." });
+      return;
+    }
+
+    await prisma.nfseInvoice.delete({ where: { id: invoice.id } });
+    emitToTenant(tenantId, "nfse:changed", { serviceOrderId });
+
+    res.json({ success: true });
+  } catch {
+    res.status(500).json({ error: "Failed to delete NFS-e" });
   }
 }
 
