@@ -133,8 +133,12 @@ export function buildDpsXml(input: BuildDpsInput): BuildDpsResult {
     const toma = infDPS.ele("toma");
     const tomCpf = onlyDigits(tomador.cpf);
     const tomCnpj = onlyDigits(tomador.cnpj);
+    // O XSD exige que "toma" comece por um identificador (CNPJ, CPF, NIF ou cNaoNIF) antes
+    // de qualquer outro campo — sem CPF/CNPJ cadastrado, cNaoNIF="0" (não informado) é o
+    // fallback do layout nacional pra tomador sem identificação fiscal.
     if (tomCnpj) toma.ele("CNPJ").txt(tomCnpj);
     else if (tomCpf) toma.ele("CPF").txt(tomCpf);
+    else toma.ele("cNaoNIF").txt("0");
     toma.ele("xNome").txt(tomador.nome || "Consumidor Final");
   }
 
