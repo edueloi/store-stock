@@ -106,3 +106,9 @@ export function assinarEvento(xml: string, idEvento: string, cert: CertMaterial)
 export function assinarDPS(xml: string, idDPS: string, cert: CertMaterial): string {
   return assinarElemento(xml, "infDPS", idDPS, cert);
 }
+
+// Assina a tag infPedReg do XML de um evento de NFS-e (cancelamento, etc.) — mesmo padrão
+// de assinatura da DPS, mas o elemento raiz assinado é diferente (infPedReg, não infDPS).
+export function assinarPedRegEvento(xml: string, idEvento: string, cert: CertMaterial): string {
+  return assinarElemento(xml, "infPedReg", idEvento, cert);
+}

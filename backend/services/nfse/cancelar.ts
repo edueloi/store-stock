@@ -5,7 +5,7 @@ import { prisma } from "../../config/prisma";
 import { env } from "../../config/env";
 import { decryptSecret } from "../../utils/secretCrypto";
 import { buildCancelamentoNfseXml, type MotivoCancelamentoNfse } from "./eventoXmlBuilder";
-import { loadPfx, assinarDPS } from "../nfce/signer";
+import { loadPfx, assinarPedRegEvento } from "../nfce/signer";
 import { callNfseRest, gzipBase64, type NfseEnvironment } from "./restClient";
 
 export interface CancelarNfseResult {
@@ -49,9 +49,7 @@ export async function cancelarNfse(
     });
 
     const cert = loadPfx(tenant.nfce_cert_path, tenant.nfce_cert_password);
-    // Mesma assinatura enveloped-signature/C14N usada na DPS — assinarDPS já assina
-    // qualquer elemento com Id (aqui, infPedReg em vez de infDPS).
-    const signedXml = assinarDPS(xml, idEvento, cert);
+    const signedXml = assinarPedRegEvento(xml, idEvento, cert);
 
     const result = await callNfseRest({
       environment,
