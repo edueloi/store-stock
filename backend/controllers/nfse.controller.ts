@@ -151,7 +151,10 @@ export async function testNfseEmission(req: Request, res: Response) {
 
     await emitirNfse({
       serviceOrderId,
-      codigoTributacaoNacional: "1401",
+      // cTribNac exige 6 dígitos: Item(2) + Subitem(2) + Desdobro Nacional(2) da tabela do
+      // Sistema Nacional NFS-e — "1401" (item+subitem só, sem o desdobro) é rejeitado pelo
+      // XSD (TSCodTribNac). 140101 = subitem 14.01 (manutenção), desdobro 01.
+      codigoTributacaoNacional: "140101",
       descricaoServico: "Teste de emissão NFS-e (homologação)",
       valorServico: 1,
       forceEnvironment: "homologacao",
