@@ -119,3 +119,14 @@ export function extractTag(xml: string, tag: string): string | null {
   const match = new RegExp(`<${tag}[^>]*>([\\s\\S]*?)</${tag}>`, "i").exec(xml);
   return match ? match[1].trim() : null;
 }
+
+// O retorno de autorização traz cStat/xMotivo em DOIS níveis: o do lote (retEnviNFe,
+// ex. 104 "Lote processado") e o da nota em si, dentro de infProt (ex. 100 autorizado,
+// ou uma rejeição como 394/703). extractTag() sozinho pega sempre a primeira ocorrência
+// no XML, que é a do lote — mascarando o motivo real de rejeição da nota. Aqui isolamos
+// o bloco infProt antes de buscar a tag, então pegamos o cStat/xMotivo/nProt corretos.
+export function extractProtTag(xml: string, tag: string): string | null {
+  const protMatch = /<infProt[^>]*>([\s\S]*?)<\/infProt>/i.exec(xml);
+  if (!protMatch) return extractTag(xml, tag);
+  return extractTag(protMatch[1], tag);
+}

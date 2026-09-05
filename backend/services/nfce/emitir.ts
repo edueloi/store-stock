@@ -6,7 +6,7 @@ import { env } from "../../config/env";
 import { decryptSecret } from "../../utils/secretCrypto";
 import { buildNfceXml, type PaymentSegment } from "./xmlBuilder";
 import { loadPfx, assinarNfce } from "./signer";
-import { callSefazSoap, extractTag } from "./soapClient";
+import { callSefazSoap, extractProtTag } from "./soapClient";
 import { buildQrCodeUrl, buildUrlChave } from "./qrcode";
 import { generateDanfePdf } from "./danfe";
 
@@ -136,9 +136,9 @@ export async function emitirNfce(orderId: number): Promise<void> {
       );
     }
 
-    const cStat = extractTag(result.rawResponse, "cStat");
-    const xMotivo = extractTag(result.rawResponse, "xMotivo");
-    const protNFe = extractTag(result.rawResponse, "nProt");
+    const cStat = extractProtTag(result.rawResponse, "cStat");
+    const xMotivo = extractProtTag(result.rawResponse, "xMotivo");
+    const protNFe = extractProtTag(result.rawResponse, "nProt");
 
     // cStat 100 = Autorizado o uso da NF-e
     if (cStat !== "100") {
