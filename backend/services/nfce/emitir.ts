@@ -7,7 +7,7 @@ import { decryptSecret } from "../../utils/secretCrypto";
 import { buildNfceXml, type PaymentSegment } from "./xmlBuilder";
 import { loadPfx, assinarNfce } from "./signer";
 import { callSefazSoap, extractTag } from "./soapClient";
-import { buildQrCodeUrl } from "./qrcode";
+import { buildQrCodeUrl, buildUrlChave } from "./qrcode";
 import { generateDanfePdf } from "./danfe";
 
 // Traduz o "tPag" derivado do token de pagamento do PDV (ver sales.controller.ts)
@@ -89,9 +89,20 @@ export async function emitirNfce(orderId: number): Promise<void> {
     // inteiro (documento com 2 declarações XML), fazendo o IIS/ASP.NET da SEFAZ rejeitar
     // com HTTP 400 e corpo TOTALMENTE VAZIO — nem chega a gerar um retorno SOAP com
     // cStat/xMotivo, porque o parser XML falha antes disso.
-    const signedXml = signedXmlWithDecl.replace(/^<\?xml[^?]*\?>/, "");
+    let signedXml = signedXmlWithDecl.replace(/^<\?xml[^?]*\?>/, "");
 
     const environment = tenant.nfce_environment === "producao" ? "producao" : "homologacao";
+
+    // A SEFAZ exige a tag infNFeSupl (QR Code) dentro de <NFe>, como irmã de <infNFe> —
+    // sem ela a nota é rejeitada com cStat 394 "Nota Fiscal sem a informação do QR-Code".
+    // Inserida DEPOIS de assinar: infNFeSupl não faz parte do que a assinatura cobre
+    // (a Reference da assinatura aponta só pro Id de infNFe), então isso não invalida a
+    // assinatura — mesma abordagem usada no cardapio-delivery.
+    const qrCodeUrlForXml = buildQrCodeUrl({ chaveAcesso, environment });
+    const urlChave = buildUrlChave(environment);
+    const infNFeSupl = `<infNFeSupl><qrCode><![CDATA[${qrCodeUrlForXml}]]></qrCode><urlChave>${urlChave}</urlChave></infNFeSupl>`;
+    signedXml = signedXml.replace("</infNFe>", `</infNFe>${infNFeSupl}`);
+
     const soapBody =
       `<nfeDadosMsg xmlns="http://www.portalfiscal.inf.br/nfe/wsdl/NFeAutorizacao4">` +
       `<enviNFe versao="4.00" xmlns="http://www.portalfiscal.inf.br/nfe">` +
@@ -152,7 +163,7 @@ export async function emitirNfce(orderId: number): Promise<void> {
     const xmlPath = path.join(dir, `${chaveAcesso}-nfce.xml`);
     fs.writeFileSync(xmlPath, signedXmlWithDecl, "utf-8");
 
-    const qrCodeUrl = buildQrCodeUrl({ chaveAcesso, environment });
+    const qrCodeUrl = qrCodeUrlForXml;
 
     const paymentLabels: Record<string, string> = { money: "Dinheiro", pix: "PIX", debit: "Débito", credit: "Crédito" };
     const paymentSummary = payments.map((p) => `${paymentLabels[p.method] ?? p.method}: R$ ${p.amount.toFixed(2)}`).join(" + ");

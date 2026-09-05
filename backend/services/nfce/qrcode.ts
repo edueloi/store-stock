@@ -9,6 +9,17 @@ const QR_HOSTS: Record<"homologacao" | "producao", string> = {
   producao: "https://www.nfce.fazenda.sp.gov.br/NFCeConsultaPublica/Paginas/ConsultaQRCode.aspx",
 };
 
+// URL de consulta por chave digitada manualmente (tag urlChave do infNFeSupl) — endpoint
+// diferente do de consulta por QR Code acima, a SEFAZ-SP separa os dois.
+const URL_CHAVE_HOSTS: Record<"homologacao" | "producao", string> = {
+  homologacao: "https://www.homologacao.nfce.fazenda.sp.gov.br/consulta",
+  producao: "https://www.nfce.fazenda.sp.gov.br/consulta",
+};
+
+export function buildUrlChave(environment: "homologacao" | "producao"): string {
+  return URL_CHAVE_HOSTS[environment];
+}
+
 export interface QrCodeInput {
   chaveAcesso: string;
   environment: "homologacao" | "producao";
