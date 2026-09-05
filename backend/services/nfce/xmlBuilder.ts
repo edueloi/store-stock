@@ -142,7 +142,14 @@ export function buildNfceXml(input: BuildNfceInput): BuildNfceResult {
     const prod = det.ele("prod");
     prod.ele("cProd").txt(item.product.sku || String(item.product.id));
     prod.ele("cEAN").txt(item.product.barcode || "SEM GTIN");
-    prod.ele("xProd").txt(trimText(item.product.name));
+    // A SEFAZ exige que o primeiro item da nota, em ambiente de homologação, tenha
+    // exatamente esse texto fixo como descrição — senão rejeita com cStat 373.
+    const isPrimeiroItemHomolog = nItem === 1 && tenant.nfce_environment !== "producao";
+    prod.ele("xProd").txt(
+      isPrimeiroItemHomolog
+        ? "NOTA FISCAL EMITIDA EM AMBIENTE DE HOMOLOGACAO - SEM VALOR FISCAL"
+        : trimText(item.product.name),
+    );
     prod.ele("NCM").txt(item.product.ncm || "00000000");
     if (item.product.cest) prod.ele("CEST").txt(item.product.cest);
     prod.ele("CFOP").txt(item.product.cfop || "5102");
