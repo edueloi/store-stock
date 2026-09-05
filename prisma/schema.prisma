@@ -75,8 +75,17 @@ model Tenant {
   nfce_environment   String  @default("homologacao")
   nfce_series        Int     @default(1)
   nfce_next_number   Int     @default(1)
+  // nfce_csc_id/nfce_csc_token (legado) — mantidos só como fallback de compatibilidade
+  // pra tenants configurados antes da separação por ambiente abaixo. CSC/idCSC são
+  // registros SEPARADOS por ambiente na SEFAZ (o de homologação não vale em produção,
+  // e vice-versa) — usar o par certo conforme nfce_environment evita QR Code inválido
+  // ao trocar de ambiente sem lembrar de trocar o CSC também.
   nfce_csc_id        String?
   nfce_csc_token     String?
+  nfce_csc_id_homologacao    String?
+  nfce_csc_token_homologacao String?
+  nfce_csc_id_producao       String?
+  nfce_csc_token_producao    String?
   nfce_cert_path     String?
   nfce_cert_password String?
 

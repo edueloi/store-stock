@@ -27,13 +27,21 @@ export async function getTenant(req: Request, res: Response) {
       return;
     }
 
-    // Nunca devolve a senha do certificado / token CSC ao frontend — só indica se estão configurados.
-    const { nfce_cert_password, nfce_csc_token, ...safeTenant } = tenant;
+    // Nunca devolve a senha do certificado / tokens CSC ao frontend — só indica se estão configurados.
+    const {
+      nfce_cert_password,
+      nfce_csc_token,
+      nfce_csc_token_homologacao,
+      nfce_csc_token_producao,
+      ...safeTenant
+    } = tenant;
 
     res.json({
       ...safeTenant,
       nfce_cert_configured: !!(tenant.nfce_cert_path && tenant.nfce_cert_password),
       nfce_csc_configured: !!(tenant.nfce_csc_id && tenant.nfce_csc_token),
+      nfce_csc_homologacao_configured: !!(tenant.nfce_csc_id_homologacao && tenant.nfce_csc_token_homologacao),
+      nfce_csc_producao_configured: !!(tenant.nfce_csc_id_producao && tenant.nfce_csc_token_producao),
       public_url: buildTenantAccessUrl(tenant.subdomain || tenant.slug),
     });
   } catch {
@@ -97,6 +105,14 @@ export async function updateTenant(req: Request, res: Response) {
     if (b.nfce_next_number !== undefined)  data.nfce_next_number  = Number(b.nfce_next_number);
     if (b.nfce_csc_id !== undefined)       data.nfce_csc_id       = b.nfce_csc_id;
     if (b.nfce_csc_token !== undefined)    data.nfce_csc_token    = b.nfce_csc_token ? encryptSecret(b.nfce_csc_token) : b.nfce_csc_token;
+    // CSC/idCSC são registros SEPARADOS por ambiente na SEFAZ (o de homologação não vale
+    // em produção, e vice-versa) — mantidos em pares próprios pra não perder o CSC de um
+    // ambiente ao configurar o outro (nfce_csc_id/nfce_csc_token acima seguem existindo
+    // só como fallback legado).
+    if (b.nfce_csc_id_homologacao !== undefined)    data.nfce_csc_id_homologacao    = b.nfce_csc_id_homologacao;
+    if (b.nfce_csc_token_homologacao !== undefined) data.nfce_csc_token_homologacao = b.nfce_csc_token_homologacao ? encryptSecret(b.nfce_csc_token_homologacao) : b.nfce_csc_token_homologacao;
+    if (b.nfce_csc_id_producao !== undefined)       data.nfce_csc_id_producao       = b.nfce_csc_id_producao;
+    if (b.nfce_csc_token_producao !== undefined)    data.nfce_csc_token_producao    = b.nfce_csc_token_producao ? encryptSecret(b.nfce_csc_token_producao) : b.nfce_csc_token_producao;
 
     // NFS-e (Sistema Nacional NFS-e)
     if (b.nfse_environment !== undefined)         data.nfse_environment         = b.nfse_environment;

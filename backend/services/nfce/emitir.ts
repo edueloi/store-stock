@@ -35,6 +35,8 @@ export async function emitirNfce(orderId: number): Promise<void> {
   if (!tenant) return;
   tenant.nfce_cert_password = decryptSecret(tenant.nfce_cert_password);
   tenant.nfce_csc_token = decryptSecret(tenant.nfce_csc_token);
+  tenant.nfce_csc_token_homologacao = decryptSecret(tenant.nfce_csc_token_homologacao);
+  tenant.nfce_csc_token_producao = decryptSecret(tenant.nfce_csc_token_producao);
 
   const invoice = await prisma.nfceInvoice.findUnique({ where: { order_id: orderId } });
   if (!invoice) return;
@@ -48,9 +50,10 @@ export async function emitirNfce(orderId: number): Promise<void> {
     if (!tenant.nfce_cert_path || !tenant.nfce_cert_password) {
       throw new Error("Certificado digital A1 não configurado para esta loja (Configurações > Dados Fiscais).");
     }
-    if (!tenant.nfce_csc_id || !tenant.nfce_csc_token) {
-      throw new Error("CSC (Código de Segurança do Contribuinte) não configurado para esta loja.");
-    }
+    // CSC não é mais exigido pra EMITIR — o QR Code agora é v3 (ver qrcode.ts), que não
+    // usa CSC/hash em emissão normal (tpEmis=1, síncrona). Continua sendo útil ter um
+    // CSC cadastrado por outros motivos administrativos da SEFAZ, mas a ausência dele
+    // não bloqueia mais a nota.
 
     const payments = paymentsFromOrder(order.payment_method);
     const numero = invoice.number;
@@ -140,12 +143,7 @@ export async function emitirNfce(orderId: number): Promise<void> {
     const xmlPath = path.join(dir, `${chaveAcesso}-nfce.xml`);
     fs.writeFileSync(xmlPath, signedXml, "utf-8");
 
-    const qrCodeUrl = buildQrCodeUrl({
-      chaveAcesso,
-      environment,
-      cscId: tenant.nfce_csc_id,
-      cscToken: tenant.nfce_csc_token,
-    });
+    const qrCodeUrl = buildQrCodeUrl({ chaveAcesso, environment });
 
     const paymentLabels: Record<string, string> = { money: "Dinheiro", pix: "PIX", debit: "Débito", credit: "Crédito" };
     const paymentSummary = payments.map((p) => `${paymentLabels[p.method] ?? p.method}: R$ ${p.amount.toFixed(2)}`).join(" + ");

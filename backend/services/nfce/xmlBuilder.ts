@@ -112,6 +112,9 @@ export function buildNfceXml(input: BuildNfceInput): BuildNfceResult {
 
   // ── det (itens) ────────────────────────────────────────────────────────
   let vProdTotal = 0;
+  // Acumulado do grupo IBS/CBS de todos os itens, usado no totalizador da nota
+  // (total.IBSCBSTot) — a SEFAZ exige esse total além do grupo em cada item.
+  const ibsCbsAcumulado = { vBC: 0, vIBSUF: 0, vCBS: 0 };
   items.forEach((item, idx) => {
     const nItem = idx + 1;
     const vUnCom = Number(item.unit_price);
@@ -162,6 +165,35 @@ export function buildNfceXml(input: BuildNfceInput): BuildNfceResult {
 
     const cofins = imposto.ele("COFINS").ele("COFINSNT");
     cofins.ele("CST").txt(item.product.cofins_cst || "07");
+
+    // Grupo IBS/CBS (Reforma Tributária, LC 214/2025, NT 2025.002) — SEFAZ já valida
+    // esse grupo em homologação mesmo a obrigatoriedade oficial em produção pro Simples
+    // Nacional só começando em 2027 (LC 214/2025 art. 348, III, "c"). As alíquotas de
+    // 2026 são fixas por lei (art. 343/346): pIBSUF=0,1% e pCBS=0,9% — "alíquotas de
+    // teste" do período de transição (ensaio operacional, sem aumento real de carga).
+    // Sem esse grupo a SEFAZ rejeita com "IBS/CBS não informado".
+    const pIBSUF = 0.1;
+    const pCBS = 0.9;
+    const vIBSUF = Math.round(((vProd * pIBSUF) / 100) * 100) / 100;
+    const vCBS = Math.round(((vProd * pCBS) / 100) * 100) / 100;
+    ibsCbsAcumulado.vBC += vProd;
+    ibsCbsAcumulado.vIBSUF += vIBSUF;
+    ibsCbsAcumulado.vCBS += vCBS;
+    const ibsCbs = imposto.ele("IBSCBS");
+    ibsCbs.ele("CST").txt("000");
+    ibsCbs.ele("cClassTrib").txt("000001");
+    const gIBSCBS = ibsCbs.ele("gIBSCBS");
+    gIBSCBS.ele("vBC").txt(vProd.toFixed(2));
+    const gIBSUF = gIBSCBS.ele("gIBSUF");
+    gIBSUF.ele("pIBSUF").txt(pIBSUF.toFixed(2));
+    gIBSUF.ele("vIBSUF").txt(vIBSUF.toFixed(2));
+    const gIBSMun = gIBSCBS.ele("gIBSMun");
+    gIBSMun.ele("pIBSMun").txt((0).toFixed(2));
+    gIBSMun.ele("vIBSMun").txt("0.00");
+    gIBSCBS.ele("vIBS").txt(vIBSUF.toFixed(2));
+    const gCBS = gIBSCBS.ele("gCBS");
+    gCBS.ele("pCBS").txt(pCBS.toFixed(2));
+    gCBS.ele("vCBS").txt(vCBS.toFixed(2));
   });
 
   // ── total ─────────────────────────────────────────────────────────────
@@ -187,15 +219,50 @@ export function buildNfceXml(input: BuildNfceInput): BuildNfceResult {
   icmsTot.ele("vOutro").txt("0.00");
   icmsTot.ele("vNF").txt(Number(order.total_amount).toFixed(2));
 
+  // Totalizador do grupo IBS/CBS — irmão de ICMSTot dentro de <total>, exigido pela
+  // SEFAZ além do grupo já preenchido em cada item ("Total de IBS e CBS não informado"
+  // sem isso). vDif/vDevTrib são obrigatórios assim que o bloco gIBSUF/gIBSMun/gCBS
+  // existe, mesmo zerados (sem diferimento/devolução nesses casos).
+  const ibsCbsTot = total.ele("IBSCBSTot");
+  ibsCbsTot.ele("vBCIBSCBS").txt(ibsCbsAcumulado.vBC.toFixed(2));
+  const gIBSTot = ibsCbsTot.ele("gIBS");
+  const gIBSUFTot = gIBSTot.ele("gIBSUF");
+  gIBSUFTot.ele("vDif").txt("0.00");
+  gIBSUFTot.ele("vDevTrib").txt("0.00");
+  gIBSUFTot.ele("vIBSUF").txt(ibsCbsAcumulado.vIBSUF.toFixed(2));
+  const gIBSMunTot = gIBSTot.ele("gIBSMun");
+  gIBSMunTot.ele("vDif").txt("0.00");
+  gIBSMunTot.ele("vDevTrib").txt("0.00");
+  gIBSMunTot.ele("vIBSMun").txt("0.00");
+  gIBSTot.ele("vIBS").txt(ibsCbsAcumulado.vIBSUF.toFixed(2));
+  gIBSTot.ele("vCredPres").txt("0.00");
+  gIBSTot.ele("vCredPresCondSus").txt("0.00");
+  const gCBSTot = ibsCbsTot.ele("gCBS");
+  gCBSTot.ele("vDif").txt("0.00");
+  gCBSTot.ele("vDevTrib").txt("0.00");
+  gCBSTot.ele("vCBS").txt(ibsCbsAcumulado.vCBS.toFixed(2));
+  gCBSTot.ele("vCredPres").txt("0.00");
+  gCBSTot.ele("vCredPresCondSus").txt("0.00");
+
   // ── transp ────────────────────────────────────────────────────────────
   doc.ele("transp").ele("modFrete").txt("9"); // sem frete
 
   // ── pag ───────────────────────────────────────────────────────────────
   const pag = doc.ele("pag");
   for (const seg of payments) {
+    const tPag = TPAG_MAP[seg.method] ?? "99";
     const detPag = pag.ele("detPag");
-    detPag.ele("tPag").txt(TPAG_MAP[seg.method] ?? "99");
+    detPag.ele("tPag").txt(tPag);
     detPag.ele("vPag").txt(seg.amount.toFixed(2));
+    // Grupo "card" é exigido pela SEFAZ (rejeição 391) sempre que tPag = 03 (crédito),
+    // 04 (débito) OU 17 (PIX) — apesar do nome "card", cobre qualquer forma de
+    // pagamento eletrônica no mesmo grupo do XSD, PIX incluso. Único campo obrigatório
+    // do grupo é tpIntegra; "2" (não integrado, tipo POS simples) é o padrão seguro já
+    // que não há garantia de que o pagamento passou por maquininha/API de fato
+    // integrada no momento da venda.
+    if (tPag === "03" || tPag === "04" || tPag === "17") {
+      detPag.ele("card").ele("tpIntegra").txt("2");
+    }
   }
 
   const xml = doc.end({ prettyPrint: false });
