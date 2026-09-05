@@ -149,6 +149,34 @@ export async function retryNfce(req: Request, res: Response) {
   }
 }
 
+/** Remove a tentativa de NFC-e (rejeitada/com erro), mantendo a venda intacta — permite
+ * reemitir do zero depois. Nunca permite excluir uma nota AUTORIZADA: essa tem valor
+ * fiscal e só pode ser cancelada (rota /cancel), nunca apagada do banco. */
+export async function deleteNfce(req: Request, res: Response) {
+  try {
+    const orderId = Number(req.params.orderId);
+    const tenantId = getTenantId(req);
+    const invoice = await prisma.nfceInvoice.findFirst({
+      where: { order_id: orderId, tenant_id: tenantId },
+    });
+    if (!invoice) {
+      res.status(404).json({ error: "Nota fiscal não encontrada para este pedido" });
+      return;
+    }
+    if (invoice.status === "authorized") {
+      res.status(400).json({ error: "NFC-e autorizada não pode ser excluída — cancele-a em vez disso." });
+      return;
+    }
+
+    await prisma.nfceInvoice.delete({ where: { id: invoice.id } });
+    emitToTenant(tenantId, "nfce:changed", { orderId });
+
+    res.json({ success: true });
+  } catch {
+    res.status(500).json({ error: "Failed to delete NFC-e" });
+  }
+}
+
 export async function cancelNfce(req: Request, res: Response) {
   try {
     const orderId = Number(req.params.orderId);

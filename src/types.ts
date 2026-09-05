@@ -347,6 +347,33 @@ export interface NfceInvoice {
   order?: { customer_name?: string | null; total_amount: number };
 }
 
+export type NfseStatus = 'pending' | 'processing' | 'authorized' | 'rejected' | 'error' | 'cancelled';
+
+export interface NfseInvoice {
+  id: number;
+  tenant_id: number;
+  service_order_id: number;
+  status: NfseStatus;
+  environment: 'homologacao' | 'producao';
+  serie: number;
+  numero: number;
+  chave_acesso?: string | null;
+  codigo_verificacao?: string | null;
+  authorized_at?: string | null;
+  rejection_code?: string | null;
+  rejection_reason?: string | null;
+  dps_xml_path?: string | null;
+  nfse_xml_path?: string | null;
+  nfse_pdf_path?: string | null;
+  attempts: number;
+  last_attempt_at?: string | null;
+  cancel_reason?: string | null;
+  cancelled_at?: string | null;
+  created_at: string;
+  updated_at: string;
+  service_order?: { customer_name?: string | null; service_value: number; number?: number | null };
+}
+
 export interface ManagedTenant extends Tenant {
   users?: Array<{
     id: number;

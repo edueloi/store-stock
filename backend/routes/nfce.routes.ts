@@ -5,6 +5,7 @@ import {
   emitNfceForOrder,
   retryNfce,
   retryNfceBatch,
+  deleteNfce,
   cancelNfce,
   downloadDanfe,
   downloadNfceXml,
@@ -26,6 +27,7 @@ router.get("/:orderId", getNfceByOrder);
 router.post("/:orderId/emit", emitNfceForOrder);
 router.post("/:orderId/retry", retryNfce);
 router.post("/:orderId/cancel", cancelNfce);
+router.delete("/:orderId", deleteNfce);
 router.get("/:orderId/danfe", downloadDanfe);
 router.get("/:orderId/xml", downloadNfceXml);
 

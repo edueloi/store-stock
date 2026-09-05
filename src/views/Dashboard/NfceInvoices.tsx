@@ -2,10 +2,10 @@ import { useState, useEffect, useMemo } from "react";
 import ExcelJS from "exceljs";
 import {
   FileCheck, Search, Download, RefreshCw, FileText, AlertTriangle,
-  CheckCircle2, Loader2, Clock, XCircle, Ban, Archive, Calendar,
+  CheckCircle2, Loader2, Clock, XCircle, Ban, Archive, Calendar, Trash2,
 } from "lucide-react";
 import PageHeader from "../../components/layout/PageHeader";
-import { NfceInvoice, NfceStatus } from "../../types";
+import { NfceInvoice, NfceStatus, NfseInvoice, NfseStatus } from "../../types";
 import { cn } from "../../lib/utils";
 import Modal from "../../components/ui/Modal";
 import Button from "../../components/ui/Button";
@@ -94,7 +94,7 @@ async function downloadAuthenticated(url: string, token: string | null, filename
   URL.revokeObjectURL(blobUrl);
 }
 
-export default function NfceInvoices() {
+function NfceTabContent() {
   const [invoices, setInvoices] = useState<NfceInvoice[]>([]);
   const [loading, setLoading] = useState(true);
   const [exporting, setExporting] = useState(false);
@@ -105,6 +105,9 @@ export default function NfceInvoices() {
   const [cancelReason, setCancelReason] = useState("");
   const [cancelling, setCancelling] = useState(false);
   const [cancelError, setCancelError] = useState<string | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<NfceInvoice | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [batchLoading, setBatchLoading] = useState<"retry" | "xml" | "danfe" | null>(null);
   const notify = useToast();
@@ -164,6 +167,27 @@ export default function NfceInvoices() {
       fetchInvoices();
     } finally {
       setCancelling(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!deleteTarget) return;
+    setDeleting(true);
+    setDeleteError(null);
+    try {
+      const res = await fetch(`/api/nfce/${deleteTarget.order_id}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setDeleteError(data.error || "Falha ao excluir a nota fiscal");
+        return;
+      }
+      setDeleteTarget(null);
+      fetchInvoices();
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -268,19 +292,15 @@ export default function NfceInvoices() {
 
   return (
     <div className="space-y-6">
-      <PageHeader
-        title="Notas Fiscais"
-        subtitle="NFC-e emitidas junto à SEFAZ-SP · exporte o relatório para o contador"
-        action={
-          <button
-            onClick={async () => { setExporting(true); try { await exportNfceToExcel(filtered); } finally { setExporting(false); } }}
-            disabled={exporting || filtered.length === 0}
-            className="h-9 bg-white border border-slate-200 px-4 rounded-xl flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest hover:bg-slate-50 transition-all text-slate-600 shadow-sm disabled:opacity-40"
-          >
-            {exporting ? <Loader2 size={13} className="animate-spin" /> : <Download size={13} />} Exportar
-          </button>
-        }
-      />
+      <div className="flex items-center justify-end">
+        <button
+          onClick={async () => { setExporting(true); try { await exportNfceToExcel(filtered); } finally { setExporting(false); } }}
+          disabled={exporting || filtered.length === 0}
+          className="h-9 bg-white border border-slate-200 px-4 rounded-xl flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest hover:bg-slate-50 transition-all text-slate-600 shadow-sm disabled:opacity-40"
+        >
+          {exporting ? <Loader2 size={13} className="animate-spin" /> : <Download size={13} />} Exportar
+        </button>
+      </div>
 
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm">
         <div className="flex items-center gap-0 border-b border-slate-100 divide-x divide-slate-100">
@@ -448,13 +468,21 @@ export default function NfceInvoices() {
                     <td className="px-4 py-2.5">
                       <div className="flex items-center gap-2 justify-end">
                         {(inv.status === "error" || inv.status === "rejected") && (
-                          <button
-                            onClick={() => handleRetry(inv.order_id)}
-                            disabled={retrying === inv.order_id}
-                            className="h-8 px-3 bg-rose-600 hover:bg-rose-700 disabled:opacity-50 text-white rounded-lg text-[9px] font-black uppercase tracking-widest flex items-center gap-1.5 transition-all"
-                          >
-                            {retrying === inv.order_id ? <Loader2 size={12} className="animate-spin" /> : <RefreshCw size={12} />} Reemitir
-                          </button>
+                          <>
+                            <button
+                              onClick={() => handleRetry(inv.order_id)}
+                              disabled={retrying === inv.order_id}
+                              className="h-8 px-3 bg-rose-600 hover:bg-rose-700 disabled:opacity-50 text-white rounded-lg text-[9px] font-black uppercase tracking-widest flex items-center gap-1.5 transition-all"
+                            >
+                              {retrying === inv.order_id ? <Loader2 size={12} className="animate-spin" /> : <RefreshCw size={12} />} Reemitir
+                            </button>
+                            <button
+                              onClick={() => { setDeleteTarget(inv); setDeleteError(null); }}
+                              className="h-8 px-3 bg-white border border-slate-200 hover:bg-slate-50 text-slate-500 rounded-lg text-[9px] font-black uppercase tracking-widest flex items-center gap-1.5 transition-all"
+                            >
+                              <Trash2 size={12} /> Excluir
+                            </button>
+                          </>
                         )}
                         {inv.status === "authorized" && (
                           <>
@@ -526,6 +554,212 @@ export default function NfceInvoices() {
           )}
         </div>
       </Modal>
+
+      <Modal
+        open={!!deleteTarget}
+        onClose={() => { if (!deleting) { setDeleteTarget(null); setDeleteError(null); } }}
+        title="Excluir tentativa de NFC-e"
+        subtitle={deleteTarget ? `Pedido #${String(deleteTarget.order_id).padStart(6, "0")}` : undefined}
+        size="sm"
+        footer={
+          <>
+            <Button variant="secondary" onClick={() => setDeleteTarget(null)} disabled={deleting}>Voltar</Button>
+            <Button variant="danger" onClick={handleDelete} disabled={deleting} loading={deleting}>
+              Excluir
+            </Button>
+          </>
+        }
+      >
+        <div className="space-y-3">
+          <p className="text-xs text-slate-500">
+            Remove esta tentativa de emissão (rejeitada/com erro) para permitir reemitir do zero.
+            A venda em si não é afetada — permanece no histórico normalmente.
+          </p>
+          {deleteError && (
+            <div className="bg-rose-50 border border-rose-200 rounded-xl px-3 py-2.5 text-[11px] font-bold text-rose-600">
+              {deleteError}
+            </div>
+          )}
+        </div>
+      </Modal>
+    </div>
+  );
+}
+
+const NFSE_STATUS_META: Record<NfseStatus, { label: string; color: string; bg: string; icon: React.ReactNode }> = {
+  pending:    { label: "Aguardando",  color: "text-blue-600",    bg: "bg-blue-50",    icon: <Clock size={12} /> },
+  processing: { label: "Processando", color: "text-blue-600",    bg: "bg-blue-50",    icon: <Loader2 size={12} className="animate-spin" /> },
+  authorized: { label: "Autorizada",  color: "text-emerald-600", bg: "bg-emerald-50", icon: <CheckCircle2 size={12} /> },
+  rejected:   { label: "Rejeitada",   color: "text-rose-600",    bg: "bg-rose-50",    icon: <XCircle size={12} /> },
+  error:      { label: "Erro",        color: "text-rose-600",    bg: "bg-rose-50",    icon: <AlertTriangle size={12} /> },
+  cancelled:  { label: "Cancelada",   color: "text-slate-500",   bg: "bg-slate-100",  icon: <XCircle size={12} /> },
+};
+
+// Listagem de NFS-e ainda somente leitura — o módulo de emissão de NFS-e (Ordem de
+// Serviço) está sendo revisado à parte, este painel só espelha o histórico já existente.
+function NfseTabContent() {
+  const [invoices, setInvoices] = useState<NfseInvoice[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [statusFilter, setStatusFilter] = useState<NfseStatus | "all">("all");
+  const token = localStorage.getItem("token");
+
+  useEffect(() => {
+    setLoading(true);
+    fetch("/api/nfse?pageSize=200", { headers: { Authorization: `Bearer ${token}` } })
+      .then((r) => r.json())
+      .then((data) => setInvoices(Array.isArray(data.invoices) ? data.invoices : []))
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
+
+  const filtered = useMemo(() => {
+    return invoices.filter((inv) => {
+      if (statusFilter !== "all" && inv.status !== statusFilter) return false;
+      if (searchTerm) {
+        const term = searchTerm.toLowerCase();
+        const haystack = `${inv.numero} ${inv.chave_acesso ?? ""} ${inv.service_order?.customer_name ?? ""}`.toLowerCase();
+        if (!haystack.includes(term)) return false;
+      }
+      return true;
+    });
+  }, [invoices, statusFilter, searchTerm]);
+
+  const counts = useMemo(() => ({
+    total: invoices.length,
+    authorized: invoices.filter((i) => i.status === "authorized").length,
+    pending: invoices.filter((i) => i.status === "pending" || i.status === "processing").length,
+    error: invoices.filter((i) => i.status === "error" || i.status === "rejected").length,
+  }), [invoices]);
+
+  return (
+    <div className="space-y-6">
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm">
+        <div className="flex items-center gap-0 border-b border-slate-100 divide-x divide-slate-100">
+          {[
+            { label: "Total",       value: counts.total,      color: "text-slate-900" },
+            { label: "Autorizadas", value: counts.authorized, color: "text-emerald-500" },
+            { label: "Em processo", value: counts.pending,    color: "text-blue-500" },
+            { label: "Com erro",    value: counts.error,      color: "text-rose-500" },
+          ].map((k) => (
+            <div key={k.label} className="flex-1 px-5 py-4 flex flex-col gap-0.5">
+              <span className={cn("text-2xl font-black tracking-tight font-mono leading-none", k.color)}>{k.value}</span>
+              <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">{k.label}</span>
+            </div>
+          ))}
+        </div>
+
+        <div className="flex items-center gap-2 px-4 py-3 flex-wrap">
+          <div className="relative flex-1 min-w-[180px]">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={13} />
+            <input
+              type="text"
+              placeholder="Buscar por número, chave, cliente..."
+              className="w-full pl-8 pr-3 h-9 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-400 text-[11px] font-medium placeholder:text-slate-300 transition-all"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+            />
+          </div>
+          <select
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value as NfseStatus | "all")}
+            className="h-9 px-3 bg-slate-50 border border-slate-200 rounded-xl text-[11px] font-bold outline-none focus:border-blue-400 transition-all"
+          >
+            <option value="all">Todos os status</option>
+            {Object.entries(NFSE_STATUS_META).map(([key, meta]) => (
+              <option key={key} value={key}>{meta.label}</option>
+            ))}
+          </select>
+        </div>
+
+        <div className="overflow-x-auto">
+          <table className="w-full text-left border-collapse">
+            <thead>
+              <tr className="border-t border-slate-100 bg-slate-50/60">
+                {["Nº", "Série", "Ordem de Serviço", "Cliente", "Chave de Acesso", "Status", "Emitida em"].map((h) => (
+                  <th key={h} className="px-4 py-2.5 text-[9px] font-black text-slate-400 uppercase tracking-widest whitespace-nowrap">{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {loading && (
+                <tr><td colSpan={7} className="px-4 py-10 text-center text-slate-400 text-xs">Carregando...</td></tr>
+              )}
+              {!loading && filtered.length === 0 && (
+                <tr><td colSpan={7} className="px-4 py-10 text-center text-slate-400 text-xs">Nenhuma nota fiscal de serviço encontrada</td></tr>
+              )}
+              {!loading && filtered.map((inv) => {
+                const meta = NFSE_STATUS_META[inv.status];
+                return (
+                  <tr key={inv.id} className="border-t border-slate-100 hover:bg-slate-50/60 transition-colors">
+                    <td className="px-4 py-2.5 text-xs font-mono font-bold text-slate-700">{inv.numero}</td>
+                    <td className="px-4 py-2.5 text-xs font-mono text-slate-500">{inv.serie}</td>
+                    <td className="px-4 py-2.5 text-xs font-mono text-blue-600">#{String(inv.service_order_id).padStart(6, "0")}</td>
+                    <td className="px-4 py-2.5 text-xs font-bold text-slate-700">{inv.service_order?.customer_name || "Consumidor Final"}</td>
+                    <td className="px-4 py-2.5 text-[10px] font-mono text-slate-400 truncate max-w-[220px]">{inv.chave_acesso || "—"}</td>
+                    <td className="px-4 py-2.5">
+                      <span
+                        title={(inv.status === "error" || inv.status === "rejected") ? (inv.rejection_reason ?? undefined) : undefined}
+                        className={cn(
+                          "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wide",
+                          meta.bg, meta.color,
+                          (inv.status === "error" || inv.status === "rejected") && inv.rejection_reason && "cursor-help",
+                        )}
+                      >
+                        {meta.icon} {meta.label}
+                      </span>
+                      {(inv.status === "error" || inv.status === "rejected") && inv.rejection_reason && (
+                        <p className="text-[10px] text-rose-500 font-medium mt-1 max-w-[260px] truncate" title={inv.rejection_reason}>
+                          {inv.rejection_reason}
+                        </p>
+                      )}
+                    </td>
+                    <td className="px-4 py-2.5 text-xs text-slate-500">
+                      {inv.authorized_at ? new Date(inv.authorized_at).toLocaleString("pt-BR") : "—"}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export default function NfceInvoices() {
+  const [tab, setTab] = useState<"nfce" | "nfse">("nfce");
+
+  return (
+    <div className="space-y-4">
+      <PageHeader
+        title="Notas Fiscais"
+        subtitle="NFC-e e NFS-e emitidas junto à SEFAZ/prefeitura · exporte o relatório para o contador"
+      />
+
+      <div className="flex items-center gap-1 bg-slate-100 rounded-xl p-1 w-fit">
+        <button
+          onClick={() => setTab("nfce")}
+          className={cn(
+            "h-9 px-4 rounded-lg text-[11px] font-black uppercase tracking-widest transition-all",
+            tab === "nfce" ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700",
+          )}
+        >
+          NFC-e (produtos)
+        </button>
+        <button
+          onClick={() => setTab("nfse")}
+          className={cn(
+            "h-9 px-4 rounded-lg text-[11px] font-black uppercase tracking-widest transition-all",
+            tab === "nfse" ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700",
+          )}
+        >
+          NFS-e (serviços)
+        </button>
+      </div>
+
+      {tab === "nfce" ? <NfceTabContent /> : <NfseTabContent />}
     </div>
   );
 }
