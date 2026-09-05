@@ -62,6 +62,10 @@ export async function cancelarNfse(
     });
 
     if (!result.ok) {
+      console.error(
+        `[cancelarNfse] POST /nfse/{chave}/eventos rejeitado — status=${result.statusCode} tenant=${tenant.id} serviceOrder=${serviceOrderId}`,
+        result.error || result.raw?.slice(0, 1000) || "(sem corpo)",
+      );
       const data = (result.data ?? {}) as { erros?: Array<Record<string, unknown>> };
       const erros = Array.isArray(data.erros) ? data.erros : [];
       const primeiro = erros[0];

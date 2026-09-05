@@ -193,8 +193,21 @@ export async function emitirNfse(input: EmitirNfseInput): Promise<void> {
     const xTribNac = extractTag(nfseXml, "xTribNac"); // descrição oficial do código de tributação, vinda do governo
     const codigoVerificacao = extractTag(nfseXml, "nDFSe");
 
+    // logo_url é sempre um path relativo tipo "/uploads/logos/<tenant>/<arquivo>",
+    // resolvido dentro de public/ (ver upload.controller.ts) — nunca uma URL remota.
+    let logoBuffer: Buffer | null = null;
+    if (tenant.logo_url?.startsWith("/uploads/")) {
+      const logoPath = path.join(process.cwd(), "public", tenant.logo_url);
+      try {
+        logoBuffer = fs.readFileSync(logoPath);
+      } catch {
+        logoBuffer = null;
+      }
+    }
+
     const opSimpNac = tenant.tax_regime === "simples_nacional";
     const pdfBuffer = await generateNfsePdf({
+      logoBuffer,
       emitterName: tenant.razao_social || tenant.name,
       emitterDisplayName: tenant.name,
       emitterDocument: tenant.document || "",
