@@ -4,6 +4,8 @@ import type { Request, Response } from "express";
 import { prisma } from "../config/prisma";
 import type { AuthenticatedRequest } from "../types/auth";
 import { emitirNfse } from "../services/nfse/emitir";
+import { cancelarNfse } from "../services/nfse/cancelar";
+import type { MotivoCancelamentoNfse } from "../services/nfse/eventoXmlBuilder";
 import { emitToTenant } from "../services/realtime.service";
 
 function getTenantId(req: Request) {
@@ -257,6 +259,33 @@ export async function deleteNfse(req: Request, res: Response) {
     res.json({ success: true });
   } catch {
     res.status(500).json({ error: "Failed to delete NFS-e" });
+  }
+}
+
+export async function cancelNfse(req: Request, res: Response) {
+  try {
+    const serviceOrderId = Number(req.params.serviceOrderId);
+    const tenantId = getTenantId(req);
+    const { reason, motivo } = req.body as { reason?: string; motivo?: MotivoCancelamentoNfse };
+
+    const invoice = await prisma.nfseInvoice.findFirst({
+      where: { service_order_id: serviceOrderId, tenant_id: tenantId },
+    });
+    if (!invoice) {
+      res.status(404).json({ error: "NFS-e não encontrada para esta ordem de serviço" });
+      return;
+    }
+
+    const result = await cancelarNfse(serviceOrderId, reason || "", motivo || "1");
+    if (!result.success) {
+      res.status(422).json({ error: result.error });
+      return;
+    }
+
+    emitToTenant(tenantId, "nfse:changed", { serviceOrderId });
+    res.json({ success: true });
+  } catch {
+    res.status(500).json({ error: "Failed to cancel NFS-e" });
   }
 }
 

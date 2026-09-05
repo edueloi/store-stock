@@ -83,55 +83,60 @@ export async function generateNfsePdf(input: GenerateNfsePdfInput): Promise<Buff
     doc.on("error", reject);
 
     const pageWidth = doc.page.width - 72;
-    const colorPrimary = "#5b21b6";
-    const colorPrimaryLight = "#f5f3ff";
-    const colorText = "#1e293b";
-    const colorMuted = "#64748b";
-    const colorBorder = "#e2e8f0";
+    const colorPrimary = "#1e293b";
+    const colorPrimaryLight = "#f1f5f9";
+    const colorText = "#0f172a";
+    const colorMuted = "#475569";
+    const colorBorder = "#94a3b8";
 
-    const headerTop = doc.y;
+    // Moldura externa do documento inteiro, como um formulário oficial impresso
+    // (ex.: DANFE) — em vez de blocos arredondados soltos flutuando na página.
+    const pageTop = doc.y;
+    doc.rect(30, pageTop, doc.page.width - 60, doc.page.height - pageTop - 30).lineWidth(1).strokeColor(colorBorder).stroke();
+
+    const headerTop = pageTop + 10;
     const headerName = emitterDisplayName || emitterName;
     if (logoBuffer) {
-      doc.image(logoBuffer, 36, headerTop, { fit: [64, 64] });
+      doc.image(logoBuffer, 42, headerTop, { fit: [56, 56] });
     } else {
-      doc.roundedRect(36, headerTop, 64, 64, 8).fill(colorPrimaryLight);
-      doc.fillColor(colorPrimary).font("Helvetica-Bold").fontSize(22)
-        .text((headerName || "?").charAt(0).toUpperCase(), 36, headerTop + 18, { width: 64, align: "center" });
+      doc.rect(42, headerTop, 56, 56).lineWidth(1).strokeColor(colorBorder).stroke();
+      doc.fillColor(colorText).font("Helvetica-Bold").fontSize(20)
+        .text((headerName || "?").charAt(0).toUpperCase(), 42, headerTop + 15, { width: 56, align: "center" });
     }
 
-    const textX = 36 + 64 + 14;
-    const textWidth = pageWidth - 64 - 14 - 170;
-    doc.fillColor(colorText).font("Helvetica-Bold").fontSize(13)
+    const textX = 42 + 56 + 14;
+    const textWidth = pageWidth - 56 - 14 - 170 - 12;
+    doc.fillColor(colorText).font("Helvetica-Bold").fontSize(12)
       .text(headerName || "", textX, headerTop, { width: textWidth });
-    doc.font("Helvetica").fontSize(8.5).fillColor(colorMuted);
+    doc.font("Helvetica").fontSize(8).fillColor(colorMuted);
     doc.text(`CNPJ/CPF: ${formatCpfCnpj(emitterDocument)}${emitterIM ? `   IM: ${emitterIM}` : ""}`, textX, doc.y + 2, { width: textWidth });
     if (emitterAddress) doc.text(emitterAddress, textX, doc.y + 1, { width: textWidth });
     const contactLine = [emitterPhone ? formatPhone(emitterPhone) : null, emitterEmail].filter(Boolean).join("   ");
     if (contactLine) doc.text(contactLine, textX, doc.y + 1, { width: textWidth });
 
-    const badgeX = doc.page.width - 36 - 160;
-    doc.roundedRect(badgeX, headerTop, 160, 64, 8).fillAndStroke(colorPrimaryLight, colorBorder);
-    doc.fillColor(colorPrimary).font("Helvetica-Bold").fontSize(9)
-      .text("NFS-e", badgeX, headerTop + 10, { width: 160, align: "center" });
-    doc.fontSize(7.5).font("Helvetica").fillColor(colorMuted)
-      .text("Nota Fiscal de Serviço Eletrônica", badgeX, doc.y + 1, { width: 160, align: "center" });
+    const badgeX = doc.page.width - 42 - 160;
+    doc.rect(badgeX, headerTop, 160, 56).lineWidth(1).strokeColor(colorBorder).stroke();
+    doc.moveTo(badgeX, headerTop + 20).lineTo(badgeX + 160, headerTop + 20).lineWidth(0.75).strokeColor(colorBorder).stroke();
+    doc.fillColor(colorText).font("Helvetica-Bold").fontSize(10)
+      .text("NFS-e", badgeX, headerTop + 4, { width: 160, align: "center" });
+    doc.fontSize(6.5).font("Helvetica").fillColor(colorMuted)
+      .text("NOTA FISCAL DE SERVIÇO ELETRÔNICA", badgeX, doc.y + 1, { width: 160, align: "center", characterSpacing: 0.3 });
     doc.font("Helvetica-Bold").fontSize(11).fillColor(colorText)
-      .text(`Nº ${numero}  •  Série ${serie}`, badgeX, headerTop + 38, { width: 160, align: "center" });
-    if (environment !== "producao") {
-      doc.font("Helvetica-Bold").fontSize(7).fillColor("#b45309")
-        .text("HOMOLOGAÇÃO — SEM VALOR FISCAL", badgeX, headerTop + 52, { width: 160, align: "center" });
-    }
+      .text(`Nº ${numero}  •  Série ${serie}`, badgeX, headerTop + 26, { width: 160, align: "center" });
+    doc.font("Helvetica-Bold").fontSize(6.5).fillColor(environment !== "producao" ? "#b91c1c" : colorMuted)
+      .text(environment !== "producao" ? "HOMOLOGAÇÃO — SEM VALOR FISCAL" : "PRODUÇÃO", badgeX, headerTop + 42, { width: 160, align: "center" });
 
-    doc.y = headerTop + 74;
-    doc.moveTo(36, doc.y).lineTo(doc.page.width - 36, doc.y).lineWidth(1.5).strokeColor(colorPrimary).stroke();
-    doc.moveDown(0.8);
+    doc.y = headerTop + 66;
+    doc.moveTo(36, doc.y).lineTo(doc.page.width - 36, doc.y).lineWidth(1).strokeColor(colorBorder).stroke();
+    doc.moveDown(0.7);
 
     function sectionTitle(label: string) {
       doc.moveDown(0.6);
       const y = doc.y;
-      doc.rect(36, y, 3, 12).fill(colorPrimary);
-      doc.font("Helvetica-Bold").fontSize(9).fillColor(colorPrimary)
-        .text(label.toUpperCase(), 44, y, { characterSpacing: 0.5 });
+      doc.rect(36, y, pageWidth, 14).fill(colorPrimaryLight);
+      doc.font("Helvetica-Bold").fontSize(8).fillColor(colorText)
+        .text(label.toUpperCase(), 40, y + 3, { characterSpacing: 0.5 });
+      doc.y = y + 14;
       doc.moveDown(0.35);
       doc.fillColor(colorText);
     }
@@ -178,8 +183,8 @@ export async function generateNfsePdf(input: GenerateNfsePdfInput): Promise<Buff
 
     sectionTitle("Valores");
     const boxY = doc.y;
-    const boxH = 54;
-    doc.roundedRect(36, boxY, pageWidth, boxH, 8).fillAndStroke("#f8fafc", colorBorder);
+    const boxH = 50;
+    doc.rect(36, boxY, pageWidth, boxH).lineWidth(1).strokeColor(colorBorder).stroke();
     const valCols = [
       { label: "Valor do serviço", value: formatMoney(valorServico) },
       { label: "Alíquota ISS", value: aliquotaIss != null ? `${Number(aliquotaIss).toFixed(2)}%` : "Apurado pelo Simples Nacional" },
@@ -188,8 +193,9 @@ export async function generateNfsePdf(input: GenerateNfsePdfInput): Promise<Buff
     const vw = pageWidth / valCols.length;
     valCols.forEach((v, i) => {
       const x = 36 + i * vw;
-      doc.font("Helvetica").fontSize(7.5).fillColor(colorMuted).text(v.label.toUpperCase(), x + 14, boxY + 10, { width: vw - 28, characterSpacing: 0.3 });
-      doc.font("Helvetica-Bold").fontSize(14).fillColor(i === 0 ? colorPrimary : colorText).text(v.value, x + 14, boxY + 24, { width: vw - 28 });
+      if (i > 0) doc.moveTo(x, boxY).lineTo(x, boxY + boxH).lineWidth(0.75).strokeColor(colorBorder).stroke();
+      doc.font("Helvetica").fontSize(7).fillColor(colorMuted).text(v.label.toUpperCase(), x + 12, boxY + 9, { width: vw - 24, characterSpacing: 0.3 });
+      doc.font("Helvetica-Bold").fontSize(13).fillColor(colorText).text(v.value, x + 12, boxY + 22, { width: vw - 24 });
     });
     doc.y = boxY + boxH + 10;
 

@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
+import { useSearchParams } from "react-router-dom";
 import ExcelJS from "exceljs";
 import {
   FileCheck, Search, Download, RefreshCw, FileText, AlertTriangle,
@@ -405,7 +406,18 @@ function NfceTabContent() {
         )}
 
         <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse">
+          <table className="w-full text-left border-collapse table-fixed">
+            <colgroup>
+              <col className="w-8" />
+              <col className="w-14" />
+              <col className="w-12" />
+              <col className="w-24" />
+              <col className="w-24" />
+              <col className="w-[22%]" />
+              <col className="w-28" />
+              <col className="w-24" />
+              <col className="w-40" />
+            </colgroup>
             <thead>
               <tr className="border-t border-slate-100 bg-slate-50/60">
                 <th className="px-4 py-2.5 w-8">
@@ -442,9 +454,15 @@ function NfceTabContent() {
                     </td>
                     <td className="px-4 py-2.5 text-xs font-mono font-bold text-slate-700">{inv.number}</td>
                     <td className="px-4 py-2.5 text-xs font-mono text-slate-500">{inv.series}</td>
-                    <td className="px-4 py-2.5 text-xs font-mono text-blue-600">#{String(inv.order_id).padStart(6, "0")}</td>
-                    <td className="px-4 py-2.5 text-xs font-bold text-slate-700">{inv.order?.customer_name || "Consumidor Final"}</td>
-                    <td className="px-4 py-2.5 text-[10px] font-mono text-slate-400 truncate max-w-[220px]">{inv.access_key || "—"}</td>
+                    <td className="px-4 py-2.5 text-xs font-mono text-blue-600 truncate" title={`#${String(inv.order_id).padStart(6, "0")}`}>
+                      #{String(inv.order_id).padStart(6, "0")}
+                    </td>
+                    <td className="px-4 py-2.5 text-xs font-bold text-slate-700 truncate" title={inv.order?.customer_name || "Consumidor Final"}>
+                      {inv.order?.customer_name || "Consumidor Final"}
+                    </td>
+                    <td className="px-4 py-2.5 text-[10px] font-mono text-slate-400 truncate" title={inv.access_key || undefined}>
+                      {inv.access_key ? `${inv.access_key.slice(0, 8)}…${inv.access_key.slice(-6)}` : "—"}
+                    </td>
                     <td className="px-4 py-2.5">
                       <span
                         title={(inv.status === "error" || inv.status === "rejected") ? (inv.rejection_reason ?? undefined) : undefined}
@@ -457,16 +475,16 @@ function NfceTabContent() {
                         {meta.icon} {meta.label}
                       </span>
                       {(inv.status === "error" || inv.status === "rejected") && inv.rejection_reason && (
-                        <p className="text-[10px] text-rose-500 font-medium mt-1 max-w-[260px] truncate" title={inv.rejection_reason}>
+                        <p className="text-[10px] text-rose-500 font-medium mt-1 truncate" title={inv.rejection_reason}>
                           {inv.rejection_reason}
                         </p>
                       )}
                     </td>
-                    <td className="px-4 py-2.5 text-xs text-slate-500">
+                    <td className="px-4 py-2.5 text-xs text-slate-500 truncate">
                       {inv.authorized_at ? new Date(inv.authorized_at).toLocaleString("pt-BR") : "—"}
                     </td>
                     <td className="px-4 py-2.5">
-                      <div className="flex items-center gap-2 justify-end">
+                      <div className="flex items-center gap-2 justify-end flex-wrap">
                         {(inv.status === "error" || inv.status === "rejected") && (
                           <>
                             <button
@@ -653,6 +671,12 @@ function NfseTabContent() {
   const [deleteTarget, setDeleteTarget] = useState<NfseInvoice | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [cancelTarget, setCancelTarget] = useState<NfseInvoice | null>(null);
+  const [cancelReason, setCancelReason] = useState("");
+  const [cancelling, setCancelling] = useState(false);
+  const [cancelError, setCancelError] = useState<string | null>(null);
+  const [selected, setSelected] = useState<Set<number>>(new Set());
+  const [batchLoading, setBatchLoading] = useState<"retry" | null>(null);
   const notify = useToast();
   const token = localStorage.getItem("token");
 
@@ -699,6 +723,29 @@ function NfseTabContent() {
     }
   };
 
+  const handleCancel = async () => {
+    if (!cancelTarget) return;
+    setCancelling(true);
+    setCancelError(null);
+    try {
+      const res = await fetch(`/api/nfse/${cancelTarget.service_order_id}/cancel`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ reason: cancelReason }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setCancelError(data.error || "Falha ao cancelar a nota fiscal");
+        return;
+      }
+      setCancelTarget(null);
+      setCancelReason("");
+      fetchInvoices();
+    } finally {
+      setCancelling(false);
+    }
+  };
+
   const handleDownloadXml = (inv: NfseInvoice) =>
     downloadAuthenticated(`/api/nfse/${inv.service_order_id}/xml`, token, `nfse-${inv.chave_acesso ?? inv.service_order_id}.xml`)
       .catch((e) => notify.error(e instanceof Error ? e.message : "Não foi possível baixar o XML."));
@@ -725,6 +772,41 @@ function NfseTabContent() {
     pending: invoices.filter((i) => i.status === "pending" || i.status === "processing").length,
     error: invoices.filter((i) => i.status === "error" || i.status === "rejected").length,
   }), [invoices]);
+
+  const toggleSelected = (serviceOrderId: number) => {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(serviceOrderId)) next.delete(serviceOrderId); else next.add(serviceOrderId);
+      return next;
+    });
+  };
+
+  const toggleSelectAllFiltered = () => {
+    setSelected((prev) => {
+      const allSelected = filtered.length > 0 && filtered.every((inv) => prev.has(inv.service_order_id));
+      if (allSelected) return new Set();
+      return new Set(filtered.map((inv) => inv.service_order_id));
+    });
+  };
+
+  const selectedInvoices = useMemo(
+    () => filtered.filter((inv) => selected.has(inv.service_order_id)),
+    [filtered, selected],
+  );
+  const selectedRetryable = selectedInvoices.filter((inv) => inv.status === "error" || inv.status === "rejected");
+
+  const handleRetryBatch = async () => {
+    if (selectedRetryable.length === 0) return;
+    setBatchLoading("retry");
+    try {
+      await Promise.all(selectedRetryable.map((inv) =>
+        fetch(`/api/nfse/${inv.service_order_id}/retry`, { method: "POST", headers: { Authorization: `Bearer ${token}` } }),
+      ));
+      setTimeout(fetchInvoices, 1500);
+    } finally {
+      setBatchLoading(null);
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -776,31 +858,80 @@ function NfseTabContent() {
           </select>
         </div>
 
+        {selected.size > 0 && (
+          <div className="flex items-center gap-2 px-4 py-2.5 flex-wrap bg-blue-50/60 border-b border-blue-100">
+            <span className="text-[10px] font-black text-blue-700 uppercase tracking-widest mr-1">
+              {selected.size} selecionada{selected.size > 1 ? "s" : ""}
+            </span>
+            <button
+              onClick={handleRetryBatch}
+              disabled={batchLoading !== null || selectedRetryable.length === 0}
+              className="h-8 px-3 bg-rose-600 hover:bg-rose-700 disabled:opacity-40 text-white rounded-lg text-[9px] font-black uppercase tracking-widest flex items-center gap-1.5 transition-all"
+            >
+              {batchLoading === "retry" ? <Loader2 size={12} className="animate-spin" /> : <RefreshCw size={12} />}
+              Reemitir selecionadas ({selectedRetryable.length})
+            </button>
+          </div>
+        )}
+
         <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse">
+          <table className="w-full text-left border-collapse table-fixed">
+            <colgroup>
+              <col className="w-8" />
+              <col className="w-14" />
+              <col className="w-12" />
+              <col className="w-24" />
+              <col className="w-[22%]" />
+              <col className="w-28" />
+              <col className="w-24" />
+              <col className="w-32" />
+              <col />
+            </colgroup>
             <thead>
               <tr className="border-t border-slate-100 bg-slate-50/60">
-                {["Nº", "Série", "Ordem de Serviço", "Cliente", "Chave de Acesso", "Status", "Emitida em", ""].map((h) => (
+                <th className="px-4 py-2.5 w-8">
+                  <input
+                    type="checkbox"
+                    checked={filtered.length > 0 && filtered.every((inv) => selected.has(inv.service_order_id))}
+                    onChange={toggleSelectAllFiltered}
+                    className="rounded border-slate-300"
+                  />
+                </th>
+                {["Nº", "Série", "O.S.", "Cliente", "Chave de Acesso", "Status", "Emitida em", ""].map((h) => (
                   <th key={h} className="px-4 py-2.5 text-[9px] font-black text-slate-400 uppercase tracking-widest whitespace-nowrap">{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
               {loading && (
-                <tr><td colSpan={8} className="px-4 py-10 text-center text-slate-400 text-xs">Carregando...</td></tr>
+                <tr><td colSpan={9} className="px-4 py-10 text-center text-slate-400 text-xs">Carregando...</td></tr>
               )}
               {!loading && filtered.length === 0 && (
-                <tr><td colSpan={8} className="px-4 py-10 text-center text-slate-400 text-xs">Nenhuma nota fiscal de serviço encontrada</td></tr>
+                <tr><td colSpan={9} className="px-4 py-10 text-center text-slate-400 text-xs">Nenhuma nota fiscal de serviço encontrada</td></tr>
               )}
               {!loading && filtered.map((inv) => {
                 const meta = NFSE_STATUS_META[inv.status];
                 return (
                   <tr key={inv.id} className="border-t border-slate-100 hover:bg-slate-50/60 transition-colors">
+                    <td className="px-4 py-2.5">
+                      <input
+                        type="checkbox"
+                        checked={selected.has(inv.service_order_id)}
+                        onChange={() => toggleSelected(inv.service_order_id)}
+                        className="rounded border-slate-300"
+                      />
+                    </td>
                     <td className="px-4 py-2.5 text-xs font-mono font-bold text-slate-700">{inv.numero}</td>
                     <td className="px-4 py-2.5 text-xs font-mono text-slate-500">{inv.serie}</td>
-                    <td className="px-4 py-2.5 text-xs font-mono text-blue-600">#{String(inv.service_order_id).padStart(6, "0")}</td>
-                    <td className="px-4 py-2.5 text-xs font-bold text-slate-700">{inv.service_order?.customer_name || "Consumidor Final"}</td>
-                    <td className="px-4 py-2.5 text-[10px] font-mono text-slate-400 truncate max-w-[220px]">{inv.chave_acesso || "—"}</td>
+                    <td className="px-4 py-2.5 text-xs font-mono text-blue-600 truncate" title={`#${String(inv.service_order_id).padStart(6, "0")}`}>
+                      #{String(inv.service_order_id).padStart(6, "0")}
+                    </td>
+                    <td className="px-4 py-2.5 text-xs font-bold text-slate-700 truncate" title={inv.service_order?.customer_name || "Consumidor Final"}>
+                      {inv.service_order?.customer_name || "Consumidor Final"}
+                    </td>
+                    <td className="px-4 py-2.5 text-[10px] font-mono text-slate-400 truncate" title={inv.chave_acesso || undefined}>
+                      {inv.chave_acesso ? `${inv.chave_acesso.slice(0, 8)}…${inv.chave_acesso.slice(-6)}` : "—"}
+                    </td>
                     <td className="px-4 py-2.5">
                       <span
                         title={(inv.status === "error" || inv.status === "rejected") ? (inv.rejection_reason ?? undefined) : undefined}
@@ -813,16 +944,16 @@ function NfseTabContent() {
                         {meta.icon} {meta.label}
                       </span>
                       {(inv.status === "error" || inv.status === "rejected") && inv.rejection_reason && (
-                        <p className="text-[10px] text-rose-500 font-medium mt-1 max-w-[260px] truncate" title={inv.rejection_reason}>
+                        <p className="text-[10px] text-rose-500 font-medium mt-1 truncate" title={inv.rejection_reason}>
                           {inv.rejection_reason}
                         </p>
                       )}
                     </td>
-                    <td className="px-4 py-2.5 text-xs text-slate-500">
+                    <td className="px-4 py-2.5 text-xs text-slate-500 truncate">
                       {inv.authorized_at ? new Date(inv.authorized_at).toLocaleString("pt-BR") : "—"}
                     </td>
                     <td className="px-4 py-2.5">
-                      <div className="flex items-center gap-2 justify-end">
+                      <div className="flex items-center gap-2 justify-end flex-wrap">
                         {(inv.status === "error" || inv.status === "rejected") && (
                           <>
                             <button
@@ -849,6 +980,12 @@ function NfseTabContent() {
                             <button onClick={() => handleDownloadXml(inv)}
                               className="h-8 px-3 bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 rounded-lg text-[9px] font-black uppercase tracking-widest flex items-center gap-1.5 transition-all">
                               <FileCheck size={12} /> XML
+                            </button>
+                            <button
+                              onClick={() => { setCancelTarget(inv); setCancelReason(""); setCancelError(null); }}
+                              className="h-8 px-3 bg-white border border-rose-200 hover:bg-rose-50 text-rose-600 rounded-lg text-[9px] font-black uppercase tracking-widest flex items-center gap-1.5 transition-all"
+                            >
+                              <Ban size={12} /> Cancelar
                             </button>
                           </>
                         )}
@@ -889,12 +1026,58 @@ function NfseTabContent() {
           )}
         </div>
       </Modal>
+
+      <Modal
+        open={!!cancelTarget}
+        onClose={() => { if (!cancelling) { setCancelTarget(null); setCancelError(null); } }}
+        title="Cancelar NFS-e"
+        subtitle={cancelTarget ? `Nota nº ${cancelTarget.numero}` : undefined}
+        size="sm"
+        footer={
+          <>
+            <Button variant="secondary" onClick={() => setCancelTarget(null)} disabled={cancelling}>Voltar</Button>
+            <Button
+              variant="danger"
+              onClick={handleCancel}
+              disabled={cancelling || cancelReason.trim().length < 15}
+              loading={cancelling}
+            >
+              Confirmar Cancelamento
+            </Button>
+          </>
+        }
+      >
+        <div className="space-y-3">
+          <p className="text-xs text-slate-500">
+            Esta ação envia o evento de cancelamento ao Sistema Nacional NFS-e. Não é possível desfazer.
+            A justificativa precisa ter no mínimo 15 caracteres.
+          </p>
+          <textarea
+            rows={3}
+            placeholder="Ex: Serviço não foi prestado"
+            className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs font-medium outline-none resize-none focus:border-rose-400 focus:ring-2 focus:ring-rose-500/10 transition-all"
+            value={cancelReason}
+            onChange={(e) => setCancelReason(e.target.value)}
+          />
+          <p className="text-[10px] text-slate-400">{cancelReason.trim().length}/15 caracteres mínimos</p>
+          {cancelError && (
+            <div className="bg-rose-50 border border-rose-200 rounded-xl px-3 py-2.5 text-[11px] font-bold text-rose-600">
+              {cancelError}
+            </div>
+          )}
+        </div>
+      </Modal>
     </div>
   );
 }
 
 export default function NfceInvoices() {
-  const [tab, setTab] = useState<"nfce" | "nfse">("nfce");
+  const [searchParams, setSearchParams] = useSearchParams();
+  const tabParam = searchParams.get("tab");
+  const tab: "nfce" | "nfse" = tabParam === "nfse" ? "nfse" : "nfce";
+  const setTab = (next: "nfce" | "nfse") => {
+    setSearchParams(next === "nfce" ? {} : { tab: next }, { replace: true });
+  };
 
   return (
     <div className="space-y-4">
