@@ -1,7 +1,7 @@
 {
   "name": "boxsys-pdv",
   "productName": "BoxSys PDV",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "description": "Terminal de Vendas BoxSys — Aplicativo Desktop",
   "main": "main.cjs",
   "author": "BoxSys",
@@ -55,7 +55,7 @@
         }
       ],
       "icon": "icon.png",
-      "artifactName": "${productName}-Setup-${version}.${ext}"
+      "artifactName": "BoxSysPDV-Setup.${ext}"
     },
     "nsis": {
       "oneClick": false,
@@ -75,7 +75,7 @@
       ],
       "icon": "icon.png",
       "category": "public.app-category.business",
-      "artifactName": "${productName}-${version}.${ext}"
+      "artifactName": "BoxSysPDV.${ext}"
     },
     "linux": {
       "target": [
@@ -88,7 +88,7 @@
       ],
       "icon": "icon.png",
       "category": "Office",
-      "artifactName": "${productName}-${version}.${ext}"
+      "artifactName": "BoxSysPDV.${ext}"
     }
   },
   "dependencies": {
