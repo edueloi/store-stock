@@ -104,19 +104,11 @@ export function buildDpsXml(input: BuildDpsInput): BuildDpsResult {
   // <xNome> também é omitido quando o emitente é o próprio prestador (tpEmit=1,
   // caso sempre usado aqui) — o servidor rejeita com E0121 porque o nome já vem do CNC.
 
-  // Grupo <end> é opcional no layout nacional e exige estrutura (endNac com cMun/CEP)
-  // — omitido de propósito quando os campos de endereço não estão completos, em vez
-  // de enviar malformado.
-  if (tenant.address_street && tenant.address_zip) {
-    const end = prest.ele("end");
-    const endNac = end.ele("endNac");
-    endNac.ele("cMun").txt(onlyDigits(tenant.nfse_codigo_municipio));
-    endNac.ele("CEP").txt(onlyDigits(tenant.address_zip).padStart(8, "0"));
-    end.ele("xLgr").txt(tenant.address_street);
-    end.ele("nro").txt(tenant.address_number || "S/N");
-    if (tenant.address_complement) end.ele("xCpl").txt(tenant.address_complement);
-    end.ele("xBairro").txt(tenant.address_district || "");
-  }
+  // Grupo <end> (endereço do prestador) NUNCA é enviado quando o prestador é o próprio
+  // emitente (tpEmit=1, caso sempre usado aqui) — o servidor ADN rejeita com "O endereço
+  // nacional do prestador do serviço não deve ser informado na DPS quando o próprio
+  // prestador for o emitente da DPS", porque o endereço já vem do CNC nacional do CNPJ,
+  // mesmo motivo pelo qual <IM> e <xNome> também são omitidos aqui (ver comentário acima).
   if (tenant.whatsapp) prest.ele("fone").txt(onlyDigits(tenant.whatsapp));
 
   const regTrib = prest.ele("regTrib");
