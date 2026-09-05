@@ -58,7 +58,12 @@ export async function cancelarNfce(orderId: number, justificativa: string): Prom
     });
 
     const cert = loadPfx(tenant.nfce_cert_path, tenant.nfce_cert_password);
-    const signedXml = assinarEvento(xml, idEvento, cert);
+    const signedXmlWithDecl = assinarEvento(xml, idEvento, cert);
+    // Mesmo problema documentado em emitir.ts: a declaração XML ("<?xml ...?>") que
+    // assinarEvento preserva do documento original é ilegal no meio de outro elemento —
+    // embutir isso dentro de <envEvento> quebra o parsing do envelope SOAP e a SEFAZ
+    // rejeita com HTTP 400 e corpo vazio, sem chegar a retornar cStat/xMotivo.
+    const signedXml = signedXmlWithDecl.replace(/^<\?xml[^?]*\?>/, "");
 
     const soapBody =
       `<nfeDadosMsg xmlns="http://www.portalfiscal.inf.br/nfe/wsdl/NFeRecepcaoEvento4">` +
@@ -94,7 +99,7 @@ export async function cancelarNfce(orderId: number, justificativa: string): Prom
     const dir = path.join(env.nfceXmlDir, String(tenant.id), monthDir);
     fs.mkdirSync(dir, { recursive: true });
     const cancelXmlPath = path.join(dir, `${invoice.access_key}-cancelamento.xml`);
-    fs.writeFileSync(cancelXmlPath, signedXml, "utf-8");
+    fs.writeFileSync(cancelXmlPath, signedXmlWithDecl, "utf-8");
 
     await prisma.nfceInvoice.update({
       where: { id: invoice.id },

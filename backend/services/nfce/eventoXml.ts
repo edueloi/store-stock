@@ -29,7 +29,10 @@ export function buildCancelamentoXml(input: EventoCancelamentoInput): { xml: str
 
   const nSeqEvento = input.nSeqEvento ?? 1;
   const tpEvento = "110111";
-  const dhEvento = new Date().toISOString().replace(/\.\d{3}Z$/, "-03:00");
+  // Mesmo bug de xmlBuilder.ts: toISOString() retorna UTC, não dá pra só trocar o
+  // sufixo "Z" por "-03:00" sem subtrair as 3h, senão o dhEvento fica 3h no futuro
+  // e a SEFAZ rejeita (cStat 703).
+  const dhEvento = new Date(Date.now() - 3 * 60 * 60 * 1000).toISOString().replace(/\.\d{3}Z$/, "-03:00");
   const idEvento = `ID${tpEvento}${input.chaveAcesso}${String(nSeqEvento).padStart(2, "0")}`;
 
   const justificativa = input.justificativa.trim().slice(0, 255);

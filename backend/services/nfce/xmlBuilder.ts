@@ -27,6 +27,17 @@ function onlyDigits(v: string | null | undefined): string {
   return (v ?? "").replace(/\D/g, "");
 }
 
+// O padrão do XSD (facet "pattern") pra campos de texto tipo TString é
+// "[!-ÿ]{1}[ -ÿ]{0,}[!-ÿ]{1}|[!-ÿ]{1}" — exige que a string comece E termine com um
+// caractere que NÃO seja espaço em branco. Um espaço sobrando no início/fim (comum em
+// campos de cadastro digitados manualmente, ex: razão social salva com espaço no final)
+// quebra esse padrão e a SEFAZ rejeita com "Falha no Schema XML do lote de NFe" (cStat
+// 225) — um erro genérico que não aponta o campo culpado, difícil de diagnosticar sem
+// validar contra o XSD real.
+function trimText(v: string | null | undefined): string {
+  return (v ?? "").trim();
+}
+
 // Mapeia o token interno de forma de pagamento (usado em sales.controller.ts)
 // para o código tPag exigido pelo layout da NFC-e.
 const TPAG_MAP: Record<string, string> = {
@@ -49,7 +60,13 @@ export function buildNfceXml(input: BuildNfceInput): BuildNfceResult {
     numero,
   });
 
-  const dhEmi = now.toISOString().replace(/\.\d{3}Z$/, "-03:00");
+  // now.toISOString() retorna o horário em UTC — trocar só o sufixo "Z" por "-03:00"
+  // sem subtrair as 3 horas deixa o dhEmi 3h no futuro em relação ao horário real de
+  // Brasília, causando rejeição da SEFAZ (cStat 703: dhEmi posterior ao recebimento).
+  // Aqui construímos o horário local de São Paulo (UTC-3, sem horário de verão) de fato.
+  const spOffsetMs = 3 * 60 * 60 * 1000;
+  const spDate = new Date(now.getTime() - spOffsetMs);
+  const dhEmi = spDate.toISOString().replace(/\.\d{3}Z$/, "-03:00");
 
   const doc = create({ version: "1.0", encoding: "UTF-8" })
     .ele("NFe", { xmlns: "http://www.portalfiscal.inf.br/nfe" })
@@ -83,17 +100,17 @@ export function buildNfceXml(input: BuildNfceInput): BuildNfceResult {
   // ── emit ─────────────────────────────────────────────────────────────────
   const emit = doc.ele("emit");
   emit.ele("CNPJ").txt(onlyDigits(tenant.document));
-  emit.ele("xNome").txt(tenant.razao_social || tenant.name);
+  emit.ele("xNome").txt(trimText(tenant.razao_social || tenant.name));
   if (tenant.name && tenant.name !== tenant.razao_social) {
-    emit.ele("xFant").txt(tenant.name);
+    emit.ele("xFant").txt(trimText(tenant.name));
   }
   const enderEmit = emit.ele("enderEmit");
-  enderEmit.ele("xLgr").txt(tenant.address_street || "");
-  enderEmit.ele("nro").txt(tenant.address_number || "S/N");
-  if (tenant.address_complement) enderEmit.ele("xCpl").txt(tenant.address_complement);
-  enderEmit.ele("xBairro").txt(tenant.address_district || "");
+  enderEmit.ele("xLgr").txt(trimText(tenant.address_street) || "Não informado");
+  enderEmit.ele("nro").txt(trimText(tenant.address_number) || "S/N");
+  if (tenant.address_complement) enderEmit.ele("xCpl").txt(trimText(tenant.address_complement));
+  enderEmit.ele("xBairro").txt(trimText(tenant.address_district) || "Não informado");
   enderEmit.ele("cMun").txt(codigoMunicipio);
-  enderEmit.ele("xMun").txt(tenant.address_city || "");
+  enderEmit.ele("xMun").txt(trimText(tenant.address_city) || "Não informado");
   enderEmit.ele("UF").txt(tenant.address_state || "SP");
   enderEmit.ele("CEP").txt(onlyDigits(tenant.address_zip));
   enderEmit.ele("cPais").txt("1058");
@@ -125,7 +142,7 @@ export function buildNfceXml(input: BuildNfceInput): BuildNfceResult {
     const prod = det.ele("prod");
     prod.ele("cProd").txt(item.product.sku || String(item.product.id));
     prod.ele("cEAN").txt(item.product.barcode || "SEM GTIN");
-    prod.ele("xProd").txt(item.product.name);
+    prod.ele("xProd").txt(trimText(item.product.name));
     prod.ele("NCM").txt(item.product.ncm || "00000000");
     if (item.product.cest) prod.ele("CEST").txt(item.product.cest);
     prod.ele("CFOP").txt(item.product.cfop || "5102");

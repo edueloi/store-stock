@@ -82,7 +82,14 @@ export async function emitirNfce(orderId: number): Promise<void> {
     });
 
     const cert = loadPfx(tenant.nfce_cert_path, tenant.nfce_cert_password);
-    const signedXml = assinarNfce(xml, chaveAcesso, cert);
+    const signedXmlWithDecl = assinarNfce(xml, chaveAcesso, cert);
+    // assinarNfce (via xml-crypto) preserva a declaração XML ("<?xml version=...?>") do
+    // documento original — válida como início de um XML "solto", mas ilegal no meio de
+    // outro elemento. Embutir isso dentro de <enviNFe> quebra o parsing do envelope SOAP
+    // inteiro (documento com 2 declarações XML), fazendo o IIS/ASP.NET da SEFAZ rejeitar
+    // com HTTP 400 e corpo TOTALMENTE VAZIO — nem chega a gerar um retorno SOAP com
+    // cStat/xMotivo, porque o parser XML falha antes disso.
+    const signedXml = signedXmlWithDecl.replace(/^<\?xml[^?]*\?>/, "");
 
     const environment = tenant.nfce_environment === "producao" ? "producao" : "homologacao";
     const soapBody =
@@ -140,8 +147,10 @@ export async function emitirNfce(orderId: number): Promise<void> {
     const dir = path.join(env.nfceXmlDir, String(tenant.id), monthDir);
     ensureDir(dir);
 
+    // Salva com a declaração XML (correta pra um arquivo .xml autônomo em disco) — só o
+    // envelope SOAP precisa da versão sem declaração (ver comentário acima).
     const xmlPath = path.join(dir, `${chaveAcesso}-nfce.xml`);
-    fs.writeFileSync(xmlPath, signedXml, "utf-8");
+    fs.writeFileSync(xmlPath, signedXmlWithDecl, "utf-8");
 
     const qrCodeUrl = buildQrCodeUrl({ chaveAcesso, environment });
 
