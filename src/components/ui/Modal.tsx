@@ -3,7 +3,7 @@ import { X } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { cn } from "../../lib/utils";
 
-type ModalSize = "sm" | "md" | "lg" | "xl";
+type ModalSize = "sm" | "md" | "lg" | "xl" | "full";
 
 interface ModalProps {
   open: boolean;
@@ -25,6 +25,7 @@ const sizeClasses: Record<ModalSize, string> = {
   md: "max-w-lg",
   lg: "max-w-2xl",
   xl: "max-w-4xl",
+  full: "max-w-[1400px]",
 };
 
 export default function Modal({
@@ -38,10 +39,18 @@ export default function Modal({
   persistent = false,
   zIndex = 100,
 }: ModalProps) {
+  const isFull = size === "full";
+
   return (
     <AnimatePresence>
       {open && (
-        <div className="fixed inset-0 flex items-end sm:items-center justify-center p-0 sm:p-4" style={{ zIndex }}>
+        <div
+          className={cn(
+            "fixed inset-0 flex items-end sm:items-center justify-center",
+            isFull ? "p-0 sm:p-3" : "p-0 sm:p-4",
+          )}
+          style={{ zIndex }}
+        >
           {/* Overlay */}
           <motion.div
             initial={{ opacity: 0 }}
@@ -60,7 +69,7 @@ export default function Modal({
             className={cn(
               "relative bg-white w-full shadow-2xl border border-slate-200 overflow-hidden flex flex-col",
               "rounded-t-2xl sm:rounded-2xl",
-              "max-h-[92dvh] sm:max-h-[90vh]",
+              isFull ? "h-[100dvh] sm:h-[96vh]" : "max-h-[92dvh] sm:max-h-[90vh]",
               sizeClasses[size]
             )}
           >

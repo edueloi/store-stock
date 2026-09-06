@@ -1053,7 +1053,7 @@ export default function Inventory() {
       <Modal open={isModalOpen} onClose={() => setIsModalOpen(false)}
         title={editingProduct?.id ? "Editar Produto" : "Novo Produto"}
         subtitle="Catálogo de venda"
-        size="xl"
+        size="full"
         footer={
           <>
             <Button variant="secondary" onClick={() => setIsModalOpen(false)}>Cancelar</Button>
@@ -1063,12 +1063,87 @@ export default function Inventory() {
           </>
         }
       >
-        <form id="product-form" onSubmit={handleSave} className="space-y-5">
+        <form id="product-form" onSubmit={handleSave} className="grid grid-cols-1 lg:grid-cols-[340px_1fr] gap-6 items-start">
 
-          {/* ── GALERIA ── */}
-          <GalleryUploader images={editingImages} onChange={setEditingImages} />
+          {/* ── COLUNA ESQUERDA: mídia + visibilidade + organização ── */}
+          <div className="space-y-5 lg:sticky lg:top-0">
+            <section className="bg-white border border-slate-200 rounded-2xl p-4 space-y-3">
+              <p className="text-[10px] font-black uppercase tracking-widest text-slate-700 border-l-4 border-blue-500 pl-3">
+                Galeria
+              </p>
+              <GalleryUploader images={editingImages} onChange={setEditingImages} />
+            </section>
 
-          <div className="border-t border-slate-100 pt-5 grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <section className="bg-white border border-slate-200 rounded-2xl p-4 space-y-4">
+              <p className="text-[10px] font-black uppercase tracking-widest text-slate-700 border-l-4 border-blue-500 pl-3">
+                Organização
+              </p>
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest px-1">Categoria</label>
+                {creatingCategory ? (
+                  <div className="flex gap-1.5">
+                    <input
+                      autoFocus type="text" placeholder="Nome da categoria"
+                      value={newCategoryName}
+                      onChange={(e) => setNewCategoryName(e.target.value)}
+                      onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); handleCreateCategory(); } if (e.key === "Escape") { setCreatingCategory(false); setNewCategoryName(""); } }}
+                      className="flex-1 bg-slate-50 border border-blue-300 rounded-xl px-3 py-2.5 text-xs font-bold outline-none h-10 focus:border-blue-500 transition-all"
+                    />
+                    <button type="button" onClick={handleCreateCategory} disabled={savingCategory || !newCategoryName.trim()}
+                      className="h-10 px-3 rounded-xl bg-blue-600 hover:bg-blue-700 disabled:opacity-40 text-white flex items-center justify-center transition-all shrink-0">
+                      {savingCategory ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
+                    </button>
+                    <button type="button" onClick={() => { setCreatingCategory(false); setNewCategoryName(""); }}
+                      className="h-10 w-10 rounded-xl border border-slate-200 text-slate-400 hover:bg-slate-50 flex items-center justify-center transition-all shrink-0">
+                      <X size={14} />
+                    </button>
+                  </div>
+                ) : (
+                  <div className="flex gap-1.5">
+                    <select className="flex-1 min-w-0 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs font-bold outline-none h-10 focus:border-blue-400 transition-all"
+                      value={editingProduct?.category_id || ""}
+                      onChange={e => setEditingProduct(prev => ({ ...prev!, category_id: Number(e.target.value) }))}>
+                      <option value="">Sem categoria</option>
+                      {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                    </select>
+                    <button type="button" onClick={() => setCreatingCategory(true)} title="Criar nova categoria"
+                      className="h-10 w-10 rounded-xl border border-slate-200 text-slate-500 hover:bg-blue-50 hover:border-blue-300 hover:text-blue-600 flex items-center justify-center transition-all shrink-0">
+                      <Plus size={14} />
+                    </button>
+                  </div>
+                )}
+              </div>
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold text-blue-500 uppercase tracking-widest px-1">Data de Validade</label>
+                <input type="date"
+                  className="w-full bg-blue-50 border border-blue-100 rounded-xl px-3 py-2.5 text-xs font-bold outline-none h-10 focus:border-blue-400 transition-all"
+                  value={editingProduct?.expiry_date || ""}
+                  onChange={e => setEditingProduct(prev => ({ ...prev!, expiry_date: e.target.value }))} />
+              </div>
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest px-1">Descrição</label>
+                <textarea rows={4} placeholder="Descreva o produto, materiais, como usar..."
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs font-medium outline-none resize-none focus:border-blue-400 focus:ring-2 focus:ring-blue-500/10 transition-all"
+                  value={editingProduct?.description || ""}
+                  onChange={e => setEditingProduct(prev => ({ ...prev!, description: e.target.value }))} />
+              </div>
+              <div className="flex flex-wrap gap-6 border-t border-slate-100 pt-4">
+                <Switch label="Ativo no site" checked={editingProduct?.is_active ?? true}
+                  onChange={v => setEditingProduct(prev => ({ ...prev!, is_active: v }))} accent="emerald" />
+                <Switch label="Destaque na home" checked={editingProduct?.is_featured ?? false}
+                  onChange={v => setEditingProduct(prev => ({ ...prev!, is_featured: v }))} accent="amber" />
+              </div>
+            </section>
+          </div>
+
+          {/* ── COLUNA DIREITA: identificação, fiscal, preços, estoque, variações ── */}
+          <div className="space-y-5 min-w-0">
+
+          <section className="bg-white border border-slate-200 rounded-2xl p-4 space-y-4">
+            <p className="text-[10px] font-black uppercase tracking-widest text-slate-700 border-l-4 border-blue-500 pl-3">
+              Identificação
+            </p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-1">
               <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest px-1">Nome do Produto *</label>
               <input type="text" required placeholder="Ex: Camiseta Básica Preta"
@@ -1107,13 +1182,14 @@ export default function Inventory() {
             </div>
             <p className="text-[9px] text-slate-400 px-1">Usado no leitor do PDV. Aceita EAN-13, EAN-8, Code128 ou código interno.</p>
           </div>
+          </section>
 
           {/* ── DADOS FISCAIS (NFC-e) ── */}
-          <div className="space-y-3 border-t border-slate-100 pt-5">
+          <section className="bg-white border border-slate-200 rounded-2xl p-4 space-y-3">
             <p className="text-[10px] font-black uppercase tracking-widest text-slate-700 border-l-4 border-blue-500 pl-3">
               Dados Fiscais
             </p>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-5 gap-3">
               <div className="space-y-1">
                 <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest px-1">NCM</label>
                 <input type="text" maxLength={8} placeholder="00000000"
@@ -1224,62 +1300,13 @@ export default function Inventory() {
                 </div>
               </div>
             )}
-          </div>
+          </section>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div className="space-y-1">
-              <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest px-1">Categoria</label>
-              {creatingCategory ? (
-                <div className="flex gap-1.5">
-                  <input
-                    autoFocus type="text" placeholder="Nome da categoria"
-                    value={newCategoryName}
-                    onChange={(e) => setNewCategoryName(e.target.value)}
-                    onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); handleCreateCategory(); } if (e.key === "Escape") { setCreatingCategory(false); setNewCategoryName(""); } }}
-                    className="flex-1 bg-slate-50 border border-blue-300 rounded-xl px-3 py-2.5 text-xs font-bold outline-none h-10 focus:border-blue-500 transition-all"
-                  />
-                  <button type="button" onClick={handleCreateCategory} disabled={savingCategory || !newCategoryName.trim()}
-                    className="h-10 px-3 rounded-xl bg-blue-600 hover:bg-blue-700 disabled:opacity-40 text-white flex items-center justify-center transition-all shrink-0">
-                    {savingCategory ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
-                  </button>
-                  <button type="button" onClick={() => { setCreatingCategory(false); setNewCategoryName(""); }}
-                    className="h-10 w-10 rounded-xl border border-slate-200 text-slate-400 hover:bg-slate-50 flex items-center justify-center transition-all shrink-0">
-                    <X size={14} />
-                  </button>
-                </div>
-              ) : (
-                <div className="flex gap-1.5">
-                  <select className="flex-1 min-w-0 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs font-bold outline-none h-10 focus:border-blue-400 transition-all"
-                    value={editingProduct?.category_id || ""}
-                    onChange={e => setEditingProduct(prev => ({ ...prev!, category_id: Number(e.target.value) }))}>
-                    <option value="">Sem categoria</option>
-                    {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                  </select>
-                  <button type="button" onClick={() => setCreatingCategory(true)} title="Criar nova categoria"
-                    className="h-10 w-10 rounded-xl border border-slate-200 text-slate-500 hover:bg-blue-50 hover:border-blue-300 hover:text-blue-600 flex items-center justify-center transition-all shrink-0">
-                    <Plus size={14} />
-                  </button>
-                </div>
-              )}
-            </div>
-            <div className="space-y-1">
-              <label className="text-[10px] font-bold text-blue-500 uppercase tracking-widest px-1">Data de Validade</label>
-              <input type="date"
-                className="w-full bg-blue-50 border border-blue-100 rounded-xl px-3 py-2.5 text-xs font-bold outline-none h-10 focus:border-blue-400 transition-all"
-                value={editingProduct?.expiry_date || ""}
-                onChange={e => setEditingProduct(prev => ({ ...prev!, expiry_date: e.target.value }))} />
-            </div>
-          </div>
-
-          <div className="space-y-1">
-            <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest px-1">Descrição</label>
-            <textarea rows={3} placeholder="Descreva o produto, materiais, como usar..."
-              className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs font-medium outline-none resize-none focus:border-blue-400 focus:ring-2 focus:ring-blue-500/10 transition-all"
-              value={editingProduct?.description || ""}
-              onChange={e => setEditingProduct(prev => ({ ...prev!, description: e.target.value }))} />
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
+          <section className="bg-white border border-slate-200 rounded-2xl p-4 space-y-3">
+            <p className="text-[10px] font-black uppercase tracking-widest text-slate-700 border-l-4 border-orange-500 pl-3">
+              Preços
+            </p>
+            <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
             <div className="space-y-1">
               <label className="text-[10px] font-bold text-orange-500 uppercase tracking-widest px-1">Custo Un. (R$)</label>
               <input type="number" step="0.01" min="0"
@@ -1320,7 +1347,12 @@ export default function Inventory() {
                 onChange={e => { const v = e.target.value; setEditingProduct(prev => ({ ...prev!, discount_price: v === "" ? undefined : Number(v) })); }} />
             </div>
           </div>
+          </section>
 
+          <section className="bg-white border border-slate-200 rounded-2xl p-4 space-y-3">
+            <p className="text-[10px] font-black uppercase tracking-widest text-slate-700 border-l-4 border-emerald-500 pl-3">
+              Estoque
+            </p>
           <div className="space-y-1">
             <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest px-1">Tipo de Venda</label>
             <div className="flex bg-slate-100 border border-slate-200 rounded-xl p-0.5 gap-0.5 w-fit">
@@ -1374,16 +1406,10 @@ export default function Inventory() {
               </p>
             </div>
           )}
-
-          <div className="flex flex-wrap gap-6 border-t border-slate-100 pt-4">
-            <Switch label="Ativo no site" checked={editingProduct?.is_active ?? true}
-              onChange={v => setEditingProduct(prev => ({ ...prev!, is_active: v }))} accent="emerald" />
-            <Switch label="Destaque na home" checked={editingProduct?.is_featured ?? false}
-              onChange={v => setEditingProduct(prev => ({ ...prev!, is_featured: v }))} accent="amber" />
-          </div>
+          </section>
 
           {/* ── VARIAÇÕES ── */}
-          <div className="space-y-4 border-t border-slate-100 pt-5">
+          <section className="bg-white border border-slate-200 rounded-2xl p-4 space-y-4">
             <div className="flex items-center justify-between">
               <div>
                 <h4 className="text-[11px] font-black uppercase tracking-widest text-slate-900 border-l-4 border-blue-600 pl-3">Grades & Variações</h4>
@@ -1549,6 +1575,8 @@ export default function Inventory() {
                 <p className="text-[9px] font-medium mt-0.5">Use "Modelos rápidos" ou adicione atributos acima</p>
               </div>
             )}
+          </section>
+
           </div>
         </form>
       </Modal>
