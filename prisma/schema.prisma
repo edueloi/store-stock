@@ -264,7 +264,9 @@ model Product {
   price          Decimal   @db.Decimal(10, 2)
   cost_price     Decimal   @default(0) @db.Decimal(10, 2)
   discount_price Decimal?  @db.Decimal(10, 2)
+  max_discount_pct Decimal? @db.Decimal(5, 2) // teto de desconto (%) permitido no PDV pra este item
   stock_quantity Int       @default(0)
+  min_stock      Int       @default(5) // abaixo disso o produto entra no alerta de "Estoque Crítico"
   image_url      String?
   images         Json?
   expiry_date    DateTime? @db.Date

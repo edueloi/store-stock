@@ -708,10 +708,26 @@ export default function PDV() {
   const servicesTotal = cartServices.reduce((a, s) => a + s.price * (s.quantity ?? 1), 0);
   const subtotal      = cart.reduce((a, b) => a + b.price * b.quantity, 0) + servicesTotal;
 
+  // Teto de desconto do carrinho = o menor "Desconto Máximo no PDV" entre os itens
+  // presentes (produtos sem limite cadastrado — max_discount_pct null/undefined —
+  // não restringem nada). undefined aqui significa "sem limite algum no carrinho".
+  const cartMaxDiscountPct = cart.reduce<number | undefined>((min, item) => {
+    const limit = item.max_discount_pct;
+    if (limit == null) return min;
+    return min == null ? limit : Math.min(min, limit);
+  }, undefined);
+
   const discountRaw   = Number(discount) || 0;
-  const discountValue = discountMode === "%"
+  const discountValueRaw = discountMode === "%"
     ? Math.min(subtotal * discountRaw / 100, subtotal)
     : Math.min(discountRaw, subtotal);
+  // O teto é sempre em % do subtotal, então convertemos o desconto (já em R$ nesse
+  // ponto) de volta pra % pra comparar, independente do modo (R$ ou %) escolhido.
+  const discountPctEquivalent = subtotal > 0 ? (discountValueRaw / subtotal) * 100 : 0;
+  const discountExceedsLimit = cartMaxDiscountPct != null && discountPctEquivalent > cartMaxDiscountPct + 0.001;
+  const discountValue = discountExceedsLimit && cartMaxDiscountPct != null
+    ? Math.min(subtotal * cartMaxDiscountPct / 100, subtotal)
+    : discountValueRaw;
 
   const surchargeRaw   = Number(surcharge) || 0;
   const surchargeValue = surchargeMode === "%"
@@ -3106,6 +3122,11 @@ export default function PDV() {
                           </div>
                           <input type="number" min="0" step="0.01" placeholder="0,00" value={discount} onChange={(e) => setDiscount(e.target.value)} className="flex-1 min-w-0 h-8 px-2 rounded-xl text-[12px] font-mono font-bold text-slate-700 placeholder:text-slate-300 bg-slate-50 border border-slate-200 focus:outline-none focus:border-emerald-400 text-center [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none transition-all" />
                         </div>
+                        {discountExceedsLimit && (
+                          <p className="text-[9px] font-bold text-rose-500 mt-1">
+                            Limitado a {cartMaxDiscountPct?.toFixed(0)}% (teto de um item no carrinho) — aplicado R$ {discountValue.toFixed(2)}
+                          </p>
+                        )}
                       </div>
                       <div>
                         <label className="text-[9px] font-black uppercase tracking-[0.16em] text-slate-400 mb-1.5 block">Acréscimo</label>

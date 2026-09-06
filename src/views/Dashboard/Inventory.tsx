@@ -613,7 +613,7 @@ export default function Inventory() {
       if (filterCategory && p.category_id !== filterCategory) return false;
       if (filterStatus === "active" && !p.is_active) return false;
       if (filterStatus === "inactive" && p.is_active) return false;
-      if (filterLowStock && p.stock_quantity > 5) return false;
+      if (filterLowStock && p.stock_quantity > (p.min_stock ?? 5)) return false;
       return true;
     })
     .sort((a, b) => {
@@ -642,7 +642,7 @@ export default function Inventory() {
   const saleProducts = products.filter(p => p.type === "sale");
   const totalCost = saleProducts.reduce((s, p) => s + Number(p.cost_price || 0) * p.stock_quantity, 0);
   const totalRevenue = saleProducts.reduce((s, p) => s + Number(p.price || 0) * p.stock_quantity, 0);
-  const lowStock = saleProducts.filter(p => p.stock_quantity <= 5 && p.is_active).length;
+  const lowStock = saleProducts.filter(p => p.stock_quantity <= (p.min_stock ?? 5) && p.is_active).length;
   const featured = saleProducts.filter(p => p.is_featured).length;
 
   const displaySku = (p: Product) => p.sku || toSlug(p.name);
@@ -812,8 +812,8 @@ export default function Inventory() {
                           R$ {Number(p.discount_price || p.price).toFixed(2)}
                         </span>
                         <div className="flex items-center gap-1">
-                          <div className={cn("w-1.5 h-1.5 rounded-full", p.stock_quantity <= 5 ? "bg-red-500" : p.stock_quantity <= 15 ? "bg-amber-400" : "bg-emerald-500")} />
-                          <span className={cn("text-xs font-mono font-bold", p.stock_quantity <= 5 ? "text-red-600" : "text-slate-600")}>
+                          <div className={cn("w-1.5 h-1.5 rounded-full", p.stock_quantity <= (p.min_stock ?? 5) ? "bg-red-500" : p.stock_quantity <= (p.min_stock ?? 5) * 3 ? "bg-amber-400" : "bg-emerald-500")} />
+                          <span className={cn("text-xs font-mono font-bold", p.stock_quantity <= (p.min_stock ?? 5) ? "text-red-600" : "text-slate-600")}>
                             {p.stock_quantity} un
                           </span>
                         </div>
@@ -940,8 +940,8 @@ export default function Inventory() {
                       </td>
                       <td className="px-3 py-2.5">
                         <div className="flex items-center gap-1.5">
-                          <div className={cn("w-1.5 h-1.5 rounded-full shrink-0", p.stock_quantity <= 5 ? "bg-red-500 animate-pulse" : p.stock_quantity <= 15 ? "bg-amber-400" : "bg-emerald-500")} />
-                          <span className={cn("text-xs font-mono font-bold", p.stock_quantity <= 5 ? "text-red-600" : "text-slate-900")}>
+                          <div className={cn("w-1.5 h-1.5 rounded-full shrink-0", p.stock_quantity <= (p.min_stock ?? 5) ? "bg-red-500 animate-pulse" : p.stock_quantity <= (p.min_stock ?? 5) * 3 ? "bg-amber-400" : "bg-emerald-500")} />
+                          <span className={cn("text-xs font-mono font-bold", p.stock_quantity <= (p.min_stock ?? 5) ? "text-red-600" : "text-slate-900")}>
                             {p.stock_quantity} <span className="text-[9px] text-slate-400 font-normal">un</span>
                           </span>
                         </div>
@@ -1038,7 +1038,7 @@ export default function Inventory() {
                   <p className="text-[9px] font-mono text-slate-400 uppercase truncate">{displaySku(p)}</p>
                   <div className="flex items-center justify-between pt-1">
                     <span className="text-sm font-bold font-mono text-blue-600">R$ {Number(p.discount_price || p.price).toFixed(2)}</span>
-                    <span className={cn("text-[9px] font-bold px-1.5 py-0.5 rounded-full", p.stock_quantity <= 5 ? "bg-red-100 text-red-600" : "bg-emerald-100 text-emerald-700")}>
+                    <span className={cn("text-[9px] font-bold px-1.5 py-0.5 rounded-full", p.stock_quantity <= (p.min_stock ?? 5) ? "bg-red-100 text-red-600" : "bg-emerald-100 text-emerald-700")}>
                       {p.stock_quantity} un
                     </span>
                   </div>
@@ -1302,7 +1302,7 @@ export default function Inventory() {
             <p className="text-[10px] font-black uppercase tracking-widest text-slate-700 border-l-4 border-orange-500 pl-3">
               Preços
             </p>
-            <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div className="space-y-1">
               <label className="text-[10px] font-bold text-orange-500 uppercase tracking-widest px-1">Custo Un. (R$)</label>
               <input type="number" step="0.01" min="0"
@@ -1335,12 +1335,22 @@ export default function Inventory() {
                 value={editingProduct?.price || ""}
                 onChange={e => { setProfitMarginInput(""); setEditingProduct(prev => ({ ...prev!, price: Number(e.target.value) })); }} />
             </div>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="space-y-1">
               <label className="text-[10px] font-bold text-emerald-600 uppercase tracking-widest px-1">Promoção (R$)</label>
               <input type="number" step="0.01" min="0"
                 className="w-full bg-emerald-50 border border-emerald-100 rounded-xl px-3 py-2.5 text-xs font-mono font-bold outline-none h-10 focus:border-emerald-400 transition-all"
                 value={editingProduct?.discount_price || ""}
                 onChange={e => { const v = e.target.value; setEditingProduct(prev => ({ ...prev!, discount_price: v === "" ? undefined : Number(v) })); }} />
+            </div>
+            <div className="space-y-1">
+              <label className="text-[10px] font-bold text-rose-500 uppercase tracking-widest px-1">Desconto Máximo no PDV (%)</label>
+              <input type="number" step="1" min="0" max="100" placeholder="Sem limite"
+                className="w-full bg-rose-50 border border-rose-100 rounded-xl px-3 py-2.5 text-xs font-mono font-bold outline-none h-10 focus:border-rose-400 transition-all"
+                value={editingProduct?.max_discount_pct ?? ""}
+                onChange={e => { const v = e.target.value; setEditingProduct(prev => ({ ...prev!, max_discount_pct: v === "" ? undefined : Number(v) })); }} />
+              <p className="text-[9px] text-slate-400 px-1">Vazio = sem limite. Trava o desconto do carrinho no PDV quando este item estiver nele.</p>
             </div>
           </div>
           </section>
@@ -1369,12 +1379,22 @@ export default function Inventory() {
 
           {(editingProduct?.sale_unit ?? "unidade") === "unidade" ? (
             (editingProduct?.skus || []).length === 0 && (
-              <div className="space-y-1">
-                <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest px-1">Estoque Atual</label>
-                <input type="number" min="0" required
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs font-mono font-bold outline-none h-10 focus:border-blue-400 transition-all"
-                  value={editingProduct?.stock_quantity ?? 0}
-                  onChange={e => setEditingProduct(prev => ({ ...prev!, stock_quantity: Number(e.target.value) }))} />
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest px-1">Estoque Atual</label>
+                  <input type="number" min="0" required
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs font-mono font-bold outline-none h-10 focus:border-blue-400 transition-all"
+                    value={editingProduct?.stock_quantity ?? 0}
+                    onChange={e => setEditingProduct(prev => ({ ...prev!, stock_quantity: Number(e.target.value) }))} />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold text-rose-500 uppercase tracking-widest px-1">Estoque Mínimo</label>
+                  <input type="number" min="0"
+                    className="w-full bg-rose-50 border border-rose-100 rounded-xl px-3 py-2.5 text-xs font-mono font-bold outline-none h-10 focus:border-rose-400 transition-all"
+                    value={editingProduct?.min_stock ?? 5}
+                    onChange={e => setEditingProduct(prev => ({ ...prev!, min_stock: Number(e.target.value) }))} />
+                  <p className="text-[9px] text-slate-400 px-1">Abaixo disso, o produto entra no alerta de Estoque Crítico</p>
+                </div>
               </div>
             )
           ) : (

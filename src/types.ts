@@ -134,7 +134,9 @@ export interface Product {
   price: number;
   cost_price?: number;
   discount_price?: number;
+  max_discount_pct?: number;
   stock_quantity: number;
+  min_stock?: number;
   image_url?: string;
   images?: string[];
   expiry_date?: string;

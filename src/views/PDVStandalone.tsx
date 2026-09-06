@@ -995,10 +995,26 @@ export default function PDVStandalone() {
   // ── totals ───────────────────────────────────────────────────────────────────
   const servicesTotal  = cartServices.reduce((a, s) => a + Number(s.price) * (s.quantity ?? 1), 0);
   const subtotal       = cart.reduce((a, b) => a + b.price * b.quantity, 0) + servicesTotal;
+  // Teto de desconto do carrinho = o menor "Desconto Máximo no PDV" entre os itens
+  // presentes (produtos sem limite cadastrado — max_discount_pct null/undefined —
+  // não restringem nada). undefined aqui significa "sem limite algum no carrinho".
+  // Mesma lógica de PDV.tsx (versão web/admin) — duplicada aqui porque este é o
+  // app desktop standalone, uma tela separada, não reaproveita o mesmo componente.
+  const cartMaxDiscountPct = cart.reduce<number | undefined>((min, item) => {
+    const limit = item.max_discount_pct;
+    if (limit == null) return min;
+    return min == null ? limit : Math.min(min, limit);
+  }, undefined);
+
   const discountRaw    = Number(discount) || 0;
-  const discountValue  = discountMode === "%"
+  const discountValueRaw = discountMode === "%"
     ? Math.min(subtotal * discountRaw / 100, subtotal)
     : Math.min(discountRaw, subtotal);
+  const discountPctEquivalent = subtotal > 0 ? (discountValueRaw / subtotal) * 100 : 0;
+  const discountExceedsLimit = cartMaxDiscountPct != null && discountPctEquivalent > cartMaxDiscountPct + 0.001;
+  const discountValue  = discountExceedsLimit && cartMaxDiscountPct != null
+    ? Math.min(subtotal * cartMaxDiscountPct / 100, subtotal)
+    : discountValueRaw;
   const surchargeRaw   = Number(surcharge) || 0;
   const surchargeValue = surchargeMode === "%"
     ? subtotal * surchargeRaw / 100
@@ -3354,6 +3370,11 @@ ${sale.change > 0 ? `<hr class="divider"/><div class="row bold"><span>Troco:</sp
                           </div>
                           <input type="number" min="0" step="0.01" placeholder="0,00" value={discount} onChange={(e) => setDiscount(e.target.value)} className="flex-1 min-w-0 h-8 px-2 rounded-xl text-[12px] font-mono font-bold text-slate-700 placeholder:text-slate-300 bg-slate-50 border border-slate-200 focus:outline-none focus:border-emerald-400 text-center [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none" />
                         </div>
+                        {discountExceedsLimit && (
+                          <p className="text-[9px] font-bold text-rose-500 mt-1">
+                            Limitado a {cartMaxDiscountPct?.toFixed(0)}% (teto de um item no carrinho) — aplicado R$ {discountValue.toFixed(2)}
+                          </p>
+                        )}
                       </div>
                       <div>
                         <label className="text-[9px] font-black uppercase tracking-[0.16em] text-slate-400 mb-1.5 block">Acréscimo</label>

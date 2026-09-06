@@ -426,7 +426,7 @@ export default function AdminDashboard() {
     return () => { cancelled = true; clearInterval(interval); };
   }, []);
 
-  // Aviso visual de estoque baixo/esgotado (<=5 un) — mesmo padrão do de consignação.
+  // Aviso visual de estoque baixo/esgotado (abaixo do Estoque Mínimo de cada produto) — mesmo padrão do de consignação.
   useEffect(() => {
     let cancelled = false;
     const fetchLowStock = async () => {

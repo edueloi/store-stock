@@ -13,12 +13,19 @@ function getTenantId(req: Request) {
 export async function getLowStockCount(req: Request, res: Response) {
   try {
     const tenantId = getTenantId(req);
-    const threshold = await getLowStockThreshold((req as AuthenticatedRequest).user.userId);
-    const products = await prisma.product.findMany({
-      where: { tenant_id: tenantId, is_active: true, stock_quantity: { lte: threshold } },
-      select: { id: true, name: true, stock_quantity: true },
-      orderBy: { stock_quantity: "asc" },
+    // min_stock é um valor POR PRODUTO agora (cadastro do produto) — sempre manda sobre
+    // o threshold global antigo (preferência por usuário), que fica só como o valor
+    // default sugerido no formulário de um produto novo (ver Product model, default 5).
+    const active = await prisma.product.findMany({
+      where: { tenant_id: tenantId, is_active: true },
+      select: { id: true, name: true, stock_quantity: true, min_stock: true },
     });
+    const products = active
+      .filter((p) => p.stock_quantity <= p.min_stock)
+      .sort((a, b) => a.stock_quantity - b.stock_quantity);
+    // threshold retornado só por compatibilidade com quem já consome esse endpoint
+    // (ex.: exibir "abaixo de X unidades" em algum lugar do frontend).
+    const threshold = await getLowStockThreshold((req as AuthenticatedRequest).user.userId);
     res.json({ count: products.length, products, threshold });
   } catch {
     res.status(500).json({ error: "Failed to fetch low stock count" });
@@ -123,7 +130,9 @@ const TRACKED_FIELDS: Record<string, string> = {
   price:          "Preço de venda",
   cost_price:     "Custo unitário",
   discount_price: "Promoção",
+  max_discount_pct: "Desconto máximo no PDV",
   stock_quantity: "Estoque",
+  min_stock:      "Estoque mínimo",
   sku:            "SKU",
   barcode:        "Código de barras",
   description:    "Descrição",
@@ -141,6 +150,7 @@ function fmtHistoryVal(field: string, val: unknown): string {
   if (field === "price" || field === "cost_price" || field === "discount_price") {
     return `R$ ${Number(val).toFixed(2)}`;
   }
+  if (field === "max_discount_pct") return `${Number(val).toFixed(0)}%`;
   if (field === "is_active")   return val ? "Ativo" : "Inativo";
   if (field === "is_featured") return val ? "Sim" : "Não";
   return String(val);
@@ -156,8 +166,8 @@ export async function updateProduct(req: Request, res: Response) {
       where: { id, tenant_id: tenantId },
       select: {
         image_url: true, images: true,
-        name: true, price: true, cost_price: true, discount_price: true,
-        stock_quantity: true, sku: true, barcode: true, description: true,
+        name: true, price: true, cost_price: true, discount_price: true, max_discount_pct: true,
+        stock_quantity: true, min_stock: true, sku: true, barcode: true, description: true,
         is_active: true, is_featured: true, category_id: true,
         ncm: true, cfop: true, csosn: true, cst_icms: true,
       },
