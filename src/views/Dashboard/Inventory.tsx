@@ -1063,7 +1063,7 @@ export default function Inventory() {
           </>
         }
       >
-        <form id="product-form" onSubmit={handleSave} className="max-w-5xl mx-auto space-y-5">
+        <form id="product-form" onSubmit={handleSave} className="grid grid-cols-1 xl:grid-cols-2 gap-5 items-start">
 
           <section className="bg-white border border-slate-200 rounded-2xl p-4 space-y-3">
             <p className="text-[10px] font-black uppercase tracking-widest text-slate-700 border-l-4 border-blue-500 pl-3">
@@ -1425,7 +1425,7 @@ export default function Inventory() {
           </section>
 
           {/* ── VARIAÇÕES ── */}
-          <section className="bg-white border border-slate-200 rounded-2xl p-4 space-y-4">
+          <section className="bg-white border border-slate-200 rounded-2xl p-4 space-y-4 xl:col-span-2">
             <div className="flex items-center justify-between">
               <div>
                 <h4 className="text-[11px] font-black uppercase tracking-widest text-slate-900 border-l-4 border-blue-600 pl-3">Grades & Variações</h4>
