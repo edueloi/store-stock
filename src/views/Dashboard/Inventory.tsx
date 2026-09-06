@@ -305,6 +305,10 @@ export default function Inventory() {
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Partial<Product> | null>(null);
+  // Campo auxiliar de UI (não é salvo no produto) — % de lucro desejada sobre o custo,
+  // usada só pra calcular e preencher automaticamente o Preço Venda. String pra permitir
+  // digitar livremente (ex.: apagar tudo, digitar "6", depois "60") sem o input travar em 0.
+  const [profitMarginInput, setProfitMarginInput] = useState("");
   const [editingImages, setEditingImages] = useState<string[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [viewMode, setViewMode] = useState<"table" | "grid">("table");
@@ -395,6 +399,7 @@ export default function Inventory() {
   const openNew = () => {
     setEditingProduct({ type: "sale", is_active: false, is_featured: false, stock_quantity: 0, attributes: [], skus: [] });
     setEditingImages([]);
+    setProfitMarginInput("");
     resetVarState();
     setCreatingCategory(false);
     setNewCategoryName("");
@@ -414,6 +419,7 @@ export default function Inventory() {
     }
     setEditingProduct({ ...p, attributes: attrs, skus });
     setEditingImages(Array.isArray(p.images) ? p.images : p.image_url ? [p.image_url] : []);
+    setProfitMarginInput("");
     resetVarState();
     setCreatingCategory(false);
     setNewCategoryName("");
@@ -1273,7 +1279,7 @@ export default function Inventory() {
               onChange={e => setEditingProduct(prev => ({ ...prev!, description: e.target.value }))} />
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
             <div className="space-y-1">
               <label className="text-[10px] font-bold text-orange-500 uppercase tracking-widest px-1">Custo Un. (R$)</label>
               <input type="number" step="0.01" min="0"
@@ -1282,11 +1288,29 @@ export default function Inventory() {
                 onChange={e => setEditingProduct(prev => ({ ...prev!, cost_price: Number(e.target.value) }))} />
             </div>
             <div className="space-y-1">
+              <label className="text-[10px] font-bold text-purple-500 uppercase tracking-widest px-1">Lucro Estimado (%)</label>
+              <input type="number" step="1" min="0" placeholder="Ex: 60"
+                className="w-full bg-purple-50 border border-purple-100 rounded-xl px-3 py-2.5 text-xs font-mono font-bold outline-none h-10 focus:border-purple-400 transition-all"
+                value={profitMarginInput}
+                onChange={e => {
+                  const v = e.target.value;
+                  setProfitMarginInput(v);
+                  const margin = Number(v);
+                  const cost = Number(editingProduct?.cost_price || 0);
+                  // Markup sobre o custo: preço = custo × (1 + margem/100) — só recalcula com
+                  // custo e margem válidos, senão deixa o Preço Venda como o operador digitou.
+                  if (v !== "" && !Number.isNaN(margin) && cost > 0) {
+                    const price = Math.round(cost * (1 + margin / 100) * 100) / 100;
+                    setEditingProduct(prev => ({ ...prev!, price }));
+                  }
+                }} />
+            </div>
+            <div className="space-y-1">
               <label className="text-[10px] font-bold text-slate-700 uppercase tracking-widest px-1">Preço Venda (R$) *</label>
               <input type="number" step="0.01" min="0" required
                 className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs font-mono font-bold outline-none h-10 focus:border-blue-400 transition-all"
                 value={editingProduct?.price || ""}
-                onChange={e => setEditingProduct(prev => ({ ...prev!, price: Number(e.target.value) }))} />
+                onChange={e => { setProfitMarginInput(""); setEditingProduct(prev => ({ ...prev!, price: Number(e.target.value) })); }} />
             </div>
             <div className="space-y-1">
               <label className="text-[10px] font-bold text-emerald-600 uppercase tracking-widest px-1">Promoção (R$)</label>
