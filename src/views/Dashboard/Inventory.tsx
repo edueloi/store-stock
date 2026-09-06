@@ -1063,21 +1063,20 @@ export default function Inventory() {
           </>
         }
       >
-        <form id="product-form" onSubmit={handleSave} className="grid grid-cols-1 lg:grid-cols-[340px_1fr] gap-6 items-start">
+        <form id="product-form" onSubmit={handleSave} className="max-w-5xl mx-auto space-y-5">
 
-          {/* ── COLUNA ESQUERDA: mídia + visibilidade + organização ── */}
-          <div className="space-y-5 lg:sticky lg:top-0">
-            <section className="bg-white border border-slate-200 rounded-2xl p-4 space-y-3">
-              <p className="text-[10px] font-black uppercase tracking-widest text-slate-700 border-l-4 border-blue-500 pl-3">
-                Galeria
-              </p>
-              <GalleryUploader images={editingImages} onChange={setEditingImages} />
-            </section>
+          <section className="bg-white border border-slate-200 rounded-2xl p-4 space-y-3">
+            <p className="text-[10px] font-black uppercase tracking-widest text-slate-700 border-l-4 border-blue-500 pl-3">
+              Galeria
+            </p>
+            <GalleryUploader images={editingImages} onChange={setEditingImages} />
+          </section>
 
-            <section className="bg-white border border-slate-200 rounded-2xl p-4 space-y-4">
-              <p className="text-[10px] font-black uppercase tracking-widest text-slate-700 border-l-4 border-blue-500 pl-3">
-                Organização
-              </p>
+          <section className="bg-white border border-slate-200 rounded-2xl p-4 space-y-4">
+            <p className="text-[10px] font-black uppercase tracking-widest text-slate-700 border-l-4 border-blue-500 pl-3">
+              Organização
+            </p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-1">
                 <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest px-1">Categoria</label>
                 {creatingCategory ? (
@@ -1120,24 +1119,21 @@ export default function Inventory() {
                   value={editingProduct?.expiry_date || ""}
                   onChange={e => setEditingProduct(prev => ({ ...prev!, expiry_date: e.target.value }))} />
               </div>
-              <div className="space-y-1">
-                <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest px-1">Descrição</label>
-                <textarea rows={4} placeholder="Descreva o produto, materiais, como usar..."
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs font-medium outline-none resize-none focus:border-blue-400 focus:ring-2 focus:ring-blue-500/10 transition-all"
-                  value={editingProduct?.description || ""}
-                  onChange={e => setEditingProduct(prev => ({ ...prev!, description: e.target.value }))} />
-              </div>
-              <div className="flex flex-wrap gap-6 border-t border-slate-100 pt-4">
-                <Switch label="Ativo no site" checked={editingProduct?.is_active ?? true}
-                  onChange={v => setEditingProduct(prev => ({ ...prev!, is_active: v }))} accent="emerald" />
-                <Switch label="Destaque na home" checked={editingProduct?.is_featured ?? false}
-                  onChange={v => setEditingProduct(prev => ({ ...prev!, is_featured: v }))} accent="amber" />
-              </div>
-            </section>
-          </div>
-
-          {/* ── COLUNA DIREITA: identificação, fiscal, preços, estoque, variações ── */}
-          <div className="space-y-5 min-w-0">
+            </div>
+            <div className="space-y-1">
+              <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest px-1">Descrição</label>
+              <textarea rows={3} placeholder="Descreva o produto, materiais, como usar..."
+                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs font-medium outline-none resize-none focus:border-blue-400 focus:ring-2 focus:ring-blue-500/10 transition-all"
+                value={editingProduct?.description || ""}
+                onChange={e => setEditingProduct(prev => ({ ...prev!, description: e.target.value }))} />
+            </div>
+            <div className="flex flex-wrap gap-6 border-t border-slate-100 pt-4">
+              <Switch label="Ativo no site" checked={editingProduct?.is_active ?? true}
+                onChange={v => setEditingProduct(prev => ({ ...prev!, is_active: v }))} accent="emerald" />
+              <Switch label="Destaque na home" checked={editingProduct?.is_featured ?? false}
+                onChange={v => setEditingProduct(prev => ({ ...prev!, is_featured: v }))} accent="amber" />
+            </div>
+          </section>
 
           <section className="bg-white border border-slate-200 rounded-2xl p-4 space-y-4">
             <p className="text-[10px] font-black uppercase tracking-widest text-slate-700 border-l-4 border-blue-500 pl-3">
@@ -1189,7 +1185,7 @@ export default function Inventory() {
             <p className="text-[10px] font-black uppercase tracking-widest text-slate-700 border-l-4 border-blue-500 pl-3">
               Dados Fiscais
             </p>
-            <div className="grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div className="space-y-1">
                 <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest px-1">NCM</label>
                 <input type="text" maxLength={8} placeholder="00000000"
@@ -1576,8 +1572,6 @@ export default function Inventory() {
               </div>
             )}
           </section>
-
-          </div>
         </form>
       </Modal>
 

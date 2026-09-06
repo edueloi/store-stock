@@ -25,7 +25,7 @@ const sizeClasses: Record<ModalSize, string> = {
   md: "max-w-lg",
   lg: "max-w-2xl",
   xl: "max-w-4xl",
-  full: "max-w-[1400px]",
+  full: "max-w-none",
 };
 
 export default function Modal({
@@ -47,7 +47,7 @@ export default function Modal({
         <div
           className={cn(
             "fixed inset-0 flex items-end sm:items-center justify-center",
-            isFull ? "p-0 sm:p-3" : "p-0 sm:p-4",
+            isFull ? "p-0" : "p-0 sm:p-4",
           )}
           style={{ zIndex }}
         >
@@ -67,9 +67,8 @@ export default function Modal({
             exit={{ opacity: 0, scale: 0.97, y: 12 }}
             transition={{ type: "spring", damping: 28, stiffness: 350 }}
             className={cn(
-              "relative bg-white w-full shadow-2xl border border-slate-200 overflow-hidden flex flex-col",
-              "rounded-t-2xl sm:rounded-2xl",
-              isFull ? "h-[100dvh] sm:h-[96vh]" : "max-h-[92dvh] sm:max-h-[90vh]",
+              "relative bg-white w-full shadow-2xl overflow-hidden flex flex-col",
+              isFull ? "h-[100dvh] w-screen border-0 rounded-none" : "border border-slate-200 rounded-t-2xl sm:rounded-2xl max-h-[92dvh] sm:max-h-[90vh]",
               sizeClasses[size]
             )}
           >
