@@ -9,6 +9,7 @@ import {
   Percent,
 } from "lucide-react";
 import PageHeader from "../../components/layout/PageHeader";
+import DesktopTerminalsSection from "./DesktopTerminalsSection";
 import { cn } from "../../lib/utils";
 import { useToast } from "../../components/ui/Toast";
 import Modal from "../../components/ui/Modal";
@@ -635,6 +636,8 @@ export default function Settings() {
   const [cepLoading, setCepLoading] = useState(false);
   const [logoUploading, setLogoUploading] = useState(false);
   const logoInputRef = useRef<HTMLInputElement>(null);
+  const [bannerUploading, setBannerUploading] = useState(false);
+  const bannerInputRef = useRef<HTMLInputElement>(null);
   const [certUploading, setCertUploading] = useState(false);
   const [certPassword, setCertPassword] = useState("");
   const [certError, setCertError] = useState<string | null>(null);
@@ -894,6 +897,33 @@ export default function Settings() {
       }
     } finally {
       setLogoUploading(false);
+    }
+  };
+
+  const handleBannerUpload = async (file: File) => {
+    setBannerUploading(true);
+    try {
+      const form = new FormData();
+      form.append("image", file);
+      const res = await fetch("/api/upload/banner", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
+        body: form,
+      });
+      if (res.ok) {
+        const { url } = await res.json();
+        setTenant((prev) => {
+          const updated = { ...prev, banner_url: url };
+          fetch("/api/tenant", {
+            method: "PUT",
+            headers: API_HEADERS(),
+            body: JSON.stringify(updated),
+          }).then(() => showSaved()).catch(() => {});
+          return updated;
+        });
+      }
+    } finally {
+      setBannerUploading(false);
     }
   };
 
@@ -1910,19 +1940,69 @@ export default function Settings() {
                       />
                     </div>
                   </Field>
-                  <Field label="URL do Logo (PNG/SVG)">
-                    <TextInput
-                      value={tenant?.logo_url ?? ""}
-                      onChange={(v) => setT({ logo_url: v })}
-                      placeholder="https://..."
-                    />
+                  <Field label="Logo (PNG/SVG)">
+                    <div className="flex items-center gap-3">
+                      <div className="w-14 h-14 rounded-xl border-2 border-dashed border-slate-200 bg-slate-50 flex items-center justify-center shrink-0 overflow-hidden">
+                        {tenant?.logo_url ? (
+                          <img src={tenant.logo_url} alt="Logo" className="w-full h-full object-contain p-1" />
+                        ) : (
+                          <Image size={18} className="text-slate-300" />
+                        )}
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => logoInputRef.current?.click()}
+                        disabled={logoUploading}
+                        className="h-10 px-4 bg-slate-900 text-white rounded-xl text-[9px] font-black uppercase tracking-[0.2em] hover:bg-slate-800 transition-all flex items-center gap-2 disabled:opacity-50"
+                      >
+                        {logoUploading
+                          ? <><Loader2 size={12} className="animate-spin" /> Enviando...</>
+                          : <><Upload size={12} strokeWidth={2.5} /> {tenant?.logo_url ? "Trocar" : "Selecionar"} imagem</>
+                        }
+                      </button>
+                    </div>
                   </Field>
                   <div className="md:col-span-2">
-                    <Field label="Banner Principal (URL da Imagem)">
-                      <TextInput
-                        value={tenant?.banner_url ?? ""}
-                        onChange={(v) => setT({ banner_url: v })}
-                        placeholder="URL de imagem para o topo da vitrine"
+                    <Field label="Banner Principal (imagem do topo da vitrine)">
+                      <div className="flex items-center gap-3">
+                        <div className="w-24 h-14 rounded-xl border-2 border-dashed border-slate-200 bg-slate-50 flex items-center justify-center shrink-0 overflow-hidden">
+                          {tenant?.banner_url ? (
+                            <img src={tenant.banner_url} alt="Banner" className="w-full h-full object-cover" />
+                          ) : (
+                            <Image size={18} className="text-slate-300" />
+                          )}
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => bannerInputRef.current?.click()}
+                          disabled={bannerUploading}
+                          className="h-10 px-4 bg-slate-900 text-white rounded-xl text-[9px] font-black uppercase tracking-[0.2em] hover:bg-slate-800 transition-all flex items-center gap-2 disabled:opacity-50"
+                        >
+                          {bannerUploading
+                            ? <><Loader2 size={12} className="animate-spin" /> Enviando...</>
+                            : <><Upload size={12} strokeWidth={2.5} /> {tenant?.banner_url ? "Trocar" : "Selecionar"} imagem</>
+                          }
+                        </button>
+                        {tenant?.banner_url && (
+                          <button
+                            type="button"
+                            onClick={() => setT({ banner_url: "" })}
+                            className="flex items-center gap-1.5 text-[9px] font-black uppercase tracking-widest text-rose-400 hover:text-rose-600 transition-colors"
+                          >
+                            <X size={11} /> Remover
+                          </button>
+                        )}
+                      </div>
+                      <input
+                        ref={bannerInputRef}
+                        type="file"
+                        accept="image/png,image/jpeg,image/webp"
+                        className="hidden"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) handleBannerUpload(file);
+                          e.target.value = "";
+                        }}
                       />
                     </Field>
                   </div>
@@ -3152,6 +3232,8 @@ export default function Settings() {
                     clique em "Mais informações" e depois "Executar assim mesmo".
                   </p>
                 </div>
+
+                <DesktopTerminalsSection />
               </div>
             )}
           </div>

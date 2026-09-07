@@ -37,6 +37,7 @@ import heldSalesRoutes from "./held-sales.routes";
 import workflowRoutes from "./workflow.routes";
 import financialReportsRoutes from "./financial-reports.routes";
 import profileRoutes from "./profile.routes";
+import desktopTerminalsRoutes from "./desktop-terminals.routes";
 
 export function registerRoutes(app: Express) {
   // Serve uploaded images
@@ -79,4 +80,5 @@ export function registerRoutes(app: Express) {
   app.use("/api/cash-sessions", cashSessionsRoutes);
   app.use("/api/held-sales", heldSalesRoutes);
   app.use("/api/workflow", workflowRoutes);
+  app.use("/api/desktop-terminals", desktopTerminalsRoutes);
 }

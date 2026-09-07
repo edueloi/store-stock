@@ -30,6 +30,7 @@
       "setup.html",
       "offline.html",
       "printer-config.html",
+      "pairing.html",
       "icon.png",
       "node_modules/**/*"
     ],

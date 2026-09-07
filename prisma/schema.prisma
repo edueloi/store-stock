@@ -132,9 +132,62 @@ model Tenant {
   cash_sessions          CashSession[]
   held_sales             HeldSale[]
   held_sale_actions      HeldSaleAction[]
+  desktop_terminals      DesktopTerminal[]
   plan                   SubscriptionPlan?     @relation(fields: [plan_id], references: [id], onDelete: SetNull)
 
   @@map("tenants")
+}
+
+// Uma instalação do app desktop (BoxSys PDV) pareada com este tenant — vinculada
+// via código de pareamento de 6 dígitos (ver DesktopPairingCode), nunca por UID
+// silencioso, pra o operador ter certeza de qual PC físico está vinculando ao dar
+// o nome (ex.: "Escritório", "Caixa 1").
+model DesktopTerminal {
+  id           Int      @id @default(autoincrement())
+  tenant_id    Int
+  terminal_uid String   @unique // UUID gerado localmente pelo Electron na primeira execução
+  name         String // nome escolhido pelo operador no momento do pareamento
+  last_seen_at DateTime @updatedAt
+  created_at   DateTime @default(now())
+
+  tenant   Tenant           @relation(fields: [tenant_id], references: [id])
+  printers DesktopPrinter[]
+
+  @@index([tenant_id])
+  @@map("desktop_terminals")
+}
+
+// Impressora física configurada em um terminal desktop específico — um terminal
+// pode ter várias (ex.: térmica de cupom + A4 dedicada a Ordem de Serviço).
+model DesktopPrinter {
+  id          Int      @id @default(autoincrement())
+  terminal_id Int
+  label       String // "Térmica Balcão", "A4 Ordens de Serviço"
+  role        String // "receipt" (cupom/venda) | "service_order" (A4) | "custom"
+  config      Json // { brand, transport: serial|network|bluetooth, ... }
+  is_default  Boolean  @default(false) // impressora padrão pra esse role neste terminal
+  created_at  DateTime @default(now())
+  updated_at  DateTime @updatedAt
+
+  terminal DesktopTerminal @relation(fields: [terminal_id], references: [id], onDelete: Cascade)
+
+  @@index([terminal_id])
+  @@map("desktop_printers")
+}
+
+// Código de pareamento efêmero (6 dígitos, expira em ~10min) — o Electron gera
+// um terminal_uid local e pede um código; o operador, já autenticado no painel
+// web, digita esse código + dá um nome pra de fato vincular o terminal ao tenant.
+model DesktopPairingCode {
+  id           Int       @id @default(autoincrement())
+  code         String    @unique @db.VarChar(6)
+  terminal_uid String
+  tenant_id    Int?
+  expires_at   DateTime
+  paired_at    DateTime?
+  created_at   DateTime  @default(now())
+
+  @@map("desktop_pairing_codes")
 }
 
 model SetupInvite {

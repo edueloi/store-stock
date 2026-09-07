@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <title>Vincular Dispositivo</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; font-family: -apple-system, "Segoe UI", Roboto, sans-serif; }
+    body {
+      min-height: 100vh; padding: 28px; text-align: center;
+      background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%); color: #e2e8f0;
+    }
+    h1 { font-size: 15px; font-weight: 900; text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 4px; }
+    p.sub { font-size: 11px; color: #94a3b8; margin-bottom: 24px; line-height: 1.5; }
+    .code-box {
+      background: rgba(15,23,42,0.6); border: 1px solid #334155; border-radius: 16px;
+      padding: 28px 16px; margin-bottom: 18px;
+    }
+    .code {
+      font-size: 42px; font-weight: 900; letter-spacing: 0.25em; font-family: monospace;
+      color: #60a5fa;
+    }
+    .code.placeholder { color: #475569; font-size: 16px; letter-spacing: normal; }
+    .status { font-size: 11px; color: #94a3b8; margin-top: 10px; min-height: 16px; }
+    .status.success { color: #6ee7b7; }
+    .status.error { color: #fda4af; }
+    button.primary {
+      width: 100%; height: 46px; margin-top: 6px; border: none; border-radius: 12px;
+      background: linear-gradient(135deg, #3b82f6, #1d4ed8); color: #fff;
+      font-size: 11px; font-weight: 900; text-transform: uppercase; letter-spacing: 0.15em;
+      cursor: pointer; transition: opacity .2s;
+    }
+    button:disabled { opacity: 0.5; cursor: wait; }
+    .terminal-uid { font-size: 9px; color: #475569; margin-top: 18px; word-break: break-all; }
+    .paired-box {
+      display: none; background: rgba(16,185,129,0.1); border: 1px solid rgba(16,185,129,0.3);
+      border-radius: 16px; padding: 20px; margin-bottom: 18px;
+    }
+    .paired-box .name { font-size: 18px; font-weight: 900; color: #6ee7b7; }
+    .paired-box .hint { font-size: 10px; color: #94a3b8; margin-top: 6px; }
+  </style>
+</head>
+<body>
+  <h1>Vincular Dispositivo</h1>
+  <p class="sub">Gere um código aqui e digite em Configurações → Vincular Dispositivos no painel web, dando um nome pra este terminal (ex: "Escritório", "Caixa 1").</p>
+
+  <div class="paired-box" id="pairedBox">
+    <div class="name" id="pairedName"></div>
+    <div class="hint">Este terminal já está vinculado. Feche esta janela.</div>
+  </div>
+
+  <div class="code-box" id="codeBox">
+    <div class="code placeholder" id="codeText">Clique em "Gerar Código"</div>
+  </div>
+  <div class="status" id="status"></div>
+
+  <button class="primary" id="genBtn" onclick="requestCode()">Gerar Código</button>
+  <div class="terminal-uid" id="terminalUid"></div>
+
+  <script>
+    let pollTimer = null;
+
+    function setStatus(text, type) {
+      const el = document.getElementById("status");
+      el.textContent = text;
+      el.className = `status ${type || ""}`;
+    }
+
+    function showPaired(terminal) {
+      document.getElementById("pairedBox").style.display = "block";
+      document.getElementById("pairedName").textContent = terminal.name;
+      document.getElementById("codeBox").style.display = "none";
+      document.getElementById("genBtn").style.display = "none";
+      setStatus("", "");
+      if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
+    }
+
+    async function requestCode() {
+      const btn = document.getElementById("genBtn");
+      btn.disabled = true;
+      setStatus("Gerando código...", "");
+      const result = await window.boxsysDesktop.requestPairingCode();
+      btn.disabled = false;
+      if (!result.ok) {
+        setStatus(result.error || "Não foi possível gerar o código.", "error");
+        return;
+      }
+      const codeEl = document.getElementById("codeText");
+      codeEl.textContent = result.code;
+      codeEl.classList.remove("placeholder");
+      setStatus("Aguardando vinculação no painel web...", "");
+      if (pollTimer) clearInterval(pollTimer);
+      pollTimer = setInterval(checkStatus, 3000);
+    }
+
+    async function checkStatus() {
+      const result = await window.boxsysDesktop.checkPairingStatus();
+      if (result.paired && result.terminal) {
+        showPaired(result.terminal);
+      } else if (result.expired) {
+        setStatus("Código expirado — gere um novo.", "error");
+        clearInterval(pollTimer);
+        pollTimer = null;
+      }
+    }
+
+    (async function init() {
+      const state = await window.boxsysDesktop.getPairingState();
+      document.getElementById("terminalUid").textContent = state.terminalUid;
+      if (!state.hasServer) {
+        setStatus("Configure o endereço da loja antes de vincular.", "error");
+        document.getElementById("genBtn").disabled = true;
+        return;
+      }
+      if (state.paired) {
+        showPaired(state.paired);
+      }
+    })();
+  </script>
+</body>
+</html>

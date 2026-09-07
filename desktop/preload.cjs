@@ -15,6 +15,11 @@ contextBridge.exposeInMainWorld("boxsysDesktop", {
   testPrinter: (cfg) => ipcRenderer.invoke("printer:test", cfg),
   listSerialPorts: () => ipcRenderer.invoke("printer:list-ports"),
 
+  // Pareamento deste terminal com um tenant (código de 6 dígitos digitado no painel web)
+  getPairingState: () => ipcRenderer.invoke("pairing:get-state"),
+  requestPairingCode: () => ipcRenderer.invoke("pairing:request-code"),
+  checkPairingStatus: () => ipcRenderer.invoke("pairing:check-status"),
+
   // Banco local (SQLite) — cache de catálogo e fila de operações offline
   dbSaveCache: (key, value) => ipcRenderer.invoke("db:save-cache", key, value),
   dbGetCache: (key) => ipcRenderer.invoke("db:get-cache", key),

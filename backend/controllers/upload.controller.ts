@@ -8,7 +8,7 @@ import type { AuthenticatedRequest } from "../types/auth";
 
 const UPLOADS_BASE = path.join(process.cwd(), "public", "uploads");
 
-function tenantDir(req: Request, sub: "products" | "logos" | "services" | "service-orders"): string {
+function tenantDir(req: Request, sub: "products" | "logos" | "banners" | "services" | "service-orders"): string {
   const tenantId = (req as AuthenticatedRequest).user?.tenantId ?? "shared";
   const dir = path.join(UPLOADS_BASE, sub, String(tenantId));
   fs.mkdirSync(dir, { recursive: true });
@@ -27,7 +27,7 @@ const serviceFileFilter = (_req: Request, file: Express.Multer.File, cb: multer.
   else cb(new Error("Apenas JPG e PNG são permitidos para imagens de serviços"));
 };
 
-const makeStorage = (sub: "products" | "logos" | "services" | "service-orders") =>
+const makeStorage = (sub: "products" | "logos" | "banners" | "services" | "service-orders") =>
   multer.diskStorage({
     destination: (req, _file, cb) => cb(null, tenantDir(req, sub)),
     filename: (_req, file, cb) => {
@@ -39,6 +39,7 @@ const makeStorage = (sub: "products" | "logos" | "services" | "service-orders") 
 
 export const upload        = multer({ storage: makeStorage("products"), fileFilter,        limits: { fileSize: 5 * 1024 * 1024 } });
 export const uploadLogo    = multer({ storage: makeStorage("logos"),    fileFilter,        limits: { fileSize: 2 * 1024 * 1024 } });
+export const uploadBanner  = multer({ storage: makeStorage("banners"),  fileFilter,        limits: { fileSize: 5 * 1024 * 1024 } });
 export const uploadService = multer({ storage: makeStorage("services"), fileFilter: serviceFileFilter, limits: { fileSize: 2 * 1024 * 1024 } });
 export const uploadServiceOrderPhoto = multer({ storage: makeStorage("service-orders"), fileFilter, limits: { fileSize: 5 * 1024 * 1024 } });
 
@@ -68,6 +69,16 @@ export async function uploadLogoImage(req: Request, res: Response) {
     if (!req.file) { res.status(400).json({ error: "Nenhum arquivo enviado" }); return; }
     const tenantId = (req as AuthenticatedRequest).user.tenantId;
     res.json({ url: `/uploads/logos/${tenantId}/${req.file.filename}` });
+  } catch {
+    res.status(500).json({ error: "Upload falhou" });
+  }
+}
+
+export async function uploadBannerImage(req: Request, res: Response) {
+  try {
+    if (!req.file) { res.status(400).json({ error: "Nenhum arquivo enviado" }); return; }
+    const tenantId = (req as AuthenticatedRequest).user.tenantId;
+    res.json({ url: `/uploads/banners/${tenantId}/${req.file.filename}` });
   } catch {
     res.status(500).json({ error: "Upload falhou" });
   }

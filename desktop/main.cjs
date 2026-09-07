@@ -1,4 +1,4 @@
-const { app, BrowserWindow, Menu, ipcMain, dialog, shell } = require("electron");
+const { app, BrowserWindow, Menu, Tray, nativeImage, ipcMain, dialog, shell } = require("electron");
 const path = require("path");
 const fs = require("fs");
 const https = require("https");
@@ -29,6 +29,66 @@ function getPrinterConfig() {
 
 function savePrinterConfig(cfg) {
   writeConfig({ ...readConfig(), printer: cfg });
+}
+
+// ─── Terminal (pareamento) ───────────────────────────────────────────────────
+// Cada instalação tem um terminal_uid próprio, gerado uma vez e persistido —
+// é só um identificador técnico local; o vínculo de fato com o tenant só
+// acontece quando o operador digita o código de pareamento no painel web (ver
+// requestPairingCode/pairTerminal no backend).
+function getTerminalUid() {
+  const cfg = readConfig();
+  if (cfg.terminalUid) return cfg.terminalUid;
+  const uid = `${Date.now()}-${Math.random().toString(36).slice(2, 10)}-${Math.random().toString(36).slice(2, 10)}`;
+  writeConfig({ ...cfg, terminalUid: uid });
+  return uid;
+}
+
+function getPairedTerminal() {
+  return readConfig().pairedTerminal || null;
+}
+
+function savePairedTerminal(terminal) {
+  writeConfig({ ...readConfig(), pairedTerminal: terminal });
+}
+
+// Faz uma chamada JSON ao backend já configurado neste terminal (mesmo servidor
+// usado pelo BrowserWindow principal) — reaproveita o https nativo já usado em
+// testServer(), sem precisar de dependência HTTP nova.
+function apiRequest(method, apiPath, body) {
+  return new Promise((resolve, reject) => {
+    const { server } = readConfig();
+    if (!server) { reject(new Error("Servidor não configurado")); return; }
+    const [host, port] = server.split(":");
+    const data = body ? JSON.stringify(body) : undefined;
+    const req = https.request(
+      {
+        host,
+        port: port || 443,
+        path: `/api${apiPath}`,
+        method,
+        headers: { "Content-Type": "application/json", ...(data ? { "Content-Length": Buffer.byteLength(data) } : {}) },
+        timeout: 10000,
+      },
+      (res) => {
+        let raw = "";
+        res.on("data", (chunk) => { raw += chunk; });
+        res.on("end", () => {
+          try {
+            const json = raw ? JSON.parse(raw) : {};
+            if (res.statusCode >= 200 && res.statusCode < 300) resolve(json);
+            else reject(new Error(json.error || `HTTP ${res.statusCode}`));
+          } catch {
+            reject(new Error("Resposta inválida do servidor"));
+          }
+        });
+      }
+    );
+    req.on("error", reject);
+    req.on("timeout", () => { req.destroy(); reject(new Error("Tempo esgotado ao contatar o servidor")); });
+    if (data) req.write(data);
+    req.end();
+  });
 }
 
 // ─── URL helpers ─────────────────────────────────────────────────────────────
@@ -65,6 +125,47 @@ function testServer(server) {
 
 // ─── Window ──────────────────────────────────────────────────────────────────
 let mainWindow = null;
+let tray = null;
+// Controla se "fechar a janela" deve realmente encerrar o processo — só true
+// quando o usuário escolhe "Sair" (menu ou bandeja) ou o SO pede pra fechar de
+// vez. Sem isso, o botão X da janela mataria o processo e nenhuma notificação
+// push conseguiria chegar com o app "fechado" (objetivo da bandeja).
+let isQuitting = false;
+
+// ─── Bandeja (tray) ──────────────────────────────────────────────────────────
+function createTray() {
+  const icon = nativeImage.createFromPath(path.join(__dirname, "icon.png"));
+  tray = new Tray(icon.resize({ width: 16, height: 16 }));
+  tray.setToolTip("BoxSys PDV");
+  tray.setContextMenu(Menu.buildFromTemplate([
+    { label: "Abrir BoxSys PDV", click: () => showMainWindow() },
+    { type: "separator" },
+    { label: "Sair", click: () => { isQuitting = true; app.quit(); } },
+  ]));
+  tray.on("click", () => showMainWindow());
+}
+
+function showMainWindow() {
+  if (!mainWindow || mainWindow.isDestroyed()) { createWindow(); return; }
+  if (mainWindow.isMinimized()) mainWindow.restore();
+  mainWindow.show();
+  mainWindow.focus();
+}
+
+// Aviso mostrado só na primeira vez que o usuário fecha a janela (X) depois
+// dessa mudança — evita susto de "o app ainda está aberto?" quando na verdade
+// ele só foi minimizado pra bandeja, não encerrado.
+function maybeShowTrayNotice() {
+  const cfg = readConfig();
+  if (cfg.trayNoticeShown) return;
+  writeConfig({ ...cfg, trayNoticeShown: true });
+  dialog.showMessageBox(mainWindow, {
+    type: "info",
+    title: "BoxSys PDV continua ativo",
+    message: "O BoxSys PDV agora continua rodando na bandeja do sistema mesmo depois de fechar esta janela — assim notificações e impressões remotas continuam funcionando.",
+    detail: 'Para encerrar de vez, clique com o botão direito no ícone da bandeja e escolha "Sair", ou use o menu PDV → Sair.',
+  });
+}
 
 function createWindow() {
   mainWindow = new BrowserWindow({
@@ -97,6 +198,17 @@ function createWindow() {
     if (validatedURL && validatedURL.startsWith("http")) {
       mainWindow.loadFile(path.join(__dirname, "offline.html"));
     }
+  });
+
+  // Fechar a janela (botão X) minimiza pra bandeja em vez de encerrar o
+  // processo — necessário pra notificações push e impressão remota
+  // continuarem funcionando mesmo com a janela "fechada". Só "Sair" (menu ou
+  // bandeja) ou before-quit do SO de fato encerram (ver isQuitting acima).
+  mainWindow.on("close", (e) => {
+    if (isQuitting) return;
+    e.preventDefault();
+    mainWindow.hide();
+    maybeShowTrayNotice();
   });
 
   loadEntry();
@@ -142,6 +254,35 @@ function openPrinterConfigWindow() {
   printerConfigWindow.on("closed", () => { printerConfigWindow = null; });
 }
 
+// ─── Pairing window ──────────────────────────────────────────────────────────
+let pairingWindow = null;
+
+function openPairingWindow() {
+  if (pairingWindow) {
+    pairingWindow.focus();
+    return;
+  }
+  pairingWindow = new BrowserWindow({
+    width: 420,
+    height: 480,
+    resizable: false,
+    minimizable: false,
+    maximizable: false,
+    parent: mainWindow,
+    modal: false,
+    title: "Vincular Dispositivo",
+    icon: path.join(__dirname, "icon.png"),
+    webPreferences: {
+      preload: path.join(__dirname, "preload.cjs"),
+      contextIsolation: true,
+      nodeIntegration: false,
+    },
+  });
+  pairingWindow.setMenuBarVisibility(false);
+  pairingWindow.loadFile(path.join(__dirname, "pairing.html"));
+  pairingWindow.on("closed", () => { pairingWindow = null; });
+}
+
 // ─── Menu ────────────────────────────────────────────────────────────────────
 function buildMenu() {
   const template = [
@@ -174,6 +315,7 @@ function buildMenu() {
         },
         { type: "separator" },
         { label: "Configurar Impressora...", click: () => openPrinterConfigWindow() },
+        { label: "Vincular Dispositivo...", click: () => openPairingWindow() },
         { type: "separator" },
         {
           label: "Verificar Atualizações...",
@@ -195,7 +337,7 @@ function buildMenu() {
           },
         },
         { type: "separator" },
-        { label: "Sair", accelerator: "CmdOrCtrl+Q", role: "quit" },
+        { label: "Sair", accelerator: "CmdOrCtrl+Q", click: () => { isQuitting = true; app.quit(); } },
       ],
     },
     {
@@ -276,6 +418,36 @@ ipcMain.handle("printer:open-drawer", async () => {
   return printerModule.openCashDrawer(config);
 });
 
+// ─── Pairing IPC ─────────────────────────────────────────────────────────────
+ipcMain.handle("pairing:get-state", () => ({
+  terminalUid: getTerminalUid(),
+  paired: getPairedTerminal(),
+  hasServer: !!readConfig().server,
+}));
+
+ipcMain.handle("pairing:request-code", async () => {
+  try {
+    const terminal_uid = getTerminalUid();
+    const result = await apiRequest("POST", "/desktop-terminals/pairing-code", { terminal_uid });
+    return { ok: true, code: result.code, expiresInSeconds: result.expires_in_seconds };
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
+});
+
+ipcMain.handle("pairing:check-status", async () => {
+  try {
+    const terminal_uid = getTerminalUid();
+    const result = await apiRequest("GET", `/desktop-terminals/pairing-status/${terminal_uid}`);
+    if (result.paired && result.terminal) {
+      savePairedTerminal(result.terminal);
+    }
+    return result;
+  } catch (err) {
+    return { paired: false, error: err.message };
+  }
+});
+
 // ─── Offline SQLite IPC ──────────────────────────────────────────────────────
 ipcMain.handle("db:save-cache", (_e, key, value) => offlineDb.saveCache(key, value));
 ipcMain.handle("db:get-cache", (_e, key) => offlineDb.getCache(key));
@@ -320,6 +492,7 @@ function checkForUpdates() {
 app.whenReady().then(() => {
   offlineDb.initDb(app);
   buildMenu();
+  createTray();
   createWindow();
 
   // Checagem assíncrona — não atrasa a abertura da janela principal.
@@ -328,9 +501,19 @@ app.whenReady().then(() => {
 
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
+    else showMainWindow();
   });
 });
 
+// A janela agora só esconde ao fechar (ver handler "close" em createWindow),
+// então isso só dispara em cenários raros (todas as janelas destruídas sem
+// passar pelo handler, ex.: crash) — mantido por segurança, não é mais o
+// caminho normal de saída.
 app.on("window-all-closed", () => {
-  if (process.platform !== "darwin") app.quit();
+  if (process.platform !== "darwin" && isQuitting) app.quit();
 });
+
+// Cobre qualquer caminho de saída que não passe pelos cliques customizados
+// (Cmd+Q no macOS, "Encerrar tarefa" do SO, etc.) — garante que o handler de
+// "close" da janela não fique tentando esconder um app que já está saindo.
+app.on("before-quit", () => { isQuitting = true; });
