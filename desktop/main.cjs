@@ -55,7 +55,7 @@ function savePairedTerminal(terminal) {
 // Faz uma chamada JSON ao backend já configurado neste terminal (mesmo servidor
 // usado pelo BrowserWindow principal) — reaproveita o https nativo já usado em
 // testServer(), sem precisar de dependência HTTP nova.
-function apiRequest(method, apiPath, body) {
+function apiRequest(method, apiPath, body, authToken) {
   return new Promise((resolve, reject) => {
     const { server } = readConfig();
     if (!server) { reject(new Error("Servidor não configurado")); return; }
@@ -67,7 +67,11 @@ function apiRequest(method, apiPath, body) {
         port: port || 443,
         path: `/api${apiPath}`,
         method,
-        headers: { "Content-Type": "application/json", ...(data ? { "Content-Length": Buffer.byteLength(data) } : {}) },
+        headers: {
+          "Content-Type": "application/json",
+          ...(data ? { "Content-Length": Buffer.byteLength(data) } : {}),
+          ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
+        },
         timeout: 10000,
       },
       (res) => {
@@ -88,6 +92,26 @@ function apiRequest(method, apiPath, body) {
     req.on("timeout", () => { req.destroy(); reject(new Error("Tempo esgotado ao contatar o servidor")); });
     if (data) req.write(data);
     req.end();
+  });
+}
+
+// Lê o token JWT já salvo no localStorage do renderer principal — usado pelas
+// telas auxiliares (ex.: configuração de múltiplas impressoras) que precisam
+// chamar endpoints autenticados do backend, mas não têm sessão própria (são
+// janelas separadas do BrowserWindow principal).
+async function getAuthToken() {
+  if (!mainWindow || mainWindow.isDestroyed()) return null;
+  try {
+    return await mainWindow.webContents.executeJavaScript('localStorage.getItem("token")');
+  } catch {
+    return null;
+  }
+}
+
+function apiRequestAuthed(method, apiPath, body) {
+  return getAuthToken().then((token) => {
+    if (!token) return Promise.reject(new Error("Faça login no terminal principal antes de configurar impressoras."));
+    return apiRequest(method, apiPath, body, token);
   });
 }
 
@@ -235,13 +259,13 @@ function openPrinterConfigWindow() {
   }
   printerConfigWindow = new BrowserWindow({
     width: 480,
-    height: 620,
+    height: 760,
     resizable: false,
     minimizable: false,
     maximizable: false,
     parent: mainWindow,
     modal: false,
-    title: "Configurar Impressora",
+    title: "Configurar Impressoras",
     icon: path.join(__dirname, "icon.png"),
     webPreferences: {
       preload: path.join(__dirname, "preload.cjs"),
@@ -314,7 +338,7 @@ function buildMenu() {
           },
         },
         { type: "separator" },
-        { label: "Configurar Impressora...", click: () => openPrinterConfigWindow() },
+        { label: "Configurar Impressoras...", click: () => openPrinterConfigWindow() },
         { label: "Vincular Dispositivo...", click: () => openPairingWindow() },
         { type: "separator" },
         {
@@ -406,14 +430,35 @@ ipcMain.handle("printer:test", async (_e, cfg) => {
   return printerModule.testConnection(config);
 });
 
+// Resolve qual config de impressora térmica usar pro cupom de venda — prioriza
+// uma impressora role "receipt" cadastrada no novo sistema (multi-impressora,
+// backend), caindo pro config.json legado (impressora única, pré-atualização)
+// quando o terminal ainda não foi pareado ou não tem nenhuma cadastrada assim.
+// Mantém quem já usava impressora funcionando sem precisar reconfigurar nada.
+async function resolveReceiptPrinterConfig() {
+  try {
+    const terminal = getPairedTerminal();
+    if (terminal?.id) {
+      const terminals = await apiRequestAuthed("GET", "/desktop-terminals");
+      const mine = Array.isArray(terminals) ? terminals.find((t) => t.id === terminal.id) : null;
+      const printers = mine?.printers || [];
+      const printer = printers.find((p) => p.role === "receipt" && p.is_default) || printers.find((p) => p.role === "receipt");
+      if (printer) return printer.config;
+    }
+  } catch {
+    // sem terminal pareado, sem conexão, etc. — cai pro legado abaixo
+  }
+  return getPrinterConfig();
+}
+
 ipcMain.handle("printer:print-receipt", async (_e, text) => {
-  const config = getPrinterConfig();
+  const config = await resolveReceiptPrinterConfig();
   if (!config) return { ok: false, error: "Nenhuma impressora térmica configurada" };
   return printerModule.printReceipt(text, config);
 });
 
 ipcMain.handle("printer:open-drawer", async () => {
-  const config = getPrinterConfig();
+  const config = await resolveReceiptPrinterConfig();
   if (!config) return { ok: false, error: "Nenhuma impressora térmica configurada" };
   return printerModule.openCashDrawer(config);
 });
@@ -445,6 +490,77 @@ ipcMain.handle("pairing:check-status", async () => {
     return result;
   } catch (err) {
     return { paired: false, error: err.message };
+  }
+});
+
+// ─── Printers IPC (múltiplas impressoras, CRUD no backend) ──────────────────
+// A lista de impressoras mora no backend (DesktopPrinter), não mais só no
+// config.json local — precisa do terminal já pareado pra funcionar.
+function requirePairedTerminalId() {
+  const terminal = getPairedTerminal();
+  if (!terminal?.id) throw new Error("Este terminal ainda não está vinculado. Use Vincular Dispositivo primeiro.");
+  return terminal.id;
+}
+
+ipcMain.handle("printers:list", async () => {
+  try {
+    const terminalId = requirePairedTerminalId();
+    const terminals = await apiRequestAuthed("GET", "/desktop-terminals");
+    const mine = Array.isArray(terminals) ? terminals.find((t) => t.id === terminalId) : null;
+    return { ok: true, printers: mine?.printers || [] };
+  } catch (err) {
+    return { ok: false, error: err.message, printers: [] };
+  }
+});
+
+ipcMain.handle("printers:create", async (_e, printer) => {
+  try {
+    const terminalId = requirePairedTerminalId();
+    const result = await apiRequestAuthed("POST", `/desktop-terminals/${terminalId}/printers`, printer);
+    return { ok: true, printer: result };
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
+});
+
+ipcMain.handle("printers:update", async (_e, printerId, printer) => {
+  try {
+    const terminalId = requirePairedTerminalId();
+    await apiRequestAuthed("PUT", `/desktop-terminals/${terminalId}/printers/${printerId}`, printer);
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
+});
+
+ipcMain.handle("printers:delete", async (_e, printerId) => {
+  try {
+    const terminalId = requirePairedTerminalId();
+    await apiRequestAuthed("DELETE", `/desktop-terminals/${terminalId}/printers/${printerId}`);
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
+});
+
+ipcMain.handle("printers:test", async (_e, config) => printerModule.testConnection(config));
+
+// Imprime num cupom térmico pelo "papel" (role) da impressora, não pela impressora
+// especificamente — quem chama não precisa saber qual impressora física está
+// configurada, só que quer imprimir "o cupom de venda" (role receipt). Vale só
+// pra impressoras térmicas (ESC/POS); role "service_order" (A4) usa a impressora
+// padrão do Windows via window.print() direto no renderer, não passa por aqui.
+ipcMain.handle("printers:print-by-role", async (_e, role, text) => {
+  try {
+    const terminalId = requirePairedTerminalId();
+    const terminals = await apiRequestAuthed("GET", "/desktop-terminals");
+    const mine = Array.isArray(terminals) ? terminals.find((t) => t.id === terminalId) : null;
+    const printers = mine?.printers || [];
+    const printer = printers.find((p) => p.role === role && p.is_default) || printers.find((p) => p.role === role);
+    if (!printer) return { ok: false, error: `Nenhuma impressora térmica configurada para "${role}" neste terminal` };
+    return printerModule.printReceipt(text, printer.config);
+  } catch (err) {
+    return { ok: false, error: err.message };
   }
 });
 

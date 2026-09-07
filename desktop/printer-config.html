@@ -2,19 +2,19 @@
 <html lang="pt-BR">
 <head>
   <meta charset="UTF-8" />
-  <title>Configurar Impressora</title>
+  <title>Configurar Impressoras</title>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; font-family: -apple-system, "Segoe UI", Roboto, sans-serif; }
     body {
-      min-height: 100vh; padding: 28px;
+      min-height: 100vh; padding: 24px;
       background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%); color: #e2e8f0;
     }
     h1 { font-size: 15px; font-weight: 900; text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 4px; }
-    p.sub { font-size: 11px; color: #94a3b8; margin-bottom: 20px; line-height: 1.5; }
+    p.sub { font-size: 11px; color: #94a3b8; margin-bottom: 18px; line-height: 1.5; }
     label { display: block; font-size: 9px; font-weight: 900; text-transform: uppercase; letter-spacing: 0.18em; color: #64748b; margin-bottom: 6px; margin-top: 14px; }
     label:first-of-type { margin-top: 0; }
     select, input {
-      width: 100%; height: 42px; padding: 0 14px; font-size: 13px; font-weight: 600;
+      width: 100%; height: 40px; padding: 0 14px; font-size: 13px; font-weight: 600;
       background: rgba(15,23,42,0.6); border: 1px solid #334155; border-radius: 12px;
       color: #f1f5f9; outline: none; transition: border-color .2s;
     }
@@ -22,79 +22,132 @@
     input::placeholder { color: #475569; font-weight: 400; }
     .row { display: flex; gap: 10px; }
     .row > div { flex: 1; }
-    .transport-group { display: flex; gap: 8px; margin-top: 6px; }
+    .transport-group { display: flex; gap: 6px; margin-top: 6px; }
     .transport-btn {
-      flex: 1; height: 40px; border-radius: 10px; border: 1px solid #334155;
-      background: rgba(15,23,42,0.4); color: #94a3b8; font-size: 11px; font-weight: 800;
-      text-transform: uppercase; letter-spacing: 0.08em; cursor: pointer; transition: all .15s;
+      flex: 1; height: 36px; border-radius: 10px; border: 1px solid #334155;
+      background: rgba(15,23,42,0.4); color: #94a3b8; font-size: 10px; font-weight: 800;
+      text-transform: uppercase; letter-spacing: 0.06em; cursor: pointer; transition: all .15s;
     }
     .transport-btn.active { background: #1d4ed8; border-color: #1d4ed8; color: #fff; }
     #serialFields, #networkFields { display: none; margin-top: 4px; }
     button.primary {
-      width: 100%; height: 46px; margin-top: 20px; border: none; border-radius: 12px;
+      width: 100%; height: 44px; margin-top: 16px; border: none; border-radius: 12px;
       background: linear-gradient(135deg, #3b82f6, #1d4ed8); color: #fff;
       font-size: 11px; font-weight: 900; text-transform: uppercase; letter-spacing: 0.15em;
       cursor: pointer; transition: opacity .2s;
     }
     button.secondary {
-      width: 100%; height: 42px; margin-top: 8px; border-radius: 12px;
+      width: 100%; height: 40px; margin-top: 8px; border-radius: 12px;
       background: rgba(255,255,255,0.06); border: 1px solid #334155; color: #cbd5e1;
       font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.12em;
       cursor: pointer; transition: opacity .2s;
     }
     button:disabled { opacity: 0.5; cursor: wait; }
     .msg {
-      display: none; margin-top: 14px; padding: 12px 14px; font-size: 11px; line-height: 1.4;
+      display: none; margin-top: 12px; padding: 10px 14px; font-size: 11px; line-height: 1.4;
       border-radius: 12px;
     }
     .msg.error { background: rgba(244,63,94,0.12); border: 1px solid rgba(244,63,94,0.3); color: #fda4af; }
     .msg.success { background: rgba(16,185,129,0.12); border: 1px solid rgba(16,185,129,0.3); color: #6ee7b7; }
     .refresh-link { font-size: 10px; color: #60a5fa; cursor: pointer; text-decoration: underline; margin-top: 6px; display: inline-block; }
+
+    .list { margin-bottom: 18px; }
+    .printer-item {
+      display: flex; align-items: center; gap: 10px; padding: 10px 12px; margin-bottom: 6px;
+      background: rgba(15,23,42,0.5); border: 1px solid #334155; border-radius: 12px; cursor: pointer;
+    }
+    .printer-item:hover { border-color: #475569; }
+    .printer-item .name { font-size: 12px; font-weight: 700; flex: 1; }
+    .printer-item .role { font-size: 8px; font-weight: 900; text-transform: uppercase; letter-spacing: 0.1em; padding: 3px 8px; border-radius: 999px; }
+    .printer-item .role.receipt { background: rgba(59,130,246,0.2); color: #93c5fd; }
+    .printer-item .role.service_order { background: rgba(217,119,6,0.2); color: #fbbf24; }
+    .printer-item .role.custom { background: rgba(100,116,139,0.2); color: #cbd5e1; }
+    .printer-item .default-tag { font-size: 8px; color: #6ee7b7; font-weight: 900; }
+    .printer-item .del-btn { color: #64748b; font-size: 14px; cursor: pointer; }
+    .printer-item .del-btn:hover { color: #fda4af; }
+    .add-link {
+      font-size: 10px; color: #60a5fa; cursor: pointer; text-align: center; padding: 10px;
+      border: 1px dashed #334155; border-radius: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.1em;
+    }
+    .form-box { display: none; border-top: 1px solid #334155; padding-top: 16px; }
+    .checkbox-row { display: flex; align-items: center; gap: 8px; margin-top: 14px; }
+    .checkbox-row input[type="checkbox"] { width: auto; height: auto; }
+    .checkbox-row label { margin: 0; }
+    .actions-row { display: flex; gap: 8px; margin-top: 16px; }
+    .actions-row button { margin-top: 0; }
   </style>
 </head>
 <body>
-  <h1>Impressora Térmica (Cupom)</h1>
-  <p class="sub">Configure a impressora usada para imprimir o cupom não fiscal e acionar a gaveta de dinheiro. A impressão em A4 continua usando a impressora padrão do Windows.</p>
+  <h1>Impressoras deste terminal</h1>
+  <p class="sub">Configure quantas impressoras precisar — uma pra cupom de venda (térmica), outra pra Ordem de Serviço (A4), etc. Bluetooth pareado aparece como porta USB/Serial normal.</p>
 
-  <label>Marca / Compatibilidade</label>
-  <select id="brand">
-    <option value="epson">Epson (padrão — compatível com Elgin, Bematech)</option>
-    <option value="daruma">Daruma</option>
-    <option value="star">Star</option>
-    <option value="tanca">Tanca</option>
-  </select>
+  <div class="list" id="printerList"></div>
+  <div class="add-link" id="addLink" onclick="showForm()">+ Adicionar impressora</div>
 
-  <label>Conexão</label>
-  <div class="transport-group">
-    <button type="button" class="transport-btn active" data-transport="serial" onclick="setTransport('serial')">USB / Serial</button>
-    <button type="button" class="transport-btn" data-transport="network" onclick="setTransport('network')">Rede (Wi-Fi/Ethernet)</button>
-  </div>
+  <div class="form-box" id="formBox">
+    <label>Nome (rótulo)</label>
+    <input id="label" type="text" placeholder="Ex: Térmica Balcão, A4 Ordens de Serviço" />
 
-  <div id="serialFields">
-    <label>Porta COM</label>
-    <select id="serialPort"></select>
-    <span class="refresh-link" onclick="loadPorts()">Atualizar lista de portas</span>
-  </div>
+    <label>Uso</label>
+    <select id="role">
+      <option value="receipt">Cupom de venda (térmica)</option>
+      <option value="service_order">Ordem de Serviço (A4)</option>
+      <option value="custom">Outro</option>
+    </select>
 
-  <div id="networkFields">
-    <div class="row">
-      <div>
-        <label>Endereço IP</label>
-        <input id="networkHost" type="text" placeholder="192.168.1.50" />
+    <div id="thermalFields">
+      <label>Marca / Compatibilidade</label>
+      <select id="brand">
+        <option value="epson">Epson (padrão — compatível com Elgin, Bematech)</option>
+        <option value="daruma">Daruma</option>
+        <option value="star">Star</option>
+        <option value="tanca">Tanca</option>
+      </select>
+
+      <label>Conexão</label>
+      <div class="transport-group">
+        <button type="button" class="transport-btn active" data-transport="serial" onclick="setTransport('serial')">USB / Serial / Bluetooth</button>
+        <button type="button" class="transport-btn" data-transport="network" onclick="setTransport('network')">Rede (Wi-Fi/Ethernet)</button>
       </div>
-      <div>
-        <label>Porta</label>
-        <input id="networkPort" type="text" placeholder="9100" value="9100" />
+
+      <div id="serialFields">
+        <label>Porta COM</label>
+        <select id="serialPort"></select>
+        <span class="refresh-link" onclick="loadPorts()">Atualizar lista de portas</span>
+      </div>
+
+      <div id="networkFields">
+        <div class="row">
+          <div>
+            <label>Endereço IP</label>
+            <input id="networkHost" type="text" placeholder="192.168.1.50" />
+          </div>
+          <div>
+            <label>Porta</label>
+            <input id="networkPort" type="text" placeholder="9100" value="9100" />
+          </div>
+        </div>
       </div>
     </div>
-  </div>
 
-  <button class="secondary" id="testBtn" onclick="testPrinter()">Testar Impressão</button>
-  <button class="primary" id="saveBtn" onclick="saveConfig()">Salvar Configuração</button>
-  <div id="msg" class="msg"></div>
+    <div class="checkbox-row">
+      <input id="isDefault" type="checkbox" checked />
+      <label for="isDefault" style="margin:0">Usar como padrão pra esse uso</label>
+    </div>
+
+    <div id="msg" class="msg"></div>
+
+    <div class="actions-row">
+      <button class="secondary" id="testBtn" onclick="testPrinter()">Testar</button>
+      <button class="primary" id="saveBtn" onclick="savePrinter()">Salvar</button>
+    </div>
+    <button class="secondary" onclick="hideForm()">Cancelar</button>
+  </div>
 
   <script>
     let currentTransport = "serial";
+    let printers = [];
+    let editingId = null;
 
     function setTransport(t) {
       currentTransport = t;
@@ -120,13 +173,40 @@
       });
     }
 
+    const ROLE_LABELS = { receipt: "Cupom", service_order: "Ordem de Serviço", custom: "Outro" };
+
+    function renderList() {
+      const list = document.getElementById("printerList");
+      list.innerHTML = "";
+      printers.forEach((p) => {
+        const item = document.createElement("div");
+        item.className = "printer-item";
+        item.innerHTML = `
+          <span class="name">${p.label}</span>
+          ${p.is_default ? '<span class="default-tag">PADRÃO</span>' : ""}
+          <span class="role ${p.role}">${ROLE_LABELS[p.role] || p.role}</span>
+          <span class="del-btn" data-del="${p.id}">✕</span>
+        `;
+        item.addEventListener("click", (e) => {
+          if (e.target.dataset.del) { e.stopPropagation(); deletePrinter(p.id); return; }
+          editPrinter(p);
+        });
+        list.appendChild(item);
+      });
+    }
+
     function readForm() {
       return {
-        brand: document.getElementById("brand").value,
-        transport: currentTransport,
-        serialPort: document.getElementById("serialPort").value,
-        networkHost: document.getElementById("networkHost").value.trim(),
-        networkPort: Number(document.getElementById("networkPort").value) || 9100,
+        label: document.getElementById("label").value.trim(),
+        role: document.getElementById("role").value,
+        is_default: document.getElementById("isDefault").checked,
+        config: {
+          brand: document.getElementById("brand").value,
+          transport: currentTransport,
+          serialPort: document.getElementById("serialPort").value,
+          networkHost: document.getElementById("networkHost").value.trim(),
+          networkPort: Number(document.getElementById("networkPort").value) || 9100,
+        },
       };
     }
 
@@ -137,37 +217,86 @@
       el.style.display = "block";
     }
 
+    function showForm() {
+      editingId = null;
+      document.getElementById("label").value = "";
+      document.getElementById("role").value = "receipt";
+      document.getElementById("isDefault").checked = true;
+      setTransport("serial");
+      document.getElementById("msg").style.display = "none";
+      document.getElementById("formBox").style.display = "block";
+      document.getElementById("addLink").style.display = "none";
+    }
+
+    function hideForm() {
+      document.getElementById("formBox").style.display = "none";
+      document.getElementById("addLink").style.display = "block";
+    }
+
+    function editPrinter(p) {
+      editingId = p.id;
+      document.getElementById("label").value = p.label;
+      document.getElementById("role").value = p.role;
+      document.getElementById("isDefault").checked = !!p.is_default;
+      document.getElementById("brand").value = p.config?.brand || "epson";
+      setTransport(p.config?.transport || "serial");
+      if (p.config?.serialPort) document.getElementById("serialPort").value = p.config.serialPort;
+      if (p.config?.networkHost) document.getElementById("networkHost").value = p.config.networkHost;
+      if (p.config?.networkPort) document.getElementById("networkPort").value = p.config.networkPort;
+      document.getElementById("msg").style.display = "none";
+      document.getElementById("formBox").style.display = "block";
+      document.getElementById("addLink").style.display = "none";
+    }
+
     async function testPrinter() {
       const btn = document.getElementById("testBtn");
       btn.disabled = true;
       btn.textContent = "Testando...";
-      const result = await window.boxsysDesktop.testPrinter(readForm());
+      const form = readForm();
+      const result = await window.boxsysDesktop.testPrinterConfig(form.config);
       btn.disabled = false;
-      btn.textContent = "Testar Impressão";
+      btn.textContent = "Testar";
       if (result.ok) showMsg("Impressora conectada com sucesso!", "success");
       else showMsg(result.error || "Não foi possível conectar à impressora.", "error");
     }
 
-    async function saveConfig() {
+    async function savePrinter() {
+      const form = readForm();
+      if (!form.label) { showMsg("Informe um nome para a impressora.", "error"); return; }
       const btn = document.getElementById("saveBtn");
       btn.disabled = true;
       btn.textContent = "Salvando...";
-      await window.boxsysDesktop.savePrinterConfig(readForm());
+      const result = editingId
+        ? await window.boxsysDesktop.updatePrinter(editingId, form)
+        : await window.boxsysDesktop.createPrinter(form);
       btn.disabled = false;
-      btn.textContent = "Salvar Configuração";
-      showMsg("Configuração salva.", "success");
+      btn.textContent = "Salvar";
+      if (result.ok) {
+        await refreshList();
+        hideForm();
+      } else {
+        showMsg(result.error || "Não foi possível salvar.", "error");
+      }
+    }
+
+    async function deletePrinter(id) {
+      await window.boxsysDesktop.deletePrinter(id);
+      await refreshList();
+    }
+
+    async function refreshList() {
+      const result = await window.boxsysDesktop.listPrinters();
+      printers = result.printers || [];
+      renderList();
+      if (!result.ok && result.error) {
+        document.getElementById("printerList").innerHTML =
+          `<p style="font-size:11px;color:#fda4af;padding:10px;">${result.error}</p>`;
+      }
     }
 
     (async function init() {
       await loadPorts();
-      const cfg = await window.boxsysDesktop.getPrinterConfig();
-      if (cfg) {
-        document.getElementById("brand").value = cfg.brand || "epson";
-        setTransport(cfg.transport || "serial");
-        if (cfg.serialPort) document.getElementById("serialPort").value = cfg.serialPort;
-        if (cfg.networkHost) document.getElementById("networkHost").value = cfg.networkHost;
-        if (cfg.networkPort) document.getElementById("networkPort").value = cfg.networkPort;
-      }
+      await refreshList();
     })();
   </script>
 </body>
