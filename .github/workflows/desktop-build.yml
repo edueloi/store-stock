@@ -35,7 +35,11 @@ jobs:
           node-version: 22
 
       - name: Install dependencies
-        run: npm install
+        # --ignore-scripts: nenhum módulo nativo do projeto precisa de compilação (serialport
+        # e better-sqlite3 são N-API, com prebuilds prontos por plataforma) — sem isso, o npm
+        # às vezes ignora "gypfile": false e tenta rodar node-gyp rebuild de qualquer jeito,
+        # o que trava (sem Visual Studio Build Tools) ou falha (bug conhecido do npm).
+        run: npm install --ignore-scripts
 
       - name: Build and publish installers
         # --publish always: publica direto no GitHub Release da tag (cria se não existir),
