@@ -12,6 +12,7 @@ import SetupInvite from "./views/Auth/SetupInvite";
 import QuoteApproval from "./views/Public/QuoteApproval";
 import { getStoredUser } from "./lib/session";
 import { isTenantSubdomainHost } from "./views/Store/store-routing";
+import { useRemotePrintBridge } from "./hooks/useRemotePrintBridge";
 
 function HostAwareEntry() {
   if (isTenantSubdomainHost()) {
@@ -36,6 +37,8 @@ function HostAwareEntry() {
 }
 
 export default function App() {
+  useRemotePrintBridge();
+
   return (
     <BrowserRouter>
       <Routes>

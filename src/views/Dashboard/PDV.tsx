@@ -22,6 +22,7 @@ import CloseCashSessionModal from "../../components/pdv/CloseCashSessionModal";
 import HeldSalesDrawer from "../../components/pdv/HeldSalesDrawer";
 import { cancelHeldSale, createHeldSale, getOpenHeldSalesCount, type HeldSale } from "../../lib/heldSales";
 import { onRealtimeAny } from "../../lib/realtime";
+import { fetchRemotePrintTerminals, requestRemotePrint, type RemotePrintTerminal } from "../../lib/remotePrint";
 
 function maskPhone(v: string) {
   const d = v.replace(/\D/g, "").slice(0, 11);
@@ -290,6 +291,8 @@ export default function PDV() {
   const [nfceEmitting, setNfceEmitting]   = useState(false);
   const [nfceEmitError, setNfceEmitError] = useState<string | null>(null);
   const [printError, setPrintError]       = useState<string | null>(null);
+  const [remoteTerminals, setRemoteTerminals] = useState<RemotePrintTerminal[]>([]);
+  const [remotePrintSending, setRemotePrintSending] = useState<number | null>(null);
   const [whatsappPhone, setWhatsappPhone] = useState("");
   const [showPhoneInput, setShowPhoneInput] = useState(false);
   const [waBotConnected, setWaBotConnected] = useState<boolean | null>(null);
@@ -1433,6 +1436,24 @@ export default function PDV() {
     if (!window.boxsysDesktop?.openCashDrawer) return;
     const result = await window.boxsysDesktop.openCashDrawer();
     if (!result.ok) setPrintError(result.error || "Falha ao abrir a gaveta.");
+  };
+
+  // Terminais desktop pareados que tenham uma impressora "receipt" — só faz
+  // sentido oferecer quando este navegador/celular não tem impressora própria.
+  useEffect(() => {
+    if (window.boxsysDesktop || !token) return;
+    fetchRemotePrintTerminals(token)
+      .then((terminals) => setRemoteTerminals(terminals.filter((t) => t.printers.some((p) => p.role === "receipt"))))
+      .catch(() => {});
+  }, [token]);
+
+  const handleRemotePrint = async (sale: CompletedSale, terminalId: number) => {
+    if (!token) return;
+    setRemotePrintSending(terminalId);
+    setPrintError(null);
+    const result = await requestRemotePrint(token, terminalId, "receipt", buildThermalText(sale));
+    setRemotePrintSending(null);
+    if (!result.ok) setPrintError(result.error || "Falha ao pedir impressão remota.");
   };
 
   // ── finish sale ───────────────────────────────────────────────────────────────
@@ -3620,6 +3641,27 @@ export default function PDV() {
                     </div>
                     <ChevronRight size={15} className="text-slate-300 group-hover:text-slate-500 shrink-0" />
                   </button>
+                )}
+
+                {remoteTerminals.length > 0 && (
+                  <>
+                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] pb-1 pt-1">Imprimir em Outro Terminal</p>
+                    {remoteTerminals.map((terminal) => (
+                      <button key={terminal.id}
+                        onClick={() => handleRemotePrint(completedSale, terminal.id)}
+                        disabled={remotePrintSending === terminal.id}
+                        className="w-full flex items-center gap-3.5 h-16 bg-slate-50 hover:bg-slate-100 active:scale-[0.98] disabled:opacity-60 border border-slate-200 rounded-2xl px-4 transition-all group">
+                        <div className="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center shrink-0 group-hover:bg-indigo-700 transition-colors">
+                          {remotePrintSending === terminal.id ? <Loader2 size={17} className="text-white animate-spin" /> : <Printer size={17} className="text-white" />}
+                        </div>
+                        <div className="text-left flex-1 min-w-0">
+                          <p className="text-[12px] font-black text-slate-900 uppercase tracking-wide">{terminal.name}</p>
+                          <p className="text-[10px] text-slate-400 font-medium">Enviar cupom para este terminal</p>
+                        </div>
+                        <ChevronRight size={15} className="text-slate-300 group-hover:text-slate-500 shrink-0" />
+                      </button>
+                    ))}
+                  </>
                 )}
 
                 {printError && (

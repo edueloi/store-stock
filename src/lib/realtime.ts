@@ -16,7 +16,8 @@ export type RealtimeEvent =
   | "service-order:changed"
   | "consignment:changed"
   | "nfce:changed"
-  | "nfse:changed";
+  | "nfse:changed"
+  | "print:requested";
 
 let socket: Socket | null = null;
 let socketToken: string | null = null;

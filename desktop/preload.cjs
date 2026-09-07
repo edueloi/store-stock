@@ -26,6 +26,7 @@ contextBridge.exposeInMainWorld("boxsysDesktop", {
   updatePrinter: (printerId, printer) => ipcRenderer.invoke("printers:update", printerId, printer),
   deletePrinter: (printerId) => ipcRenderer.invoke("printers:delete", printerId),
   testPrinterConfig: (config) => ipcRenderer.invoke("printers:test", config),
+  printByRole: (role, text) => ipcRenderer.invoke("printers:print-by-role", role, text),
 
   // Banco local (SQLite) — cache de catálogo e fila de operações offline
   dbSaveCache: (key, value) => ipcRenderer.invoke("db:save-cache", key, value),

@@ -21,7 +21,8 @@ export type RealtimeEvent =
   | "service-order:changed"  // ordem de serviço criada ou com status alterado
   | "consignment:changed"    // consignação criada, editada ou liquidada
   | "nfce:changed"           // NFC-e emitida, autorizada, rejeitada ou cancelada
-  | "nfse:changed";          // NFS-e emitida, autorizada, rejeitada ou cancelada
+  | "nfse:changed"           // NFS-e emitida, autorizada, rejeitada ou cancelada
+  | "print:requested";       // pedido de impressão remota pra um terminal desktop específico
 
 let io: SocketIOServer | null = null;
 
