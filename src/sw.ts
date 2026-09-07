@@ -42,8 +42,8 @@ self.addEventListener("push", (event) => {
   event.waitUntil(
     self.registration.showNotification(payload.title || "BoxSys PDV", {
       body: payload.body || "",
-      icon: "/logo-boxsys-vazado.png",
-      badge: "/logo-boxsys-vazado.png",
+      icon: "/system/logo-any-512.png",
+      badge: "/system/logo-any-192.png",
       data: { url: payload.url || "/" },
     })
   );

@@ -687,7 +687,7 @@ export default function AdminDashboard() {
           isSidebarOpen ? "px-4" : "px-0 justify-center"
         )}>
           <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-white shadow-md">
-            <img src="/system/logo.png" alt="BoxSys" className="h-5 w-5 object-contain" />
+            <img src="/system/logo-any-512.png" alt="BoxSys" className="h-5 w-5 object-contain" />
           </div>
           {isSidebarOpen && (
             <div className="min-w-0">
@@ -769,7 +769,9 @@ export default function AdminDashboard() {
             {/* Logo mobile */}
             <div className="flex items-center justify-between border-b border-white/5 px-4 h-16 shrink-0">
               <div className="flex items-center gap-3">
-                <img src="/system/logo.png" alt="BoxSys" className="h-7 w-7 object-contain rounded-lg" />
+                <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-white shadow-md">
+                  <img src="/system/logo-any-512.png" alt="BoxSys" className="h-5 w-5 object-contain" />
+                </div>
                 <div>
                   <p className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-500 leading-none">Box Sys</p>
                   <p className="text-[13px] font-bold text-white leading-tight truncate mt-0.5">{tenantName}</p>

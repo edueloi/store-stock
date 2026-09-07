@@ -75,7 +75,7 @@ export default function WelcomeScreen({
           className="relative"
         >
           <div className="flex h-24 w-24 items-center justify-center rounded-[2rem] bg-white shadow-[0_0_60px_rgba(201,162,39,0.3)]">
-            <img src="/system/logo.png" alt="BoxSys" className="h-16 w-16 object-contain" />
+            <img src="/system/logo-any-512.png" alt="BoxSys" className="h-16 w-16 object-contain" />
           </div>
           <AnimatePresence>
             {done && (

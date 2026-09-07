@@ -86,7 +86,7 @@ export default function LoginLoading({ onDone }: LoginLoadingProps) {
           className="flex h-28 w-28 items-center justify-center rounded-[2rem] bg-white shadow-[0_8px_40px_rgba(0,0,0,0.10)]"
         >
           <img
-            src="/system/logo.png"
+            src="/system/logo-any-512.png"
             alt="BoxSys"
             className="h-16 w-16 object-contain"
           />

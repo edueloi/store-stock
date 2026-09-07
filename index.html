@@ -14,11 +14,12 @@
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="BoxSys PDV" />
-    <link rel="icon" type="image/png" href="/system/logo.png" />
-    <link rel="apple-touch-icon" href="/system/logo.png" />
-    <link rel="apple-touch-icon" sizes="152x152" href="/system/logo.png" />
-    <link rel="apple-touch-icon" sizes="180x180" href="/system/logo.png" />
-    <link rel="apple-touch-icon" sizes="167x167" href="/system/logo.png" />
+    <link rel="icon" type="image/png" href="/system/logo-any-512.png" />
+    <!-- apple-touch-icon nunca suporta transparência (o iOS preenche com preto) — sempre a versão com fundo branco sólido -->
+    <link rel="apple-touch-icon" href="/system/logo-maskable-192.png" />
+    <link rel="apple-touch-icon" sizes="152x152" href="/system/logo-maskable-192.png" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/system/logo-maskable-192.png" />
+    <link rel="apple-touch-icon" sizes="167x167" href="/system/logo-maskable-192.png" />
     <title>BoxSys Store</title>
     <!-- PWA manifest: /pdv route gets the landscape PDV-only manifest, everything else gets the full-system manifest -->
     <script>
