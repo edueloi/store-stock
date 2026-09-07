@@ -406,17 +406,17 @@ function NfceTabContent() {
         )}
 
         <div className="hidden lg:block overflow-x-auto">
-          <table className="w-full text-left border-collapse table-fixed">
+          <table className="w-full min-w-[1080px] text-left border-collapse table-fixed">
             <colgroup>
               <col className="w-8" />
               <col className="w-14" />
               <col className="w-12" />
               <col className="w-24" />
               <col className="w-24" />
-              <col className="w-[18%]" />
+              <col className="w-[16%]" />
               <col className="w-32" />
-              <col className="w-28" />
-              <col className="w-48" />
+              <col className="w-32" />
+              <col className="w-64" />
             </colgroup>
             <thead>
               <tr className="border-t border-slate-100 bg-slate-50/60">
@@ -972,17 +972,17 @@ function NfseTabContent() {
         )}
 
         <div className="hidden lg:block overflow-x-auto">
-          <table className="w-full text-left border-collapse table-fixed">
+          <table className="w-full min-w-[1080px] text-left border-collapse table-fixed">
             <colgroup>
               <col className="w-8" />
               <col className="w-14" />
               <col className="w-12" />
               <col className="w-24" />
               <col className="w-32" />
-              <col className="w-[18%]" />
+              <col className="w-[16%]" />
               <col className="w-32" />
-              <col className="w-28" />
-              <col className="w-52" />
+              <col className="w-32" />
+              <col className="w-64" />
             </colgroup>
             <thead>
               <tr className="border-t border-slate-100 bg-slate-50/60">
