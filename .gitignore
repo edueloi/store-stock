@@ -12,3 +12,4 @@ public/downloads/*
 !public/downloads/.gitkeep
 rede-itau/
 certs/
+.claude/settings.local.json
