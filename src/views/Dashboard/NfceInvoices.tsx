@@ -405,8 +405,8 @@ function NfceTabContent() {
           </div>
         )}
 
-        <div className="hidden lg:block overflow-x-auto">
-          <table className="w-full min-w-[1080px] text-left border-collapse table-fixed">
+        <div className="hidden lg:block overflow-auto max-h-[70vh]">
+          <table className="w-full min-w-[1220px] text-left border-collapse table-fixed">
             <colgroup>
               <col className="w-8" />
               <col className="w-14" />
@@ -416,10 +416,10 @@ function NfceTabContent() {
               <col className="w-[16%]" />
               <col className="w-32" />
               <col className="w-32" />
-              <col className="w-64" />
+              <col className="w-80" />
             </colgroup>
             <thead>
-              <tr className="border-t border-slate-100 bg-slate-50/60">
+              <tr className="sticky top-0 z-10 border-t border-slate-100 bg-slate-50">
                 <th className="px-4 py-2.5 w-8">
                   <input
                     type="checkbox"
@@ -484,7 +484,7 @@ function NfceTabContent() {
                       {inv.authorized_at ? new Date(inv.authorized_at).toLocaleString("pt-BR") : "—"}
                     </td>
                     <td className="px-4 py-2.5 pr-5">
-                      <div className="flex items-center gap-2 justify-end flex-wrap">
+                      <div className="flex items-center gap-2 justify-end flex-nowrap shrink-0">
                         {(inv.status === "error" || inv.status === "rejected") && (
                           <>
                             <button
@@ -971,8 +971,8 @@ function NfseTabContent() {
           </div>
         )}
 
-        <div className="hidden lg:block overflow-x-auto">
-          <table className="w-full min-w-[1080px] text-left border-collapse table-fixed">
+        <div className="hidden lg:block overflow-auto max-h-[70vh]">
+          <table className="w-full min-w-[1220px] text-left border-collapse table-fixed">
             <colgroup>
               <col className="w-8" />
               <col className="w-14" />
@@ -982,10 +982,10 @@ function NfseTabContent() {
               <col className="w-[16%]" />
               <col className="w-32" />
               <col className="w-32" />
-              <col className="w-64" />
+              <col className="w-80" />
             </colgroup>
             <thead>
-              <tr className="border-t border-slate-100 bg-slate-50/60">
+              <tr className="sticky top-0 z-10 border-t border-slate-100 bg-slate-50">
                 <th className="px-4 py-2.5 w-8">
                   <input
                     type="checkbox"
@@ -1050,7 +1050,7 @@ function NfseTabContent() {
                       {inv.authorized_at ? new Date(inv.authorized_at).toLocaleString("pt-BR") : "—"}
                     </td>
                     <td className="px-4 py-2.5 pr-5">
-                      <div className="flex items-center gap-2 justify-end flex-wrap">
+                      <div className="flex items-center gap-2 justify-end flex-nowrap shrink-0">
                         {(inv.status === "error" || inv.status === "rejected") && (
                           <>
                             <button
