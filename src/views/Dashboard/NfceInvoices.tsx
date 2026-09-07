@@ -405,7 +405,7 @@ function NfceTabContent() {
           </div>
         )}
 
-        <div className="overflow-x-auto">
+        <div className="hidden lg:block overflow-x-auto">
           <table className="w-full text-left border-collapse table-fixed">
             <colgroup>
               <col className="w-8" />
@@ -413,10 +413,10 @@ function NfceTabContent() {
               <col className="w-12" />
               <col className="w-24" />
               <col className="w-24" />
-              <col className="w-[22%]" />
+              <col className="w-[18%]" />
+              <col className="w-32" />
               <col className="w-28" />
-              <col className="w-24" />
-              <col className="w-40" />
+              <col className="w-48" />
             </colgroup>
             <thead>
               <tr className="border-t border-slate-100 bg-slate-50/60">
@@ -463,11 +463,11 @@ function NfceTabContent() {
                     <td className="px-4 py-2.5 text-[10px] font-mono text-slate-400 truncate" title={inv.access_key || undefined}>
                       {inv.access_key ? `${inv.access_key.slice(0, 8)}…${inv.access_key.slice(-6)}` : "—"}
                     </td>
-                    <td className="px-4 py-2.5">
+                    <td className="px-4 py-2.5 whitespace-nowrap">
                       <span
                         title={(inv.status === "error" || inv.status === "rejected") ? (inv.rejection_reason ?? undefined) : undefined}
                         className={cn(
-                          "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wide",
+                          "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wide whitespace-nowrap",
                           meta.bg, meta.color,
                           (inv.status === "error" || inv.status === "rejected") && inv.rejection_reason && "cursor-help",
                         )}
@@ -480,10 +480,10 @@ function NfceTabContent() {
                         </p>
                       )}
                     </td>
-                    <td className="px-4 py-2.5 text-xs text-slate-500 truncate">
+                    <td className="px-4 py-2.5 pl-6 text-xs text-slate-500 whitespace-nowrap">
                       {inv.authorized_at ? new Date(inv.authorized_at).toLocaleString("pt-BR") : "—"}
                     </td>
-                    <td className="px-4 py-2.5">
+                    <td className="px-4 py-2.5 pr-5">
                       <div className="flex items-center gap-2 justify-end flex-wrap">
                         {(inv.status === "error" || inv.status === "rejected") && (
                           <>
@@ -529,6 +529,103 @@ function NfceTabContent() {
               })}
             </tbody>
           </table>
+        </div>
+
+        {/* Mobile/tablet: cards empilhados em vez da tabela — a tabela fixa vira
+            colunas espremidas demais abaixo de lg, principalmente chave de acesso +
+            status + data lado a lado. */}
+        <div className="lg:hidden divide-y divide-slate-100">
+          {loading && (
+            <div className="px-4 py-10 text-center text-slate-400 text-xs">Carregando...</div>
+          )}
+          {!loading && filtered.length === 0 && (
+            <div className="px-4 py-10 text-center text-slate-400 text-xs">Nenhuma nota fiscal encontrada</div>
+          )}
+          {!loading && filtered.map((inv) => {
+            const meta = STATUS_META[inv.status];
+            return (
+              <div key={inv.id} className="p-4 space-y-3">
+                <div className="flex items-start gap-3">
+                  <input
+                    type="checkbox"
+                    checked={selected.has(inv.order_id)}
+                    onChange={() => toggleSelected(inv.order_id)}
+                    className="rounded border-slate-300 mt-1 shrink-0"
+                  />
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="text-xs font-mono font-black text-slate-700">Nº {inv.number}</span>
+                      <span className="text-[10px] font-mono text-slate-400">Série {inv.series}</span>
+                      <span className="text-[10px] font-mono text-blue-600">#{String(inv.order_id).padStart(6, "0")}</span>
+                    </div>
+                    <p className="text-xs font-bold text-slate-700 truncate mt-0.5">
+                      {inv.order?.customer_name || "Consumidor Final"}
+                    </p>
+                    <p className="text-[10px] font-mono text-slate-400 truncate mt-0.5">
+                      {inv.access_key ? `${inv.access_key.slice(0, 8)}…${inv.access_key.slice(-6)}` : "Sem chave de acesso"}
+                    </p>
+                  </div>
+                  <span
+                    className={cn(
+                      "shrink-0 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wide",
+                      meta.bg, meta.color,
+                    )}
+                  >
+                    {meta.icon} {meta.label}
+                  </span>
+                </div>
+
+                {(inv.status === "error" || inv.status === "rejected") && inv.rejection_reason && (
+                  <p className="text-[10px] text-rose-500 font-medium pl-7">{inv.rejection_reason}</p>
+                )}
+
+                <div className="flex items-center justify-between pl-7">
+                  <span className="text-[10px] text-slate-400 font-medium">
+                    {inv.authorized_at ? new Date(inv.authorized_at).toLocaleString("pt-BR") : "—"}
+                  </span>
+                  <div className="flex items-center gap-2 flex-wrap justify-end">
+                    {(inv.status === "error" || inv.status === "rejected") && (
+                      <>
+                        <button
+                          onClick={() => handleRetry(inv.order_id)}
+                          disabled={retrying === inv.order_id}
+                          className="h-8 px-3 bg-rose-600 hover:bg-rose-700 disabled:opacity-50 text-white rounded-lg text-[9px] font-black uppercase tracking-widest flex items-center gap-1.5 transition-all"
+                        >
+                          {retrying === inv.order_id ? <Loader2 size={12} className="animate-spin" /> : <RefreshCw size={12} />} Reemitir
+                        </button>
+                        <button
+                          onClick={() => { setDeleteTarget(inv); setDeleteError(null); }}
+                          className="h-8 px-3 bg-white border border-slate-200 hover:bg-slate-50 text-slate-500 rounded-lg text-[9px] font-black uppercase tracking-widest flex items-center gap-1.5 transition-all"
+                        >
+                          <Trash2 size={12} /> Excluir
+                        </button>
+                      </>
+                    )}
+                    {inv.status === "authorized" && (
+                      <>
+                        <button onClick={() => handleDownloadDanfe(inv)}
+                          className="h-8 px-3 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-[9px] font-black uppercase tracking-widest flex items-center gap-1.5 transition-all">
+                          <FileText size={12} /> DANFE
+                        </button>
+                        <button onClick={() => handleDownloadXml(inv)}
+                          className="h-8 px-3 bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 rounded-lg text-[9px] font-black uppercase tracking-widest flex items-center gap-1.5 transition-all">
+                          <FileCheck size={12} /> XML
+                        </button>
+                        {minutesSinceAuthorized(inv) <= PRAZO_CANCELAMENTO_MINUTOS && (
+                          <button
+                            onClick={() => { setCancelTarget(inv); setCancelReason(""); setCancelError(null); }}
+                            className="h-8 px-3 bg-white border border-rose-200 hover:bg-rose-50 text-rose-600 rounded-lg text-[9px] font-black uppercase tracking-widest flex items-center gap-1.5 transition-all"
+                          >
+                            <Ban size={12} /> Cancelar
+                          </button>
+                        )}
+                      </>
+                    )}
+                  </div>
+                </div>
+              </div>
+            );
+          })}
         </div>
       </div>
 
@@ -874,18 +971,18 @@ function NfseTabContent() {
           </div>
         )}
 
-        <div className="overflow-x-auto">
+        <div className="hidden lg:block overflow-x-auto">
           <table className="w-full text-left border-collapse table-fixed">
             <colgroup>
               <col className="w-8" />
               <col className="w-14" />
               <col className="w-12" />
               <col className="w-24" />
-              <col className="w-[22%]" />
-              <col className="w-28" />
-              <col className="w-24" />
               <col className="w-32" />
-              <col />
+              <col className="w-[18%]" />
+              <col className="w-32" />
+              <col className="w-28" />
+              <col className="w-52" />
             </colgroup>
             <thead>
               <tr className="border-t border-slate-100 bg-slate-50/60">
@@ -932,11 +1029,11 @@ function NfseTabContent() {
                     <td className="px-4 py-2.5 text-[10px] font-mono text-slate-400 truncate" title={inv.chave_acesso || undefined}>
                       {inv.chave_acesso ? `${inv.chave_acesso.slice(0, 8)}…${inv.chave_acesso.slice(-6)}` : "—"}
                     </td>
-                    <td className="px-4 py-2.5">
+                    <td className="px-4 py-2.5 whitespace-nowrap">
                       <span
                         title={(inv.status === "error" || inv.status === "rejected") ? (inv.rejection_reason ?? undefined) : undefined}
                         className={cn(
-                          "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wide",
+                          "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wide whitespace-nowrap",
                           meta.bg, meta.color,
                           (inv.status === "error" || inv.status === "rejected") && inv.rejection_reason && "cursor-help",
                         )}
@@ -949,10 +1046,10 @@ function NfseTabContent() {
                         </p>
                       )}
                     </td>
-                    <td className="px-4 py-2.5 text-xs text-slate-500 truncate">
+                    <td className="px-4 py-2.5 pl-6 text-xs text-slate-500 whitespace-nowrap">
                       {inv.authorized_at ? new Date(inv.authorized_at).toLocaleString("pt-BR") : "—"}
                     </td>
-                    <td className="px-4 py-2.5">
+                    <td className="px-4 py-2.5 pr-5">
                       <div className="flex items-center gap-2 justify-end flex-wrap">
                         {(inv.status === "error" || inv.status === "rejected") && (
                           <>
@@ -996,6 +1093,99 @@ function NfseTabContent() {
               })}
             </tbody>
           </table>
+        </div>
+
+        {/* Mobile/tablet: cards empilhados em vez da tabela */}
+        <div className="lg:hidden divide-y divide-slate-100">
+          {loading && (
+            <div className="px-4 py-10 text-center text-slate-400 text-xs">Carregando...</div>
+          )}
+          {!loading && filtered.length === 0 && (
+            <div className="px-4 py-10 text-center text-slate-400 text-xs">Nenhuma nota fiscal de serviço encontrada</div>
+          )}
+          {!loading && filtered.map((inv) => {
+            const meta = NFSE_STATUS_META[inv.status];
+            return (
+              <div key={inv.id} className="p-4 space-y-3">
+                <div className="flex items-start gap-3">
+                  <input
+                    type="checkbox"
+                    checked={selected.has(inv.service_order_id)}
+                    onChange={() => toggleSelected(inv.service_order_id)}
+                    className="rounded border-slate-300 mt-1 shrink-0"
+                  />
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="text-xs font-mono font-black text-slate-700">Nº {inv.numero}</span>
+                      <span className="text-[10px] font-mono text-slate-400">Série {inv.serie}</span>
+                      <span className="text-[10px] font-mono text-blue-600">#{String(inv.service_order_id).padStart(6, "0")}</span>
+                    </div>
+                    <p className="text-xs font-bold text-slate-700 truncate mt-0.5">
+                      {inv.service_order?.customer_name || "Consumidor Final"}
+                    </p>
+                    <p className="text-[10px] font-mono text-slate-400 truncate mt-0.5">
+                      {inv.chave_acesso ? `${inv.chave_acesso.slice(0, 8)}…${inv.chave_acesso.slice(-6)}` : "Sem chave de acesso"}
+                    </p>
+                  </div>
+                  <span
+                    className={cn(
+                      "shrink-0 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wide",
+                      meta.bg, meta.color,
+                    )}
+                  >
+                    {meta.icon} {meta.label}
+                  </span>
+                </div>
+
+                {(inv.status === "error" || inv.status === "rejected") && inv.rejection_reason && (
+                  <p className="text-[10px] text-rose-500 font-medium pl-7">{inv.rejection_reason}</p>
+                )}
+
+                <div className="flex items-center justify-between pl-7">
+                  <span className="text-[10px] text-slate-400 font-medium">
+                    {inv.authorized_at ? new Date(inv.authorized_at).toLocaleString("pt-BR") : "—"}
+                  </span>
+                  <div className="flex items-center gap-2 flex-wrap justify-end">
+                    {(inv.status === "error" || inv.status === "rejected") && (
+                      <>
+                        <button
+                          onClick={() => handleRetry(inv.service_order_id)}
+                          disabled={retrying === inv.service_order_id}
+                          className="h-8 px-3 bg-rose-600 hover:bg-rose-700 disabled:opacity-50 text-white rounded-lg text-[9px] font-black uppercase tracking-widest flex items-center gap-1.5 transition-all"
+                        >
+                          {retrying === inv.service_order_id ? <Loader2 size={12} className="animate-spin" /> : <RefreshCw size={12} />} Reemitir
+                        </button>
+                        <button
+                          onClick={() => { setDeleteTarget(inv); setDeleteError(null); }}
+                          className="h-8 px-3 bg-white border border-slate-200 hover:bg-slate-50 text-slate-500 rounded-lg text-[9px] font-black uppercase tracking-widest flex items-center gap-1.5 transition-all"
+                        >
+                          <Trash2 size={12} /> Excluir
+                        </button>
+                      </>
+                    )}
+                    {inv.status === "authorized" && (
+                      <>
+                        <button onClick={() => handleDownloadPdf(inv)}
+                          className="h-8 px-3 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-[9px] font-black uppercase tracking-widest flex items-center gap-1.5 transition-all">
+                          <FileText size={12} /> PDF
+                        </button>
+                        <button onClick={() => handleDownloadXml(inv)}
+                          className="h-8 px-3 bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 rounded-lg text-[9px] font-black uppercase tracking-widest flex items-center gap-1.5 transition-all">
+                          <FileCheck size={12} /> XML
+                        </button>
+                        <button
+                          onClick={() => { setCancelTarget(inv); setCancelReason(""); setCancelError(null); }}
+                          className="h-8 px-3 bg-white border border-rose-200 hover:bg-rose-50 text-rose-600 rounded-lg text-[9px] font-black uppercase tracking-widest flex items-center gap-1.5 transition-all"
+                        >
+                          <Ban size={12} /> Cancelar
+                        </button>
+                      </>
+                    )}
+                  </div>
+                </div>
+              </div>
+            );
+          })}
         </div>
       </div>
 
