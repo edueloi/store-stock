@@ -2,11 +2,11 @@ import React, { useState, useEffect, useCallback, useRef, useMemo } from "react"
 import { useSearchParams } from "react-router-dom";
 import {
   Store, Palette, Share2, Clock, CreditCard, Shield, Settings2,
-  Users, Save, Loader2, Search, Check, ChevronRight, Globe,
+  Users, Save, Loader2, Search, Check, ChevronRight, ChevronLeft, Globe,
   Bell, Sun, Moon, Package, AlertTriangle, Lock, Image, Upload, X, FileCheck, ShieldCheck,
   Smartphone, Zap, UserPlus, Trash2, Edit2, Eye, EyeOff, ShoppingCart, User,
   Monitor, Download, WifiOff, Terminal, CheckCircle2, XCircle, ClipboardList, Wallet,
-  Percent,
+  Percent, Landmark,
 } from "lucide-react";
 import PageHeader from "../../components/layout/PageHeader";
 import DesktopTerminalsSection from "./DesktopTerminalsSection";
@@ -161,7 +161,7 @@ const NAV = [
       { id: "social", icon: Share2, label: "Canais Sociais" },
       { id: "hours", icon: Clock, label: "Horário de Funcionamento" },
       { id: "payments", icon: CreditCard, label: "Pagamentos & Políticas" },
-      { id: "card_fees", icon: CreditCard, label: "Maquininha & Taxas" },
+      { id: "card_fees", icon: Landmark, label: "Maquininha & Taxas" },
       { id: "crediario", icon: Percent, label: "Crediário & Juros" },
       { id: "warranty", icon: FileCheck, label: "Termos de Garantia" },
       { id: "service_checklists", icon: ClipboardList, label: "Checklists de OS" },
@@ -618,10 +618,13 @@ export default function Settings() {
   const toast = useToast();
   const [searchParams, setSearchParams] = useSearchParams();
 
-  // tab ativa sincronizada com ?tab=xxx na URL
-  const active = searchParams.get("tab") ?? "identity";
+  // tab ativa sincronizada com ?tab=xxx na URL — ausente = mostra a grade de seções
+  const active = searchParams.get("tab");
   const setActive = useCallback((id: string) => {
     setSearchParams((prev) => { const n = new URLSearchParams(prev); n.set("tab", id); return n; }, { replace: true });
+  }, [setSearchParams]);
+  const goToGrid = useCallback(() => {
+    setSearchParams((prev) => { const n = new URLSearchParams(prev); n.delete("tab"); return n; }, { replace: true });
   }, [setSearchParams]);
 
   // sub-tab de maquininha sincronizada com ?payType=xxx
@@ -1174,79 +1177,62 @@ export default function Settings() {
     <div className="space-y-6">
       <PageHeader
         title="Configurações"
-        subtitle="Loja pública e sistema interno"
-        action={saved ? (
-          <div className="flex items-center gap-2 bg-emerald-50 border border-emerald-200 text-emerald-700 px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest">
-            <Check size={13} strokeWidth={3} /> Salvo com sucesso
+        subtitle={active ? activeItem?.label : "Loja pública e sistema interno"}
+        action={
+          <div className="flex items-center gap-2">
+            {active && (
+              <button
+                onClick={goToGrid}
+                className="h-9 px-4 bg-slate-100 hover:bg-slate-200 rounded-lg flex items-center gap-2 text-[12px] font-bold text-slate-600 transition-all"
+              >
+                <ChevronLeft size={15} /> Voltar
+              </button>
+            )}
+            {saved && (
+              <div className="flex items-center gap-2 bg-emerald-50 border border-emerald-200 text-emerald-700 px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest">
+                <Check size={13} strokeWidth={3} /> Salvo com sucesso
+              </div>
+            )}
           </div>
-        ) : undefined}
+        }
       />
 
-      <div className="flex flex-col lg:flex-row gap-5">
-        {/* ── Sidebar ──────────────────────────────────────────────────── */}
-        <aside className="w-full lg:w-64 shrink-0">
-          {/* mobile: horizontal scroll */}
-          <div className="flex lg:hidden gap-2 overflow-x-auto no-scrollbar pb-2">
-            {allItems.map((item) => (
-              <button
-                key={item.id}
-                onClick={() => setActive(item.id)}
-                className={cn(
-                  "flex items-center gap-2 px-4 h-10 rounded-xl text-[9px] font-black uppercase tracking-widest whitespace-nowrap shrink-0 transition-all",
-                  active === item.id
-                    ? "bg-slate-900 text-white shadow-lg"
-                    : "bg-white border border-slate-100 text-slate-400 hover:border-slate-200",
-                )}
-              >
-                <item.icon size={13} />
-                {item.label}
-              </button>
-            ))}
-          </div>
-
-          {/* desktop: stacked sidebar */}
-          <div className="hidden lg:flex flex-col gap-1">
-            {NAV.map((group) => (
-              <div key={group.group} className="mb-3">
-                <div className="px-3 pb-1.5 flex items-center gap-2">
-                  <Globe size={10} className={group.color} />
-                  <span className={cn("text-[9px] font-black uppercase tracking-[0.2em]", group.color)}>
-                    {group.group}
-                  </span>
-                </div>
-                <div className="space-y-0.5">
-                  {group.items.map((item) => (
-                    <button
-                      key={item.id}
-                      onClick={() => setActive(item.id)}
-                      className={cn(
-                        "w-full flex items-center justify-between px-3 h-10 rounded-xl text-[10px] font-bold uppercase tracking-widest transition-all group",
-                        active === item.id
-                          ? "bg-slate-900 text-white shadow-lg shadow-slate-200"
-                          : "text-slate-500 hover:bg-slate-50 hover:text-slate-800",
-                      )}
-                    >
-                      <div className="flex items-center gap-3">
-                        <item.icon size={14} strokeWidth={active === item.id ? 2.5 : 2} />
-                        {item.label}
-                      </div>
-                      <ChevronRight
-                        size={12}
-                        className={cn(
-                          "transition-opacity",
-                          active === item.id ? "opacity-60" : "opacity-0 group-hover:opacity-30",
-                        )}
-                      />
-                    </button>
-                  ))}
-                </div>
+      {!active && (
+        <div className="space-y-8">
+          {NAV.map((group) => (
+            <div key={group.group}>
+              <div className="flex items-center gap-2 mb-3">
+                <Globe size={12} className={group.color} />
+                <span className={cn("text-[10px] font-black uppercase tracking-[0.2em]", group.color)}>
+                  {group.group}
+                </span>
+                <span className="text-[10px] text-slate-400 font-medium normal-case tracking-normal">
+                  · {group.desc}
+                </span>
               </div>
-            ))}
-          </div>
-        </aside>
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+                {group.items.map((item) => (
+                  <button
+                    key={item.id}
+                    onClick={() => setActive(item.id)}
+                    className="flex flex-col items-center gap-3 p-5 rounded-2xl border-2 border-slate-100 bg-white hover:border-blue-200 hover:bg-blue-50/30 transition-all"
+                  >
+                    <div className="w-12 h-12 rounded-xl bg-slate-50 flex items-center justify-center">
+                      <item.icon size={22} className="text-slate-600" />
+                    </div>
+                    <span className="text-[11px] font-black uppercase tracking-wide text-slate-700 text-center leading-tight">
+                      {item.label}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
 
-        {/* ── Content ──────────────────────────────────────────────────── */}
-        <div className="flex-1 bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+      {active && (
+      <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
           {/* breadcrumb strip */}
           <div className="px-6 py-3 border-b border-slate-50 flex items-center gap-2 text-[9px] font-black uppercase tracking-widest text-slate-300">
             <Settings2 size={10} />
@@ -3303,8 +3289,8 @@ export default function Settings() {
               </div>
             )}
           </div>
-        </div>
       </div>
+      )}
     </div>
   );
 }
