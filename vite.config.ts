@@ -15,11 +15,14 @@ export default defineConfig(({mode}) => {
         // Manifests are served as static files (public/app-manifest.json, public/pdv-manifest.json)
         // and linked manually in index.html, so the plugin doesn't need to generate one.
         manifest: false,
-        workbox: {
-          skipWaiting: true,
-          clientsClaim: true,
-          navigateFallback: '/index.html',
-          navigateFallbackAllowlist: [/^\/(?!api)/],
+        // Service worker próprio (src/sw.ts) em vez de gerado — necessário pra poder
+        // escutar os eventos "push"/"notificationclick" (não dá pra injetar listener
+        // custom no modo generateSW). O comportamento de cache replicado em sw.ts é
+        // o mesmo que o bloco workbox abaixo produzia.
+        strategies: 'injectManifest',
+        srcDir: 'src',
+        filename: 'sw.ts',
+        injectManifest: {
           globPatterns: ['**/*.{js,css,html,png,jpg,svg,ico,woff2}'],
           // exclude heavy chunks that exceed 2 MB workbox limit
           globIgnores: [
@@ -30,17 +33,6 @@ export default defineConfig(({mode}) => {
             '**/logo-boxsys-vazado.png',
           ],
           maximumFileSizeToCacheInBytes: 5 * 1024 * 1024, // 5 MB — covers the full-app main chunk now that the PWA scope isn't limited to /pdv
-          runtimeCaching: [
-            {
-              urlPattern: /^\/api\/products/,
-              handler: 'NetworkFirst',
-              options: {
-                cacheName: 'pdv-products',
-                networkTimeoutSeconds: 5,
-                expiration: { maxEntries: 500, maxAgeSeconds: 300 },
-              },
-            },
-          ],
         },
         devOptions: { enabled: false },
       }),

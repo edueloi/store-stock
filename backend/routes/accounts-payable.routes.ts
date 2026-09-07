@@ -9,12 +9,14 @@ import {
   bulkPayAccountsPayable,
   bulkDeleteAccountsPayable,
   importAccountsPayable,
+  getDueSoonCount,
 } from "../controllers/accounts-payable.controller";
 import { authenticateToken } from "../middlewares/auth.middleware";
 
 const router = Router();
 router.use(authenticateToken);
 
+router.get("/due-soon-count", getDueSoonCount);
 router.get("/", listAccountsPayable);
 router.post("/", createAccountPayable);
 router.post("/bulk-pay", bulkPayAccountsPayable);

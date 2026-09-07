@@ -27,4 +27,7 @@ export const env = {
   nfceTimeoutMs: Number(process.env.NFCE_TIMEOUT_MS || 15000),
   baileysServiceUrl: process.env.BAILEYS_SERVICE_URL || "http://127.0.0.1:3002",
   baileysInternalToken: process.env.BAILEYS_INTERNAL_TOKEN || "",
+  vapidPublicKey: process.env.VAPID_PUBLIC_KEY || "",
+  vapidPrivateKey: process.env.VAPID_PRIVATE_KEY || "",
+  vapidSubject: process.env.VAPID_SUBJECT || "mailto:contato@boxsys.com.br",
 };

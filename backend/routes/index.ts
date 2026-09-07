@@ -39,6 +39,7 @@ import financialReportsRoutes from "./financial-reports.routes";
 import profileRoutes from "./profile.routes";
 import desktopTerminalsRoutes from "./desktop-terminals.routes";
 import printRoutes from "./print.routes";
+import pushRoutes from "./push.routes";
 
 export function registerRoutes(app: Express) {
   // Serve uploaded images
@@ -83,4 +84,5 @@ export function registerRoutes(app: Express) {
   app.use("/api/workflow", workflowRoutes);
   app.use("/api/desktop-terminals", desktopTerminalsRoutes);
   app.use("/api/print", printRoutes);
+  app.use("/api/push", pushRoutes);
 }

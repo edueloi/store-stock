@@ -8,6 +8,30 @@ function getTenantId(req: Request) {
   return (req as AuthenticatedRequest).user.tenantId;
 }
 
+// Pendente e vencendo nos próximos `days` dias (default 3, mesmo horizonte do
+// destaque "Vencendo em breve" na tela) OU já vencida — usado tanto pelo endpoint
+// abaixo quanto pelo job diário de push notifications.
+export async function countDueSoonPayables(tenantId: number, days = 3) {
+  const cutoff = new Date();
+  cutoff.setDate(cutoff.getDate() + days);
+  cutoff.setHours(23, 59, 59, 999);
+
+  return prisma.accountPayable.count({
+    where: { tenant_id: tenantId, status: "pending", due_date: { lte: cutoff } },
+  });
+}
+
+export async function getDueSoonCount(req: Request, res: Response) {
+  try {
+    const tenantId = getTenantId(req);
+    const days = Number(req.query.days) || 3;
+    const count = await countDueSoonPayables(tenantId, days);
+    res.json({ count });
+  } catch {
+    res.status(500).json({ error: "Failed to fetch due soon count" });
+  }
+}
+
 export async function listAccountsPayable(req: Request, res: Response) {
   try {
     const items = await prisma.accountPayable.findMany({

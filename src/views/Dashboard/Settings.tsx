@@ -15,6 +15,7 @@ import { useToast } from "../../components/ui/Toast";
 import Modal from "../../components/ui/Modal";
 import Button from "../../components/ui/Button";
 import type { Tenant, BusinessHours, PaymentMethods, StorePolicies, CardFees } from "../../types";
+import { subscribeToPush, unsubscribeFromPush, isPushSupported } from "../../lib/push";
 
 // ─── helpers ────────────────────────────────────────────────────────────────
 
@@ -653,6 +654,8 @@ export default function Settings() {
   const [lowStockAlert, setLowStockAlert] = useState(5);
   const [panelLang, setPanelLang] = useState("pt-BR");
   const [printerSize, setPrinterSize] = useState<"58mm" | "80mm" | "A4">("58mm");
+  const [pushEnabled, setPushEnabled] = useState(false);
+  const [pushSaving, setPushSaving] = useState(false);
 
   // password fields
   const [newPass, setNewPass] = useState("");
@@ -753,11 +756,13 @@ export default function Settings() {
       fetch("/api/preferences/low_stock_alert", { headers: API_HEADERS() }).then((r) => r.json()),
       fetch("/api/preferences/panel_lang", { headers: API_HEADERS() }).then((r) => r.json()),
       fetch("/api/preferences/receipt_printer_size", { headers: API_HEADERS() }).then((r) => r.json()).catch(() => null),
-    ]).then(([theme, alert, lang, printer]) => {
+      fetch("/api/preferences/push_notifications_enabled", { headers: API_HEADERS() }).then((r) => r.json()).catch(() => null),
+    ]).then(([theme, alert, lang, printer, pushPref]) => {
       if (theme) setPanelTheme(theme as "light" | "dark");
       if (alert !== null) setLowStockAlert(Number(alert));
       if (lang) setPanelLang(lang as string);
       if (printer) setPrinterSize(printer as "58mm" | "80mm" | "A4");
+      if (pushPref) setPushEnabled(Boolean(pushPref));
     }).catch(() => { /* prefs optional */ });
   }, []);
 
@@ -924,6 +929,28 @@ export default function Settings() {
       }
     } finally {
       setBannerUploading(false);
+    }
+  };
+
+  const handleTogglePush = async (next: boolean) => {
+    setPushSaving(true);
+    try {
+      const token = localStorage.getItem("token") || "";
+      if (next) {
+        await subscribeToPush(token);
+      } else {
+        await unsubscribeFromPush(token);
+      }
+      await fetch("/api/preferences/push_notifications_enabled", {
+        method: "PUT", headers: API_HEADERS(),
+        body: JSON.stringify({ value: next }),
+      });
+      setPushEnabled(next);
+      showSaved();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Falha ao configurar notificações push");
+    } finally {
+      setPushSaving(false);
     }
   };
 
@@ -3012,6 +3039,45 @@ export default function Settings() {
                         {lowStockAlert}
                       </span>
                     </div>
+                  </div>
+                </div>
+
+                {/* push notifications */}
+                <div className="space-y-3">
+                  <p className="text-[10px] font-black uppercase tracking-widest text-slate-700 border-l-4 border-blue-500 pl-3">
+                    Notificações Push
+                  </p>
+                  <div className="bg-slate-50 border border-slate-100 rounded-2xl p-5 flex items-center gap-4 max-w-sm">
+                    <Bell size={16} className="text-blue-500 shrink-0" />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-[11px] font-black text-slate-900 uppercase tracking-wide">Alertas no celular/desktop</p>
+                      <p className="text-[10px] text-slate-500 font-medium leading-relaxed mt-1">
+                        Avisa sobre contas a pagar vencendo e estoque baixo, mesmo com o app fechado.
+                      </p>
+                      {!isPushSupported() && (
+                        <p className="text-[10px] text-amber-600 font-bold mt-1">Este navegador não suporta notificações push.</p>
+                      )}
+                    </div>
+                    <button
+                      type="button"
+                      role="switch"
+                      aria-checked={pushEnabled}
+                      disabled={pushSaving || !isPushSupported()}
+                      onClick={() => handleTogglePush(!pushEnabled)}
+                      className={cn(
+                        "shrink-0 w-12 h-7 rounded-full transition-colors relative disabled:opacity-50",
+                        pushEnabled ? "bg-blue-600" : "bg-slate-300"
+                      )}
+                    >
+                      {pushSaving ? (
+                        <Loader2 size={14} className="absolute inset-0 m-auto text-white animate-spin" />
+                      ) : (
+                        <span className={cn(
+                          "absolute top-1 w-5 h-5 bg-white rounded-full transition-transform",
+                          pushEnabled ? "translate-x-6" : "translate-x-1"
+                        )} />
+                      )}
+                    </button>
                   </div>
                 </div>
 

@@ -257,6 +257,7 @@ model User {
   cash_sessions_closed CashSession[]         @relation("CashSessionClosedBy")
   menu_permissions     UserMenuPermission[]
   stage_permissions    UserStagePermission[]
+  push_subscriptions   PushSubscription[]
 
   @@map("users")
 }
@@ -1399,6 +1400,24 @@ model UserPreference {
 
   @@unique([user_id, pref_key])
   @@map("user_preferences")
+}
+
+model PushSubscription {
+  id           Int      @id @default(autoincrement())
+  user_id      Int
+  tenant_id    Int
+  endpoint     String   @db.VarChar(512)
+  p256dh       String
+  auth         String
+  user_agent   String?
+  created_at   DateTime @default(now())
+  last_used_at DateTime @updatedAt
+
+  user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@unique([user_id, endpoint])
+  @@index([tenant_id])
+  @@map("push_subscriptions")
 }
 
 model PasswordResetToken {
