@@ -51,15 +51,15 @@ function SectionHeader({ title, icon, link, linkLabel, accent }: {
   return (
     <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-8">
       <div className="flex items-center gap-3">
-        <div className="w-1 h-7 rounded-full" style={{ backgroundColor: accent }} />
+        <div className="w-1 h-6 rounded-full" style={{ backgroundColor: accent }} />
         {icon && <span style={{ color: accent }}>{icon}</span>}
-        <h2 className="text-2xl font-serif font-bold tracking-tight text-stone-800">{title}</h2>
+        <h2 className="text-xl font-serif font-bold tracking-tight text-stone-800">{title}</h2>
       </div>
       <Link
         to={link}
-        className="flex items-center gap-1 transition-colors text-[11px] font-semibold uppercase tracking-wider text-amber-600 hover:text-amber-800"
+        className="flex items-center gap-1 transition-colors text-[10px] font-semibold uppercase tracking-wider text-amber-600 hover:text-amber-800"
       >
-        {linkLabel || "Ver todos"} <ChevronRight size={13} />
+        {linkLabel || "Ver todos"} <ChevronRight size={12} />
       </Link>
     </div>
   );
@@ -115,22 +115,22 @@ function ProductCard({ product, index, slug, style, onAddToCart }: {
         </div>
         <div className="flex flex-col p-4 gap-1">
           <p className="text-[10px] text-amber-600/70 uppercase tracking-widest font-semibold">{product.category_name || "Geral"}</p>
-          <p className="text-sm font-semibold text-stone-700 leading-snug line-clamp-2 group-hover:text-stone-900 transition-colors">{product.name}</p>
+          <p className="text-[13px] font-semibold text-stone-700 leading-snug line-clamp-2 group-hover:text-stone-900 transition-colors">{product.name}</p>
           <div className="flex items-center justify-between mt-2">
             {hasDiscount ? (
               <div>
-                <span className="text-[10px] line-through text-stone-400 font-mono">R$ {Number(product.price).toFixed(2)}</span>
-                <p className="text-base font-bold font-mono leading-tight" style={{ color: "#c2713a" }}>R$ {Number(product.discount_price).toFixed(2)}</p>
+                <span className="text-[9px] line-through text-stone-400 font-mono">R$ {Number(product.price).toFixed(2)}</span>
+                <p className="text-sm font-bold font-mono leading-tight" style={{ color: "#c2713a" }}>R$ {Number(product.discount_price).toFixed(2)}</p>
               </div>
             ) : (
-              <p className="text-base font-bold font-mono" style={{ color: style.accent }}>R$ {Number(product.price).toFixed(2)}</p>
+              <p className="text-sm font-bold font-mono" style={{ color: style.accent }}>R$ {Number(product.price).toFixed(2)}</p>
             )}
             <button
               onClick={e => { e.preventDefault(); onAddToCart(product); }}
               style={{ backgroundColor: style.accent }}
-              className="shrink-0 text-white transition-all active:scale-90 w-9 h-9 flex items-center justify-center shadow-sm hover:shadow-[0_4px_12px_rgba(217,119,6,0.35)] rounded-xl"
+              className="shrink-0 text-white transition-all active:scale-90 w-8 h-8 flex items-center justify-center shadow-sm hover:shadow-[0_4px_12px_rgba(217,119,6,0.35)] rounded-xl"
             >
-              <span className="text-lg font-bold leading-none">+</span>
+              <span className="text-base font-bold leading-none">+</span>
             </button>
           </div>
         </div>
@@ -203,26 +203,26 @@ export default function StoreFront() {
                 animate={{ opacity: 1, x: 0 }}
                 transition={{ duration: 0.6 }}
               >
-                <p className="text-[11px] font-semibold uppercase tracking-[0.35em] mb-3 text-amber-300">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.35em] mb-3 text-amber-300">
                   Bem-vindo à
                 </p>
-                <h1 className="text-4xl md:text-6xl lg:text-7xl font-serif font-bold text-white leading-[0.95] tracking-tight">
+                <h1 className="text-3xl md:text-5xl lg:text-6xl font-serif font-bold text-white leading-[0.95] tracking-tight">
                   {tenant.name}
                 </h1>
                 {tenant.about_text && (
-                  <p className="text-white/70 mt-4 max-w-md text-sm leading-relaxed font-light">{tenant.about_text}</p>
+                  <p className="text-white/70 mt-4 max-w-md text-[13px] leading-relaxed font-light">{tenant.about_text}</p>
                 )}
                 <div className="flex flex-wrap gap-3 mt-8">
                   <Link
                     to={storePath("/catalogo")}
                     style={{ backgroundColor: style.accent }}
-                    className="flex items-center gap-2 px-7 h-12 text-white text-[11px] font-bold uppercase tracking-widest shadow-[0_4px_20px_rgba(217,119,6,0.4)] hover:shadow-[0_6px_28px_rgba(217,119,6,0.55)] hover:opacity-90 transition-all active:scale-95 rounded-2xl"
+                    className="flex items-center gap-2 px-6 h-11 text-white text-[11px] font-bold uppercase tracking-widest shadow-[0_4px_20px_rgba(217,119,6,0.4)] hover:shadow-[0_6px_28px_rgba(217,119,6,0.55)] hover:opacity-90 transition-all active:scale-95 rounded-2xl"
                   >
-                    <ShoppingBag size={15} /> Ver Catálogo
+                    <ShoppingBag size={14} /> Ver Catálogo
                   </Link>
                   {categories.length > 0 && (
-                    <a href="#categorias" className="flex items-center gap-2 px-7 h-12 border border-white/30 bg-white/10 backdrop-blur-sm text-white text-[11px] font-bold uppercase tracking-widest hover:bg-white/20 transition-all rounded-2xl">
-                      Categorias <ArrowRight size={13} />
+                    <a href="#categorias" className="flex items-center gap-2 px-6 h-11 border border-white/30 bg-white/10 backdrop-blur-sm text-white text-[11px] font-bold uppercase tracking-widest hover:bg-white/20 transition-all rounded-2xl">
+                      Categorias <ArrowRight size={12} />
                     </a>
                   )}
                 </div>
@@ -250,16 +250,16 @@ export default function StoreFront() {
               <div className="flex items-center gap-3 mb-5">
                 <LeafSVG />
                 <div className="h-px w-12 bg-amber-300/60" />
-                <p className="text-[11px] font-semibold uppercase tracking-[0.35em] text-amber-600">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.35em] text-amber-600">
                   Bem-vindo à nossa loja
                 </p>
               </div>
 
-              <h1 className="text-5xl md:text-7xl font-serif font-bold text-stone-800 leading-[0.92] tracking-tight max-w-2xl">
+              <h1 className="text-4xl md:text-5xl lg:text-6xl font-serif font-bold text-stone-800 leading-[0.92] tracking-tight max-w-2xl">
                 {tenant.name}
               </h1>
 
-              <p className="text-stone-500 mt-6 max-w-lg text-base font-normal leading-relaxed">
+              <p className="text-stone-500 mt-6 max-w-lg text-sm font-normal leading-relaxed">
                 {tenant.about_text || "Produtos naturais e artesanais selecionados com cuidado para você."}
               </p>
 
@@ -268,17 +268,17 @@ export default function StoreFront() {
                   <Link
                     to={storePath("/catalogo")}
                     style={{ backgroundColor: style.accent }}
-                    className="inline-flex items-center gap-2 px-8 h-13 py-3 text-white text-[11px] font-bold uppercase tracking-widest shadow-[0_4px_20px_rgba(217,119,6,0.35)] hover:shadow-[0_6px_28px_rgba(217,119,6,0.5)] transition-all rounded-2xl"
+                    className="inline-flex items-center gap-2 px-7 h-11 text-white text-[11px] font-bold uppercase tracking-widest shadow-[0_4px_20px_rgba(217,119,6,0.35)] hover:shadow-[0_6px_28px_rgba(217,119,6,0.5)] transition-all rounded-2xl"
                   >
-                    <ShoppingBag size={15} /> Explorar Catálogo <ArrowRight size={13} />
+                    <ShoppingBag size={14} /> Explorar Catálogo <ArrowRight size={12} />
                   </Link>
                 </motion.div>
                 {onSale.length > 0 && (
                   <Link
                     to={storePath("/catalogo")}
-                    className="inline-flex items-center gap-2 px-8 py-3 h-13 border border-amber-200 bg-white/80 text-stone-700 text-[11px] font-bold uppercase tracking-widest hover:border-amber-300 hover:bg-white hover:shadow transition-all rounded-2xl"
+                    className="inline-flex items-center gap-2 px-7 h-11 border border-amber-200 bg-white/80 text-stone-700 text-[11px] font-bold uppercase tracking-widest hover:border-amber-300 hover:bg-white hover:shadow transition-all rounded-2xl"
                   >
-                    <Zap size={13} style={{ color: style.accent }} />
+                    <Zap size={12} style={{ color: style.accent }} />
                     {onSale.length} {onSale.length === 1 ? "Promoção" : "Promoções"}
                   </Link>
                 )}
@@ -301,7 +301,7 @@ export default function StoreFront() {
                     >
                       <Link
                         to={storePath(`/catalogo?cat=${cat.id}`)}
-                        className="flex items-center gap-1.5 px-4 py-2 rounded-full text-[11px] font-semibold bg-white/70 border border-amber-200/70 text-stone-600 hover:bg-amber-50 hover:border-amber-300 hover:text-amber-700 transition-all backdrop-blur-sm shadow-sm"
+                        className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-[10px] font-semibold bg-white/70 border border-amber-200/70 text-stone-600 hover:bg-amber-50 hover:border-amber-300 hover:text-amber-700 transition-all backdrop-blur-sm shadow-sm"
                       >
                         🌿 {cat.name}
                       </Link>
@@ -331,7 +331,7 @@ export default function StoreFront() {
               transition={{ delay: i * 0.08 }}
             >
               <span style={{ color: style.accent }} className="opacity-60">{s.icon}</span>
-              <span className="text-2xl font-bold tabular-nums font-serif" style={{ color: style.accent }}>{s.value}</span>
+              <span className="text-lg font-bold tabular-nums font-serif" style={{ color: style.accent }}>{s.value}</span>
               <span className="text-[10px] font-semibold text-stone-400 uppercase tracking-widest">{s.label}</span>
             </motion.div>
           ))}
@@ -343,7 +343,7 @@ export default function StoreFront() {
         <section id="categorias" className="max-w-7xl mx-auto px-4 md:px-8 py-16">
           <SectionHeader
             title="Categorias"
-            icon={<Leaf size={17} />}
+            icon={<Leaf size={15} />}
             link={storePath("/catalogo")}
             linkLabel="Ver catálogo"
             accent={style.accent}
@@ -365,9 +365,9 @@ export default function StoreFront() {
                   >
                     <div
                       style={{ backgroundColor: style.accent + "18" }}
-                      className="w-11 h-11 flex items-center justify-center group-hover:scale-110 transition-transform duration-300 rounded-xl"
+                      className="w-9 h-9 flex items-center justify-center group-hover:scale-110 transition-transform duration-300 rounded-xl"
                     >
-                      <Leaf size={18} style={{ color: style.accent }} />
+                      <Leaf size={15} style={{ color: style.accent }} />
                     </div>
                     <p className="text-[11px] font-semibold text-stone-700 leading-tight tracking-tight">{cat.name}</p>
                     <span className="text-[9px] text-stone-400 font-medium">{count} {count === 1 ? "produto" : "produtos"}</span>
@@ -380,9 +380,9 @@ export default function StoreFront() {
             <div className="mt-6 text-center">
               <Link
                 to={storePath("/catalogo")}
-                className="inline-flex items-center gap-2 px-6 h-10 border border-amber-200 bg-white text-stone-600 text-[11px] font-semibold uppercase tracking-wider hover:border-amber-300 hover:shadow-sm transition-all rounded-xl"
+                className="inline-flex items-center gap-2 px-5 h-9 border border-amber-200 bg-white text-stone-600 text-[11px] font-semibold uppercase tracking-wider hover:border-amber-300 hover:shadow-sm transition-all rounded-xl"
               >
-                +{categories.length - CATEGORY_DISPLAY_LIMIT} mais categorias <ChevronRight size={13} />
+                +{categories.length - CATEGORY_DISPLAY_LIMIT} mais categorias <ChevronRight size={12} />
               </Link>
             </div>
           )}
@@ -396,9 +396,9 @@ export default function StoreFront() {
           <div className="relative max-w-7xl mx-auto px-8">
             <div className="flex items-center justify-between mb-8">
               <div className="flex items-center gap-3">
-                <div className="w-1 h-7 rounded-full" style={{ backgroundColor: style.accent }} />
-                <Star size={17} style={{ color: style.accent }} />
-                <h2 className="text-2xl font-serif font-bold tracking-tight text-stone-800">Destaques</h2>
+                <div className="w-1 h-6 rounded-full" style={{ backgroundColor: style.accent }} />
+                <Star size={15} style={{ color: style.accent }} />
+                <h2 className="text-xl font-serif font-bold tracking-tight text-stone-800">Destaques</h2>
                 <span
                   className="text-[9px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-full"
                   style={{ backgroundColor: style.accent + "22", color: style.accent, border: `1px solid ${style.accent}40` }}
@@ -408,9 +408,9 @@ export default function StoreFront() {
               </div>
               <Link
                 to={storePath("/catalogo")}
-                className="flex items-center gap-1 text-[11px] font-semibold uppercase tracking-wider text-amber-600 hover:text-amber-800 transition-colors"
+                className="flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wider text-amber-600 hover:text-amber-800 transition-colors"
               >
-                Ver catálogo <ChevronRight size={13} />
+                Ver catálogo <ChevronRight size={12} />
               </Link>
             </div>
 
@@ -451,7 +451,7 @@ export default function StoreFront() {
                       <div className="min-w-0">
                         <p className="text-[11px] font-semibold text-stone-800 line-clamp-1 tracking-tight">{product.name}</p>
                         <div className="flex items-center gap-2 mt-1">
-                          <p className="text-sm font-bold font-mono" style={{ color: style.accent }}>
+                          <p className="text-[13px] font-bold font-mono" style={{ color: style.accent }}>
                             R$ {Number(product.discount_price || product.price).toFixed(2)}
                           </p>
                           {hasDiscount && (
@@ -462,9 +462,9 @@ export default function StoreFront() {
                       <button
                         onClick={() => addToCart(product)}
                         style={{ backgroundColor: style.accent }}
-                        className="w-9 h-9 flex items-center justify-center shrink-0 text-white shadow-[0_3px_12px_rgba(217,119,6,0.3)] active:scale-90 transition-all rounded-xl hover:shadow-[0_5px_18px_rgba(217,119,6,0.45)]"
+                        className="w-8 h-8 flex items-center justify-center shrink-0 text-white shadow-[0_3px_12px_rgba(217,119,6,0.3)] active:scale-90 transition-all rounded-xl hover:shadow-[0_5px_18px_rgba(217,119,6,0.45)]"
                       >
-                        <ShoppingBag size={14} />
+                        <ShoppingBag size={13} />
                       </button>
                     </div>
                   </motion.div>
@@ -480,7 +480,7 @@ export default function StoreFront() {
         <div className="max-w-7xl mx-auto px-4 md:px-8">
           <SectionHeader
             title="Mais Vendidos"
-            icon={<TrendingUp size={17} />}
+            icon={<TrendingUp size={15} />}
             link={storePath("/catalogo")}
             linkLabel="Ver catálogo"
             accent={style.accent}
@@ -507,9 +507,9 @@ export default function StoreFront() {
           <div className="relative max-w-7xl mx-auto px-4 md:px-8">
             <div className="flex items-center justify-between mb-8">
               <div className="flex items-center gap-3">
-                <div className="w-1 h-7 rounded-full" style={{ backgroundColor: "#c2713a" }} />
-                <Zap size={16} style={{ color: "#c2713a" }} />
-                <h2 className="text-2xl font-serif font-bold tracking-tight text-stone-800">Promoções</h2>
+                <div className="w-1 h-6 rounded-full" style={{ backgroundColor: "#c2713a" }} />
+                <Zap size={14} style={{ color: "#c2713a" }} />
+                <h2 className="text-xl font-serif font-bold tracking-tight text-stone-800">Promoções</h2>
                 <span className="text-[9px] font-bold px-2 py-0.5 rounded-full border"
                   style={{ backgroundColor: "#c2713a18", color: "#c2713a", borderColor: "#c2713a40" }}>
                   {onSale.length} oferta{onSale.length !== 1 ? "s" : ""}
@@ -517,9 +517,9 @@ export default function StoreFront() {
               </div>
               <Link
                 to={storePath("/catalogo")}
-                className="flex items-center gap-1 transition-colors text-[11px] font-semibold uppercase tracking-wider text-amber-600 hover:text-amber-800"
+                className="flex items-center gap-1 transition-colors text-[10px] font-semibold uppercase tracking-wider text-amber-600 hover:text-amber-800"
               >
-                Ver todas <ChevronRight size={13} />
+                Ver todas <ChevronRight size={12} />
               </Link>
             </div>
 
@@ -547,10 +547,10 @@ export default function StoreFront() {
                           style={{ backgroundColor: "#c2713a" }}>-{pct}%</span>
                       </div>
                       <div className="p-4">
-                        <p className="text-sm font-medium text-stone-700 line-clamp-2 leading-snug">{product.name}</p>
+                        <p className="text-[13px] font-medium text-stone-700 line-clamp-2 leading-snug">{product.name}</p>
                         <div className="flex items-center gap-2 mt-3">
-                          <span className="text-base font-bold font-mono" style={{ color: "#c2713a" }}>R$ {Number(product.discount_price).toFixed(2)}</span>
-                          <span className="text-[10px] text-stone-400 line-through font-mono">R$ {Number(product.price).toFixed(2)}</span>
+                          <span className="text-sm font-bold font-mono" style={{ color: "#c2713a" }}>R$ {Number(product.discount_price).toFixed(2)}</span>
+                          <span className="text-[9px] text-stone-400 line-through font-mono">R$ {Number(product.price).toFixed(2)}</span>
                         </div>
                       </div>
                     </Link>

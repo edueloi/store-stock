@@ -99,23 +99,23 @@ export default function StoreFront() {
                 <span className="w-1.5 h-1.5 rounded-full bg-blue-400 animate-pulse" />
                 <span className="text-[10px] font-bold uppercase tracking-[0.24em] text-blue-400">Loja Online</span>
               </div>
-              <h1 className="text-5xl sm:text-6xl md:text-7xl font-black text-white leading-[0.9] tracking-tight">
+              <h1 className="text-3xl sm:text-4xl md:text-5xl font-black text-white leading-[0.9] tracking-tight">
                 {tenant.name}
               </h1>
-              <p className="mt-5 text-slate-400 text-base md:text-lg leading-relaxed max-w-lg">
+              <p className="mt-5 text-slate-400 text-[13px] md:text-sm leading-relaxed max-w-lg">
                 {tenant.about_text || "Os melhores eletrônicos, gadgets e tecnologia com os melhores preços. Produtos de alta qualidade, entrega rápida e atendimento via WhatsApp."}
               </p>
               <div className="flex flex-wrap gap-3 mt-8">
                 <Link
                   to={storePath("/catalogo")}
                   style={{ backgroundColor: style.accent }}
-                  className="inline-flex items-center gap-2 h-13 px-7 py-3.5 rounded-xl text-white font-bold text-sm uppercase tracking-wider shadow-[0_0_30px_rgba(59,130,246,0.4)] hover:shadow-[0_0_40px_rgba(59,130,246,0.5)] transition-all"
+                  className="inline-flex items-center gap-2 h-11 px-6 rounded-xl text-white font-bold text-[13px] uppercase tracking-wider shadow-[0_0_30px_rgba(59,130,246,0.4)] hover:shadow-[0_0_40px_rgba(59,130,246,0.5)] transition-all"
                 >
-                  <ShoppingBag size={16} /> Ver Catálogo
+                  <ShoppingBag size={14} /> Ver Catálogo
                 </Link>
                 {onSale.length > 0 && (
-                  <Link to={storePath("/catalogo")} className="inline-flex items-center gap-2 h-13 px-7 py-3.5 rounded-xl border border-[#1e2d4a] bg-[#0e1525]/80 text-white font-bold text-sm uppercase tracking-wider hover:border-blue-500/50 transition-all">
-                    <Zap size={14} className="text-blue-400" /> {onSale.length} Promoções
+                  <Link to={storePath("/catalogo")} className="inline-flex items-center gap-2 h-11 px-6 rounded-xl border border-[#1e2d4a] bg-[#0e1525]/80 text-white font-bold text-[13px] uppercase tracking-wider hover:border-blue-500/50 transition-all">
+                    <Zap size={13} className="text-blue-400" /> {onSale.length} Promoções
                   </Link>
                 )}
               </div>
@@ -137,10 +137,10 @@ export default function StoreFront() {
                   <div className="absolute bottom-5 left-5 right-5 flex items-center justify-between">
                     <div>
                       <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-blue-400/80">Produto em destaque</p>
-                      {featured[0] && <p className="text-white font-bold mt-1 text-lg">{featured[0].name}</p>}
+                      {featured[0] && <p className="text-white font-bold mt-1 text-sm">{featured[0].name}</p>}
                     </div>
                     {featured[0] && (
-                      <span className="bg-blue-500 text-white font-black text-sm px-4 py-2 rounded-lg shadow-[0_0_20px_rgba(59,130,246,0.5)]">
+                      <span className="bg-blue-500 text-white font-black text-[13px] px-3.5 py-1.5 rounded-lg shadow-[0_0_20px_rgba(59,130,246,0.5)]">
                         R$ {Number(featured[0].discount_price || featured[0].price).toFixed(2)}
                       </span>
                     )}
@@ -151,7 +151,7 @@ export default function StoreFront() {
                   <div className="grid grid-cols-2 gap-4">
                     {[allActive.length, categories.length, featured.length, onSale.length].map((val, i) => (
                       <div key={i} className="rounded-xl border border-[#1e2d4a] bg-[#080c14] p-5">
-                        <span className="text-3xl font-black text-white">{val}</span>
+                        <span className="text-xl font-black text-white">{val}</span>
                         <p className="text-[10px] font-bold uppercase tracking-widest text-blue-400/70 mt-1">
                           {["Produtos", "Categorias", "Destaques", "Promoções"][i]}
                         </p>
@@ -177,9 +177,9 @@ export default function StoreFront() {
             { value: onSale.length, label: "Promoções", icon: <Zap size={16} /> },
           ].map((s, i) => (
             <div key={i} className="bg-[#0a1020] px-6 py-5 flex items-center gap-4">
-              <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0" style={{ backgroundColor: `${style.accent}18`, color: style.accent }}>{s.icon}</div>
+              <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0" style={{ backgroundColor: `${style.accent}18`, color: style.accent }}>{s.icon}</div>
               <div>
-                <span className="text-2xl font-black text-white tabular-nums">{s.value}</span>
+                <span className="text-xl font-black text-white tabular-nums">{s.value}</span>
                 <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500 mt-0.5">{s.label}</p>
               </div>
             </div>
@@ -193,7 +193,7 @@ export default function StoreFront() {
           <div className="flex items-center justify-between mb-8">
             <div className="flex items-center gap-3">
               <div className="w-1 h-6 rounded-full" style={{ backgroundColor: style.accent }} />
-              <h2 className="text-2xl font-black text-white tracking-tight">Categorias</h2>
+              <h2 className="text-xl font-black text-white tracking-tight">Categorias</h2>
             </div>
             <Link to={storePath("/catalogo")} className="flex items-center gap-1 text-[11px] font-bold uppercase tracking-wider text-slate-500 hover:text-blue-400 transition-colors">
               Ver todos <ChevronRight size={13} />
@@ -206,11 +206,11 @@ export default function StoreFront() {
                 <motion.div key={cat.id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05 }} whileHover={{ y: -3 }}>
                   <Link to={storePath(`/catalogo?cat=${cat.id}`)}
                     className="group flex flex-col items-center gap-3 p-5 text-center rounded-2xl border border-[#1e2d4a] bg-[#0e1525]/80 hover:border-blue-500/40 hover:bg-[#0e1525] transition-all relative overflow-hidden">
-                    <div className="w-12 h-12 rounded-xl flex items-center justify-center transition-all group-hover:scale-110 group-hover:shadow-[0_0_16px_rgba(59,130,246,0.4)]" style={{ backgroundColor: `${style.accent}18`, color: style.accent }}>
+                    <div className="w-10 h-10 rounded-xl flex items-center justify-center transition-all group-hover:scale-110 group-hover:shadow-[0_0_16px_rgba(59,130,246,0.4)]" style={{ backgroundColor: `${style.accent}18`, color: style.accent }}>
                       {getCategoryIcon(cat.name)}
                     </div>
                     <div>
-                      <p className="text-[13px] font-bold text-white leading-tight">{cat.name}</p>
+                      <p className="text-[12px] font-bold text-white leading-tight">{cat.name}</p>
                       <span className="text-[10px] font-medium text-slate-500 mt-0.5 block">{count} produto{count !== 1 ? "s" : ""}</span>
                     </div>
                     <div className="absolute inset-x-0 bottom-0 h-10 opacity-0 group-hover:opacity-100 transition-opacity" style={{ background: `radial-gradient(circle at 50% 100%, ${style.accent}25 0%, transparent 70%)` }} />
@@ -237,7 +237,7 @@ export default function StoreFront() {
               <div className="flex items-center gap-3">
                 <div className="w-1 h-6 rounded-full" style={{ backgroundColor: style.accent }} />
                 <Star size={16} style={{ color: style.accent }} />
-                <h2 className="text-2xl font-black text-white tracking-tight">Destaques</h2>
+                <h2 className="text-xl font-black text-white tracking-tight">Destaques</h2>
                 <span className="text-[9px] font-black px-2.5 py-1 rounded-full" style={{ backgroundColor: `${style.accent}20`, color: style.accent, border: `1px solid ${style.accent}35` }}>{featured.length}</span>
               </div>
               <Link to={storePath("/catalogo")} className="flex items-center gap-1 text-[11px] font-bold uppercase tracking-wider text-slate-500 hover:text-blue-400 transition-colors">
@@ -265,12 +265,12 @@ export default function StoreFront() {
                 </div>
                 <div className="absolute bottom-0 left-0 right-0 p-6 md:p-8">
                   <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-blue-400/80">{featured[0].category_name || "Eletrônicos"}</p>
-                  <h3 className="text-3xl md:text-4xl font-black text-white mt-3 leading-tight">{featured[0].name}</h3>
+                  <h3 className="text-xl md:text-2xl font-black text-white mt-3 leading-tight">{featured[0].name}</h3>
                   {featured[0].description && (
-                    <p className="mt-2 text-slate-400 text-sm leading-relaxed line-clamp-2 max-w-lg">{featured[0].description}</p>
+                    <p className="mt-2 text-slate-400 text-[13px] leading-relaxed line-clamp-2 max-w-lg">{featured[0].description}</p>
                   )}
                   <div className="mt-4 flex items-end gap-3">
-                    <span className="text-3xl font-black text-white" style={{ textShadow: `0 0 20px ${style.accent}60` }}>
+                    <span className="text-xl font-black text-white" style={{ textShadow: `0 0 20px ${style.accent}60` }}>
                       R$ {Number(featured[0].discount_price || featured[0].price).toFixed(2)}
                     </span>
                     {featured[0].discount_price && (
@@ -319,7 +319,7 @@ export default function StoreFront() {
             <div className="flex items-center gap-3">
               <div className="w-1 h-6 rounded-full" style={{ backgroundColor: style.accent }} />
               <TrendingUp size={16} style={{ color: style.accent }} />
-              <h2 className="text-2xl font-black text-white tracking-tight">Mais Vendidos</h2>
+              <h2 className="text-xl font-black text-white tracking-tight">Mais Vendidos</h2>
             </div>
             <Link to={storePath("/catalogo")} className="flex items-center gap-1 text-[11px] font-bold uppercase tracking-wider text-slate-500 hover:text-blue-400 transition-colors">
               Ver catálogo <ChevronRight size={13} />
@@ -391,7 +391,7 @@ export default function StoreFront() {
               <div className="flex items-center gap-3">
                 <div className="w-1 h-6 rounded-full bg-blue-500" />
                 <Zap size={16} className="text-blue-400" />
-                <h2 className="text-2xl font-black text-white tracking-tight">Promoções</h2>
+                <h2 className="text-xl font-black text-white tracking-tight">Promoções</h2>
                 <span className="text-[9px] font-bold px-2 py-0.5 rounded-full border bg-blue-500/15 text-blue-400 border-blue-500/30">
                   {onSale.length} oferta{onSale.length !== 1 ? "s" : ""}
                 </span>

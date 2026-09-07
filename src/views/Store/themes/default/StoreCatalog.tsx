@@ -129,14 +129,14 @@ export default function StoreCatalog() {
               <button
                 onClick={() => { setSelectedCategory(null); updateParams("cat", null); }}
                 className={cn(
-                  "flex items-center justify-between px-3 py-2.5 text-xs font-bold transition-all rounded-xl w-full",
+                  "flex items-center justify-between px-3 py-2 text-[11px] font-bold transition-all rounded-xl w-full",
                   selectedCategory === null
                     ? "text-white shadow-sm"
                     : "text-stone-600 hover:bg-amber-50 hover:text-amber-700"
                 )}
                 style={selectedCategory === null ? { backgroundColor: style.accent } : {}}
               >
-                <span className="flex items-center gap-2"><LayoutGrid size={13} /> Todos</span>
+                <span className="flex items-center gap-2"><LayoutGrid size={12} /> Todos</span>
                 <span className={cn("text-[10px] font-black px-1.5 py-0.5 rounded-full",
                   selectedCategory === null ? "bg-white/20 text-white" : "bg-amber-100 text-amber-600")}>
                   {products.filter(p => p.is_active).length}
@@ -151,14 +151,14 @@ export default function StoreCatalog() {
                     key={cat.id}
                     onClick={() => { setSelectedCategory(cat.id); updateParams("cat", String(cat.id)); }}
                     className={cn(
-                      "flex items-center justify-between px-3 py-2.5 text-xs font-bold transition-all rounded-xl w-full",
+                      "flex items-center justify-between px-3 py-2 text-[11px] font-bold transition-all rounded-xl w-full",
                       active
                         ? "text-white shadow-sm"
                         : "text-stone-600 hover:bg-amber-50 hover:text-amber-700"
                     )}
                     style={active ? { backgroundColor: style.accent } : {}}
                   >
-                    <span className="flex items-center gap-2 truncate"><Leaf size={13} className="shrink-0" /> <span className="truncate">{cat.name}</span></span>
+                    <span className="flex items-center gap-2 truncate"><Leaf size={12} className="shrink-0" /> <span className="truncate">{cat.name}</span></span>
                     <span className={cn("text-[10px] font-black px-1.5 py-0.5 rounded-full shrink-0",
                       active ? "bg-white/20 text-white" : "bg-amber-100 text-amber-600")}>{count}</span>
                   </button>
@@ -210,18 +210,18 @@ export default function StoreCatalog() {
 
               {/* Search */}
               <div className="flex-1 relative group w-full">
-                <Search size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 transition-colors text-stone-400 group-focus-within:text-amber-600" />
+                <Search size={13} className="absolute left-3.5 top-1/2 -translate-y-1/2 transition-colors text-stone-400 group-focus-within:text-amber-600" />
                 <input
                   type="text"
                   placeholder="Buscar produtos..."
                   value={searchTerm}
                   onChange={e => { setSearchTerm(e.target.value); updateParams("q", e.target.value || null); }}
-                  className="w-full pl-10 pr-9 h-11 text-sm font-medium outline-none transition-all bg-white border border-[#f0e6d3] rounded-xl placeholder:text-stone-300 focus:border-amber-400 focus:ring-2 focus:ring-amber-100 text-stone-700"
+                  className="w-full pl-10 pr-9 h-10 text-[13px] font-medium outline-none transition-all bg-white border border-[#f0e6d3] rounded-xl placeholder:text-stone-300 focus:border-amber-400 focus:ring-2 focus:ring-amber-100 text-stone-700"
                 />
                 {searchTerm && (
                   <button onClick={() => { setSearchTerm(""); updateParams("q", null); }}
                     className="absolute right-3 top-1/2 -translate-y-1/2 text-stone-400 hover:text-stone-700">
-                    <X size={14} />
+                    <X size={13} />
                   </button>
                 )}
               </div>
@@ -229,9 +229,9 @@ export default function StoreCatalog() {
               {/* Mobile filter button */}
               <button
                 onClick={() => setSidebarOpen(v => !v)}
-                className="lg:hidden flex items-center gap-2 h-11 px-3 text-xs font-bold border border-[#f0e6d3] bg-white rounded-xl text-stone-600 hover:border-amber-300"
+                className="lg:hidden flex items-center gap-2 h-10 px-3 text-[11px] font-bold border border-[#f0e6d3] bg-white rounded-xl text-stone-600 hover:border-amber-300"
               >
-                <SlidersHorizontal size={14} className="text-amber-600" /> Filtros
+                <SlidersHorizontal size={13} className="text-amber-600" /> Filtros
                 {selectedCategory !== null && (
                   <span style={{ backgroundColor: style.accent }} className="w-4 h-4 rounded-full text-white text-[8px] font-black flex items-center justify-center">1</span>
                 )}
@@ -242,11 +242,11 @@ export default function StoreCatalog() {
                 <div ref={sortRef} className="relative">
                   <button
                     onClick={() => setShowSortMenu(v => !v)}
-                    className="flex items-center gap-2 h-11 px-3 text-xs font-bold transition-all border border-[#f0e6d3] bg-white rounded-xl text-stone-600 hover:border-amber-300"
+                    className="flex items-center gap-2 h-10 px-3 text-[11px] font-bold transition-all border border-[#f0e6d3] bg-white rounded-xl text-stone-600 hover:border-amber-300"
                   >
-                    <ArrowUpDown size={13} className="text-amber-500" />
+                    <ArrowUpDown size={12} className="text-amber-500" />
                     <span className="hidden sm:inline">{sortLabels[sortBy]}</span>
-                    <ChevronDown size={12} className={cn("transition-transform", showSortMenu && "rotate-180")} />
+                    <ChevronDown size={11} className={cn("transition-transform", showSortMenu && "rotate-180")} />
                   </button>
                   <AnimatePresence>
                     {showSortMenu && (
@@ -260,7 +260,7 @@ export default function StoreCatalog() {
                           <button
                             key={val}
                             onClick={() => { setSortBy(val); setShowSortMenu(false); }}
-                            className="w-full flex items-center justify-between gap-3 px-4 py-2.5 text-xs font-semibold transition-colors text-stone-700 hover:bg-amber-50"
+                            className="w-full flex items-center justify-between gap-3 px-4 py-2 text-[11px] font-semibold transition-colors text-stone-700 hover:bg-amber-50"
                           >
                             {label}
                             {sortBy === val && <Check size={12} style={{ color: style.accent }} />}
@@ -272,16 +272,16 @@ export default function StoreCatalog() {
                 </div>
 
                 {/* View toggle */}
-                <div className="flex h-11 overflow-hidden bg-white border border-[#f0e6d3] rounded-xl">
+                <div className="flex h-10 overflow-hidden bg-white border border-[#f0e6d3] rounded-xl">
                   {(["grid", "list"] as ViewMode[]).map(mode => (
                     <button
                       key={mode}
                       onClick={() => setViewMode(mode)}
-                      className={cn("w-10 flex items-center justify-center transition-all",
+                      className={cn("w-9 flex items-center justify-center transition-all",
                         viewMode === mode ? "text-white" : "text-stone-400 hover:text-amber-600")}
                       style={viewMode === mode ? { backgroundColor: style.accent } : {}}
                     >
-                      {mode === "grid" ? <LayoutGrid size={14} /> : <List size={14} />}
+                      {mode === "grid" ? <LayoutGrid size={13} /> : <List size={13} />}
                     </button>
                   ))}
                 </div>
@@ -300,11 +300,11 @@ export default function StoreCatalog() {
                   <div className="bg-[#fffbf5] border border-[#f0e6d3] rounded-2xl p-4 space-y-1.5">
                     <button
                       onClick={() => { setSelectedCategory(null); updateParams("cat", null); setSidebarOpen(false); }}
-                      className={cn("flex items-center justify-between px-3 py-2.5 text-xs font-bold transition-all rounded-xl w-full",
+                      className={cn("flex items-center justify-between px-3 py-2 text-[11px] font-bold transition-all rounded-xl w-full",
                         selectedCategory === null ? "text-white" : "text-stone-600 hover:bg-amber-50")}
                       style={selectedCategory === null ? { backgroundColor: style.accent } : {}}
                     >
-                      <span className="flex items-center gap-2"><LayoutGrid size={13} /> Todos</span>
+                      <span className="flex items-center gap-2"><LayoutGrid size={12} /> Todos</span>
                       <span className={cn("text-[10px] font-black px-1.5 py-0.5 rounded-full",
                         selectedCategory === null ? "bg-white/20 text-white" : "bg-amber-100 text-amber-600")}>
                         {products.filter(p => p.is_active).length}
@@ -317,11 +317,11 @@ export default function StoreCatalog() {
                         <button
                           key={cat.id}
                           onClick={() => { setSelectedCategory(cat.id); updateParams("cat", String(cat.id)); setSidebarOpen(false); }}
-                          className={cn("flex items-center justify-between px-3 py-2.5 text-xs font-bold transition-all rounded-xl w-full",
+                          className={cn("flex items-center justify-between px-3 py-2 text-[11px] font-bold transition-all rounded-xl w-full",
                             active ? "text-white" : "text-stone-600 hover:bg-amber-50")}
                           style={active ? { backgroundColor: style.accent } : {}}
                         >
-                          <span className="flex items-center gap-2 truncate"><Leaf size={13} className="shrink-0" /><span className="truncate">{cat.name}</span></span>
+                          <span className="flex items-center gap-2 truncate"><Leaf size={12} className="shrink-0" /><span className="truncate">{cat.name}</span></span>
                           <span className={cn("text-[10px] font-black px-1.5 py-0.5 rounded-full shrink-0",
                             active ? "bg-white/20 text-white" : "bg-amber-100 text-amber-600")}>{count}</span>
                         </button>
@@ -386,15 +386,15 @@ export default function StoreCatalog() {
             {/* Empty */}
             {filtered.length === 0 && (
               <div className="py-24 flex flex-col items-center gap-4 text-stone-400">
-                <Package size={48} strokeWidth={1} className="opacity-30 text-amber-300" />
+                <Package size={40} strokeWidth={1} className="opacity-30 text-amber-300" />
                 <div className="text-center">
-                  <p className="text-sm font-black uppercase tracking-tight text-stone-700">Nenhum produto encontrado</p>
-                  <p className="text-xs text-stone-400 mt-1">Tente outros filtros ou termos</p>
+                  <p className="text-[13px] font-black uppercase tracking-tight text-stone-700">Nenhum produto encontrado</p>
+                  <p className="text-[11px] text-stone-400 mt-1">Tente outros filtros ou termos</p>
                 </div>
                 <button
                   onClick={() => { setSearchTerm(""); setSelectedCategory(null); setPriceRange(null); setSearchParams({}); }}
                   style={{ backgroundColor: style.accent }}
-                  className="text-white px-6 h-10 rounded-xl text-[11px] font-black uppercase tracking-wider shadow-[0_4px_16px_rgba(217,119,6,0.3)] hover:shadow-[0_6px_22px_rgba(217,119,6,0.45)] transition-all"
+                  className="text-white px-5 h-10 rounded-xl text-[11px] font-black uppercase tracking-wider shadow-[0_4px_16px_rgba(217,119,6,0.3)] hover:shadow-[0_6px_22px_rgba(217,119,6,0.45)] transition-all"
                 >
                   Limpar filtros
                 </button>
@@ -548,7 +548,7 @@ function ProductCard({ product, index, slug, style, wishlist, onWishlist, onAddT
       </Link>
       <div className="flex flex-col flex-1 p-3 gap-1">
         <p className="text-[9px] font-black uppercase tracking-widest text-amber-600/60">{product.category_name || "Geral"}</p>
-        <Link to={buildStorePath(slug, `/produto/${productRouteSegment(product)}`)} className="text-xs font-semibold text-stone-700 line-clamp-2 leading-snug hover:text-amber-700 transition-colors">
+        <Link to={buildStorePath(slug, `/produto/${productRouteSegment(product)}`)} className="text-[11px] font-semibold text-stone-700 line-clamp-2 leading-snug hover:text-amber-700 transition-colors">
           {product.name}
         </Link>
         {Array.isArray(product.variations) && product.variations.length > 0 && (
@@ -562,11 +562,11 @@ function ProductCard({ product, index, slug, style, wishlist, onWishlist, onAddT
           <div>
             {product.discount_price ? (
               <div className="flex flex-col">
-                <span className="text-[10px] text-stone-400 line-through font-mono">R$ {Number(product.price).toFixed(2)}</span>
-                <span className="text-sm font-black font-mono" style={{ color: "#c2713a" }}>R$ {Number(product.discount_price).toFixed(2)}</span>
+                <span className="text-[9px] text-stone-400 line-through font-mono">R$ {Number(product.price).toFixed(2)}</span>
+                <span className="text-[13px] font-black font-mono" style={{ color: "#c2713a" }}>R$ {Number(product.discount_price).toFixed(2)}</span>
               </div>
             ) : (
-              <span className="text-sm font-black font-mono" style={{ color: style.accent }}>R$ {Number(product.price).toFixed(2)}</span>
+              <span className="text-[13px] font-black font-mono" style={{ color: style.accent }}>R$ {Number(product.price).toFixed(2)}</span>
             )}
           </div>
           <button
@@ -574,7 +574,7 @@ function ProductCard({ product, index, slug, style, wishlist, onWishlist, onAddT
             style={{ backgroundColor: style.accent }}
             className="text-white transition-all active:scale-90 w-8 h-8 flex items-center justify-center rounded-xl shadow-sm hover:shadow-[0_4px_12px_rgba(217,119,6,0.35)]"
           >
-            <Plus size={14} strokeWidth={3} />
+            <Plus size={13} strokeWidth={3} />
           </button>
         </div>
       </div>
@@ -619,7 +619,7 @@ function ProductRow({ product, index, slug, style, wishlist, onWishlist, onAddTo
           <div className="flex items-start justify-between gap-2">
             <div>
               <p className="text-[9px] font-black text-amber-600/60 uppercase tracking-widest">{product.category_name || "Geral"}</p>
-              <Link to={buildStorePath(slug, `/produto/${productRouteSegment(product)}`)} className="text-sm font-semibold text-stone-700 hover:text-amber-700 transition-colors leading-snug line-clamp-2 mt-0.5 block">
+              <Link to={buildStorePath(slug, `/produto/${productRouteSegment(product)}`)} className="text-[12px] font-semibold text-stone-700 hover:text-amber-700 transition-colors leading-snug line-clamp-2 mt-0.5 block">
                 {product.name}
               </Link>
             </div>
@@ -645,11 +645,11 @@ function ProductRow({ product, index, slug, style, wishlist, onWishlist, onAddTo
           <div>
             {product.discount_price ? (
               <div className="flex items-center gap-2">
-                <span className="text-[10px] line-through font-mono text-stone-400">R$ {Number(product.price).toFixed(2)}</span>
-                <span className="text-base font-black font-mono" style={{ color: "#c2713a" }}>R$ {Number(product.discount_price).toFixed(2)}</span>
+                <span className="text-[9px] line-through font-mono text-stone-400">R$ {Number(product.price).toFixed(2)}</span>
+                <span className="text-sm font-black font-mono" style={{ color: "#c2713a" }}>R$ {Number(product.discount_price).toFixed(2)}</span>
               </div>
             ) : (
-              <span className="text-base font-black font-mono" style={{ color: style.accent }}>R$ {Number(product.price).toFixed(2)}</span>
+              <span className="text-sm font-black font-mono" style={{ color: style.accent }}>R$ {Number(product.price).toFixed(2)}</span>
             )}
           </div>
           <div className="flex items-center gap-2">

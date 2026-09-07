@@ -125,10 +125,10 @@ export default function StoreCatalog() {
             </div>
             <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
               <div>
-                <h1 className="text-3xl sm:text-4xl md:text-5xl font-black text-slate-900 leading-tight tracking-tight">
+                <h1 className="text-2xl sm:text-3xl md:text-[2.25rem] font-black text-slate-900 leading-tight tracking-tight">
                   {catName || "Todos os produtos"}
                 </h1>
-                <p className="mt-2 max-w-2xl text-sm md:text-base leading-relaxed text-slate-500">
+                <p className="mt-2 max-w-2xl text-[13px] md:text-sm leading-relaxed text-slate-500">
                   Tecnologia e inovação com os melhores preços. Filtre por categoria e encontre o ideal.
                 </p>
               </div>
@@ -138,8 +138,8 @@ export default function StoreCatalog() {
                   { value: categories.length, label: "Linhas" },
                   { value: saleCount, label: "Ofertas" },
                 ].map(item => (
-                  <div key={item.label} className="rounded-xl border border-slate-100 bg-slate-50 px-4 py-3 text-center min-w-[72px]">
-                    <p className="text-2xl font-black font-mono" style={{ color: style.accent }}>{item.value}</p>
+                  <div key={item.label} className="rounded-xl border border-slate-100 bg-slate-50 px-3.5 py-2.5 text-center min-w-[64px]">
+                    <p className="text-lg font-black font-mono" style={{ color: style.accent }}>{item.value}</p>
                     <p className="text-[9px] font-bold uppercase tracking-wider text-slate-400 mt-0.5">{item.label}</p>
                   </div>
                 ))}
@@ -167,7 +167,7 @@ export default function StoreCatalog() {
             <button
               onClick={() => { setSelectedCategory(null); updateParams("cat", null); }}
               className={cn(
-                "flex items-center justify-between px-3 py-2.5 text-xs font-bold transition-all rounded-xl border",
+                "flex items-center justify-between px-3 py-2 text-[11px] font-bold transition-all rounded-xl border",
                 selectedCategory === null
                   ? "text-white border-transparent"
                   : "text-slate-600 bg-white border-slate-200 hover:border-sky-300 hover:text-sky-600"
@@ -189,7 +189,7 @@ export default function StoreCatalog() {
                   key={cat.id}
                   onClick={() => { setSelectedCategory(cat.id); updateParams("cat", String(cat.id)); }}
                   className={cn(
-                    "flex items-center justify-between px-3 py-2.5 text-xs font-bold transition-all rounded-xl border",
+                    "flex items-center justify-between px-3 py-2 text-[11px] font-bold transition-all rounded-xl border",
                     active
                       ? "text-white border-transparent"
                       : "text-slate-600 bg-white border-slate-200 hover:border-sky-300 hover:text-sky-600"

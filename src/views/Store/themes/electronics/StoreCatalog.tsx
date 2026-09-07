@@ -120,10 +120,10 @@ export default function StoreCatalog() {
           </div>
           <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
             <div>
-              <h1 className="text-4xl sm:text-5xl md:text-6xl font-black text-white leading-tight tracking-tight">
+              <h1 className="text-2xl sm:text-3xl md:text-[2.25rem] font-black text-white leading-tight tracking-tight">
                 {catName || "Todos os produtos"}
               </h1>
-              <p className="mt-3 max-w-2xl text-sm md:text-base leading-relaxed text-slate-400">
+              <p className="mt-3 max-w-2xl text-[12px] md:text-[13px] leading-relaxed text-slate-400">
                 Eletrônicos, gadgets e tecnologia com os melhores preços. Filtre por categoria e encontre o produto ideal.
               </p>
             </div>
@@ -133,8 +133,8 @@ export default function StoreCatalog() {
                 { value: categories.length, label: "Linhas" },
                 { value: saleCount, label: "Ofertas" },
               ].map(item => (
-                <div key={item.label} className="rounded-xl border border-[#1e2d4a] bg-[#080c14] px-4 py-3 text-center min-w-[72px]">
-                  <p className="text-2xl font-black" style={{ color: style.accent }}>{item.value}</p>
+                <div key={item.label} className="rounded-xl border border-[#1e2d4a] bg-[#080c14] px-3.5 py-2.5 text-center min-w-[72px]">
+                  <p className="text-lg font-black" style={{ color: style.accent }}>{item.value}</p>
                   <p className="text-[9px] font-bold uppercase tracking-wider text-slate-500 mt-0.5">{item.label}</p>
                 </div>
               ))}
@@ -160,7 +160,7 @@ export default function StoreCatalog() {
 
           <button
             onClick={() => { setSelectedCategory(null); updateParams("cat", null); }}
-            className={cn("flex items-center justify-between px-3 py-2.5 text-xs font-bold transition-all rounded-xl border border-[#1e2d4a]",
+            className={cn("flex items-center justify-between px-3 py-2 text-[11px] font-bold transition-all rounded-xl border border-[#1e2d4a]",
               selectedCategory === null
                 ? "text-white shadow-sm border-transparent"
                 : "text-slate-400 bg-[#0e1525]/80 hover:border-blue-500/40 hover:text-white")}
@@ -180,7 +180,7 @@ export default function StoreCatalog() {
               <button
                 key={cat.id}
                 onClick={() => { setSelectedCategory(cat.id); updateParams("cat", String(cat.id)); }}
-                className={cn("flex items-center justify-between px-3 py-2.5 text-xs font-bold transition-all rounded-xl border border-[#1e2d4a]",
+                className={cn("flex items-center justify-between px-3 py-2 text-[11px] font-bold transition-all rounded-xl border border-[#1e2d4a]",
                   active
                     ? "text-white shadow-sm border-transparent"
                     : "text-slate-400 bg-[#0e1525]/80 hover:border-blue-500/40 hover:text-white")}

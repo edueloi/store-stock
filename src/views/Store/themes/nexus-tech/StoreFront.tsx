@@ -47,11 +47,11 @@ function SectionHeader({ title, subtitle, link, linkLabel, accent }: {
     <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between mb-10">
       <div>
         <p className="store-kicker text-[10px] font-semibold text-[#6f89ad] mb-2">{subtitle || "Seleção especial"}</p>
-        <h2 className="store-display text-[2.6rem] md:text-5xl font-semibold tracking-[-0.04em] text-[#071426] leading-[0.92]">{title}</h2>
+        <h2 className="store-display text-2xl sm:text-3xl md:text-[2.25rem] font-semibold tracking-[-0.04em] text-[#071426] leading-[0.95]">{title}</h2>
       </div>
       <Link
         to={link}
-        className="shrink-0 inline-flex items-center gap-1.5 rounded-full border border-[#d7e4ff] bg-white/80 px-5 py-2.5 text-[10px] font-semibold tracking-[0.16em] uppercase text-[#4d6990] hover:text-[#071426] hover:border-[#b3caff] hover:bg-white transition-all"
+        className="shrink-0 inline-flex items-center gap-1.5 rounded-full border border-[#d7e4ff] bg-white/80 px-4 py-2 text-[10px] font-semibold tracking-[0.16em] uppercase text-[#4d6990] hover:text-[#071426] hover:border-[#b3caff] hover:bg-white transition-all"
       >
         {linkLabel || "Ver todos"} <ChevronRight size={12} />
       </Link>
@@ -78,13 +78,13 @@ function TechCategoryCard({ cat, slug, count, accent }: { cat: Category; slug: s
           style={{ background: accent + "22" }}
         />
         <div
-          className="relative w-11 h-11 flex items-center justify-center rounded-2xl border border-white/80 tech-pulse transition-transform duration-300 group-hover:scale-110"
+          className="relative w-9 h-9 flex items-center justify-center rounded-2xl border border-white/80 tech-pulse transition-transform duration-300 group-hover:scale-110"
           style={{ backgroundColor: accent + "14", color: accent }}
         >
           {getCategoryIcon(cat.name)}
         </div>
         <div>
-          <p className="store-display text-[1.05rem] font-semibold text-[#071426] leading-tight">{cat.name}</p>
+          <p className="store-display text-[0.95rem] font-semibold text-[#071426] leading-tight">{cat.name}</p>
           <span className="store-kicker text-[9px] text-[#7b9ac0] font-medium mt-0.5 block">{count} {count === 1 ? "produto" : "produtos"}</span>
         </div>
       </Link>
@@ -148,7 +148,7 @@ function ProductCard({ product, index, slug, style, onAddToCart }: {
         {/* Content */}
         <div className="flex flex-col flex-1 p-4 sm:p-5 gap-2">
           <p className="store-kicker text-[9px] font-semibold text-[#7b9ac0]">{product.category_name || "Tecnologia"}</p>
-          <p className="store-display text-[1.12rem] sm:text-[1.3rem] font-semibold text-[#071426] leading-[1.02] line-clamp-2 group-hover:text-[#1d4ed8] transition-colors">
+          <p className="store-display text-[13px] sm:text-[14px] font-semibold text-[#071426] leading-[1.15] line-clamp-2 group-hover:text-[#1d4ed8] transition-colors">
             {product.name}
           </p>
           {product.description && (
@@ -158,11 +158,11 @@ function ProductCard({ product, index, slug, style, onAddToCart }: {
             <div>
               {hasDiscount ? (
                 <div>
-                  <span className="text-[10px] line-through text-[#b0c4de] font-mono">R$ {Number(product.price).toFixed(2)}</span>
-                  <p className="store-display text-[1.3rem] sm:text-[1.55rem] font-semibold text-[#071426] leading-none">R$ {Number(product.discount_price).toFixed(2)}</p>
+                  <span className="text-[9px] line-through text-[#b0c4de] font-mono">R$ {Number(product.price).toFixed(2)}</span>
+                  <p className="store-display text-[15px] sm:text-base font-semibold text-[#071426] leading-none">R$ {Number(product.discount_price).toFixed(2)}</p>
                 </div>
               ) : (
-                <p className="store-display text-[1.3rem] sm:text-[1.55rem] font-semibold leading-none" style={{ color: style.accent }}>
+                <p className="store-display text-[15px] sm:text-base font-semibold leading-none" style={{ color: style.accent }}>
                   R$ {Number(product.price).toFixed(2)}
                 </p>
               )}
@@ -170,9 +170,9 @@ function ProductCard({ product, index, slug, style, onAddToCart }: {
             <button
               onClick={e => { e.preventDefault(); onAddToCart(product); }}
               style={{ backgroundColor: style.accent }}
-              className="shrink-0 text-white transition-all active:scale-90 w-10 h-10 rounded-full shadow-[0_12px_24px_rgba(37,99,235,0.28)] hover:shadow-[0_16px_32px_rgba(37,99,235,0.38)] hover:scale-105 flex items-center justify-center"
+              className="shrink-0 text-white transition-all active:scale-90 w-8 h-8 rounded-full shadow-[0_12px_24px_rgba(37,99,235,0.28)] hover:shadow-[0_16px_32px_rgba(37,99,235,0.38)] hover:scale-105 flex items-center justify-center"
             >
-              <ShoppingBag size={14} />
+              <ShoppingBag size={13} />
             </button>
           </div>
         </div>
@@ -268,12 +268,12 @@ export default function StoreFront() {
                 </div>
 
                 {/* Headline */}
-                <h1 className="store-display text-[3.4rem] sm:text-6xl md:text-7xl lg:text-[5.5rem] leading-[0.88] text-[#071426] tracking-[-0.02em]">
+                <h1 className="store-display text-3xl sm:text-4xl md:text-5xl lg:text-6xl leading-[0.95] text-[#071426] tracking-[-0.02em]">
                   {tenant.name}
                 </h1>
 
                 {/* Body */}
-                <p className="mt-6 max-w-lg text-[14px] sm:text-base md:text-[17px] leading-relaxed text-[#4e6c8e]">
+                <p className="mt-6 max-w-lg text-[13px] sm:text-[14px] md:text-[15px] leading-relaxed text-[#4e6c8e]">
                   {tenant.about_text || "Os melhores produtos com os melhores preços. Atendimento rápido via WhatsApp e experiência de compra segura."}
                 </p>
 
@@ -282,13 +282,13 @@ export default function StoreFront() {
                   <Link
                     to={storePath("/catalogo")}
                     style={{ backgroundColor: style.accent }}
-                    className="inline-flex w-full sm:w-auto justify-center h-13 items-center gap-2 rounded-full px-8 text-[11px] font-semibold uppercase tracking-[0.2em] text-white shadow-[0_16px_40px_rgba(37,99,235,0.28)] hover:shadow-[0_20px_50px_rgba(37,99,235,0.38)] transition-all hover:-translate-y-0.5 active:scale-95"
+                    className="inline-flex w-full sm:w-auto justify-center h-11 items-center gap-2 rounded-full px-7 text-[11px] font-semibold uppercase tracking-[0.2em] text-white shadow-[0_16px_40px_rgba(37,99,235,0.28)] hover:shadow-[0_20px_50px_rgba(37,99,235,0.38)] transition-all hover:-translate-y-0.5 active:scale-95"
                   >
                     <ShoppingBag size={14} /> Explorar catálogo
                   </Link>
                   <a
                     href="#categorias"
-                    className="inline-flex w-full sm:w-auto justify-center h-13 items-center gap-2 rounded-full border border-[#d7e4ff] bg-white/80 px-8 text-[11px] font-semibold uppercase tracking-[0.18em] text-[#4d6990] hover:bg-white hover:border-[#b3caff] transition-all"
+                    className="inline-flex w-full sm:w-auto justify-center h-11 items-center gap-2 rounded-full border border-[#d7e4ff] bg-white/80 px-7 text-[11px] font-semibold uppercase tracking-[0.18em] text-[#4d6990] hover:bg-white hover:border-[#b3caff] transition-all"
                   >
                     Ver linhas <ArrowRight size={13} />
                   </a>
@@ -301,7 +301,7 @@ export default function StoreFront() {
                       <Link
                         key={cat.id}
                         to={storePath(`/catalogo?cat=${cat.id}`)}
-                        className="rounded-full border border-[#dbe6ff] bg-white/80 px-4 py-1.5 text-[10px] font-semibold uppercase tracking-[0.16em] text-[#5b7898] hover:border-[#b3caff] hover:text-[#2563eb] transition-all"
+                        className="rounded-full border border-[#dbe6ff] bg-white/80 px-3.5 py-1.5 text-[10px] font-semibold uppercase tracking-[0.16em] text-[#5b7898] hover:border-[#b3caff] hover:text-[#2563eb] transition-all"
                       >
                         {cat.name}
                       </Link>
@@ -335,7 +335,7 @@ export default function StoreFront() {
                 {/* Bottom info */}
                 <div className="absolute bottom-0 left-0 right-0 p-6 md:p-8 text-white">
                   <p className="store-kicker text-[9px] font-semibold text-white/65">{categories.slice(0, 3).map(c => c.name).join(" · ") || tenant.name}</p>
-                  <p className="store-display mt-2 text-2xl md:text-3xl leading-[0.95]">
+                  <p className="store-display mt-2 text-xl md:text-2xl leading-[0.95]">
                     {featured[0]?.name ?? tenant.name}
                   </p>
                   <div className="mt-4 flex flex-wrap gap-4 text-[11px] font-medium text-white/70">
@@ -364,9 +364,9 @@ export default function StoreFront() {
                     initial={{ opacity: 0, y: 12 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: 0.18 + i * 0.06 }}
-                    className="tech-panel rounded-[1.6rem] border border-[#dbe6ff] bg-white/90 p-4 text-center shadow-[0_2px_16px_rgba(37,99,235,0.07)]"
+                    className="tech-panel rounded-2xl border border-[#dbe6ff] bg-white/90 p-3.5 text-center shadow-[0_2px_16px_rgba(37,99,235,0.07)]"
                   >
-                    <span className="store-display text-[2rem] leading-none font-semibold" style={{ color: style.accent }}>{s.value}</span>
+                    <span className="store-display text-lg leading-none font-semibold" style={{ color: style.accent }}>{s.value}</span>
                     <span className="store-kicker mt-1.5 block text-[9px] font-semibold text-[#7b9ac0]">{s.label}</span>
                   </motion.div>
                 ))}
@@ -421,7 +421,7 @@ export default function StoreFront() {
             <div className="mt-6 text-center">
               <Link
                 to={storePath("/catalogo")}
-                className="inline-flex items-center gap-2 px-7 h-11 rounded-full border border-[#dbe6ff] bg-white text-[11px] font-semibold uppercase tracking-[0.2em] text-[#4d6990] hover:bg-[#f4f8ff] hover:border-[#b3caff] transition-all"
+                className="inline-flex items-center gap-2 px-6 h-10 rounded-full border border-[#dbe6ff] bg-white text-[11px] font-semibold uppercase tracking-[0.2em] text-[#4d6990] hover:bg-[#f4f8ff] hover:border-[#b3caff] transition-all"
               >
                 +{categories.length - CATEGORY_DISPLAY_LIMIT} categorias <ChevronRight size={12} />
               </Link>
@@ -475,12 +475,12 @@ export default function StoreFront() {
                 {/* Bottom info */}
                 <div className="absolute left-0 right-0 bottom-0 p-7 md:p-10 text-white">
                   <p className="store-kicker text-[9px] font-semibold text-white/65">{featured[0].category_name || "Tecnologia"}</p>
-                  <h3 className="store-display mt-3 text-4xl md:text-[3.2rem] leading-[0.9]">{featured[0].name}</h3>
+                  <h3 className="store-display mt-3 text-2xl sm:text-3xl md:text-[2.3rem] leading-[0.95]">{featured[0].name}</h3>
                   {featured[0].description && (
                     <p className="mt-3 max-w-md text-sm leading-relaxed text-white/72 line-clamp-2">{featured[0].description}</p>
                   )}
                   <div className="mt-5 flex items-center gap-4">
-                    <p className="store-display text-[3rem] md:text-[3.5rem] leading-none">
+                    <p className="store-display text-[2.1rem] md:text-[2.5rem] leading-none">
                       R$ {Number(featured[0].discount_price || featured[0].price).toFixed(2)}
                     </p>
                     {featured[0].discount_price && (
@@ -488,7 +488,7 @@ export default function StoreFront() {
                     )}
                   </div>
                   <div
-                    className="mt-5 inline-flex items-center gap-2 rounded-full px-6 py-2.5 text-[10px] font-semibold uppercase tracking-[0.18em] text-white border border-white/25 bg-white/15 backdrop-blur-sm group-hover:bg-white/25 transition-all"
+                    className="mt-5 inline-flex items-center gap-2 rounded-full px-5 py-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-white border border-white/25 bg-white/15 backdrop-blur-sm group-hover:bg-white/25 transition-all"
                   >
                     Ver produto <ArrowRight size={12} />
                   </div>
@@ -543,7 +543,7 @@ export default function StoreFront() {
               <div>
                 <p className="store-kicker text-[10px] font-semibold text-red-400 mb-2">Ofertas ativas agora</p>
                 <div className="flex items-center gap-3">
-                  <h2 className="store-display text-[2.6rem] md:text-5xl font-semibold tracking-[-0.04em] text-[#071426] leading-[0.92]">Promoções</h2>
+                  <h2 className="store-display text-2xl sm:text-3xl md:text-[2.25rem] font-semibold tracking-[-0.04em] text-[#071426] leading-[0.95]">Promoções</h2>
                   <span className="text-[9px] font-bold px-2.5 py-1 rounded-full border bg-red-50 text-red-500 border-red-200">
                     {onSale.length} oferta{onSale.length !== 1 ? "s" : ""}
                   </span>
@@ -551,7 +551,7 @@ export default function StoreFront() {
               </div>
               <Link
                 to={storePath("/catalogo")}
-                className="shrink-0 inline-flex items-center gap-1.5 rounded-full border border-[#d7e4ff] bg-white/80 px-5 py-2.5 text-[10px] font-semibold tracking-[0.16em] uppercase text-[#4d6990] hover:text-[#071426] hover:border-[#b3caff] hover:bg-white transition-all"
+                className="shrink-0 inline-flex items-center gap-1.5 rounded-full border border-[#d7e4ff] bg-white/80 px-4 py-2 text-[10px] font-semibold tracking-[0.16em] uppercase text-[#4d6990] hover:text-[#071426] hover:border-[#b3caff] hover:bg-white transition-all"
               >
                 Ver todas <ChevronRight size={12} />
               </Link>
@@ -587,11 +587,11 @@ export default function StoreFront() {
                         </span>
                       </div>
                       <div className="flex flex-col flex-1 p-4 gap-2">
-                        <p className="store-display text-[1.1rem] sm:text-[1.25rem] font-semibold text-[#071426] line-clamp-2 leading-[1.02] group-hover:text-[#1d4ed8] transition-colors">
+                        <p className="store-display text-[13px] sm:text-[14px] font-semibold text-[#071426] line-clamp-2 leading-[1.15] group-hover:text-[#1d4ed8] transition-colors">
                           {product.name}
                         </p>
                         <div className="flex items-center gap-2 mt-auto pt-2 border-t border-[#e2ecff]">
-                          <span className="store-display text-[1.3rem] sm:text-[1.5rem] font-semibold text-[#071426]">
+                          <span className="store-display text-[15px] sm:text-base font-semibold text-[#071426]">
                             R$ {Number(product.discount_price).toFixed(2)}
                           </span>
                           <span className="text-[10px] text-[#b0c4de] line-through font-mono">
@@ -625,17 +625,17 @@ export default function StoreFront() {
 
             <div className="relative">
               <p className="store-kicker text-[10px] font-semibold text-[#6f89ad] mb-4">Pronto para começar?</p>
-              <h2 className="store-display text-[2.4rem] sm:text-5xl md:text-6xl leading-[0.9] text-[#071426] mb-4">
+              <h2 className="store-display text-2xl sm:text-3xl md:text-4xl leading-[0.95] text-[#071426] mb-4">
                 Encontre o produto ideal
               </h2>
-              <p className="max-w-lg mx-auto text-[14px] md:text-base text-[#4e6c8e] leading-relaxed mb-8">
+              <p className="max-w-lg mx-auto text-[13px] md:text-[14px] text-[#4e6c8e] leading-relaxed mb-8">
                 Navegue pelo catálogo completo, filtre por categoria e descubra os melhores produtos com os melhores preços.
               </p>
               <div className="flex flex-col sm:flex-row gap-3 justify-center">
                 <Link
                   to={storePath("/catalogo")}
                   style={{ backgroundColor: style.accent }}
-                  className="inline-flex items-center justify-center gap-2 h-13 px-10 rounded-full text-[11px] font-semibold uppercase tracking-[0.2em] text-white shadow-[0_16px_40px_rgba(37,99,235,0.28)] hover:shadow-[0_20px_50px_rgba(37,99,235,0.38)] hover:-translate-y-0.5 transition-all"
+                  className="inline-flex items-center justify-center gap-2 h-11 px-8 rounded-full text-[11px] font-semibold uppercase tracking-[0.2em] text-white shadow-[0_16px_40px_rgba(37,99,235,0.28)] hover:shadow-[0_20px_50px_rgba(37,99,235,0.38)] hover:-translate-y-0.5 transition-all"
                 >
                   <ShoppingBag size={14} /> Ver catálogo completo
                 </Link>
@@ -644,7 +644,7 @@ export default function StoreFront() {
                     href={`https://wa.me/${tenant.whatsapp.replace(/\D/g, "")}`}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="inline-flex items-center justify-center gap-2 h-13 px-8 rounded-full border border-[#d7e4ff] bg-white text-[11px] font-semibold uppercase tracking-[0.18em] text-[#4d6990] hover:bg-[#f4f8ff] hover:border-[#b3caff] transition-all"
+                    className="inline-flex items-center justify-center gap-2 h-11 px-7 rounded-full border border-[#d7e4ff] bg-white text-[11px] font-semibold uppercase tracking-[0.18em] text-[#4d6990] hover:bg-[#f4f8ff] hover:border-[#b3caff] transition-all"
                   >
                     Falar conosco
                   </a>

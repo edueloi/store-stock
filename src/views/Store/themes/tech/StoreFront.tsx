@@ -16,17 +16,17 @@ import { productHasStock } from "../../../../utils/productStock";
 // ── Tech Icons Map ──────────────────────────────────────────────────────────
 
 const TECH_ICONS: Record<string, ReactNode> = {
-  camera: <Camera size={20} />, câmera: <Camera size={20} />, cameras: <Camera size={20} />,
-  receiver: <Speaker size={20} />, receivers: <Speaker size={20} />, áudio: <Headphones size={20} />, audio: <Headphones size={20} />,
-  projetor: <Monitor size={20} />, projetores: <Monitor size={20} />,
-  fone: <Headphones size={20} />, headphone: <Headphones size={20} />,
-  celular: <Smartphone size={20} />, smartphone: <Smartphone size={20} />, telefone: <Smartphone size={20} />,
-  tv: <Tv size={20} />, televisão: <Tv size={20} />,
-  wifi: <Wifi size={20} />, rede: <Wifi size={20} />, roteador: <Wifi size={20} />,
-  hd: <HardDrive size={20} />, ssd: <HardDrive size={20} />, armazenamento: <HardDrive size={20} />,
-  notebook: <Monitor size={20} />, laptop: <Monitor size={20} />, computador: <Cpu size={20} />, pc: <Cpu size={20} />,
-  gamer: <Monitor size={20} />, console: <Monitor size={20} />, ps5: <Monitor size={20} />, tablet: <Smartphone size={20} />,
-  alexa: <Speaker size={20} />, smart: <Wifi size={20} />,
+  camera: <Camera size={17} />, câmera: <Camera size={17} />, cameras: <Camera size={17} />,
+  receiver: <Speaker size={17} />, receivers: <Speaker size={17} />, áudio: <Headphones size={17} />, audio: <Headphones size={17} />,
+  projetor: <Monitor size={17} />, projetores: <Monitor size={17} />,
+  fone: <Headphones size={17} />, headphone: <Headphones size={17} />,
+  celular: <Smartphone size={17} />, smartphone: <Smartphone size={17} />, telefone: <Smartphone size={17} />,
+  tv: <Tv size={17} />, televisão: <Tv size={17} />,
+  wifi: <Wifi size={17} />, rede: <Wifi size={17} />, roteador: <Wifi size={17} />,
+  hd: <HardDrive size={17} />, ssd: <HardDrive size={17} />, armazenamento: <HardDrive size={17} />,
+  notebook: <Monitor size={17} />, laptop: <Monitor size={17} />, computador: <Cpu size={17} />, pc: <Cpu size={17} />,
+  gamer: <Monitor size={17} />, console: <Monitor size={17} />, ps5: <Monitor size={17} />, tablet: <Smartphone size={17} />,
+  alexa: <Speaker size={17} />, smart: <Wifi size={17} />,
 };
 
 function getCategoryIcon(name: string) {
@@ -34,7 +34,7 @@ function getCategoryIcon(name: string) {
   for (const key of Object.keys(TECH_ICONS)) {
     if (lower.includes(key)) return TECH_ICONS[key];
   }
-  return <Cpu size={20} />;
+  return <Cpu size={17} />;
 }
 
 // ── Grid Pattern (very subtle on light bg) ──────────────────────────────────
@@ -54,7 +54,7 @@ function SectionHeader({ title, icon, link, linkLabel, accent }: {
       <div className="flex items-center gap-3">
         <div className="w-1 h-7 rounded-full" style={{ backgroundColor: accent }} />
         {icon && <span style={{ color: accent }}>{icon}</span>}
-        <h2 className="text-2xl md:text-3xl font-black text-slate-900 tracking-tight leading-none">{title}</h2>
+        <h2 className="text-xl md:text-2xl font-black text-slate-900 tracking-tight leading-none">{title}</h2>
       </div>
       <Link
         to={link}
@@ -81,13 +81,13 @@ function CategoryCard({ cat, slug, count, accent }: { cat: Category; slug: strin
         className="group relative flex flex-col items-center gap-3 p-5 text-center rounded-2xl border border-slate-200 bg-white overflow-hidden transition-all duration-300 hover:border-sky-300 hover:shadow-[0_4px_20px_rgba(14,165,233,0.12)] shadow-sm"
       >
         <div
-          className="relative w-12 h-12 rounded-xl flex items-center justify-center transition-all duration-300 group-hover:scale-110"
+          className="relative w-10 h-10 rounded-xl flex items-center justify-center transition-all duration-300 group-hover:scale-110"
           style={{ backgroundColor: accent + "15", color: accent }}
         >
           {getCategoryIcon(cat.name)}
         </div>
         <div>
-          <p className="text-sm font-bold text-slate-800 leading-tight">{cat.name}</p>
+          <p className="text-[13px] font-bold text-slate-800 leading-tight">{cat.name}</p>
           <span className="text-[10px] font-medium text-slate-400 mt-0.5 block">{count} produto{count !== 1 ? "s" : ""}</span>
         </div>
         {/* Bottom accent bar on hover */}
@@ -256,14 +256,14 @@ export default function StoreFront() {
                 </span>
               </div>
 
-              <h1 className="text-5xl md:text-6xl lg:text-7xl font-black text-slate-900 leading-none tracking-tight">
+              <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-black text-slate-900 leading-none tracking-tight">
                 {tenant.name}
               </h1>
 
               {/* Sky blue underline accent */}
               <div className="h-1.5 w-20 rounded-full mt-4 mb-5" style={{ backgroundColor: style.accent }} />
 
-              <p className="text-slate-500 text-base md:text-lg leading-relaxed max-w-lg">
+              <p className="text-slate-500 text-[13px] md:text-sm leading-relaxed max-w-lg">
                 {tenant.about_text || "Os melhores produtos de tecnologia com preços imbatíveis. Inovação, qualidade e atendimento de excelência."}
               </p>
 
@@ -271,15 +271,15 @@ export default function StoreFront() {
                 <Link
                   to={storePath("/catalogo")}
                   style={{ backgroundColor: style.accent, boxShadow: `0 4px 20px ${style.accent}40` }}
-                  className="inline-flex items-center gap-2 h-12 px-7 rounded-xl text-white font-black text-[11px] uppercase tracking-[0.18em] transition-all hover:opacity-90 shadow-lg active:scale-95"
+                  className="inline-flex items-center gap-2 h-11 px-6 rounded-xl text-white font-black text-[11px] uppercase tracking-[0.18em] transition-all hover:opacity-90 shadow-lg active:scale-95"
                 >
-                  <ShoppingBag size={15} /> Ver Catálogo
+                  <ShoppingBag size={14} /> Ver Catálogo
                 </Link>
                 <Link
                   to={storePath("/sobre")}
-                  className="inline-flex items-center gap-2 h-12 px-7 rounded-xl border border-slate-200 bg-white text-slate-700 font-black text-[11px] uppercase tracking-[0.18em] hover:border-sky-300 hover:text-sky-600 transition-all shadow-sm"
+                  className="inline-flex items-center gap-2 h-11 px-6 rounded-xl border border-slate-200 bg-white text-slate-700 font-black text-[11px] uppercase tracking-[0.18em] hover:border-sky-300 hover:text-sky-600 transition-all shadow-sm"
                 >
-                  Sobre nós <ArrowRight size={13} />
+                  Sobre nós <ArrowRight size={12} />
                 </Link>
               </div>
 
@@ -337,8 +337,8 @@ export default function StoreFront() {
                       { value: featured.length, label: "Destaques" },
                       { value: onSale.length, label: "Promoções" },
                     ].map((s, i) => (
-                      <div key={i} className="rounded-xl border border-slate-100 bg-slate-50 p-5 text-center">
-                        <span className="text-3xl font-black font-mono" style={{ color: style.accent }}>{s.value}</span>
+                      <div key={i} className="rounded-xl border border-slate-100 bg-slate-50 p-4 text-center">
+                        <span className="text-xl font-black font-mono" style={{ color: style.accent }}>{s.value}</span>
                         <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mt-1">{s.label}</p>
                       </div>
                     ))}
@@ -370,13 +370,13 @@ export default function StoreFront() {
             ].map((s, i) => (
               <div key={i} className="flex items-center gap-4 px-6 py-5">
                 <div
-                  className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
+                  className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0"
                   style={{ backgroundColor: style.accent + "15", color: style.accent }}
                 >
                   {s.icon}
                 </div>
                 <div>
-                  <span className="text-2xl font-black text-slate-900 tabular-nums font-mono">{s.value}</span>
+                  <span className="text-lg font-black text-slate-900 tabular-nums font-mono">{s.value}</span>
                   <p className="text-[9px] font-bold uppercase tracking-wider text-slate-400 mt-0.5">{s.label}</p>
                 </div>
               </div>
@@ -457,12 +457,12 @@ export default function StoreFront() {
                   <p className="text-[10px] font-black uppercase tracking-[0.22em] mb-2" style={{ color: style.accent }}>
                     {featured[0].category_name || "Tecnologia"}
                   </p>
-                  <h3 className="text-2xl md:text-3xl font-black leading-tight text-slate-900">{featured[0].name}</h3>
+                  <h3 className="text-xl md:text-2xl font-black leading-tight text-slate-900">{featured[0].name}</h3>
                   {featured[0].description && (
-                    <p className="mt-2 text-sm text-slate-500 leading-relaxed line-clamp-2 max-w-md">{featured[0].description}</p>
+                    <p className="mt-2 text-[13px] text-slate-500 leading-relaxed line-clamp-2 max-w-md">{featured[0].description}</p>
                   )}
                   <div className="mt-4 flex items-end gap-3">
-                    <span className="text-2xl font-black font-mono text-slate-900">
+                    <span className="text-xl font-black font-mono text-slate-900">
                       R$ {Number(featured[0].discount_price || featured[0].price).toFixed(2)}
                     </span>
                     {featured[0].discount_price && (
@@ -548,7 +548,7 @@ export default function StoreFront() {
               <div className="flex items-center gap-3">
                 <div className="w-1 h-7 rounded-full bg-sky-400" />
                 <Zap size={18} className="text-sky-500" />
-                <h2 className="text-2xl md:text-3xl font-black text-slate-900 tracking-tight leading-none">Promoções</h2>
+                <h2 className="text-xl md:text-2xl font-black text-slate-900 tracking-tight leading-none">Promoções</h2>
                 <span className="text-[9px] font-black px-2.5 py-1 rounded-full border text-sky-600 bg-sky-50 border-sky-200">
                   {onSale.length} oferta{onSale.length !== 1 ? "s" : ""}
                 </span>
@@ -574,20 +574,20 @@ export default function StoreFront() {
         <div className="max-w-7xl mx-auto px-4 md:px-8">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
             {[
-              { icon: <Shield size={22} />, title: "Compra Segura", desc: "Dados protegidos" },
-              { icon: <Truck size={22} />, title: "Envio Rápido", desc: "Para todo o Brasil" },
-              { icon: <Clock size={22} />, title: "Suporte 24/7", desc: "Atendimento via WA" },
-              { icon: <Award size={22} />, title: "Qualidade", desc: "Produtos certificados" },
+              { icon: <Shield size={18} />, title: "Compra Segura", desc: "Dados protegidos" },
+              { icon: <Truck size={18} />, title: "Envio Rápido", desc: "Para todo o Brasil" },
+              { icon: <Clock size={18} />, title: "Suporte 24/7", desc: "Atendimento via WA" },
+              { icon: <Award size={18} />, title: "Qualidade", desc: "Produtos certificados" },
             ].map((item, i) => (
               <div key={i} className="flex items-center gap-4">
                 <div
-                  className="w-11 h-11 rounded-xl flex items-center justify-center shrink-0"
+                  className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0"
                   style={{ backgroundColor: style.accent + "15", color: style.accent }}
                 >
                   {item.icon}
                 </div>
                 <div>
-                  <p className="text-sm font-black text-slate-800">{item.title}</p>
+                  <p className="text-[13px] font-black text-slate-800">{item.title}</p>
                   <p className="text-[11px] text-slate-400">{item.desc}</p>
                 </div>
               </div>

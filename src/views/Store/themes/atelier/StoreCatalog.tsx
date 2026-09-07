@@ -111,14 +111,14 @@ export default function StoreCatalog() {
       />
 
       {/* Header panel */}
-      <div className="fashion-panel overflow-hidden rounded-[2rem] border border-[#ead9ce] bg-[linear-gradient(135deg,#fff8f3_0%,#f7ece4_55%,#fffdfb_100%)] p-5 sm:p-6 md:p-8">
+      <div className="fashion-panel overflow-hidden rounded-[1.7rem] border border-[#ead9ce] bg-[linear-gradient(135deg,#fff8f3_0%,#f7ece4_55%,#fffdfb_100%)] p-5 sm:p-6 md:p-7">
         <p className="store-kicker text-[10px] font-semibold text-[#9d6d63]">Catálogo editorial</p>
         <div className="mt-4 flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
           <div>
-            <h1 className="store-display text-[2.8rem] sm:text-5xl md:text-6xl leading-[0.9] text-[#2d221f]">
+            <h1 className="store-display text-[2.1rem] sm:text-4xl md:text-[3.4rem] leading-[0.9] text-[#2d221f]">
               {catName || "Coleção completa"}
             </h1>
-            <p className="mt-3 max-w-2xl text-[14px] sm:text-sm md:text-base leading-relaxed text-[#6b5149]">
+            <p className="mt-3 max-w-2xl text-[12px] sm:text-[13px] md:text-sm leading-relaxed text-[#6b5149]">
               Explore peças com uma vitrine pensada para roupas e acessórios, com foco em imagem, leitura clara e navegação leve.
             </p>
           </div>
@@ -128,8 +128,8 @@ export default function StoreCatalog() {
               { value: categories.length, label: "Linhas" },
               { value: saleCount, label: "Ofertas" },
             ].map((item) => (
-              <div key={item.label} className="rounded-[1.4rem] border border-[#ead9ce] bg-white/78 px-3 sm:px-4 py-3">
-                <p className="store-display text-[2rem] sm:text-3xl leading-none" style={{ color: style.accent }}>{item.value}</p>
+              <div key={item.label} className="rounded-[1.2rem] border border-[#ead9ce] bg-white/78 px-3 sm:px-4 py-2.5">
+                <p className="store-display text-lg sm:text-xl leading-none" style={{ color: style.accent }}>{item.value}</p>
                 <p className="mt-2 text-[9px] font-semibold uppercase tracking-[0.22em] text-[#8c6c63]">{item.label}</p>
               </div>
             ))}
@@ -154,7 +154,7 @@ export default function StoreCatalog() {
 
           <button
             onClick={() => { setSelectedCategory(null); updateParams("cat", null); }}
-            className={cn("flex items-center justify-between px-3 py-2.5 text-xs font-bold transition-all rounded-xl",
+            className={cn("flex items-center justify-between px-3 py-2 text-xs font-bold transition-all rounded-xl",
               selectedCategory === null
                 ? "text-white shadow-sm border-transparent"
                 : "text-slate-600 hover:bg-slate-100")}
@@ -174,7 +174,7 @@ export default function StoreCatalog() {
               <button
                 key={cat.id}
                 onClick={() => { setSelectedCategory(cat.id); updateParams("cat", String(cat.id)); }}
-                className={cn("flex items-center justify-between px-3 py-2.5 text-xs font-bold transition-all rounded-xl",
+                className={cn("flex items-center justify-between px-3 py-2 text-xs font-bold transition-all rounded-xl",
                   active
                     ? "text-white shadow-sm border-transparent"
                     : "text-slate-600 hover:bg-slate-100")}
@@ -364,7 +364,7 @@ export default function StoreCatalog() {
           {/* Empty */}
           {filtered.length === 0 && (
             <div className="py-24 flex flex-col items-center gap-4 text-slate-400">
-              <Package size={48} strokeWidth={1} className="opacity-30" />
+              <Package size={40} strokeWidth={1} className="opacity-30" />
               <div className="text-center">
                 <p className="text-sm font-black uppercase tracking-tight text-slate-700">Nenhum produto encontrado</p>
                 <p className="text-xs text-slate-400 mt-1">Tente outros filtros ou termos</p>
@@ -524,11 +524,11 @@ function ProductCard({ product, index, slug, style, wishlist, onWishlist, onAddT
       </Link>
       <div className="flex flex-col flex-1 p-4 sm:p-5 gap-2">
         <p className="store-kicker text-[9px] font-semibold text-[#9c7b72]">{product.category_name || "Geral"}</p>
-        <Link to={buildStorePath(slug, `/produto/${productRouteSegment(product)}`)} className="store-display text-[1.28rem] sm:text-[1.5rem] font-semibold text-[#2d221f] line-clamp-2 leading-[0.95] hover:text-[#7b4e46] transition-colors">
+        <Link to={buildStorePath(slug, `/produto/${productRouteSegment(product)}`)} className="store-display text-[14px] sm:text-[15px] font-semibold text-[#2d221f] line-clamp-2 leading-[0.95] hover:text-[#7b4e46] transition-colors">
           {product.name}
         </Link>
         {product.description && (
-          <p className="text-[11px] sm:text-[12px] leading-relaxed line-clamp-2 text-[#8c6c63]">{product.description}</p>
+          <p className="text-[10px] sm:text-[11px] leading-relaxed line-clamp-2 text-[#8c6c63]">{product.description}</p>
         )}
         {Array.isArray(product.variations) && product.variations.length > 0 && (
           <div className="flex flex-wrap gap-1">
@@ -542,10 +542,10 @@ function ProductCard({ product, index, slug, style, wishlist, onWishlist, onAddT
             {product.discount_price ? (
               <div className="flex flex-col">
                 <span className="text-[10px] text-slate-400 line-through font-mono">R$ {Number(product.price).toFixed(2)}</span>
-                <span className="store-display text-[1.45rem] sm:text-[1.8rem] font-semibold text-[#2d221f]">R$ {Number(product.discount_price).toFixed(2)}</span>
+                <span className="store-display text-[16px] sm:text-[19px] font-semibold text-[#2d221f]">R$ {Number(product.discount_price).toFixed(2)}</span>
               </div>
             ) : (
-              <span className="store-display text-[1.45rem] sm:text-[1.8rem] font-semibold" style={{ color: style.accent }}>R$ {Number(product.price).toFixed(2)}</span>
+              <span className="store-display text-[16px] sm:text-[19px] font-semibold" style={{ color: style.accent }}>R$ {Number(product.price).toFixed(2)}</span>
             )}
           </div>
           <button
@@ -553,7 +553,7 @@ function ProductCard({ product, index, slug, style, wishlist, onWishlist, onAddT
             style={{ backgroundColor: style.accent }}
             className={cn(
               "text-white transition-all active:scale-90",
-              "w-10 h-10 sm:w-auto sm:px-4 rounded-full text-[10px] font-semibold uppercase tracking-[0.18em] sm:tracking-[0.22em] flex items-center justify-center gap-2",
+              "w-8 h-8 sm:w-auto sm:px-3.5 rounded-full text-[10px] font-semibold uppercase tracking-[0.18em] sm:tracking-[0.22em] flex items-center justify-center gap-2",
               style.radius
             )}
           >
@@ -604,7 +604,7 @@ function ProductRow({ product, index, slug, style, wishlist, onWishlist, onAddTo
           <div className="flex items-start justify-between gap-2">
             <div>
               <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">{product.category_name || "Geral"}</p>
-              <Link to={buildStorePath(slug, `/produto/${productRouteSegment(product)}`)} className="store-display text-[1.45rem] sm:text-[1.8rem] font-semibold text-[#2d221f] hover:text-[#7b4e46] transition-colors leading-[0.95] line-clamp-2 mt-0.5 block">
+              <Link to={buildStorePath(slug, `/produto/${productRouteSegment(product)}`)} className="store-display text-[16px] sm:text-[19px] font-semibold text-[#2d221f] hover:text-[#7b4e46] transition-colors leading-[0.95] line-clamp-2 mt-0.5 block">
                 {product.name}
               </Link>
             </div>
@@ -631,10 +631,10 @@ function ProductRow({ product, index, slug, style, wishlist, onWishlist, onAddTo
             {product.discount_price ? (
               <div className="flex items-center gap-2">
                 <span className="text-[10px] line-through font-mono text-slate-400">R$ {Number(product.price).toFixed(2)}</span>
-                <span className="store-display text-[1.55rem] sm:text-[1.9rem] font-semibold text-[#2d221f]">R$ {Number(product.discount_price).toFixed(2)}</span>
+                <span className="store-display text-[17px] sm:text-[20px] font-semibold text-[#2d221f]">R$ {Number(product.discount_price).toFixed(2)}</span>
               </div>
             ) : (
-              <span className="store-display text-[1.55rem] sm:text-[1.9rem] font-semibold" style={{ color: style.accent }}>R$ {Number(product.price).toFixed(2)}</span>
+              <span className="store-display text-[17px] sm:text-[20px] font-semibold" style={{ color: style.accent }}>R$ {Number(product.price).toFixed(2)}</span>
             )}
           </div>
           <div className="flex items-center gap-2">

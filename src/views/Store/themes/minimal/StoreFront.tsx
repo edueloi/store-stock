@@ -83,22 +83,22 @@ function ProductCard({ product, index, slug, style, onAddToCart }: {
         </div>
         <div className="flex flex-col p-4 gap-1.5">
           <p className="text-[9px] text-slate-400 uppercase tracking-[0.12em] font-semibold">{product.category_name || "Geral"}</p>
-          <p className="text-sm font-semibold text-[#0f172a] leading-snug line-clamp-2 group-hover:text-[#2563eb] transition-colors">{product.name}</p>
+          <p className="text-[13px] font-semibold text-[#0f172a] leading-snug line-clamp-2 group-hover:text-[#2563eb] transition-colors">{product.name}</p>
           <div className="flex items-center justify-between mt-2">
             {hasDiscount ? (
               <div>
                 <span className="text-[10px] line-through text-slate-400 font-mono">R$ {Number(product.price).toFixed(2)}</span>
-                <p className="text-base font-bold font-mono leading-tight text-red-500">R$ {Number(product.discount_price).toFixed(2)}</p>
+                <p className="text-sm font-bold font-mono leading-tight text-red-500">R$ {Number(product.discount_price).toFixed(2)}</p>
               </div>
             ) : (
-              <p className="text-base font-bold font-mono" style={{ color: style.accent }}>R$ {Number(product.price).toFixed(2)}</p>
+              <p className="text-sm font-bold font-mono" style={{ color: style.accent }}>R$ {Number(product.price).toFixed(2)}</p>
             )}
             <button
               onClick={e => { e.preventDefault(); onAddToCart(product); }}
               style={{ backgroundColor: style.accent }}
-              className="shrink-0 text-white transition-all active:scale-90 w-9 h-9 flex items-center justify-center shadow-sm rounded-xl hover:shadow-md"
+              className="shrink-0 text-white transition-all active:scale-90 w-8 h-8 flex items-center justify-center shadow-sm rounded-xl hover:shadow-md"
             >
-              <span className="text-lg font-bold leading-none">+</span>
+              <span className="text-base font-bold leading-none">+</span>
             </button>
           </div>
         </div>
@@ -189,7 +189,7 @@ export default function StoreFront() {
             </motion.p>
 
             <motion.h1
-              className="text-5xl md:text-6xl lg:text-7xl font-black tracking-tight leading-[0.92] text-[#0f172a] mb-5"
+              className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-black tracking-tight leading-[0.95] text-[#0f172a] mb-5"
               initial={{ opacity: 0, y: 16 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.15, duration: 0.6 }}
@@ -224,16 +224,16 @@ export default function StoreFront() {
               <Link
                 to={storePath("/catalogo")}
                 style={{ backgroundColor: style.accent }}
-                className="flex items-center gap-2 px-7 h-12 text-white text-[11px] font-bold uppercase tracking-[0.1em] rounded-2xl shadow-sm hover:shadow-md hover:opacity-90 transition-all active:scale-95"
+                className="flex items-center gap-2 px-6 h-11 text-white text-[11px] font-bold uppercase tracking-[0.1em] rounded-2xl shadow-sm hover:shadow-md hover:opacity-90 transition-all active:scale-95"
               >
-                <ShoppingBag size={15} /> Ver Catálogo
+                <ShoppingBag size={14} /> Ver Catálogo
               </Link>
               {onSale.length > 0 && (
                 <Link
                   to={storePath("/catalogo")}
-                  className="flex items-center gap-2 px-7 h-12 border border-slate-200 bg-white text-[#0f172a] text-[11px] font-bold uppercase tracking-[0.1em] hover:border-slate-300 hover:shadow-sm transition-all rounded-2xl"
+                  className="flex items-center gap-2 px-6 h-11 border border-slate-200 bg-white text-[#0f172a] text-[11px] font-bold uppercase tracking-[0.1em] hover:border-slate-300 hover:shadow-sm transition-all rounded-2xl"
                 >
-                  <Zap size={13} style={{ color: style.accent }} />
+                  <Zap size={12} style={{ color: style.accent }} />
                   {onSale.length} {onSale.length === 1 ? "Promoção" : "Promoções"}
                 </Link>
               )}
@@ -263,13 +263,13 @@ export default function StoreFront() {
                   <p className="text-[9px] text-slate-400 uppercase tracking-[0.12em] font-semibold mb-1">
                     {heroProduct.category_name || "Destaque"}
                   </p>
-                  <p className="text-sm font-bold text-[#0f172a] leading-snug line-clamp-2 mb-3">{heroProduct.name}</p>
+                  <p className="text-[13px] font-bold text-[#0f172a] leading-snug line-clamp-2 mb-3">{heroProduct.name}</p>
                   <div className="flex items-center justify-between">
-                    <p className="text-xl font-black font-mono" style={{ color: style.accent }}>
+                    <p className="text-lg font-black font-mono" style={{ color: style.accent }}>
                       R$ {Number(heroProduct.discount_price || heroProduct.price).toFixed(2)}
                     </p>
                     <span
-                      className="w-9 h-9 flex items-center justify-center rounded-xl text-white text-lg font-bold shadow-sm"
+                      className="w-8 h-8 flex items-center justify-center rounded-xl text-white text-base font-bold shadow-sm"
                       style={{ backgroundColor: style.accent }}
                     >+</span>
                   </div>
@@ -296,7 +296,7 @@ export default function StoreFront() {
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: i * 0.08 }}
             >
-              <span className="text-2xl font-black tabular-nums" style={{ color: style.accent }}>{s.value}</span>
+              <span className="text-lg font-black tabular-nums" style={{ color: style.accent }}>{s.value}</span>
               <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-[0.12em]">{s.label}</span>
             </motion.div>
           ))}
@@ -328,10 +328,10 @@ export default function StoreFront() {
                     className="group flex flex-col items-center text-center gap-2.5 p-5 border rounded-2xl bg-white border-slate-100 hover:border-slate-200 hover:shadow-sm transition-all"
                   >
                     <div
-                      className="w-10 h-10 flex items-center justify-center rounded-xl transition-transform duration-300 group-hover:scale-110"
+                      className="w-9 h-9 flex items-center justify-center rounded-xl transition-transform duration-300 group-hover:scale-110"
                       style={{ backgroundColor: style.accent + "14" }}
                     >
-                      <Tag size={16} style={{ color: style.accent }} />
+                      <Tag size={14} style={{ color: style.accent }} />
                     </div>
                     <p className="text-[11px] font-semibold text-[#0f172a] leading-tight">{cat.name}</p>
                     <span
@@ -428,9 +428,9 @@ export default function StoreFront() {
                       <button
                         onClick={() => addToCart(product)}
                         style={{ backgroundColor: style.accent }}
-                        className="w-9 h-9 flex items-center justify-center shrink-0 text-white shadow-sm active:scale-90 transition-all rounded-xl hover:shadow-md"
+                        className="w-8 h-8 flex items-center justify-center shrink-0 text-white shadow-sm active:scale-90 transition-all rounded-xl hover:shadow-md"
                       >
-                        <ShoppingBag size={14} />
+                        <ShoppingBag size={13} />
                       </button>
                     </div>
                   </motion.div>
@@ -510,9 +510,9 @@ export default function StoreFront() {
                         <span className="absolute top-3 left-3 text-white text-[9px] font-bold px-2.5 py-1 rounded-full bg-red-500">-{pct}%</span>
                       </div>
                       <div className="p-4">
-                        <p className="text-sm font-medium text-[#0f172a] line-clamp-2 leading-snug">{product.name}</p>
+                        <p className="text-[13px] font-medium text-[#0f172a] line-clamp-2 leading-snug">{product.name}</p>
                         <div className="flex items-center gap-2 mt-3">
-                          <span className="text-base font-bold font-mono text-red-500">R$ {Number(product.discount_price).toFixed(2)}</span>
+                          <span className="text-sm font-bold font-mono text-red-500">R$ {Number(product.discount_price).toFixed(2)}</span>
                           <span className="text-[10px] text-slate-400 line-through font-mono">R$ {Number(product.price).toFixed(2)}</span>
                         </div>
                       </div>

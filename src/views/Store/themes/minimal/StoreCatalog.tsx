@@ -219,7 +219,7 @@ export default function StoreCatalog() {
                   placeholder="Buscar produtos..."
                   value={searchTerm}
                   onChange={e => { setSearchTerm(e.target.value); updateParams("q", e.target.value || null); }}
-                  className="w-full pl-10 pr-9 h-11 text-sm font-medium outline-none transition-all bg-white border border-slate-200 rounded-xl placeholder:text-slate-300 focus:border-[#2563eb] focus:ring-2 focus:ring-blue-100 text-[#0f172a]"
+                  className="w-full pl-10 pr-9 h-10 text-[13px] font-medium outline-none transition-all bg-white border border-slate-200 rounded-xl placeholder:text-slate-300 focus:border-[#2563eb] focus:ring-2 focus:ring-blue-100 text-[#0f172a]"
                 />
                 {searchTerm && (
                   <button onClick={() => { setSearchTerm(""); updateParams("q", null); }}
@@ -232,7 +232,7 @@ export default function StoreCatalog() {
               {/* Mobile filter button */}
               <button
                 onClick={() => setSidebarOpen(v => !v)}
-                className="lg:hidden flex items-center gap-2 h-11 px-3 text-xs font-bold border border-slate-200 bg-white rounded-xl text-slate-600 hover:border-slate-300"
+                className="lg:hidden flex items-center gap-2 h-10 px-3 text-[11px] font-bold border border-slate-200 bg-white rounded-xl text-slate-600 hover:border-slate-300"
               >
                 <SlidersHorizontal size={14} style={{ color: style.accent }} /> Filtros
                 {selectedCategory !== null && (
@@ -245,7 +245,7 @@ export default function StoreCatalog() {
                 <div ref={sortRef} className="relative">
                   <button
                     onClick={() => setShowSortMenu(v => !v)}
-                    className="flex items-center gap-2 h-11 px-3 text-xs font-bold transition-all border border-slate-200 bg-white rounded-xl text-slate-600 hover:border-slate-300"
+                    className="flex items-center gap-2 h-10 px-3 text-[11px] font-bold transition-all border border-slate-200 bg-white rounded-xl text-slate-600 hover:border-slate-300"
                   >
                     <ArrowUpDown size={13} style={{ color: style.accent }} />
                     <span className="hidden sm:inline">{sortLabels[sortBy]}</span>
@@ -275,7 +275,7 @@ export default function StoreCatalog() {
                 </div>
 
                 {/* View toggle */}
-                <div className="flex h-11 overflow-hidden bg-white border border-slate-200 rounded-xl">
+                <div className="flex h-10 overflow-hidden bg-white border border-slate-200 rounded-xl">
                   {(["grid", "list"] as ViewMode[]).map(mode => (
                     <button
                       key={mode}
@@ -394,8 +394,8 @@ export default function StoreCatalog() {
               <div className="py-24 flex flex-col items-center gap-4 text-slate-400">
                 <Package size={48} strokeWidth={1} className="opacity-30" />
                 <div className="text-center">
-                  <p className="text-sm font-black uppercase tracking-tight text-[#0f172a]">Nenhum produto encontrado</p>
-                  <p className="text-xs text-slate-400 mt-1">Tente outros filtros ou termos</p>
+                  <p className="text-[13px] font-black uppercase tracking-tight text-[#0f172a]">Nenhum produto encontrado</p>
+                  <p className="text-[11px] text-slate-400 mt-1">Tente outros filtros ou termos</p>
                 </div>
                 <button
                   onClick={() => { setSearchTerm(""); setSelectedCategory(null); setPriceRange(null); setSearchParams({}); }}
@@ -554,7 +554,7 @@ function ProductCard({ product, index, slug, style, wishlist, onWishlist, onAddT
       </Link>
       <div className="flex flex-col flex-1 p-3 gap-1.5">
         <p className="text-[9px] font-black uppercase tracking-[0.12em] text-slate-400">{product.category_name || "Geral"}</p>
-        <Link to={buildStorePath(slug, `/produto/${productRouteSegment(product)}`)} className="text-xs font-semibold text-[#0f172a] line-clamp-2 leading-snug hover:text-[#2563eb] transition-colors">
+        <Link to={buildStorePath(slug, `/produto/${productRouteSegment(product)}`)} className="text-[13px] font-semibold text-[#0f172a] line-clamp-2 leading-snug hover:text-[#2563eb] transition-colors">
           {product.name}
         </Link>
         {Array.isArray(product.variations) && product.variations.length > 0 && (
@@ -569,10 +569,10 @@ function ProductCard({ product, index, slug, style, wishlist, onWishlist, onAddT
             {product.discount_price ? (
               <div className="flex flex-col">
                 <span className="text-[10px] text-slate-400 line-through font-mono">R$ {Number(product.price).toFixed(2)}</span>
-                <span className="text-sm font-black font-mono text-red-500">R$ {Number(product.discount_price).toFixed(2)}</span>
+                <span className="text-[13px] font-black font-mono text-red-500">R$ {Number(product.discount_price).toFixed(2)}</span>
               </div>
             ) : (
-              <span className="text-sm font-black font-mono" style={{ color: style.accent }}>R$ {Number(product.price).toFixed(2)}</span>
+              <span className="text-[13px] font-black font-mono" style={{ color: style.accent }}>R$ {Number(product.price).toFixed(2)}</span>
             )}
           </div>
           <button
@@ -580,7 +580,7 @@ function ProductCard({ product, index, slug, style, wishlist, onWishlist, onAddT
             style={{ backgroundColor: style.accent }}
             className="text-white transition-all active:scale-90 w-8 h-8 flex items-center justify-center rounded-xl shadow-sm hover:shadow-md"
           >
-            <Plus size={14} strokeWidth={3} />
+            <Plus size={13} strokeWidth={3} />
           </button>
         </div>
       </div>
@@ -624,7 +624,7 @@ function ProductRow({ product, index, slug, style, wishlist, onWishlist, onAddTo
           <div className="flex items-start justify-between gap-2">
             <div>
               <p className="text-[9px] font-black text-slate-400 uppercase tracking-[0.12em]">{product.category_name || "Geral"}</p>
-              <Link to={buildStorePath(slug, `/produto/${productRouteSegment(product)}`)} className="text-sm font-semibold text-[#0f172a] hover:text-[#2563eb] transition-colors leading-snug line-clamp-2 mt-0.5 block">
+              <Link to={buildStorePath(slug, `/produto/${productRouteSegment(product)}`)} className="text-[13px] font-semibold text-[#0f172a] hover:text-[#2563eb] transition-colors leading-snug line-clamp-2 mt-0.5 block">
                 {product.name}
               </Link>
             </div>
@@ -651,10 +651,10 @@ function ProductRow({ product, index, slug, style, wishlist, onWishlist, onAddTo
             {product.discount_price ? (
               <div className="flex items-center gap-2">
                 <span className="text-[10px] line-through font-mono text-slate-400">R$ {Number(product.price).toFixed(2)}</span>
-                <span className="text-base font-black font-mono text-red-500">R$ {Number(product.discount_price).toFixed(2)}</span>
+                <span className="text-sm font-black font-mono text-red-500">R$ {Number(product.discount_price).toFixed(2)}</span>
               </div>
             ) : (
-              <span className="text-base font-black font-mono" style={{ color: style.accent }}>R$ {Number(product.price).toFixed(2)}</span>
+              <span className="text-sm font-black font-mono" style={{ color: style.accent }}>R$ {Number(product.price).toFixed(2)}</span>
             )}
           </div>
           <div className="flex items-center gap-2">
