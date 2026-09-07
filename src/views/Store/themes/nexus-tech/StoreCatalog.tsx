@@ -136,10 +136,10 @@ export default function StoreCatalog() {
                 <Sparkles size={10} style={{ color: style.accent }} />
                 <p className="store-kicker text-[9px] font-semibold text-[#5b7898] tracking-[0.2em]">Catálogo inteligente</p>
               </div>
-              <h1 className="store-display text-[3rem] sm:text-5xl md:text-6xl leading-[0.88] text-[#071426] tracking-[-0.02em]">
+              <h1 className="store-display text-2xl sm:text-3xl md:text-[2.25rem] leading-[1.05] text-[#071426] tracking-[-0.02em]">
                 {catName || "Linha completa"}
               </h1>
-              <p className="mt-3 max-w-lg text-[13px] md:text-[15px] leading-relaxed text-[#4e6c8e]">
+              <p className="mt-2 max-w-lg text-[12px] md:text-[13px] leading-relaxed text-[#4e6c8e]">
                 {catName
                   ? `Produtos selecionados em ${catName} com qualidade garantida e os melhores preços.`
                   : "Explore toda a linha de produtos com filtros inteligentes, preços claros e ordenação por preferência."}
@@ -153,9 +153,9 @@ export default function StoreCatalog() {
                 { value: categories.length, label: "Categorias" },
                 { value: saleCount, label: "Ofertas" },
               ].map(item => (
-                <div key={item.label} className="tech-panel rounded-[1.4rem] border border-[#dbe6ff] bg-white/90 px-4 py-3 text-center shadow-[0_2px_16px_rgba(37,99,235,0.07)] min-w-[64px]">
-                  <p className="store-display text-[2rem] leading-none font-semibold" style={{ color: style.accent }}>{item.value}</p>
-                  <p className="store-kicker mt-1 text-[9px] font-semibold text-[#7b9ac0]">{item.label}</p>
+                <div key={item.label} className="tech-panel rounded-2xl border border-[#dbe6ff] bg-white/90 px-3.5 py-2.5 text-center shadow-[0_2px_16px_rgba(37,99,235,0.07)] min-w-[58px]">
+                  <p className="store-display text-lg leading-none font-semibold" style={{ color: style.accent }}>{item.value}</p>
+                  <p className="store-kicker mt-1 text-[8px] font-semibold text-[#7b9ac0]">{item.label}</p>
                 </div>
               ))}
             </div>
@@ -178,9 +178,9 @@ export default function StoreCatalog() {
             <button
               onClick={() => { setSelectedCategory(null); updateParams("cat", null); }}
               className={cn(
-                "flex items-center justify-between px-4 py-2.5 text-[11px] font-semibold transition-all rounded-[1.1rem] border",
+                "flex items-center justify-between px-3 py-2 text-[11px] font-semibold transition-all rounded-xl border",
                 selectedCategory === null
-                  ? "text-white border-transparent shadow-[0_8px_20px_rgba(37,99,235,0.22)]"
+                  ? "text-white border-transparent shadow-[0_6px_14px_rgba(37,99,235,0.2)]"
                   : "text-[#4e6c8e] bg-white/90 border-[#dbe6ff] hover:bg-white hover:border-[#b3caff]"
               )}
               style={selectedCategory === null ? { backgroundColor: style.accent } : {}}
@@ -201,9 +201,9 @@ export default function StoreCatalog() {
                   key={cat.id}
                   onClick={() => { setSelectedCategory(cat.id); updateParams("cat", String(cat.id)); }}
                   className={cn(
-                    "flex items-center justify-between px-4 py-2.5 text-[11px] font-semibold transition-all rounded-[1.1rem] border",
+                    "flex items-center justify-between px-3 py-2 text-[11px] font-semibold transition-all rounded-xl border",
                     active
-                      ? "text-white border-transparent shadow-[0_8px_20px_rgba(37,99,235,0.22)]"
+                      ? "text-white border-transparent shadow-[0_6px_14px_rgba(37,99,235,0.2)]"
                       : "text-[#4e6c8e] bg-white/90 border-[#dbe6ff] hover:bg-white hover:border-[#b3caff]"
                   )}
                   style={active ? { backgroundColor: style.accent } : {}}
@@ -270,7 +270,7 @@ export default function StoreCatalog() {
                   placeholder="Buscar produtos..."
                   value={searchTerm}
                   onChange={e => { setSearchTerm(e.target.value); updateParams("q", e.target.value || null); }}
-                  className="w-full pl-11 pr-10 h-11 text-[13px] font-medium outline-none transition-all bg-white/90 border border-[#dbe6ff] rounded-full placeholder:text-[#a0b8d4] text-[#071426] focus:border-[#7aa2ff] focus:ring-2 focus:ring-[#dce8ff] shadow-[0_2px_12px_rgba(37,99,235,0.06)]"
+                  className="w-full pl-11 pr-10 h-10 text-[12px] font-medium outline-none transition-all bg-white/90 border border-[#dbe6ff] rounded-full placeholder:text-[#a0b8d4] text-[#071426] focus:border-[#7aa2ff] focus:ring-2 focus:ring-[#dce8ff] shadow-[0_2px_12px_rgba(37,99,235,0.06)]"
                 />
                 {searchTerm && (
                   <button
@@ -285,7 +285,7 @@ export default function StoreCatalog() {
               {/* Mobile filter */}
               <button
                 onClick={() => { /* mobile sidebar toggle */ }}
-                className="lg:hidden flex items-center gap-2 h-11 px-4 text-[11px] font-semibold border border-[#dbe6ff] bg-white/90 rounded-full text-[#4e6c8e] shadow-[0_2px_12px_rgba(37,99,235,0.06)]"
+                className="lg:hidden flex items-center gap-2 h-10 px-3.5 text-[11px] font-semibold border border-[#dbe6ff] bg-white/90 rounded-full text-[#4e6c8e] shadow-[0_2px_12px_rgba(37,99,235,0.06)]"
               >
                 <SlidersHorizontal size={13} /> Filtros
                 {selectedCategory !== null && (
@@ -298,7 +298,7 @@ export default function StoreCatalog() {
                 <div ref={sortRef} className="relative">
                   <button
                     onClick={() => setShowSortMenu(v => !v)}
-                    className="flex items-center gap-2 h-11 px-4 text-[11px] font-semibold transition-all border border-[#dbe6ff] bg-white/90 rounded-full text-[#4e6c8e] hover:border-[#b3caff] shadow-[0_2px_12px_rgba(37,99,235,0.06)]"
+                    className="flex items-center gap-2 h-10 px-3.5 text-[11px] font-semibold transition-all border border-[#dbe6ff] bg-white/90 rounded-full text-[#4e6c8e] hover:border-[#b3caff] shadow-[0_2px_12px_rgba(37,99,235,0.06)]"
                   >
                     <ArrowUpDown size={12} />
                     <span className="hidden sm:inline">{sortLabels[sortBy]}</span>
@@ -329,13 +329,13 @@ export default function StoreCatalog() {
                 </div>
 
                 {/* View toggle */}
-                <div className="flex h-11 overflow-hidden bg-white/90 border border-[#dbe6ff] rounded-full shadow-[0_2px_12px_rgba(37,99,235,0.06)]">
+                <div className="flex h-10 overflow-hidden bg-white/90 border border-[#dbe6ff] rounded-full shadow-[0_2px_12px_rgba(37,99,235,0.06)]">
                   {(["grid", "list"] as ViewMode[]).map(mode => (
                     <button
                       key={mode}
                       onClick={() => setViewMode(mode)}
                       className={cn(
-                        "w-11 flex items-center justify-center transition-all",
+                        "w-10 flex items-center justify-center transition-all",
                         viewMode === mode ? "text-white" : "text-[#8baed0] hover:text-[#4e6c8e]"
                       )}
                       style={viewMode === mode ? { backgroundColor: style.accent } : {}}
@@ -617,11 +617,11 @@ function ProductCard({ product, index, slug, style, wishlist, onWishlist, onAddT
         </Link>
 
         {/* Content */}
-        <div className="flex flex-col flex-1 p-4 sm:p-5 gap-2">
+        <div className="flex flex-col flex-1 p-3 sm:p-4 gap-1.5">
           <p className="store-kicker text-[9px] font-semibold text-[#7b9ac0]">{product.category_name || "Tecnologia"}</p>
           <Link
             to={buildStorePath(slug, `/produto/${productRouteSegment(product)}`)}
-            className="store-display text-[1.1rem] sm:text-[1.28rem] font-semibold text-[#071426] line-clamp-2 leading-[1.02] hover:text-[#1d4ed8] transition-colors"
+            className="store-display text-[13px] sm:text-[14px] font-semibold text-[#071426] line-clamp-2 leading-[1.15] hover:text-[#1d4ed8] transition-colors"
           >
             {product.name}
           </Link>
@@ -641,17 +641,17 @@ function ProductCard({ product, index, slug, style, wishlist, onWishlist, onAddT
           )}
 
           {/* Price + CTA */}
-          <div className="flex items-center justify-between mt-auto pt-3 border-t border-[#e2ecff]">
+          <div className="flex items-center justify-between mt-auto pt-2.5 border-t border-[#e2ecff]">
             <div>
               {product.discount_price ? (
                 <div>
-                  <span className="text-[10px] text-[#b0c4de] line-through font-mono">R$ {Number(product.price).toFixed(2)}</span>
-                  <p className="store-display text-[1.28rem] sm:text-[1.48rem] font-semibold text-[#071426] leading-none">
+                  <span className="text-[9px] text-[#b0c4de] line-through font-mono">R$ {Number(product.price).toFixed(2)}</span>
+                  <p className="store-display text-[15px] sm:text-base font-semibold text-[#071426] leading-none">
                     R$ {Number(product.discount_price).toFixed(2)}
                   </p>
                 </div>
               ) : (
-                <p className="store-display text-[1.28rem] sm:text-[1.48rem] font-semibold leading-none" style={{ color: style.accent }}>
+                <p className="store-display text-[15px] sm:text-base font-semibold leading-none" style={{ color: style.accent }}>
                   R$ {Number(product.price).toFixed(2)}
                 </p>
               )}
@@ -659,9 +659,9 @@ function ProductCard({ product, index, slug, style, wishlist, onWishlist, onAddT
             <button
               onClick={() => onAddToCart(product)}
               style={{ backgroundColor: style.accent }}
-              className="shrink-0 text-white active:scale-90 w-10 h-10 rounded-full shadow-[0_10px_22px_rgba(37,99,235,0.26)] hover:shadow-[0_14px_28px_rgba(37,99,235,0.36)] hover:scale-105 flex items-center justify-center transition-all"
+              className="shrink-0 text-white active:scale-90 w-8 h-8 rounded-full shadow-[0_8px_18px_rgba(37,99,235,0.24)] hover:shadow-[0_12px_24px_rgba(37,99,235,0.34)] hover:scale-105 flex items-center justify-center transition-all"
             >
-              <ShoppingBag size={14} />
+              <ShoppingBag size={13} />
             </button>
           </div>
         </div>
