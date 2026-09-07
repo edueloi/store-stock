@@ -29,6 +29,7 @@ model Tenant {
   show_address         Boolean @default(true)
   template_id          String  @default("minimal")
   about_text           String? @db.Text
+  hero_tagline         String? @db.Text // subtítulo curto exibido na Home — separado do about_text (página Sobre)
   footer_text          String? @db.Text
   primary_color        String  @default("#000000")
   featured_limit       Int     @default(4)

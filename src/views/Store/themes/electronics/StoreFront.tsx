@@ -103,7 +103,7 @@ export default function StoreFront() {
                 {tenant.name}
               </h1>
               <p className="mt-5 text-slate-400 text-[13px] md:text-sm leading-relaxed max-w-lg">
-                {tenant.about_text || "Os melhores eletrônicos, gadgets e tecnologia com os melhores preços. Produtos de alta qualidade, entrega rápida e atendimento via WhatsApp."}
+                {tenant.hero_tagline || "Os melhores eletrônicos, gadgets e tecnologia com os melhores preços. Produtos de alta qualidade, entrega rápida e atendimento via WhatsApp."}
               </p>
               <div className="flex flex-wrap gap-3 mt-8">
                 <Link

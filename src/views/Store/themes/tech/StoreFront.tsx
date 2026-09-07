@@ -264,7 +264,7 @@ export default function StoreFront() {
               <div className="h-1.5 w-20 rounded-full mt-4 mb-5" style={{ backgroundColor: style.accent }} />
 
               <p className="text-slate-500 text-[13px] md:text-sm leading-relaxed max-w-lg">
-                {tenant.about_text || "Os melhores produtos de tecnologia com preços imbatíveis. Inovação, qualidade e atendimento de excelência."}
+                {tenant.hero_tagline || "Os melhores produtos de tecnologia com preços imbatíveis. Inovação, qualidade e atendimento de excelência."}
               </p>
 
               <div className="flex flex-wrap gap-3 mt-8">

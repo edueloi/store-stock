@@ -260,7 +260,7 @@ export default function StoreFront() {
               </h1>
 
               <p className="text-stone-500 mt-6 max-w-lg text-sm font-normal leading-relaxed">
-                {tenant.about_text || "Produtos naturais e artesanais selecionados com cuidado para você."}
+                {tenant.hero_tagline || "Produtos naturais e artesanais selecionados com cuidado para você."}
               </p>
 
               <div className="flex flex-wrap gap-3 mt-10">

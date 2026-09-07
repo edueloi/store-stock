@@ -212,7 +212,7 @@ export default function StoreFront() {
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.35, duration: 0.5 }}
             >
-              {tenant.about_text || "Produtos selecionados com cuidado para você. Qualidade e atenção em cada detalhe."}
+              {tenant.hero_tagline || "Produtos selecionados com cuidado para você. Qualidade e atenção em cada detalhe."}
             </motion.p>
 
             <motion.div

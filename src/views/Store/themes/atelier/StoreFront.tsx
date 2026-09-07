@@ -180,7 +180,7 @@ export default function StoreFront() {
                 {tenant.name}
               </h1>
               <p className="mt-5 sm:mt-6 max-w-xl text-[13px] sm:text-[14px] md:text-base leading-relaxed text-[#6b5149]">
-                {tenant.about_text || "Roupas e acessórios com curadoria leve, elegante e pensada para uma vitrine que vende com presença."}
+                {tenant.hero_tagline || "Roupas e acessórios com curadoria leve, elegante e pensada para uma vitrine que vende com presença."}
               </p>
               <div className="mt-7 sm:mt-8 flex flex-col sm:flex-row gap-3">
                 <Link

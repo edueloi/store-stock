@@ -47,6 +47,7 @@ export interface Tenant {
   show_address: boolean;
   template_id: string;
   about_text?: string;
+  hero_tagline?: string;
   footer_text?: string;
   primary_color: string;
   featured_limit?: number;

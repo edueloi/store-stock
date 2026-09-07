@@ -274,7 +274,7 @@ export default function StoreFront() {
 
                 {/* Body */}
                 <p className="mt-6 max-w-lg text-[13px] sm:text-[14px] md:text-[15px] leading-relaxed text-[#4e6c8e]">
-                  {tenant.about_text || "Os melhores produtos com os melhores preços. Atendimento rápido via WhatsApp e experiência de compra segura."}
+                  {tenant.hero_tagline || "Os melhores produtos com os melhores preços. Atendimento rápido via WhatsApp e experiência de compra segura."}
                 </p>
 
                 {/* CTAs */}

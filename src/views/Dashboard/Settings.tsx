@@ -1413,9 +1413,21 @@ export default function Settings() {
                   </div>
                 </div>
 
+                {/* Hero tagline */}
+                <div>
+                  <Field label="Frase de Destaque (Home)" hint="Subtítulo curto exibido logo abaixo do nome da loja na página inicial pública — sem preencher, aparece um texto genérico de exemplo do tema escolhido">
+                    <textarea
+                      className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-5 py-4 text-xs font-medium outline-none h-20 resize-none focus:ring-4 focus:ring-blue-500/8 focus:border-blue-500 transition-all"
+                      value={tenant?.hero_tagline ?? ""}
+                      onChange={(e) => setT({ hero_tagline: e.target.value })}
+                      placeholder="Ex: Peças e acessórios automotivos com entrega rápida e os melhores preços."
+                    />
+                  </Field>
+                </div>
+
                 {/* About */}
                 <div>
-                  <Field label="Manifesto da Marca (About)" hint="Texto exibido na página Sobre da loja pública">
+                  <Field label="Manifesto da Marca (About)" hint="Texto mais longo exibido na página Sobre da loja pública — diferente da Frase de Destaque, que aparece na Home">
                     <textarea
                       className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-5 py-4 text-xs font-medium outline-none h-36 resize-none focus:ring-4 focus:ring-blue-500/8 focus:border-blue-500 transition-all"
                       value={tenant?.about_text ?? ""}
@@ -3100,17 +3112,18 @@ export default function Settings() {
                   </div>
                 </div>
 
-                {/* Download cards */}
+                {/* Download cards — sempre a versão mais recente publicada no GitHub Releases */}
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                   {[
-                    { os: "Windows", desc: "Windows 10 ou superior", file: "/downloads/BoxSysPDV-Setup.exe", ext: ".exe" },
-                    { os: "macOS",   desc: "Intel e Apple Silicon",  file: "/downloads/BoxSysPDV.dmg",      ext: ".dmg" },
-                    { os: "Linux",   desc: "AppImage universal",     file: "/downloads/BoxSysPDV.AppImage", ext: ".AppImage" },
+                    { os: "Windows", desc: "Windows 10 ou superior", file: "https://github.com/edueloi/store-stock/releases/latest/download/BoxSysPDV-Setup.exe", ext: ".exe" },
+                    { os: "macOS",   desc: "Intel e Apple Silicon",  file: "https://github.com/edueloi/store-stock/releases/latest/download/BoxSysPDV.dmg",      ext: ".dmg" },
+                    { os: "Linux",   desc: "AppImage universal",     file: "https://github.com/edueloi/store-stock/releases/latest/download/BoxSysPDV.AppImage", ext: ".AppImage" },
                   ].map(({ os, desc, file, ext }) => (
                     <a
                       key={os}
                       href={file}
-                      download
+                      target="_blank"
+                      rel="noopener noreferrer"
                       className="group bg-white border border-slate-200 rounded-2xl p-5 flex flex-col items-center text-center hover:border-blue-300 hover:shadow-lg hover:shadow-blue-50 transition-all"
                     >
                       <div className="w-12 h-12 rounded-2xl bg-slate-100 group-hover:bg-blue-50 flex items-center justify-center mb-3 transition-colors">

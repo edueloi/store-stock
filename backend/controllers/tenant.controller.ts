@@ -61,6 +61,7 @@ export async function updateTenant(req: Request, res: Response) {
     if (b.whatsapp !== undefined)           data.whatsapp           = b.whatsapp;
     if (b.document !== undefined)           data.document           = b.document;
     if (b.about_text !== undefined)         data.about_text         = b.about_text;
+    if (b.hero_tagline !== undefined)       data.hero_tagline       = b.hero_tagline;
     if (b.footer_text !== undefined)        data.footer_text        = b.footer_text;
     if (b.logo_url !== undefined)           data.logo_url           = b.logo_url;
     if (b.banner_url !== undefined)         data.banner_url         = b.banner_url;
