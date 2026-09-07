@@ -345,6 +345,10 @@ export default function ContasPagar() {
 
   const [modalMode, setModalMode] = useState<ModalMode>(null);
   const [selected, setSelected] = useState<AccountPayable | null>(null);
+  // Painel de detalhes/ações no mobile — a tabela desktop já tem os botões de
+  // ação visíveis por linha, mas o card mobile só mostrava dados, sem nenhum
+  // jeito de abrir editar/pagar/excluir (nem o clique na linha fazia nada).
+  const [detailItem, setDetailItem] = useState<AccountPayable | null>(null);
   const [form, setForm] = useState<FormData>(EMPTY_FORM);
   const [paidDate, setPaidDate] = useState(today());
   const [continueRecurring, setContinueRecurring] = useState(true);
@@ -1170,7 +1174,11 @@ export default function ContasPagar() {
           ) : filtered.map(item => {
             const st = STATUS_CONFIG[item.status];
             return (
-              <div key={item.id} className="px-4 py-3.5 flex items-center gap-3">
+              <button
+                key={item.id}
+                onClick={() => setDetailItem(item)}
+                className="w-full px-4 py-3.5 flex items-center gap-3 text-left active:bg-slate-50 transition-colors"
+              >
                 <div className={cn("w-9 h-9 rounded-xl flex items-center justify-center shrink-0", item.status === "paid" ? "bg-emerald-100 text-emerald-600" : item.status === "overdue" ? "bg-rose-100 text-rose-600" : "bg-amber-100 text-amber-600")}>
                   {st.icon}
                 </div>
@@ -1187,15 +1195,109 @@ export default function ContasPagar() {
                 </div>
                 <div className="text-right shrink-0">
                   <p className="text-sm font-mono font-black text-rose-600">R$ {fmt(Number(item.amount))}</p>
-                  {(item.status === "pending" || item.status === "overdue") && (
-                    <button onClick={() => openPay(item)} className="text-[9px] font-black text-rose-600 uppercase mt-0.5">Pagar</button>
-                  )}
+                  <span className={cn("inline-flex items-center gap-1 text-[8px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded mt-0.5", st.bg, st.color)}>
+                    {st.label}
+                  </span>
                 </div>
-              </div>
+              </button>
             );
           })}
         </div>
       </div>
+
+      {/* Mobile detail/actions sheet — o card da lista mobile só abre isso, sem ação
+          direta nele (mesmo padrão do que já existia no botão "Pagar" antigo, agora
+          com Editar/Excluir/Aplicar juros também acessíveis). */}
+      {detailItem && (
+        <div className="fixed inset-0 z-[190] flex items-end sm:items-center justify-center lg:hidden">
+          <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={() => setDetailItem(null)} />
+          <div className="relative w-full sm:max-w-md bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl overflow-hidden">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100">
+              <div className="min-w-0">
+                <h3 className="text-[12px] font-black uppercase text-slate-900 truncate">{detailItem.description}</h3>
+                <span className={cn("inline-flex items-center gap-1 text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-lg border mt-1", STATUS_CONFIG[detailItem.status].bg, STATUS_CONFIG[detailItem.status].color)}>
+                  {STATUS_CONFIG[detailItem.status].icon}{STATUS_CONFIG[detailItem.status].label}
+                </span>
+              </div>
+              <button onClick={() => setDetailItem(null)} className="w-8 h-8 shrink-0 flex items-center justify-center rounded-xl text-slate-400 hover:bg-slate-100 transition-all">
+                <X size={16} />
+              </button>
+            </div>
+
+            <div className="px-5 py-4 space-y-2.5">
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-slate-400 font-bold uppercase text-[9px] tracking-widest">Valor</span>
+                <span className="font-mono font-black text-rose-600">R$ {fmt(Number(detailItem.amount))}</span>
+              </div>
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-slate-400 font-bold uppercase text-[9px] tracking-widest">Vencimento</span>
+                <span className="font-mono font-bold text-slate-700">{formatDateBR(detailItem.due_date)}</span>
+              </div>
+              {detailItem.paid_date && (
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-slate-400 font-bold uppercase text-[9px] tracking-widest">Pago em</span>
+                  <span className="font-mono font-bold text-slate-700">{formatDateBR(detailItem.paid_date)}</span>
+                </div>
+              )}
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-slate-400 font-bold uppercase text-[9px] tracking-widest">Fornecedor</span>
+                <span className="font-bold text-slate-700">{detailItem.supplier_name || "—"}</span>
+              </div>
+              {detailItem.category && (
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-slate-400 font-bold uppercase text-[9px] tracking-widest">Categoria</span>
+                  <span className="font-bold text-slate-700">{detailItem.category}</span>
+                </div>
+              )}
+              {detailItem.series && (
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-slate-400 font-bold uppercase text-[9px] tracking-widest">Parcela</span>
+                  <span className="font-bold text-violet-600">{detailItem.installment_number}/{detailItem.series.installments_count}</span>
+                </div>
+              )}
+              {detailItem.notes && (
+                <div className="pt-1.5 border-t border-slate-100 mt-2">
+                  <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest mb-1">Observações</p>
+                  <p className="text-xs text-slate-600">{detailItem.notes}</p>
+                </div>
+              )}
+            </div>
+
+            <div className="px-5 pb-5 pt-1 flex flex-col gap-2">
+              {(detailItem.status === "pending" || detailItem.status === "overdue") && (
+                <button
+                  onClick={() => { openPay(detailItem); setDetailItem(null); }}
+                  className="h-11 bg-rose-600 text-white rounded-xl text-[11px] font-black uppercase tracking-widest flex items-center justify-center gap-2 active:scale-95 transition-all"
+                >
+                  <CheckCircle2 size={14} /> Marcar como Paga
+                </button>
+              )}
+              {detailItem.status === "overdue" && (detailItem.series?.interest_rate ?? 0) > 0 && (
+                <button
+                  onClick={() => { openApplyInterest(detailItem); setDetailItem(null); }}
+                  className="h-11 bg-amber-50 border border-amber-200 text-amber-700 rounded-xl text-[11px] font-black uppercase tracking-widest flex items-center justify-center gap-2 active:scale-95 transition-all"
+                >
+                  <Percent size={14} /> Aplicar Juros
+                </button>
+              )}
+              <div className="flex gap-2">
+                <button
+                  onClick={() => { openEdit(detailItem); setDetailItem(null); }}
+                  className="flex-1 h-11 bg-slate-100 text-slate-700 rounded-xl text-[11px] font-black uppercase tracking-widest flex items-center justify-center gap-2 active:scale-95 transition-all"
+                >
+                  <Edit2 size={14} /> Editar
+                </button>
+                <button
+                  onClick={() => { openDelete(detailItem); setDetailItem(null); }}
+                  className="flex-1 h-11 bg-white border border-rose-200 text-rose-600 rounded-xl text-[11px] font-black uppercase tracking-widest flex items-center justify-center gap-2 active:scale-95 transition-all"
+                >
+                  <Trash2 size={14} /> Excluir
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ─────────────────────── MODALS ─────────────────────────────── */}
 
