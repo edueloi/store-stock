@@ -30,4 +30,8 @@ export const env = {
   vapidPublicKey: process.env.VAPID_PUBLIC_KEY || "",
   vapidPrivateKey: process.env.VAPID_PRIVATE_KEY || "",
   vapidSubject: process.env.VAPID_SUBJECT || "mailto:contato@boxsys.com.br",
+  asaasApiKey: process.env.ASAAS_API_KEY || "",
+  asaasEnvironment: (process.env.ASAAS_ENVIRONMENT === "production" ? "production" : "sandbox") as "sandbox" | "production",
+  asaasWebhookToken: process.env.ASAAS_WEBHOOK_TOKEN || "",
+  platformBillingGraceDaysDefault: Number(process.env.PLATFORM_BILLING_GRACE_DAYS || 5),
 };

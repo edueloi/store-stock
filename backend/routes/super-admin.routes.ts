@@ -11,6 +11,11 @@ import {
   createSubscriptionPlan,
   updateSubscriptionPlan,
   archiveSubscriptionPlan,
+  createTenantBillingSubscription,
+  getTenantBilling,
+  getTenantBillingInvoices,
+  getBillingOverview,
+  cancelTenantBillingSubscription,
 } from "../controllers/super-admin.controller";
 import { authenticateToken, requireSuperAdmin } from "../middlewares/auth.middleware";
 
@@ -28,5 +33,11 @@ router.post("/invites/:inviteId/regenerate", regenerateInvite);
 router.patch("/invites/:inviteId", updateSetupInvite);
 router.patch("/tenants/:tenantId", updateManagedTenant);
 router.patch("/tenants/:tenantId/users/:userId", updateTenantUser);
+
+router.get("/billing/overview", getBillingOverview);
+router.get("/tenants/:tenantId/billing", getTenantBilling);
+router.get("/tenants/:tenantId/billing/invoices", getTenantBillingInvoices);
+router.post("/tenants/:tenantId/billing/create-subscription", createTenantBillingSubscription);
+router.post("/tenants/:tenantId/billing/cancel-subscription", cancelTenantBillingSubscription);
 
 export default router;

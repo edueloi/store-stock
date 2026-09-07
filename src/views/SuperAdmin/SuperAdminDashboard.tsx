@@ -5,7 +5,7 @@ import {
   Store, UserPlus2, Copy, Users, Link2, CheckCircle2, AlertCircle,
   X, LayoutDashboard, Settings, ChevronRight, Phone, Mail,
   ExternalLink, Clock, BadgeCheck, Pencil, Eye, EyeOff, PlusCircle,
-  CalendarCheck, Activity, Timer, Search, TrendingUp, Crown,
+  CalendarCheck, Activity, Timer, Search, TrendingUp, Crown, Wallet,
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 
@@ -13,6 +13,7 @@ import { clearSession, getStoredToken, getStoredUser } from "../../lib/session";
 import type { ManagedTenant, SetupInvite, SubscriptionPlan } from "../../types";
 import { Badge, EmptyState, SelectField } from "./components";
 import PlansPage from "./PlansPage";
+import BillingPage from "./BillingPage";
 
 type OverviewResponse = {
   stats: { tenants: number; active_trials: number; active_accounts: number; pending_invites: number };
@@ -21,13 +22,14 @@ type OverviewResponse = {
   plans: SubscriptionPlan[];
 };
 type Toast = { type: "success" | "error"; message: string };
-type Page = "dashboard" | "invites" | "tenants" | "plans" | "settings";
+type Page = "dashboard" | "invites" | "tenants" | "plans" | "billing" | "settings";
 
 const PAGE_PATHS: Record<Page, string> = {
   dashboard: "/super-admin/dashboard",
   invites: "/super-admin/convites",
   tenants: "/super-admin/clientes",
   plans: "/super-admin/planos",
+  billing: "/super-admin/financeiro",
   settings: "/super-admin/configuracoes",
 };
 
@@ -36,6 +38,7 @@ function pageFromPath(pathname: string): Page {
   if (segment === "convites") return "invites";
   if (segment === "clientes") return "tenants";
   if (segment === "planos") return "plans";
+  if (segment === "financeiro") return "billing";
   if (segment === "configuracoes") return "settings";
   return "dashboard";
 }
@@ -100,6 +103,7 @@ export default function SuperAdminDashboard() {
   const [tenants, setTenants] = useState<ManagedTenant[]>([]);
   const [invites, setInvites] = useState<SetupInvite[]>([]);
   const [plans, setPlans] = useState<SubscriptionPlan[]>([]);
+  const [billingAlerts, setBillingAlerts] = useState(0);
   const [toast, setToast] = useState<Toast | null>(null);
   const [tenantSearch, setTenantSearch] = useState("");
   const [tenantStatus, setTenantStatus] = useState<"all" | ManagedTenant["status"]>("all");
@@ -156,6 +160,17 @@ export default function SuperAdminDashboard() {
     } catch { showToast("error", "Não foi possível carregar o painel."); }
     finally { setLoading(false); }
   }
+
+  // Badge de aviso no menu "Financeiro" — quantas lojas estão em atraso ou já suspensas
+  // por inadimplência. Rota própria (não o /overview geral) pra não pesar a carga inicial.
+  useEffect(() => {
+    fetch("/api/super-admin/billing/overview", { headers: apiHeaders() })
+      .then((r) => r.json())
+      .then((data: { summary?: { overdue: number; suspended: number } }) => {
+        if (data?.summary) setBillingAlerts(data.summary.overdue + data.summary.suspended);
+      })
+      .catch(() => {});
+  }, []);
 
   async function handleCreateInvite(event: FormEvent) {
     event.preventDefault(); setSubmitting(true);
@@ -332,6 +347,7 @@ export default function SuperAdminDashboard() {
     { id: "invites", label: "Convites", icon: <Link2 size={18} />, badge: stats?.pending_invites },
     { id: "tenants", label: "Clientes", icon: <Users size={18} />, badge: stats?.tenants },
     { id: "plans", label: "Planos e assinaturas", icon: <Crown size={18} />, badge: plans.filter((plan) => plan.is_active).length },
+    { id: "billing", label: "Financeiro", icon: <Wallet size={18} />, badge: billingAlerts || undefined },
     { id: "settings", label: "Configurações", icon: <Settings size={18} /> },
   ];
 
@@ -978,6 +994,11 @@ export default function SuperAdminDashboard() {
                 onTenantChange={(updated) => setTenants((current) => current.map((tenant) => tenant.id === updated.id ? updated : tenant))}
                 notify={showToast}
               />
+            )}
+
+            {/* ── BILLING (ASSINATURAS ASAAS) ── */}
+            {page === "billing" && (
+              <BillingPage tenants={sortedTenants} notify={showToast} />
             )}
 
             {/* ── SETTINGS ── */}

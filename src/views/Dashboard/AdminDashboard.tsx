@@ -80,6 +80,7 @@ import ServiceOrderDetail from "./ServiceOrderDetail";
 import WorkflowBoard from "./WorkflowBoard";
 import WhatsApp from "./WhatsApp";
 import Consignments from "./Consignments";
+import Assinatura from "./Assinatura";
 
 // ── Tooltip da sidebar recolhida (portal, foge do overflow do nav) ───────────
 function SidebarTooltip({ anchorRef, label }: { anchorRef: RefObject<HTMLElement>; label: string }) {
@@ -403,6 +404,7 @@ export default function AdminDashboard() {
   const lowStockCount = lowStockProducts.length;
   const [heldSales, setHeldSales] = useState<HeldSale[]>([]);
   const [dueSoonBills, setDueSoonBills] = useState<DueSoonBill[]>([]);
+  const [subscriptionOverdue, setSubscriptionOverdue] = useState(false);
   const location = useLocation();
   const navigate = useNavigate();
 
@@ -481,6 +483,25 @@ export default function AdminDashboard() {
     };
     fetchDueSoon();
     const interval = setInterval(fetchDueSoon, 60000);
+    return () => { cancelled = true; clearInterval(interval); };
+  }, []);
+
+  // Bolinha de aviso no menu "Assinatura" quando a mensalidade do Box Sys está em atraso
+  // ou já suspensa por inadimplência — mesmo padrão de polling dos demais badges.
+  useEffect(() => {
+    let cancelled = false;
+    const fetchBillingStatus = async () => {
+      try {
+        const res = await fetch("/api/tenant/billing", {
+          headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
+        });
+        if (!res.ok || cancelled) return;
+        const data = await res.json();
+        if (!cancelled) setSubscriptionOverdue(!!data && (data.status === "overdue" || data.status === "suspended"));
+      } catch { /* silencioso — badge apenas não atualiza nesta rodada */ }
+    };
+    fetchBillingStatus();
+    const interval = setInterval(fetchBillingStatus, 60000);
     return () => { cancelled = true; clearInterval(interval); };
   }, []);
 
@@ -569,6 +590,7 @@ export default function AdminDashboard() {
     {
       label: "Sistema",
       items: [
+        { icon: Receipt,      label: "Assinatura",    path: "/admin/assinatura", key: "assinatura" },
         { icon: SettingsIcon, label: "Configurações", path: "/admin/settings", key: "settings" },
       ],
     },
@@ -700,11 +722,13 @@ export default function AdminDashboard() {
                         item.path === "/admin/consignacoes" ? overdueConsignments
                           : item.path === "/admin/stock" ? lowStockCount
                           : item.path === "/admin/contas-pagar" ? dueSoonBills.length
+                          : item.path === "/admin/assinatura" ? (subscriptionOverdue ? 1 : 0)
                           : undefined
                       }
                       badgeLabel={
                         item.path === "/admin/stock" ? "com estoque baixo"
                           : item.path === "/admin/contas-pagar" ? "vencendo em breve"
+                          : item.path === "/admin/assinatura" ? "em atraso"
                           : undefined
                       }
                     />
@@ -769,6 +793,7 @@ export default function AdminDashboard() {
                         item.path === "/admin/consignacoes" ? overdueConsignments
                           : item.path === "/admin/stock" ? lowStockCount
                           : item.path === "/admin/contas-pagar" ? dueSoonBills.length
+                          : item.path === "/admin/assinatura" ? (subscriptionOverdue ? 1 : 0)
                           : 0;
                       return (
                         <Link key={item.path} to={item.path} onClick={() => setIsSidebarOpen(false)}
@@ -893,6 +918,7 @@ export default function AdminDashboard() {
               <Route path="markup"     element={<Markup />} />
               <Route path="etiquetas"  element={<Barcodes />} />
               <Route path="settings" element={<Settings />} />
+              <Route path="assinatura" element={<Assinatura />} />
               <Route path="loyalty" element={<Loyalty />} />
               <Route path="inventory" element={<Stock />} />
             </Routes>

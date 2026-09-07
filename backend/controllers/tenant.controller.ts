@@ -16,6 +16,25 @@ function getTenantId(req: Request) {
   return (req as AuthenticatedRequest).user.tenantId;
 }
 
+// Só os dados da PRÓPRIA assinatura do tenant logado — nunca de outros tenants (isso é
+// diferente do financeiro do super admin, que vê todos). Usado na tela "Assinatura" do menu.
+export async function getMyBilling(req: Request, res: Response) {
+  try {
+    const subscription = await prisma.platformSubscription.findUnique({
+      where: { tenant_id: getTenantId(req) },
+      include: { invoices: { orderBy: { due_date: "desc" }, take: 12 } },
+    });
+    if (!subscription) { res.json(null); return; }
+    res.json({
+      ...subscription,
+      value: Number(subscription.value),
+      invoices: subscription.invoices.map((inv) => ({ ...inv, value: Number(inv.value) })),
+    });
+  } catch {
+    res.status(500).json({ error: "Falha ao consultar a assinatura." });
+  }
+}
+
 export async function getTenant(req: Request, res: Response) {
   try {
     const tenant = await prisma.tenant.findUnique({

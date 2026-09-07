@@ -40,6 +40,7 @@ import profileRoutes from "./profile.routes";
 import desktopTerminalsRoutes from "./desktop-terminals.routes";
 import printRoutes from "./print.routes";
 import pushRoutes from "./push.routes";
+import billingWebhookRoutes from "./billing-webhook.routes";
 
 export function registerRoutes(app: Express) {
   // Serve uploaded images
@@ -85,4 +86,5 @@ export function registerRoutes(app: Express) {
   app.use("/api/desktop-terminals", desktopTerminalsRoutes);
   app.use("/api/print", printRoutes);
   app.use("/api/push", pushRoutes);
+  app.use("/api/billing", billingWebhookRoutes);
 }

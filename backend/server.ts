@@ -11,6 +11,7 @@ import { seedDefaultTenant } from "./services/seed.service";
 import { startWhatsappMaintenanceLoop } from "./services/whatsapp.service";
 import { startPointsReminderLoop } from "./services/loyalty-notifications.service";
 import { startPushNotificationsLoop } from "./services/push-notifications.service";
+import { startPlatformBillingSuspensionLoop } from "./services/billing/platform-billing-suspension.service";
 import { startQuoteExpirationLoop } from "./controllers/quotes.controller";
 import { initStoreSeoTemplate, handleProductSeo } from "./controllers/store-seo.controller";
 import { initRealtime } from "./services/realtime.service";
@@ -49,6 +50,7 @@ export async function startServer() {
   startPointsReminderLoop();
   startQuoteExpirationLoop();
   startPushNotificationsLoop();
+  startPlatformBillingSuspensionLoop();
 
   const app = createApp();
   await attachFrontend(app);

@@ -10,6 +10,10 @@ import {
   isReservedSubdomain,
   normalizeSubdomain,
 } from "../utils/tenant-domain";
+import {
+  createPlatformSubscriptionForTenant,
+  cancelPlatformSubscriptionForTenant,
+} from "../services/billing/platform-billing.service";
 
 function addDays(date: Date, days: number) {
   const copy = new Date(date);
@@ -294,6 +298,21 @@ export async function updateManagedTenant(req: Request, res: Response) {
       },
     });
 
+    // Cria a assinatura Asaas automaticamente na primeira vez que o tenant ganha um valor
+    // de assinatura > 0 (nunca retroativo — só quando o super admin mexer no plano/valor
+    // agora). Fire-and-forget: chamada de rede externa não deve bloquear nem falhar o
+    // PATCH; o botão manual em Financeiro é o mecanismo de recuperação se isso falhar.
+    const touchedBilling = planId !== undefined || subscriptionAmount !== undefined;
+    const newAmount = Number(tenant.subscription_amount);
+    if (touchedBilling && newAmount > 0) {
+      prisma.platformSubscription.findUnique({ where: { tenant_id: tenantId } }).then((existing) => {
+        if (existing) return;
+        return createPlatformSubscriptionForTenant(tenantId, newAmount);
+      }).catch((error) => {
+        console.error(`Falha ao criar assinatura Asaas automática para tenant ${tenantId}:`, error);
+      });
+    }
+
     res.json(serializeTenant(tenant));
   } catch {
     res.status(500).json({ error: "Falha ao atualizar o tenant." });
@@ -410,5 +429,123 @@ export async function archiveSubscriptionPlan(req: Request, res: Response) {
     res.json({ ...plan, price: Number(plan.price) });
   } catch {
     res.status(500).json({ error: "Falha ao arquivar o plano." });
+  }
+}
+
+// --- Billing da plataforma (assinaturas Asaas) ---
+
+function serializePlatformSubscription(sub: {
+  id: number; tenant_id: number; asaas_customer_id: string; asaas_subscription_id: string;
+  billing_cycle: string; status: string; value: unknown; next_due_date: Date | null;
+  grace_period_days: number; environment: string; suspended_at: Date | null; cancelled_at: Date | null;
+  invoices?: Array<{ id: number; asaas_payment_id: string; status: string; value: unknown; due_date: Date; payment_date: Date | null; billing_type: string | null; invoice_url: string | null; created_at: Date }>;
+}) {
+  return {
+    ...sub,
+    value: Number(sub.value),
+    invoices: sub.invoices?.map((inv) => ({ ...inv, value: Number(inv.value) })),
+  };
+}
+
+export async function createTenantBillingSubscription(req: Request, res: Response) {
+  const tenantId = Number(req.params.tenantId);
+  if (!tenantId) { res.status(400).json({ error: "Tenant inválido." }); return; }
+
+  try {
+    const existing = await prisma.platformSubscription.findUnique({ where: { tenant_id: tenantId } });
+    if (existing) {
+      res.json(serializePlatformSubscription(existing));
+      return;
+    }
+
+    const tenant = await prisma.tenant.findUnique({ where: { id: tenantId }, select: { subscription_amount: true } });
+    if (!tenant) { res.status(404).json({ error: "Tenant não encontrado." }); return; }
+
+    const value = Number(tenant.subscription_amount);
+    if (!value || value <= 0) {
+      res.status(422).json({ error: "Defina um valor de assinatura maior que zero antes de criar a cobrança." });
+      return;
+    }
+
+    const subscription = await createPlatformSubscriptionForTenant(tenantId, value);
+    res.json(serializePlatformSubscription(subscription));
+  } catch (error) {
+    res.status(500).json({ error: error instanceof Error ? error.message : "Falha ao criar assinatura no Asaas." });
+  }
+}
+
+export async function getTenantBilling(req: Request, res: Response) {
+  const tenantId = Number(req.params.tenantId);
+  if (!tenantId) { res.status(400).json({ error: "Tenant inválido." }); return; }
+
+  try {
+    const subscription = await prisma.platformSubscription.findUnique({
+      where: { tenant_id: tenantId },
+      include: { invoices: { orderBy: { due_date: "desc" }, take: 12 } },
+    });
+    if (!subscription) { res.json(null); return; }
+    res.json(serializePlatformSubscription(subscription));
+  } catch {
+    res.status(500).json({ error: "Falha ao consultar a assinatura do tenant." });
+  }
+}
+
+export async function getTenantBillingInvoices(req: Request, res: Response) {
+  const tenantId = Number(req.params.tenantId);
+  if (!tenantId) { res.status(400).json({ error: "Tenant inválido." }); return; }
+
+  try {
+    const subscription = await prisma.platformSubscription.findUnique({ where: { tenant_id: tenantId } });
+    if (!subscription) { res.json([]); return; }
+
+    const invoices = await prisma.platformInvoice.findMany({
+      where: { platform_subscription_id: subscription.id },
+      orderBy: { due_date: "desc" },
+    });
+    res.json(invoices.map((inv) => ({ ...inv, value: Number(inv.value) })));
+  } catch {
+    res.status(500).json({ error: "Falha ao listar faturas do tenant." });
+  }
+}
+
+export async function getBillingOverview(req: Request, res: Response) {
+  try {
+    const subscriptions = await prisma.platformSubscription.findMany({
+      include: { tenant: { select: { id: true, name: true, subdomain: true } } },
+      orderBy: { created_at: "desc" },
+    });
+
+    const startOfMonth = new Date();
+    startOfMonth.setDate(1);
+    startOfMonth.setHours(0, 0, 0, 0);
+
+    const receivedThisMonth = await prisma.platformInvoice.aggregate({
+      where: { status: "received", payment_date: { gte: startOfMonth } },
+      _sum: { value: true },
+    });
+
+    res.json({
+      subscriptions: subscriptions.map((sub) => ({ ...serializePlatformSubscription(sub), tenant: sub.tenant })),
+      summary: {
+        active: subscriptions.filter((s) => s.status === "active").length,
+        overdue: subscriptions.filter((s) => s.status === "overdue").length,
+        suspended: subscriptions.filter((s) => s.status === "suspended" || s.suspended_at).length,
+        revenue_this_month: Number(receivedThisMonth._sum.value ?? 0),
+      },
+    });
+  } catch {
+    res.status(500).json({ error: "Falha ao carregar visão geral do financeiro." });
+  }
+}
+
+export async function cancelTenantBillingSubscription(req: Request, res: Response) {
+  const tenantId = Number(req.params.tenantId);
+  if (!tenantId) { res.status(400).json({ error: "Tenant inválido." }); return; }
+
+  try {
+    const cancelled = await cancelPlatformSubscriptionForTenant(tenantId);
+    res.json(serializePlatformSubscription(cancelled));
+  } catch (error) {
+    res.status(500).json({ error: error instanceof Error ? error.message : "Falha ao cancelar assinatura no Asaas." });
   }
 }

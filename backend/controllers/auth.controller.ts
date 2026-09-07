@@ -140,6 +140,7 @@ export async function login(req: Request, res: Response) {
             fluxo_producao_enabled: true,
             grafica_enabled: true,
             plan: { select: { features: true } },
+            platform_subscription: { select: { status: true, next_due_date: true, grace_period_days: true } },
           },
         },
       },

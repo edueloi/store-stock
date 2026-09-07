@@ -13,3 +13,4 @@ public/downloads/*
 rede-itau/
 certs/
 .claude/settings.local.json
+CREDENTIALS.md

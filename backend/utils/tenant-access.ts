@@ -1,6 +1,11 @@
 type TenantAccessInput = {
   status?: string | null;
   trial_ends_at?: Date | string | null;
+  platform_subscription?: {
+    status: string;
+    next_due_date: Date | string | null;
+    grace_period_days: number;
+  } | null;
 };
 
 export function getTenantAccessState(tenant: TenantAccessInput) {
@@ -11,6 +16,10 @@ export function getTenantAccessState(tenant: TenantAccessInput) {
   }
 
   if (status === "suspended") {
+    const sub = tenant.platform_subscription;
+    if (sub && (sub.status === "overdue" || sub.status === "suspended")) {
+      return { allowed: false, reason: "Assinatura em atraso. Regularize o pagamento para continuar." };
+    }
     return { allowed: false, reason: "Conta suspensa pelo super admin." };
   }
 

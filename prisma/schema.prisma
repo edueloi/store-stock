@@ -134,6 +134,7 @@ model Tenant {
   held_sale_actions      HeldSaleAction[]
   desktop_terminals      DesktopTerminal[]
   plan                   SubscriptionPlan?     @relation(fields: [plan_id], references: [id], onDelete: SetNull)
+  platform_subscription  PlatformSubscription?
 
   @@map("tenants")
 }
@@ -188,6 +189,56 @@ model DesktopPairingCode {
   created_at   DateTime  @default(now())
 
   @@map("desktop_pairing_codes")
+}
+
+// --- Billing da plataforma (Box Sys cobrando o tenant via Asaas) ---
+// Isolado do billing do lojista (Finance/AccountPayable/TerminalTransaction, que é o
+// tenant cobrando o cliente final dele) — este domínio nunca é visível a um tenant,
+// só ao super_admin.
+model PlatformSubscription {
+  id                    Int       @id @default(autoincrement())
+  tenant_id             Int       @unique
+  asaas_customer_id     String
+  asaas_subscription_id String    @unique
+  billing_cycle         String    @default("MONTHLY")
+  status                String    @default("active") // active | overdue | suspended | cancelled
+  value                 Decimal   @db.Decimal(10, 2)
+  next_due_date         DateTime?
+  grace_period_days     Int       @default(5)
+  environment           String    @default("sandbox") // sandbox | production
+  suspended_at          DateTime?
+  cancelled_at          DateTime?
+  created_at            DateTime  @default(now())
+  updated_at            DateTime  @updatedAt
+
+  tenant   Tenant            @relation(fields: [tenant_id], references: [id])
+  invoices PlatformInvoice[]
+
+  @@index([status])
+  @@index([next_due_date])
+  @@map("platform_subscriptions")
+}
+
+model PlatformInvoice {
+  id                       Int       @id @default(autoincrement())
+  platform_subscription_id Int
+  asaas_payment_id         String    @unique
+  status                   String    @default("pending") // pending|confirmed|received|overdue|refunded
+  value                    Decimal   @db.Decimal(10, 2)
+  due_date                 DateTime
+  payment_date             DateTime?
+  billing_type             String? // PIX | BOLETO | CREDIT_CARD — resolvido quando o tenant paga
+  invoice_url              String?   @db.Text
+  raw_webhook_payload      Json?
+  created_at               DateTime  @default(now())
+  updated_at               DateTime  @updatedAt
+
+  subscription PlatformSubscription @relation(fields: [platform_subscription_id], references: [id])
+
+  @@index([platform_subscription_id])
+  @@index([status])
+  @@index([due_date])
+  @@map("platform_invoices")
 }
 
 model SetupInvite {

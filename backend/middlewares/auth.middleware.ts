@@ -21,7 +21,11 @@ export async function authenticateToken(req: Request, res: Response, next: NextF
     if (!user.superAdmin && user.tenantId) {
       const tenant = await prisma.tenant.findUnique({
         where: { id: user.tenantId },
-        select: { status: true, trial_ends_at: true },
+        select: {
+          status: true,
+          trial_ends_at: true,
+          platform_subscription: { select: { status: true, next_due_date: true, grace_period_days: true } },
+        },
       });
 
       if (!tenant) {
