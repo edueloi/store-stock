@@ -73,7 +73,14 @@ export function buildDpsXml(input: BuildDpsInput): BuildDpsResult {
     numero,
   });
 
-  const now = new Date();
+  // Margem de segurança: a Sefin Nacional rejeita (E0008) se dhEmi ficar posterior ao
+  // dhProc dela — qualquer pequena dessincronia de relógio entre esta VPS e o servidor
+  // deles, ou a latência da consulta de alíquota que roda antes deste ponto, é o
+  // suficiente pra violar isso. Subtrair alguns segundos do "agora" local garante que
+  // dhEmi sempre fique no passado do ponto de vista do processamento real, sem impacto
+  // prático na validade da nota (ainda representa "agora").
+  const DHEMI_SAFETY_MARGIN_MS = 15_000;
+  const now = new Date(Date.now() - DHEMI_SAFETY_MARGIN_MS);
   // dhEmi exige data/hora LOCAL com offset de fuso explícito (ex: -03:00), não UTC
   // com "Z" — o layout nacional rejeita UTC puro apesar do nome do tipo TSDateTimeUTC.
   const dhEmi = formatDateTimeWithOffset(now);
