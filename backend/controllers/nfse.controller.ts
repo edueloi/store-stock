@@ -42,7 +42,7 @@ export async function emitNfseForServiceOrder(req: Request, res: Response) {
 
     const serviceOrder = await prisma.serviceOrder.findFirst({
       where: { id: serviceOrderId, tenant_id: tenantId },
-      select: { id: true, status: true, service_value: true, equipment_type: true, equipment_category: true },
+      select: { id: true, status: true, service_value: true, equipment_type: true, equipment_category: true, service_description: true },
     });
     if (!serviceOrder) { res.status(404).json({ error: "Ordem de serviço não encontrada" }); return; }
     if (serviceOrder.status !== "finalizado" && serviceOrder.status !== "nota_emitida") {
@@ -63,8 +63,15 @@ export async function emitNfseForServiceOrder(req: Request, res: Response) {
     let invoice = await prisma.nfseInvoice.findFirst({ where: { service_order_id: serviceOrderId, tenant_id: tenantId } });
     if (invoice?.status === "authorized") { res.status(409).json({ error: "NFS-e já autorizada" }); return; }
 
+    // equipment_category tem default "" (string vazia) no banco, não null — usar ?? aqui
+    // deixaria a string vazia passar direto, e a Sefin Nacional rejeita xDescServ vazio
+    // (TSDesc2000 exige ao menos 1 caractere). || trata "" como falso corretamente.
+    // Prioriza a Descrição do Serviço já digitada na própria OS antes de cair no fallback
+    // de categoria/tipo de equipamento.
     const descricao = descricao_servico
-      || `${serviceOrder.equipment_category ?? "Serviço"}${serviceOrder.equipment_type ? ` — ${serviceOrder.equipment_type}` : ""}`;
+      || serviceOrder.service_description
+      || `${serviceOrder.equipment_category || "Serviço"}${serviceOrder.equipment_type ? ` — ${serviceOrder.equipment_type}` : ""}`
+      || "Serviço prestado";
 
     // Guarda os dados desta tentativa — sem persistir isso, reemitir depois de um erro
     // exigiria que o operador digitasse tudo de novo (retryNfse não tem outro lugar pra

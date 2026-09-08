@@ -100,7 +100,7 @@ export default function ServiceOrderDetail() {
   const [discountType, setDiscountType] = useState<"percent" | "fixed">("percent");
   const [discountValue, setDiscountValue] = useState(0);
   const [nfseInvoice, setNfseInvoice] = useState<NfseInvoice | null>(null);
-  const [nfseCodigoServico, setNfseCodigoServico] = useState("70602");
+  const [nfseCodigoServico, setNfseCodigoServico] = useState("140601");
   const [nfseDescricao, setNfseDescricao] = useState("");
   const [nfseEmitting, setNfseEmitting] = useState(false);
   const [nfseError, setNfseError] = useState<string | null>(null);
@@ -188,6 +188,9 @@ export default function ServiceOrderDetail() {
     setPromisedAt(so.promised_at ? so.promised_at.slice(0, 10) : "");
     setServiceValue(so.service_value ? String(so.service_value) : "");
     setServiceDescription(so.service_description ?? "");
+    // Pré-preenche a descrição da NFS-e com a Descrição do Serviço já digitada na OS — só na
+    // primeira carga (não sobrescreve se o usuário já tiver customizado o campo da nota).
+    setNfseDescricao((current) => current || so.service_description || "");
     setDiscountType(so.discount_type ?? "percent");
     setDiscountValue(Number(so.discount_value) || 0);
     setWarrantyDays(so.warranty_days ? String(so.warranty_days) : "");
@@ -1280,17 +1283,17 @@ export default function ServiceOrderDetail() {
                     <div>
                       <label className="text-[9px] font-black text-slate-400 uppercase tracking-wide block mb-1">Cód. Serviço</label>
                       <input value={nfseCodigoServico} onChange={(e) => setNfseCodigoServico(e.target.value.replace(/\D/g, "").slice(0, 6))}
-                        placeholder="70602"
+                        placeholder="140601"
                         className="w-full h-9 px-2 rounded-lg border border-slate-200 text-[12px] font-mono focus:outline-none focus:border-blue-400" />
                     </div>
                     <div>
-                      <label className="text-[9px] font-black text-slate-400 uppercase tracking-wide block mb-1">Descrição (opcional)</label>
+                      <label className="text-[9px] font-black text-slate-400 uppercase tracking-wide block mb-1">Descrição do Serviço</label>
                       <input value={nfseDescricao} onChange={(e) => setNfseDescricao(e.target.value)}
-                        placeholder="Instalação de vidro/box"
+                        placeholder="O que foi feito — obrigatório para a prefeitura"
                         className="w-full h-9 px-2 rounded-lg border border-slate-200 text-[12px] focus:outline-none focus:border-blue-400" />
                     </div>
                   </div>
-                  <button onClick={handleEmitNfse} disabled={nfseEmitting || !nfseCodigoServico}
+                  <button onClick={handleEmitNfse} disabled={nfseEmitting || !nfseCodigoServico || !nfseDescricao.trim()}
                     className="w-full h-10 bg-violet-600 hover:bg-violet-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all disabled:opacity-50 flex items-center justify-center gap-2">
                     {nfseEmitting ? <Loader2 size={13} className="animate-spin" /> : null}
                     {nfseEmitting ? "Emitindo…" : "Emitir NFS-e"}
