@@ -14,20 +14,24 @@ import { onRealtime } from "../lib/realtime";
 export function useRemotePrintBridge() {
   useEffect(() => {
     const desktop = window.boxsysDesktop;
-    if (!desktop) return;
+    // Apps desktop instalados antes da Fase 1 (pareamento) têm window.boxsysDesktop mas
+    // sem este método no preload — checar a função em si, não só a presença do objeto,
+    // senão uma versão antiga do app quebra a aplicação inteira ao tentar chamá-la.
+    if (!desktop || typeof desktop.getPairingState !== "function") return;
 
     let myTerminalUid: string | null = null;
     let cancelled = false;
 
     desktop.getPairingState().then((state) => {
       if (!cancelled) myTerminalUid = state.terminalUid;
-    });
+    }).catch(() => {});
 
     return onRealtime("print:requested", (payload: { terminal_uid?: string; role?: string; text?: string }) => {
       if (cancelled) return;
       if (!payload?.terminal_uid || !myTerminalUid) return;
       if (payload.terminal_uid !== myTerminalUid) return;
       if (!payload.role || !payload.text) return;
+      if (typeof desktop.printByRole !== "function") return;
       desktop.printByRole(payload.role, payload.text);
     });
   }, []);
