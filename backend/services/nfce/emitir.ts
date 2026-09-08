@@ -1,6 +1,8 @@
 import fs from "fs";
 import path from "path";
 
+import type { Product } from "@prisma/client";
+
 import { prisma } from "../../config/prisma";
 import { env } from "../../config/env";
 import { decryptSecret } from "../../utils/secretCrypto";
@@ -71,10 +73,34 @@ export async function emitirNfce(orderId: number): Promise<void> {
       customerDocument = customer?.document ?? undefined;
     }
 
+    // Item avulso (vendido sem produto no catálogo, ver sales.controller.ts) não tem
+    // Product real — monta um "product-like" sintético com os mesmos fallbacks fiscais
+    // já usados hoje para produtos com cadastro fiscal incompleto (NCM/CFOP/CSOSN/CST/
+    // PIS/COFINS), aplicados de propósito aqui em vez de por ausência de cadastro.
+    const itemsForXml = order.items.map((item) => ({
+      ...item,
+      product: item.product ?? ({
+        name: item.name || "Item avulso",
+        sku: null,
+        barcode: null,
+        ncm: item.ncm || "00000000",
+        cest: null,
+        cfop: "5102",
+        unidade_comercial: "UN",
+        unidade_tributavel: "UN",
+        origem: 0,
+        csosn: "102",
+        cst_icms: "00",
+        icms_aliquota: null,
+        pis_cst: "07",
+        cofins_cst: "07",
+      } as Product),
+    }));
+
     const { chaveAcesso, xml } = buildNfceXml({
       tenant,
       order,
-      items: order.items,
+      items: itemsForXml,
       payments,
       numero,
       serie,

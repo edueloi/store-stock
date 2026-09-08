@@ -737,13 +737,15 @@ model Technician {
 model OrderItem {
   id               Int     @id @default(autoincrement())
   order_id         Int
-  product_id       Int
+  product_id       Int?
+  name             String? // nome digitado na hora — só para item avulso (product_id nulo)
+  ncm              String? // opcional, só para item avulso — fallback "00000000" se vazio
   quantity         Int
   unit_price       Decimal @db.Decimal(10, 2)
   dimensions_label String?
 
-  order   Order   @relation(fields: [order_id], references: [id], onDelete: Cascade)
-  product Product @relation(fields: [product_id], references: [id], onDelete: Cascade)
+  order   Order    @relation(fields: [order_id], references: [id], onDelete: Cascade)
+  product Product? @relation(fields: [product_id], references: [id], onDelete: Cascade)
 
   @@map("order_items")
 }

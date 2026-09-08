@@ -26,7 +26,8 @@ export class SaleError extends Error {
 }
 
 interface SaleItemInput {
-  id: number;
+  // ausente/null quando isAvulso — item digitado na hora, sem produto no catálogo
+  id?: number | null;
   quantity: number;
   price: number;
   selectedOptions?: Record<string, string> | null;
@@ -34,6 +35,12 @@ interface SaleItemInput {
   // id da HeldSaleItem de origem, quando esta linha veio de uma venda em espera
   // retomada — usado para não debitar de novo um estoque já reservado no hold.
   heldSaleItemId?: number | null;
+  // venda avulsa: nome digitado no PDV, sem cadastro no catálogo — não baixa estoque
+  // e não passa pela validação de produto existente. NCM opcional (fallback "00000000"
+  // na emissão da NFC-e, mesmo comportamento já usado hoje para produtos sem NCM).
+  isAvulso?: boolean;
+  name?: string;
+  ncm?: string | null;
 }
 
 interface ServiceItemInput { id: number; name: string; price: number; dimensionsLabel?: string | null }
@@ -216,8 +223,9 @@ async function finalizeSaleOrder(params: FinalizeSaleParams): Promise<{ orderId:
       if (cust) resolvedCustomerName = cust.name;
     }
 
-    // Validate all products exist before creating the order (skip if services-only sale)
-    const productIds = items.map(i => i.id);
+    // Validate all products exist before creating the order (skip if services-only sale).
+    // Itens avulsos (isAvulso) não têm product_id — não entram nesta validação.
+    const productIds = items.filter(i => !i.isAvulso).map(i => i.id as number);
     if (productIds.length > 0) {
       const existingProducts = await prisma.product.findMany({
         where: { id: { in: productIds }, tenant_id: tenantId },
@@ -286,12 +294,21 @@ async function finalizeSaleOrder(params: FinalizeSaleParams): Promise<{ orderId:
         client_sale_id:  clientSaleId ?? null,
         cash_session_id: resolvedCashSessionId,
         items: {
-          create: items.map((item) => ({
-            product_id: item.id,
-            quantity: item.quantity,
-            unit_price: item.price,
-            dimensions_label: item.dimensionsLabel ?? null,
-          })),
+          create: items.map((item) => item.isAvulso
+            ? {
+              product_id: null,
+              name: item.name,
+              ncm: item.ncm || null,
+              quantity: item.quantity,
+              unit_price: item.price,
+              dimensions_label: item.dimensionsLabel ?? null,
+            }
+            : {
+              product_id: item.id,
+              quantity: item.quantity,
+              unit_price: item.price,
+              dimensions_label: item.dimensionsLabel ?? null,
+            }),
         },
         ...(services && services.length > 0 ? {
           services: {
@@ -311,10 +328,12 @@ async function finalizeSaleOrder(params: FinalizeSaleParams): Promise<{ orderId:
     if (decrementStock) {
       for (let idx = 0; idx < items.length; idx++) {
         const item = items[idx];
+        // Item avulso não existe no catálogo — não há estoque a debitar.
+        if (item.isAvulso) continue;
         // Produtos vendidos por medida (m²/linear) não têm controle de estoque —
         // a peça é cortada sob medida, não há como inferir quanto resta em chapa/rolo.
         const productForStock = await prisma.product.findUnique({
-          where: { id: item.id },
+          where: { id: item.id as number },
           select: { sale_unit: true },
         });
         if (productForStock?.sale_unit && productForStock.sale_unit !== "unidade") {
@@ -323,7 +342,7 @@ async function finalizeSaleOrder(params: FinalizeSaleParams): Promise<{ orderId:
 
         const toDecrement = Math.max(0, item.quantity - reservedForItem[idx]);
         if (toDecrement > 0) {
-          await decrementProductStock(item.id, toDecrement, item.selectedOptions);
+          await decrementProductStock(item.id as number, toDecrement, item.selectedOptions);
         }
       }
     } else {

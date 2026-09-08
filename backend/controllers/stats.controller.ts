@@ -36,6 +36,8 @@ export async function getTopSellingProducts(req: Request, res: Response) {
     const topProducts = await prisma.orderItem.groupBy({
       by: ["product_id"],
       where: {
+        // Itens avulsos (sem produto no catálogo) não entram no ranking de mais vendidos.
+        product_id: { not: null },
         order: {
           tenant_id: getTenantId(req),
           status: "completed",
@@ -52,7 +54,7 @@ export async function getTopSellingProducts(req: Request, res: Response) {
     const productsWithNames = await Promise.all(
       topProducts.map(async (topProduct) => {
         const product = await prisma.product.findUnique({
-          where: { id: topProduct.product_id },
+          where: { id: topProduct.product_id as number },
         });
 
         return {

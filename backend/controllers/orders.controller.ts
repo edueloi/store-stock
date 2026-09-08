@@ -32,8 +32,10 @@ async function logAction(
 
 // Reverts stock for all items of a completed order (cancel or delete).
 // Also handles SKU/variation stock for items that carried selectedOptions in meta.
-async function revertStock(items: { product_id: number; quantity: number; selected_options?: any }[]) {
+async function revertStock(items: { product_id: number | null; quantity: number; selected_options?: any }[]) {
   for (const item of items) {
+    // Item avulso (sem produto no catálogo) nunca debitou estoque — nada a reverter.
+    if (!item.product_id) continue;
     await prisma.product.update({
       where: { id: item.product_id },
       data: { stock_quantity: { increment: item.quantity } },
@@ -102,8 +104,8 @@ export async function listOrders(req: Request, res: Response) {
       customer_document: order.customer_document ?? (order.customer_id ? docByCustomerId.get(order.customer_id) ?? null : null),
       items: order.items.map((item) => ({
         id: item.id,
-        product_name: item.product.name,
-        image_url: item.product.image_url,
+        product_name: item.product?.name ?? item.name,
+        image_url: item.product?.image_url ?? null,
         quantity: item.quantity,
         unit_price: item.unit_price,
       })),
@@ -133,8 +135,8 @@ export async function getOrderById(req: Request, res: Response) {
       ...order,
       items: order.items.map((item) => ({
         ...item,
-        product_name: item.product.name,
-        image_url: item.product.image_url ?? null,
+        product_name: item.product?.name ?? item.name,
+        image_url: item.product?.image_url ?? null,
       })),
       services: order.services.map((svc) => ({
         id: svc.id, service_id: svc.service_id, name: svc.name,

@@ -58,6 +58,9 @@ interface CartItem extends Product {
   // id da HeldSaleItem de origem, quando esta linha veio de uma venda em espera retomada —
   // enviado ao finalizar pra não debitar de novo um estoque já reservado no hold.
   heldSaleItemId?: number;
+  // venda avulsa: item digitado na hora (nome + valor), sem cadastro no catálogo — não
+  // baixa estoque, mas entra na NFC-e normalmente com os fallbacks fiscais padrão.
+  isAvulso?: boolean;
 }
 
 // Cada entrada de pagamento (pode ter múltiplos)
@@ -245,6 +248,13 @@ export default function PDV() {
   const [measureService, setMeasureService] = useState<ServiceItem | null>(null);
   const [measureServiceHeight, setMeasureServiceHeight] = useState("");
   const [measureServiceWidth, setMeasureServiceWidth] = useState("");
+
+  // venda avulsa (item digitado na hora, sem cadastro no catálogo)
+  const [showAvulsoModal, setShowAvulsoModal] = useState(false);
+  const [avulsoName, setAvulsoName]         = useState("");
+  const [avulsoPrice, setAvulsoPrice]       = useState("");
+  const [avulsoQuantity, setAvulsoQuantity] = useState("1");
+  const [avulsoNcm, setAvulsoNcm]           = useState("");
 
   // checkout fields — customer
   interface CustomerOption { id: number; name: string; phone?: string; document?: string }
@@ -448,6 +458,40 @@ export default function PDV() {
       ];
     });
   }, []);
+
+  // Venda avulsa: item digitado na hora (nome + valor + quantidade), sem produto no
+  // catálogo — não baixa estoque, mas entra na venda e na NFC-e normalmente (fallbacks
+  // fiscais padrão, ver sales.controller.ts/emitir.ts). Sem histórico reutilizável: cada
+  // item avulso é uma linha nova do carrinho, digitada do zero.
+  const addAvulsoToCart = () => {
+    const price = Number(avulsoPrice.replace(",", "."));
+    const quantity = Math.max(1, Math.floor(Number(avulsoQuantity)) || 1);
+    if (!avulsoName.trim() || !(price > 0)) return;
+    const cartItemId = `avulso-${crypto.randomUUID()}`;
+    setCart((prev) => [
+      ...prev,
+      {
+        id: -Date.now(),
+        tenant_id: 0,
+        name: avulsoName.trim(),
+        stock_quantity: 0,
+        type: "sale",
+        is_active: true,
+        is_featured: false,
+        ncm: avulsoNcm.trim() || undefined,
+        price,
+        quantity,
+        cartItemId,
+        variationLabel: "",
+        isAvulso: true,
+      } as CartItem,
+    ]);
+    setAvulsoName("");
+    setAvulsoPrice("");
+    setAvulsoQuantity("1");
+    setAvulsoNcm("");
+    setShowAvulsoModal(false);
+  };
 
   const handleScan = useCallback(async (code: string) => {
     const trimmed = code.trim();
@@ -1480,7 +1524,17 @@ export default function PDV() {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify({
-          items: cart.map((i) => ({ id: i.id, quantity: i.quantity, price: i.price, selectedOptions: i.selectedOptions ?? null, dimensionsLabel: i.dimensionsLabel ?? null, heldSaleItemId: i.heldSaleItemId ?? undefined })),
+          items: cart.map((i) => ({
+            id: i.isAvulso ? undefined : i.id,
+            quantity: i.quantity,
+            price: i.price,
+            selectedOptions: i.selectedOptions ?? null,
+            dimensionsLabel: i.dimensionsLabel ?? null,
+            heldSaleItemId: i.heldSaleItemId ?? undefined,
+            isAvulso: i.isAvulso ?? undefined,
+            name: i.isAvulso ? i.name : undefined,
+            ncm: i.isAvulso ? (i.ncm || undefined) : undefined,
+          })),
           services: cartServices.map((s) => ({ id: s.id, name: s.name, price: s.price, quantity: s.quantity ?? 1, dimensionsLabel: s.dimensionsLabel ?? null })),
           customerName,
           customerId: selectedCustomerId ?? undefined,
@@ -1887,6 +1941,14 @@ export default function PDV() {
                 value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)}
                 className="w-full pl-10 pr-4 h-10 bg-white rounded-xl text-[13px] font-medium text-slate-700 placeholder:text-slate-400 focus:outline-none transition-all border border-slate-200 focus:border-blue-400 focus:ring-2 focus:ring-blue-100 shadow-sm" />
             </div>
+            {/* Item avulso — venda rápida sem cadastro no catálogo */}
+            <button
+              onClick={() => setShowAvulsoModal(true)}
+              title="Item Avulso"
+              className="shrink-0 h-10 px-3 rounded-xl flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wide text-emerald-600 border border-emerald-200 bg-white hover:bg-emerald-50 transition-all active:scale-[0.98]">
+              <PlusCircle size={14} />
+              <span className="hidden sm:inline">Avulso</span>
+            </button>
             {/* Botão carrinho mobile */}
             <button
               onClick={goToPayment}
@@ -2243,7 +2305,12 @@ export default function PDV() {
                       </div>
                     )}
                     <div className="flex-1 min-w-0">
-                      <p className="text-[11px] font-bold text-slate-700 truncate leading-tight">{item.name}</p>
+                      <div className="flex items-center gap-1.5">
+                        <p className="text-[11px] font-bold text-slate-700 truncate leading-tight">{item.name}</p>
+                        {item.isAvulso && (
+                          <span className="shrink-0 px-1.5 py-0.5 rounded text-[8px] font-black uppercase tracking-widest bg-emerald-100 text-emerald-700">Avulso</span>
+                        )}
+                      </div>
                       {item.variationLabel && <p className="text-[9px] font-bold text-blue-500 uppercase tracking-widest">{item.variationLabel}</p>}
                       <div className="flex items-center justify-between mt-1">
                         <p className="text-[10px] font-mono text-slate-400">R$ {item.price.toFixed(2)}</p>
@@ -2256,13 +2323,15 @@ export default function PDV() {
                         <input
                           type="number"
                           min={1}
-                          max={item.stock_quantity}
+                          max={item.isAvulso ? undefined : item.stock_quantity}
                           value={item.quantity}
-                          onChange={(e) => setQuantityDirect(item.cartItemId, parseInt(e.target.value) || 1, item.stock_quantity)}
+                          onChange={(e) => item.isAvulso
+                            ? setCart((prev) => prev.map((i) => i.cartItemId === item.cartItemId ? { ...i, quantity: Math.max(1, parseInt(e.target.value) || 1) } : i))
+                            : setQuantityDirect(item.cartItemId, parseInt(e.target.value) || 1, item.stock_quantity)}
                           onFocus={(e) => e.target.select()}
                           className="w-8 text-center font-mono font-black text-[12px] text-slate-700 bg-transparent border-none outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
                         />
-                        <button onClick={() => updateQuantity(item.cartItemId, 1)} disabled={item.quantity >= item.stock_quantity} className="p-1.5 hover:bg-slate-200 text-slate-400 hover:text-slate-700 transition-all disabled:opacity-20"><Plus size={11} /></button>
+                        <button onClick={() => updateQuantity(item.cartItemId, 1)} disabled={!item.isAvulso && item.quantity >= item.stock_quantity} className="p-1.5 hover:bg-slate-200 text-slate-400 hover:text-slate-700 transition-all disabled:opacity-20"><Plus size={11} /></button>
                       </div>
                       <button onClick={() => removeFromCart(item.cartItemId)} className="p-1 text-slate-300 hover:text-red-500 transition-colors rounded"><Trash2 size={12} /></button>
                     </div>
@@ -2804,6 +2873,72 @@ export default function PDV() {
             </motion.div>
           </motion.div>
         )}
+
+        {showAvulsoModal && (
+          <motion.div
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[200] flex items-end sm:items-center justify-center sm:p-4"
+            style={{ background: "rgba(5,8,20,0.88)", backdropFilter: "blur(16px)" }}>
+            <motion.div
+              initial={{ opacity: 0, y: 40, scale: 0.97 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 30, scale: 0.97 }}
+              transition={{ type: "spring", damping: 28, stiffness: 260 }}
+              className="w-full sm:max-w-sm rounded-t-[28px] sm:rounded-3xl overflow-hidden shadow-2xl bg-white"
+            >
+              <div className="px-5 pt-5 pb-3 flex items-center justify-between border-b border-slate-100">
+                <div>
+                  <p className="text-[9px] font-black uppercase tracking-widest text-emerald-500">Venda Rápida</p>
+                  <h3 className="text-[15px] font-black text-slate-800">Item Avulso</h3>
+                </div>
+                <button onClick={() => setShowAvulsoModal(false)} className="w-9 h-9 rounded-xl bg-slate-100 hover:bg-slate-200 flex items-center justify-center">
+                  <X size={16} className="text-slate-500" />
+                </button>
+              </div>
+
+              <div className="p-5 space-y-3">
+                <div>
+                  <label className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400 mb-1.5 block">Nome do item</label>
+                  <input type="text" autoFocus value={avulsoName}
+                    onChange={(e) => setAvulsoName(e.target.value)}
+                    placeholder="Ex: Peça avulsa do cliente"
+                    className="w-full h-11 px-3 rounded-xl border border-slate-200 text-sm font-medium focus:outline-none focus:border-emerald-400" />
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400 mb-1.5 block">Valor unitário</label>
+                    <input type="number" min="0" step="0.01" value={avulsoPrice}
+                      onChange={(e) => setAvulsoPrice(e.target.value)}
+                      placeholder="0,00"
+                      className="w-full h-11 px-3 rounded-xl border border-slate-200 text-sm font-mono font-bold text-center focus:outline-none focus:border-emerald-400" />
+                  </div>
+                  <div>
+                    <label className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400 mb-1.5 block">Quantidade</label>
+                    <input type="number" min="1" step="1" value={avulsoQuantity}
+                      onChange={(e) => setAvulsoQuantity(e.target.value)}
+                      className="w-full h-11 px-3 rounded-xl border border-slate-200 text-sm font-mono font-bold text-center focus:outline-none focus:border-emerald-400" />
+                  </div>
+                </div>
+                <div>
+                  <label className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400 mb-1.5 block">NCM (opcional)</label>
+                  <input type="text" value={avulsoNcm}
+                    onChange={(e) => setAvulsoNcm(e.target.value)}
+                    placeholder="Deixe em branco se não souber"
+                    className="w-full h-11 px-3 rounded-xl border border-slate-200 text-sm font-mono focus:outline-none focus:border-emerald-400" />
+                </div>
+              </div>
+
+              <div className="px-5 pb-6 pt-1">
+                <button onClick={addAvulsoToCart}
+                  disabled={!avulsoName.trim() || !(Number(avulsoPrice.replace(",", ".")) > 0)}
+                  className="w-full h-12 rounded-2xl text-[12px] font-black uppercase tracking-[0.15em] text-white flex items-center justify-center gap-2 transition-all active:scale-[0.98] disabled:opacity-40"
+                  style={{ background: "linear-gradient(135deg, #10b981, #059669)" }}>
+                  <Plus size={16} strokeWidth={3} /> Adicionar ao Carrinho
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
       </AnimatePresence>
 
       {/* ── ETAPA DE PAGAMENTO (substitui a área principal, sem overlay) ────── */}
@@ -2845,7 +2980,12 @@ export default function PDV() {
                           {cart.map((item) => (
                             <tr key={item.cartItemId} className="border-b border-slate-50 last:border-0">
                               <td className="px-3 py-2 max-w-[140px]">
-                                <p className="text-[12px] font-semibold text-slate-700 truncate leading-tight">{item.name}</p>
+                                <div className="flex items-center gap-1">
+                                  <p className="text-[12px] font-semibold text-slate-700 truncate leading-tight">{item.name}</p>
+                                  {item.isAvulso && (
+                                    <span className="shrink-0 px-1 py-0.5 rounded text-[7px] font-black uppercase tracking-widest bg-emerald-100 text-emerald-700">Avulso</span>
+                                  )}
+                                </div>
                                 {item.variationLabel && <p className="text-[9px] font-bold text-blue-500 truncate">{item.variationLabel}</p>}
                               </td>
                               <td className="px-2 py-2 text-right whitespace-nowrap">
@@ -2864,7 +3004,7 @@ export default function PDV() {
                                 <div className="flex items-center justify-center gap-0.5 bg-slate-100 border border-slate-200 rounded-lg p-0.5 mx-auto w-fit">
                                   <button onClick={() => updateQuantity(item.cartItemId, -1)} className="p-1 hover:bg-white rounded text-slate-500"><Minus size={9} /></button>
                                   <span className="w-5 text-center font-mono font-black text-[10px] text-slate-700">{item.quantity}</span>
-                                  <button onClick={() => updateQuantity(item.cartItemId, 1)} disabled={item.quantity >= item.stock_quantity} className="p-1 hover:bg-white rounded text-slate-500 disabled:opacity-30"><Plus size={9} /></button>
+                                  <button onClick={() => updateQuantity(item.cartItemId, 1)} disabled={!item.isAvulso && item.quantity >= item.stock_quantity} className="p-1 hover:bg-white rounded text-slate-500 disabled:opacity-30"><Plus size={9} /></button>
                                 </div>
                               </td>
                               <td className="px-3 py-2 text-[12px] font-mono font-black text-slate-800 text-right whitespace-nowrap">R$ {(item.price * item.quantity).toFixed(2)}</td>
