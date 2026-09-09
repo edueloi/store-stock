@@ -1234,11 +1234,11 @@ export default function PDV() {
     if (sale.tenantDocument) receipt += `${center(`CNPJ: ${sale.tenantDocument}`)}\n`;
     receipt += `${row(dateTime, `COO: ${orderId}`)}\n${rule}\n`;
     receipt += `${center("CUPOM")}\n${thin}\n`;
-    receipt += "ITEM  CÓDIGO  DESCRIÇÃO\n";
+    receipt += "ITEM  DESCRIÇÃO\n";
     receipt += "      QTD  X UNITÁRIO       VALOR (R$)\n";
     receipt += `${thin}\n`;
     sale.items.forEach((item, index) => {
-      receipt += `${String(index + 1).padStart(3, "0")}   ---     ${truncate(item.name, 28)}\n`;
+      receipt += `${String(index + 1).padStart(3, "0")}   ${truncate(item.name, 34)}\n`;
       receipt += row(`      ${item.quantity} UN x ${money(item.price)}`, money(item.price * item.quantity)) + "\n";
     });
     receipt += `${thin}\n`;
