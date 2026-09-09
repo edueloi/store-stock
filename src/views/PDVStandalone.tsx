@@ -72,6 +72,9 @@ interface CartItem extends Product {
   // id da HeldSaleItem de origem, quando esta linha veio de uma venda em espera retomada —
   // enviado ao finalizar pra não debitar de novo um estoque já reservado no hold.
   heldSaleItemId?: number;
+  // venda avulsa: item digitado na hora (nome + valor), sem cadastro no catálogo — não
+  // baixa estoque, mas entra na NFC-e normalmente com os fallbacks fiscais padrão.
+  isAvulso?: boolean;
 }
 
 interface PaymentEntry {
@@ -373,6 +376,17 @@ export default function PDVStandalone() {
   const [cartServices, setCartServices]       = useState<ServiceItem[]>([]);
   const [showServicesModal, setShowServicesModal] = useState(false);
   const [showServicesTab, setShowServicesTab] = useState(false);
+
+  // venda avulsa (item digitado na hora, sem cadastro no catálogo)
+  const [showAvulsoModal, setShowAvulsoModal] = useState(false);
+  const [avulsoName, setAvulsoName]         = useState("");
+  // dígitos brutos em centavos (ex: "1550" = R$ 15,50) — mesmo padrão de digitação
+  // "da direita pra esquerda" de caixa/maquininha, exibido formatado no input.
+  const [avulsoPriceCents, setAvulsoPriceCents] = useState("");
+  const [avulsoQuantity, setAvulsoQuantity] = useState("1");
+  const [avulsoNcm, setAvulsoNcm]           = useState("");
+  const avulsoPrice = avulsoPriceCents ? Number(avulsoPriceCents) / 100 : 0;
+  const avulsoPriceDisplay = avulsoPrice.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
   // terminal / maquininha
   const [terminalConfigured, setTerminalConfigured] = useState(false);
@@ -917,6 +931,40 @@ export default function PDVStandalone() {
       setCart([...cart, { ...product, price: Number(product.discount_price || product.price), quantity: 1, cartItemId, selectedOptions: options, variationLabel }]);
     }
     setConfigProduct(null); setSelectedOptions({});
+  };
+
+  // Venda avulsa: item digitado na hora (nome + valor + quantidade), sem produto no
+  // catálogo — não baixa estoque, mas entra na venda e na NFC-e normalmente (fallbacks
+  // fiscais padrão, ver sales.controller.ts/emitir.ts). Sem histórico reutilizável: cada
+  // item avulso é uma linha nova do carrinho, digitada do zero.
+  const addAvulsoToCart = () => {
+    const price = avulsoPrice;
+    const quantity = Math.max(1, Math.floor(Number(avulsoQuantity)) || 1);
+    if (!avulsoName.trim() || !(price > 0)) return;
+    const cartItemId = `avulso-${crypto.randomUUID()}`;
+    setCart((prev) => [
+      ...prev,
+      {
+        id: -Date.now(),
+        tenant_id: 0,
+        name: avulsoName.trim(),
+        stock_quantity: 0,
+        type: "sale",
+        is_active: true,
+        is_featured: false,
+        ncm: avulsoNcm.trim() || undefined,
+        price,
+        quantity,
+        cartItemId,
+        variationLabel: "",
+        isAvulso: true,
+      } as CartItem,
+    ]);
+    setAvulsoName("");
+    setAvulsoPriceCents("");
+    setAvulsoQuantity("1");
+    setAvulsoNcm("");
+    setShowAvulsoModal(false);
   };
 
   const measurePreview = measureProduct
@@ -1798,7 +1846,17 @@ ${sale.change > 0 ? `<hr class="divider"/><div class="row bold"><span>Troco:</sp
     const clientSaleId = crypto.randomUUID();
     const crediarioPayment = payments.find((p) => p.method === "crediario");
     const saleBody = {
-      items: cart.map((i) => ({ id: i.id, quantity: i.quantity, price: i.price, selectedOptions: i.selectedOptions ?? null, dimensionsLabel: i.dimensionsLabel ?? null, heldSaleItemId: i.heldSaleItemId ?? undefined })),
+      items: cart.map((i) => ({
+        id: i.isAvulso ? undefined : i.id,
+        quantity: i.quantity,
+        price: i.price,
+        selectedOptions: i.selectedOptions ?? null,
+        dimensionsLabel: i.dimensionsLabel ?? null,
+        heldSaleItemId: i.heldSaleItemId ?? undefined,
+        isAvulso: i.isAvulso ?? undefined,
+        name: i.isAvulso ? i.name : undefined,
+        ncm: i.isAvulso ? (i.ncm || undefined) : undefined,
+      })),
       services: cartServices.map((s) => ({ id: s.id, name: s.name, price: s.price, quantity: s.quantity ?? 1, dimensionsLabel: s.dimensionsLabel ?? null })),
       customerName,
       customerId: selectedCustomerId ?? undefined,
@@ -2251,6 +2309,14 @@ ${sale.change > 0 ? `<hr class="divider"/><div class="row bold"><span>Troco:</sp
               <Barcode size={14} />
               Usar Código de Barras
             </button>
+            {/* Item avulso — venda rápida sem cadastro no catálogo */}
+            <button
+              onClick={() => setShowAvulsoModal(true)}
+              title="Item Avulso"
+              className="shrink-0 h-11 px-3 rounded-xl flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wide text-emerald-600 border border-emerald-200 bg-white hover:bg-emerald-50 transition-all active:scale-[0.98]">
+              <PlusCircle size={14} />
+              <span className="hidden sm:inline">Avulso</span>
+            </button>
             <button onClick={() => setShowCartMobile(true)}
               className="xl:hidden relative h-10 px-3 sm:px-4 rounded-xl flex items-center gap-2 text-[10px] font-black text-white shadow"
               style={{ background: "linear-gradient(135deg, #3b82f6, #1d4ed8)" }}>
@@ -2469,7 +2535,7 @@ ${sale.change > 0 ? `<hr class="divider"/><div class="row bold"><span>Troco:</sp
                 })}
               </div>
             ) : (
-              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 2xl:grid-cols-5 gap-2 sm:gap-2.5">
+              <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-2.5">
                 {filteredProducts.map((product) => {
                   const qtyInCart = cart.filter((i) => i.id === product.id).reduce((a, b) => a + b.quantity, 0);
                   const hasVariations = (Array.isArray(product.attributes) && product.attributes.length > 0) ||
@@ -2479,14 +2545,14 @@ ${sale.change > 0 ? `<hr class="divider"/><div class="row bold"><span>Troco:</sp
                       onClick={() => addToCart(product)}
                       whileTap={{ scale: 0.97 }}
                       className={cn(
-                        "bg-white rounded-xl border flex flex-col items-start group relative text-left overflow-hidden transition-all duration-200",
+                        "bg-white rounded-2xl border flex flex-col items-start group relative text-left overflow-hidden transition-all duration-200",
                         qtyInCart > 0
                           ? "cursor-pointer border-blue-400 shadow-md shadow-blue-100"
                           : "cursor-pointer border-slate-200 hover:border-blue-300 hover:shadow-md hover:shadow-blue-50"
                       )}>
 
                       {/* Imagem */}
-                      <div className="w-full aspect-[16/10] overflow-hidden relative flex items-center justify-center bg-slate-50">
+                      <div className="w-full aspect-[4/3] overflow-hidden relative flex items-center justify-center bg-slate-50">
                         {product.image_url
                           ? <img src={product.image_url} alt={product.name} className="object-contain w-full h-full group-hover:scale-105 transition-transform duration-500 p-1" />
                           : <div className="w-full h-full flex items-center justify-center"><Package size={24} className="text-slate-300" /></div>}
@@ -2525,21 +2591,18 @@ ${sale.change > 0 ? `<hr class="divider"/><div class="row bold"><span>Troco:</sp
                       </div>
 
                       {/* Info */}
-                      <div className="px-2.5 py-2 w-full">
-                        <p className="text-[11px] font-black text-slate-700 uppercase leading-tight line-clamp-2 mb-0.5 min-h-[2.2em]">{product.name}</p>
-                        {product.barcode && (
-                          <p className="text-[9px] font-mono text-slate-400 mb-1">{product.barcode}</p>
-                        )}
+                      <div className="p-2 sm:p-2.5 w-full">
+                        <p className="text-[10px] sm:text-[11px] font-semibold text-slate-700 leading-tight line-clamp-2 mb-1.5 min-h-[2.2em]">{product.name}</p>
                         {hasVariations && (
                           <p className="text-[8px] font-black text-blue-500 uppercase tracking-widest mb-1">variações</p>
                         )}
                         {product.discount_price ? (
                           <div className="flex flex-col">
-                            <span className="text-[9px] font-mono text-slate-400 line-through leading-none">R$ {Number(product.price).toFixed(2)}</span>
-                            <span className="text-[14px] font-mono font-black text-emerald-600 leading-tight">R$ {Number(product.discount_price).toFixed(2)}</span>
+                            <span className="text-[9px] sm:text-[10px] font-mono text-slate-400 line-through leading-none">R$ {Number(product.price).toFixed(2)}</span>
+                            <span className="text-[12px] sm:text-[14px] font-mono font-black text-emerald-600 leading-tight">R$ {Number(product.discount_price).toFixed(2)}</span>
                           </div>
                         ) : (
-                          <p className="text-[14px] font-mono font-black text-blue-600">
+                          <p className="text-[12px] sm:text-[14px] font-mono font-black text-blue-600">
                             R$ {Number(product.price).toFixed(2)}
                           </p>
                         )}
@@ -2861,6 +2924,78 @@ ${sale.change > 0 ? `<hr class="divider"/><div class="row bold"><span>Troco:</sp
         )}
       </AnimatePresence>
 
+      {/* ── ITEM AVULSO MODAL ────────────────────────────────────────────────── */}
+      <AnimatePresence>
+        {showAvulsoModal && (
+          <motion.div
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[200] flex items-end sm:items-center justify-center sm:p-4"
+            style={{ background: "rgba(5,8,20,0.88)", backdropFilter: "blur(16px)" }}>
+            <motion.div
+              initial={{ opacity: 0, y: 40, scale: 0.97 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 30, scale: 0.97 }}
+              transition={{ type: "spring", damping: 28, stiffness: 260 }}
+              className="w-full sm:max-w-sm rounded-t-[28px] sm:rounded-3xl overflow-hidden shadow-2xl bg-white"
+            >
+              <div className="px-5 pt-5 pb-3 flex items-center justify-between border-b border-slate-100">
+                <div>
+                  <p className="text-[9px] font-black uppercase tracking-widest text-emerald-500">Venda Rápida</p>
+                  <h3 className="text-[15px] font-black text-slate-800">Item Avulso</h3>
+                </div>
+                <button onClick={() => setShowAvulsoModal(false)} className="w-9 h-9 rounded-xl bg-slate-100 hover:bg-slate-200 flex items-center justify-center">
+                  <X size={16} className="text-slate-500" />
+                </button>
+              </div>
+
+              <div className="p-5 space-y-3">
+                <div>
+                  <label className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400 mb-1.5 block">Nome do item</label>
+                  <input type="text" autoFocus value={avulsoName}
+                    onChange={(e) => setAvulsoName(e.target.value)}
+                    placeholder="Ex: Peça avulsa do cliente"
+                    className="w-full h-11 px-3 rounded-xl border border-slate-200 text-sm font-medium focus:outline-none focus:border-emerald-400" />
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400 mb-1.5 block">Valor unitário</label>
+                    <div className="relative">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[12px] font-mono text-slate-400">R$</span>
+                      <input type="text" inputMode="numeric" value={avulsoPriceDisplay}
+                        onChange={(e) => setAvulsoPriceCents(e.target.value.replace(/\D/g, "").replace(/^0+(?=\d)/, ""))}
+                        placeholder="0,00"
+                        className="w-full h-11 pl-8 pr-3 rounded-xl border border-slate-200 text-sm font-mono font-bold text-center focus:outline-none focus:border-emerald-400" />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400 mb-1.5 block">Quantidade</label>
+                    <input type="number" min="1" step="1" value={avulsoQuantity}
+                      onChange={(e) => setAvulsoQuantity(e.target.value)}
+                      className="w-full h-11 px-3 rounded-xl border border-slate-200 text-sm font-mono font-bold text-center focus:outline-none focus:border-emerald-400" />
+                  </div>
+                </div>
+                <div>
+                  <label className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400 mb-1.5 block">NCM (opcional)</label>
+                  <input type="text" value={avulsoNcm}
+                    onChange={(e) => setAvulsoNcm(e.target.value)}
+                    placeholder="Deixe em branco se não souber"
+                    className="w-full h-11 px-3 rounded-xl border border-slate-200 text-sm font-mono focus:outline-none focus:border-emerald-400" />
+                </div>
+              </div>
+
+              <div className="px-5 pb-6 pt-1">
+                <button onClick={addAvulsoToCart}
+                  disabled={!avulsoName.trim() || !(avulsoPrice > 0)}
+                  className="w-full h-12 rounded-2xl text-[12px] font-black uppercase tracking-[0.15em] text-white flex items-center justify-center gap-2 transition-all active:scale-[0.98] disabled:opacity-40"
+                  style={{ background: "linear-gradient(135deg, #10b981, #059669)" }}>
+                  <Plus size={16} strokeWidth={3} /> Adicionar ao Carrinho
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* ── MEASURE (m²/linear) MODAL — Serviço ─────────────────────────────── */}
       <AnimatePresence>
         {measureService && (
@@ -3030,7 +3165,12 @@ ${sale.change > 0 ? `<hr class="divider"/><div class="row bold"><span>Troco:</sp
                           {cart.map((item) => (
                             <tr key={item.cartItemId} className="border-b border-slate-50 last:border-0">
                               <td className="px-3 py-2 max-w-[140px]">
-                                <p className="text-[12px] font-semibold text-slate-700 truncate leading-tight">{item.name}</p>
+                                <div className="flex items-center gap-1">
+                                  <p className="text-[12px] font-semibold text-slate-700 truncate leading-tight">{item.name}</p>
+                                  {item.isAvulso && (
+                                    <span className="shrink-0 px-1 py-0.5 rounded text-[7px] font-black uppercase tracking-widest bg-emerald-100 text-emerald-700">Avulso</span>
+                                  )}
+                                </div>
                                 {item.variationLabel && <p className="text-[9px] font-bold text-blue-500 truncate">{item.variationLabel}</p>}
                               </td>
                               <td className="px-2 py-2 text-right whitespace-nowrap">
@@ -3049,7 +3189,7 @@ ${sale.change > 0 ? `<hr class="divider"/><div class="row bold"><span>Troco:</sp
                                 <div className="flex items-center justify-center gap-0.5 bg-slate-100 border border-slate-200 rounded-lg p-0.5 mx-auto w-fit">
                                   <button onClick={() => updateQuantity(item.cartItemId, -1)} className="p-1 hover:bg-white rounded text-slate-500"><Minus size={9} /></button>
                                   <span className="w-5 text-center font-mono font-black text-[10px] text-slate-700">{item.quantity}</span>
-                                  <button onClick={() => updateQuantity(item.cartItemId, 1)} disabled={item.quantity >= item.stock_quantity} className="p-1 hover:bg-white rounded text-slate-500 disabled:opacity-30"><Plus size={9} /></button>
+                                  <button onClick={() => updateQuantity(item.cartItemId, 1)} disabled={!item.isAvulso && item.quantity >= item.stock_quantity} className="p-1 hover:bg-white rounded text-slate-500 disabled:opacity-30"><Plus size={9} /></button>
                                 </div>
                               </td>
                               <td className="px-3 py-2 text-[12px] font-mono font-black text-slate-800 text-right whitespace-nowrap">R$ {(item.price * item.quantity).toFixed(2)}</td>
@@ -3480,14 +3620,14 @@ ${sale.change > 0 ? `<hr class="divider"/><div class="row bold"><span>Troco:</sp
                         <Trash2 size={14} /> Cancelar venda
                       </button>
                       <button onClick={shouldSendToTerminal ? handleChargeTerminal : handleFinishSale} disabled={!canFinish || finishing || terminalCharging}
-                        className="flex-1 h-12 rounded-xl text-[11px] font-black uppercase tracking-wide text-white transition-all disabled:opacity-40 active:scale-[0.98] flex items-center justify-center gap-2"
+                        className="flex-1 h-11 rounded-xl text-[11px] font-black uppercase tracking-wide text-white transition-all disabled:opacity-40 active:scale-[0.98] flex items-center justify-center gap-2"
                         style={{
                           background: remaining > 0.009 ? "linear-gradient(135deg,#f59e0b,#d97706)" : "linear-gradient(135deg,#3b82f6,#1d4ed8)",
                           boxShadow: remaining > 0.009 ? "0 4px 14px rgba(245,158,11,0.25)" : "0 4px 14px rgba(59,130,246,0.25)",
                         }}>
                         {finishing || terminalCharging
                           ? <><Loader2 size={14} className="animate-spin" /> {terminalCharging ? "Aguardando maquininha…" : "Finalizando…"}</>
-                          : <><CheckCircle2 size={15} /> Confirmar venda · R$ {total.toFixed(2)}</>}
+                          : <><CheckCircle2 size={14} /> Confirmar venda · R$ {total.toFixed(2)}</>}
                       </button>
                     </div>
                   </div>
@@ -4661,42 +4801,42 @@ const PaymentRow = React.memo(function PaymentRow({
           <button onClick={() => isOnline && onMethodChange(p.id, p.method === "debit" ? "debit" : "credit")}
             disabled={!isOnline}
             title={!isOnline ? "Cartão requer conexão com a internet" : undefined}
-            className="relative h-10 rounded-lg border text-[9px] font-black uppercase tracking-wide transition-all flex items-center justify-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed"
+            className="relative h-10 rounded-lg border text-[9px] font-black uppercase tracking-wide transition-all flex flex-col items-center justify-center gap-0.5 disabled:opacity-40 disabled:cursor-not-allowed"
             style={(p.method === "credit" || p.method === "debit")
               ? { background: "#059669", border: "1px solid #059669", color: "white", boxShadow: "0 3px 10px rgba(16,185,129,0.22)" }
               : { background: "#ffffff", border: "1px solid #dbe3ee", color: "#64748b" }}>
             {(p.method === "credit" || p.method === "debit") && <CheckCircle2 size={13} className="absolute top-1.5 right-1.5 text-white/90" />}
-            <CreditCard size={14} />
+            <CreditCard size={13} />
             <span>Cartão</span>
           </button>
           <button onClick={() => isOnline && onMethodChange(p.id, "pix")}
             disabled={!isOnline}
             title={!isOnline ? "PIX requer conexão com a internet" : undefined}
-            className="relative h-10 rounded-lg border text-[9px] font-black uppercase tracking-wide transition-all flex items-center justify-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed"
+            className="relative h-10 rounded-lg border text-[9px] font-black uppercase tracking-wide transition-all flex flex-col items-center justify-center gap-0.5 disabled:opacity-40 disabled:cursor-not-allowed"
             style={p.method === "pix"
               ? { background: "#2563eb", border: "1px solid #2563eb", color: "white", boxShadow: "0 3px 10px rgba(59,130,246,0.22)" }
               : { background: "#ffffff", border: "1px solid #dbe3ee", color: "#64748b" }}>
             {p.method === "pix" && <CheckCircle2 size={13} className="absolute top-1.5 right-1.5 text-white/90" />}
-            <QrCode size={14} />
+            <QrCode size={13} />
             <span>{PM_LABEL.pix}</span>
           </button>
           <button onClick={() => onMethodChange(p.id, "money")}
-            className="relative h-10 rounded-lg border text-[9px] font-black uppercase tracking-wide transition-all flex items-center justify-center gap-1.5"
+            className="relative h-10 rounded-lg border text-[9px] font-black uppercase tracking-wide transition-all flex flex-col items-center justify-center gap-0.5"
             style={p.method === "money"
               ? { background: "#2563eb", border: "1px solid #2563eb", color: "white", boxShadow: "0 3px 10px rgba(37,99,235,0.22)" }
               : { background: "#ffffff", border: "1px solid #dbe3ee", color: "#64748b" }}>
             {p.method === "money" && <CheckCircle2 size={13} className="absolute top-1.5 right-1.5 text-white/90" />}
-            <Banknote size={14} />
+            <Banknote size={13} />
             <span>{PM_LABEL.money}</span>
           </button>
           <div className="relative">
             <button onClick={(e) => { e.stopPropagation(); onToggleMoreMenu(p.id); }}
-              className="relative h-10 w-full rounded-lg border text-[9px] font-black uppercase tracking-wide transition-all flex items-center justify-center gap-1.5"
+              className="relative h-10 w-full rounded-lg border text-[9px] font-black uppercase tracking-wide transition-all flex flex-col items-center justify-center gap-0.5"
               style={p.method === "crediario"
                 ? { background: "#d97706", border: "1px solid #d97706", color: "white", boxShadow: "0 3px 10px rgba(217,119,6,0.22)" }
                 : { background: "#ffffff", border: "1px solid #dbe3ee", color: "#64748b" }}>
               {p.method === "crediario" && <CheckCircle2 size={13} className="absolute top-1.5 right-1.5 text-white/90" />}
-              <PlusCircle size={14} />
+              <PlusCircle size={13} />
               <span>Mais</span>
             </button>
             {morePaymentMenuFor === p.id && (
@@ -4977,7 +5117,12 @@ function CartPanel({
                   </div>
                 )}
                 <div className="flex-1 min-w-0">
-                  <p className="text-[11px] font-semibold text-slate-700 truncate leading-tight">{item.name}</p>
+                  <div className="flex items-center gap-1.5">
+                    <p className="text-[11px] font-semibold text-slate-700 truncate leading-tight">{item.name}</p>
+                    {item.isAvulso && (
+                      <span className="shrink-0 px-1.5 py-0.5 rounded text-[8px] font-black uppercase tracking-widest bg-emerald-100 text-emerald-700">Avulso</span>
+                    )}
+                  </div>
                   {item.variationLabel && (
                     <p className="text-[9px] font-bold text-blue-500 uppercase tracking-widest">{item.variationLabel}</p>
                   )}
