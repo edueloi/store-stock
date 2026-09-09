@@ -3251,11 +3251,20 @@ export default function Settings() {
                     { os: "macOS",   desc: "Intel e Apple Silicon",  file: "https://github.com/edueloi/store-stock/releases/latest/download/BoxSysPDV.dmg",      ext: ".dmg" },
                     { os: "Linux",   desc: "AppImage universal",     file: "https://github.com/edueloi/store-stock/releases/latest/download/BoxSysPDV.AppImage", ext: ".AppImage" },
                   ].map(({ os, desc, file, ext }) => (
-                    <a
+                    <button
                       key={os}
-                      href={file}
-                      target="_blank"
-                      rel="noopener noreferrer"
+                      type="button"
+                      onClick={() => {
+                        // Sem target="_blank": o navegador segue o redirect do GitHub e
+                        // baixa direto, sem abrir/fechar uma aba visível no meio do caminho.
+                        const link = document.createElement("a");
+                        link.href = file;
+                        link.rel = "noopener noreferrer";
+                        document.body.appendChild(link);
+                        link.click();
+                        link.remove();
+                        toast.info(`Baixando BoxSys PDV para ${os}...`);
+                      }}
                       className="group bg-white border border-slate-200 rounded-2xl p-5 flex flex-col items-center text-center hover:border-blue-300 hover:shadow-lg hover:shadow-blue-50 transition-all"
                     >
                       <div className="w-12 h-12 rounded-2xl bg-slate-100 group-hover:bg-blue-50 flex items-center justify-center mb-3 transition-colors">
@@ -3266,7 +3275,7 @@ export default function Settings() {
                       <span className="mt-4 inline-flex items-center gap-1.5 px-4 h-9 rounded-xl bg-slate-900 group-hover:bg-blue-600 text-white text-[10px] font-black uppercase tracking-widest transition-colors">
                         <Download size={12} /> Baixar {ext}
                       </span>
-                    </a>
+                    </button>
                   ))}
                 </div>
 
