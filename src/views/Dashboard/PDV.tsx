@@ -252,9 +252,13 @@ export default function PDV() {
   // venda avulsa (item digitado na hora, sem cadastro no catálogo)
   const [showAvulsoModal, setShowAvulsoModal] = useState(false);
   const [avulsoName, setAvulsoName]         = useState("");
-  const [avulsoPrice, setAvulsoPrice]       = useState("");
+  // dígitos brutos em centavos (ex: "1550" = R$ 15,50) — mesmo padrão de digitação
+  // "da direita pra esquerda" de caixa/maquininha, exibido formatado no input.
+  const [avulsoPriceCents, setAvulsoPriceCents] = useState("");
   const [avulsoQuantity, setAvulsoQuantity] = useState("1");
   const [avulsoNcm, setAvulsoNcm]           = useState("");
+  const avulsoPrice = avulsoPriceCents ? Number(avulsoPriceCents) / 100 : 0;
+  const avulsoPriceDisplay = avulsoPrice.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
   // checkout fields — customer
   interface CustomerOption { id: number; name: string; phone?: string; document?: string }
@@ -464,7 +468,7 @@ export default function PDV() {
   // fiscais padrão, ver sales.controller.ts/emitir.ts). Sem histórico reutilizável: cada
   // item avulso é uma linha nova do carrinho, digitada do zero.
   const addAvulsoToCart = () => {
-    const price = Number(avulsoPrice.replace(",", "."));
+    const price = avulsoPrice;
     const quantity = Math.max(1, Math.floor(Number(avulsoQuantity)) || 1);
     if (!avulsoName.trim() || !(price > 0)) return;
     const cartItemId = `avulso-${crypto.randomUUID()}`;
@@ -487,7 +491,7 @@ export default function PDV() {
       } as CartItem,
     ]);
     setAvulsoName("");
-    setAvulsoPrice("");
+    setAvulsoPriceCents("");
     setAvulsoQuantity("1");
     setAvulsoNcm("");
     setShowAvulsoModal(false);
@@ -2907,10 +2911,13 @@ export default function PDV() {
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400 mb-1.5 block">Valor unitário</label>
-                    <input type="number" min="0" step="0.01" value={avulsoPrice}
-                      onChange={(e) => setAvulsoPrice(e.target.value)}
-                      placeholder="0,00"
-                      className="w-full h-11 px-3 rounded-xl border border-slate-200 text-sm font-mono font-bold text-center focus:outline-none focus:border-emerald-400" />
+                    <div className="relative">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[12px] font-mono text-slate-400">R$</span>
+                      <input type="text" inputMode="numeric" value={avulsoPriceDisplay}
+                        onChange={(e) => setAvulsoPriceCents(e.target.value.replace(/\D/g, "").replace(/^0+(?=\d)/, ""))}
+                        placeholder="0,00"
+                        className="w-full h-11 pl-8 pr-3 rounded-xl border border-slate-200 text-sm font-mono font-bold text-center focus:outline-none focus:border-emerald-400" />
+                    </div>
                   </div>
                   <div>
                     <label className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400 mb-1.5 block">Quantidade</label>
@@ -2930,7 +2937,7 @@ export default function PDV() {
 
               <div className="px-5 pb-6 pt-1">
                 <button onClick={addAvulsoToCart}
-                  disabled={!avulsoName.trim() || !(Number(avulsoPrice.replace(",", ".")) > 0)}
+                  disabled={!avulsoName.trim() || !(avulsoPrice > 0)}
                   className="w-full h-12 rounded-2xl text-[12px] font-black uppercase tracking-[0.15em] text-white flex items-center justify-center gap-2 transition-all active:scale-[0.98] disabled:opacity-40"
                   style={{ background: "linear-gradient(135deg, #10b981, #059669)" }}>
                   <Plus size={16} strokeWidth={3} /> Adicionar ao Carrinho
