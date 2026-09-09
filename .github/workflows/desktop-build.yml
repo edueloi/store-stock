@@ -36,10 +36,24 @@ jobs:
 
       - name: Install dependencies
         # --ignore-scripts: nenhum módulo nativo do projeto precisa de compilação (serialport
-        # e better-sqlite3 são N-API, com prebuilds prontos por plataforma) — sem isso, o npm
-        # às vezes ignora "gypfile": false e tenta rodar node-gyp rebuild de qualquer jeito,
-        # o que trava (sem Visual Studio Build Tools) ou falha (bug conhecido do npm).
+        # tem prebuilds prontos por plataforma) — sem isso, o npm às vezes ignora
+        # "gypfile": false e tenta rodar node-gyp rebuild de qualquer jeito, o que trava
+        # (sem Visual Studio Build Tools) ou falha (bug conhecido do npm).
         run: npm install --ignore-scripts
+
+      - name: Download better-sqlite3 prebuild for Electron ABI
+        # better-sqlite3 usa ABI nativo do runtime (Node ABI 127 ≠ Electron ABI 130) —
+        # um binário baixado/compilado para o Node do CI quebra silenciosamente ao
+        # carregar dentro do Electron empacotado (crash "napi_get_last_error_info").
+        # --ignore-scripts acima também pulou o "install" script deste pacote (que
+        # baixaria o prebuild certo sozinho) — busca aqui, explicitamente, apontando
+        # pro runtime/versão real do Electron usado no app.
+        shell: bash
+        run: |
+          cd node_modules/better-sqlite3
+          ELECTRON_VERSION=$(node -e "console.log(require('../electron/package.json').version)")
+          echo "Electron version: $ELECTRON_VERSION"
+          npx prebuild-install --runtime=electron --target=$ELECTRON_VERSION
 
       - name: Build and publish installers
         # --publish always: publica direto no GitHub Release da tag (cria se não existir),
