@@ -78,7 +78,7 @@ interface CompletedSale {
   orderId: number;
   customerName: string;
   payments: PaymentEntry[];
-  items: { name: string; quantity: number; price: number; image_url?: string; dimensionsLabel?: string }[];
+  items: { name: string; quantity: number; price: number; image_url?: string; dimensionsLabel?: string; code?: string }[];
   subtotal: number;
   discountValue: number;
   surchargeValue: number;
@@ -1234,25 +1234,28 @@ export default function PDV() {
     if (sale.tenantDocument) receipt += `${center(`CNPJ: ${sale.tenantDocument}`)}\n`;
     receipt += `${row(dateTime, `COO: ${orderId}`)}\n${rule}\n`;
     receipt += `${center("CUPOM")}\n${thin}\n`;
-    receipt += "ITEM  DESCRIÇÃO\n";
+    receipt += "ITEM  CÓDIGO  DESCRIÇÃO\n";
     receipt += "      QTD  X UNITÁRIO       VALOR (R$)\n";
     receipt += `${thin}\n`;
     sale.items.forEach((item, index) => {
-      receipt += `${String(index + 1).padStart(3, "0")}   ${truncate(item.name, 34)}\n`;
+      // Item avulso (sem cadastro no catálogo) ou serviço não tem código de barras/SKU —
+      // deixa em branco em vez de inventar um valor.
+      const code = truncate(item.code || "", 7).padEnd(7, " ");
+      receipt += `${String(index + 1).padStart(3, "0")}   ${code} ${truncate(item.name, 26)}\n`;
       receipt += row(`      ${item.quantity} UN x ${money(item.price)}`, money(item.price * item.quantity)) + "\n";
     });
     receipt += `${thin}\n`;
     receipt += row("Cliente", sale.customerName || "Consumidor final") + "\n";
-    receipt += row("Itens", String(sale.items.reduce((sum, item) => sum + item.quantity, 0))) + "\n";
+    receipt += row("Qtde. Total Itens", String(sale.items.reduce((sum, item) => sum + item.quantity, 0))) + "\n";
     if (sale.discountValue > 0 || sale.surchargeValue > 0) receipt += row("Subtotal", `R$ ${money(sale.subtotal)}`) + "\n";
     if (sale.discountValue > 0) receipt += row("Desconto", `- R$ ${money(sale.discountValue)}`) + "\n";
     if (sale.surchargeValue > 0) receipt += row("Acréscimo", `+ R$ ${money(sale.surchargeValue)}`) + "\n";
-    receipt += `${rule}\n${row("TOTAL", `R$ ${money(sale.total)}`)}\n${rule}\n`;
+    receipt += `${rule}\n${row("Valor Total R$", money(sale.total))}\n${rule}\n`;
     sale.payments.forEach((payment) => {
       const installments = payment.method === "credit" && payment.installments > 1 ? ` ${payment.installments}x` : "";
-      receipt += row(`Pagamento: ${PM_LABEL[payment.method]}${installments}`, `R$ ${money(Number(payment.amount))}`) + "\n";
+      receipt += row(`Forma Pagamento: ${PM_LABEL[payment.method]}${installments}`, `R$ ${money(Number(payment.amount))}`) + "\n";
     });
-    if (sale.change > 0) receipt += row("Troco", `R$ ${money(sale.change)}`) + "\n";
+    if (sale.change > 0) receipt += row("Troco R$", money(sale.change)) + "\n";
     receipt += `${thin}\n${center("Obrigado pela preferência!")}\n${center("Volte sempre!")}\n\n\n`;
     return receipt;
   };
@@ -1589,7 +1592,7 @@ export default function PDV() {
           customerName,
           payments: payments.map((p) => ({ ...p })),
           items: [
-            ...cart.map((i) => ({ name: i.name, quantity: i.quantity, price: i.price, image_url: i.image_url, dimensionsLabel: i.dimensionsLabel })),
+            ...cart.map((i) => ({ name: i.name, quantity: i.quantity, price: i.price, image_url: i.image_url, dimensionsLabel: i.dimensionsLabel, code: i.isAvulso ? undefined : (i.barcode || i.sku) })),
             ...cartServices.map((s) => ({ name: s.name, quantity: s.quantity ?? 1, price: s.price, dimensionsLabel: s.dimensionsLabel })),
           ],
           subtotal, discountValue, surchargeValue, feeAmount: passedFeeAmount, total,
