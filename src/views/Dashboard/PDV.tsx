@@ -1557,6 +1557,7 @@ export default function PDV() {
           cashSessionId: cashSession?.id ?? null,
           heldSaleId: activeHeldSaleId ?? undefined,
           clientSaleId: saleClientIdRef.current,
+          changeAmount: change > 0 ? change : undefined,
         }),
       });
       if (!res.ok) {

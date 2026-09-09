@@ -4,6 +4,7 @@ import bwipjs from "bwip-js";
 import { generateQrCodePng } from "./qrcode";
 
 export interface DanfeItem {
+  code?: string | null;
   name: string;
   quantity: number;
   unit: string;
@@ -14,6 +15,7 @@ export interface DanfeItem {
 export interface DanfeInput {
   storeName: string;
   storeDocument: string;
+  storeStateRegistration?: string | null;
   storeAddress: string;
   chaveAcesso: string;
   numero: number;
@@ -23,8 +25,13 @@ export interface DanfeInput {
   protocol?: string | null;
   items: DanfeItem[];
   totalAmount: number;
+  changeAmount?: number | null;
   qrCodeUrl: string;
   paymentSummary: string;
+  // texto de identificação do consumidor — "CONSUMIDOR NÃO IDENTIFICADO" ou nome/CPF-CNPJ
+  customerLabel: string;
+  // total aproximado de tributos (Lei 12.741/2012) — omitido quando não calculado
+  approxTaxAmount?: number | null;
 }
 
 const WIDTH_MM = 80;
@@ -78,6 +85,9 @@ export async function generateDanfePdf(input: DanfeInput): Promise<Buffer> {
     doc.font("Helvetica-Bold").fontSize(9).text(input.storeName, { align: "center", width: contentWidth });
     doc.font("Helvetica").fontSize(7);
     doc.text(input.storeDocument, { align: "center", width: contentWidth });
+    if (input.storeStateRegistration) {
+      doc.text(`IE: ${input.storeStateRegistration}`, { align: "center", width: contentWidth });
+    }
     doc.text(input.storeAddress, { align: "center", width: contentWidth });
     doc.moveDown(0.4);
 
@@ -93,12 +103,15 @@ export async function generateDanfePdf(input: DanfeInput): Promise<Buffer> {
     // pra largura estreita do cupom (colunas empilhadas verticalmente por item em vez de
     // uma única linha, que não caberia em 80mm).
     const itemsBoxY = doc.y;
-    doc.font("Helvetica-Bold").fontSize(7).text("ITEM   DESCRIÇÃO", 10, itemsBoxY + 3, { width: contentWidth });
+    doc.font("Helvetica-Bold").fontSize(7).text("ITEM  CÓD.  DESCRIÇÃO", 10, itemsBoxY + 3, { width: contentWidth });
     doc.moveDown(0.2);
     doc.font("Helvetica");
+    let totalQuantity = 0;
     input.items.forEach((item, idx) => {
+      totalQuantity += item.quantity;
       const rowY = doc.y;
-      doc.text(`${idx + 1}  ${item.name}`, 10, rowY, { width: contentWidth });
+      const code = item.code ? item.code : "---";
+      doc.text(`${idx + 1}  ${code}  ${item.name}`, 10, rowY, { width: contentWidth });
       doc.text(`   ${item.quantity} ${item.unit} x ${formatMoney(item.unitPrice)} = ${formatMoney(item.total)}`, 10, doc.y, { width: contentWidth });
       doc.moveDown(0.15);
       doc.moveTo(10, doc.y).lineTo(PAGE_WIDTH - 10, doc.y).lineWidth(0.4).strokeColor("#94a3b8").dash(1, { space: 1 }).stroke();
@@ -108,19 +121,39 @@ export async function generateDanfePdf(input: DanfeInput): Promise<Buffer> {
     doc.rect(10, itemsBoxY, contentWidth, doc.y - itemsBoxY).lineWidth(0.75).strokeColor(colorRule).stroke();
     doc.moveDown(0.3);
 
+    // Resumo — quantidade total de itens, antes do quadro de valores.
+    doc.font("Helvetica").fontSize(7).text(`Qtde. Total de Itens: ${totalQuantity}`, 10, doc.y, { width: contentWidth, align: "center" });
+    doc.moveDown(0.3);
+
     // Quadro do total — mesmo tratamento do bloco "CÁLCULO DO IMPOSTO" de uma NF-e
-    // modelo 1: valores relevantes destacados dentro de uma caixa fechada.
+    // modelo 1: valores relevantes destacados dentro de uma caixa fechada. Altura
+    // calculada dinamicamente porque o troco (linha opcional) nem sempre aparece.
     const totalBoxY = doc.y;
-    const totalBoxH = 30;
+    let cursorY = totalBoxY + 4;
+    doc.font("Helvetica-Bold").fontSize(9).text(`Valor Total R$ ${formatMoney(input.totalAmount)}`, 10, cursorY, { width: contentWidth, align: "center" });
+    cursorY += 14;
+    doc.font("Helvetica").fontSize(7).text(`Forma de Pagamento: ${input.paymentSummary}`, 10, cursorY, { width: contentWidth, align: "center" });
+    cursorY += 12;
+    if (input.changeAmount && input.changeAmount > 0) {
+      doc.text(`Troco R$ ${formatMoney(input.changeAmount)}`, 10, cursorY, { width: contentWidth, align: "center" });
+      cursorY += 12;
+    }
+    const totalBoxH = cursorY - totalBoxY + 4;
     doc.rect(10, totalBoxY, contentWidth, totalBoxH).lineWidth(1).strokeColor(colorRule).stroke();
-    doc.font("Helvetica-Bold").fontSize(9).text(`TOTAL R$ ${formatMoney(input.totalAmount)}`, 10, totalBoxY + 4, { width: contentWidth, align: "center" });
-    doc.font("Helvetica").fontSize(7).text(input.paymentSummary, 10, totalBoxY + 18, { width: contentWidth, align: "center" });
     doc.y = totalBoxY + totalBoxH + 8;
 
     doc.font("Helvetica").fontSize(7);
+    doc.text(input.customerLabel, { align: "center", width: contentWidth });
+    doc.moveDown(0.2);
     doc.text(`NFC-e nº ${input.numero}  Série ${input.serie}`, { align: "center", width: contentWidth });
     doc.text(`Emissão: ${input.emittedAt.toLocaleString("pt-BR")}`, { align: "center", width: contentWidth });
     if (input.protocol) doc.text(`Protocolo de autorização: ${input.protocol}`, { align: "center", width: contentWidth });
+    if (input.approxTaxAmount != null) {
+      doc.text(
+        `Trib. Aprox. R$ ${formatMoney(input.approxTaxAmount)} Fonte: IBPT (Lei Federal 12.741/2012)`,
+        { align: "center", width: contentWidth },
+      );
+    }
     doc.moveDown(0.4);
     solidRule();
 

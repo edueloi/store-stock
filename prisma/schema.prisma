@@ -506,6 +506,7 @@ model Order {
   gross_amount      Decimal?  @db.Decimal(10, 2)
   discount_amount   Decimal?  @db.Decimal(10, 2)
   fee_amount        Decimal?  @db.Decimal(10, 2)
+  change_amount     Decimal?  @db.Decimal(10, 2) // troco (venda em dinheiro), calculado no PDV e enviado na criação da venda — usado no DANFE/recibo
   status            String    @default("pending")
   order_type        String    @default("products")
   payment_method    String?

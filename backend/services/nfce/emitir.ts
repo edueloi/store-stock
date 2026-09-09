@@ -194,9 +194,21 @@ export async function emitirNfce(orderId: number): Promise<void> {
     const paymentLabels: Record<string, string> = { money: "Dinheiro", pix: "PIX", debit: "Débito", credit: "Crédito" };
     const paymentSummary = payments.map((p) => `${paymentLabels[p.method] ?? p.method}: R$ ${p.amount.toFixed(2)}`).join(" + ");
 
+    // CPF/CNPJ do destinatário (mesma prioridade usada para a NFC-e em si, ver
+    // customerDocument acima) — se ausente, o cupom identifica como consumidor não identificado.
+    let customerName: string | undefined;
+    if (order.customer_id) {
+      const customer = await prisma.customer.findUnique({ where: { id: order.customer_id }, select: { name: true } });
+      customerName = customer?.name ?? undefined;
+    }
+    const customerLabel = customerDocument
+      ? `CONSUMIDOR: ${customerName ?? ""} ${customerDocument}`.trim()
+      : "CONSUMIDOR NÃO IDENTIFICADO";
+
     const danfeBuffer = await generateDanfePdf({
       storeName: tenant.razao_social || tenant.name,
       storeDocument: `CNPJ: ${tenant.document ?? ""}`,
+      storeStateRegistration: tenant.inscricao_estadual,
       storeAddress: [tenant.address_street, tenant.address_number, tenant.address_city, tenant.address_state].filter(Boolean).join(", "),
       chaveAcesso,
       numero,
@@ -204,7 +216,8 @@ export async function emitirNfce(orderId: number): Promise<void> {
       emittedAt: new Date(),
       environment,
       protocol: protNFe,
-      items: order.items.map((item) => ({
+      items: itemsForXml.map((item) => ({
+        code: item.product.barcode || item.product.sku || null,
         name: item.product.name,
         quantity: item.quantity,
         unit: item.product.unidade_comercial,
@@ -212,8 +225,10 @@ export async function emitirNfce(orderId: number): Promise<void> {
         total: Number(item.unit_price) * item.quantity,
       })),
       totalAmount: Number(order.total_amount),
+      changeAmount: order.change_amount ? Number(order.change_amount) : null,
       qrCodeUrl,
       paymentSummary,
+      customerLabel,
     });
 
     const danfePath = path.join(dir, `${chaveAcesso}-danfe.pdf`);

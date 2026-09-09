@@ -27,9 +27,19 @@ async function rebuildDanfePdf(orderId: number, tenantId: number, invoice: { acc
   const payments = paymentsFromOrder(order.payment_method);
   const paymentSummary = payments.map((p) => `${PAYMENT_LABELS[p.method] ?? p.method}: R$ ${p.amount.toFixed(2)}`).join(" + ");
 
+  let customerName: string | undefined;
+  if (order.customer_id) {
+    const customer = await prisma.customer.findUnique({ where: { id: order.customer_id }, select: { name: true } });
+    customerName = customer?.name ?? undefined;
+  }
+  const customerLabel = order.customer_document
+    ? `CONSUMIDOR: ${customerName ?? ""} ${order.customer_document}`.trim()
+    : "CONSUMIDOR NÃO IDENTIFICADO";
+
   return generateDanfePdf({
     storeName: tenant.razao_social || tenant.name,
     storeDocument: `CNPJ: ${tenant.document ?? ""}`,
+    storeStateRegistration: tenant.inscricao_estadual,
     storeAddress: [tenant.address_street, tenant.address_number, tenant.address_city, tenant.address_state].filter(Boolean).join(", "),
     chaveAcesso: invoice.access_key,
     numero: invoice.number,
@@ -37,16 +47,26 @@ async function rebuildDanfePdf(orderId: number, tenantId: number, invoice: { acc
     emittedAt: invoice.authorized_at ?? new Date(),
     environment,
     protocol: invoice.protocol,
-    items: order.items.map((item) => ({
-      name: item.product.name,
-      quantity: item.quantity,
-      unit: item.product.unidade_comercial,
-      unitPrice: Number(item.unit_price),
-      total: Number(item.unit_price) * item.quantity,
-    })),
+    // Item avulso (venda rápida sem cadastro no catálogo) não tem Product real — mesmo
+    // fallback sintético usado na emissão original (ver emitir.ts).
+    items: order.items.map((item) => {
+      const product = item.product ?? {
+        name: item.name || "Item avulso", sku: null, barcode: null, unidade_comercial: "UN",
+      };
+      return {
+        code: product.barcode || product.sku || null,
+        name: product.name,
+        quantity: item.quantity,
+        unit: product.unidade_comercial,
+        unitPrice: Number(item.unit_price),
+        total: Number(item.unit_price) * item.quantity,
+      };
+    }),
     totalAmount: Number(order.total_amount),
+    changeAmount: order.change_amount ? Number(order.change_amount) : null,
     qrCodeUrl: invoice.qrcode_url,
     paymentSummary,
+    customerLabel,
   });
 }
 

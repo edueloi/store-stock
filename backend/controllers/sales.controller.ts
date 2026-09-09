@@ -78,6 +78,8 @@ interface FinalizeSaleParams {
   // true quando esta chamada é a sincronização de uma venda feita offline — nesse caso
   // não exigimos que a sessão ainda esteja "open" (pode ter sido fechada nesse meio-tempo)
   isOfflineSync?: boolean;
+  // troco calculado no PDV (venda em dinheiro) — persistido para aparecer no DANFE/recibo
+  changeAmount?: number;
 }
 
 // Núcleo compartilhado de "virar uma venda de verdade": taxas de cartão, criação de
@@ -90,7 +92,7 @@ async function finalizeSaleOrder(params: FinalizeSaleParams): Promise<{ orderId:
     discount, surcharge, sellerId, passFeeToCustomer, passFeeByMethod, clientSaleId,
     soldAtDate, decrementStock, descriptionPrefix,
     crediarioInstallments, crediarioFirstDueDate,
-    cashSessionId, isOfflineSync, heldSaleId,
+    cashSessionId, isOfflineSync, heldSaleId, changeAmount,
   } = params;
 
   // Resolve se um segmento de pagamento repassa taxa ao cliente
@@ -288,6 +290,7 @@ async function finalizeSaleOrder(params: FinalizeSaleParams): Promise<{ orderId:
         gross_amount:    grossAmount,
         discount_amount: discountVal > 0 ? discountVal : null,
         fee_amount:      roundedFee > 0 ? roundedFee : null,
+        change_amount:   changeAmount && changeAmount > 0 ? changeAmount : null,
         status:          "completed",
         order_type:      items.length === 0 && services && services.length > 0 ? "services" : (services && services.length > 0 ? "mixed" : "products"),
         payment_method:  pmString,
@@ -475,7 +478,7 @@ export async function createSale(req: Request, res: Response) {
   const {
     items, services, customerName, customerId, customerDocument, totalAmount, paymentMethod, discount, surcharge,
     sellerId, passFeeToCustomer, passFeeByMethod, clientSaleId, soldAtDate,
-    crediarioInstallments, crediarioFirstDueDate, cashSessionId, isOfflineSync, heldSaleId,
+    crediarioInstallments, crediarioFirstDueDate, cashSessionId, isOfflineSync, heldSaleId, changeAmount,
   } = req.body as {
     items: SaleItemInput[];
     services?: ServiceItemInput[];
@@ -496,6 +499,7 @@ export async function createSale(req: Request, res: Response) {
     cashSessionId?: number | null;
     isOfflineSync?: boolean;
     heldSaleId?: number | null;
+    changeAmount?: number;
   };
 
   try {
@@ -507,7 +511,7 @@ export async function createSale(req: Request, res: Response) {
       discount, surcharge, sellerId, passFeeToCustomer, passFeeByMethod, clientSaleId,
       soldAtDate, decrementStock: true,
       crediarioInstallments, crediarioFirstDueDate,
-      cashSessionId, isOfflineSync, heldSaleId,
+      cashSessionId, isOfflineSync, heldSaleId, changeAmount,
     });
 
     emitToTenant(tenantId, "order:created", { orderId: result.orderId });
