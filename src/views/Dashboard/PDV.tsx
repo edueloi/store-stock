@@ -1234,8 +1234,7 @@ export default function PDV() {
     if (sale.tenantDocument) receipt += `${center(`CNPJ: ${sale.tenantDocument}`)}\n`;
     receipt += `${row(dateTime, `COO: ${orderId}`)}\n${rule}\n`;
     receipt += `${center("CUPOM")}\n${thin}\n`;
-    receipt += "ITEM  CÓDIGO  DESCRIÇÃO\n";
-    receipt += "      QTD  X UNITÁRIO       VALOR (R$)\n";
+    receipt += "ITEM  CÓDIGO  DESCRIÇÃO / QTD x UNITÁRIO\n";
     receipt += `${thin}\n`;
     sale.items.forEach((item, index) => {
       // Item avulso (sem cadastro no catálogo) ou serviço não tem código de barras/SKU —
