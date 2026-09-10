@@ -5151,12 +5151,15 @@ function CartPanel({
                     <input
                       type="number"
                       min={1}
+                      max={item.isAvulso ? undefined : item.stock_quantity}
                       value={item.quantity}
-                      onChange={(e) => setQuantityDirect(item.cartItemId, parseInt(e.target.value) || 1)}
+                      onChange={(e) => item.isAvulso
+                        ? setCart((prev) => prev.map((i) => i.cartItemId === item.cartItemId ? { ...i, quantity: Math.max(1, parseInt(e.target.value) || 1) } : i))
+                        : setQuantityDirect(item.cartItemId, parseInt(e.target.value) || 1, item.stock_quantity)}
                       onFocus={(e) => e.target.select()}
                       className="w-8 text-center font-mono font-black text-[12px] text-slate-700 bg-transparent border-none outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
                     />
-                    <button onClick={() => updateQuantity(item.cartItemId, 1)} className="p-1.5 hover:bg-slate-200 text-slate-400 hover:text-slate-700 transition-all">
+                    <button onClick={() => updateQuantity(item.cartItemId, 1)} disabled={!item.isAvulso && item.quantity >= item.stock_quantity} className="p-1.5 hover:bg-slate-200 text-slate-400 hover:text-slate-700 transition-all disabled:opacity-30">
                       <Plus size={11} />
                     </button>
                   </div>
