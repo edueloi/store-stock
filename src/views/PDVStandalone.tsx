@@ -3618,7 +3618,9 @@ ${sale.change > 0 ? `<hr class="divider"/><div class="row bold"><span>Troco:</sp
                         className="h-11 px-4 rounded-xl text-[10px] font-bold text-red-500 border border-red-200 hover:bg-red-50 hover:border-red-300 transition-all disabled:opacity-40 active:scale-[0.98] flex items-center justify-center gap-2 shrink-0">
                         <Trash2 size={14} /> Cancelar venda
                       </button>
-                      <button onClick={shouldSendToTerminal ? handleChargeTerminal : handleFinishSale} disabled={!canFinish || finishing || terminalCharging}
+                      <button onClick={(shouldSendToTerminal && isOnline) ? handleChargeTerminal : handleFinishSale}
+                        disabled={!canFinish || finishing || terminalCharging}
+                        title={shouldSendToTerminal && !isOnline ? "Sem conexão — a venda será registrada sem enviar para a maquininha" : undefined}
                         className="flex-1 h-11 rounded-xl text-[11px] font-black uppercase tracking-wide text-white transition-all disabled:opacity-40 active:scale-[0.98] flex items-center justify-center gap-2"
                         style={{
                           background: remaining > 0.009 ? "linear-gradient(135deg,#f59e0b,#d97706)" : "linear-gradient(135deg,#3b82f6,#1d4ed8)",
@@ -4797,10 +4799,9 @@ const PaymentRow = React.memo(function PaymentRow({
           <span className="w-6 h-6 rounded-full flex items-center justify-center text-[9px] font-black shrink-0 bg-slate-100 text-slate-400 border border-slate-200">{idx + 1}</span>
         )}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 flex-1">
-          <button onClick={() => isOnline && onMethodChange(p.id, p.method === "debit" ? "debit" : "credit")}
-            disabled={!isOnline}
-            title={!isOnline ? "Cartão requer conexão com a internet" : undefined}
-            className="relative h-10 rounded-lg border text-[9px] font-black uppercase tracking-wide transition-all flex flex-col items-center justify-center gap-0.5 disabled:opacity-40 disabled:cursor-not-allowed"
+          <button onClick={() => onMethodChange(p.id, p.method === "debit" ? "debit" : "credit")}
+            title={!isOnline ? "Registro manual — cobrar na maquininha física (sem integração enquanto offline)" : undefined}
+            className="relative h-10 rounded-lg border text-[9px] font-black uppercase tracking-wide transition-all flex flex-col items-center justify-center gap-0.5"
             style={(p.method === "credit" || p.method === "debit")
               ? { background: "#059669", border: "1px solid #059669", color: "white", boxShadow: "0 3px 10px rgba(16,185,129,0.22)" }
               : { background: "#ffffff", border: "1px solid #dbe3ee", color: "#64748b" }}>
@@ -4808,10 +4809,9 @@ const PaymentRow = React.memo(function PaymentRow({
             <CreditCard size={13} />
             <span>Cartão</span>
           </button>
-          <button onClick={() => isOnline && onMethodChange(p.id, "pix")}
-            disabled={!isOnline}
-            title={!isOnline ? "PIX requer conexão com a internet" : undefined}
-            className="relative h-10 rounded-lg border text-[9px] font-black uppercase tracking-wide transition-all flex flex-col items-center justify-center gap-0.5 disabled:opacity-40 disabled:cursor-not-allowed"
+          <button onClick={() => onMethodChange(p.id, "pix")}
+            title={!isOnline ? "Registro manual — cliente já pagou via PIX (chave/QR fora do sistema)" : undefined}
+            className="relative h-10 rounded-lg border text-[9px] font-black uppercase tracking-wide transition-all flex flex-col items-center justify-center gap-0.5"
             style={p.method === "pix"
               ? { background: "#2563eb", border: "1px solid #2563eb", color: "white", boxShadow: "0 3px 10px rgba(59,130,246,0.22)" }
               : { background: "#ffffff", border: "1px solid #dbe3ee", color: "#64748b" }}>
