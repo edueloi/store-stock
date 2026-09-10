@@ -7,6 +7,15 @@ const { autoUpdater } = require("electron-updater");
 const printerModule = require("./printer.cjs");
 const offlineDb = require("./db.cjs");
 
+// A janela só minimiza pra bandeja ao fechar (nunca encerra o processo de verdade,
+// ver handler "close" abaixo) — sem esse lock, clicar no ícone de novo sem lembrar
+// que o app já está aberto (na bandeja) cria uma instância Electron nova a cada
+// clique, em vez de trazer a janela existente pra frente.
+const gotSingleInstanceLock = app.requestSingleInstanceLock();
+if (!gotSingleInstanceLock) {
+  app.quit();
+}
+
 // ─── Config persistence (userData/config.json) ──────────────────────────────
 const configPath = () => path.join(app.getPath("userData"), "config.json");
 
@@ -603,6 +612,13 @@ function checkForUpdates() {
     console.error("[autoUpdater] falha ao checar atualização:", err?.message || err);
   });
 }
+
+// Alguém tentou abrir uma segunda instância (ícone clicado de novo) — em vez de
+// deixar o Electron seguir com esse processo novo (que já se encerrou via
+// app.quit() acima), traz a janela existente pra frente.
+app.on("second-instance", () => {
+  showMainWindow();
+});
 
 // ─── Lifecycle ───────────────────────────────────────────────────────────────
 app.whenReady().then(() => {
