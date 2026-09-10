@@ -4060,72 +4060,79 @@ ${sale.change > 0 ? `<hr class="divider"/><div class="row bold"><span>Troco:</sp
         {showReceipt && completedSale && (
           <>
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-              className="fixed inset-0 bg-slate-950/85 backdrop-blur-md z-[300]" />
+              className="fixed inset-0 bg-slate-900/70 backdrop-blur-sm z-[300]"
+              onClick={() => setShowReceipt(false)} />
             <motion.div
-              initial={{ opacity: 0, scale: 0.92, y: 32 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.92, y: 32 }}
-              transition={{ type: "spring", damping: 28, stiffness: 260 }}
-              className="fixed inset-x-4 bottom-4 sm:inset-auto sm:top-1/2 sm:left-1/2 sm:-translate-x-1/2 sm:-translate-y-1/2 z-[301] sm:w-[460px] bg-slate-900 border border-slate-700 sm:rounded-3xl rounded-3xl shadow-2xl flex flex-col overflow-hidden max-h-[90vh]">
+              initial={{ y: "100%", opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              exit={{ y: "100%", opacity: 0 }}
+              transition={{ type: "spring", damping: 32, stiffness: 300 }}
+              className="fixed inset-x-0 bottom-0 sm:inset-auto sm:top-1/2 sm:left-1/2 sm:-translate-x-1/2 sm:-translate-y-1/2 z-[301] w-full sm:w-[440px] bg-white sm:rounded-3xl rounded-t-3xl shadow-2xl flex flex-col overflow-hidden max-h-[92dvh] sm:max-h-[90vh]">
+
+              {/* drag handle */}
+              <div className="shrink-0 flex justify-center pt-3 pb-0 sm:hidden">
+                <div className="w-10 h-1 rounded-full bg-emerald-300/60" />
+              </div>
 
               {/* Success header */}
-              <div className="shrink-0 bg-gradient-to-br from-emerald-600 to-emerald-800 px-6 pt-6 pb-5 text-white relative overflow-hidden">
-                <div className="absolute inset-0 opacity-10">
-                  <div className="absolute -top-4 -right-4 w-32 h-32 bg-white rounded-full" />
-                  <div className="absolute -bottom-8 -left-4 w-48 h-48 bg-white rounded-full" />
+              <div className="shrink-0 bg-gradient-to-br from-emerald-500 to-emerald-700 px-5 pt-4 pb-5 text-white relative overflow-hidden">
+                <div className="absolute inset-0 opacity-[0.07]">
+                  <div className="absolute -top-6 -right-6 w-40 h-40 bg-white rounded-full" />
+                  <div className="absolute -bottom-10 -left-6 w-56 h-56 bg-white rounded-full" />
                 </div>
                 <div className="relative flex items-start justify-between">
-                  <div>
-                    <div className="flex items-center gap-2 mb-2">
-                      <CheckCircle2 size={20} className="text-emerald-200" />
-                      <span className="text-[11px] font-black uppercase tracking-[0.2em] text-emerald-200">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-1.5">
+                      <div className="w-5 h-5 rounded-full bg-white/20 flex items-center justify-center">
+                        <CheckCircle2 size={14} className="text-white" />
+                      </div>
+                      <span className="text-[10px] font-black uppercase tracking-[0.2em] text-emerald-100">
                         {completedSale.offline ? "Venda Salva — Offline" : "Venda Confirmada"}
                       </span>
                     </div>
-                    <p className="text-3xl font-mono font-black">R$ {completedSale.total.toFixed(2)}</p>
-                    <p className="text-[12px] text-emerald-200 font-bold mt-1">
+                    <p className="text-3xl font-mono font-black leading-none">R$ {completedSale.total.toFixed(2)}</p>
+                    <p className="text-[11px] text-emerald-200 font-bold mt-1.5">
                       {completedSale.offline ? "Sincroniza ao reconectar" : `#${String(completedSale.orderId).padStart(5, "0")}`} · {completedSale.customerName || "Consumidor Final"}
                     </p>
                     {completedSale.sellerName && (
-                      <p className="text-[11px] text-emerald-300 font-medium mt-0.5">Vendedor: {completedSale.sellerName}</p>
+                      <p className="text-[10px] text-emerald-300 font-medium mt-0.5">Vendedor: {completedSale.sellerName}</p>
                     )}
-                    {completedSale.change > 0 && (
-                      <div className="mt-2 inline-flex items-center gap-1.5 bg-white/20 rounded-xl px-3 py-1.5">
-                        <Banknote size={13} className="text-emerald-200" />
-                        <span className="text-[12px] font-black text-white">Troco: R$ {completedSale.change.toFixed(2)}</span>
-                      </div>
-                    )}
-                    {/* Pontos ganhos na venda */}
-                    {/* Recompensa resgatada */}
-                    {completedSale.rewardApplied && (
-                      <div className="mt-2 inline-flex items-center gap-1.5 bg-violet-400/20 rounded-xl px-3 py-1.5">
-                        <Gift size={13} className="text-violet-300" />
-                        <span className="text-[12px] font-black text-violet-200">{completedSale.rewardApplied} resgatado!</span>
-                      </div>
-                    )}
-                    <div className="mt-3 flex flex-wrap gap-1.5">
+                    <div className="mt-2.5 flex flex-wrap gap-1.5">
+                      {completedSale.change > 0 && (
+                        <div className="inline-flex items-center gap-1 bg-white/20 rounded-lg px-2.5 py-1">
+                          <Banknote size={11} className="text-emerald-200" />
+                          <span className="text-[10px] font-black text-white">Troco R$ {completedSale.change.toFixed(2)}</span>
+                        </div>
+                      )}
+                      {completedSale.rewardApplied && (
+                        <div className="inline-flex items-center gap-1 bg-violet-400/20 rounded-lg px-2.5 py-1">
+                          <Gift size={11} className="text-violet-300" />
+                          <span className="text-[10px] font-black text-violet-200">{completedSale.rewardApplied}</span>
+                        </div>
+                      )}
+                    </div>
+                    <div className="mt-2 flex flex-wrap gap-1.5">
                       {completedSale.payments.map((p, i) => {
                         const brand = (p.method === "debit" || p.method === "credit") && p.cardBrand !== "other" ? ` ${p.cardBrand.toUpperCase()}` : "";
                         const inst  = p.method === "credit" && p.installments > 1 ? ` ${p.installments}×` : "";
                         return (
-                          <div key={i} className="inline-flex items-center gap-1.5 bg-white/15 rounded-xl px-2.5 py-1.5">
-                            <span className="text-[10px] font-black text-emerald-100">{PM_LABEL[p.method]}{brand}{inst}</span>
-                            <span className="text-[10px] font-mono font-black text-white">R$ {Number(p.amount).toFixed(2)}</span>
+                          <div key={i} className="inline-flex items-center gap-1 bg-white/15 rounded-lg px-2 py-1">
+                            <span className="text-[9px] font-black text-emerald-100">{PM_LABEL[p.method]}{brand}{inst}</span>
+                            <span className="text-[9px] font-mono font-black text-white">R$ {Number(p.amount).toFixed(2)}</span>
                           </div>
                         );
                       })}
                     </div>
                   </div>
-                  <button onClick={() => setShowReceipt(false)} className="p-2 hover:bg-white/20 rounded-xl transition-all text-emerald-200">
-                    <X size={18} />
+                  <button onClick={() => setShowReceipt(false)}
+                    className="ml-3 shrink-0 w-8 h-8 flex items-center justify-center bg-white/15 hover:bg-white/25 rounded-xl transition-all text-white">
+                    <X size={16} />
                   </button>
                 </div>
-                <div className="relative mt-3 flex gap-2 overflow-x-auto scrollbar-none pb-0.5">
+                <div className="relative mt-3 flex gap-2 overflow-x-auto scrollbar-none pb-0.5 -mx-1 px-1">
                   {completedSale.items.map((item, idx) => (
                     <div key={idx} className="shrink-0 flex items-center gap-1.5 bg-white/15 rounded-xl px-2.5 py-1.5">
-                      {item.image_url
-                        ? <img src={item.image_url} className="w-5 h-5 rounded object-cover shrink-0" alt={item.name} />
-                        : <Package size={14} className="text-emerald-200 shrink-0" />}
+                      {item.image_url ? <img src={item.image_url} className="w-5 h-5 rounded object-cover shrink-0" alt={item.name} /> : <Package size={12} className="text-emerald-200 shrink-0" />}
                       <span className="text-[10px] font-bold text-white truncate max-w-[80px]">{item.name}</span>
                       <span className="text-[10px] font-black text-emerald-200">×{item.quantity}</span>
                     </div>
@@ -4134,41 +4141,41 @@ ${sale.change > 0 ? `<hr class="divider"/><div class="row bold"><span>Troco:</sp
               </div>
 
               {/* Receipt actions */}
-              <div className="shrink-0 p-5 space-y-2.5">
+              <div className="flex-1 overflow-y-auto overscroll-contain p-4 space-y-2">
                 {!completedSale.offline && !nfceInvoice && (
                   <button onClick={handleEmitNfce} disabled={nfceRetrying}
-                    className="w-full h-11 rounded-xl border border-violet-200 bg-violet-50 text-violet-700 hover:bg-violet-100 disabled:opacity-50 text-[10px] font-black uppercase tracking-wider flex items-center justify-center gap-2 transition-colors">
+                    className="w-full h-10 bg-blue-600 hover:bg-blue-700 disabled:opacity-60 text-white rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-all">
                     {nfceRetrying ? <Loader2 size={14} className="animate-spin" /> : <FileText size={14} />}
-                    {nfceRetrying ? "Iniciando emissão..." : "Gerar NFC-e"}
+                    {nfceRetrying ? "Iniciando emissão..." : "Emitir Nota Fiscal (NFC-e)"}
                   </button>
                 )}
                 {!completedSale.offline && nfceInvoice && (
                   <div className={cn(
-                    "w-full flex items-center gap-3.5 rounded-2xl px-4 py-3 border mb-1",
-                    nfceInvoice?.status === "authorized" ? "bg-emerald-900/30 border-emerald-600/50"
-                      : nfceInvoice?.status === "rejected" || nfceInvoice?.status === "error" ? "bg-rose-900/30 border-rose-600/50"
-                      : "bg-blue-900/30 border-blue-600/50",
+                    "w-full flex items-center gap-3.5 rounded-2xl px-4 py-3 border",
+                    nfceInvoice?.status === "authorized" ? "bg-emerald-50 border-emerald-200"
+                      : nfceInvoice?.status === "rejected" || nfceInvoice?.status === "error" ? "bg-rose-50 border-rose-200"
+                      : "bg-blue-50 border-blue-200",
                   )}>
                     {(nfceInvoice.status === "pending" || nfceInvoice.status === "processing") && (
                       <>
-                        <Loader2 size={18} className="text-blue-300 animate-spin shrink-0" />
+                        <Loader2 size={18} className="text-blue-500 animate-spin shrink-0" />
                         <div className="flex-1 min-w-0">
-                          <p className="text-[11px] font-black text-blue-200 uppercase tracking-wide">Emitindo nota fiscal...</p>
-                          <p className="text-[10px] text-blue-400 font-medium">Aguardando autorização da SEFAZ-SP</p>
+                          <p className="text-[11px] font-black text-blue-700 uppercase tracking-wide">Emitindo nota fiscal...</p>
+                          <p className="text-[10px] text-blue-500 font-medium">Aguardando autorização da SEFAZ-SP</p>
                         </div>
                       </>
                     )}
                     {nfceInvoice?.status === "authorized" && (
                       <>
-                        <CheckCircle2 size={18} className="text-emerald-300 shrink-0" />
+                        <CheckCircle2 size={18} className="text-emerald-600 shrink-0" />
                         <div className="flex-1 min-w-0">
-                          <p className="text-[11px] font-black text-emerald-200 uppercase tracking-wide">NFC-e autorizada</p>
-                          <p className="text-[10px] text-emerald-400 font-medium truncate">Protocolo {nfceInvoice.protocol}</p>
+                          <p className="text-[11px] font-black text-emerald-700 uppercase tracking-wide">NFC-e autorizada</p>
+                          <p className="text-[10px] text-emerald-600 font-medium truncate">Protocolo {nfceInvoice.protocol}</p>
                         </div>
                         <a
                           href={`/api/nfce/${completedSale.orderId}/danfe`}
                           target="_blank" rel="noopener noreferrer"
-                          className="shrink-0 h-9 px-3 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center gap-1.5 transition-all"
+                          className="shrink-0 h-9 px-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center gap-1.5 transition-all"
                         >
                           <FileText size={13} /> DANFE
                         </a>
@@ -4176,15 +4183,15 @@ ${sale.change > 0 ? `<hr class="divider"/><div class="row bold"><span>Troco:</sp
                     )}
                     {(nfceInvoice?.status === "rejected" || nfceInvoice?.status === "error") && (
                       <>
-                        <X size={18} className="text-rose-300 shrink-0" />
+                        <X size={18} className="text-rose-600 shrink-0" />
                         <div className="flex-1 min-w-0">
-                          <p className="text-[11px] font-black text-rose-200 uppercase tracking-wide">Falha na emissão</p>
-                          <p className="text-[10px] text-rose-400 font-medium truncate">{nfceInvoice.rejection_reason || "Erro desconhecido"}</p>
+                          <p className="text-[11px] font-black text-rose-700 uppercase tracking-wide">Falha na emissão</p>
+                          <p className="text-[10px] text-rose-500 font-medium truncate">{nfceInvoice.rejection_reason || "Erro desconhecido"}</p>
                         </div>
                         <button
                           onClick={handleRetryNfce}
                           disabled={nfceRetrying}
-                          className="shrink-0 h-9 px-3 bg-rose-600 hover:bg-rose-500 disabled:opacity-50 text-white rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center gap-1.5 transition-all"
+                          className="shrink-0 h-9 px-3 bg-rose-600 hover:bg-rose-700 disabled:opacity-50 text-white rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center gap-1.5 transition-all"
                         >
                           {nfceRetrying ? <Loader2 size={13} className="animate-spin" /> : <RefreshCw size={13} />} Tentar de novo
                         </button>
@@ -4192,47 +4199,53 @@ ${sale.change > 0 ? `<hr class="divider"/><div class="row bold"><span>Troco:</sp
                     )}
                   </div>
                 )}
-                <p className="text-[9px] font-black text-slate-500 uppercase tracking-[0.2em] mb-3">Emitir Comprovante</p>
+
+                <p className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] pb-1">Emitir Comprovante</p>
+
                 <button onClick={() => { setPrintError(null); printThermalReceipt(completedSale); }}
-                  className="w-full flex items-center gap-4 h-14 bg-slate-800 hover:bg-slate-750 border border-slate-700 hover:border-slate-600 rounded-2xl px-5 transition-all group">
-                  <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
-                    <Printer size={17} className="text-slate-900" />
+                  className="w-full flex items-center gap-3.5 h-16 bg-slate-50 hover:bg-slate-100 active:scale-[0.98] border border-slate-200 rounded-2xl px-4 transition-all group">
+                  <div className="w-10 h-10 bg-slate-900 rounded-xl flex items-center justify-center shrink-0 group-hover:bg-blue-600 transition-colors">
+                    <Printer size={17} className="text-white" />
                   </div>
-                  <div className="text-left">
-                    <p className="text-[12px] font-black text-white uppercase tracking-widest">Nota Térmica</p>
-                    <p className="text-[10px] text-slate-500 font-medium">Impressão 80mm para bobina</p>
+                  <div className="text-left flex-1 min-w-0">
+                    <p className="text-[12px] font-black text-slate-900 uppercase tracking-wide">Nota Térmica</p>
+                    <p className="text-[10px] text-slate-400 font-medium">Impressão 80mm para bobina</p>
                   </div>
-                  <ChevronRight size={15} className="ml-auto text-slate-600 group-hover:text-slate-400 group-hover:translate-x-0.5 transition-all" />
+                  <ChevronRight size={15} className="text-slate-300 group-hover:text-slate-500 shrink-0" />
                 </button>
+
                 {window.boxsysDesktop?.openCashDrawer && (
                   <button onClick={handleOpenCashDrawer}
-                    className="w-full flex items-center gap-4 h-14 bg-slate-800 hover:bg-slate-750 border border-slate-700 hover:border-slate-600 rounded-2xl px-5 transition-all group">
-                    <div className="w-10 h-10 bg-amber-500 rounded-xl flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
+                    className="w-full flex items-center gap-3.5 h-16 bg-slate-50 hover:bg-slate-100 active:scale-[0.98] border border-slate-200 rounded-2xl px-4 transition-all group">
+                    <div className="w-10 h-10 bg-amber-500 rounded-xl flex items-center justify-center shrink-0 group-hover:bg-amber-600 transition-colors">
                       <Banknote size={17} className="text-white" />
                     </div>
-                    <div className="text-left">
-                      <p className="text-[12px] font-black text-white uppercase tracking-widest">Abrir Gaveta</p>
-                      <p className="text-[10px] text-slate-500 font-medium">Acionar gaveta de dinheiro (F4)</p>
+                    <div className="text-left flex-1 min-w-0">
+                      <p className="text-[12px] font-black text-slate-900 uppercase tracking-wide">Abrir Gaveta</p>
+                      <p className="text-[10px] text-slate-400 font-medium">Acionar gaveta de dinheiro (F4)</p>
                     </div>
-                    <ChevronRight size={15} className="ml-auto text-slate-600 group-hover:text-slate-400 group-hover:translate-x-0.5 transition-all" />
+                    <ChevronRight size={15} className="text-slate-300 group-hover:text-slate-500 shrink-0" />
                   </button>
                 )}
+
                 {printError && (
-                  <div className="bg-rose-950/40 border border-rose-800/50 rounded-2xl px-4 py-3 text-[11px] font-bold text-rose-300">
+                  <div className="bg-rose-50 border border-rose-200 rounded-2xl px-4 py-3 text-[11px] font-bold text-rose-600">
                     {printError}
                   </div>
                 )}
+
                 <button onClick={() => printViaIframe(buildPDFHtml(completedSale), 600)}
-                  className="w-full flex items-center gap-4 h-14 bg-slate-800 hover:bg-slate-750 border border-slate-700 hover:border-slate-600 rounded-2xl px-5 transition-all group">
-                  <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform shadow-lg shadow-blue-500/20">
+                  className="w-full flex items-center gap-3.5 h-16 bg-slate-50 hover:bg-slate-100 active:scale-[0.98] border border-slate-200 rounded-2xl px-4 transition-all group">
+                  <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center shrink-0 group-hover:bg-blue-700 transition-colors">
                     <FileText size={17} className="text-white" />
                   </div>
-                  <div className="text-left">
-                    <p className="text-[12px] font-black text-white uppercase tracking-widest">PDF Completo</p>
-                    <p className="text-[10px] text-slate-500 font-medium">Nota detalhada em A4</p>
+                  <div className="text-left flex-1 min-w-0">
+                    <p className="text-[12px] font-black text-slate-900 uppercase tracking-wide">PDF Completo</p>
+                    <p className="text-[10px] text-slate-400 font-medium">Nota detalhada em A4</p>
                   </div>
-                  <ChevronRight size={15} className="ml-auto text-slate-600 group-hover:text-slate-400 group-hover:translate-x-0.5 transition-all" />
+                  <ChevronRight size={15} className="text-slate-300 group-hover:text-slate-500 shrink-0" />
                 </button>
+
                 <button onClick={() => {
                   const next = !showPhoneInput;
                   setShowPhoneInput(next);
@@ -4244,32 +4257,32 @@ ${sale.change > 0 ? `<hr class="divider"/><div class="row bold"><span>Troco:</sp
                   }
                 }}
                   className={cn(
-                    "w-full flex items-center gap-4 h-14 border rounded-2xl px-5 transition-all group",
-                    showPhoneInput ? "bg-emerald-900/30 border-emerald-600/50" : "bg-slate-800 hover:bg-slate-750 border-slate-700 hover:border-slate-600"
+                    "w-full flex items-center gap-3.5 h-16 border rounded-2xl px-4 transition-all group",
+                    showPhoneInput ? "bg-emerald-50 border-emerald-200" : "bg-slate-50 hover:bg-slate-100 active:scale-[0.98] border-slate-200"
                   )}>
-                  <div className={cn("w-10 h-10 rounded-xl flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform", showPhoneInput ? "bg-emerald-600" : "bg-emerald-700")}>
+                  <div className={cn("w-10 h-10 rounded-xl flex items-center justify-center shrink-0 transition-colors", showPhoneInput ? "bg-emerald-600" : "bg-emerald-500 group-hover:bg-emerald-600")}>
                     <MessageCircle size={17} className="text-white" />
                   </div>
-                  <div className="text-left">
-                    <p className="text-[12px] font-black text-white uppercase tracking-widest">Enviar WhatsApp</p>
-                    <p className="text-[10px] text-slate-500 font-medium">Abre WhatsApp Web com comprovante</p>
+                  <div className="text-left flex-1 min-w-0">
+                    <p className="text-[12px] font-black text-slate-900 uppercase tracking-wide">Enviar WhatsApp</p>
+                    <p className="text-[10px] text-slate-400 font-medium">Abre WhatsApp Web com comprovante</p>
                   </div>
-                  <ChevronDown size={15} className={cn("ml-auto transition-transform text-slate-600", showPhoneInput ? "rotate-180 text-emerald-400" : "")} />
+                  <ChevronDown size={15} className={cn("shrink-0 transition-transform text-slate-300", showPhoneInput ? "rotate-180 text-emerald-500" : "group-hover:text-slate-500")} />
                 </button>
                 <AnimatePresence>
                   {showPhoneInput && (
                     <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }} className="overflow-hidden">
                       <div className="flex gap-2 pt-1">
                         <div className="relative flex-1">
-                          <Phone className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-600" size={14} />
+                          <Phone className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
                           <input type="tel" placeholder="(11) 99999-9999"
-                            className="w-full pl-9 pr-4 h-11 bg-slate-800 border border-emerald-600/60 rounded-xl focus:outline-none text-[13px] font-medium text-white placeholder:text-slate-600 transition-all"
+                            className="w-full pl-9 pr-4 h-11 bg-white border border-emerald-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/20 text-[13px] font-medium text-slate-700 placeholder:text-slate-400 transition-all"
                             value={whatsappPhone} onChange={(e) => { setWhatsappPhone(maskPhone(e.target.value)); setWaSent(false); setWaSendError(null); }} />
                         </div>
                         {waBotConnected && !completedSale.offline ? (
                           <button onClick={handleSendWhatsappDocument}
                             disabled={whatsappPhone.replace(/\D/g, "").length < 10 || waSending}
-                            className="h-11 px-4 bg-emerald-600 disabled:bg-slate-700 disabled:text-slate-500 text-white rounded-xl font-black text-[11px] uppercase tracking-widest flex items-center gap-2 transition-all hover:bg-emerald-500 disabled:cursor-not-allowed shrink-0">
+                            className="h-11 px-4 bg-emerald-600 disabled:bg-slate-200 disabled:text-slate-400 text-white rounded-xl font-black text-[11px] uppercase tracking-widest flex items-center gap-2 transition-all hover:bg-emerald-700 disabled:cursor-not-allowed shrink-0">
                             {waSending ? <Loader2 size={14} className="animate-spin" /> : <MessageCircle size={14} />}
                             {waSending ? "Enviando..." : "Enviar PDF"}
                           </button>
@@ -4280,30 +4293,30 @@ ${sale.change > 0 ? `<hr class="divider"/><div class="row bold"><span>Troco:</sp
                             window.open(`https://wa.me/${full}?text=${encodeURIComponent(buildWhatsAppText(completedSale))}`, "_blank", "noopener,noreferrer");
                           }}
                             disabled={whatsappPhone.replace(/\D/g, "").length < 10}
-                            className="h-11 px-4 bg-emerald-600 disabled:bg-slate-700 disabled:text-slate-500 text-white rounded-xl font-black text-[11px] uppercase tracking-widest flex items-center gap-2 transition-all hover:bg-emerald-500 disabled:cursor-not-allowed shrink-0">
+                            className="h-11 px-4 bg-emerald-600 disabled:bg-slate-200 disabled:text-slate-400 text-white rounded-xl font-black text-[11px] uppercase tracking-widest flex items-center gap-2 transition-all hover:bg-emerald-700 disabled:cursor-not-allowed shrink-0">
                             <MessageCircle size={14} /> Enviar
                           </button>
                         )}
                       </div>
                       {waBotConnected === false && (
-                        <p className="text-[9px] text-slate-500 font-medium pt-1.5 px-1">
+                        <p className="text-[9px] text-slate-400 font-medium pt-1.5 px-1">
                           Bot do WhatsApp não conectado — abrindo link manual (só texto, sem o PDF anexado).
                         </p>
                       )}
                       {waSendError && (
-                        <p className="text-[9px] text-rose-400 font-bold pt-1.5 px-1">{waSendError}</p>
+                        <p className="text-[9px] text-rose-600 font-bold pt-1.5 px-1">{waSendError}</p>
                       )}
                       {waSent && (
-                        <p className="text-[9px] text-emerald-400 font-bold pt-1.5 px-1">PDF enviado pelo WhatsApp!</p>
+                        <p className="text-[9px] text-emerald-600 font-bold pt-1.5 px-1">PDF enviado pelo WhatsApp!</p>
                       )}
                     </motion.div>
                   )}
                 </AnimatePresence>
               </div>
 
-              <div className="shrink-0 px-5 pb-5">
+              <div className="shrink-0 p-4 pt-2 border-t border-slate-100">
                 <button onClick={() => setShowReceipt(false)}
-                  className="w-full h-11 border border-slate-700 rounded-2xl text-[12px] font-black text-slate-500 uppercase tracking-widest hover:bg-slate-800 transition-all">
+                  className="w-full h-11 border border-slate-200 rounded-2xl text-[12px] font-black text-slate-500 uppercase tracking-widest hover:bg-slate-50 transition-all">
                   Fechar · Nova Venda
                 </button>
               </div>
