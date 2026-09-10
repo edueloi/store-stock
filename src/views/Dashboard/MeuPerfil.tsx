@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import PageHeader from "../../components/layout/PageHeader";
-import { Save, Loader2, User, Shield, ShoppingCart, Phone, AtSign, Lock, Eye, EyeOff } from "lucide-react";
+import { Save, Loader2, User, Shield, ShoppingCart, Phone, AtSign, Lock, Eye, EyeOff, CheckCircle2, XCircle } from "lucide-react";
 import { useToast } from "../../components/ui/Toast";
 
 const ROLE_META: Record<string, { label: string; color: string; bg: string; icon: React.ReactNode }> = {
@@ -31,10 +31,13 @@ export default function MeuPerfil() {
 
   const [phone, setPhone] = useState("");
   const [nickname, setNickname] = useState("");
+  const [nicknameStatus, setNicknameStatus] = useState<"idle" | "checking" | "available" | "taken">("idle");
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showPass, setShowPass] = useState(false);
+
+  const originalNickname = useRef("");
 
   useEffect(() => {
     fetch("/api/profile", { headers: { Authorization: `Bearer ${token()}` } })
@@ -43,14 +46,39 @@ export default function MeuPerfil() {
         setProfile(d);
         setPhone(d.phone || "");
         setNickname(d.nickname || "");
+        originalNickname.current = d.nickname || "";
       })
       .finally(() => setLoading(false));
   }, []);
+
+  // Verifica disponibilidade do nick enquanto o usuário digita (debounce 400ms) —
+  // sem alterar nada ainda no servidor, só consulta.
+  useEffect(() => {
+    const nick = nickname.trim();
+    if (!nick || nick === originalNickname.current) {
+      setNicknameStatus("idle");
+      return;
+    }
+    setNicknameStatus("checking");
+    const timer = setTimeout(() => {
+      fetch(`/api/profile/check-nickname?nickname=${encodeURIComponent(nick)}`, {
+        headers: { Authorization: `Bearer ${token()}` },
+      })
+        .then(r => r.json())
+        .then((d: { available: boolean }) => setNicknameStatus(d.available ? "available" : "taken"))
+        .catch(() => setNicknameStatus("idle"));
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [nickname]);
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     if (newPassword && newPassword !== confirmPassword) {
       toastError("A confirmação de senha não confere.");
+      return;
+    }
+    if (nicknameStatus === "taken") {
+      toastError("Esse nick já está em uso — escolha outro.");
       return;
     }
     setSaving(true);
@@ -68,6 +96,8 @@ export default function MeuPerfil() {
       const data = await res.json();
       if (res.ok) {
         setProfile(data);
+        originalNickname.current = data.nickname || "";
+        setNicknameStatus("idle");
         setCurrentPassword(""); setNewPassword(""); setConfirmPassword("");
         success("Perfil atualizado com sucesso!");
       } else {
@@ -112,39 +142,68 @@ export default function MeuPerfil() {
         </div>
       </div>
 
-      <form onSubmit={handleSave} className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 space-y-4">
-        <h3 className="text-[11px] font-black text-slate-700 uppercase tracking-widest">Dados de contato e login</h3>
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div className="space-y-1.5">
-            <label className="flex items-center gap-1.5 text-[9px] font-black text-slate-400 uppercase tracking-[0.18em]">
-              <Phone size={10} /> Telefone
-            </label>
-            <input
-              type="text" placeholder="(00) 00000-0000"
-              value={phone}
-              onChange={e => setPhone(e.target.value)}
-              className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 h-11 text-xs font-bold focus:ring-2 focus:ring-blue-500/10 focus:border-blue-400 outline-none transition-all"
-            />
+      <form onSubmit={handleSave} className="space-y-4">
+        {/* Contato e login */}
+        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 space-y-4">
+          <div className="flex items-center gap-2">
+            <div className="w-7 h-7 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center shrink-0">
+              <AtSign size={13} />
+            </div>
+            <h3 className="text-[11px] font-black text-slate-700 uppercase tracking-widest">Contato e login</h3>
           </div>
-          <div className="space-y-1.5">
-            <label className="flex items-center gap-1.5 text-[9px] font-black text-slate-400 uppercase tracking-[0.18em]">
-              <AtSign size={10} /> Nick <span className="text-slate-300 normal-case font-normal">(login alternativo ao e-mail)</span>
-            </label>
-            <input
-              type="text" placeholder="Ex: eduardo"
-              value={nickname}
-              onChange={e => setNickname(e.target.value)}
-              className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 h-11 text-xs font-bold focus:ring-2 focus:ring-blue-500/10 focus:border-blue-400 outline-none transition-all"
-            />
-            <p className="text-[9px] text-slate-400 px-1">Único em todo o sistema — não pode repetir com outra loja.</p>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="space-y-1.5">
+              <label className="flex items-center gap-1.5 text-[9px] font-black text-slate-400 uppercase tracking-[0.18em]">
+                <Phone size={10} /> Telefone
+              </label>
+              <input
+                type="text" placeholder="(00) 00000-0000"
+                value={phone}
+                onChange={e => setPhone(e.target.value)}
+                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 h-11 text-xs font-bold focus:ring-2 focus:ring-blue-500/10 focus:border-blue-400 outline-none transition-all"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <label className="flex items-center gap-1.5 text-[9px] font-black text-slate-400 uppercase tracking-[0.18em]">
+                <AtSign size={10} /> Nick <span className="text-slate-300 normal-case font-normal">(login alternativo ao e-mail)</span>
+              </label>
+              <div className="relative">
+                <input
+                  type="text" placeholder="Ex: eduardo" autoComplete="off"
+                  value={nickname}
+                  onChange={e => setNickname(e.target.value)}
+                  className={`w-full bg-slate-50 border rounded-xl px-4 pr-9 h-11 text-xs font-bold outline-none transition-all focus:ring-2 ${
+                    nicknameStatus === "taken"
+                      ? "border-red-300 focus:border-red-400 focus:ring-red-500/10"
+                      : nicknameStatus === "available"
+                      ? "border-emerald-300 focus:border-emerald-400 focus:ring-emerald-500/10"
+                      : "border-slate-200 focus:border-blue-400 focus:ring-blue-500/10"
+                  }`}
+                />
+                <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                  {nicknameStatus === "checking" && <Loader2 size={14} className="animate-spin text-slate-300" />}
+                  {nicknameStatus === "available" && <CheckCircle2 size={14} className="text-emerald-500" />}
+                  {nicknameStatus === "taken" && <XCircle size={14} className="text-red-500" />}
+                </div>
+              </div>
+              {nicknameStatus === "taken" && (
+                <p className="text-[9px] text-red-500 font-bold px-1">Esse nick já está em uso.</p>
+              )}
+            </div>
           </div>
         </div>
 
-        <div className="pt-2 border-t border-slate-100 space-y-3">
-          <h3 className="text-[11px] font-black text-slate-700 uppercase tracking-widest flex items-center gap-1.5">
-            <Lock size={12} /> Alterar senha <span className="text-slate-300 normal-case font-normal">(opcional)</span>
-          </h3>
+        {/* Senha */}
+        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 space-y-3">
+          <div className="flex items-center gap-2">
+            <div className="w-7 h-7 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center shrink-0">
+              <Lock size={13} />
+            </div>
+            <h3 className="text-[11px] font-black text-slate-700 uppercase tracking-widest">
+              Alterar senha <span className="text-slate-300 normal-case font-normal">(opcional)</span>
+            </h3>
+          </div>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div className="space-y-1.5">
               <label className="text-[9px] font-black text-slate-400 uppercase tracking-[0.18em] px-1 block">Senha atual</label>
@@ -181,10 +240,10 @@ export default function MeuPerfil() {
           </div>
         </div>
 
-        <div className="pt-2 flex justify-end">
+        <div className="flex justify-end">
           <button
-            type="submit" disabled={saving}
-            className="h-11 px-6 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shadow-lg shadow-blue-200 flex items-center justify-center gap-2"
+            type="submit" disabled={saving || nicknameStatus === "taken" || nicknameStatus === "checking"}
+            className="h-11 px-6 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shadow-lg shadow-blue-200 flex items-center justify-center gap-2 disabled:opacity-40"
           >
             {saving ? <Loader2 size={14} className="animate-spin" /> : <><Save size={14} /> Salvar Alterações</>}
           </button>

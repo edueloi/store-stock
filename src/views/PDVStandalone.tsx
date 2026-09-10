@@ -145,7 +145,7 @@ function maskDoc(v: string) {
 
 // ─── LOGIN ────────────────────────────────────────────────────────────────────
 function PDVLogin({ onLogin }: { onLogin: (token: string) => void }) {
-  const [email, setEmail]       = useState("");
+  const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading]   = useState(false);
@@ -159,7 +159,7 @@ function PDVLogin({ onLogin }: { onLogin: (token: string) => void }) {
       const res  = await fetch("/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({ identifier: identifier.trim(), password }),
       });
       const data = await res.json();
       if (res.ok) {
@@ -181,19 +181,22 @@ function PDVLogin({ onLogin }: { onLogin: (token: string) => void }) {
   };
 
   return (
-    <div className="min-h-screen bg-slate-950 flex items-center justify-center p-6 font-sans">
-      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="w-full max-w-sm">
+    <div className="min-h-screen bg-gradient-to-b from-slate-950 via-slate-900 to-slate-950 flex items-center justify-center p-6 font-sans relative overflow-hidden">
+      {/* Glow decorativo de fundo */}
+      <div className="absolute top-1/4 left-1/2 -translate-x-1/2 w-[520px] h-[520px] rounded-full bg-blue-600/10 blur-[120px] pointer-events-none" />
+
+      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="w-full max-w-sm relative">
         <div className="text-center mb-10">
           <div className="w-20 h-20 bg-gradient-to-br from-blue-600 to-blue-800 rounded-3xl flex items-center justify-center mx-auto mb-6 shadow-2xl shadow-blue-500/40 ring-1 ring-blue-500/30">
             <Store size={32} className="text-white" />
           </div>
-          <h1 className="text-2xl font-black text-white uppercase tracking-[0.2em]">PDV Nexus</h1>
+          <h1 className="text-2xl font-black text-white uppercase tracking-[0.2em]">BoxSys PDV</h1>
           <p className="text-[11px] font-bold text-slate-500 uppercase tracking-widest mt-2">Terminal de Vendas · Acesso Seguro</p>
         </div>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="relative">
             <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" size={15} />
-            <input type="email" placeholder="E-MAIL" value={email} onChange={(e) => setEmail(e.target.value)} required
+            <input type="text" placeholder="E-MAIL OU USUÁRIO" value={identifier} onChange={(e) => setIdentifier(e.target.value)} required autoFocus
               className="w-full pl-11 pr-4 h-13 bg-slate-900 border border-slate-700 rounded-2xl text-[12px] font-bold uppercase tracking-widest text-white placeholder:text-slate-600 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition-all" />
           </div>
           <div className="relative">

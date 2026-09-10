@@ -21,6 +21,20 @@ export async function getMyProfile(req: Request, res: Response) {
   }
 }
 
+// Checagem em tempo real enquanto o usuário digita o nick (nickname é único em todo
+// o sistema, entre todas as lojas) — evita só descobrir o conflito ao tentar salvar.
+export async function checkNicknameAvailability(req: Request, res: Response) {
+  const userId = (req as AuthenticatedRequest).user.userId;
+  const nick = String(req.query.nickname || "").trim();
+  if (!nick) { res.json({ available: true }); return; }
+  try {
+    const taken = await prisma.user.findFirst({ where: { nickname: nick, id: { not: userId } }, select: { id: true } });
+    res.json({ available: !taken });
+  } catch {
+    res.status(500).json({ error: "Erro ao verificar nick." });
+  }
+}
+
 export async function updateMyProfile(req: Request, res: Response) {
   const userId = (req as AuthenticatedRequest).user.userId;
   const { phone, nickname, current_password, new_password } = req.body as {
