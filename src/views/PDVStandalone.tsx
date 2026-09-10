@@ -2059,12 +2059,9 @@ ${sale.change > 0 ? `<hr class="divider"/><div class="row bold"><span>Troco:</sp
           )}
           <div className="min-w-0">
             <p className="text-[13px] font-black text-slate-800 tracking-wide leading-none truncate">{tenantName}</p>
-            <div className={cn(
-              "inline-flex items-center gap-1.5 mt-1 px-2 h-[18px] rounded-full border",
-              isOnline ? "bg-emerald-50 border-emerald-200" : "bg-amber-50 border-amber-200"
-            )}>
+            <div className="flex items-center gap-1.5 mt-0.5">
               <div className={cn("w-1.5 h-1.5 rounded-full animate-pulse shrink-0", isOnline ? "bg-emerald-500" : "bg-amber-500")} />
-              <span className={cn("text-[9px] font-black uppercase tracking-widest truncate", isOnline ? "text-emerald-600" : "text-amber-600")}>
+              <span className={cn("text-[9px] font-semibold uppercase tracking-widest truncate", isOnline ? "text-slate-400" : "text-amber-600")}>
                 {isOnline ? "Terminal Online" : "Modo Offline"}
               </span>
             </div>
@@ -2127,28 +2124,28 @@ ${sale.change > 0 ? `<hr class="divider"/><div class="row bold"><span>Troco:</sp
           {requireCashSession && cashSession && (
             <button onClick={() => setShowCloseCashModal(true)}
               title="Fechar Caixa"
-              className="flex items-center gap-1.5 px-2.5 h-8 rounded-lg text-[10px] font-bold text-slate-500 border border-slate-200 hover:bg-emerald-50 hover:text-emerald-600 hover:border-emerald-200 transition-all">
+              className="flex items-center gap-1.5 px-2.5 h-8 rounded-xl text-[10px] font-bold text-slate-500 border border-slate-200 hover:bg-emerald-50 hover:text-emerald-600 hover:border-emerald-200 transition-all">
               <Wallet size={11} />
               <span className="hidden 2xl:block">Fechar caixa</span>
             </button>
           )}
           <button onClick={() => setShowCrediarioModal(true)} title="Crediário (F6)"
-            className="flex items-center gap-1.5 px-2.5 h-8 rounded-lg text-[10px] font-bold text-slate-500 border border-slate-200 hover:bg-amber-50 hover:text-amber-600 hover:border-amber-200 transition-all">
+            className="flex items-center gap-1.5 px-2.5 h-8 rounded-xl text-[10px] font-bold text-slate-500 border border-slate-200 hover:bg-amber-50 hover:text-amber-600 hover:border-amber-200 transition-all">
             <Wallet size={11} />
             <span className="hidden xl:block">Crediário</span>
           </button>
           <button onClick={() => setShowCustomerLookup(true)} title="Consultar Cliente (F7)"
-            className="flex items-center gap-1.5 px-2.5 h-8 rounded-lg text-[10px] font-bold text-slate-500 border border-slate-200 hover:bg-blue-50 hover:text-blue-600 hover:border-blue-200 transition-all">
+            className="flex items-center gap-1.5 px-2.5 h-8 rounded-xl text-[10px] font-bold text-slate-500 border border-slate-200 hover:bg-blue-50 hover:text-blue-600 hover:border-blue-200 transition-all">
             <User size={11} />
             <span className="hidden xl:block">Cliente</span>
           </button>
           <button onClick={() => setShowConsignmentLookup(true)} title="Consultar Consignado (F8)"
-            className="flex items-center gap-1.5 px-2.5 h-8 rounded-lg text-[10px] font-bold text-slate-500 border border-slate-200 hover:bg-violet-50 hover:text-violet-600 hover:border-violet-200 transition-all">
+            className="flex items-center gap-1.5 px-2.5 h-8 rounded-xl text-[10px] font-bold text-slate-500 border border-slate-200 hover:bg-violet-50 hover:text-violet-600 hover:border-violet-200 transition-all">
             <ShoppingBag size={11} />
             <span className="hidden 2xl:block">Consignado</span>
           </button>
           <button onClick={() => setShowHeldSalesDrawer(true)} title="Vendas Abertas"
-            className="relative flex items-center gap-1.5 px-2.5 h-8 rounded-lg text-[10px] font-bold text-slate-500 border border-slate-200 hover:bg-amber-50 hover:text-amber-600 hover:border-amber-200 transition-all">
+            className="relative flex items-center gap-1.5 px-2.5 h-8 rounded-xl text-[10px] font-bold text-slate-500 border border-slate-200 hover:bg-amber-50 hover:text-amber-600 hover:border-amber-200 transition-all">
             <Clock size={11} />
             <span className="hidden 2xl:block">Vendas abertas</span>
             {openHeldSalesCount > 0 && (
@@ -2159,7 +2156,7 @@ ${sale.change > 0 ? `<hr class="divider"/><div class="row bold"><span>Troco:</sp
           </button>
           {/* Fullscreen toggle */}
           <button onClick={toggleFullscreen} title={isFullscreen ? "Sair de tela cheia" : "Tela cheia"}
-            className="hidden xl:flex items-center gap-1.5 px-2.5 h-8 rounded-full text-[10px] font-black uppercase tracking-widest text-slate-500 border border-slate-200 hover:bg-slate-50 hover:text-slate-700 transition-all">
+            className="hidden xl:flex items-center gap-1.5 px-2.5 h-8 rounded-xl text-[10px] font-bold uppercase tracking-widest text-slate-500 border border-slate-200 hover:bg-slate-50 hover:text-slate-700 transition-all">
             {isFullscreen ? <Minimize2 size={11} /> : <Maximize2 size={11} />}
             {isFullscreen ? "Sair" : "Tela Cheia"}
           </button>
@@ -2167,18 +2164,18 @@ ${sale.change > 0 ? `<hr class="divider"/><div class="row bold"><span>Troco:</sp
           {/* Instalar PWA */}
           {!pwaInstalled && (installPrompt || isSafari || isIos) && (
             <button onClick={handleInstallPwa} title="Instalar App"
-              className="flex items-center gap-1.5 px-2 sm:px-2.5 h-8 rounded-full text-[10px] font-black uppercase tracking-widest text-blue-600 border border-blue-200 bg-blue-50 hover:bg-blue-100 transition-all">
+              className="flex items-center gap-1.5 px-2 sm:px-2.5 h-8 rounded-xl text-[10px] font-bold uppercase tracking-widest text-blue-600 border border-blue-200 bg-blue-50 hover:bg-blue-100 transition-all">
               <Download size={11} /> <span className="hidden 2xl:inline">Instalar App</span>
             </button>
           )}
           {pwaInstalled && (
-            <span className="hidden 2xl:flex items-center gap-1.5 px-3 h-8 rounded-full text-[10px] font-black uppercase tracking-widest text-white bg-gradient-to-r from-blue-600 to-blue-700 shadow-sm shadow-blue-200">
+            <span className="hidden 2xl:flex items-center gap-1.5 px-3 h-8 rounded-xl text-[10px] font-bold uppercase tracking-widest text-white bg-gradient-to-r from-blue-600 to-blue-700 shadow-sm shadow-blue-200">
               <CheckCircle2 size={11} /> Instalado
             </span>
           )}
           {/* Sair */}
           <button onClick={handleLogout} title="Sair"
-            className="flex items-center gap-1.5 px-2 sm:px-3 h-8 rounded-full text-[10px] font-black uppercase tracking-widest text-slate-400 hover:text-red-500 transition-all border border-slate-200 hover:border-red-200 hover:bg-red-50">
+            className="flex items-center gap-1.5 px-2 sm:px-3 h-8 rounded-xl text-[10px] font-bold uppercase tracking-widest text-slate-400 hover:text-red-500 transition-all border border-slate-200 hover:border-red-200 hover:bg-red-50">
             <LogOut size={11} /> <span className="hidden sm:inline">Sair</span>
           </button>
         </div>
@@ -2304,19 +2301,18 @@ ${sale.change > 0 ? `<hr class="divider"/><div class="row bold"><span>Troco:</sp
               <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
               <input type="text" placeholder="Buscar produto por nome, código ou código de barras..." value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-10 pr-4 h-11 bg-white rounded-xl text-[13px] font-medium text-slate-700 placeholder:text-slate-400 focus:outline-none transition-all border border-slate-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 shadow-sm" />
+                className="w-full pl-10 pr-4 h-10 bg-white rounded-xl text-[13px] font-medium text-slate-700 placeholder:text-slate-400 focus:outline-none transition-all border border-slate-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 shadow-sm" />
             </div>
             <button onClick={() => scanInputRef.current?.focus()} title="Ativar leitura por código de barras"
-              className="hidden sm:flex items-center gap-2 h-11 px-4 rounded-xl text-[11px] font-black uppercase tracking-wide text-white shadow-sm shrink-0"
+              className="hidden sm:flex items-center justify-center h-10 w-10 rounded-xl text-white shadow-sm shrink-0"
               style={{ background: "linear-gradient(135deg, #3b82f6, #1d4ed8)" }}>
-              <Barcode size={14} />
-              Usar Código de Barras
+              <Barcode size={15} />
             </button>
             {/* Item avulso — venda rápida sem cadastro no catálogo */}
             <button
               onClick={() => setShowAvulsoModal(true)}
               title="Item Avulso"
-              className="shrink-0 h-11 px-3 rounded-xl flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wide text-emerald-600 border border-emerald-200 bg-white hover:bg-emerald-50 transition-all active:scale-[0.98]">
+              className="shrink-0 h-10 px-3 rounded-xl flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wide text-emerald-600 border border-emerald-200 bg-white hover:bg-emerald-50 transition-all active:scale-[0.98]">
               <PlusCircle size={14} />
               <span className="hidden sm:inline">Avulso</span>
             </button>
@@ -2337,7 +2333,7 @@ ${sale.change > 0 ? `<hr class="divider"/><div class="row bold"><span>Troco:</sp
               <button
                 onClick={() => { setShowServicesTab(true); setSelectedCategory(null); }}
                 className={cn(
-                  "shrink-0 h-8 px-3.5 rounded-full text-[10px] font-black uppercase tracking-wide transition-all border flex items-center gap-1.5",
+                  "shrink-0 h-7 px-3 rounded-lg text-[10px] font-bold tracking-wide transition-all border flex items-center gap-1.5",
                   showServicesTab
                     ? "text-white border-violet-500 shadow"
                     : "bg-white text-slate-500 border-slate-200 hover:border-violet-300 hover:text-violet-600"
@@ -2356,7 +2352,7 @@ ${sale.change > 0 ? `<hr class="divider"/><div class="row bold"><span>Troco:</sp
               <button key={cat.id ?? "all"}
                 onClick={() => { setShowServicesTab(false); setSelectedCategory(cat.id); }}
                 className={cn(
-                  "shrink-0 h-8 px-3.5 rounded-full text-[10px] font-black uppercase tracking-wide transition-all border flex items-center gap-1",
+                  "shrink-0 h-7 px-3 rounded-lg text-[10px] font-bold tracking-wide transition-all border flex items-center gap-1",
                   !showServicesTab && selectedCategory === cat.id
                     ? "text-white border-blue-500 shadow"
                     : "bg-white text-slate-500 border-slate-200 hover:border-blue-300 hover:text-blue-600"
@@ -2485,7 +2481,7 @@ ${sale.change > 0 ? `<hr class="divider"/><div class="row bold"><span>Troco:</sp
                       onClick={() => addToCart(product)}
                       whileTap={{ scale: 0.98 }}
                       className={cn(
-                        "bg-white rounded-xl border flex items-center gap-3 group relative text-left overflow-hidden transition-all duration-200 px-3 py-2.5 shadow-sm",
+                        "bg-white rounded-xl border flex items-center gap-3 group relative text-left overflow-hidden transition-all duration-200 px-2.5 py-2",
                         qtyInCart > 0
                           ? "cursor-pointer border-blue-400 shadow-sm shadow-blue-100"
                           : "cursor-pointer border-slate-200 hover:border-blue-300 hover:shadow-sm hover:shadow-blue-50"
@@ -2498,7 +2494,7 @@ ${sale.change > 0 ? `<hr class="divider"/><div class="row bold"><span>Troco:</sp
                         {qtyInCart > 0 && (
                           <span
                             title={`${qtyInCart} ${qtyInCart === 1 ? "unidade adicionada" : "unidades adicionadas"}`}
-                            className="absolute top-1 left-1 min-w-5 h-5 px-1 rounded-md flex items-center justify-center text-[9px] leading-none font-black text-white shadow-md ring-2 ring-white"
+                            className="absolute top-1 left-1 w-4.5 h-4.5 min-w-[18px] rounded-md flex items-center justify-center text-[9px] leading-none font-black text-white shadow"
                             style={{ background: "linear-gradient(135deg,#3b82f6,#1d4ed8)" }}>
                             {qtyInCart}
                           </span>
@@ -2619,7 +2615,7 @@ ${sale.change > 0 ? `<hr class="divider"/><div class="row bold"><span>Troco:</sp
         </div>
 
         {/* ── Carrinho Desktop ──────────────────────────────────────────────── */}
-        <aside className="hidden xl:flex w-[clamp(340px,28vw,400px)] flex-col overflow-hidden shrink-0 border-l border-slate-200 bg-white shadow-[-8px_0_24px_rgba(15,23,42,0.05)]">
+        <aside className="hidden xl:flex w-[360px] flex-col overflow-hidden shrink-0 border-l border-slate-200 bg-white shadow-[-8px_0_24px_rgba(15,23,42,0.05)]">
           <CartPanel
             cart={cart}
             updateQuantity={updateQuantity}
@@ -5076,8 +5072,8 @@ function CartPanel({
       {/* Header */}
       <div className="px-4 py-3 border-b border-slate-800 flex items-center justify-between shrink-0 bg-slate-950 text-white">
         <div className="flex items-center gap-2.5">
-          <div className="w-8 h-8 bg-blue-500/15 border border-blue-400/30 rounded-lg flex items-center justify-center">
-            <ShoppingCart size={15} className="text-blue-300" />
+          <div className="w-7 h-7 bg-blue-500/15 border border-blue-400/30 rounded-lg flex items-center justify-center">
+            <ShoppingCart size={14} className="text-blue-300" />
           </div>
           <div>
             <h3 className="text-[12px] font-black uppercase tracking-widest text-white">Carrinho</h3>
