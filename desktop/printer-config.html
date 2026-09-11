@@ -96,13 +96,15 @@
     </select>
 
     <div id="thermalFields">
-      <label>Marca / Compatibilidade</label>
-      <select id="brand">
-        <option value="epson">Epson (padrão — compatível com Elgin, Bematech)</option>
-        <option value="daruma">Daruma</option>
-        <option value="star">Star</option>
-        <option value="tanca">Tanca</option>
-      </select>
+      <div id="brandFields">
+        <label>Marca / Compatibilidade</label>
+        <select id="brand">
+          <option value="epson">Epson (padrão — compatível com Elgin, Bematech)</option>
+          <option value="daruma">Daruma</option>
+          <option value="star">Star</option>
+          <option value="tanca">Tanca</option>
+        </select>
+      </div>
 
       <label>Conexão</label>
       <div class="transport-group">
@@ -159,6 +161,9 @@
     function setTransport(t) {
       currentTransport = t;
       document.querySelectorAll(".transport-btn").forEach((b) => b.classList.toggle("active", b.dataset.transport === t));
+      // Marca/compatibilidade só importa pro driver ESC/POS usado em COM/Bluetooth e
+      // Rede — impressora do Windows manda ESC/POS raw genérico direto pro spooler.
+      document.getElementById("brandFields").style.display = t === "usb" ? "none" : "block";
       document.getElementById("usbFields").style.display = t === "usb" ? "block" : "none";
       document.getElementById("serialFields").style.display = t === "serial" ? "block" : "none";
       document.getElementById("networkFields").style.display = t === "network" ? "block" : "none";

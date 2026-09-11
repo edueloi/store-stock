@@ -4,6 +4,7 @@ const fs = require("fs");
 const https = require("https");
 const { SerialPort } = require("serialport");
 const { autoUpdater } = require("electron-updater");
+const log = require("electron-log");
 const printerModule = require("./printer.cjs");
 const offlineDb = require("./db.cjs");
 
@@ -598,6 +599,12 @@ ipcMain.handle("db:remove-op", (_e, localId) => offlineDb.removeOp(localId));
 // ─── Auto-update ─────────────────────────────────────────────────────────────
 // Checa e baixa a atualização em segundo plano; só instala quando o app fechar
 // (nunca no meio de uma venda) ou se o operador confirmar manualmente pelo aviso.
+// Grava o que o autoUpdater faz de verdade (checagem, download, erro) num arquivo
+// acessível pelo usuário — sem isso, uma falha de update só aparecia no
+// console.error, invisível no app empacotado (sem terminal visível).
+log.transports.file.level = "info";
+autoUpdater.logger = log;
+
 autoUpdater.autoDownload = true;
 autoUpdater.autoInstallOnAppQuit = true;
 
