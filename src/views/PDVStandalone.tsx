@@ -7,6 +7,7 @@ import {
   PlusCircle, Barcode, Users, Scan, Star, Gift, UserPlus, Download,
   Maximize2, Minimize2, Wrench, WifiOff, RefreshCw, Terminal,
   LayoutGrid, List, ChevronLeft, Clock, Wallet, ShoppingBag, Ruler,
+  Settings,
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { Product, Category, NfceInvoice } from "../types";
@@ -263,6 +264,7 @@ export default function PDVStandalone() {
   const [cashSessionLoading, setCashSessionLoading] = useState(true);
   const [showCloseCashModal, setShowCloseCashModal] = useState(false);
   const [operatorName, setOperatorName] = useState<string>("");
+  const [showUserMenu, setShowUserMenu] = useState(false);
   const [syncing, setSyncing]       = useState(false);
   const [syncToast, setSyncToast]   = useState<string | null>(null);
   const [showPendingModal, setShowPendingModal] = useState(false);
@@ -2173,11 +2175,39 @@ ${sale.change > 0 ? `<hr class="divider"/><div class="row bold"><span>Troco:</sp
               <CheckCircle2 size={11} /> Instalado
             </span>
           )}
-          {/* Sair */}
-          <button onClick={handleLogout} title="Sair"
-            className="flex items-center gap-1.5 px-2 sm:px-3 h-8 rounded-xl text-[10px] font-bold uppercase tracking-widest text-slate-400 hover:text-red-500 transition-all border border-slate-200 hover:border-red-200 hover:bg-red-50">
-            <LogOut size={11} /> <span className="hidden sm:inline">Sair</span>
-          </button>
+          {/* Usuário logado */}
+          <div className="relative shrink-0">
+            <button onClick={() => setShowUserMenu((v) => !v)} title={operatorName || "Usuário"}
+              className={cn(
+                "flex items-center gap-1.5 px-2 sm:px-3 h-8 rounded-xl text-[10px] font-bold uppercase tracking-widest border transition-all",
+                showUserMenu ? "text-blue-600 border-blue-200 bg-blue-50" : "text-slate-400 border-slate-200 hover:bg-slate-50 hover:text-slate-600"
+              )}>
+              <Settings size={11} />
+              <span className="hidden lg:inline max-w-[100px] truncate">{operatorName || "Usuário"}</span>
+            </button>
+            <AnimatePresence>
+              {showUserMenu && (
+                <>
+                  <div className="fixed inset-0 z-[190]" onClick={() => setShowUserMenu(false)} />
+                  <motion.div
+                    initial={{ opacity: 0, y: -6, scale: 0.97 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: -6, scale: 0.97 }}
+                    transition={{ duration: 0.12 }}
+                    className="absolute right-0 top-[calc(100%+6px)] z-[191] w-56 bg-white border border-slate-200 rounded-2xl shadow-xl overflow-hidden">
+                    <div className="px-4 py-3 border-b border-slate-100">
+                      <p className="text-[9px] font-black uppercase tracking-widest text-slate-400">Usuário logado</p>
+                      <p className="text-[13px] font-black text-slate-800 truncate mt-0.5">{operatorName || "Operador"}</p>
+                    </div>
+                    <button onClick={() => { setShowUserMenu(false); handleLogout(); }}
+                      className="w-full flex items-center gap-2.5 px-4 h-11 text-[11px] font-bold text-red-500 hover:bg-red-50 transition-all">
+                      <LogOut size={14} /> Sair
+                    </button>
+                  </motion.div>
+                </>
+              )}
+            </AnimatePresence>
+          </div>
         </div>
         )}
       </header>

@@ -426,6 +426,18 @@ ipcMain.handle("printer:list-ports", async () => {
   }
 });
 
+// Impressoras instaladas no Windows via driver comum (a maioria das térmicas
+// USB modernas aparecem assim, não como porta COM) — lista nativa do próprio
+// Electron, sem depender de nenhum módulo externo.
+ipcMain.handle("printer:list-usb", async () => {
+  try {
+    const list = await mainWindow.webContents.getPrintersAsync();
+    return list.map((p) => ({ name: p.name, displayName: p.displayName || p.name, isDefault: !!p.isDefault }));
+  } catch {
+    return [];
+  }
+});
+
 ipcMain.handle("printer:get-config", () => getPrinterConfig());
 
 ipcMain.handle("printer:save-config", (_e, cfg) => {

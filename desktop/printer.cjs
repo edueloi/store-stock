@@ -1,4 +1,5 @@
 const { printer: ThermalPrinter, types: PrinterTypes } = require("node-thermal-printer");
+const { PosPrinter } = require("electron-pos-printer");
 
 const TYPE_MAP = {
   epson: PrinterTypes.EPSON,
@@ -28,7 +29,46 @@ function buildPrinter(config) {
   });
 }
 
+// ESC/POS "corte total" (GS V 0) — mesmo comando que o driver node-thermal-printer usa
+// no .cut(), reaplicado aqui pra manter o mesmo acabamento do cupom no transporte USB.
+const CUT_COMMAND = Buffer.from([0x1d, 0x56, 0x00]);
+
+// Impressora instalada como impressora comum do Windows (USB direto, a maioria das
+// térmicas modernas) — manda ESC/POS raw via spooler nativo em vez de escrever numa
+// porta serial, usando electron-pos-printer (sem dependência nativa própria).
+async function testUsbConnection(config) {
+  try {
+    if (!config.usbPrinterName) return { ok: false, error: "Nenhuma impressora selecionada." };
+    // node.js "printer"/PowerShell não expõem status de conexão direto — um comando
+    // vazio (0 bytes) valida que o spooler aceita a fila sem imprimir nada visível.
+    await PosPrinter.sendRawCommand(config.usbPrinterName, Buffer.alloc(0));
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, error: describeError(err) };
+  }
+}
+
+async function printReceiptUsb(text, config) {
+  try {
+    const encoded = Buffer.from(text, "utf-8");
+    await PosPrinter.sendRawCommand(config.usbPrinterName, Buffer.concat([encoded, CUT_COMMAND]));
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, error: describeError(err) };
+  }
+}
+
+async function openCashDrawerUsb(config) {
+  try {
+    await PosPrinter.openCashDrawer(config.usbPrinterName);
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, error: describeError(err) };
+  }
+}
+
 async function testConnection(config) {
+  if (config.transport === "usb") return testUsbConnection(config);
   try {
     const printer = buildPrinter(config);
     const connected = await printer.isPrinterConnected();
@@ -40,6 +80,7 @@ async function testConnection(config) {
 }
 
 async function printReceipt(text, config) {
+  if (config.transport === "usb") return printReceiptUsb(text, config);
   try {
     const printer = buildPrinter(config);
     // O texto já vem formatado em colunas fixas (centralização/alinhamento manual),
@@ -54,6 +95,7 @@ async function printReceipt(text, config) {
 }
 
 async function openCashDrawer(config) {
+  if (config.transport === "usb") return openCashDrawerUsb(config);
   try {
     const printer = buildPrinter(config);
     printer.openCashDrawer();

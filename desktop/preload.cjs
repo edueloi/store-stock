@@ -14,6 +14,7 @@ contextBridge.exposeInMainWorld("boxsysDesktop", {
   savePrinterConfig: (cfg) => ipcRenderer.invoke("printer:save-config", cfg),
   testPrinter: (cfg) => ipcRenderer.invoke("printer:test", cfg),
   listSerialPorts: () => ipcRenderer.invoke("printer:list-ports"),
+  listUsbPrinters: () => ipcRenderer.invoke("printer:list-usb"),
 
   // Pareamento deste terminal com um tenant (código de 6 dígitos digitado no painel web)
   getPairingState: () => ipcRenderer.invoke("pairing:get-state"),

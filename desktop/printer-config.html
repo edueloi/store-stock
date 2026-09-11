@@ -29,7 +29,7 @@
       text-transform: uppercase; letter-spacing: 0.06em; cursor: pointer; transition: all .15s;
     }
     .transport-btn.active { background: #1d4ed8; border-color: #1d4ed8; color: #fff; }
-    #serialFields, #networkFields { display: none; margin-top: 4px; }
+    #usbFields, #serialFields, #networkFields { display: none; margin-top: 4px; }
     button.primary {
       width: 100%; height: 44px; margin-top: 16px; border: none; border-radius: 12px;
       background: linear-gradient(135deg, #3b82f6, #1d4ed8); color: #fff;
@@ -79,7 +79,7 @@
 </head>
 <body>
   <h1>Impressoras deste terminal</h1>
-  <p class="sub">Configure quantas impressoras precisar — uma pra cupom de venda (térmica), outra pra Ordem de Serviço (A4), etc. Bluetooth pareado aparece como porta USB/Serial normal.</p>
+  <p class="sub">Configure quantas impressoras precisar — uma pra cupom de venda (térmica), outra pra Ordem de Serviço (A4), etc. Se a impressora já aparece em "Dispositivos e Impressoras" do Windows, use "Impressora do Windows". Bluetooth pareado sem instalação aparece como Porta COM.</p>
 
   <div class="list" id="printerList"></div>
   <div class="add-link" id="addLink" onclick="showForm()">+ Adicionar impressora</div>
@@ -106,8 +106,15 @@
 
       <label>Conexão</label>
       <div class="transport-group">
-        <button type="button" class="transport-btn active" data-transport="serial" onclick="setTransport('serial')">USB / Serial / Bluetooth</button>
+        <button type="button" class="transport-btn active" data-transport="usb" onclick="setTransport('usb')">Impressora do Windows</button>
+        <button type="button" class="transport-btn" data-transport="serial" onclick="setTransport('serial')">Porta COM / Bluetooth</button>
         <button type="button" class="transport-btn" data-transport="network" onclick="setTransport('network')">Rede (Wi-Fi/Ethernet)</button>
+      </div>
+
+      <div id="usbFields">
+        <label>Impressora</label>
+        <select id="usbPrinterName"></select>
+        <span class="refresh-link" onclick="loadUsbPrinters()">Atualizar lista de impressoras</span>
       </div>
 
       <div id="serialFields">
@@ -145,15 +152,34 @@
   </div>
 
   <script>
-    let currentTransport = "serial";
+    let currentTransport = "usb";
     let printers = [];
     let editingId = null;
 
     function setTransport(t) {
       currentTransport = t;
       document.querySelectorAll(".transport-btn").forEach((b) => b.classList.toggle("active", b.dataset.transport === t));
+      document.getElementById("usbFields").style.display = t === "usb" ? "block" : "none";
       document.getElementById("serialFields").style.display = t === "serial" ? "block" : "none";
       document.getElementById("networkFields").style.display = t === "network" ? "block" : "none";
+      if (t === "usb" && document.getElementById("usbPrinterName").options.length === 0) loadUsbPrinters();
+    }
+
+    async function loadUsbPrinters() {
+      const select = document.getElementById("usbPrinterName");
+      select.innerHTML = "<option>Buscando impressoras...</option>";
+      const list = await window.boxsysDesktop.listUsbPrinters();
+      select.innerHTML = "";
+      if (list.length === 0) {
+        select.innerHTML = "<option value=''>Nenhuma impressora encontrada no Windows</option>";
+        return;
+      }
+      list.forEach((p) => {
+        const opt = document.createElement("option");
+        opt.value = p.name;
+        opt.textContent = p.isDefault ? `${p.displayName} (padrão do Windows)` : p.displayName;
+        select.appendChild(opt);
+      });
     }
 
     async function loadPorts() {
@@ -203,6 +229,7 @@
         config: {
           brand: document.getElementById("brand").value,
           transport: currentTransport,
+          usbPrinterName: document.getElementById("usbPrinterName").value,
           serialPort: document.getElementById("serialPort").value,
           networkHost: document.getElementById("networkHost").value.trim(),
           networkPort: Number(document.getElementById("networkPort").value) || 9100,
@@ -222,7 +249,7 @@
       document.getElementById("label").value = "";
       document.getElementById("role").value = "receipt";
       document.getElementById("isDefault").checked = true;
-      setTransport("serial");
+      setTransport("usb");
       document.getElementById("msg").style.display = "none";
       document.getElementById("formBox").style.display = "block";
       document.getElementById("addLink").style.display = "none";
@@ -239,7 +266,8 @@
       document.getElementById("role").value = p.role;
       document.getElementById("isDefault").checked = !!p.is_default;
       document.getElementById("brand").value = p.config?.brand || "epson";
-      setTransport(p.config?.transport || "serial");
+      setTransport(p.config?.transport || "usb");
+      if (p.config?.usbPrinterName) document.getElementById("usbPrinterName").value = p.config.usbPrinterName;
       if (p.config?.serialPort) document.getElementById("serialPort").value = p.config.serialPort;
       if (p.config?.networkHost) document.getElementById("networkHost").value = p.config.networkHost;
       if (p.config?.networkPort) document.getElementById("networkPort").value = p.config.networkPort;
@@ -295,6 +323,7 @@
     }
 
     (async function init() {
+      await loadUsbPrinters();
       await loadPorts();
       await refreshList();
     })();
