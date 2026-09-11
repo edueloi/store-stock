@@ -1330,7 +1330,15 @@ export default function PDVStandalone() {
       alert(`Alguns produtos não foram encontrados e não puderam ser restaurados: ${missing.join(", ")}`);
     }
     setCart(restoredCart);
-    setCartServices((heldSale.snapshot?.cartServices as ServiceItem[] | undefined) ?? []);
+    // snapshot pode vir de uma venda em espera antiga (ou de uma fila offline
+    // sincronizada) onde o preço do serviço não foi normalizado antes de salvar —
+    // sempre forçar number aqui evita `.toFixed is not a function` no recibo depois.
+    const restoredServices = (heldSale.snapshot?.cartServices as ServiceItem[] | undefined) ?? [];
+    setCartServices(restoredServices.map((s) => ({
+      ...s,
+      price: Number(s.price) || 0,
+      price_per_measure: s.price_per_measure != null ? Number(s.price_per_measure) : s.price_per_measure,
+    })));
     setSelectedCustomerId(heldSale.customer_id);
     setCustomerName(heldSale.customer_name ?? "");
     setCustomerDocument(heldSale.snapshot?.customerDocument ?? "");
@@ -1548,11 +1556,14 @@ ${sale.tenantAddress ? `<div class="center" style="font-size:10px;color:#444;mar
 ${sale.sellerName ? `<div style="font-size:11px;margin:1px 0">Vendedor: ${sale.sellerName}</div>` : ""}
 <hr class="divider"/>
 <div class="section-label">Itens</div>
-${sale.items.map((item) => `
+${sale.items.map((item) => {
+  const price = Number(item.price) || 0;
+  return `
 <div style="margin:4px 0">
   <div class="item-name">${item.name}</div>
-  <div class="row item-sub"><span>${item.quantity} x R$ ${item.price.toFixed(2)}</span><span class="bold">R$ ${(item.price * item.quantity).toFixed(2)}</span></div>
-</div>`).join("")}
+  <div class="row item-sub"><span>${item.quantity} x R$ ${price.toFixed(2)}</span><span class="bold">R$ ${(price * item.quantity).toFixed(2)}</span></div>
+</div>`;
+}).join("")}
 <hr class="divider"/>
 <div class="row"><span class="bold">Qtd. de Itens:</span><span>${sale.items.reduce((a, b) => a + b.quantity, 0)}</span></div>
 ${(sale.discountValue > 0 || sale.surchargeValue > 0) ? `<div class="row"><span>Subtotal:</span><span>R$ ${sale.subtotal.toFixed(2)}</span></div>` : ""}
@@ -1667,13 +1678,16 @@ ${sale.change > 0 ? `<hr class="divider"/><div class="row bold"><span>Troco:</sp
     <div class="section-title">Itens da Venda</div>
     <table class="items">
       <thead><tr><th>Produto</th><th>Qtd</th><th>Unit.</th><th>Total</th></tr></thead>
-      <tbody>${sale.items.map((item) => `
+      <tbody>${sale.items.map((item) => {
+        const price = Number(item.price) || 0;
+        return `
         <tr>
           <td>${item.name}${item.dimensionsLabel ? `<div class="item-dims">${item.dimensionsLabel}</div>` : ""}</td>
           <td>${item.dimensionsLabel ? "—" : item.quantity}</td>
-          <td>R$ ${item.price.toFixed(2)}</td>
-          <td class="total-cell">R$ ${(item.price * item.quantity).toFixed(2)}</td>
-        </tr>`).join("")}
+          <td>R$ ${price.toFixed(2)}</td>
+          <td class="total-cell">R$ ${(price * item.quantity).toFixed(2)}</td>
+        </tr>`;
+      }).join("")}
       </tbody>
     </table>
 
@@ -1712,7 +1726,7 @@ ${sale.change > 0 ? `<hr class="divider"/><div class="row bold"><span>Troco:</sp
       sale.sellerName ? `*Vendedor:* ${sale.sellerName}` : null,
       ``,
       `*Itens:*`,
-      ...sale.items.map((i) => `• ${i.name} × ${i.quantity}  →  R$ ${(i.price * i.quantity).toFixed(2)}`),
+      ...sale.items.map((i) => `• ${i.name} × ${i.quantity}  →  R$ ${((Number(i.price) || 0) * i.quantity).toFixed(2)}`),
       ``,
       sale.discountValue > 0 ? `Desconto: − R$ ${sale.discountValue.toFixed(2)}` : null,
       sale.feeAmount > 0 ? `Juros: + R$ ${sale.feeAmount.toFixed(2)}` : null,
@@ -5169,8 +5183,8 @@ function CartPanel({
                     <p className="text-[9px] font-bold text-blue-500 uppercase tracking-widest">{item.variationLabel}</p>
                   )}
                   <div className="flex items-center justify-between mt-1">
-                    <p className="text-[10px] font-mono text-slate-400">R$ {item.price.toFixed(2)}</p>
-                    <p className="text-[12px] font-mono font-black text-slate-800">R$ {(item.price * item.quantity).toFixed(2)}</p>
+                    <p className="text-[10px] font-mono text-slate-400">R$ {(Number(item.price) || 0).toFixed(2)}</p>
+                    <p className="text-[12px] font-mono font-black text-slate-800">R$ {((Number(item.price) || 0) * item.quantity).toFixed(2)}</p>
                   </div>
                 </div>
                 <div className="flex flex-col items-center gap-1 shrink-0">
@@ -5183,9 +5197,7 @@ function CartPanel({
                       min={1}
                       max={item.isAvulso ? undefined : item.stock_quantity}
                       value={item.quantity}
-                      onChange={(e) => item.isAvulso
-                        ? setCart((prev) => prev.map((i) => i.cartItemId === item.cartItemId ? { ...i, quantity: Math.max(1, parseInt(e.target.value) || 1) } : i))
-                        : setQuantityDirect(item.cartItemId, parseInt(e.target.value) || 1, item.stock_quantity)}
+                      onChange={(e) => setQuantityDirect(item.cartItemId, parseInt(e.target.value) || 1, item.isAvulso ? undefined : item.stock_quantity)}
                       onFocus={(e) => e.target.select()}
                       className="w-8 text-center font-mono font-black text-[12px] text-slate-700 bg-transparent border-none outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
                     />

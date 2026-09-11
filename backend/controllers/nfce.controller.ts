@@ -102,15 +102,8 @@ export async function emitNfceForOrder(req: Request, res: Response) {
     });
     if (!order) { res.status(404).json({ error: "Venda não encontrada" }); return; }
 
-    let document = order.customer_document?.trim() || "";
-    if (!document && order.customer_id) {
-      const customer = await prisma.customer.findFirst({ where: { id: order.customer_id, tenant_id: tenantId }, select: { document: true } });
-      document = customer?.document?.trim() || "";
-    }
-    if (!document) {
-      res.status(422).json({ error: "CPF/CNPJ do cliente é obrigatório para emitir NFC-e. Informe o documento do cliente ou emita apenas o cupom comum." });
-      return;
-    }
+    // CPF/CNPJ do cliente é opcional na NFC-e (SEFAZ aceita "consumidor não
+    // identificado" normalmente) — não bloquear a emissão por falta de documento.
 
     let invoice = await prisma.nfceInvoice.findFirst({ where: { order_id: orderId, tenant_id: tenantId } });
     if (invoice?.status === "authorized") { res.status(409).json({ error: "NFC-e já autorizada" }); return; }
