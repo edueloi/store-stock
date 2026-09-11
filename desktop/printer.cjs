@@ -4,6 +4,7 @@ const { promisify } = require("util");
 const fs = require("fs");
 const os = require("os");
 const path = require("path");
+const iconv = require("iconv-lite");
 
 const execAsync = promisify(exec);
 
@@ -41,6 +42,21 @@ const CUT_COMMAND = Buffer.from([0x1d, 0x56, 0x00]);
 // ESC p — abre a gaveta de dinheiro (pino 2, tempos padrão), mesmo comando usado pela
 // impressora térmica "de verdade" via node-thermal-printer.openCashDrawer().
 const OPEN_DRAWER_COMMAND = Buffer.from([0x1b, 0x70, 0x00, 0x19, 0xfa]);
+// ESC t 2 — seleciona a pagina de codigo CP860 (Portugues) na impressora. Sem isso ela
+// usa CP437 (ingles) por padrao e qualquer acento (a, c, e...) sai como simbolo
+// quebrado no papel — mesma causa raiz ja corrigida no projeto cardapio-delivery.
+const CODEPAGE_PORTUGUESE_COMMAND = Buffer.from([0x1b, 0x74, 0x02]);
+
+// Converte o texto (UTF-8, padrao do JS) para bytes CP860 antes de mandar pra
+// impressora — CP860 preserva os bytes de controle ESC/GS (0x00-0x7F, mesma faixa do
+// ASCII) e so remapeia os acentos (0x80+), entao da pra converter o texto inteiro de
+// uma vez sem quebrar os comandos ESC/POS ja misturados nele.
+function encodeForThermalPrinter(text) {
+  return Buffer.concat([
+    CODEPAGE_PORTUGUESE_COMMAND,
+    iconv.encode(text, "cp860"),
+  ]);
+}
 
 // Impressora instalada como impressora comum do Windows (USB direto, a maioria das
 // térmicas modernas) — manda ESC/POS raw via spooler nativo via WritePrinter (Win32
@@ -130,8 +146,11 @@ async function testUsbConnection(config) {
 
 async function printReceiptUsb(text, config) {
   try {
-    const encoded = Buffer.from(text, "utf-8");
-    await sendRawToUsbPrinter(config.usbPrinterName, Buffer.concat([encoded, CUT_COMMAND]));
+    const encoded = encodeForThermalPrinter(text);
+    // Avanço generoso antes do corte — sem isso a lâmina corta em cima da última
+    // linha impressa em impressoras que não avançam papel sozinhas antes do GS V.
+    const feed = Buffer.from("\n\n\n\n\n", "ascii");
+    await sendRawToUsbPrinter(config.usbPrinterName, Buffer.concat([encoded, feed, CUT_COMMAND]));
     return { ok: true };
   } catch (err) {
     return { ok: false, error: describeError(err) };
