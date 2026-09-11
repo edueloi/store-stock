@@ -6,7 +6,7 @@ import {
   Bell, Sun, Moon, Package, AlertTriangle, Lock, Image, Upload, X, FileCheck, ShieldCheck,
   Smartphone, Zap, UserPlus, Trash2, Edit2, Eye, EyeOff, ShoppingCart, User,
   Monitor, Download, WifiOff, Terminal, CheckCircle2, XCircle, ClipboardList, Wallet,
-  Percent, Landmark,
+  Percent, Landmark, MousePointer2, CheckSquare,
 } from "lucide-react";
 import PageHeader from "../../components/layout/PageHeader";
 import DesktopTerminalsSection from "./DesktopTerminalsSection";
@@ -3292,6 +3292,65 @@ export default function Settings() {
                     💡 No Windows, o aviso "aplicativo não reconhecido" é normal na primeira instalação —
                     clique em "Mais informações" e depois "Executar assim mesmo".
                   </p>
+                </div>
+
+                {/* Guia visual: desbloquear o arquivo baixado (alternativa ao aviso do SmartScreen) */}
+                <div className="bg-white border border-slate-200 rounded-2xl p-5">
+                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Se o Windows continuar bloqueando</p>
+                  <p className="text-[11px] text-slate-500 font-medium mb-4">Desbloqueie o arquivo baixado antes de instalar — só precisa fazer isso uma vez.</p>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    {/* Passo 1 — clicar com o direito e abrir Propriedades */}
+                    <div className="space-y-2">
+                      <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 h-32 flex items-center justify-center">
+                        <div className="relative">
+                          <div className="w-9 h-9 rounded-lg bg-blue-100 flex items-center justify-center">
+                            <Monitor size={16} className="text-blue-600" />
+                          </div>
+                          <div className="absolute left-6 top-6 w-24 bg-white border border-slate-300 rounded-md shadow-lg overflow-hidden">
+                            <div className="px-2 py-1 text-[7px] font-semibold text-slate-500 border-b border-slate-100">Abrir</div>
+                            <div className="px-2 py-1 text-[7px] font-bold text-blue-700 bg-blue-50 flex items-center gap-1">
+                              <Settings2 size={8} /> Propriedades
+                            </div>
+                          </div>
+                          <MousePointer2 size={14} className="absolute -right-1 -bottom-1 text-slate-700" />
+                        </div>
+                      </div>
+                      <p className="text-[10px] font-bold text-slate-700 text-center">1. Clique com o botão direito no instalador e escolha <span className="text-blue-600">Propriedades</span></p>
+                    </div>
+
+                    {/* Passo 2 — marcar Desbloquear */}
+                    <div className="space-y-2">
+                      <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 h-32 flex items-center justify-center">
+                        <div className="w-28 bg-white border border-slate-300 rounded-md shadow-lg px-2 py-2 space-y-1.5">
+                          <p className="text-[7px] font-black text-slate-500 uppercase tracking-wide border-b border-slate-100 pb-1">Segurança</p>
+                          <p className="text-[6.5px] text-slate-400 leading-tight">Este arquivo veio de outro computador e pode estar bloqueado.</p>
+                          <div className="flex items-center gap-1 bg-blue-50 border border-blue-200 rounded px-1.5 py-1">
+                            <CheckSquare size={10} className="text-blue-600" />
+                            <span className="text-[7px] font-bold text-blue-700">Desbloquear</span>
+                          </div>
+                        </div>
+                      </div>
+                      <p className="text-[10px] font-bold text-slate-700 text-center">2. Na aba <span className="text-blue-600">Geral</span>, marque a caixa <span className="text-blue-600">Desbloquear</span></p>
+                    </div>
+
+                    {/* Passo 3 — confirmar em OK */}
+                    <div className="space-y-2">
+                      <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 h-32 flex items-center justify-center">
+                        <div className="w-24 bg-white border border-slate-300 rounded-md shadow-lg px-2 py-2 space-y-1.5">
+                          <div className="flex items-center gap-1 bg-emerald-50 border border-emerald-200 rounded px-1.5 py-1">
+                            <CheckSquare size={10} className="text-emerald-600" />
+                            <span className="text-[7px] font-bold text-emerald-700">Desbloquear</span>
+                          </div>
+                          <div className="flex justify-end gap-1 pt-0.5">
+                            <span className="text-[7px] font-black text-white bg-blue-600 rounded px-2 py-0.5">OK</span>
+                            <span className="text-[7px] font-semibold text-slate-400 border border-slate-200 rounded px-2 py-0.5">Cancelar</span>
+                          </div>
+                        </div>
+                      </div>
+                      <p className="text-[10px] font-bold text-slate-700 text-center">3. Clique em <span className="text-blue-600">OK</span> e instale o arquivo normalmente</p>
+                    </div>
+                  </div>
                 </div>
 
                 <DesktopTerminalsSection />
