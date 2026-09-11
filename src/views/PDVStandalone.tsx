@@ -1474,7 +1474,7 @@ export default function PDVStandalone() {
 
   // ── receipt helpers ──────────────────────────────────────────────────────────
   // Layout de 80 mm compartilhado com o PDV interno e o aplicativo desktop.
-  const buildThermalText = (sale: CompletedSale) => {
+  const buildThermalText = (sale: CompletedSale, invoice?: NfceInvoice | null) => {
     const now = new Date();
     const orderId = sale.offline ? "OFFLINE" : String(sale.orderId).padStart(6, "0");
     const W = 42;
@@ -1518,6 +1518,15 @@ export default function PDVStandalone() {
       receipt += row(`Pagamento: ${PM_LABEL[payment.method]}${installments}`, `R$ ${money(Number(payment.amount))}`) + "\n";
     });
     if (sale.change > 0) receipt += row("Troco", `R$ ${money(sale.change)}`) + "\n";
+    if (invoice?.status === "authorized" && invoice.access_key) {
+      receipt += `${thin}\n${center("NFC-e AUTORIZADA")}\n`;
+      receipt += row("Número", String(invoice.number)) + "\n";
+      receipt += row("Série", String(invoice.series)) + "\n";
+      if (invoice.protocol) receipt += row("Protocolo", invoice.protocol) + "\n";
+      receipt += `${center("Chave de acesso:")}\n`;
+      const key = invoice.access_key;
+      receipt += `${center(key.replace(/(\d{4})(?=\d)/g, "$1 "))}\n`;
+    }
     receipt += `${thin}\n${center("Obrigado pela preferência!")}\n${center("Volte sempre!")}\n\n\n`;
     return receipt;
   };
@@ -1582,6 +1591,14 @@ ${sale.payments.map((p) => {
   return `<div class="row"><span>${label}</span><span class="bold">R$ ${Number(p.amount).toFixed(2)}</span></div>`;
 }).join("")}
 ${sale.change > 0 ? `<hr class="divider"/><div class="row bold"><span>Troco:</span><span>R$ ${sale.change.toFixed(2)}</span></div>` : ""}
+${nfceInvoice?.status === "authorized" && nfceInvoice.access_key ? `
+<hr class="divider-solid"/>
+<div class="center bold" style="font-size:11px;letter-spacing:1px">NFC-e AUTORIZADA</div>
+<div class="row"><span class="bold">Número:</span><span>${nfceInvoice.number}</span></div>
+<div class="row"><span class="bold">Série:</span><span>${nfceInvoice.series}</span></div>
+${nfceInvoice.protocol ? `<div class="row"><span class="bold">Protocolo:</span><span>${nfceInvoice.protocol}</span></div>` : ""}
+<div class="center" style="font-size:10px;margin-top:3px">Chave de acesso:</div>
+<div class="center" style="font-size:10px;word-break:break-all">${nfceInvoice.access_key.replace(/(\d{4})(?=\d)/g, "$1 ")}</div>` : ""}
 <hr class="divider-solid"/>
 <div class="center bold" style="font-size:12px;letter-spacing:1px;margin:6px 0">Obrigado pela preferência!</div>
 <div class="center" style="font-size:11px">Volte sempre!</div>
@@ -1788,7 +1805,7 @@ ${sale.change > 0 ? `<hr class="divider"/><div class="row bold"><span>Troco:</sp
   // navegador quando não há app desktop ou nenhuma impressora configurada.
   const printThermalReceipt = async (sale: CompletedSale) => {
     if (window.boxsysDesktop?.printReceipt) {
-      const result = await window.boxsysDesktop.printReceipt(buildThermalText(sale));
+      const result = await window.boxsysDesktop.printReceipt(buildThermalText(sale, nfceInvoice));
       if (result.ok) return;
       setPrintError(result.error || "Falha ao imprimir na impressora térmica.");
       return;
