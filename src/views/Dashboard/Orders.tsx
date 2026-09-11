@@ -31,6 +31,8 @@ import { motion, AnimatePresence } from "motion/react";
 import { downloadHtmlAsPdf } from "../../lib/pdf";
 import { useToast } from "../../components/ui/Toast";
 import { onRealtimeAny } from "../../lib/realtime";
+import { fetchRemotePrintTerminals, requestRemotePrint, type RemotePrintTerminal } from "../../lib/remotePrint";
+import { Printer } from "lucide-react";
 
 // Baixa um arquivo autenticado (Bearer token) via fetch+blob — um <a href> direto
 // não envia o header Authorization e o backend responde 401.
@@ -376,6 +378,8 @@ export default function Orders() {
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
   const [generatingWarrantyPdf, setGeneratingWarrantyPdf] = useState(false);
   const [generatingReceiptPdf, setGeneratingReceiptPdf] = useState(false);
+  const [remoteTerminals, setRemoteTerminals] = useState<RemotePrintTerminal[]>([]);
+  const [remotePrintSending, setRemotePrintSending] = useState<number | null>(null);
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [cancelReason, setCancelReason] = useState("");
   const [cancelledBy, setCancelledBy] = useState("");
@@ -483,6 +487,17 @@ export default function Orders() {
       .then((v) => {
         if (v) setPrinterSize(v as "58mm" | "80mm" | "A4");
       })
+      .catch(() => {});
+  }, []);
+
+  // Terminais desktop pareados que tenham uma impressora "receipt" — só faz sentido
+  // oferecer quando esta tela não roda dentro do app desktop (que já imprime local).
+  useEffect(() => {
+    if (window.boxsysDesktop) return;
+    const t = token();
+    if (!t) return;
+    fetchRemotePrintTerminals(t)
+      .then((terminals) => setRemoteTerminals(terminals.filter((rt) => rt.printers.some((p) => p.role === "receipt"))))
       .catch(() => {});
   }, []);
 
@@ -994,6 +1009,79 @@ ${payments
   Este documento não tem valor fiscal.
 </div>
 </body></html>`;
+  };
+
+  // Texto em colunas fixas (42 caracteres) para impressora térmica ESC/POS — mesmo
+  // padrão de buildThermalText do PDV, adaptado aos campos disponíveis em OrderDetail
+  // (não tem código/SKU por item, diferente do carrinho do PDV).
+  const buildOrderThermalText = (order: OrderDetail): string => {
+    const W = 42;
+    const rule = "=".repeat(W);
+    const thin = "-".repeat(W);
+    const money = (v: number) => v.toFixed(2).replace(".", ",");
+    const truncate = (value: string, max = W) => String(value || "").slice(0, max);
+    const center = (value: string) => {
+      const text = truncate(value);
+      return " ".repeat(Math.max(0, Math.floor((W - text.length) / 2))) + text;
+    };
+    const row = (left: string, right = "") => {
+      const rightText = truncate(right, 15);
+      const leftText = truncate(left, W - rightText.length - 1);
+      return `${leftText}${" ".repeat(Math.max(1, W - leftText.length - rightText.length))}${rightText}`;
+    };
+    const parsePaymentsSimple = (raw?: string | null) => {
+      if (!raw) return [{ label: "Não informado", amount: 0 }];
+      return raw.split("|").map((seg) => {
+        const parts = seg.trim().split(":");
+        const method = parts[0]?.split("-")[0]?.toLowerCase() ?? "";
+        const amount = Number(parts[1]) || 0;
+        const labels: Record<string, string> = { money: "Dinheiro", pix: "PIX", debit: "Débito", credit: "Crédito" };
+        return { label: labels[method] ?? (method ? method.charAt(0).toUpperCase() + method.slice(1) : "—"), amount };
+      });
+    };
+
+    const orderId = `#${String(order.id).padStart(6, "0")}`;
+    const dateTime = new Date(order.created_at).toLocaleString("pt-BR");
+
+    let receipt = "\n";
+    receipt += `${center((tenant?.name || "").toUpperCase())}\n`;
+    if (tenant?.address_street) {
+      const addr = [tenant.address_street, tenant.address_number].filter(Boolean).join(", ");
+      if (addr) receipt += `${center(addr)}\n`;
+    }
+    if (tenant?.document) receipt += `${center(`CNPJ: ${tenant.document}`)}\n`;
+    receipt += `${row(dateTime, orderId)}\n${rule}\n`;
+    receipt += `${center("CUPOM")}\n${thin}\n`;
+    receipt += "ITEM  DESCRIÇÃO\n";
+    receipt += "      QTD  X UNITÁRIO       VALOR (R$)\n";
+    receipt += `${thin}\n`;
+    order.items.forEach((item, idx) => {
+      receipt += `${String(idx + 1).padStart(3, "0")}   ${truncate(item.product_name, 34)}\n`;
+      receipt += row(`      ${item.quantity} UN x ${money(item.unit_price)}`, money(item.unit_price * item.quantity)) + "\n";
+    });
+    receipt += `${thin}\n`;
+    receipt += row("Cliente", order.customer_name || "Consumidor final") + "\n";
+    receipt += row("Qtde. Total Itens", String(order.items.reduce((sum, i) => sum + i.quantity, 0))) + "\n";
+    if (order.discount_amount && Number(order.discount_amount) > 0) {
+      receipt += row("Desconto", `- R$ ${money(Number(order.discount_amount))}`) + "\n";
+    }
+    if (order.fee_amount && Number(order.fee_amount) > 0) {
+      receipt += row("Juros máquina", `+ R$ ${money(Number(order.fee_amount))}`) + "\n";
+    }
+    receipt += `${rule}\n${row("Valor Total R$", money(Number(order.total_amount)))}\n${rule}\n`;
+    parsePaymentsSimple(order.payment_method).forEach((p) => {
+      receipt += row(`Forma Pagamento: ${p.label}`, `R$ ${money(p.amount)}`) + "\n";
+    });
+    receipt += `${thin}\n${center("Obrigado pela preferência!")}\n${center("Volte sempre!")}\n\n\n`;
+    return receipt;
+  };
+
+  const handleRemotePrintOrder = async (terminalId: number) => {
+    if (!selectedOrder) return;
+    setRemotePrintSending(terminalId);
+    const result = await requestRemotePrint(token() || "", terminalId, "receipt", buildOrderThermalText(selectedOrder));
+    setRemotePrintSending(null);
+    if (!result.ok) notify.error(result.error || "Falha ao pedir impressão remota.");
   };
 
   const handlePrintReceipt = () => {
@@ -2018,6 +2106,20 @@ ${payments
 
               {/* ── Footer actions ── */}
               <div className="shrink-0 px-4 pt-3 pb-4 border-t border-slate-100 bg-white safe-area-bottom">
+                {remoteTerminals.length > 0 && (
+                  <div className="mb-2 space-y-1.5">
+                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em]">Imprimir em Terminal Vinculado</p>
+                    {remoteTerminals.map((rt) => (
+                      <button key={rt.id}
+                        onClick={() => handleRemotePrintOrder(rt.id)}
+                        disabled={remotePrintSending === rt.id}
+                        className="w-full flex items-center gap-2.5 h-10 px-3 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-xl text-[11px] font-bold text-blue-700 transition-all disabled:opacity-60">
+                        {remotePrintSending === rt.id ? <Loader2 size={13} className="animate-spin" /> : <Printer size={13} />}
+                        {rt.name}
+                      </button>
+                    ))}
+                  </div>
+                )}
                 <div className="grid grid-cols-2 gap-2 mb-2">
                   <button onClick={handleDownloadReceipt} disabled={generatingReceiptPdf}
                     className="h-11 bg-slate-100 hover:bg-slate-200 active:scale-95 rounded-2xl text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-all text-slate-700 disabled:opacity-60">
