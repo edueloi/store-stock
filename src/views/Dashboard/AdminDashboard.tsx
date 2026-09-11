@@ -36,6 +36,7 @@ import {
   Terminal,
   ShoppingBag,
   HardHat,
+  History,
   Kanban,
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
@@ -57,6 +58,7 @@ import ContasReceber from "./ContasReceber";
 import ContasPagar from "./ContasPagar";
 import CalendarioFinanceiro from "./CalendarioFinanceiro";
 import RelatorioFinanceiro from "./RelatorioFinanceiro";
+import CashSessionHistory from "./CashSessionHistory";
 import MeuPerfil from "./MeuPerfil";
 import Settings from "./Settings";
 import Customers from "./Customers";
@@ -570,6 +572,7 @@ export default function AdminDashboard() {
       items: [
         { icon: ArrowDownCircle,  label: "Contas a Receber",  path: "/admin/contas-receber", key: "contas_receber" },
         { icon: ArrowUpCircle,    label: "Contas a Pagar",    path: "/admin/contas-pagar",   key: "contas_pagar" },
+        { icon: History,          label: "Histórico de Caixa", path: "/admin/historico-caixa", key: "historico_caixa" },
         { icon: CalendarDays,     label: "Calendário Financeiro", path: "/admin/calendario-financeiro", key: "calendario_financeiro" },
         { icon: FileBarChart,     label: "Relatório Financeiro", path: "/admin/relatorio-financeiro", key: "relatorio_financeiro" },
         { icon: Target,           label: "Metas",             path: "/admin/metas",          key: "metas" },
@@ -901,6 +904,7 @@ export default function AdminDashboard() {
               <Route path="contas-receber" element={<ContasReceber />} />
               <Route path="contas-pagar" element={<ContasPagar />} />
               <Route path="calendario-financeiro" element={<CalendarioFinanceiro />} />
+              <Route path="historico-caixa" element={<CashSessionHistory />} />
               <Route path="relatorio-financeiro" element={<RelatorioFinanceiro />} />
               <Route path="meu-perfil" element={<MeuPerfil />} />
               <Route path="analytics" element={<Analytics />} />
