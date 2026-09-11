@@ -38,6 +38,22 @@ function trimText(v: string | null | undefined): string {
   return (v ?? "").trim();
 }
 
+// A SEFAZ valida cEAN/cEANTrib como um GTIN estrutural real (8/12/13/14 dígitos com
+// dígito verificador correto), não como "qualquer texto no campo código de barras" —
+// um código interno/errado cadastrado no produto (ex: menos dígitos, prefixo fora da
+// faixa GS1) é rejeitado com "GTIN (cEAN) com prefixo inválido". Mandar "SEM GTIN"
+// nesses casos é o valor aceito pela SEFAZ para "produto sem código de barras".
+function validGtinOrFallback(v: string | null | undefined): string {
+  const digits = onlyDigits(v);
+  if (![8, 12, 13, 14].includes(digits.length)) return "SEM GTIN";
+  const nums = digits.split("").map(Number);
+  const checkDigit = nums.pop()!;
+  let sum = 0;
+  nums.reverse().forEach((n, i) => { sum += n * (i % 2 === 0 ? 3 : 1); });
+  const calculated = (10 - (sum % 10)) % 10;
+  return calculated === checkDigit ? digits : "SEM GTIN";
+}
+
 // Mapeia o token interno de forma de pagamento (usado em sales.controller.ts)
 // para o código tPag exigido pelo layout da NFC-e.
 const TPAG_MAP: Record<string, string> = {
@@ -141,7 +157,8 @@ export function buildNfceXml(input: BuildNfceInput): BuildNfceResult {
     const det = doc.ele("det", { nItem: String(nItem) });
     const prod = det.ele("prod");
     prod.ele("cProd").txt(item.product.sku || String(item.product.id));
-    prod.ele("cEAN").txt(item.product.barcode || "SEM GTIN");
+    const validGtin = validGtinOrFallback(item.product.barcode);
+    prod.ele("cEAN").txt(validGtin);
     // A SEFAZ exige que o primeiro item da nota, em ambiente de homologação, tenha
     // exatamente esse texto fixo como descrição — senão rejeita com cStat 373.
     const isPrimeiroItemHomolog = nItem === 1 && tenant.nfce_environment !== "producao";
@@ -157,7 +174,7 @@ export function buildNfceXml(input: BuildNfceInput): BuildNfceResult {
     prod.ele("qCom").txt(String(item.quantity));
     prod.ele("vUnCom").txt(vUnCom.toFixed(10));
     prod.ele("vProd").txt(vProd.toFixed(2));
-    prod.ele("cEANTrib").txt(item.product.barcode || "SEM GTIN");
+    prod.ele("cEANTrib").txt(validGtin);
     prod.ele("uTrib").txt(item.product.unidade_tributavel);
     prod.ele("qTrib").txt(String(item.quantity));
     prod.ele("vUnTrib").txt(vUnCom.toFixed(10));

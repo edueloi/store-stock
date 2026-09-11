@@ -1501,9 +1501,14 @@ export default function PDV() {
     if (!token) return;
     setRemotePrintSending(terminalId);
     setPrintError(null);
-    const result = await requestRemotePrint(token, terminalId, "receipt", buildThermalText(sale));
-    setRemotePrintSending(null);
-    if (!result.ok) setPrintError(result.error || "Falha ao pedir impressão remota.");
+    try {
+      const result = await requestRemotePrint(token, terminalId, "receipt", buildThermalText(sale));
+      if (!result.ok) setPrintError(result.error || "Falha ao pedir impressão remota.");
+    } catch {
+      setPrintError("Falha ao pedir impressão remota. Verifique sua conexão.");
+    } finally {
+      setRemotePrintSending(null);
+    }
   };
 
   // ── finish sale ───────────────────────────────────────────────────────────────

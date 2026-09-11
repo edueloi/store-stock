@@ -1079,9 +1079,14 @@ ${payments
   const handleRemotePrintOrder = async (terminalId: number) => {
     if (!selectedOrder) return;
     setRemotePrintSending(terminalId);
-    const result = await requestRemotePrint(token() || "", terminalId, "receipt", buildOrderThermalText(selectedOrder));
-    setRemotePrintSending(null);
-    if (!result.ok) notify.error(result.error || "Falha ao pedir impressão remota.");
+    try {
+      const result = await requestRemotePrint(token() || "", terminalId, "receipt", buildOrderThermalText(selectedOrder));
+      if (!result.ok) notify.error(result.error || "Falha ao pedir impressão remota.");
+    } catch {
+      notify.error("Falha ao pedir impressão remota. Verifique sua conexão.");
+    } finally {
+      setRemotePrintSending(null);
+    }
   };
 
   const handlePrintReceipt = () => {
