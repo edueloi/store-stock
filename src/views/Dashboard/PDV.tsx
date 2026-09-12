@@ -326,6 +326,7 @@ export default function PDV() {
   const [showNewSellerModal, setShowNewSellerModal] = useState(false);
   const [newSellerName, setNewSellerName] = useState("");
   const [savingNewSeller, setSavingNewSeller] = useState(false);
+  const [teamMembers, setTeamMembers] = useState<{ id: number; name: string }[]>([]);
 
   // barcode scanner
   const [scanCode, setScanCode]           = useState("");
@@ -1497,6 +1498,19 @@ export default function PDV() {
     if (!window.boxsysDesktop?.openCashDrawer) return;
     const result = await window.boxsysDesktop.openCashDrawer();
     if (!result.ok) setPrintError(result.error || "Falha ao abrir a gaveta.");
+  };
+
+  // Sugestões de nome pra "+ Novo Vendedor" a partir dos usuários (login) já
+  // cadastrados no tenant — Vendedor e Usuário continuam sendo dois cadastros
+  // separados no banco (Vendedor não tem senha/login), isso só evita digitar de
+  // novo um nome que já existe como usuário do sistema.
+  const openNewSellerModal = () => {
+    setShowNewSellerModal(true);
+    if (!token) return;
+    fetch("/api/team", { headers: { Authorization: `Bearer ${token}` } })
+      .then((r) => r.ok ? r.json() : [])
+      .then((d) => setTeamMembers(Array.isArray(d) ? d : []))
+      .catch(() => {});
   };
 
   // Cadastro rápido de vendedor direto do PDV — sem precisar sair da venda pra
@@ -3282,7 +3296,7 @@ export default function PDV() {
                     <div>
                       <div className="flex items-center justify-between mb-1.5">
                         <label className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400">Vendedor</label>
-                        <button type="button" onClick={() => setShowNewSellerModal(true)}
+                        <button type="button" onClick={openNewSellerModal}
                           className="text-[9px] font-black uppercase tracking-widest text-blue-600 hover:text-blue-700">
                           + Novo
                         </button>
@@ -4651,6 +4665,27 @@ export default function PDV() {
                   className="w-full h-11 px-3 rounded-xl border border-slate-200 text-[13px] font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400"
                 />
               </div>
+              {(() => {
+                const suggestions = teamMembers.filter(
+                  (u) => !sellers.some((s) => s.name.trim().toLowerCase() === u.name.trim().toLowerCase()),
+                );
+                if (suggestions.length === 0) return null;
+                return (
+                  <div>
+                    <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-1.5">
+                      Ou escolha um usuário já cadastrado
+                    </p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {suggestions.map((u) => (
+                        <button key={u.id} type="button" onClick={() => setNewSellerName(u.name)}
+                          className="px-2.5 py-1.5 rounded-lg bg-slate-100 hover:bg-blue-50 hover:text-blue-700 text-[11px] font-bold text-slate-600 transition-colors">
+                          {u.name}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })()}
               <button
                 onClick={handleCreateSeller}
                 disabled={!newSellerName.trim() || savingNewSeller}
