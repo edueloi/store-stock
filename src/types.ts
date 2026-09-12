@@ -62,6 +62,7 @@ export interface Tenant {
   pass_fee_by_method?: Record<string, boolean>;
   require_cash_session?: boolean;
   print_cash_close_receipt?: boolean;
+  logout_on_cash_close?: boolean;
   fluxo_producao_enabled?: boolean;
   grafica_enabled?: boolean;
   plan_features?: string[] | null;

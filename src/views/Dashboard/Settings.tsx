@@ -2969,6 +2969,24 @@ export default function Settings() {
                   </div>
                 </div>
 
+                <div className="bg-slate-50 border border-slate-100 rounded-2xl p-5 space-y-4 max-w-lg">
+                  <div className="flex items-center justify-between gap-4">
+                    <div>
+                      <p className="text-[11px] font-black uppercase tracking-widest text-slate-700">
+                        Deslogar ao fechar o caixa
+                      </p>
+                      <p className="text-[10px] text-slate-400 font-medium mt-1 leading-relaxed">
+                        Ao confirmar o fechamento, encerra a sessão do operador no PDV — útil
+                        quando vários operadores revezam o mesmo terminal em turnos diferentes.
+                      </p>
+                    </div>
+                    <Toggle
+                      checked={!!tenant?.logout_on_cash_close}
+                      onChange={(v) => setT({ logout_on_cash_close: v })}
+                    />
+                  </div>
+                </div>
+
                 <SaveButton
                   onClick={handleSaveTenant}
                   label={saving ? "Salvando..." : "Salvar Configuração"}

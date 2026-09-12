@@ -261,6 +261,7 @@ export default function PDVStandalone() {
   // caixa (abertura/fechamento)
   const [requireCashSession, setRequireCashSession] = useState(false);
   const [printCashCloseReceipt, setPrintCashCloseReceipt] = useState(false);
+  const [logoutOnCashClose, setLogoutOnCashClose] = useState(false);
   const [cashSession, setCashSession] = useState<CashSessionInfo | null>(null);
   const [cashSessionLoading, setCashSessionLoading] = useState(true);
   const [showCloseCashModal, setShowCloseCashModal] = useState(false);
@@ -368,6 +369,9 @@ export default function PDVStandalone() {
   const [savingNC, setSavingNC]   = useState(false);
   const [sellers, setSellers]             = useState<SellerEntry[]>([]);
   const [selectedSellerId, setSelectedSellerId] = useState<number | null>(null);
+  const [showNewSellerModal, setShowNewSellerModal] = useState(false);
+  const [newSellerName, setNewSellerName] = useState("");
+  const [savingNewSeller, setSavingNewSeller] = useState(false);
   const [discount, setDiscount]           = useState("");
   const [discountMode, setDiscountMode]   = useState<"R$" | "%">("R$");
   const [surcharge, setSurcharge]         = useState("");
@@ -472,6 +476,32 @@ export default function PDVStandalone() {
   const handleLogout = () => {
     localStorage.removeItem("token"); localStorage.removeItem("user");
     setToken(null); setCart([]);
+  };
+
+  // Cadastro rápido de vendedor direto do PDV — sem precisar sair da venda pra
+  // ir na tela de Vendedores. Vendedor aqui é só um nome pra atribuir a venda
+  // (comissão/relatórios), não tem login/senha no sistema.
+  const handleCreateSeller = async () => {
+    const name = newSellerName.trim();
+    if (!name || savingNewSeller) return;
+    setSavingNewSeller(true);
+    try {
+      const res = await fetch("/api/sellers", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ name }),
+      });
+      if (!res.ok) throw new Error();
+      const created: SellerEntry = await res.json();
+      setSellers((prev) => [...prev, created]);
+      setSelectedSellerId(created.id);
+      setShowNewSellerModal(false);
+      setNewSellerName("");
+    } catch {
+      alert("Erro ao cadastrar vendedor.");
+    } finally {
+      setSavingNewSeller(false);
+    }
   };
 
   // ── offline sync ─────────────────────────────────────────────────────────────
@@ -697,6 +727,7 @@ export default function PDVStandalone() {
       if (t.whatsapp) setTenantWhatsapp(t.whatsapp);
       if (t.require_cash_session !== undefined) setRequireCashSession(Boolean(t.require_cash_session));
       if (t.print_cash_close_receipt !== undefined) setPrintCashCloseReceipt(Boolean(t.print_cash_close_receipt));
+      if (t.logout_on_cash_close !== undefined) setLogoutOnCashClose(Boolean(t.logout_on_cash_close));
     };
 
     Promise.all([
@@ -3527,7 +3558,13 @@ ${nfceInvoice.protocol ? `<div class="row"><span class="bold">Protocolo:</span><
 
                     {/* Vendedor */}
                     <div className="relative">
-                      <label className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400 mb-1.5 block">Vendedor</label>
+                      <div className="flex items-center justify-between mb-1.5">
+                        <label className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400">Vendedor</label>
+                        <button type="button" onClick={() => setShowNewSellerModal(true)}
+                          className="text-[9px] font-black uppercase tracking-widest text-blue-600 hover:text-blue-700">
+                          + Novo
+                        </button>
+                      </div>
                       <Combobox
                         placeholder="Sem vendedor"
                         searchPlaceholder="Buscar vendedor..."
@@ -4870,6 +4907,7 @@ ${nfceInvoice.protocol ? `<div class="row"><span class="bold">Protocolo:</span><
             setShowCloseCashModal(false);
             setCashSession(null);
             cacheSet("cashSession", null);
+            if (logoutOnCashClose) handleLogout();
           }}
           onConfirm={async (counted, breakdown, note) => {
             if (!navigator.onLine || cashSession.localId) {
@@ -4909,6 +4947,40 @@ ${nfceInvoice.protocol ? `<div class="row"><span class="bold">Protocolo:</span><
             return closed;
           }}
         />
+      )}
+
+      {showNewSellerModal && (
+        <div className="fixed inset-0 z-[600] flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-sm bg-white rounded-2xl border border-slate-200 shadow-2xl overflow-hidden">
+            <div className="flex items-center justify-between px-5 h-14 border-b border-slate-100">
+              <p className="text-[13px] font-black text-slate-800">Novo Vendedor</p>
+              <button onClick={() => { setShowNewSellerModal(false); setNewSellerName(""); }}
+                className="w-8 h-8 flex items-center justify-center rounded-xl hover:bg-slate-100 text-slate-400">
+                <X size={16} />
+              </button>
+            </div>
+            <div className="p-5 space-y-4">
+              <div>
+                <label className="text-[10px] font-bold uppercase tracking-widest text-slate-500 block mb-1">Nome</label>
+                <input
+                  type="text" autoFocus value={newSellerName}
+                  onChange={(e) => setNewSellerName(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === "Enter") handleCreateSeller(); }}
+                  placeholder="Nome do vendedor"
+                  className="w-full h-11 px-3 rounded-xl border border-slate-200 text-[13px] font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400"
+                />
+              </div>
+              <button
+                onClick={handleCreateSeller}
+                disabled={!newSellerName.trim() || savingNewSeller}
+                className="w-full h-11 rounded-xl bg-slate-900 text-white text-[12px] font-black uppercase tracking-widest flex items-center justify-center gap-2 hover:bg-slate-800 transition-all disabled:opacity-40"
+              >
+                {savingNewSeller ? <Loader2 size={14} className="animate-spin" /> : null}
+                {savingNewSeller ? "Salvando..." : "Cadastrar"}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

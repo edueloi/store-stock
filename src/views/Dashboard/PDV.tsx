@@ -323,6 +323,9 @@ export default function PDV() {
   // sellers
   const [sellers, setSellers]         = useState<{ id: number; name: string; commission_rate: number }[]>([]);
   const [selectedSellerId, setSelectedSellerId] = useState<number | null>(null);
+  const [showNewSellerModal, setShowNewSellerModal] = useState(false);
+  const [newSellerName, setNewSellerName] = useState("");
+  const [savingNewSeller, setSavingNewSeller] = useState(false);
 
   // barcode scanner
   const [scanCode, setScanCode]           = useState("");
@@ -339,6 +342,7 @@ export default function PDV() {
   // caixa (abertura/fechamento)
   const [requireCashSession, setRequireCashSession] = useState(false);
   const [printCashCloseReceipt, setPrintCashCloseReceipt] = useState(false);
+  const [logoutOnCashClose, setLogoutOnCashClose] = useState(false);
   const [cashSession, setCashSession] = useState<CashSessionInfo | null>(null);
   const [cashSessionLoading, setCashSessionLoading] = useState(true);
   const [showCloseCashModal, setShowCloseCashModal] = useState(false);
@@ -384,6 +388,7 @@ export default function PDV() {
         setCrediarioInterestRate(Number(d?.crediario_interest_rate) || 0);
         setCrediarioGraceDays(Number(d?.crediario_grace_days) || 0);
         if (d?.print_cash_close_receipt !== undefined) setPrintCashCloseReceipt(Boolean(d.print_cash_close_receipt));
+        if (d?.logout_on_cash_close !== undefined) setLogoutOnCashClose(Boolean(d.logout_on_cash_close));
         setTenant({
           name:          d?.name          || "BoxSys Store",
           address:       d?.address       || "",
@@ -1492,6 +1497,32 @@ export default function PDV() {
     if (!window.boxsysDesktop?.openCashDrawer) return;
     const result = await window.boxsysDesktop.openCashDrawer();
     if (!result.ok) setPrintError(result.error || "Falha ao abrir a gaveta.");
+  };
+
+  // Cadastro rápido de vendedor direto do PDV — sem precisar sair da venda pra
+  // ir na tela de Vendedores. Vendedor aqui é só um nome pra atribuir a venda
+  // (comissão/relatórios), não tem login/senha no sistema.
+  const handleCreateSeller = async () => {
+    const name = newSellerName.trim();
+    if (!name || savingNewSeller || !token) return;
+    setSavingNewSeller(true);
+    try {
+      const res = await fetch("/api/sellers", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ name }),
+      });
+      if (!res.ok) throw new Error();
+      const created = await res.json();
+      setSellers((prev) => [...prev, created]);
+      setSelectedSellerId(created.id);
+      setShowNewSellerModal(false);
+      setNewSellerName("");
+    } catch {
+      alert("Erro ao cadastrar vendedor.");
+    } finally {
+      setSavingNewSeller(false);
+    }
   };
 
   // Comprovante impresso ao fechar o caixa — resumo de entradas por forma de
@@ -3248,31 +3279,35 @@ export default function PDV() {
                     )}
 
                     {/* Vendedor */}
-                    {sellers.length > 0 && (
-                      <div>
-                        <label className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400 mb-1.5 block">Vendedor</label>
-                        <Combobox
-                          value={selectedSellerId !== null ? String(selectedSellerId) : ""}
-                          onChange={(value) => setSelectedSellerId(value ? Number(value) : null)}
-                          placeholder="Selecionar vendedor"
-                          searchPlaceholder="Buscar vendedor por nome..."
-                          options={[
-                            { value: "", label: "Sem vendedor", description: "Venda sem comissão", icon: <Users size={13} className="text-slate-400" /> },
-                            ...sellers.map((seller) => ({
-                              value: String(seller.id),
-                              label: seller.name,
-                              description: `Comissão de ${Number(seller.commission_rate).toFixed(1)}%`,
-                              icon: <span className="w-6 h-6 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center text-[9px] font-black">{seller.name.charAt(0).toUpperCase()}</span>,
-                            })),
-                          ]}
-                        />
-                        {selectedSellerId && (
-                          <p className="text-[9px] text-blue-500 font-bold mt-1.5">
-                            Comissão: {Number(sellers.find((s) => s.id === selectedSellerId)?.commission_rate ?? 0).toFixed(1)}% = R$ {(total * Number(sellers.find((s) => s.id === selectedSellerId)?.commission_rate ?? 0) / 100).toFixed(2)}
-                          </p>
-                        )}
+                    <div>
+                      <div className="flex items-center justify-between mb-1.5">
+                        <label className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400">Vendedor</label>
+                        <button type="button" onClick={() => setShowNewSellerModal(true)}
+                          className="text-[9px] font-black uppercase tracking-widest text-blue-600 hover:text-blue-700">
+                          + Novo
+                        </button>
                       </div>
-                    )}
+                      <Combobox
+                        value={selectedSellerId !== null ? String(selectedSellerId) : ""}
+                        onChange={(value) => setSelectedSellerId(value ? Number(value) : null)}
+                        placeholder="Selecionar vendedor"
+                        searchPlaceholder="Buscar vendedor por nome..."
+                        options={[
+                          { value: "", label: "Sem vendedor", description: "Venda sem comissão", icon: <Users size={13} className="text-slate-400" /> },
+                          ...sellers.map((seller) => ({
+                            value: String(seller.id),
+                            label: seller.name,
+                            description: `Comissão de ${Number(seller.commission_rate).toFixed(1)}%`,
+                            icon: <span className="w-6 h-6 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center text-[9px] font-black">{seller.name.charAt(0).toUpperCase()}</span>,
+                          })),
+                        ]}
+                      />
+                      {selectedSellerId && (
+                        <p className="text-[9px] text-blue-500 font-bold mt-1.5">
+                          Comissão: {Number(sellers.find((s) => s.id === selectedSellerId)?.commission_rate ?? 0).toFixed(1)}% = R$ {(total * Number(sellers.find((s) => s.id === selectedSellerId)?.commission_rate ?? 0) / 100).toFixed(2)}
+                        </p>
+                      )}
+                    </div>
 
                     {/* Serviços */}
                     {services.length > 0 && (
@@ -4581,6 +4616,11 @@ export default function PDV() {
           onClose={() => {
             setShowCloseCashModal(false);
             setCashSession(null);
+            if (logoutOnCashClose) {
+              localStorage.removeItem("token");
+              localStorage.removeItem("user");
+              window.location.href = "/login";
+            }
           }}
           onConfirm={async (counted, breakdown, note) => {
             const closed = await apiCloseCashSession(token!, cashSession.id, counted, breakdown, note);
@@ -4588,6 +4628,40 @@ export default function PDV() {
             return closed;
           }}
         />
+      )}
+
+      {showNewSellerModal && (
+        <div className="fixed inset-0 z-[600] flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-sm bg-white rounded-2xl border border-slate-200 shadow-2xl overflow-hidden">
+            <div className="flex items-center justify-between px-5 h-14 border-b border-slate-100">
+              <p className="text-[13px] font-black text-slate-800">Novo Vendedor</p>
+              <button onClick={() => { setShowNewSellerModal(false); setNewSellerName(""); }}
+                className="w-8 h-8 flex items-center justify-center rounded-xl hover:bg-slate-100 text-slate-400">
+                <X size={16} />
+              </button>
+            </div>
+            <div className="p-5 space-y-4">
+              <div>
+                <label className="text-[10px] font-bold uppercase tracking-widest text-slate-500 block mb-1">Nome</label>
+                <input
+                  type="text" autoFocus value={newSellerName}
+                  onChange={(e) => setNewSellerName(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === "Enter") handleCreateSeller(); }}
+                  placeholder="Nome do vendedor"
+                  className="w-full h-11 px-3 rounded-xl border border-slate-200 text-[13px] font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400"
+                />
+              </div>
+              <button
+                onClick={handleCreateSeller}
+                disabled={!newSellerName.trim() || savingNewSeller}
+                className="w-full h-11 rounded-xl bg-slate-900 text-white text-[12px] font-black uppercase tracking-widest flex items-center justify-center gap-2 hover:bg-slate-800 transition-all disabled:opacity-40"
+              >
+                {savingNewSeller ? <Loader2 size={14} className="animate-spin" /> : null}
+                {savingNewSeller ? "Salvando..." : "Cadastrar"}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
