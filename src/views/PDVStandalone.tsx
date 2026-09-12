@@ -837,6 +837,17 @@ export default function PDVStandalone() {
     return () => { cancelled = true; };
   }, [showReceipt, completedSale?.orderId, completedSale?.offline, nfceInvoice?.id]);
 
+  // Assim que a NFC-e é autorizada, aciona a impressora térmica automaticamente — sem
+  // isso o operador precisava lembrar de clicar em "Nota Térmica" toda vez. O ref evita
+  // reimprimir se o componente re-renderizar com o mesmo invoice já autorizado.
+  const autoprintedInvoiceIdRef = useRef<number | null>(null);
+  useEffect(() => {
+    if (nfceInvoice?.status !== "authorized" || !completedSale) return;
+    if (autoprintedInvoiceIdRef.current === nfceInvoice.id) return;
+    autoprintedInvoiceIdRef.current = nfceInvoice.id;
+    printThermalReceipt(completedSale);
+  }, [nfceInvoice?.status, nfceInvoice?.id, completedSale]);
+
   const handleEmitNfce = async () => {
     if (!completedSale?.orderId || nfceRetrying) return;
     setNfceRetrying(true);

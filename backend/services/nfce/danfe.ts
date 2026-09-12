@@ -42,7 +42,10 @@ function formatMoney(v: number): string {
   return v.toFixed(2).replace(".", ",");
 }
 
-// Gera o PDF do cupom DANFE-NFCe (layout simplificado 80mm)
+// Gera o PDF do cupom DANFE-NFCe — mesmo estilo visual "recibo corrido" do cupom
+// térmico não-fiscal (fonte monoespaçada, divisórias tracejadas, sem quadros/caixas),
+// só que com os elementos que a SEFAZ exige num DANFE: chave de acesso, código de
+// barras, protocolo de autorização e QR Code de consulta.
 export async function generateDanfePdf(input: DanfeInput): Promise<Buffer> {
   const barcodePng = await bwipjs.toBuffer({
     bcid: "code128",
@@ -61,88 +64,56 @@ export async function generateDanfePdf(input: DanfeInput): Promise<Buffer> {
     doc.on("error", reject);
 
     const contentWidth = PAGE_WIDTH - 20;
-    const colorRule = "#000000";
 
-    function solidRule() {
+    function dashedRule() {
+      doc.dash(1, { space: 1 }).moveTo(10, doc.y).lineTo(PAGE_WIDTH - 10, doc.y).lineWidth(0.6).strokeColor("#000000").stroke();
       doc.undash();
-      doc.moveTo(10, doc.y).lineTo(PAGE_WIDTH - 10, doc.y).lineWidth(0.75).strokeColor(colorRule).stroke();
-      doc.moveDown(0.25);
+      doc.moveDown(0.3);
     }
 
-    // Caixa de identificação do documento — mesmo papel que o quadro "DANFE" no canto
-    // superior direito de uma NF-e modelo 1, adaptado pro cupom 80mm: identifica o tipo
-    // de documento antes mesmo do cabeçalho da loja, como um formulário oficial impresso.
-    const badgeY = doc.y;
-    const badgeH = 26;
-    doc.rect(10, badgeY, contentWidth, badgeH).lineWidth(1).strokeColor(colorRule).stroke();
-    doc.moveTo(10, badgeY + 14).lineTo(PAGE_WIDTH - 10, badgeY + 14).lineWidth(0.5).strokeColor(colorRule).stroke();
-    doc.font("Helvetica-Bold").fontSize(8).fillColor(colorRule)
-      .text("DANFE NFC-e", 10, badgeY + 2, { width: contentWidth, align: "center" });
-    doc.font("Helvetica").fontSize(6)
-      .text("Documento Auxiliar da Nota Fiscal de Consumidor Eletrônica", 10, badgeY + 16, { width: contentWidth, align: "center" });
-    doc.y = badgeY + badgeH + 6;
-
-    doc.font("Helvetica-Bold").fontSize(9).text(input.storeName, { align: "center", width: contentWidth });
-    doc.font("Helvetica").fontSize(7);
-    doc.text(input.storeDocument, { align: "center", width: contentWidth });
-    if (input.storeStateRegistration) {
-      doc.text(`IE: ${input.storeStateRegistration}`, { align: "center", width: contentWidth });
-    }
+    doc.font("Courier-Bold").fontSize(11).text(input.storeName.toUpperCase(), { align: "center", width: contentWidth });
+    doc.font("Courier").fontSize(7);
     doc.text(input.storeAddress, { align: "center", width: contentWidth });
-    doc.moveDown(0.4);
+    doc.text(input.storeDocument, { align: "center", width: contentWidth });
+    doc.moveDown(0.3);
+    dashedRule();
 
+    doc.font("Courier-Bold").fontSize(8).text("DANFE NFC-e", { align: "center", width: contentWidth });
+    doc.font("Courier").fontSize(6.5)
+      .text("Documento Auxiliar da Nota Fiscal de Consumidor Eletrônica", { align: "center", width: contentWidth });
     if (input.environment === "homologacao") {
-      doc.font("Helvetica-Bold").text("EMISSÃO EM AMBIENTE DE HOMOLOGAÇÃO — SEM VALOR FISCAL", { align: "center", width: contentWidth });
-      doc.font("Helvetica");
+      doc.moveDown(0.2);
+      doc.font("Courier-Bold").fontSize(7)
+        .text("EMISSÃO EM AMBIENTE DE HOMOLOGAÇÃO — SEM VALOR FISCAL", { align: "center", width: contentWidth });
     }
     doc.moveDown(0.3);
-    solidRule();
+    dashedRule();
 
-    // Quadro dos itens, com linhas verticais separando as colunas — mesmo tratamento
-    // visual do corpo de uma NF-e modelo 1 (grade "DADOS DO PRODUTO/SERVIÇO"), adaptado
-    // pra largura estreita do cupom (colunas empilhadas verticalmente por item em vez de
-    // uma única linha, que não caberia em 80mm).
-    const itemsBoxY = doc.y;
-    doc.font("Helvetica-Bold").fontSize(7).text("ITEM  CÓD.  DESCRIÇÃO", 10, itemsBoxY + 3, { width: contentWidth });
+    doc.font("Courier-Bold").fontSize(7).text("ITEM  CÓD.  DESCRIÇÃO", 10, doc.y, { width: contentWidth });
     doc.moveDown(0.2);
-    doc.font("Helvetica");
+    doc.font("Courier").fontSize(7);
     let totalQuantity = 0;
     input.items.forEach((item, idx) => {
       totalQuantity += item.quantity;
-      const rowY = doc.y;
       const code = item.code ? item.code : "---";
-      doc.text(`${idx + 1}  ${code}  ${item.name}`, 10, rowY, { width: contentWidth });
+      doc.text(`${idx + 1}  ${code}  ${item.name}`, 10, doc.y, { width: contentWidth });
       doc.text(`   ${item.quantity} ${item.unit} x ${formatMoney(item.unitPrice)} = ${formatMoney(item.total)}`, 10, doc.y, { width: contentWidth });
       doc.moveDown(0.15);
-      doc.moveTo(10, doc.y).lineTo(PAGE_WIDTH - 10, doc.y).lineWidth(0.4).strokeColor("#94a3b8").dash(1, { space: 1 }).stroke();
-      doc.moveDown(0.15);
     });
-    doc.undash();
-    doc.rect(10, itemsBoxY, contentWidth, doc.y - itemsBoxY).lineWidth(0.75).strokeColor(colorRule).stroke();
+    dashedRule();
+
+    doc.font("Courier").fontSize(7).text(`Qtde. Total de Itens: ${totalQuantity}`, { align: "center", width: contentWidth });
     doc.moveDown(0.3);
 
-    // Resumo — quantidade total de itens, antes do quadro de valores.
-    doc.font("Helvetica").fontSize(7).text(`Qtde. Total de Itens: ${totalQuantity}`, 10, doc.y, { width: contentWidth, align: "center" });
-    doc.moveDown(0.3);
-
-    // Quadro do total — mesmo tratamento do bloco "CÁLCULO DO IMPOSTO" de uma NF-e
-    // modelo 1: valores relevantes destacados dentro de uma caixa fechada. Altura
-    // calculada dinamicamente porque o troco (linha opcional) nem sempre aparece.
-    const totalBoxY = doc.y;
-    let cursorY = totalBoxY + 4;
-    doc.font("Helvetica-Bold").fontSize(9).text(`Valor Total R$ ${formatMoney(input.totalAmount)}`, 10, cursorY, { width: contentWidth, align: "center" });
-    cursorY += 14;
-    doc.font("Helvetica").fontSize(7).text(`Forma de Pagamento: ${input.paymentSummary}`, 10, cursorY, { width: contentWidth, align: "center" });
-    cursorY += 12;
+    doc.font("Courier-Bold").fontSize(9).text(`VALOR TOTAL R$ ${formatMoney(input.totalAmount)}`, { align: "center", width: contentWidth });
+    doc.moveDown(0.2);
+    doc.font("Courier").fontSize(7).text(`Forma de Pagamento: ${input.paymentSummary}`, { align: "center", width: contentWidth });
     if (input.changeAmount && input.changeAmount > 0) {
-      doc.text(`Troco R$ ${formatMoney(input.changeAmount)}`, 10, cursorY, { width: contentWidth, align: "center" });
-      cursorY += 12;
+      doc.text(`Troco R$ ${formatMoney(input.changeAmount)}`, { align: "center", width: contentWidth });
     }
-    const totalBoxH = cursorY - totalBoxY + 4;
-    doc.rect(10, totalBoxY, contentWidth, totalBoxH).lineWidth(1).strokeColor(colorRule).stroke();
-    doc.y = totalBoxY + totalBoxH + 8;
+    doc.moveDown(0.3);
+    dashedRule();
 
-    doc.font("Helvetica").fontSize(7);
     doc.text(input.customerLabel, { align: "center", width: contentWidth });
     doc.moveDown(0.2);
     doc.text(`NFC-e nº ${input.numero}  Série ${input.serie}`, { align: "center", width: contentWidth });
@@ -155,7 +126,7 @@ export async function generateDanfePdf(input: DanfeInput): Promise<Buffer> {
       );
     }
     doc.moveDown(0.4);
-    solidRule();
+    dashedRule();
 
     const barcodeWidth = contentWidth * 0.9;
     doc.image(barcodePng, 10 + (contentWidth - barcodeWidth) / 2, doc.y, { width: barcodeWidth });
@@ -169,9 +140,8 @@ export async function generateDanfePdf(input: DanfeInput): Promise<Buffer> {
     doc.moveDown(0.5);
 
     const qrSize = 120;
-    const qrBoxY = doc.y;
-    doc.rect(10 + (contentWidth - qrSize) / 2 - 4, qrBoxY - 4, qrSize + 8, qrSize + 8).lineWidth(0.75).strokeColor(colorRule).stroke();
-    doc.image(qrPng, 10 + (contentWidth - qrSize) / 2, qrBoxY, { width: qrSize, height: qrSize });
+    doc.image(qrPng, 10 + (contentWidth - qrSize) / 2, doc.y, { width: qrSize, height: qrSize });
+    doc.moveDown(0.3);
 
     doc.end();
   });

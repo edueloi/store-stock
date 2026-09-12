@@ -35,6 +35,12 @@ const TYPE_LABELS: Record<string, string> = {
   adjustment: "Ajuste",
   loss: "Perda",
   return: "Devolução",
+  in: "Importação XML",
+  out: "Saída",
+  consignment_out: "Saída p/ Consignação",
+  consignment_return: "Devolução de Consignação",
+  held_sale_out: "Saída (Venda em Espera)",
+  held_sale_return: "Devolução (Venda em Espera)",
 };
 
 function Pagination({
