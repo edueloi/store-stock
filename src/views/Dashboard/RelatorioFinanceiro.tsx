@@ -3,7 +3,7 @@ import ExcelJS from "exceljs";
 import PageHeader from "../../components/layout/PageHeader";
 import {
   ChevronLeft, ChevronRight, Loader2, Download, FileSpreadsheet, FileText,
-  ChevronDown, TrendingUp, TrendingDown, Wallet, Calendar, LayoutGrid,
+  ChevronDown, TrendingUp, TrendingDown, Wallet, Calendar, LayoutGrid, Printer,
 } from "lucide-react";
 import { cn } from "../../lib/utils";
 import { Tenant } from "../../types";
@@ -217,11 +217,17 @@ function exportToPDF(report: YearlyReport, tenant: Partial<Tenant> | null, selec
 }
 
 // ── sub-componentes reaproveitados entre as visões Dia/Mês ──────────────────
-function EntradasTable({ data }: { data: EntradasBucket }) {
+function EntradasTable({ data, onPrint }: { data: EntradasBucket; onPrint?: () => void }) {
   return (
     <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-      <div className="px-5 py-3 border-b border-slate-100">
+      <div className="px-5 py-3 border-b border-slate-100 flex items-center justify-between">
         <h3 className="text-[11px] font-black text-slate-700 uppercase tracking-widest">Entradas por Operador</h3>
+        {onPrint && (
+          <button onClick={onPrint}
+            className="flex items-center gap-1.5 h-7 px-2.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-[9px] font-black text-slate-600 uppercase tracking-widest transition-colors">
+            <Printer size={11} /> Imprimir
+          </button>
+        )}
       </div>
       <div className="overflow-x-auto">
         <div className="min-w-[680px]">
@@ -337,6 +343,60 @@ export default function RelatorioFinanceiro() {
   const dCustoFixoTotal = dCustoFixo.reduce((s, it) => s + it.amount, 0);
   const dCustoVariavelTotal = dCustoVariavel.reduce((s, it) => s + it.amount, 0);
   const dResultado = dEntradas.total - dCustoFixoTotal - dCustoVariavelTotal;
+
+  const printDayReport = () => {
+    const W = 42;
+    const rule = "=".repeat(W);
+    const thin = "-".repeat(W);
+    const money2 = (v: number) => v.toFixed(2).replace(".", ",");
+    const truncate = (v: string, max = W) => String(v || "").slice(0, max);
+    const center = (v: string) => {
+      const text = truncate(v);
+      return " ".repeat(Math.max(0, Math.floor((W - text.length) / 2))) + text;
+    };
+    const row = (left: string, right = "") => {
+      const rightText = truncate(right, 15);
+      const leftText = truncate(left, W - rightText.length - 1);
+      return `${leftText}${" ".repeat(Math.max(1, W - leftText.length - rightText.length))}${rightText}`;
+    };
+
+    let receipt = "\n";
+    if (tenant?.name) receipt += `${center(tenant.name.toUpperCase())}\n`;
+    receipt += `${rule}\n${center("RELATÓRIO FINANCEIRO DO DIA")}\n${center(fmtDateBR(dayKey))}\n${thin}\n`;
+    receipt += `${center("ENTRADAS POR OPERADOR")}\n${thin}\n`;
+    Object.entries(dEntradas.byOperator).forEach(([op, pm]) => {
+      const total = PM_KEYS.reduce((s, k) => s + pm[k], 0);
+      receipt += `${op}\n`;
+      PM_KEYS.forEach((k) => { if (pm[k] > 0) receipt += row(`  ${PM_LABELS[k]}`, `R$ ${money2(pm[k])}`) + "\n"; });
+      receipt += row("  Total", `R$ ${money2(total)}`) + "\n";
+    });
+    receipt += `${thin}\n`;
+    receipt += row("TOTAL ENTRADAS", `R$ ${money2(dEntradas.total)}`) + "\n";
+    receipt += `${rule}\n`;
+    receipt += row("Custo fixo", `R$ ${money2(dCustoFixoTotal)}`) + "\n";
+    receipt += row("Custo variável", `R$ ${money2(dCustoVariavelTotal)}`) + "\n";
+    receipt += `${thin}\n`;
+    receipt += row("RESULTADO DO DIA", `R$ ${money2(dResultado)}`) + "\n";
+    receipt += `${rule}\n\n\n`;
+
+    if (window.boxsysDesktop?.printReceipt) {
+      window.boxsysDesktop.printReceipt(receipt).catch(() => {});
+      return;
+    }
+    const iframe = document.createElement("iframe");
+    Object.assign(iframe.style, { position: "fixed", right: "0", bottom: "0", width: "0", height: "0", border: "none" });
+    document.body.appendChild(iframe);
+    const doc = iframe.contentDocument || iframe.contentWindow?.document;
+    if (!doc) return;
+    doc.open();
+    doc.write(`<pre style="font-family:'Courier New',monospace;font-size:12px;white-space:pre-wrap">${receipt}</pre>`);
+    doc.close();
+    setTimeout(() => {
+      iframe.contentWindow?.focus();
+      iframe.contentWindow?.print();
+      setTimeout(() => document.body.removeChild(iframe), 1500);
+    }, 400);
+  };
 
   return (
     <div className="space-y-6">
@@ -481,7 +541,7 @@ export default function RelatorioFinanceiro() {
             </div>
           </div>
 
-          <EntradasTable data={dEntradas} />
+          <EntradasTable data={dEntradas} onPrint={printDayReport} />
           <CustoCards custoVariavel={{ total: dCustoVariavelTotal, items: dCustoVariavel }} custoFixo={{ total: dCustoFixoTotal, items: dCustoFixo }} />
         </>
       ) : (

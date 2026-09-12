@@ -1,9 +1,19 @@
 import { useState, useEffect, useMemo } from "react";
 import {
-  Search, Wallet, CheckCircle2, Clock, X, Loader2, User, Calendar, ChevronRight,
+  Search, Wallet, CheckCircle2, Clock, X, Loader2, User, Calendar, ChevronRight, Printer,
 } from "lucide-react";
 import PageHeader from "../../components/layout/PageHeader";
 import { cn } from "../../lib/utils";
+
+const PM_LABEL: Record<string, string> = {
+  money: "Dinheiro", pix: "PIX", debit: "Débito", credit: "Crédito", crediario: "Crediário",
+};
+
+interface CashSessionPaymentBreakdownEntry {
+  expected: number;
+  counted?: number;
+  difference?: number;
+}
 
 interface CashSession {
   id: number;
@@ -18,6 +28,7 @@ interface CashSession {
   expected_amount: string | number | null;
   difference_amount: string | number | null;
   closing_note: string | null;
+  payment_breakdown: Record<string, CashSessionPaymentBreakdownEntry> | null;
 }
 
 interface CashSessionOrder {
@@ -71,6 +82,66 @@ export default function CashSessionHistory() {
     closed: sessions.filter((s) => s.status === "closed").length,
     withDifference: sessions.filter((s) => s.status === "closed" && Number(s.difference_amount) !== 0).length,
   }), [sessions]);
+
+  const printSessionReceipt = (session: CashSessionDetail) => {
+    const W = 42;
+    const rule = "=".repeat(W);
+    const thin = "-".repeat(W);
+    const money2 = (v: number) => v.toFixed(2).replace(".", ",");
+    const truncate = (v: string, max = W) => String(v || "").slice(0, max);
+    const center = (v: string) => {
+      const text = truncate(v);
+      return " ".repeat(Math.max(0, Math.floor((W - text.length) / 2))) + text;
+    };
+    const row = (left: string, right = "") => {
+      const rightText = truncate(right, 15);
+      const leftText = truncate(left, W - rightText.length - 1);
+      return `${leftText}${" ".repeat(Math.max(1, W - leftText.length - rightText.length))}${rightText}`;
+    };
+
+    let receipt = "\n";
+    receipt += `${rule}\n${center("FECHAMENTO DE CAIXA")}\n${thin}\n`;
+    receipt += row("Aberto por", session.opened_by_name) + "\n";
+    receipt += row("Fechado por", session.closed_by_name ?? "-") + "\n";
+    receipt += row("Abertura", new Date(session.opened_at).toLocaleString("pt-BR")) + "\n";
+    if (session.closed_at) receipt += row("Fechamento", new Date(session.closed_at).toLocaleString("pt-BR")) + "\n";
+    receipt += `${thin}\n`;
+    receipt += row("Valor de abertura", `R$ ${money2(Number(session.opening_amount))}`) + "\n";
+    if (session.payment_breakdown) {
+      receipt += `${thin}\n${center("POR FORMA DE PAGAMENTO")}\n${thin}\n`;
+      Object.entries(session.payment_breakdown).forEach(([method, entry]) => {
+        receipt += row(PM_LABEL[method] ?? method, `R$ ${money2(entry.expected)}`) + "\n";
+        if (entry.counted !== undefined) receipt += row("  Contado", `R$ ${money2(entry.counted)}`) + "\n";
+        if (entry.difference !== undefined && entry.difference !== 0) {
+          receipt += row("  Diferença", `${entry.difference > 0 ? "+" : ""}R$ ${money2(entry.difference)}`) + "\n";
+        }
+      });
+    }
+    receipt += `${rule}\n`;
+    receipt += row("TOTAL ESPERADO", `R$ ${money2(Number(session.expected_amount))}`) + "\n";
+    receipt += row("TOTAL CONTADO", `R$ ${money2(Number(session.counted_amount))}`) + "\n";
+    const diff = Number(session.difference_amount);
+    receipt += row(diff === 0 ? "CAIXA CONFERE" : diff > 0 ? "SOBRA" : "FALTA", `R$ ${money2(Math.abs(diff))}`) + "\n";
+    receipt += `${rule}\n\n\n`;
+
+    if (window.boxsysDesktop?.printReceipt) {
+      window.boxsysDesktop.printReceipt(receipt).catch(() => {});
+      return;
+    }
+    const iframe = document.createElement("iframe");
+    Object.assign(iframe.style, { position: "fixed", right: "0", bottom: "0", width: "0", height: "0", border: "none" });
+    document.body.appendChild(iframe);
+    const doc = iframe.contentDocument || iframe.contentWindow?.document;
+    if (!doc) return;
+    doc.open();
+    doc.write(`<pre style="font-family:'Courier New',monospace;font-size:12px;white-space:pre-wrap">${receipt}</pre>`);
+    doc.close();
+    setTimeout(() => {
+      iframe.contentWindow?.focus();
+      iframe.contentWindow?.print();
+      setTimeout(() => document.body.removeChild(iframe), 1500);
+    }, 400);
+  };
 
   const openDetail = async (id: number) => {
     setDetailLoading(true);
@@ -199,7 +270,15 @@ export default function CashSessionHistory() {
                 <Wallet size={16} className="text-blue-600" />
                 <h2 className="font-black text-slate-900 text-[15px]">Sessão de Caixa</h2>
               </div>
-              <button onClick={() => setDetail(null)} className="p-2 hover:bg-slate-100 rounded-lg text-slate-500"><X size={18} /></button>
+              <div className="flex items-center gap-1">
+                {detail && detail.status === "closed" && (
+                  <button onClick={() => printSessionReceipt(detail)}
+                    className="p-2 hover:bg-slate-100 rounded-lg text-slate-500" title="Imprimir via térmica">
+                    <Printer size={16} />
+                  </button>
+                )}
+                <button onClick={() => setDetail(null)} className="p-2 hover:bg-slate-100 rounded-lg text-slate-500"><X size={18} /></button>
+              </div>
             </div>
 
             {detailLoading && (
@@ -249,6 +328,42 @@ export default function CashSessionHistory() {
                     </>
                   )}
                 </div>
+
+                {detail.status === "closed" && detail.payment_breakdown && (
+                  <div className="rounded-xl border border-slate-200 overflow-hidden">
+                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest px-3 py-2 bg-slate-50 border-b border-slate-100">
+                      Por forma de pagamento
+                    </p>
+                    <table className="w-full text-[11px]">
+                      <thead className="bg-slate-50 text-slate-400 uppercase tracking-widest text-[9px] font-bold">
+                        <tr>
+                          <td className="px-3 py-2">Forma</td>
+                          <td className="px-3 py-2 text-right">Esperado</td>
+                          <td className="px-3 py-2 text-right">Contado</td>
+                          <td className="px-3 py-2 text-right">Diferença</td>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {Object.entries(detail.payment_breakdown).map(([method, entry]) => (
+                          <tr key={method} className="border-t border-slate-100">
+                            <td className="px-3 py-2 font-bold text-slate-700">{PM_LABEL[method] ?? method}</td>
+                            <td className="px-3 py-2 text-right font-mono text-slate-600">{money(entry.expected)}</td>
+                            <td className="px-3 py-2 text-right font-mono text-slate-600">
+                              {entry.counted !== undefined ? money(entry.counted) : "—"}
+                            </td>
+                            <td className={cn(
+                              "px-3 py-2 text-right font-mono font-bold",
+                              entry.difference === undefined ? "text-slate-300" :
+                              entry.difference === 0 ? "text-slate-500" : entry.difference > 0 ? "text-blue-600" : "text-rose-500",
+                            )}>
+                              {entry.difference !== undefined ? money(entry.difference) : "—"}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
 
                 {detail.opening_note && (
                   <div className="text-[11px] text-slate-500"><span className="font-bold text-slate-700">Obs. abertura:</span> {detail.opening_note}</div>

@@ -90,13 +90,18 @@ export async function getYearlyFinancialReport(req: Request, res: Response) {
       }),
     ]);
 
-    // Nomes de operador vêm de Order.seller_name — só buscamos as orders realmente
-    // referenciadas pelas entradas (evita puxar a tabela toda).
+    // Nome do operador: prioriza Order.seller_name (vendedor escolhido manualmente
+    // na venda, campo opcional) e cai para quem tinha o caixa aberto no momento da
+    // venda (CashSession.opened_by_name) — esse sim reflete quem estava logado no
+    // sistema, diferente do "Vendedor" que fica em branco na maioria das vendas.
     const orderIds = Array.from(new Set(incomeEntries.map(e => e.order_id).filter((id): id is number => id != null)));
     const orders = orderIds.length
-      ? await prisma.order.findMany({ where: { id: { in: orderIds }, tenant_id: tenantId }, select: { id: true, seller_name: true } })
+      ? await prisma.order.findMany({
+          where: { id: { in: orderIds }, tenant_id: tenantId },
+          select: { id: true, seller_name: true, cash_session: { select: { opened_by_name: true } } },
+        })
       : [];
-    const sellerByOrder = new Map(orders.map(o => [o.id, o.seller_name || "Geral"]));
+    const sellerByOrder = new Map(orders.map(o => [o.id, o.seller_name || o.cash_session?.opened_by_name || "Geral"]));
 
     for (const entry of incomeEntries) {
       const entryDate = new Date(entry.date);
