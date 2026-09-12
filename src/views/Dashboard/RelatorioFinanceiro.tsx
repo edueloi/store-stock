@@ -31,8 +31,22 @@ const fmt = (v: number) => v.toLocaleString("pt-BR", { minimumFractionDigits: 2,
 const fmtDateBR = (d: string) => new Date(d + "T12:00:00").toLocaleDateString("pt-BR");
 const token = () => localStorage.getItem("token");
 
+// Espelha exatamente o que a tela está mostrando no momento do export — a
+// exportação (Excel/PDF) precisa refletir a view ativa (Dia/Mês/Resumo Anual),
+// nunca sempre o mês inteiro independente do que o usuário está vendo.
+interface DayExportData {
+  dayKey: string;
+  entradas: EntradasBucket;
+  custoFixo: { total: number; items: CostItem[] };
+  custoVariavel: { total: number; items: CostItem[] };
+}
+type ExportScope =
+  | { view: "day"; data: DayExportData }
+  | { view: "month"; month: number }
+  | { view: "year" };
+
 // ── Excel export ──────────────────────────────────────────────────────────────
-async function exportToExcel(report: YearlyReport, tenant: Partial<Tenant> | null, selectedMonth: number) {
+async function exportToExcel(report: YearlyReport, tenant: Partial<Tenant> | null, scope: ExportScope) {
   const wb = new ExcelJS.Workbook();
   wb.creator = "BoxSys Store";
   wb.created = new Date();
@@ -60,92 +74,110 @@ async function exportToExcel(report: YearlyReport, tenant: Partial<Tenant> | nul
     for (let c = 1; c <= cols; c++) ws.getRow(3).getCell(c).border = { bottom: { style: "medium", color: { argb: "FF1E3A5F" } } };
   }
 
-  // ── sheet: mês selecionado ──
-  const m = report.months[selectedMonth];
-  const ws1 = wb.addWorksheet("Mensal", { pageSetup: { paperSize: 9, orientation: "landscape", fitToPage: true } });
-  ws1.columns = [{ width: 24 }, { width: 14 }, { width: 14 }, { width: 14 }, { width: 14 }, { width: 16 }];
-  header(ws1, 6, `${MONTHS[selectedMonth]}/${report.year}`);
+  // Monta a planilha de entradas+custos (usada tanto pra Dia quanto pra Mês —
+  // a única diferença é qual EntradasBucket/custo é passado).
+  function entradasCostSheet(
+    sheetName: string, subtitle: string,
+    entradas: EntradasBucket, custoVariavel: { total: number; items: CostItem[] }, custoFixo: { total: number; items: CostItem[] },
+  ) {
+    const ws1 = wb.addWorksheet(sheetName, { pageSetup: { paperSize: 9, orientation: "landscape", fitToPage: true } });
+    ws1.columns = [{ width: 24 }, { width: 14 }, { width: 14 }, { width: 14 }, { width: 14 }, { width: 16 }];
+    header(ws1, 6, subtitle);
 
-  ws1.getRow(5).values = ["Operador", "Dinheiro", "PIX", "Débito", "Crédito", "Total"];
-  ws1.getRow(5).eachCell((cell) => { cell.font = font({ bold: true, color: "FFFFFF" }); cell.fill = fill("1E3A5F"); cell.border = border(); cell.alignment = { horizontal: "center" }; });
-  let r = 6;
-  for (const [operator, pm] of Object.entries(m.entradas.byOperator)) {
-    const total = PM_KEYS.reduce((s, k) => s + pm[k], 0);
-    ws1.getRow(r).values = [operator, pm.money, pm.pix, pm.debit, pm.credit, total];
-    ws1.getRow(r).eachCell((cell, col) => { cell.border = border(); if (col > 1) { cell.numFmt = '"R$" #,##0.00'; cell.alignment = { horizontal: "right" }; } });
-    r++;
-  }
-  ws1.getRow(r).values = ["TOTAL ENTRADAS", m.entradas.totalByMethod.money, m.entradas.totalByMethod.pix, m.entradas.totalByMethod.debit, m.entradas.totalByMethod.credit, m.entradas.total];
-  ws1.getRow(r).eachCell((cell, col) => { cell.font = font({ bold: true, color: "065F46" }); cell.fill = fill("D1FAE5"); cell.border = border(); if (col > 1) { cell.numFmt = '"R$" #,##0.00'; cell.alignment = { horizontal: "right" }; } });
-  r += 2;
-
-  function costSection(title: string, items: CostItem[], total: number, headColor: string, bgColor: string) {
-    ws1.getRow(r).getCell(1).value = title;
-    ws1.getRow(r).getCell(1).font = font({ bold: true, size: 13 });
-    r++;
-    ws1.getRow(r).values = ["Descrição", "", "", "", "Data", "Valor"];
-    ws1.getRow(r).eachCell((cell) => { cell.font = font({ bold: true, color: "FFFFFF" }); cell.fill = fill(headColor); cell.border = border(); });
-    r++;
-    for (const it of items) {
-      ws1.getRow(r).values = [it.description, "", "", "", it.date.split("-").reverse().join("/"), it.amount];
-      ws1.mergeCells(r, 1, r, 4);
-      ws1.getRow(r).getCell(6).numFmt = '"R$" #,##0.00';
-      ws1.getRow(r).getCell(6).alignment = { horizontal: "right" };
-      ws1.getRow(r).eachCell((cell) => { cell.border = border(); });
+    ws1.getRow(5).values = ["Operador", "Dinheiro", "PIX", "Débito", "Crédito", "Total"];
+    ws1.getRow(5).eachCell((cell) => { cell.font = font({ bold: true, color: "FFFFFF" }); cell.fill = fill("1E3A5F"); cell.border = border(); cell.alignment = { horizontal: "center" }; });
+    let r = 6;
+    for (const [operator, pm] of Object.entries(entradas.byOperator)) {
+      const total = PM_KEYS.reduce((s, k) => s + pm[k], 0);
+      ws1.getRow(r).values = [operator, pm.money, pm.pix, pm.debit, pm.credit, total];
+      ws1.getRow(r).eachCell((cell, col) => { cell.border = border(); if (col > 1) { cell.numFmt = '"R$" #,##0.00'; cell.alignment = { horizontal: "right" }; } });
       r++;
     }
-    ws1.getRow(r).values = ["TOTAL", "", "", "", "", total];
-    ws1.mergeCells(r, 1, r, 4);
-    ws1.getRow(r).eachCell((cell) => { cell.font = font({ bold: true }); cell.fill = fill(bgColor); cell.border = border(); });
-    ws1.getRow(r).getCell(6).numFmt = '"R$" #,##0.00';
-    ws1.getRow(r).getCell(6).alignment = { horizontal: "right" };
+    ws1.getRow(r).values = ["TOTAL ENTRADAS", entradas.totalByMethod.money, entradas.totalByMethod.pix, entradas.totalByMethod.debit, entradas.totalByMethod.credit, entradas.total];
+    ws1.getRow(r).eachCell((cell, col) => { cell.font = font({ bold: true, color: "065F46" }); cell.fill = fill("D1FAE5"); cell.border = border(); if (col > 1) { cell.numFmt = '"R$" #,##0.00'; cell.alignment = { horizontal: "right" }; } });
     r += 2;
+
+    function costSection(title: string, items: CostItem[], total: number, headColor: string, bgColor: string) {
+      ws1.getRow(r).getCell(1).value = title;
+      ws1.getRow(r).getCell(1).font = font({ bold: true, size: 13 });
+      r++;
+      ws1.getRow(r).values = ["Descrição", "", "", "", "Data", "Valor"];
+      ws1.getRow(r).eachCell((cell) => { cell.font = font({ bold: true, color: "FFFFFF" }); cell.fill = fill(headColor); cell.border = border(); });
+      r++;
+      for (const it of items) {
+        ws1.getRow(r).values = [it.description, "", "", "", it.date.split("-").reverse().join("/"), it.amount];
+        ws1.mergeCells(r, 1, r, 4);
+        ws1.getRow(r).getCell(6).numFmt = '"R$" #,##0.00';
+        ws1.getRow(r).getCell(6).alignment = { horizontal: "right" };
+        ws1.getRow(r).eachCell((cell) => { cell.border = border(); });
+        r++;
+      }
+      ws1.getRow(r).values = ["TOTAL", "", "", "", "", total];
+      ws1.mergeCells(r, 1, r, 4);
+      ws1.getRow(r).eachCell((cell) => { cell.font = font({ bold: true }); cell.fill = fill(bgColor); cell.border = border(); });
+      ws1.getRow(r).getCell(6).numFmt = '"R$" #,##0.00';
+      ws1.getRow(r).getCell(6).alignment = { horizontal: "right" };
+      r += 2;
+    }
+    costSection("Custo Variável", custoVariavel.items, custoVariavel.total, "D97706", "FEF3C7");
+    costSection("Custo Fixo", custoFixo.items, custoFixo.total, "7C3AED", "EDE9FE");
   }
-  costSection("Custo Variável", m.custoVariavel.items, m.custoVariavel.total, "D97706", "FEF3C7");
-  costSection("Custo Fixo", m.custoFixo.items, m.custoFixo.total, "7C3AED", "EDE9FE");
 
-  // ── sheet: resumo anual ──
-  const ws2 = wb.addWorksheet("Anual", { pageSetup: { paperSize: 9, orientation: "landscape", fitToPage: true } });
-  ws2.columns = [{ width: 20 }, ...MONTHS_SHORT.map(() => ({ width: 12 })), { width: 14 }];
-  header(ws2, 14, `Ano ${report.year}`);
+  function yearSheet() {
+    const ws2 = wb.addWorksheet("Anual", { pageSetup: { paperSize: 9, orientation: "landscape", fitToPage: true } });
+    ws2.columns = [{ width: 20 }, ...MONTHS_SHORT.map(() => ({ width: 12 })), { width: 14 }];
+    header(ws2, 14, `Ano ${report.year}`);
 
-  const rows: [string, (mo: MonthReport) => number][] = [
-    ["Dinheiro", (mo) => mo.entradas.totalByMethod.money],
-    ["PIX", (mo) => mo.entradas.totalByMethod.pix],
-    ["Débito", (mo) => mo.entradas.totalByMethod.debit],
-    ["Crédito", (mo) => mo.entradas.totalByMethod.credit],
-    ["Total Entradas", (mo) => mo.entradas.total],
-    ["Custo Fixo", (mo) => mo.custoFixo.total],
-    ["Custo Variável", (mo) => mo.custoVariavel.total],
-  ];
-  ws2.getRow(5).values = ["", ...MONTHS_SHORT, "Total Ano"];
-  ws2.getRow(5).eachCell((cell) => { cell.font = font({ bold: true, color: "FFFFFF" }); cell.fill = fill("1E3A5F"); cell.border = border(); cell.alignment = { horizontal: "center" }; });
-  let rr = 6;
-  for (const [label, getter] of rows) {
-    const values = report.months.map(getter);
-    const yearTotal = values.reduce((a, b) => a + b, 0);
-    ws2.getRow(rr).values = [label, ...values, yearTotal];
-    ws2.getRow(rr).eachCell((cell, col) => {
-      cell.border = border();
-      if (col > 1) { cell.numFmt = '"R$" #,##0.00'; cell.alignment = { horizontal: "right" }; }
-      if (label === "Total Entradas") { cell.font = font({ bold: true, color: "065F46" }); cell.fill = fill("D1FAE5"); }
-      if (col === 15) cell.font = font({ bold: true });
-    });
-    rr++;
+    const rows: [string, (mo: MonthReport) => number][] = [
+      ["Dinheiro", (mo) => mo.entradas.totalByMethod.money],
+      ["PIX", (mo) => mo.entradas.totalByMethod.pix],
+      ["Débito", (mo) => mo.entradas.totalByMethod.debit],
+      ["Crédito", (mo) => mo.entradas.totalByMethod.credit],
+      ["Total Entradas", (mo) => mo.entradas.total],
+      ["Custo Fixo", (mo) => mo.custoFixo.total],
+      ["Custo Variável", (mo) => mo.custoVariavel.total],
+    ];
+    ws2.getRow(5).values = ["", ...MONTHS_SHORT, "Total Ano"];
+    ws2.getRow(5).eachCell((cell) => { cell.font = font({ bold: true, color: "FFFFFF" }); cell.fill = fill("1E3A5F"); cell.border = border(); cell.alignment = { horizontal: "center" }; });
+    let rr = 6;
+    for (const [label, getter] of rows) {
+      const values = report.months.map(getter);
+      const yearTotal = values.reduce((a, b) => a + b, 0);
+      ws2.getRow(rr).values = [label, ...values, yearTotal];
+      ws2.getRow(rr).eachCell((cell, col) => {
+        cell.border = border();
+        if (col > 1) { cell.numFmt = '"R$" #,##0.00'; cell.alignment = { horizontal: "right" }; }
+        if (label === "Total Entradas") { cell.font = font({ bold: true, color: "065F46" }); cell.fill = fill("D1FAE5"); }
+        if (col === 15) cell.font = font({ bold: true });
+      });
+      rr++;
+    }
+  }
+
+  let filenameSuffix = "";
+  if (scope.view === "day") {
+    entradasCostSheet("Diário", fmtDateBR(scope.data.dayKey), scope.data.entradas, scope.data.custoVariavel, scope.data.custoFixo);
+    filenameSuffix = scope.data.dayKey;
+  } else if (scope.view === "month") {
+    const m = report.months[scope.month];
+    entradasCostSheet("Mensal", `${MONTHS[scope.month]}/${report.year}`, m.entradas, m.custoVariavel, m.custoFixo);
+    filenameSuffix = `${MONTHS[scope.month]}_${report.year}`;
+  } else {
+    yearSheet();
+    filenameSuffix = String(report.year);
   }
 
   const buf = await wb.xlsx.writeBuffer();
   const blob = new Blob([buf], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
-  a.href = url; a.download = `Relatorio_Financeiro_${report.year}.xlsx`; a.click();
+  a.href = url; a.download = `Relatorio_Financeiro_${filenameSuffix}.xlsx`; a.click();
   URL.revokeObjectURL(url);
 }
 
 // ── PDF export (mesmo padrão de Finance.tsx — HTML + print) ─────────────────
-function exportToPDF(report: YearlyReport, tenant: Partial<Tenant> | null, selectedMonth: number) {
-  const m = report.months[selectedMonth];
-  const operatorRows = Object.entries(m.entradas.byOperator).map(([op, pm]) => {
+function exportToPDF(report: YearlyReport, tenant: Partial<Tenant> | null, scope: ExportScope) {
+  const operatorRowsOf = (entradas: EntradasBucket) => Object.entries(entradas.byOperator).map(([op, pm]) => {
     const total = PM_KEYS.reduce((s, k) => s + pm[k], 0);
     return `<tr><td>${op}</td><td>R$ ${fmt(pm.money)}</td><td>R$ ${fmt(pm.pix)}</td><td>R$ ${fmt(pm.debit)}</td><td>R$ ${fmt(pm.credit)}</td><td class="tot">R$ ${fmt(total)}</td></tr>`;
   }).join("");
@@ -154,19 +186,49 @@ function exportToPDF(report: YearlyReport, tenant: Partial<Tenant> | null, selec
     `<tr><td>${it.description}</td><td style="text-align:center">${fmtDateBR(it.date)}</td><td class="tot">R$ ${fmt(it.amount)}</td></tr>`
   ).join("");
 
-  const yearRows = ([
-    ["Dinheiro", (mo: MonthReport) => mo.entradas.totalByMethod.money],
-    ["PIX", (mo: MonthReport) => mo.entradas.totalByMethod.pix],
-    ["Débito", (mo: MonthReport) => mo.entradas.totalByMethod.debit],
-    ["Crédito", (mo: MonthReport) => mo.entradas.totalByMethod.credit],
-    ["Total Entradas", (mo: MonthReport) => mo.entradas.total],
-    ["Custo Fixo", (mo: MonthReport) => mo.custoFixo.total],
-    ["Custo Variável", (mo: MonthReport) => mo.custoVariavel.total],
-  ] as const).map(([label, getter]) => {
-    const values = report.months.map(getter);
-    const total = values.reduce((a, b) => a + b, 0);
-    return `<tr><td class="${label === "Total Entradas" ? "tot" : ""}">${label}</td>${values.map(v => `<td>R$ ${fmt(v)}</td>`).join("")}<td class="tot">R$ ${fmt(total)}</td></tr>`;
-  }).join("");
+  const entradasSection = (title: string, entradas: EntradasBucket) => `
+  <h2>Entradas — ${title}</h2>
+  <table><thead><tr><th>Operador</th><th>Dinheiro</th><th>PIX</th><th>Débito</th><th>Crédito</th><th>Total</th></tr></thead>
+  <tbody>${operatorRowsOf(entradas)}<tr><td class="tot">TOTAL</td><td class="tot">R$ ${fmt(entradas.totalByMethod.money)}</td><td class="tot">R$ ${fmt(entradas.totalByMethod.pix)}</td><td class="tot">R$ ${fmt(entradas.totalByMethod.debit)}</td><td class="tot">R$ ${fmt(entradas.totalByMethod.credit)}</td><td class="tot">R$ ${fmt(entradas.total)}</td></tr></tbody></table>`;
+
+  const custoSection = (title: string, items: CostItem[], total: number) => `
+  <h2>${title}</h2>
+  <table><thead><tr><th>Descrição</th><th style="text-align:center">Data</th><th>Valor</th></tr></thead>
+  <tbody>${costRows(items)}<tr><td class="tot">TOTAL</td><td></td><td class="tot">R$ ${fmt(total)}</td></tr></tbody></table>`;
+
+  const yearSection = () => {
+    const yearRows = ([
+      ["Dinheiro", (mo: MonthReport) => mo.entradas.totalByMethod.money],
+      ["PIX", (mo: MonthReport) => mo.entradas.totalByMethod.pix],
+      ["Débito", (mo: MonthReport) => mo.entradas.totalByMethod.debit],
+      ["Crédito", (mo: MonthReport) => mo.entradas.totalByMethod.credit],
+      ["Total Entradas", (mo: MonthReport) => mo.entradas.total],
+      ["Custo Fixo", (mo: MonthReport) => mo.custoFixo.total],
+      ["Custo Variável", (mo: MonthReport) => mo.custoVariavel.total],
+    ] as const).map(([label, getter]) => {
+      const values = report.months.map(getter);
+      const total = values.reduce((a, b) => a + b, 0);
+      return `<tr><td class="${label === "Total Entradas" ? "tot" : ""}">${label}</td>${values.map(v => `<td>R$ ${fmt(v)}</td>`).join("")}<td class="tot">R$ ${fmt(total)}</td></tr>`;
+    }).join("");
+    return `
+  <h2>Resumo Anual — ${report.year}</h2>
+  <table><thead><tr><th>&nbsp;</th>${MONTHS_SHORT.map(m2 => `<th>${m2}</th>`).join("")}<th>Total Ano</th></tr></thead>
+  <tbody>${yearRows}</tbody></table>`;
+  };
+
+  let body = "";
+  if (scope.view === "day") {
+    body = entradasSection(fmtDateBR(scope.data.dayKey), scope.data.entradas)
+      + custoSection("Custo Variável", scope.data.custoVariavel.items, scope.data.custoVariavel.total)
+      + custoSection("Custo Fixo", scope.data.custoFixo.items, scope.data.custoFixo.total);
+  } else if (scope.view === "month") {
+    const m = report.months[scope.month];
+    body = entradasSection(`${MONTHS[scope.month]}/${report.year}`, m.entradas)
+      + custoSection("Custo Variável", m.custoVariavel.items, m.custoVariavel.total)
+      + custoSection("Custo Fixo", m.custoFixo.items, m.custoFixo.total);
+  } else {
+    body = yearSection();
+  }
 
   const html = `<!DOCTYPE html>
 <html lang="pt-BR"><head><meta charset="UTF-8"/><title>Relatório Financeiro</title>
@@ -190,22 +252,7 @@ function exportToPDF(report: YearlyReport, tenant: Partial<Tenant> | null, selec
     <h1>${tenant?.name || "BoxSys Store"}</h1>
     <p class="meta">${(tenant as any)?.cnpj ? `CNPJ: ${(tenant as any).cnpj} · ` : ""}Relatório Financeiro · Gerado em ${new Date().toLocaleString("pt-BR")}</p>
   </div>
-
-  <h2>Entradas — ${MONTHS[selectedMonth]}/${report.year}</h2>
-  <table><thead><tr><th>Operador</th><th>Dinheiro</th><th>PIX</th><th>Débito</th><th>Crédito</th><th>Total</th></tr></thead>
-  <tbody>${operatorRows}<tr><td class="tot">TOTAL</td><td class="tot">R$ ${fmt(m.entradas.totalByMethod.money)}</td><td class="tot">R$ ${fmt(m.entradas.totalByMethod.pix)}</td><td class="tot">R$ ${fmt(m.entradas.totalByMethod.debit)}</td><td class="tot">R$ ${fmt(m.entradas.totalByMethod.credit)}</td><td class="tot">R$ ${fmt(m.entradas.total)}</td></tr></tbody></table>
-
-  <h2>Custo Variável</h2>
-  <table><thead><tr><th>Descrição</th><th style="text-align:center">Data</th><th>Valor</th></tr></thead>
-  <tbody>${costRows(m.custoVariavel.items)}<tr><td class="tot">TOTAL</td><td></td><td class="tot">R$ ${fmt(m.custoVariavel.total)}</td></tr></tbody></table>
-
-  <h2>Custo Fixo</h2>
-  <table><thead><tr><th>Descrição</th><th style="text-align:center">Data</th><th>Valor</th></tr></thead>
-  <tbody>${costRows(m.custoFixo.items)}<tr><td class="tot">TOTAL</td><td></td><td class="tot">R$ ${fmt(m.custoFixo.total)}</td></tr></tbody></table>
-
-  <h2>Resumo Anual — ${report.year}</h2>
-  <table><thead><tr><th>&nbsp;</th>${MONTHS_SHORT.map(m2 => `<th>${m2}</th>`).join("")}<th>Total Ano</th></tr></thead>
-  <tbody>${yearRows}</tbody></table>
+  ${body}
 </body></html>`;
 
   const win = window.open("", "_blank");
@@ -344,6 +391,25 @@ export default function RelatorioFinanceiro() {
   const dCustoVariavelTotal = dCustoVariavel.reduce((s, it) => s + it.amount, 0);
   const dResultado = dEntradas.total - dCustoFixoTotal - dCustoVariavelTotal;
 
+  // A exportação (Excel/PDF) precisa refletir exatamente a view ativa — nunca
+  // sempre o mês inteiro, senão o botão "Exportar" mostra algo diferente do
+  // que a tela está exibindo (ex.: usuário na visão "Dia" exportando o mês todo).
+  const buildExportScope = (): ExportScope => {
+    if (view === "day") {
+      return {
+        view: "day",
+        data: {
+          dayKey,
+          entradas: dEntradas,
+          custoVariavel: { total: dCustoVariavelTotal, items: dCustoVariavel },
+          custoFixo: { total: dCustoFixoTotal, items: dCustoFixo },
+        },
+      };
+    }
+    if (view === "year") return { view: "year" };
+    return { view: "month", month };
+  };
+
   const printDayReport = () => {
     const W = 42;
     const rule = "=".repeat(W);
@@ -425,14 +491,14 @@ export default function RelatorioFinanceiro() {
               {showExport && report && (
                 <div className="absolute right-0 top-10 w-52 bg-white border border-slate-200 rounded-xl shadow-xl z-50 overflow-hidden">
                   <button
-                    onClick={() => { exportToExcel(report, tenant, month); setShowExport(false); }}
+                    onClick={() => { exportToExcel(report, tenant, buildExportScope()); setShowExport(false); }}
                     className="w-full flex items-center gap-3 px-4 py-3 text-[10px] font-bold uppercase tracking-widest text-slate-700 hover:bg-slate-50 transition-colors"
                   >
                     <FileSpreadsheet size={14} className="text-emerald-600" /> Excel (.xlsx)
                   </button>
                   <div className="h-px bg-slate-100 mx-3" />
                   <button
-                    onClick={() => { exportToPDF(report, tenant, month); setShowExport(false); }}
+                    onClick={() => { exportToPDF(report, tenant, buildExportScope()); setShowExport(false); }}
                     className="w-full flex items-center gap-3 px-4 py-3 text-[10px] font-bold uppercase tracking-widest text-slate-700 hover:bg-slate-50 transition-colors"
                   >
                     <FileText size={14} className="text-rose-600" /> PDF / Imprimir
