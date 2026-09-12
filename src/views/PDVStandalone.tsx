@@ -21,7 +21,7 @@ import {
 } from "../lib/offlineDb";
 import { computeMeasuredPrice } from "../utils/measurePricing";
 import { productHasStock } from "../utils/productStock";
-import { fetchCurrentCashSession, openCashSession as apiOpenCashSession, closeCashSession as apiCloseCashSession, CashSessionInfo } from "../lib/cashSession";
+import { fetchCurrentCashSession, openCashSession as apiOpenCashSession, closeCashSession as apiCloseCashSession, CashSessionInfo, ClosedCashSession } from "../lib/cashSession";
 import { htmlToPdfBase64 } from "../lib/pdf";
 import OpenCashSessionScreen from "../components/pdv/OpenCashSessionScreen";
 import CloseCashSessionModal from "../components/pdv/CloseCashSessionModal";
@@ -260,6 +260,7 @@ export default function PDVStandalone() {
 
   // caixa (abertura/fechamento)
   const [requireCashSession, setRequireCashSession] = useState(false);
+  const [printCashCloseReceipt, setPrintCashCloseReceipt] = useState(false);
   const [cashSession, setCashSession] = useState<CashSessionInfo | null>(null);
   const [cashSessionLoading, setCashSessionLoading] = useState(true);
   const [showCloseCashModal, setShowCloseCashModal] = useState(false);
@@ -695,6 +696,7 @@ export default function PDVStandalone() {
       if (t.primary_color) setTenantColor(t.primary_color);
       if (t.whatsapp) setTenantWhatsapp(t.whatsapp);
       if (t.require_cash_session !== undefined) setRequireCashSession(Boolean(t.require_cash_session));
+      if (t.print_cash_close_receipt !== undefined) setPrintCashCloseReceipt(Boolean(t.print_cash_close_receipt));
     };
 
     Promise.all([
@@ -879,6 +881,7 @@ export default function PDVStandalone() {
   };
 
   useEffect(() => {
+    let lastKeyTime = 0;
     let buffer = "";
     let timer: ReturnType<typeof setTimeout> | null = null;
 
@@ -891,6 +894,9 @@ export default function PDVStandalone() {
     const onKeyDown = (e: KeyboardEvent) => {
       const tag = (document.activeElement?.tagName ?? "").toLowerCase();
       const isEditable = tag === "input" || tag === "textarea" || tag === "select";
+      const now = Date.now();
+      const gap = now - lastKeyTime;
+      lastKeyTime = now;
 
       if (e.key === "Enter") {
         if (buffer.length >= 3) { e.preventDefault(); flush(buffer); }
@@ -898,13 +904,15 @@ export default function PDVStandalone() {
       }
       if (e.key.length !== 1) return;
       if (document.activeElement === scanInputRef.current) return;
-      // Qualquer outro campo editável focado (busca de cliente, campo de
-      // preço, etc.) → nunca intercepta. Antes disso comparava a velocidade
-      // de digitação (gap > 80ms) pra "adivinhar" se era o leitor de código
-      // de barras, mas um leitor físico dispara rápido mesmo com um campo de
-      // texto comum em foco, vazando os dígitos ali (ex: número escaneado
-      // aparecendo no filtro de busca).
-      if (isEditable) return;
+      // Digitação humana lenta em outro campo (busca de produto, cliente,
+      // nome avulso etc) → ignora, deixa o campo receber o texto normalmente.
+      // Um leitor de código de barras físico digita rápido demais para
+      // qualquer pessoa (gap bem menor que 80ms entre teclas), então mesmo
+      // com um campo de texto em foco a gente ainda intercepta e redireciona
+      // pro carrinho — sem essa checagem de velocidade, o scanner para de
+      // funcionar sempre que algum campo estiver focado (regressão real: ver
+      // caso do modal "Adicionar Produto", que autofoca a busca).
+      if (gap > 80 && isEditable) return;
 
       e.preventDefault();
       buffer += e.key;
@@ -1541,6 +1549,56 @@ export default function PDVStandalone() {
       receipt += `${center(key.replace(/(\d{4})(?=\d)/g, "$1 "))}\n`;
     }
     receipt += `${thin}\n${center("Obrigado pela preferência!")}\n${center("Volte sempre!")}\n\n\n`;
+    return receipt;
+  };
+
+  // Comprovante impresso ao fechar o caixa — resumo de entradas/saídas por forma
+  // de pagamento (esperado x contado x diferença), igual ao cupom de venda mas
+  // sem NFC-e. Só é chamado quando "Imprimir via de fechamento de caixa" está
+  // ativo nas Configurações.
+  const buildCashCloseReceiptText = (session: ClosedCashSession) => {
+    const now = new Date();
+    const W = 42;
+    const rule = "=".repeat(W);
+    const thin = "-".repeat(W);
+    const money = (value: number) => value.toFixed(2).replace(".", ",");
+    const truncate = (value: string, max = W) => String(value || "").slice(0, max);
+    const center = (value: string) => {
+      const text = truncate(value);
+      return " ".repeat(Math.max(0, Math.floor((W - text.length) / 2))) + text;
+    };
+    const row = (left: string, right = "") => {
+      const rightText = truncate(right, 15);
+      const leftText = truncate(left, W - rightText.length - 1);
+      return `${leftText}${" ".repeat(Math.max(1, W - leftText.length - rightText.length))}${rightText}`;
+    };
+
+    let receipt = "\n";
+    receipt += `${center(tenantName.toUpperCase())}\n`;
+    receipt += `${rule}\n${center("FECHAMENTO DE CAIXA")}\n${thin}\n`;
+    receipt += row("Operador", operatorName || "-") + "\n";
+    receipt += row("Abertura", new Date(session.opened_at).toLocaleString("pt-BR")) + "\n";
+    receipt += row("Fechamento", new Date(session.closed_at).toLocaleString("pt-BR")) + "\n";
+    receipt += `${thin}\n`;
+    receipt += row("Valor de abertura", `R$ ${money(Number(session.opening_amount))}`) + "\n";
+    if (session.payment_breakdown) {
+      receipt += `${thin}\n${center("POR FORMA DE PAGAMENTO")}\n${thin}\n`;
+      Object.entries(session.payment_breakdown).forEach(([method, entry]) => {
+        receipt += row(PM_LABEL[method as PaymentMethod] ?? method, `R$ ${money(entry.expected)}`) + "\n";
+        if (entry.counted !== undefined) {
+          receipt += row("  Contado", `R$ ${money(entry.counted)}`) + "\n";
+        }
+        if (entry.difference !== undefined && entry.difference !== 0) {
+          receipt += row("  Diferença", `${entry.difference > 0 ? "+" : ""}R$ ${money(entry.difference)}`) + "\n";
+        }
+      });
+    }
+    receipt += `${rule}\n`;
+    receipt += row("TOTAL ESPERADO", `R$ ${money(Number(session.expected_amount))}`) + "\n";
+    receipt += row("TOTAL CONTADO", `R$ ${money(Number(session.counted_amount))}`) + "\n";
+    const diff = Number(session.difference_amount);
+    receipt += row(diff === 0 ? "CAIXA CONFERE" : diff > 0 ? "SOBRA" : "FALTA", `R$ ${money(Math.abs(diff))}`) + "\n";
+    receipt += `${rule}\n\n\n`;
     return receipt;
   };
 
@@ -4839,7 +4897,16 @@ ${nfceInvoice.protocol ? `<div class="row"><span class="bold">Protocolo:</span><
                 pendingSync: true,
               };
             }
-            return apiCloseCashSession(token, cashSession.id, counted, breakdown, note);
+            const closed = await apiCloseCashSession(token, cashSession.id, counted, breakdown, note);
+            if (printCashCloseReceipt && !closed.pendingSync) {
+              const receiptText = buildCashCloseReceiptText(closed);
+              if (window.boxsysDesktop?.printReceipt) {
+                window.boxsysDesktop.printReceipt(receiptText).catch(() => {});
+              } else {
+                printViaIframe(`<pre style="font-family:'Courier New',monospace;font-size:12px;white-space:pre-wrap">${receiptText}</pre>`);
+              }
+            }
+            return closed;
           }}
         />
       )}

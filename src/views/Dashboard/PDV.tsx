@@ -15,7 +15,7 @@ import Combobox from "../../components/ui/Combobox";
 import { SERVICE_CATEGORIES, SERVICE_UNITS } from "./Services";
 import { computeMeasuredPrice } from "../../utils/measurePricing";
 import { productHasStock } from "../../utils/productStock";
-import { fetchCurrentCashSession, openCashSession as apiOpenCashSession, closeCashSession as apiCloseCashSession, CashSessionInfo } from "../../lib/cashSession";
+import { fetchCurrentCashSession, openCashSession as apiOpenCashSession, closeCashSession as apiCloseCashSession, CashSessionInfo, ClosedCashSession } from "../../lib/cashSession";
 import { htmlToPdfBase64 } from "../../lib/pdf";
 import OpenCashSessionScreen from "../../components/pdv/OpenCashSessionScreen";
 import CloseCashSessionModal from "../../components/pdv/CloseCashSessionModal";
@@ -338,6 +338,7 @@ export default function PDV() {
 
   // caixa (abertura/fechamento)
   const [requireCashSession, setRequireCashSession] = useState(false);
+  const [printCashCloseReceipt, setPrintCashCloseReceipt] = useState(false);
   const [cashSession, setCashSession] = useState<CashSessionInfo | null>(null);
   const [cashSessionLoading, setCashSessionLoading] = useState(true);
   const [showCloseCashModal, setShowCloseCashModal] = useState(false);
@@ -382,6 +383,7 @@ export default function PDV() {
         if (d?.enabled_brands) setEnabledBrands(d.enabled_brands as Record<string, boolean>);
         setCrediarioInterestRate(Number(d?.crediario_interest_rate) || 0);
         setCrediarioGraceDays(Number(d?.crediario_grace_days) || 0);
+        if (d?.print_cash_close_receipt !== undefined) setPrintCashCloseReceipt(Boolean(d.print_cash_close_receipt));
         setTenant({
           name:          d?.name          || "BoxSys Store",
           address:       d?.address       || "",
@@ -1490,6 +1492,63 @@ export default function PDV() {
     if (!window.boxsysDesktop?.openCashDrawer) return;
     const result = await window.boxsysDesktop.openCashDrawer();
     if (!result.ok) setPrintError(result.error || "Falha ao abrir a gaveta.");
+  };
+
+  // Comprovante impresso ao fechar o caixa — resumo de entradas por forma de
+  // pagamento (esperado x contado x diferença). Só chamado quando "Imprimir via
+  // de fechamento de caixa" está ativo nas Configurações.
+  const buildCashCloseReceiptText = (session: ClosedCashSession) => {
+    const W = 42;
+    const rule = "=".repeat(W);
+    const thin = "-".repeat(W);
+    const money = (value: number) => value.toFixed(2).replace(".", ",");
+    const truncate = (value: string, max = W) => String(value || "").slice(0, max);
+    const center = (value: string) => {
+      const text = truncate(value);
+      return " ".repeat(Math.max(0, Math.floor((W - text.length) / 2))) + text;
+    };
+    const row = (left: string, right = "") => {
+      const rightText = truncate(right, 15);
+      const leftText = truncate(left, W - rightText.length - 1);
+      return `${leftText}${" ".repeat(Math.max(1, W - leftText.length - rightText.length))}${rightText}`;
+    };
+
+    let receipt = "\n";
+    receipt += `${center(tenant.name.toUpperCase())}\n`;
+    receipt += `${rule}\n${center("FECHAMENTO DE CAIXA")}\n${thin}\n`;
+    receipt += row("Operador", operatorName || "-") + "\n";
+    receipt += row("Abertura", new Date(session.opened_at).toLocaleString("pt-BR")) + "\n";
+    receipt += row("Fechamento", new Date(session.closed_at).toLocaleString("pt-BR")) + "\n";
+    receipt += `${thin}\n`;
+    receipt += row("Valor de abertura", `R$ ${money(Number(session.opening_amount))}`) + "\n";
+    if (session.payment_breakdown) {
+      receipt += `${thin}\n${center("POR FORMA DE PAGAMENTO")}\n${thin}\n`;
+      Object.entries(session.payment_breakdown).forEach(([method, entry]) => {
+        receipt += row(PM_LABEL[method as PaymentMethod] ?? method, `R$ ${money(entry.expected)}`) + "\n";
+        if (entry.counted !== undefined) {
+          receipt += row("  Contado", `R$ ${money(entry.counted)}`) + "\n";
+        }
+        if (entry.difference !== undefined && entry.difference !== 0) {
+          receipt += row("  Diferença", `${entry.difference > 0 ? "+" : ""}R$ ${money(entry.difference)}`) + "\n";
+        }
+      });
+    }
+    receipt += `${rule}\n`;
+    receipt += row("TOTAL ESPERADO", `R$ ${money(Number(session.expected_amount))}`) + "\n";
+    receipt += row("TOTAL CONTADO", `R$ ${money(Number(session.counted_amount))}`) + "\n";
+    const diff = Number(session.difference_amount);
+    receipt += row(diff === 0 ? "CAIXA CONFERE" : diff > 0 ? "SOBRA" : "FALTA", `R$ ${money(Math.abs(diff))}`) + "\n";
+    receipt += `${rule}\n\n\n`;
+    return receipt;
+  };
+
+  const printCashCloseReceiptText = async (session: ClosedCashSession) => {
+    const receiptText = buildCashCloseReceiptText(session);
+    if (window.boxsysDesktop?.printReceipt) {
+      await window.boxsysDesktop.printReceipt(receiptText).catch(() => {});
+      return;
+    }
+    printViaIframe(`<pre style="font-family:'Courier New',monospace;font-size:12px;white-space:pre-wrap">${receiptText}</pre>`);
   };
 
   // Terminais desktop pareados que tenham uma impressora "receipt" — só faz
@@ -4523,7 +4582,11 @@ export default function PDV() {
             setShowCloseCashModal(false);
             setCashSession(null);
           }}
-          onConfirm={(counted, breakdown, note) => apiCloseCashSession(token!, cashSession.id, counted, breakdown, note)}
+          onConfirm={async (counted, breakdown, note) => {
+            const closed = await apiCloseCashSession(token!, cashSession.id, counted, breakdown, note);
+            if (printCashCloseReceipt) await printCashCloseReceiptText(closed);
+            return closed;
+          }}
         />
       )}
     </div>

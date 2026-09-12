@@ -108,6 +108,7 @@ export async function updateTenant(req: Request, res: Response) {
     if (b.enabled_brands !== undefined)     data.enabled_brands     = b.enabled_brands;
     if (b.pass_fee_by_method !== undefined) data.pass_fee_by_method = b.pass_fee_by_method;
     if (b.require_cash_session !== undefined) data.require_cash_session = Boolean(b.require_cash_session);
+    if (b.print_cash_close_receipt !== undefined) data.print_cash_close_receipt = Boolean(b.print_cash_close_receipt);
     if (b.crediario_interest_rate !== undefined) data.crediario_interest_rate = Number(b.crediario_interest_rate);
     if (b.crediario_grace_days !== undefined)    data.crediario_grace_days    = Number(b.crediario_grace_days);
 

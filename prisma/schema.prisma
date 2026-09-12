@@ -44,6 +44,7 @@ model Tenant {
   pass_fee_by_method   Json?
   terminal_config      Json?
   require_cash_session Boolean @default(false)
+  print_cash_close_receipt Boolean @default(false)
 
   // --- Crediário: juros configurável sobre parcela em atraso (aplicado manualmente) ---
   crediario_interest_rate Decimal @default(0) @db.Decimal(5, 2) // % ao mês

@@ -2950,6 +2950,25 @@ export default function Settings() {
                   </div>
                 </div>
 
+                <div className="bg-slate-50 border border-slate-100 rounded-2xl p-5 space-y-4 max-w-lg">
+                  <div className="flex items-center justify-between gap-4">
+                    <div>
+                      <p className="text-[11px] font-black uppercase tracking-widest text-slate-700">
+                        Imprimir via de fechamento de caixa
+                      </p>
+                      <p className="text-[10px] text-slate-400 font-medium mt-1 leading-relaxed">
+                        Ao confirmar o fechamento, imprime automaticamente um comprovante com o
+                        resumo do que entrou e saiu no caixa, detalhado por forma de pagamento
+                        (dinheiro, débito, crédito, PIX).
+                      </p>
+                    </div>
+                    <Toggle
+                      checked={!!tenant?.print_cash_close_receipt}
+                      onChange={(v) => setT({ print_cash_close_receipt: v })}
+                    />
+                  </div>
+                </div>
+
                 <SaveButton
                   onClick={handleSaveTenant}
                   label={saving ? "Salvando..." : "Salvar Configuração"}
