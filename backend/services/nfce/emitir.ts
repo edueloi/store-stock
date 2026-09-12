@@ -26,6 +26,15 @@ function ensureDir(dir: string) {
   fs.mkdirSync(dir, { recursive: true });
 }
 
+// A SEFAZ valida GTIN contra a tabela real de prefixos GS1 alocados, não só o dígito
+// verificador — um EAN de fábrica legítimo (impresso na embalagem, dígito verificador
+// correto) ainda pode cair nessa rejeição se o prefixo não constar na base dela. Como
+// não há como validar isso antecipadamente sem essa mesma base, a saída é detectar essa
+// rejeição específica e reemitir automaticamente uma vez tratando o item como sem GTIN.
+function isGtinPrefixRejection(xMotivo: string | null): boolean {
+  return !!xMotivo && /gtin.*prefixo|cean.*prefixo/i.test(xMotivo);
+}
+
 export async function emitirNfce(orderId: number): Promise<void> {
   const order = await prisma.order.findUnique({
     where: { id: orderId },
@@ -48,7 +57,9 @@ export async function emitirNfce(orderId: number): Promise<void> {
     data: { status: "processing", attempts: { increment: 1 }, last_attempt_at: new Date() },
   });
 
-  try {
+  // Retorna o xMotivo quando a SEFAZ rejeitou a nota (para o chamador decidir se vale
+  // tentar de novo), ou null quando autorizou. Lança em falha de infraestrutura/conexão.
+  async function attemptEmission(forceNoGtin: boolean): Promise<string | null> {
     if (!tenant.nfce_cert_path || !tenant.nfce_cert_password) {
       throw new Error("Certificado digital A1 não configurado para esta loja (Configurações > Dados Fiscais).");
     }
@@ -79,22 +90,24 @@ export async function emitirNfce(orderId: number): Promise<void> {
     // PIS/COFINS), aplicados de propósito aqui em vez de por ausência de cadastro.
     const itemsForXml = order.items.map((item) => ({
       ...item,
-      product: item.product ?? ({
-        name: item.name || "Item avulso",
-        sku: null,
-        barcode: null,
-        ncm: item.ncm || "00000000",
-        cest: null,
-        cfop: "5102",
-        unidade_comercial: "UN",
-        unidade_tributavel: "UN",
-        origem: 0,
-        csosn: "102",
-        cst_icms: "00",
-        icms_aliquota: null,
-        pis_cst: "07",
-        cofins_cst: "07",
-      } as Product),
+      product: item.product
+        ? (forceNoGtin ? { ...item.product, barcode: null } : item.product)
+        : ({
+          name: item.name || "Item avulso",
+          sku: null,
+          barcode: null,
+          ncm: item.ncm || "00000000",
+          cest: null,
+          cfop: "5102",
+          unidade_comercial: "UN",
+          unidade_tributavel: "UN",
+          origem: 0,
+          csosn: "102",
+          cst_icms: "00",
+          icms_aliquota: null,
+          pis_cst: "07",
+          cofins_cst: "07",
+        } as Product),
     }));
 
     const { chaveAcesso, xml } = buildNfceXml({
@@ -176,7 +189,7 @@ export async function emitirNfce(orderId: number): Promise<void> {
           rejection_reason: xMotivo ?? "SEFAZ não retornou motivo",
         },
       });
-      return;
+      return xMotivo;
     }
 
     // Autorizada — salva XML, gera QR Code e DANFE
@@ -248,6 +261,15 @@ export async function emitirNfce(orderId: number): Promise<void> {
         rejection_reason: null,
       },
     });
+    return null;
+  }
+
+  try {
+    const xMotivo = await attemptEmission(false);
+    if (xMotivo && isGtinPrefixRejection(xMotivo)) {
+      console.warn(`[emitirNfce] retry sem GTIN — tenant=${tenant.id} order=${orderId} motivo="${xMotivo}"`);
+      await attemptEmission(true);
+    }
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     console.error(`[emitirNfce] erro — tenant=${tenant.id} order=${orderId}:`, err);
