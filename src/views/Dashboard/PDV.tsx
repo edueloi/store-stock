@@ -597,11 +597,11 @@ export default function PDV() {
   };
 
   // ── Captura global do leitor de código de barras ─────────────────────────────
-  // Leitores USB HID simulam teclado: digitam os chars rápido + Enter.
-  // Detectamos sequências rápidas (< 80ms entre chars) e as redirecionamos
-  // para o campo de scan mesmo sem foco, de forma transparente ao operador.
+  // Leitores USB HID simulam teclado: digitam os chars rápido + Enter. Capturamos
+  // essa digitação e redirecionamos pro campo de scan quando nenhum outro campo
+  // editável estiver em foco — assim funciona "solto" na tela sem atrapalhar
+  // quem está digitando de propósito em outro campo (ver comentário abaixo).
   useEffect(() => {
-    let lastKeyTime = 0;
     let buffer = "";
     let timer: ReturnType<typeof setTimeout> | null = null;
 
@@ -614,9 +614,6 @@ export default function PDV() {
     const onKeyDown = (e: KeyboardEvent) => {
       const tag = (document.activeElement?.tagName ?? "").toLowerCase();
       const isEditable = tag === "input" || tag === "textarea" || tag === "select";
-      const now = Date.now();
-      const gap = now - lastKeyTime;
-      lastKeyTime = now;
 
       if (e.key === "Enter") {
         if (buffer.length >= 3) {
@@ -631,8 +628,15 @@ export default function PDV() {
       // Campo de scan já focado → deixa o onChange normal cuidar
       if (document.activeElement === scanInputRef.current) return;
 
-      // Digitação humana lenta em outro campo → ignora
-      if (gap > 80 && isEditable) return;
+      // Qualquer outro campo editável focado (busca de cliente, campo de
+      // preço, etc.) → nunca intercepta, mesmo se a digitação for rápida.
+      // Antes disso comparava a velocidade de digitação (gap > 80ms) pra
+      // "adivinhar" se era um leitor de código de barras — mas um leitor
+      // físico também dispara rápido com um campo de texto comum em foco,
+      // vazando dígitos ali (ex: número escaneado aparecendo no filtro de
+      // busca). Só o campo de scan dedicado ou nenhum campo focado usam o
+      // buffer do leitor agora.
+      if (isEditable) return;
 
       // Leitor detectado → captura e redireciona
       e.preventDefault();

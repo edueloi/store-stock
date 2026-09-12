@@ -879,7 +879,6 @@ export default function PDVStandalone() {
   };
 
   useEffect(() => {
-    let lastKeyTime = 0;
     let buffer = "";
     let timer: ReturnType<typeof setTimeout> | null = null;
 
@@ -892,9 +891,6 @@ export default function PDVStandalone() {
     const onKeyDown = (e: KeyboardEvent) => {
       const tag = (document.activeElement?.tagName ?? "").toLowerCase();
       const isEditable = tag === "input" || tag === "textarea" || tag === "select";
-      const now = Date.now();
-      const gap = now - lastKeyTime;
-      lastKeyTime = now;
 
       if (e.key === "Enter") {
         if (buffer.length >= 3) { e.preventDefault(); flush(buffer); }
@@ -902,7 +898,13 @@ export default function PDVStandalone() {
       }
       if (e.key.length !== 1) return;
       if (document.activeElement === scanInputRef.current) return;
-      if (gap > 80 && isEditable) return;
+      // Qualquer outro campo editável focado (busca de cliente, campo de
+      // preço, etc.) → nunca intercepta. Antes disso comparava a velocidade
+      // de digitação (gap > 80ms) pra "adivinhar" se era o leitor de código
+      // de barras, mas um leitor físico dispara rápido mesmo com um campo de
+      // texto comum em foco, vazando os dígitos ali (ex: número escaneado
+      // aparecendo no filtro de busca).
+      if (isEditable) return;
 
       e.preventDefault();
       buffer += e.key;

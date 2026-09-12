@@ -768,6 +768,11 @@ export default function Finance() {
     return m ? Number(m[1]) : null;
   };
 
+  const extractServiceOrderNumber = (description: string): number | null => {
+    const m = description.match(/OS #(\d+)/);
+    return m ? Number(m[1]) : null;
+  };
+
   const fetchOrderDetail = useCallback(async (orderId: number) => {
     setLoadingOrder(true);
     setOrderDetail(null);
@@ -1948,6 +1953,27 @@ export default function Finance() {
                       </div>
                     </div>
                   )}
+
+                  {/* Service order link — only for service order billing entries */}
+                  {(() => {
+                    const soNumber = extractServiceOrderNumber(e.description);
+                    if (!soNumber) return null;
+                    return (
+                      <div className="bg-slate-50 rounded-2xl border border-slate-100 overflow-hidden">
+                        <div className="px-4 py-2.5 flex items-center justify-between">
+                          <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">
+                            Ordem de Serviço #{soNumber}
+                          </p>
+                          <button
+                            onClick={() => navigate(`/admin/ordens-servico?search=${soNumber}`)}
+                            className="flex items-center gap-1 text-[9px] font-black text-blue-600 hover:text-blue-700 uppercase tracking-widest transition-colors"
+                          >
+                            <ExternalLink size={10} /> Ver OS
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })()}
 
                   {/* Order items — only for PDV sales */}
                   {(() => {

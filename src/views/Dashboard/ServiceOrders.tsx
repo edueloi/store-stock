@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { Plus, Search, Trash2, Loader2, Download, X } from "lucide-react";
 import { cn } from "../../lib/utils";
 import PageHeader from "../../components/layout/PageHeader";
@@ -21,11 +21,12 @@ import {
 
 export default function ServiceOrders() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [orders, setOrders] = useState<ServiceOrder[]>([]);
   const [sellers, setSellers] = useState<Seller[]>([]);
   const [tenant, setTenant] = useState<Tenant | null>(null);
   const [loading, setLoading] = useState(true);
-  const [searchTerm, setSearchTerm] = useState("");
+  const [searchTerm, setSearchTerm] = useState(() => searchParams.get("search") ?? "");
   const [statusFilter, setStatusFilter] = useState<"all" | SOStatus>("all");
 
   const [deleteTarget, setDeleteTarget] = useState<ServiceOrder | null>(null);
