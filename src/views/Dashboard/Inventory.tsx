@@ -396,6 +396,57 @@ export default function Inventory() {
 
   const resetVarState = () => { setNewAttrName(""); setNewAttrValue(""); setShowPresets(false); };
 
+  // Bipar um produto no Catálogo abre direto a tela de edição — mesmo padrão de
+  // captura de leitor de código de barras usado no PDV (sequência de teclas
+  // rápida demais pra ser digitação humana). Ignorado com o modal já aberto,
+  // pra não atrapalhar quem está digitando no formulário de edição.
+  const handleCatalogScan = useCallback(async (code: string) => {
+    const trimmed = code.trim();
+    if (!trimmed) return;
+    const local = products.find((p) => p.barcode === trimmed);
+    if (local) { openEdit(local); return; }
+    try {
+      const res = await fetch(`/api/products/by-barcode/${encodeURIComponent(trimmed)}`, {
+        headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
+      });
+      if (res.ok) openEdit(await res.json());
+    } catch { /* produto não encontrado, ignora silenciosamente */ }
+  }, [products]);
+
+  useEffect(() => {
+    let lastKeyTime = 0;
+    let buffer = "";
+    let timer: ReturnType<typeof setTimeout> | null = null;
+
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (isModalOpen) return;
+      const tag = (document.activeElement?.tagName ?? "").toLowerCase();
+      const isEditable = tag === "input" || tag === "textarea" || tag === "select";
+      const now = Date.now();
+      const gap = now - lastKeyTime;
+      lastKeyTime = now;
+
+      if (e.key === "Enter") {
+        if (buffer.length >= 3) { e.preventDefault(); const b = buffer; buffer = ""; if (timer) clearTimeout(timer); handleCatalogScan(b); }
+        return;
+      }
+      if (e.key.length !== 1) return;
+      if (gap > 80 && isEditable) return;
+
+      e.preventDefault();
+      buffer += e.key;
+
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(() => {
+        const b = buffer; buffer = "";
+        if (b.trim().length >= 3) handleCatalogScan(b);
+      }, 300);
+    };
+
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [handleCatalogScan, isModalOpen]);
+
   const openNew = () => {
     setEditingProduct({ type: "sale", is_active: false, is_featured: false, stock_quantity: 0, attributes: [], skus: [] });
     setEditingImages([]);
