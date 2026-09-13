@@ -4916,7 +4916,8 @@ ${nfceInvoice.protocol ? `<div class="row"><span class="bold">Protocolo:</span><
 
       {showCloseCashModal && cashSession && (
         <CloseCashSessionModal
-          onClose={() => {
+          onCancel={() => setShowCloseCashModal(false)}
+          onFinish={() => {
             setShowCloseCashModal(false);
             setCashSession(null);
             cacheSet("cashSession", null);

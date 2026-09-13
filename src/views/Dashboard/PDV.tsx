@@ -4627,7 +4627,8 @@ export default function PDV() {
 
       {showCloseCashModal && cashSession && (
         <CloseCashSessionModal
-          onClose={() => {
+          onCancel={() => setShowCloseCashModal(false)}
+          onFinish={() => {
             setShowCloseCashModal(false);
             setCashSession(null);
             if (logoutOnCashClose) {

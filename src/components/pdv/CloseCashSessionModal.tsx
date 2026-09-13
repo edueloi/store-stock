@@ -3,8 +3,15 @@ import { X, Wallet, Loader2, AlertTriangle, CheckCircle2 } from "lucide-react";
 import { ClosedCashSession } from "../../lib/cashSession";
 
 interface CloseCashSessionModalProps {
-  onClose: () => void;
+  // Cancela a operação sem fechar o caixa de verdade — só fecha o modal, o
+  // caixa continua aberto normalmente. Só disponível antes de confirmar
+  // (step "count"): depois de confirmado, o fechamento já aconteceu de
+  // verdade no backend e não há mais o que cancelar.
+  onCancel: () => void;
   onConfirm: (countedAmount: number, countedBreakdown?: Record<string, number>, closingNote?: string) => Promise<ClosedCashSession>;
+  // Chamado só depois que o fechamento já foi confirmado com sucesso — aí sim
+  // é seguro limpar a sessão de caixa do estado local (e deslogar, se configurado).
+  onFinish: () => void;
 }
 
 const METHOD_LABELS: Record<string, string> = {
@@ -15,9 +22,13 @@ function fmt(v: number | string) {
   return `R$ ${Number(v).toFixed(2)}`;
 }
 
-export default function CloseCashSessionModal({ onClose, onConfirm }: CloseCashSessionModalProps) {
+export default function CloseCashSessionModal({ onCancel, onConfirm, onFinish }: CloseCashSessionModalProps) {
   const [step, setStep] = useState<"count" | "result">("count");
-  const [countedMoney, setCountedMoney] = useState("");
+  // Guarda os dígitos como centavos (ex.: "9795" = R$ 97,95) e formata na
+  // exibição — mesma máscara monetária usada no valor de item avulso do PDV.
+  const [countedMoneyCents, setCountedMoneyCents] = useState("");
+  const countedMoney = countedMoneyCents ? Number(countedMoneyCents) / 100 : 0;
+  const countedMoneyDisplay = countedMoney.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const [closingNote, setClosingNote] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -25,14 +36,14 @@ export default function CloseCashSessionModal({ onClose, onConfirm }: CloseCashS
 
   const handleConfirm = async () => {
     if (submitting) return;
-    if (countedMoney === "") {
+    if (countedMoneyCents === "") {
       setError("Informe o valor contado em dinheiro");
       return;
     }
     setSubmitting(true);
     setError(null);
     try {
-      const session = await onConfirm(Number(countedMoney) || 0, undefined, closingNote || undefined);
+      const session = await onConfirm(countedMoney, undefined, closingNote || undefined);
       setResult(session);
       setStep("result");
     } catch (e) {
@@ -56,7 +67,7 @@ export default function CloseCashSessionModal({ onClose, onConfirm }: CloseCashS
             </p>
           </div>
           {step === "count" && (
-            <button onClick={onClose} className="w-8 h-8 flex items-center justify-center rounded-xl hover:bg-slate-100 text-slate-400">
+            <button onClick={onCancel} className="w-8 h-8 flex items-center justify-center rounded-xl hover:bg-slate-100 text-slate-400">
               <X size={16} />
             </button>
           )}
@@ -75,9 +86,9 @@ export default function CloseCashSessionModal({ onClose, onConfirm }: CloseCashS
               <div className="relative">
                 <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[13px] font-bold text-slate-400">R$</span>
                 <input
-                  type="number" step="0.01" min="0" autoFocus
-                  value={countedMoney}
-                  onChange={(e) => setCountedMoney(e.target.value)}
+                  type="text" inputMode="numeric" autoFocus
+                  value={countedMoneyDisplay}
+                  onChange={(e) => setCountedMoneyCents(e.target.value.replace(/\D/g, ""))}
                   className="w-full h-11 pl-9 pr-3 rounded-xl border border-slate-200 text-[15px] font-mono font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400"
                 />
               </div>
@@ -127,7 +138,7 @@ export default function CloseCashSessionModal({ onClose, onConfirm }: CloseCashS
               calculada assim que a internet voltar e os dados sincronizarem com o servidor.
             </p>
             <button
-              onClick={onClose}
+              onClick={onFinish}
               className="w-full h-11 rounded-xl bg-slate-900 text-white text-[12px] font-black uppercase tracking-widest hover:bg-slate-800 transition-all"
             >
               Concluir
@@ -175,7 +186,7 @@ export default function CloseCashSessionModal({ onClose, onConfirm }: CloseCashS
             </div>
 
             <button
-              onClick={onClose}
+              onClick={onFinish}
               className="w-full h-11 rounded-xl bg-slate-900 text-white text-[12px] font-black uppercase tracking-widest hover:bg-slate-800 transition-all"
             >
               Concluir
