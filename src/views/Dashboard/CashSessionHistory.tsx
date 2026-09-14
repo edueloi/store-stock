@@ -1038,10 +1038,10 @@ export default function CashSessionHistory() {
                 </div>
                 <div className="overflow-x-auto max-h-[420px] overflow-y-auto">
                   <table className="w-full text-left border-collapse">
-                    <thead>
-                      <tr className="bg-slate-50/60 sticky top-0">
+                    <thead className="sticky top-0 z-10">
+                      <tr className="bg-slate-50">
                         {["Pedido", "Produto", "Qtd", "Total", "Data", "Cliente", "Vendedor", "Pagamento"].map((h) => (
-                          <th key={h} className="px-4 py-2.5 text-[9px] font-black text-slate-400 uppercase tracking-widest whitespace-nowrap">{h}</th>
+                          <th key={h} className="px-4 py-2.5 text-[9px] font-black text-slate-400 uppercase tracking-widest whitespace-nowrap bg-slate-50 border-b border-slate-200">{h}</th>
                         ))}
                       </tr>
                     </thead>
