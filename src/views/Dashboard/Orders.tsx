@@ -88,6 +88,15 @@ interface TenantBasic {
   };
 }
 
+// Crediário/fiado registra a venda como concluída (produto já saiu, estoque já
+// baixou), mas o VALOR ainda não foi recebido — vira uma AccountReceivable em
+// aberto, separada do Order. Sem essa checagem, o pedido aparecia como "Pago"
+// igual a uma venda em dinheiro/cartão já quitada, contradizendo a própria
+// ficha do cliente ("Deve R$ X em aberto").
+function isCrediarioOrder(paymentMethod?: string | null): boolean {
+  return !!paymentMethod && paymentMethod.split("|").some((seg) => seg.split(":")[0]?.split("-")[0] === "crediario");
+}
+
 function formatPaymentLabel(pm?: string | null) {
   if (!pm) return "—";
   const labels: Record<string, string> = { money: "Dinheiro", pix: "PIX", debit: "Débito", credit: "Crédito" };
@@ -848,7 +857,7 @@ export default function Orders() {
 
     const statusLabel =
       order.status === "completed"
-        ? "PAGO"
+        ? (isCrediarioOrder(order.payment_method) ? "CREDIÁRIO EM ABERTO" : "PAGO")
         : order.status === "pending"
         ? "PENDENTE"
         : "CANCELADO";
@@ -1563,7 +1572,12 @@ ${payments
                     </td>
                     {/* status */}
                     <td className="px-3 py-2 text-center">
-                      {order.status === "completed" && (
+                      {order.status === "completed" && isCrediarioOrder(order.payment_method) && (
+                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-wider bg-violet-50 text-violet-600 border border-violet-100">
+                          <Clock size={10} /> Crediário
+                        </span>
+                      )}
+                      {order.status === "completed" && !isCrediarioOrder(order.payment_method) && (
                         <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-wider bg-emerald-50 text-emerald-600 border border-emerald-100">
                           <CheckCircle2 size={10} /> Pago
                         </span>
@@ -1754,7 +1768,7 @@ ${payments
                   >
                     {getStatusIcon(order.status)}
                     {order.status === "completed"
-                      ? "PAGO"
+                      ? (isCrediarioOrder(order.payment_method) ? "CREDIÁRIO" : "PAGO")
                       : order.status === "pending"
                       ? "PEND"
                       : "CANCL"}
@@ -1867,12 +1881,13 @@ ${payments
                 <div className="flex items-center gap-3 min-w-0">
                   <div className={cn(
                     "w-10 h-10 rounded-2xl flex items-center justify-center shrink-0",
-                    selectedOrder.status === "completed" ? "bg-emerald-100" :
-                    selectedOrder.status === "cancelled"  ? "bg-red-100"     : "bg-amber-100"
+                    selectedOrder.status !== "completed" ? (selectedOrder.status === "cancelled" ? "bg-red-100" : "bg-amber-100")
+                      : isCrediarioOrder(selectedOrder.payment_method) ? "bg-violet-100" : "bg-emerald-100"
                   )}>
-                    {selectedOrder.status === "completed" ? <CheckCircle2 size={20} className="text-emerald-600" /> :
-                     selectedOrder.status === "cancelled"  ? <XCircle      size={20} className="text-red-600"     /> :
-                                                             <Clock        size={20} className="text-amber-600"   />}
+                    {selectedOrder.status === "completed"
+                      ? (isCrediarioOrder(selectedOrder.payment_method) ? <Clock size={20} className="text-violet-600" /> : <CheckCircle2 size={20} className="text-emerald-600" />)
+                      : selectedOrder.status === "cancelled" ? <XCircle size={20} className="text-red-600" />
+                      : <Clock size={20} className="text-amber-600" />}
                   </div>
                   <div className="min-w-0">
                     <p className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] leading-none mb-1">Pedido</p>
@@ -1882,13 +1897,13 @@ ${payments
                   </div>
                   <span className={cn(
                     "ml-1 inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-wider border shrink-0",
-                    selectedOrder.status === "completed" ? "bg-emerald-50 text-emerald-600 border-emerald-100" :
-                    selectedOrder.status === "cancelled"  ? "bg-red-50 text-red-500 border-red-100"             :
-                                                           "bg-amber-50 text-amber-600 border-amber-100"
+                    selectedOrder.status !== "completed" ? (selectedOrder.status === "cancelled" ? "bg-red-50 text-red-500 border-red-100" : "bg-amber-50 text-amber-600 border-amber-100")
+                      : isCrediarioOrder(selectedOrder.payment_method) ? "bg-violet-50 text-violet-600 border-violet-100" : "bg-emerald-50 text-emerald-600 border-emerald-100"
                   )}>
-                    {selectedOrder.status === "completed" ? <><CheckCircle2 size={9} /> Pago</> :
-                     selectedOrder.status === "cancelled"  ? <><XCircle      size={9} /> Cancelado</> :
-                                                             <><Clock        size={9} /> Pendente</>}
+                    {selectedOrder.status === "completed"
+                      ? (isCrediarioOrder(selectedOrder.payment_method) ? <><Clock size={9} /> Crediário</> : <><CheckCircle2 size={9} /> Pago</>)
+                      : selectedOrder.status === "cancelled" ? <><XCircle size={9} /> Cancelado</>
+                      : <><Clock size={9} /> Pendente</>}
                   </span>
                 </div>
 
@@ -1922,13 +1937,14 @@ ${payments
                 {/* Hero value card */}
                 <div className={cn(
                   "mx-4 mt-4 rounded-2xl px-5 py-4 flex items-center justify-between gap-4",
-                  selectedOrder.status === "completed" ? "bg-emerald-600" :
-                  selectedOrder.status === "cancelled"  ? "bg-slate-800"   : "bg-amber-500"
+                  selectedOrder.status !== "completed" ? (selectedOrder.status === "cancelled" ? "bg-slate-800" : "bg-amber-500")
+                    : isCrediarioOrder(selectedOrder.payment_method) ? "bg-violet-600" : "bg-emerald-600"
                 )}>
                   <div>
                     <p className="text-[9px] font-black text-white/60 uppercase tracking-[0.2em] mb-1">
-                      {selectedOrder.status === "completed" ? "Total Pago" :
-                       selectedOrder.status === "cancelled"  ? "Valor Cancelado" : "Valor Pendente"}
+                      {selectedOrder.status === "completed"
+                        ? (isCrediarioOrder(selectedOrder.payment_method) ? "Em Aberto (Crediário)" : "Total Pago")
+                        : selectedOrder.status === "cancelled" ? "Valor Cancelado" : "Valor Pendente"}
                     </p>
                     <p className="text-3xl font-black font-mono text-white leading-none tracking-tight">
                       R$ {Number(selectedOrder.total_amount).toFixed(2)}
