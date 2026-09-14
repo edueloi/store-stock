@@ -409,8 +409,11 @@ export default function Inventory() {
       const res = await fetch(`/api/products/by-barcode/${encodeURIComponent(trimmed)}`, {
         headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
       });
-      if (res.ok) openEdit(await res.json());
-    } catch { /* produto não encontrado, ignora silenciosamente */ }
+      if (res.ok) { openEdit(await res.json()); return; }
+      toast.error(`Nenhum produto cadastrado com o código "${trimmed}".`);
+    } catch {
+      toast.error("Falha ao buscar produto pelo código de barras.");
+    }
   }, [products]);
 
   useEffect(() => {
