@@ -630,68 +630,83 @@ export default function CustomerDetail() {
         subtitle="Ficha completa do cliente"
         action={
           <div className="flex items-center gap-2 flex-wrap">
-            <button onClick={() => navigate("/admin/customers")}
-              className="h-9 px-3 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 flex items-center gap-1.5 text-[12px] font-bold transition-all">
-              <ChevronLeft size={14} /> <span className="hidden sm:inline">Voltar</span>
-            </button>
-            <button onClick={openEdit} className="h-9 px-3 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 flex items-center gap-1.5 text-[12px] font-bold transition-all">
-              <Edit2 size={13} /> <span className="hidden sm:inline">Editar</span>
-            </button>
-            <button onClick={handleDelete} className="h-9 px-3 rounded-lg border border-red-200 text-red-500 hover:bg-red-50 flex items-center gap-1.5 text-[12px] font-bold transition-all">
-              <Trash2 size={13} /> <span className="hidden sm:inline">Excluir</span>
-            </button>
+            <Button variant="secondary" icon={<ChevronLeft size={14} />} onClick={() => navigate("/admin/customers")}>
+              <span className="hidden sm:inline">Voltar</span>
+            </Button>
+            <Button variant="secondary" icon={<Edit2 size={13} />} onClick={openEdit}>
+              <span className="hidden sm:inline">Editar</span>
+            </Button>
+            <Button variant="danger" icon={<Trash2 size={13} />} onClick={handleDelete}>
+              <span className="hidden sm:inline">Excluir</span>
+            </Button>
           </div>
         }
       />
 
       {/* Customer header card */}
-      <div className={cn("rounded-2xl border p-4 sm:p-5", detail.risk_flag ? "bg-rose-50 border-rose-200" : "bg-white border-slate-200 shadow-sm")}>
-        <div className="flex items-start gap-3 sm:gap-4">
-          <div className={cn(
-            "w-11 h-11 sm:w-14 sm:h-14 rounded-2xl flex items-center justify-center font-black text-lg sm:text-2xl uppercase shrink-0",
-            detail.risk_flag ? "bg-rose-100 text-rose-600" : "bg-blue-50 text-blue-600"
-          )}>
-            {detail.name[0]}
+      <div className={cn("rounded-2xl border p-4 sm:p-6", detail.risk_flag ? "bg-rose-50 border-rose-200" : "bg-white border-slate-200 shadow-sm")}>
+        <div className="flex flex-col sm:flex-row items-start gap-4">
+          <div className="flex items-center gap-3 sm:gap-4 min-w-0 w-full sm:w-auto">
+            <div className={cn(
+              "w-12 h-12 sm:w-16 sm:h-16 rounded-2xl flex items-center justify-center font-black text-xl sm:text-3xl uppercase shrink-0",
+              detail.risk_flag ? "bg-rose-100 text-rose-600" : "bg-blue-50 text-blue-600"
+            )}>
+              {detail.name[0]}
+            </div>
+            <div className="min-w-0 flex-1 sm:hidden">
+              <div className="flex items-center gap-2 flex-wrap">
+                <h2 className="font-black text-slate-900 text-[16px] leading-tight break-words">{detail.name}</h2>
+                {detail.risk_flag && (
+                  <span className="flex items-center gap-1 text-[9px] font-black text-rose-600 bg-rose-100 px-2 py-0.5 rounded-full uppercase shrink-0">
+                    <AlertTriangle size={9} /> Risco
+                  </span>
+                )}
+              </div>
+            </div>
           </div>
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2 flex-wrap">
-              <h2 className="font-black text-slate-900 text-[16px] sm:text-[18px] leading-tight break-words">{detail.name}</h2>
+          <div className="flex-1 min-w-0 w-full">
+            <div className="hidden sm:flex items-center gap-2 flex-wrap">
+              <h2 className="font-black text-slate-900 text-[18px] leading-tight break-words">{detail.name}</h2>
               {detail.risk_flag && (
                 <span className="flex items-center gap-1 text-[9px] font-black text-rose-600 bg-rose-100 px-2 py-0.5 rounded-full uppercase shrink-0">
                   <AlertTriangle size={9} /> Risco
                 </span>
               )}
             </div>
-            <div className="flex flex-wrap gap-2 sm:gap-4 mt-1.5">
+            <div className="flex flex-col sm:flex-row sm:flex-wrap gap-1.5 sm:gap-4 mt-2 sm:mt-1.5">
               {detail.phone && (
-                <a href={`tel:${detail.phone}`} className="text-[12px] text-slate-500 flex items-center gap-1 hover:text-blue-600">
-                  <Phone size={11} /> {detail.phone}
+                <a href={`tel:${detail.phone}`} className="text-[12px] text-slate-500 flex items-center gap-1.5 hover:text-blue-600 min-w-0">
+                  <Phone size={11} className="shrink-0" /> <span className="truncate">{detail.phone}</span>
                 </a>
               )}
               {detail.email && (
-                <a href={`mailto:${detail.email}`} className="text-[12px] text-slate-500 flex items-center gap-1 hover:text-blue-600">
-                  <Mail size={11} /> {detail.email}
+                <a href={`mailto:${detail.email}`} className="text-[12px] text-slate-500 flex items-center gap-1.5 hover:text-blue-600 min-w-0">
+                  <Mail size={11} className="shrink-0" /> <span className="truncate">{detail.email}</span>
                 </a>
               )}
               {detail.address && (
-                <span className="text-[12px] text-slate-500 flex items-center gap-1">
-                  <MapPin size={11} /> {detail.address}
+                <span className="text-[12px] text-slate-500 flex items-center gap-1.5 min-w-0">
+                  <MapPin size={11} className="shrink-0" /> <span className="truncate">{detail.address}</span>
                 </span>
               )}
             </div>
           </div>
         </div>
 
-        {detail.total_debt > 0 && (
-          <div className="mt-4 flex items-center gap-2 bg-red-50 border border-red-200 rounded-xl px-3 py-2.5">
-            <DollarSign size={14} className="text-red-500 shrink-0" />
-            <span className="text-[12px] font-black text-red-600">Deve {fmt(detail.total_debt)} em aberto (Crediário/Fiado)</span>
-          </div>
-        )}
-        {detail.risk_reason && (
-          <div className="mt-2 flex items-start gap-2 bg-rose-50 border border-rose-200 rounded-xl px-3 py-2.5">
-            <Shield size={13} className="text-rose-500 mt-0.5 shrink-0" />
-            <p className="text-[11px] text-rose-700 font-semibold">{detail.risk_reason}</p>
+        {(detail.total_debt > 0 || detail.risk_reason) && (
+          <div className="mt-4 space-y-2">
+            {detail.total_debt > 0 && (
+              <div className="flex items-start sm:items-center gap-2 bg-red-50 border border-red-200 rounded-xl px-3 py-2.5">
+                <DollarSign size={14} className="text-red-500 shrink-0 mt-0.5 sm:mt-0" />
+                <span className="text-[12px] font-black text-red-600">Deve {fmt(detail.total_debt)} em aberto (Crediário/Fiado)</span>
+              </div>
+            )}
+            {detail.risk_reason && (
+              <div className="flex items-start gap-2 bg-rose-50 border border-rose-200 rounded-xl px-3 py-2.5">
+                <Shield size={13} className="text-rose-500 mt-0.5 shrink-0" />
+                <p className="text-[11px] text-rose-700 font-semibold">{detail.risk_reason}</p>
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -937,35 +952,34 @@ export default function CustomerDetail() {
                                   </p>
                                 </div>
                                 <span className="text-[12px] font-mono font-black text-slate-700 shrink-0">{fmt(instRemaining)}</span>
-                                {inst.status === "open" ? (
-                                  <>
-                                    {selectedInstallmentIds.has(inst.id) && (
-                                      <>
-                                        <select value={installmentPayMethod[inst.id] ?? "money"}
-                                          onChange={(e) => setInstallmentPayMethod((prev) => ({ ...prev, [inst.id]: e.target.value as "money" | "pix" | "debit" | "credit" }))}
-                                          className="h-7 px-1 rounded-lg border border-slate-200 text-[9px] font-bold focus:outline-none focus:border-blue-400 shrink-0">
-                                          <option value="money">Dinheiro</option>
-                                          <option value="pix">PIX</option>
-                                          <option value="debit">Débito</option>
-                                          <option value="credit">Crédito</option>
-                                        </select>
-                                        <input type="number" min={0} max={instRemaining} step="0.01"
-                                          value={installmentPayAmounts[inst.id] ?? instRemaining.toFixed(2)}
-                                          onChange={(e) => setInstallmentPayAmounts((prev) => ({ ...prev, [inst.id]: e.target.value }))}
-                                          className="w-16 h-7 px-1.5 rounded-lg border border-slate-200 text-[10px] font-mono focus:outline-none focus:border-blue-400 shrink-0" />
-                                      </>
-                                    )}
-                                    <button
-                                      onClick={() => handlePayInstallment(d.id, inst.id, inst.number, Number(installmentPayAmounts[inst.id] ?? instRemaining))}
-                                      disabled={payingInstallmentId === inst.id}
-                                      className="p-1.5 bg-emerald-100 hover:bg-emerald-200 text-emerald-600 rounded-lg transition-colors shrink-0 disabled:opacity-50">
-                                      {payingInstallmentId === inst.id ? <Loader2 size={13} className="animate-spin" /> : <CheckCircle2 size={13} />}
-                                    </button>
-                                  </>
-                                ) : (
-                                  <CheckCircle2 size={15} className="text-emerald-600 shrink-0" />
-                                )}
+                                {inst.status !== "open" && <CheckCircle2 size={15} className="text-emerald-600 shrink-0" />}
                               </div>
+                              {inst.status === "open" && (
+                                <div className="flex flex-wrap items-center gap-1.5 pt-1">
+                                  {selectedInstallmentIds.has(inst.id) && (
+                                    <>
+                                      <select value={installmentPayMethod[inst.id] ?? "money"}
+                                        onChange={(e) => setInstallmentPayMethod((prev) => ({ ...prev, [inst.id]: e.target.value as "money" | "pix" | "debit" | "credit" }))}
+                                        className="h-7 px-1 rounded-lg border border-slate-200 text-[9px] font-bold focus:outline-none focus:border-blue-400 shrink-0">
+                                        <option value="money">Dinheiro</option>
+                                        <option value="pix">PIX</option>
+                                        <option value="debit">Débito</option>
+                                        <option value="credit">Crédito</option>
+                                      </select>
+                                      <input type="number" min={0} max={instRemaining} step="0.01"
+                                        value={installmentPayAmounts[inst.id] ?? instRemaining.toFixed(2)}
+                                        onChange={(e) => setInstallmentPayAmounts((prev) => ({ ...prev, [inst.id]: e.target.value }))}
+                                        className="w-20 h-7 px-1.5 rounded-lg border border-slate-200 text-[10px] font-mono focus:outline-none focus:border-blue-400 shrink-0" />
+                                    </>
+                                  )}
+                                  <button
+                                    onClick={() => handlePayInstallment(d.id, inst.id, inst.number, Number(installmentPayAmounts[inst.id] ?? instRemaining))}
+                                    disabled={payingInstallmentId === inst.id}
+                                    className="p-1.5 bg-emerald-100 hover:bg-emerald-200 text-emerald-600 rounded-lg transition-colors shrink-0 disabled:opacity-50 ml-auto">
+                                    {payingInstallmentId === inst.id ? <Loader2 size={13} className="animate-spin" /> : <CheckCircle2 size={13} />}
+                                  </button>
+                                </div>
+                              )}
                                 {suggested > 0 && (
                                   <div className="flex items-center justify-between gap-2 pt-1.5 border-t border-red-200">
                                     <p className="text-[9px] text-red-600 font-semibold">Juros sugerido: {fmt(suggested)}</p>
