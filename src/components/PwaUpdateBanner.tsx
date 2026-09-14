@@ -36,6 +36,25 @@ export default function PwaUpdateBanner() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Um F5 comum não força o navegador a rebuscar sw.js no servidor — ele usa o
+  // cache HTTP normal e só reverifica sozinho depois de várias horas. Forçar
+  // registration.update() sempre que a aba ganha foco de novo é o que faz o
+  // aviso de "nova versão" aparecer rápido, sem depender de Ctrl+Shift+R.
+  // useRegisterSW não expõe a registration em si, então pega direto da API
+  // nativa do navegador (mesmo objeto que o plugin registrou por baixo).
+  useEffect(() => {
+    const checkForUpdate = () => {
+      navigator.serviceWorker?.getRegistration().then((reg) => reg?.update()).catch(() => {});
+    };
+    const onVisibilityChange = () => { if (!document.hidden) checkForUpdate(); };
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    window.addEventListener("focus", checkForUpdate);
+    return () => {
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+      window.removeEventListener("focus", checkForUpdate);
+    };
+  }, []);
+
   if (!visible) return null;
 
   return (
