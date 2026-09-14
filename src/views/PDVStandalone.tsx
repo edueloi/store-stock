@@ -2183,7 +2183,13 @@ ${nfceInvoice.protocol ? `<div class="row"><span class="bold">Protocolo:</span><
   const filteredProducts = useMemo(() => products.filter((p) => {
     if (!productHasStock(p)) return false;
     if (searchTerm) {
-      return p.name.toLowerCase().includes(searchTerm.toLowerCase());
+      const q = searchTerm.toLowerCase();
+      // Placeholder promete "nome, código ou código de barras" — sku/barcode
+      // não entravam na busca, só o nome, então digitar o EAN manualmente
+      // aqui nunca encontrava nada.
+      return p.name.toLowerCase().includes(q)
+        || (p.sku ?? "").toLowerCase().includes(q)
+        || (p.barcode ?? "").toLowerCase().includes(q);
     }
     if (selectedCategory && p.category_id !== selectedCategory) return false;
     return true;

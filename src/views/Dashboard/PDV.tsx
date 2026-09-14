@@ -1831,7 +1831,13 @@ export default function PDV() {
 
   const filteredProducts = useMemo(() => products.filter((p) => {
     if (selectedCategory && p.category_id !== selectedCategory) return false;
-    if (searchTerm && !p.name.toLowerCase().includes(searchTerm.toLowerCase())) return false;
+    if (searchTerm) {
+      const q = searchTerm.toLowerCase();
+      const matches = p.name.toLowerCase().includes(q)
+        || (p.sku ?? "").toLowerCase().includes(q)
+        || (p.barcode ?? "").toLowerCase().includes(q);
+      if (!matches) return false;
+    }
     if (!productHasStock(p)) return false;
     return true;
   }), [products, searchTerm, selectedCategory]);
@@ -2062,7 +2068,7 @@ export default function PDV() {
           <div className="flex gap-2 items-center">
             <div className="relative flex-1">
               <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
-              <input id="pdv-search-input" type="text" placeholder={showServicesTab ? "Buscar serviço..." : "Buscar produto..."}
+              <input id="pdv-search-input" type="text" placeholder={showServicesTab ? "Buscar serviço..." : "Buscar por nome, código ou código de barras..."}
                 value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)}
                 className="w-full pl-10 pr-4 h-10 bg-white rounded-xl text-[13px] font-medium text-slate-700 placeholder:text-slate-400 focus:outline-none transition-all border border-slate-200 focus:border-blue-400 focus:ring-2 focus:ring-blue-100 shadow-sm" />
             </div>
