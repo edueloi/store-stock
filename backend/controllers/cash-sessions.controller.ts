@@ -182,8 +182,9 @@ export async function getCashSessionDetail(req: Request, res: Response) {
       include: {
         orders: {
           select: {
-            id: true, total_amount: true, payment_method: true, created_at: true, status: true,
-            customer_name: true,
+            id: true, total_amount: true, gross_amount: true, discount_amount: true, fee_amount: true,
+            payment_method: true, created_at: true, status: true,
+            customer_name: true, seller_name: true,
             items: {
               select: {
                 quantity: true, unit_price: true, name: true,
