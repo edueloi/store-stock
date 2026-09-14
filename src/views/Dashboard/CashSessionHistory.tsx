@@ -285,6 +285,7 @@ export default function CashSessionHistory() {
   function computeSoldItems(orders: CashSessionOrder[]) {
     return orders.flatMap((o) => {
       if (o.status === "cancelled") return [];
+      const segments = parseOrderPayments(o.payment_method);
       return o.items.map((it) => ({
         orderId: o.id,
         productName: it.product?.name ?? it.name ?? "Item avulso",
@@ -294,13 +295,30 @@ export default function CashSessionHistory() {
         createdAt: o.created_at,
         customerName: o.customer_name || "Balcão",
         sellerName: o.seller_name || "—",
-        paymentLabel: parseOrderPayments(o.payment_method).map((s) => methodBrandLabel(s.method, s.brand)).join(" + "),
+        paymentLabel: segments.map((s) => methodBrandLabel(s.method, s.brand)).join(" + "),
+        // Métodos "crus" (sem bandeira) da venda — usado pro filtro por forma
+        // de pagamento na tabela; uma venda pode ter mais de um (ex.: parte
+        // dinheiro, parte PIX).
+        paymentMethods: Array.from(new Set(segments.map((s) => s.method))),
       }));
     });
   }
 
   const paymentByMethodBrand = useMemo(() => computePaymentByMethodBrand(allOrders), [allOrders]);
   const soldItems = useMemo(() => computeSoldItems(allOrders), [allOrders]);
+
+  // Filtro por forma de pagamento na tabela de Itens Vendidos — "all" mostra
+  // tudo; senão só os itens de vendas que incluem aquele método.
+  const [itemsPaymentFilter, setItemsPaymentFilter] = useState<"all" | string>("all");
+  const filteredSoldItems = useMemo(() => {
+    if (itemsPaymentFilter === "all") return soldItems;
+    return soldItems.filter((it) => it.paymentMethods.includes(itemsPaymentFilter));
+  }, [soldItems, itemsPaymentFilter]);
+  const availablePaymentMethods = useMemo(() => {
+    const set = new Set<string>();
+    soldItems.forEach((it) => it.paymentMethods.forEach((m) => set.add(m)));
+    return Array.from(set);
+  }, [soldItems]);
 
   // Vendas por dia — pro gráfico de evolução da aba Relatório.
   const salesByDay = useMemo(() => {
@@ -1032,9 +1050,32 @@ export default function CashSessionHistory() {
 
               {/* Tabela de itens vendidos */}
               <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-                <div className="flex items-center gap-2 px-5 py-4 border-b border-slate-100">
-                  <ListOrdered size={14} className="text-slate-400" />
-                  <h3 className="text-[11px] font-black uppercase tracking-widest text-slate-700">Itens Vendidos ({soldItems.length})</h3>
+                <div className="flex items-center justify-between gap-3 px-5 py-4 border-b border-slate-100 flex-wrap">
+                  <div className="flex items-center gap-2">
+                    <ListOrdered size={14} className="text-slate-400" />
+                    <h3 className="text-[11px] font-black uppercase tracking-widest text-slate-700">Itens Vendidos ({filteredSoldItems.length})</h3>
+                  </div>
+                  {availablePaymentMethods.length > 0 && (
+                    <div className="flex items-center gap-1 bg-slate-50 border border-slate-200 rounded-xl p-1 flex-wrap">
+                      <button
+                        onClick={() => setItemsPaymentFilter("all")}
+                        className={cn(
+                          "h-7 px-3 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all",
+                          itemsPaymentFilter === "all" ? "bg-slate-900 text-white shadow-sm" : "text-slate-500 hover:text-slate-700"
+                        )}
+                      >Todos</button>
+                      {availablePaymentMethods.map((m) => (
+                        <button
+                          key={m}
+                          onClick={() => setItemsPaymentFilter(m)}
+                          className={cn(
+                            "h-7 px-3 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all",
+                            itemsPaymentFilter === m ? "bg-slate-900 text-white shadow-sm" : "text-slate-500 hover:text-slate-700"
+                          )}
+                        >{PM_LABEL[m] ?? m}</button>
+                      ))}
+                    </div>
+                  )}
                 </div>
                 <div className="overflow-x-auto max-h-[420px] overflow-y-auto">
                   <table className="w-full text-left border-collapse">
@@ -1046,10 +1087,10 @@ export default function CashSessionHistory() {
                       </tr>
                     </thead>
                     <tbody>
-                      {soldItems.length === 0 && (
+                      {filteredSoldItems.length === 0 && (
                         <tr><td colSpan={8} className="px-4 py-8 text-center text-slate-400 text-xs">Nenhum item vendido no período</td></tr>
                       )}
-                      {soldItems.map((it, i) => (
+                      {filteredSoldItems.map((it, i) => (
                         <tr key={i} className="border-t border-slate-100">
                           <td className="px-4 py-2 text-xs font-mono text-slate-400 whitespace-nowrap">#{String(it.orderId).padStart(6, "0")}</td>
                           <td className="px-4 py-2 text-xs font-semibold text-slate-700">{it.productName}</td>
