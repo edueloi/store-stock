@@ -55,6 +55,7 @@ export default function CloseCashSessionModal({ onCancel, onConfirm, onFinish }:
 
   const breakdown = result?.payment_breakdown ?? {};
   const diff = result ? Number(result.difference_amount) : 0;
+  const totalFee = Object.values(breakdown).reduce((sum, entry) => sum + (entry.fee ?? 0), 0);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
@@ -161,6 +162,8 @@ export default function CloseCashSessionModal({ onCancel, onConfirm, onFinish }:
                   <tr>
                     <td className="px-3 py-2">Forma</td>
                     <td className="px-3 py-2 text-right">Esperado</td>
+                    <td className="px-3 py-2 text-right">Taxa</td>
+                    <td className="px-3 py-2 text-right">Líquido</td>
                     <td className="px-3 py-2 text-right">Contado</td>
                     <td className="px-3 py-2 text-right">Diferença</td>
                   </tr>
@@ -170,6 +173,12 @@ export default function CloseCashSessionModal({ onCancel, onConfirm, onFinish }:
                     <tr key={method} className="border-t border-slate-100">
                       <td className="px-3 py-2 font-bold text-slate-700">{METHOD_LABELS[method] ?? method}</td>
                       <td className="px-3 py-2 text-right font-mono text-slate-600">{fmt(entry.expected)}</td>
+                      <td className="px-3 py-2 text-right font-mono text-amber-600">
+                        {entry.fee ? `-${fmt(entry.fee)}` : "—"}
+                      </td>
+                      <td className="px-3 py-2 text-right font-mono text-slate-600">
+                        {entry.net !== undefined ? fmt(entry.net) : "—"}
+                      </td>
                       <td className="px-3 py-2 text-right font-mono text-slate-600">
                         {entry.counted !== undefined ? fmt(entry.counted) : "—"}
                       </td>
@@ -182,6 +191,17 @@ export default function CloseCashSessionModal({ onCancel, onConfirm, onFinish }:
                     </tr>
                   ))}
                 </tbody>
+                {totalFee > 0 && (
+                  <tfoot>
+                    <tr className="border-t-2 border-slate-200 bg-slate-50">
+                      <td className="px-3 py-2 font-black text-slate-700 uppercase text-[9px] tracking-widest">Total taxas</td>
+                      <td colSpan={2} className="px-3 py-2 text-right font-mono font-bold text-amber-600">-{fmt(totalFee)}</td>
+                      <td colSpan={3} className="px-3 py-2 text-right font-mono font-bold text-slate-700">
+                        Líquido: {fmt(Number(result?.expected_amount ?? 0) - totalFee)}
+                      </td>
+                    </tr>
+                  </tfoot>
+                )}
               </table>
             </div>
 

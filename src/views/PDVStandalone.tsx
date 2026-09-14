@@ -1716,10 +1716,16 @@ export default function PDVStandalone() {
     receipt += row("Fechamento", session.closed_at ? dateTimeShort(new Date(session.closed_at)) : "-") + "\n";
     receipt += `${thin}\n`;
     receipt += row("Valor de abertura", `R$ ${money(Number(session.opening_amount))}`) + "\n";
+    let totalFee = 0;
     if (session.payment_breakdown) {
       receipt += `${thin}\n${center("POR FORMA DE PAGAMENTO")}\n${thin}\n`;
       Object.entries(session.payment_breakdown).forEach(([method, entry]) => {
         receipt += row(PM_LABEL[method as PaymentMethod] ?? method, `R$ ${money(entry.expected)}`) + "\n";
+        if (entry.fee) {
+          totalFee += entry.fee;
+          receipt += row("  Taxa maquininha", `-R$ ${money(entry.fee)}`) + "\n";
+          receipt += row("  Líquido", `R$ ${money(entry.net ?? entry.expected - entry.fee)}`) + "\n";
+        }
         if (entry.counted !== undefined) {
           receipt += row("  Contado", `R$ ${money(entry.counted)}`) + "\n";
         }
@@ -1730,6 +1736,10 @@ export default function PDVStandalone() {
     }
     receipt += `${rule}\n`;
     receipt += row("TOTAL ESPERADO", `R$ ${money(Number(session.expected_amount))}`) + "\n";
+    if (totalFee > 0) {
+      receipt += row("TOTAL TAXAS", `-R$ ${money(totalFee)}`) + "\n";
+      receipt += row("TOTAL LÍQUIDO", `R$ ${money(Number(session.expected_amount) - totalFee)}`) + "\n";
+    }
     receipt += row("TOTAL CONTADO", `R$ ${money(Number(session.counted_amount))}`) + "\n";
     const diff = Number(session.difference_amount);
     receipt += row(diff === 0 ? "CAIXA CONFERE" : diff > 0 ? "SOBRA" : "FALTA", `R$ ${money(Math.abs(diff))}`) + "\n";

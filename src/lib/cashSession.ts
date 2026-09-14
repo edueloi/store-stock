@@ -12,6 +12,8 @@ export interface CashSessionPaymentBreakdownEntry {
   expected: number;
   counted?: number;
   difference?: number;
+  fee?: number;
+  net?: number;
 }
 
 export interface ClosedCashSession {

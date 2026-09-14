@@ -92,14 +92,24 @@ export async function closeCashSession(req: Request, res: Response) {
 
     const orders = await prisma.order.findMany({
       where: { tenant_id: tenantId, cash_session_id: id, status: "completed" },
-      select: { payment_method: true },
+      select: { payment_method: true, fee_amount: true },
     });
 
     const totals: Record<string, number> = {};
+    const fees: Record<string, number> = {};
     for (const order of orders) {
-      for (const seg of parsePaymentMethod(order.payment_method ?? "money")) {
-        if (seg.amount <= 0) continue;
+      const segs = parsePaymentMethod(order.payment_method ?? "money").filter((seg) => seg.amount > 0);
+      const orderGross = segs.reduce((sum, seg) => sum + seg.amount, 0);
+      const orderFee = Number(order.fee_amount) || 0;
+      for (const seg of segs) {
         totals[seg.method] = (totals[seg.method] ?? 0) + seg.amount;
+        // fee_amount é gravado por pedido, não por forma de pagamento — em venda
+        // com pagamento misto (ex.: metade PIX, metade crédito), rateia a taxa
+        // do pedido proporcionalmente ao valor de cada segmento. Dinheiro nunca
+        // tem taxa de maquininha, mesmo que aponte pra cá por engano.
+        if (seg.method !== "money" && orderFee > 0 && orderGross > 0) {
+          fees[seg.method] = (fees[seg.method] ?? 0) + orderFee * (seg.amount / orderGross);
+        }
       }
     }
 
@@ -108,16 +118,22 @@ export async function closeCashSession(req: Request, res: Response) {
     const counted = Math.round((Number(countedAmount) || 0) * 100) / 100;
     const difference = Math.round((counted - moneyExpected) * 100) / 100;
 
-    const paymentBreakdown: Record<string, { expected: number; counted?: number; difference?: number }> = {
+    const paymentBreakdown: Record<string, { expected: number; counted?: number; difference?: number; fee?: number; net?: number }> = {
       money: { expected: moneyExpected, counted, difference },
     };
     for (const method of Object.keys(totals)) {
       if (method === "money") continue;
       const expected = Math.round(totals[method] * 100) / 100;
+      const fee = Math.round((fees[method] ?? 0) * 100) / 100;
       const countedForMethod = countedBreakdown?.[method];
-      paymentBreakdown[method] = countedForMethod !== undefined
-        ? { expected, counted: countedForMethod, difference: Math.round((countedForMethod - expected) * 100) / 100 }
-        : { expected };
+      paymentBreakdown[method] = {
+        expected,
+        fee: fee > 0 ? fee : undefined,
+        net: fee > 0 ? Math.round((expected - fee) * 100) / 100 : undefined,
+        ...(countedForMethod !== undefined
+          ? { counted: countedForMethod, difference: Math.round((countedForMethod - expected) * 100) / 100 }
+          : {}),
+      };
     }
 
     const user = await prisma.user.findUnique({ where: { id: userId }, select: { name: true } });
