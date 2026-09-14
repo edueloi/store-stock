@@ -970,12 +970,22 @@ export default function PDVStandalone() {
     // precisa limpar esse mesmo campo ao concluir o scan (Enter ou timeout),
     // senão o código digitado fica preso ali em vez do produto ir direto
     // pro carrinho (comportamento do leitor em qualquer outro contexto).
-    let activeSearchField: "main" | "addModal" | null = null;
+    // "pending" = ainda não decidiu pra onde vai a sequência atual (nenhuma
+    // tecla capturada ainda); null = decidiu que vai pro buffer solto (campo
+    // de scan oculto), não pra um campo de busca visível. Usar null pros dois
+    // casos ao mesmo tempo foi o bug: a partir da 2ª tecla, o próprio
+    // .focus() no campo de scan oculto (feito na 1ª tecla) faz
+    // "active === scanInputRef.current" virar true, e sem diferenciar
+    // "ainda não decidi" de "decidi que é o buffer solto" o código abaixo
+    // devolvia o controle pro onChange nativo do input oculto no meio da
+    // sequência — cortando a leitura ao vivo (só o Enter do próprio input
+    // oculto, se chegasse a tempo, fechava o código, de forma frágil).
+    let activeSearchField: "main" | "addModal" | null | "pending" = "pending";
 
     const clearActiveSearchField = () => {
       if (activeSearchField === "main") setSearchTerm("");
       else if (activeSearchField === "addModal") setAddProductSearch("");
-      activeSearchField = null;
+      activeSearchField = "pending";
     };
 
     const flush = (code: string) => {
@@ -1003,9 +1013,10 @@ export default function PDVStandalone() {
         return;
       }
       if (e.key.length !== 1) return;
-      // Campo de scan já focado (e a sequência atual não começou vinculada a
-      // um campo de busca visível) → deixa o onChange normal dele cuidar.
-      if (active === scanInputRef.current && !activeSearchField) return;
+      // Campo de scan já focado ANTES da sequência atual começar (não foi
+      // este handler quem deu o .focus() nele) → deixa o onChange nativo dele
+      // cuidar sozinho, como sempre foi.
+      if (active === scanInputRef.current && activeSearchField === "pending") return;
       // Fora dos campos de busca de produto: só intercepta teclas rápidas
       // demais pra serem digitação humana (leitor físico) — sem essa
       // checagem de velocidade, bipar com qualquer outro campo *editável* em
@@ -1016,18 +1027,17 @@ export default function PDVStandalone() {
       // primeiro dígito bipado (frequentemente "7", prefixo comum de EAN-13
       // brasileiro) vaza solto e só a partir da 2ª bipada o buffer funciona.
       // Isso só se aplica a quem ainda não está no meio de uma sequência —
-      // uma vez decidido o destino (activeSearchField ou buffer não-vazio),
-      // essa checagem não pode mais barrar as teclas seguintes, senão o foco
-      // mudando no meio (ex.: o .focus() do campo de scan oculto, abaixo)
-      // corta a leitura pela metade.
-      if (buffer === "" && !searchFieldKind && isEditable && gap > 80) return;
+      // uma vez decidido o destino, essa checagem não pode mais barrar as
+      // teclas seguintes, senão o foco mudando no meio (ex.: o .focus() do
+      // campo de scan oculto, abaixo) corta a leitura pela metade.
+      if (activeSearchField === "pending" && !searchFieldKind && isEditable && gap > 80) return;
 
       // A PRIMEIRA tecla da sequência decide o destino e essa decisão fica
       // fixa até o flush — reavaliar "onde focar" tecla a tecla é frágil: o
       // .focus() programático do campo de scan oculto (usado quando não há
       // campo de busca) muda document.activeElement no meio da sequência,
       // fazendo o resto do código cair no branch errado e cortando a leitura.
-      if (buffer === "") activeSearchField = searchFieldKind;
+      if (activeSearchField === "pending") activeSearchField = searchFieldKind;
 
       e.preventDefault();
       buffer += e.key;
