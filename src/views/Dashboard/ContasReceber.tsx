@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import PageHeader from "../../components/layout/PageHeader";
 import {
   Plus,
@@ -244,6 +244,30 @@ export default function ContasReceber() {
 
   useEffect(() => { fetchItems(); fetchCustomersList(); }, []);
   useEffect(() => onRealtime("finance:changed", () => { fetchItems(); }), []);
+
+  // Lembra o filtro de período escolhido (Tudo/Mês/Ano) entre visitas à tela —
+  // salvo por usuário no backend, mesmo mecanismo já usado no Fluxo de Caixa.
+  const periodPrefLoaded = useRef(false);
+  useEffect(() => {
+    fetch("/api/preferences/accounts_receivable_period", { headers: { Authorization: `Bearer ${token()}` } })
+      .then((r) => r.ok ? r.json() : null)
+      .then((saved) => {
+        if (saved === "month" || saved === "year" || saved === "all" || saved === "custom") {
+          applyPeriodPreset(saved);
+        }
+      })
+      .catch(() => {})
+      .finally(() => { periodPrefLoaded.current = true; });
+  }, []);
+
+  useEffect(() => {
+    if (!periodPrefLoaded.current) return;
+    fetch("/api/preferences/accounts_receivable_period", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token()}` },
+      body: JSON.stringify({ value: periodPreset }),
+    }).catch(() => {});
+  }, [periodPreset]);
 
   const openCreate = () => {
     setSelected(null);
