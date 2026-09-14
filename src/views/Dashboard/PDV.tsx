@@ -615,18 +615,46 @@ export default function PDV() {
   // editável estiver em foco — assim funciona "solto" na tela sem atrapalhar
   // quem está digitando de propósito em outro campo (ver comentário abaixo).
   useEffect(() => {
+    let lastKeyTime = 0;
     let buffer = "";
     let timer: ReturnType<typeof setTimeout> | null = null;
+    // Guarda em qual campo de busca de produto a sequência atual começou —
+    // precisa limpar esse mesmo campo ao concluir o scan (Enter ou timeout),
+    // senão o código digitado fica preso ali em vez do produto ir direto
+    // pro carrinho (comportamento do leitor em qualquer outro contexto).
+    let activeSearchField: "main" | "addModal" | null = null;
+
+    const clearActiveSearchField = () => {
+      if (activeSearchField === "main") setSearchTerm("");
+      else if (activeSearchField === "addModal") setAddProductSearch("");
+      activeSearchField = null;
+    };
 
     const flush = (code: string) => {
       buffer = "";
       if (timer) { clearTimeout(timer); timer = null; }
+      clearActiveSearchField();
       if (code.trim().length >= 3) handleScan(code.trim());
     };
 
     const onKeyDown = (e: KeyboardEvent) => {
-      const tag = (document.activeElement?.tagName ?? "").toLowerCase();
+      const active = document.activeElement;
+      const tag = (active?.tagName ?? "").toLowerCase();
       const isEditable = tag === "input" || tag === "textarea" || tag === "select";
+      // Campos de busca de produto (busca principal e do modal "Adicionar
+      // Produto") já mostram o texto digitado em tempo real via
+      // searchTerm/addProductSearch — nesses o buffer do scanner pode
+      // interceptar a sequência inteira desde a 1ª tecla sem prejudicar
+      // digitação humana normal, porque o campo continua funcionando (só
+      // passa a ser alimentado pelo buffer em vez do onChange nativo).
+      const activeId = active instanceof HTMLElement ? active.id : "";
+      const searchFieldKind = activeId === "pdv-search-input" ? "main"
+        : activeId === "pdv-add-product-search" ? "addModal"
+        : null;
+
+      const now = Date.now();
+      const gap = now - lastKeyTime;
+      lastKeyTime = now;
 
       if (e.key === "Enter") {
         if (buffer.length >= 3) {
@@ -639,28 +667,35 @@ export default function PDV() {
       if (e.key.length !== 1) return;
 
       // Campo de scan já focado → deixa o onChange normal cuidar
-      if (document.activeElement === scanInputRef.current) return;
+      if (active === scanInputRef.current) return;
 
-      // Qualquer outro campo editável focado (busca de cliente, campo de
-      // preço, etc.) → nunca intercepta, mesmo se a digitação for rápida.
-      // Antes disso comparava a velocidade de digitação (gap > 80ms) pra
-      // "adivinhar" se era um leitor de código de barras — mas um leitor
-      // físico também dispara rápido com um campo de texto comum em foco,
-      // vazando dígitos ali (ex: número escaneado aparecendo no filtro de
-      // busca). Só o campo de scan dedicado ou nenhum campo focado usam o
-      // buffer do leitor agora.
-      if (isEditable) return;
+      // Fora dos campos de busca de produto: só intercepta teclas rápidas
+      // demais pra serem digitação humana (leitor físico) — sem essa
+      // checagem de velocidade, bipar com qualquer outro campo em foco
+      // (nome de cliente, observações etc.) atrapalharia a digitação normal.
+      // A 1ª tecla de uma sequência nunca tem gap real pra comparar (pode
+      // vir segundos depois da última), então nesses campos ela sempre passa
+      // direto pro campo mesmo — só a partir da 2ª tecla rápida em diante o
+      // scanner é reconhecido e capturado.
+      if (!searchFieldKind && gap > 80 && isEditable) return;
 
       // Leitor detectado → captura e redireciona
       e.preventDefault();
       buffer += e.key;
-      scanInputRef.current?.focus();
+      if (searchFieldKind) {
+        activeSearchField = searchFieldKind;
+        if (searchFieldKind === "main") setSearchTerm(buffer);
+        else setAddProductSearch(buffer);
+      } else {
+        scanInputRef.current?.focus();
+      }
       setScanCode(buffer);
 
       if (timer) clearTimeout(timer);
       timer = setTimeout(() => {
         const b = buffer;
         buffer = "";
+        clearActiveSearchField();
         if (b.trim().length >= 3) handleScan(b.trim());
       }, 300);
     };
@@ -4598,8 +4633,8 @@ export default function PDV() {
               <div className="p-4 border-b border-slate-100 shrink-0">
                 <div className="relative">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={13} />
-                  <input value={addProductSearch} onChange={(e) => setAddProductSearch(e.target.value)}
-                    placeholder="Buscar produto por nome..." autoFocus
+                  <input id="pdv-add-product-search" value={addProductSearch} onChange={(e) => setAddProductSearch(e.target.value)}
+                    placeholder="Buscar produto por nome, código ou código de barras..." autoFocus
                     className="w-full pl-9 pr-3 h-10 rounded-xl border border-slate-200 text-[12px] font-medium focus:outline-none focus:border-blue-400" />
                 </div>
               </div>
@@ -4608,7 +4643,10 @@ export default function PDV() {
                   const q = addProductSearch.trim().toLowerCase();
                   const filtered = products
                     .filter((p) => productHasStock(p))
-                    .filter((p) => !q || p.name.toLowerCase().includes(q))
+                    .filter((p) => !q
+                      || p.name.toLowerCase().includes(q)
+                      || (p.sku ?? "").toLowerCase().includes(q)
+                      || (p.barcode ?? "").toLowerCase().includes(q))
                     .slice(0, 50);
                   if (filtered.length === 0) {
                     return <div className="text-center py-10 text-[11px] font-bold text-slate-400">Nenhum produto encontrado</div>;

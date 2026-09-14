@@ -966,16 +966,40 @@ export default function PDVStandalone() {
     let lastKeyTime = 0;
     let buffer = "";
     let timer: ReturnType<typeof setTimeout> | null = null;
+    // Guarda em qual campo de busca de produto a sequência atual começou —
+    // precisa limpar esse mesmo campo ao concluir o scan (Enter ou timeout),
+    // senão o código digitado fica preso ali em vez do produto ir direto
+    // pro carrinho (comportamento do leitor em qualquer outro contexto).
+    let activeSearchField: "main" | "addModal" | null = null;
+
+    const clearActiveSearchField = () => {
+      if (activeSearchField === "main") setSearchTerm("");
+      else if (activeSearchField === "addModal") setAddProductSearch("");
+      activeSearchField = null;
+    };
 
     const flush = (code: string) => {
       buffer = "";
       if (timer) { clearTimeout(timer); timer = null; }
+      clearActiveSearchField();
       if (code.trim().length >= 3) handleScan(code.trim());
     };
 
     const onKeyDown = (e: KeyboardEvent) => {
-      const tag = (document.activeElement?.tagName ?? "").toLowerCase();
+      const active = document.activeElement;
+      const tag = (active?.tagName ?? "").toLowerCase();
       const isEditable = tag === "input" || tag === "textarea" || tag === "select";
+      // Campos de busca de produto (busca principal do carrinho e do modal
+      // "Adicionar Produto") já mostram o texto digitado em tempo real via
+      // searchTerm/addProductSearch — nesses o buffer do scanner pode
+      // interceptar a sequência inteira desde a 1ª tecla sem prejudicar
+      // digitação humana normal, porque o campo continua funcionando (só
+      // passa a ser alimentado pelo buffer em vez do onChange nativo).
+      const activeId = active instanceof HTMLElement ? active.id : "";
+      const searchFieldKind = activeId === "pdv-product-search" ? "main"
+        : activeId === "pdv-add-product-search" ? "addModal"
+        : null;
+
       const now = Date.now();
       const gap = now - lastKeyTime;
       lastKeyTime = now;
@@ -985,25 +1009,32 @@ export default function PDVStandalone() {
         return;
       }
       if (e.key.length !== 1) return;
-      if (document.activeElement === scanInputRef.current) return;
-      // Digitação humana lenta em outro campo (busca de produto, cliente,
-      // nome avulso etc) → ignora, deixa o campo receber o texto normalmente.
-      // Um leitor de código de barras físico digita rápido demais para
-      // qualquer pessoa (gap bem menor que 80ms entre teclas), então mesmo
-      // com um campo de texto em foco a gente ainda intercepta e redireciona
-      // pro carrinho — sem essa checagem de velocidade, o scanner para de
-      // funcionar sempre que algum campo estiver focado (regressão real: ver
-      // caso do modal "Adicionar Produto", que autofoca a busca).
-      if (gap > 80 && isEditable) return;
+      if (active === scanInputRef.current) return;
+      // Fora dos campos de busca de produto: só intercepta teclas rápidas
+      // demais pra serem digitação humana (leitor físico) — sem essa
+      // checagem de velocidade, bipar com qualquer outro campo em foco
+      // (nome de cliente, observações etc.) atrapalharia a digitação normal.
+      // A 1ª tecla de uma sequência nunca tem gap real pra comparar (pode
+      // vir segundos depois da última), então nesses campos ela sempre passa
+      // direto pro campo mesmo — só a partir da 2ª tecla rápida em diante o
+      // scanner é reconhecido e capturado.
+      if (!searchFieldKind && gap > 80 && isEditable) return;
 
       e.preventDefault();
       buffer += e.key;
-      scanInputRef.current?.focus();
+      if (searchFieldKind) {
+        activeSearchField = searchFieldKind;
+        if (searchFieldKind === "main") setSearchTerm(buffer);
+        else setAddProductSearch(buffer);
+      } else {
+        scanInputRef.current?.focus();
+      }
       setScanCode(buffer);
 
       if (timer) clearTimeout(timer);
       timer = setTimeout(() => {
         const b = buffer; buffer = "";
+        clearActiveSearchField();
         if (b.trim().length >= 3) handleScan(b.trim());
       }, 300);
     };
@@ -2519,7 +2550,7 @@ ${nfceInvoice.protocol ? `<div class="row"><span class="bold">Protocolo:</span><
           <div className="flex gap-2 items-center">
             <div className="relative flex-1">
               <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
-              <input type="text" placeholder="Buscar produto por nome, código ou código de barras..." value={searchTerm}
+              <input id="pdv-product-search" type="text" placeholder="Buscar produto por nome, código ou código de barras..." value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="w-full pl-10 pr-4 h-10 bg-white rounded-xl text-[13px] font-medium text-slate-700 placeholder:text-slate-400 focus:outline-none transition-all border border-slate-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 shadow-sm" />
             </div>
@@ -4920,8 +4951,8 @@ ${nfceInvoice.protocol ? `<div class="row"><span class="bold">Protocolo:</span><
               <div className="p-4 border-b border-slate-100 shrink-0">
                 <div className="relative">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={13} />
-                  <input value={addProductSearch} onChange={(e) => setAddProductSearch(e.target.value)}
-                    placeholder="Buscar produto por nome..." autoFocus
+                  <input id="pdv-add-product-search" value={addProductSearch} onChange={(e) => setAddProductSearch(e.target.value)}
+                    placeholder="Buscar produto por nome, código ou código de barras..." autoFocus
                     className="w-full pl-9 pr-3 h-10 rounded-xl border border-slate-200 text-[12px] font-medium focus:outline-none focus:border-blue-400" />
                 </div>
               </div>
@@ -4930,7 +4961,10 @@ ${nfceInvoice.protocol ? `<div class="row"><span class="bold">Protocolo:</span><
                   const q = addProductSearch.trim().toLowerCase();
                   const filtered = products
                     .filter((p) => productHasStock(p))
-                    .filter((p) => !q || p.name.toLowerCase().includes(q))
+                    .filter((p) => !q
+                      || p.name.toLowerCase().includes(q)
+                      || (p.sku ?? "").toLowerCase().includes(q)
+                      || (p.barcode ?? "").toLowerCase().includes(q))
                     .slice(0, 50);
                   if (filtered.length === 0) {
                     return <div className="text-center py-10 text-[11px] font-bold text-slate-400">Nenhum produto encontrado</div>;
