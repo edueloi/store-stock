@@ -151,6 +151,18 @@ function PDVLogin({ onLogin }: { onLogin: (token: string) => void }) {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading]   = useState(false);
   const [error, setError]       = useState("");
+  const [isOnline, setIsOnline] = useState(navigator.onLine);
+
+  useEffect(() => {
+    const onOnline = () => setIsOnline(true);
+    const onOffline = () => setIsOnline(false);
+    window.addEventListener("online", onOnline);
+    window.addEventListener("offline", onOffline);
+    return () => {
+      window.removeEventListener("online", onOnline);
+      window.removeEventListener("offline", onOffline);
+    };
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -182,53 +194,74 @@ function PDVLogin({ onLogin }: { onLogin: (token: string) => void }) {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-slate-950 via-slate-900 to-slate-950 flex items-center justify-center p-6 font-sans relative overflow-hidden">
-      {/* Glow decorativo de fundo */}
-      <div className="absolute top-1/4 left-1/2 -translate-x-1/2 w-[520px] h-[520px] rounded-full bg-blue-600/10 blur-[120px] pointer-events-none" />
-
-      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="w-full max-w-sm relative">
-        <div className="text-center mb-10">
-          <div className="w-20 h-20 bg-gradient-to-br from-blue-600 to-blue-800 rounded-3xl flex items-center justify-center mx-auto mb-6 shadow-2xl shadow-blue-500/40 ring-1 ring-blue-500/30">
-            <Store size={32} className="text-white" />
-          </div>
-          <h1 className="text-2xl font-black text-white uppercase tracking-[0.2em]">BoxSys PDV</h1>
-          <p className="text-[11px] font-bold text-slate-500 uppercase tracking-widest mt-2">Terminal de Vendas · Acesso Seguro</p>
+    <div className="min-h-screen bg-slate-100 flex items-center justify-center p-6 font-sans">
+      <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="w-full max-w-sm">
+        {/* Barra de status — reflete a conexão real do terminal, não decorativa */}
+        <div className="flex items-center justify-between px-1 mb-2.5">
+          <span className="flex items-center gap-1.5 text-[10px] font-bold text-slate-500">
+            Servidor:
+            <span className={cn("font-black", isOnline ? "text-emerald-600" : "text-rose-500")}>
+              {isOnline ? "conectado" : "offline"}
+            </span>
+          </span>
+          <span className="text-[10px] font-bold text-slate-400">BoxSys PDV</span>
         </div>
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="relative">
-            <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" size={15} />
-            <input type="text" placeholder="E-MAIL OU USUÁRIO" value={identifier} onChange={(e) => setIdentifier(e.target.value)} required autoFocus
-              className="w-full pl-11 pr-4 h-13 bg-slate-900 border border-slate-700 rounded-2xl text-[12px] font-bold uppercase tracking-widest text-white placeholder:text-slate-600 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition-all" />
+
+        <div className="bg-white border border-slate-200 rounded-2xl shadow-[0_1px_2px_rgba(20,20,30,.04),0_10px_24px_rgba(20,20,30,.06)] overflow-hidden">
+          <div className="flex items-center gap-3 px-5 py-4 border-b border-slate-200">
+            <div className="w-9 h-9 rounded-xl bg-blue-900 flex items-center justify-center shrink-0">
+              <Store size={16} className="text-white" />
+            </div>
+            <div>
+              <h1 className="text-[13px] font-bold text-slate-900 leading-tight">BoxSys PDV</h1>
+              <p className="text-[10px] text-slate-400 mt-0.5">Terminal de Vendas</p>
+            </div>
           </div>
-          <div className="relative">
-            <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" size={15} />
-            <input type={showPassword ? "text" : "password"} placeholder="SENHA" value={password} onChange={(e) => setPassword(e.target.value)} required
-              className="w-full pl-11 pr-12 h-13 bg-slate-900 border border-slate-700 rounded-2xl text-[12px] font-bold uppercase tracking-widest text-white placeholder:text-slate-600 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition-all" />
-            <button
-              type="button"
-              tabIndex={-1}
-              onClick={() => setShowPassword((v) => !v)}
-              className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300 transition-colors"
-              title={showPassword ? "Ocultar senha" : "Mostrar senha"}
-            >
-              {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+
+          <form onSubmit={handleSubmit} className="px-5 py-5 space-y-3.5">
+            <div>
+              <label className="text-[10px] font-semibold text-slate-500 block mb-1.5">E-mail ou usuário</label>
+              <input type="text" value={identifier} onChange={(e) => setIdentifier(e.target.value)} required autoFocus
+                placeholder="ex: joyce.antunes"
+                className="w-full h-10 px-3 rounded-lg border border-slate-200 bg-slate-50 text-[13px] font-medium text-slate-800 placeholder:text-slate-400 focus:outline-none focus:border-blue-800 focus:bg-white focus:ring-2 focus:ring-blue-800/10 transition-all" />
+            </div>
+            <div>
+              <label className="text-[10px] font-semibold text-slate-500 block mb-1.5">Senha</label>
+              <div className="relative">
+                <input type={showPassword ? "text" : "password"} value={password} onChange={(e) => setPassword(e.target.value)} required
+                  placeholder="••••••••"
+                  className="w-full h-10 pl-3 pr-10 rounded-lg border border-slate-200 bg-slate-50 text-[13px] font-medium text-slate-800 placeholder:text-slate-400 focus:outline-none focus:border-blue-800 focus:bg-white focus:ring-2 focus:ring-blue-800/10 transition-all" />
+                <button
+                  type="button"
+                  tabIndex={-1}
+                  onClick={() => setShowPassword((v) => !v)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
+                  title={showPassword ? "Ocultar senha" : "Mostrar senha"}
+                >
+                  {showPassword ? <EyeOff size={15} /> : <Eye size={15} />}
+                </button>
+              </div>
+            </div>
+
+            {error && (
+              <motion.div initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }}
+                className="bg-rose-50 border border-rose-100 px-3 py-2.5 rounded-lg flex items-center gap-2.5">
+                <div className="w-1.5 h-1.5 rounded-full bg-rose-500 shrink-0" />
+                <p className="text-[11px] font-semibold text-rose-600">{error}</p>
+              </motion.div>
+            )}
+
+            <button type="submit" disabled={loading}
+              className="w-full h-10 bg-blue-900 hover:bg-blue-950 text-white rounded-lg text-[12px] font-bold transition-all active:scale-[0.98] disabled:opacity-40 flex items-center justify-center gap-2 mt-1">
+              {loading ? <Loader2 size={15} className="animate-spin" /> : null}
+              {loading ? "Entrando..." : "Entrar no sistema"}
             </button>
-          </div>
-          {error && (
-            <motion.div initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }}
-              className="bg-red-500/10 border border-red-500/20 px-4 py-3 rounded-xl flex items-center gap-3">
-              <div className="w-1.5 h-1.5 rounded-full bg-red-500 shrink-0" />
-              <p className="text-[11px] font-bold text-red-400 uppercase tracking-widest">{error}</p>
-            </motion.div>
-          )}
-          <button type="submit" disabled={loading}
-            className="w-full h-13 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-500 hover:to-blue-600 text-white rounded-2xl text-[12px] font-black uppercase tracking-[0.2em] shadow-xl shadow-blue-500/30 transition-all active:scale-[0.98] disabled:opacity-40 flex items-center justify-center gap-2 mt-2">
-            {loading ? <Loader2 size={17} className="animate-spin" /> : "Acessar PDV"}
-          </button>
-        </form>
-        <p className="mt-8 text-center text-[10px] text-slate-600 font-bold uppercase tracking-widest">
-          Acesso exclusivo para operadores autorizados
-        </p>
+
+            <div className="pt-3 mt-1 border-t border-slate-100 flex items-center justify-center">
+              <p className="text-[9.5px] text-slate-400">Acesso exclusivo para operadores autorizados</p>
+            </div>
+          </form>
+        </div>
       </motion.div>
     </div>
   );
