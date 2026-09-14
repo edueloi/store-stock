@@ -641,12 +641,6 @@ export default function PDV() {
       const active = document.activeElement;
       const tag = (active?.tagName ?? "").toLowerCase();
       const isEditable = tag === "input" || tag === "textarea" || tag === "select";
-      // Campos de busca de produto (busca principal e do modal "Adicionar
-      // Produto") já mostram o texto digitado em tempo real via
-      // searchTerm/addProductSearch — nesses o buffer do scanner pode
-      // interceptar a sequência inteira desde a 1ª tecla sem prejudicar
-      // digitação humana normal, porque o campo continua funcionando (só
-      // passa a ser alimentado pelo buffer em vez do onChange nativo).
       const activeId = active instanceof HTMLElement ? active.id : "";
       const searchFieldKind = activeId === "pdv-search-input" ? "main"
         : activeId === "pdv-add-product-search" ? "addModal"
@@ -666,29 +660,40 @@ export default function PDV() {
 
       if (e.key.length !== 1) return;
 
-      // Campo de scan já focado → deixa o onChange normal cuidar
-      if (active === scanInputRef.current) return;
+      // Campo de scan já focado (e a sequência atual não começou vinculada a
+      // um campo de busca visível) → deixa o onChange normal dele cuidar.
+      if (active === scanInputRef.current && !activeSearchField) return;
 
       // Fora dos campos de busca de produto: só intercepta teclas rápidas
       // demais pra serem digitação humana (leitor físico) — sem essa
-      // checagem de velocidade, bipar com qualquer outro campo em foco
-      // (nome de cliente, observações etc.) atrapalharia a digitação normal.
-      // A 1ª tecla de uma sequência nunca tem gap real pra comparar (pode
-      // vir segundos depois da última), então nesses campos ela sempre passa
-      // direto pro campo mesmo — só a partir da 2ª tecla rápida em diante o
-      // scanner é reconhecido e capturado.
-      if (!searchFieldKind && gap > 80 && isEditable) return;
+      // checagem de velocidade, bipar com qualquer outro campo *editável* em
+      // foco (nome de cliente, observações etc.) atrapalharia a digitação
+      // normal. Mas se não há nenhum campo editável em foco (clicou em botão,
+      // área neutra da tela, ou nada mesmo), não existe digitação humana pra
+      // proteger — captura a sequência inteira desde a 1ª tecla, senão o
+      // primeiro dígito bipado (frequentemente "7", prefixo comum de EAN-13
+      // brasileiro) vaza solto e só a partir da 2ª bipada o buffer funciona.
+      // Isso só se aplica a quem ainda não está no meio de uma sequência —
+      // uma vez que a sequência já decidiu pra onde vai (activeSearchField
+      // ou buffer não-vazio), essa checagem não pode mais barrar as teclas
+      // seguintes, senão o foco mudando no meio (ex.: o .focus() do campo de
+      // scan oculto, logo abaixo) faz a leitura ser cortada pela metade.
+      if (buffer === "" && !searchFieldKind && isEditable && gap > 80) return;
+
+      // A PRIMEIRA tecla da sequência decide o destino (campo de busca visível
+      // vs. buffer solto) e essa decisão fica fixa até o flush — reavaliar
+      // "onde focar" tecla a tecla é frágil: o .focus() programático do campo
+      // de scan oculto (usado quando não há campo de busca) muda
+      // document.activeElement no meio da sequência, fazendo o resto do
+      // código cair no branch errado e a leitura ser cortada pela metade.
+      if (buffer === "") activeSearchField = searchFieldKind;
 
       // Leitor detectado → captura e redireciona
       e.preventDefault();
       buffer += e.key;
-      if (searchFieldKind) {
-        activeSearchField = searchFieldKind;
-        if (searchFieldKind === "main") setSearchTerm(buffer);
-        else setAddProductSearch(buffer);
-      } else {
-        scanInputRef.current?.focus();
-      }
+      if (activeSearchField === "main") setSearchTerm(buffer);
+      else if (activeSearchField === "addModal") setAddProductSearch(buffer);
+      else scanInputRef.current?.focus();
       setScanCode(buffer);
 
       if (timer) clearTimeout(timer);
