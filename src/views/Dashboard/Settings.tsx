@@ -2514,7 +2514,7 @@ export default function Settings() {
                   <div className="flex items-center border border-slate-200 rounded-xl overflow-hidden focus-within:ring-2 focus-within:ring-blue-500/10 focus-within:border-blue-500 bg-slate-50 transition-all shrink-0 w-32">
                     <input type="number" min="0" max="30" step="0.1"
                       value={crediarioInterestRate}
-                      onChange={(e) => setCrediarioInterestRate(parseFloat(e.target.value) || 0)}
+                      onChange={(e) => setCrediarioInterestRate(Math.min(30, Math.max(0, parseFloat(e.target.value) || 0)))}
                       className="flex-1 bg-transparent px-2 h-9 text-xs font-mono font-bold outline-none w-0 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none"
                     />
                     <span className="bg-slate-100 border-l border-slate-200 px-2 h-9 flex items-center text-[10px] font-black text-slate-400 shrink-0">%/mês</span>
