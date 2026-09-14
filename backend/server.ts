@@ -28,7 +28,22 @@ async function attachFrontend(app: express.Express) {
   }
 
   const distPath = path.join(process.cwd(), "dist");
-  app.use(express.static(distPath, { maxAge: "1y", immutable: true }));
+  // sw.js (e o manifest do PWA, e qualquer outro precache do injectManifest)
+  // precisam ser sempre revalidados — 1 ano de cache imutável nesses arquivos
+  // é o que fazia o Safari (e às vezes outros navegadores) nunca buscar a
+  // versão nova do Service Worker mesmo com registration.update() forçado no
+  // foco da aba: o cache HTTP intercepta o request antes de chegar no
+  // servidor. setHeaders roda pra CADA arquivo servido pelo static, então dá
+  // pra sobrescrever seletivamente sem duplicar a config em duas rotas.
+  app.use(express.static(distPath, {
+    maxAge: "1y",
+    immutable: true,
+    setHeaders: (res, filePath) => {
+      if (/(^|\/)(sw\.js|sw\.mjs|manifest\.webmanifest|registerSW\.js)$/.test(filePath)) {
+        res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+      }
+    },
+  }));
   // Never serve index.html for asset requests — return 404 instead
   app.get("/assets/*", (_req, res) => {
     res.status(404).end();
@@ -40,6 +55,10 @@ async function attachFrontend(app: express.Express) {
   app.get("/s/:slug/produto/:productId", handleProductSeo);
 
   app.get("*", (_req, res) => {
+    // index.html referencia os assets com hash do build atual — nunca pode
+    // ficar em cache, senão o navegador reabre uma versão antiga que aponta
+    // pra arquivos JS/CSS que o deploy seguinte já apagou.
+    res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
     res.sendFile(indexHtmlPath);
   });
 }

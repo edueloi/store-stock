@@ -49,9 +49,15 @@ export default function PwaUpdateBanner() {
     const onVisibilityChange = () => { if (!document.hidden) checkForUpdate(); };
     document.addEventListener("visibilitychange", onVisibilityChange);
     window.addEventListener("focus", checkForUpdate);
+    // Além do foco/visibilidade, verifica a cada 15 min mesmo com a aba parada
+    // em primeiro plano o dia inteiro (PDV fixo numa tela de loja, por
+    // exemplo) — sem isso, quem nunca troca de janela só atualizava se o
+    // navegador decidisse revalidar sw.js sozinho por conta própria.
+    const interval = setInterval(checkForUpdate, 15 * 60 * 1000);
     return () => {
       document.removeEventListener("visibilitychange", onVisibilityChange);
       window.removeEventListener("focus", checkForUpdate);
+      clearInterval(interval);
     };
   }, []);
 
