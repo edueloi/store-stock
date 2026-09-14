@@ -124,8 +124,13 @@ export async function generateNfsePdf(input: GenerateNfsePdfInput): Promise<Buff
       .text("NOTA FISCAL DE SERVIÇO ELETRÔNICA", badgeX, headerTop + 14, { width: 160, align: "center", characterSpacing: 0.3 });
     doc.font("Helvetica-Bold").fontSize(11).fillColor(colorText)
       .text(`Nº ${numero}  •  Série ${serie}`, badgeX, badgeDividerY + 5, { width: 160, align: "center" });
-    doc.font("Helvetica-Bold").fontSize(6.5).fillColor(environment !== "producao" ? "#b91c1c" : colorMuted)
-      .text(environment !== "producao" ? "HOMOLOGAÇÃO — SEM VALOR FISCAL" : "PRODUÇÃO", badgeX, badgeDividerY + 21, { width: 160, align: "center" });
+    // Em produção não escreve nada aqui — o aviso só serve para identificar
+    // nota de teste (homologação), não faz sentido carimbar "PRODUÇÃO" numa
+    // nota real.
+    if (environment !== "producao") {
+      doc.font("Helvetica-Bold").fontSize(6.5).fillColor("#b91c1c")
+        .text("HOMOLOGAÇÃO — SEM VALOR FISCAL", badgeX, badgeDividerY + 21, { width: 160, align: "center" });
+    }
 
     doc.y = headerTop + 66;
     doc.moveTo(36, doc.y).lineTo(doc.page.width - 36, doc.y).lineWidth(1).strokeColor(colorBorder).stroke();
