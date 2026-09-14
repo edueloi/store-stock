@@ -1188,7 +1188,8 @@ export default function ServiceOrderDetail() {
                 onChange={(e) => setServiceValue(e.target.value)}
                 onBlur={() => autosaveField({ service_value: Number(serviceValue) || 0 }, "service_value")}
                 placeholder="0,00"
-                className="w-full pl-9 pr-3 h-10 rounded-xl border border-slate-200 text-[13px] font-mono font-bold focus:outline-none focus:border-blue-400 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none"
+                disabled={!!selected.invoiced_order_id}
+                className="w-full pl-9 pr-3 h-10 rounded-xl border border-slate-200 text-[13px] font-mono font-bold focus:outline-none focus:border-blue-400 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none disabled:bg-slate-50 disabled:text-slate-400"
               />
             </div>
 
@@ -1200,20 +1201,21 @@ export default function ServiceOrderDetail() {
                 onBlur={() => autosaveField({ service_description: serviceDescription || null }, "service_description")}
                 placeholder="O que foi feito — ex.: troca de tela, limpeza interna, revisão elétrica..."
                 rows={2}
-                className="w-full px-3 py-2 rounded-xl border border-slate-200 text-[12px] font-medium focus:outline-none focus:border-blue-400 resize-none"
+                disabled={!!selected.invoiced_order_id}
+                className="w-full px-3 py-2 rounded-xl border border-slate-200 text-[12px] font-medium focus:outline-none focus:border-blue-400 resize-none disabled:bg-slate-50 disabled:text-slate-400"
               />
             </div>
 
             <div>
               <label className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400 mb-1.5 block">Desconto total da OS</label>
               <div className="flex gap-1">
-                <button onClick={() => { setDiscountType("percent"); autosaveField({ discount_type: "percent" }, "discount"); }}
-                  className={cn("h-9 w-9 rounded-lg border flex items-center justify-center transition-all",
+                <button disabled={!!selected.invoiced_order_id} onClick={() => { setDiscountType("percent"); autosaveField({ discount_type: "percent" }, "discount"); }}
+                  className={cn("h-9 w-9 rounded-lg border flex items-center justify-center transition-all disabled:opacity-40",
                     discountType === "percent" ? "bg-blue-600 text-white border-blue-600" : "bg-white border-slate-200 text-slate-500 hover:bg-slate-50")}>
                   <Percent size={14} />
                 </button>
-                <button onClick={() => { setDiscountType("fixed"); autosaveField({ discount_type: "fixed" }, "discount"); }}
-                  className={cn("h-9 w-9 rounded-lg border flex items-center justify-center transition-all",
+                <button disabled={!!selected.invoiced_order_id} onClick={() => { setDiscountType("fixed"); autosaveField({ discount_type: "fixed" }, "discount"); }}
+                  className={cn("h-9 w-9 rounded-lg border flex items-center justify-center transition-all disabled:opacity-40",
                     discountType === "fixed" ? "bg-blue-600 text-white border-blue-600" : "bg-white border-slate-200 text-slate-500 hover:bg-slate-50")}>
                   <DollarSign size={14} />
                 </button>
@@ -1221,7 +1223,8 @@ export default function ServiceOrderDetail() {
                   onChange={(e) => setDiscountValue(Number(e.target.value))}
                   onBlur={() => autosaveField({ discount_value: discountValue }, "discount")}
                   placeholder={discountType === "percent" ? "%" : "R$"}
-                  className="flex-1 h-9 px-3 rounded-lg border border-slate-200 text-sm font-mono focus:outline-none focus:border-blue-400" />
+                  disabled={!!selected.invoiced_order_id}
+                  className="flex-1 h-9 px-3 rounded-lg border border-slate-200 text-sm font-mono focus:outline-none focus:border-blue-400 disabled:bg-slate-50 disabled:text-slate-400" />
               </div>
             </div>
 

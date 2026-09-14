@@ -321,6 +321,17 @@ export async function updateServiceOrder(req: Request, res: Response) {
     if (warranty_terms !== undefined) data.warranty_terms = warranty_terms || null;
     if (observations !== undefined) data.observations = observations || null;
 
+    // Depois de faturada, o valor/desconto/descrição do serviço não pode mais
+    // mudar — a NFS-e já emitida reflete esses dados no momento da emissão, e
+    // ela é imutável (só cancelar e reemitir). Sem essa trava, a OS ficava
+    // mostrando um valor diferente do que está na nota já autorizada, mesma
+    // proteção que já existe para peças (updateServiceOrderPart) e status.
+    const changingFinancials = discount_type !== undefined || discount_value !== undefined
+      || service_value !== undefined || service_description !== undefined;
+    if (existing.invoiced_order_id && changingFinancials) {
+      return res.status(400).json({ error: "Ordem de serviço já foi faturada — valor, desconto e descrição do serviço não podem mais ser alterados." });
+    }
+
     if (discount_type !== undefined) data.discount_type = discount_type === "fixed" ? "fixed" : "percent";
     if (discount_value !== undefined) data.discount_value = Math.max(0, Number(discount_value) || 0);
     if (service_value !== undefined) data.service_value = Number(service_value) || 0;
