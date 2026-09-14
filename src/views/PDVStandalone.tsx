@@ -1017,20 +1017,25 @@ export default function PDVStandalone() {
       // este handler quem deu o .focus() nele) → deixa o onChange nativo dele
       // cuidar sozinho, como sempre foi.
       if (active === scanInputRef.current && activeSearchField === "pending") return;
-      // Fora dos campos de busca de produto: só intercepta teclas rápidas
-      // demais pra serem digitação humana (leitor físico) — sem essa
-      // checagem de velocidade, bipar com qualquer outro campo *editável* em
-      // foco (nome de cliente, observações etc.) atrapalharia a digitação
-      // normal. Mas se não há nenhum campo editável em foco (clicou em botão,
-      // área neutra da tela, ou nada mesmo), não existe digitação humana pra
-      // proteger — captura a sequência inteira desde a 1ª tecla, senão o
-      // primeiro dígito bipado (frequentemente "7", prefixo comum de EAN-13
-      // brasileiro) vaza solto e só a partir da 2ª bipada o buffer funciona.
-      // Isso só se aplica a quem ainda não está no meio de uma sequência —
-      // uma vez decidido o destino, essa checagem não pode mais barrar as
+      // Só intercepta teclas rápidas demais pra serem digitação humana
+      // (leitor físico) — isso vale TANTO dentro quanto fora dos campos de
+      // busca de produto. Sem essa checagem de velocidade, digitar
+      // normalmente (devagar) no campo de busca era sequestrado tecla a
+      // tecla por este handler (com preventDefault, então o onChange nativo
+      // nunca rodava) e todo texto digitado sumia sozinho 300ms depois de
+      // qualquer pausa — o timer de flush limpava o campo achando que era um
+      // código de barras incompleto.
+      //
+      // Mas se não há nenhum campo editável em foco (clicou em botão, área
+      // neutra da tela, ou nada mesmo) e ainda não decidimos o destino, não
+      // existe digitação humana pra proteger ali — captura a sequência
+      // inteira desde a 1ª tecla, senão o primeiro dígito bipado
+      // (frequentemente "7", prefixo comum de EAN-13 brasileiro) vaza solto.
+      //
+      // Uma vez decidido o destino, essa checagem não pode mais barrar as
       // teclas seguintes, senão o foco mudando no meio (ex.: o .focus() do
       // campo de scan oculto, abaixo) corta a leitura pela metade.
-      if (activeSearchField === "pending" && !searchFieldKind && isEditable && gap > 80) return;
+      if (activeSearchField === "pending" && isEditable && gap > 80) return;
 
       // A PRIMEIRA tecla da sequência decide o destino e essa decisão fica
       // fixa até o flush — reavaliar "onde focar" tecla a tecla é frágil: o
@@ -1039,7 +1044,17 @@ export default function PDVStandalone() {
       // fazendo o resto do código cair no branch errado e cortando a leitura.
       if (activeSearchField === "pending") activeSearchField = searchFieldKind;
 
+      // Leitor detectado → captura e redireciona. Dentro de um campo de
+      // busca, o buffer parte do valor atual do campo (não de ""), porque a
+      // tecla anterior da mesma sequência pode já ter passado pelo onChange
+      // nativo antes da velocidade ficar rápida o bastante pra ser
+      // reconhecida como scanner.
       e.preventDefault();
+      if (buffer === "") {
+        buffer = activeSearchField === "main" ? searchTerm
+          : activeSearchField === "addModal" ? addProductSearch
+          : "";
+      }
       buffer += e.key;
       if (activeSearchField === "main") setSearchTerm(buffer);
       else if (activeSearchField === "addModal") setAddProductSearch(buffer);

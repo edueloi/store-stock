@@ -618,20 +618,15 @@ export default function PDV() {
     let lastKeyTime = 0;
     let buffer = "";
     let timer: ReturnType<typeof setTimeout> | null = null;
-    // Guarda em qual campo de busca de produto a sequência atual começou —
-    // precisa limpar esse mesmo campo ao concluir o scan (Enter ou timeout),
-    // senão o código digitado fica preso ali em vez do produto ir direto
-    // pro carrinho (comportamento do leitor em qualquer outro contexto).
+    // Guarda em qual campo de busca de produto a sequência de SCANNER atual
+    // começou (não usado pra digitação humana normal, que o próprio onChange
+    // do input já resolve sozinho) — precisa limpar esse mesmo campo ao
+    // concluir o scan (Enter ou timeout), senão o código digitado fica preso
+    // ali em vez do produto ir direto pro carrinho.
     //
-    // "pending" = ainda nao decidiu pra onde vai a sequencia atual (nenhuma
-    // tecla capturada ainda); null = decidiu que vai pro buffer solto (campo
-    // de scan oculto), nao pra um campo de busca visivel. Usar null pros dois
-    // casos ao mesmo tempo era o bug: a partir da 2a tecla, o proprio
-    // .focus() no campo de scan oculto (feito na 1a tecla) faz
-    // "active === scanInputRef.current" virar true, e sem diferenciar
-    // "ainda nao decidi" de "decidi que e o buffer solto" o codigo abaixo
-    // devolvia o controle pro onChange nativo do input oculto no meio da
-    // sequencia — cortando a leitura ao vivo.
+    // "pending" = ainda não decidiu pra onde vai a sequência atual (nenhuma
+    // tecla de scanner capturada ainda); null = decidiu que vai pro buffer
+    // solto (campo de scan oculto), não pra um campo de busca visível.
     let activeSearchField: "main" | "addModal" | null | "pending" = "pending";
 
     const clearActiveSearchField = () => {
@@ -675,21 +670,26 @@ export default function PDV() {
       // dele cuidar sozinho, como sempre foi.
       if (active === scanInputRef.current && activeSearchField === "pending") return;
 
-      // Fora dos campos de busca de produto: só intercepta teclas rápidas
-      // demais pra serem digitação humana (leitor físico) — sem essa
-      // checagem de velocidade, bipar com qualquer outro campo *editável* em
-      // foco (nome de cliente, observações etc.) atrapalharia a digitação
-      // normal. Mas se não há nenhum campo editável em foco (clicou em botão,
-      // área neutra da tela, ou nada mesmo), não existe digitação humana pra
-      // proteger — captura a sequência inteira desde a 1ª tecla, senão o
-      // primeiro dígito bipado (frequentemente "7", prefixo comum de EAN-13
-      // brasileiro) vaza solto e só a partir da 2ª bipada o buffer funciona.
-      // Isso só se aplica a quem ainda não está no meio de uma sequência —
-      // uma vez que a sequência já decidiu pra onde vai (activeSearchField
-      // ou buffer não-vazio), essa checagem não pode mais barrar as teclas
+      // Só intercepta teclas rápidas demais pra serem digitação humana
+      // (leitor físico) — isso vale TANTO dentro quanto fora dos campos de
+      // busca de produto. Sem essa checagem de velocidade, digitar
+      // normalmente (devagar) no campo de busca era sequestrado tecla a
+      // tecla por este handler (com preventDefault, então o onChange nativo
+      // nunca rodava) e todo texto digitado sumia sozinho 300ms depois de
+      // qualquer pausa — o timer de flush limpava o campo achando que era um
+      // código de barras incompleto.
+      //
+      // Mas se não há nenhum campo editável em foco (clicou em botão, área
+      // neutra da tela, ou nada mesmo) e ainda não decidimos o destino, não
+      // existe digitação humana pra proteger ali — captura a sequência
+      // inteira desde a 1ª tecla, senão o primeiro dígito bipado
+      // (frequentemente "7", prefixo comum de EAN-13 brasileiro) vaza solto.
+      //
+      // Uma vez que a sequência já decidiu pra onde vai (activeSearchField
+      // != "pending"), essa checagem não pode mais barrar as teclas
       // seguintes, senão o foco mudando no meio (ex.: o .focus() do campo de
       // scan oculto, logo abaixo) faz a leitura ser cortada pela metade.
-      if (activeSearchField === "pending" && !searchFieldKind && isEditable && gap > 80) return;
+      if (activeSearchField === "pending" && isEditable && gap > 80) return;
 
       // A PRIMEIRA tecla da sequência decide o destino (campo de busca visível
       // vs. buffer solto) e essa decisão fica fixa até o flush — reavaliar
@@ -699,8 +699,17 @@ export default function PDV() {
       // código cair no branch errado e a leitura ser cortada pela metade.
       if (activeSearchField === "pending") activeSearchField = searchFieldKind;
 
-      // Leitor detectado → captura e redireciona
+      // Leitor detectado → captura e redireciona. Dentro de um campo de busca,
+      // o buffer parte do valor atual do campo (não de ""), porque a(s)
+      // tecla(s) anterior(es) da mesma sequência podem já ter passado pelo
+      // onChange nativo antes da velocidade ficar rápida o bastante pra ser
+      // reconhecida como scanner.
       e.preventDefault();
+      if (buffer === "") {
+        buffer = activeSearchField === "main" ? searchTerm
+          : activeSearchField === "addModal" ? addProductSearch
+          : "";
+      }
       buffer += e.key;
       if (activeSearchField === "main") setSearchTerm(buffer);
       else if (activeSearchField === "addModal") setAddProductSearch(buffer);
@@ -718,7 +727,7 @@ export default function PDV() {
 
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [handleScan]);
+  }, [handleScan, searchTerm, addProductSearch]);
 
   // ── cart helpers ──────────────────────────────────────────────────────────────
   const addToCart = (product: Product, options?: Record<string, string>) => {
