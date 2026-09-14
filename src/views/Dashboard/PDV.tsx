@@ -531,13 +531,18 @@ export default function PDV() {
         );
         addToCartDirect(p);
         setScanFeedback("ok");
+        setTimeout(() => setScanFeedback(null), 1200);
       } else {
         setScanFeedback("err");
+        // "Não encontrado" fica mais tempo que "Adicionado" — no sucesso o
+        // carrinho muda visivelmente, no erro nada mais na tela indica o
+        // problema, então o indicador precisa de mais tempo pra ser notado.
+        setTimeout(() => setScanFeedback(null), 3500);
       }
     } catch {
       setScanFeedback("err");
+      setTimeout(() => setScanFeedback(null), 3500);
     }
-    setTimeout(() => setScanFeedback(null), 1200);
   }, [products, token, addToCartDirect]);
 
   // ── Polling do status da NFC-e emitida em segundo plano após a venda ──────────
@@ -1883,7 +1888,7 @@ export default function PDV() {
 
         {/* Scanner status — centro (some durante o pagamento e em telas pequenas, sem leitor físico) */}
         {!(pdvStep === "payment" && showCheckout) && (
-          <div className="hidden lg:flex flex-1 min-w-0 justify-center px-2 min-[1800px]:px-6 shrink">
+          <div className="hidden md:flex flex-1 min-w-0 justify-center px-2 min-[1800px]:px-6 shrink">
             <div className={cn(
               "flex items-center gap-2 px-3 h-7 rounded-xl border text-[10px] font-bold uppercase tracking-widest transition-all duration-300",
               scanFeedback === "ok"  ? "bg-emerald-50 border-emerald-300 text-emerald-600" :

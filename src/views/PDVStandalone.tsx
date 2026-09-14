@@ -882,13 +882,18 @@ export default function PDVStandalone() {
         setProducts((prev) => prev.some((x) => x.id === p.id) ? prev : [...prev, p]);
         addToCartDirect(p);
         setScanFeedback("ok");
+        setTimeout(() => setScanFeedback(null), 1200);
       } else {
         setScanFeedback("err");
+        // "Não encontrado" fica mais tempo que "Adicionado" — no sucesso o
+        // carrinho muda visivelmente, no erro nada mais na tela indica o
+        // problema, então o indicador precisa de mais tempo pra ser notado.
+        setTimeout(() => setScanFeedback(null), 3500);
       }
     } catch {
       setScanFeedback("err");
+      setTimeout(() => setScanFeedback(null), 3500);
     }
-    setTimeout(() => setScanFeedback(null), 1200);
   }, [products, token, addToCartDirect]);
 
   // ── Polling do status da NFC-e (só quando a venda foi confirmada online) ────
@@ -2249,9 +2254,9 @@ ${nfceInvoice.protocol ? `<div class="row"><span class="bold">Protocolo:</span><
           </div>
         </div>
 
-        {/* Scanner status — centro (oculto em telas pequenas ou durante o pagamento) */}
+        {/* Scanner status — centro (oculto só em telas muito estreitas ou durante o pagamento) */}
         {!(pdvStep === "payment" && showCheckoutModal) && (
-          <div className="hidden 2xl:flex flex-1 justify-center px-4">
+          <div className="hidden md:flex flex-1 justify-center px-4">
             <div className={cn(
               "flex items-center gap-2 px-3.5 h-7 rounded-full border text-[10px] font-black uppercase tracking-widest transition-all duration-300",
               scanFeedback === "ok"
