@@ -2,10 +2,14 @@ import { useState, useEffect, useMemo } from "react";
 import ExcelJS from "exceljs";
 import {
   Search, Wallet, CheckCircle2, Clock, X, Loader2, User, Calendar, ChevronRight, Printer,
-  Download, ChevronDown, FileSpreadsheet, FileText,
+  Download, FileSpreadsheet, FileText, PieChart as PieChartIcon, ListOrdered, BarChart3, DollarSign,
 } from "lucide-react";
+import {
+  PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
+} from "recharts";
 import PageHeader from "../../components/layout/PageHeader";
 import Button from "../../components/ui/Button";
+import Modal from "../../components/ui/Modal";
 import { cn } from "../../lib/utils";
 
 // Mesmo padrão de filtro de período já usado em Fluxo de Caixa/Contas a
@@ -25,6 +29,14 @@ function yearRange(year: number): { from: string; to: string } {
 
 const PM_LABEL: Record<string, string> = {
   money: "Dinheiro", pix: "PIX", debit: "Débito", credit: "Crédito", crediario: "Crediário",
+};
+
+const PM_COLOR: Record<string, string> = {
+  money: "#059669", pix: "#7C3AED", debit: "#2563EB", credit: "#D97706", crediario: "#DC2626",
+};
+const PM_ICON_BG: Record<string, string> = {
+  money: "bg-emerald-50 text-emerald-600", pix: "bg-violet-50 text-violet-600",
+  debit: "bg-blue-50 text-blue-600", credit: "bg-amber-50 text-amber-600", crediario: "bg-rose-50 text-rose-600",
 };
 
 // payment_method de um Order é "method-brand-installments:amount|..." (ex.:
@@ -112,11 +124,13 @@ export default function CashSessionHistory() {
   const [detail, setDetail] = useState<CashSessionDetail | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
   const [expandedOrderId, setExpandedOrderId] = useState<number | null>(null);
-  const [showExport, setShowExport] = useState(false);
+  const [mainTab, setMainTab] = useState<"sessions" | "report">("sessions");
+  const [showExportModal, setShowExportModal] = useState(false);
   const [exporting, setExporting] = useState(false);
 
-  // Filtro de período — default "Tudo" preserva o comportamento atual.
-  const [periodPreset, setPeriodPreset] = useState<PeriodPreset>("all");
+  // Filtro de período da aba Relatório — default "Mês" (o balanço só faz
+  // sentido com um recorte de tempo, diferente da aba Sessões que lista tudo).
+  const [periodPreset, setPeriodPreset] = useState<PeriodPreset>("month");
   const nowRef = useState(() => new Date())[0];
   const [navYear, setNavYear] = useState(nowRef.getFullYear());
   const [navMonth, setNavMonth] = useState(nowRef.getMonth());
@@ -127,6 +141,44 @@ export default function CashSessionHistory() {
     setPeriodPreset(p);
     if (p === "month") { const r = monthRange(navYear, navMonth); setDateFrom(r.from); setDateTo(r.to); }
     else if (p === "year") { const r = yearRange(navYear); setDateFrom(r.from); setDateTo(r.to); }
+  };
+
+  // Período próprio do modal de exportação — desacoplado do filtro da tela,
+  // sempre parte do período atualmente selecionado mas pode ser trocado antes
+  // de gerar o arquivo.
+  const [exportPreset, setExportPreset] = useState<PeriodPreset>("month");
+  const [exportFrom, setExportFrom] = useState(dateFrom);
+  const [exportTo, setExportTo] = useState(dateTo);
+  const [exportNavYear, setExportNavYear] = useState(navYear);
+  const [exportNavMonth, setExportNavMonth] = useState(navMonth);
+
+  const applyExportPreset = (p: PeriodPreset) => {
+    setExportPreset(p);
+    if (p === "month") { const r = monthRange(exportNavYear, exportNavMonth); setExportFrom(r.from); setExportTo(r.to); }
+    else if (p === "year") { const r = yearRange(exportNavYear); setExportFrom(r.from); setExportTo(r.to); }
+    else if (p === "all") { setExportFrom(""); setExportTo(""); }
+  };
+
+  const navigateExportPeriod = (delta: number) => {
+    if (exportPreset === "year") {
+      const y = exportNavYear + delta;
+      setExportNavYear(y); setExportPreset("year");
+      const r = yearRange(y); setExportFrom(r.from); setExportTo(r.to);
+      return;
+    }
+    let m = exportNavMonth + delta; let y = exportNavYear;
+    if (m > 11) { m = 0; y++; } if (m < 0) { m = 11; y--; }
+    setExportNavMonth(m); setExportNavYear(y); setExportPreset("month");
+    const r = monthRange(y, m); setExportFrom(r.from); setExportTo(r.to);
+  };
+
+  const openExportModal = () => {
+    setExportPreset(periodPreset === "all" ? "month" : periodPreset);
+    setExportFrom(periodPreset === "all" ? dateFrom : dateFrom);
+    setExportTo(periodPreset === "all" ? dateTo : dateTo);
+    setExportNavYear(navYear);
+    setExportNavMonth(navMonth);
+    setShowExportModal(true);
   };
 
   const navigatePeriod = (delta: number) => {
@@ -152,13 +204,10 @@ export default function CashSessionHistory() {
       .finally(() => setLoading(false));
   }, []);
 
+  // Aba Sessões — lista tudo, sem filtro de período (só busca por operador e status).
   const filtered = useMemo(() => {
     return sessions.filter((s) => {
       if (statusFilter !== "all" && s.status !== statusFilter) return false;
-      if (periodPreset !== "all") {
-        const opened = s.opened_at.substring(0, 10);
-        if (opened < dateFrom || opened > dateTo) return false;
-      }
       if (searchTerm) {
         const term = searchTerm.toLowerCase();
         const haystack = `${s.opened_by_name} ${s.closed_by_name ?? ""}`.toLowerCase();
@@ -166,23 +215,33 @@ export default function CashSessionHistory() {
       }
       return true;
     });
-  }, [sessions, statusFilter, periodPreset, dateFrom, dateTo, searchTerm]);
+  }, [sessions, statusFilter, searchTerm]);
 
-  // Pedidos de todas as sessões filtradas — carregados sob demanda (o
-  // /api/cash-sessions só traz o total por sessão, não os pedidos/itens; o
-  // balanço por bandeira e a lista de itens vendidos precisam do detalhe de
-  // cada sessão). Chave (ids ordenados) evita refetch se o filtro não mudou
-  // de fato quais sessões estão na lista.
+  // Aba Relatório — sempre recortada pelo filtro de período (Mês/Ano/Livre).
+  const sessionsForReport = useMemo(() => {
+    return sessions.filter((s) => {
+      if (periodPreset === "all") return true;
+      const opened = s.opened_at.substring(0, 10);
+      return opened >= dateFrom && opened <= dateTo;
+    });
+  }, [sessions, periodPreset, dateFrom, dateTo]);
+
+  // Pedidos de todas as sessões do período do Relatório — carregados sob
+  // demanda (o /api/cash-sessions só traz o total por sessão, não os pedidos/
+  // itens; o balanço por bandeira e a lista de itens vendidos precisam do
+  // detalhe de cada sessão). Chave (ids ordenados) evita refetch se o filtro
+  // não mudou de fato quais sessões estão no período.
   const [ordersBySession, setOrdersBySession] = useState<Record<number, CashSessionOrder[]>>({});
   const [loadingReport, setLoadingReport] = useState(false);
-  const filteredIdsKey = filtered.map((s) => s.id).sort((a, b) => a - b).join(",");
+  const reportIdsKey = sessionsForReport.map((s) => s.id).sort((a, b) => a - b).join(",");
 
   useEffect(() => {
-    if (filtered.length === 0) { setOrdersBySession({}); return; }
+    if (mainTab !== "report") return;
+    if (sessionsForReport.length === 0) { setOrdersBySession({}); return; }
     let cancelled = false;
     setLoadingReport(true);
     Promise.all(
-      filtered.map((s) =>
+      sessionsForReport.map((s) =>
         fetch(`/api/cash-sessions/${s.id}`, { headers: { Authorization: `Bearer ${token}` } })
           .then((r) => (r.ok ? r.json() : null))
           .then((d: CashSessionDetail | null) => [s.id, d?.orders ?? []] as const)
@@ -194,16 +253,25 @@ export default function CashSessionHistory() {
     }).finally(() => { if (!cancelled) setLoadingReport(false); });
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filteredIdsKey]);
+  }, [reportIdsKey, mainTab]);
 
   const allOrders = useMemo(() => Object.values(ordersBySession).flat(), [ordersBySession]);
 
-  // Balanço por forma de pagamento + bandeira, calculado direto dos pedidos
-  // (payment_method já traz a bandeira) — mais preciso que o payment_breakdown
-  // da sessão, que só agrega por método.
-  const paymentByMethodBrand = useMemo(() => {
+  function computeFinanceTotals(orders: CashSessionOrder[]) {
+    return orders.reduce((acc, o) => {
+      if (o.status === "cancelled") return acc;
+      acc.gross += Number(o.gross_amount ?? o.total_amount);
+      acc.discount += Number(o.discount_amount ?? 0);
+      acc.fee += Number(o.fee_amount ?? 0);
+      acc.net += Number(o.total_amount);
+      return acc;
+    }, { gross: 0, discount: 0, fee: 0, net: 0 });
+  }
+  const financeTotals = useMemo(() => computeFinanceTotals(allOrders), [allOrders]);
+
+  function computePaymentByMethodBrand(orders: CashSessionOrder[]) {
     const totals: Record<string, { method: string; brand: string; amount: number }> = {};
-    allOrders.forEach((o) => {
+    orders.forEach((o) => {
       if (o.status === "cancelled") return;
       parseOrderPayments(o.payment_method).forEach((seg) => {
         const key = `${seg.method}-${seg.brand}`;
@@ -212,11 +280,10 @@ export default function CashSessionHistory() {
       });
     });
     return Object.values(totals).sort((a, b) => b.amount - a.amount);
-  }, [allOrders]);
+  }
 
-  // Itens vendidos — uma linha por item, com pedido/produto/qtd/data/cliente/vendedor.
-  const soldItems = useMemo(() => {
-    return allOrders.flatMap((o) => {
+  function computeSoldItems(orders: CashSessionOrder[]) {
+    return orders.flatMap((o) => {
       if (o.status === "cancelled") return [];
       return o.items.map((it) => ({
         orderId: o.id,
@@ -230,16 +297,44 @@ export default function CashSessionHistory() {
         paymentLabel: parseOrderPayments(o.payment_method).map((s) => methodBrandLabel(s.method, s.brand)).join(" + "),
       }));
     });
+  }
+
+  const paymentByMethodBrand = useMemo(() => computePaymentByMethodBrand(allOrders), [allOrders]);
+  const soldItems = useMemo(() => computeSoldItems(allOrders), [allOrders]);
+
+  // Vendas por dia — pro gráfico de evolução da aba Relatório.
+  const salesByDay = useMemo(() => {
+    const totals: Record<string, number> = {};
+    allOrders.forEach((o) => {
+      if (o.status === "cancelled") return;
+      const day = o.created_at.substring(0, 10);
+      totals[day] = (totals[day] ?? 0) + Number(o.total_amount);
+    });
+    return Object.entries(totals).sort(([a], [b]) => a.localeCompare(b)).map(([date, total]) => ({ date, total }));
   }, [allOrders]);
 
-  const financeTotals = useMemo(() => allOrders.reduce((acc, o) => {
-    if (o.status === "cancelled") return acc;
-    acc.gross += Number(o.gross_amount ?? o.total_amount);
-    acc.discount += Number(o.discount_amount ?? 0);
-    acc.fee += Number(o.fee_amount ?? 0);
-    acc.net += Number(o.total_amount);
-    return acc;
-  }, { gross: 0, discount: 0, fee: 0, net: 0 }), [allOrders]);
+  // Busca as sessões (num período arbitrário) + os pedidos de cada uma —
+  // usado tanto pela exportação (período próprio do modal) quanto poderia
+  // ser reaproveitado em outros recortes futuros, sem depender do estado
+  // já carregado pra tela (que é sempre o período da aba Relatório).
+  async function fetchSessionsAndOrdersForPeriod(from: string, to: string) {
+    const sessionsInPeriod = sessions.filter((s) => {
+      if (!from && !to) return true;
+      const opened = s.opened_at.substring(0, 10);
+      if (from && opened < from) return false;
+      if (to && opened > to) return false;
+      return true;
+    });
+    const pairs = await Promise.all(
+      sessionsInPeriod.map((s) =>
+        fetch(`/api/cash-sessions/${s.id}`, { headers: { Authorization: `Bearer ${token}` } })
+          .then((r) => (r.ok ? r.json() : null))
+          .then((d: CashSessionDetail | null) => d?.orders ?? [])
+          .catch(() => [] as CashSessionOrder[])
+      )
+    );
+    return { sessionsInPeriod, orders: pairs.flat() };
+  }
 
   const counts = useMemo(() => ({
     total: sessions.length,
@@ -310,47 +405,57 @@ export default function CashSessionHistory() {
 
   const grandTotal = paymentByMethodBrand.reduce((a, v) => a + v.amount, 0);
 
-  // Gráfico de pizza por forma de pagamento + bandeira — mesmo padrão (canvas
-  // offscreen) já usado em Contas a Pagar (Fixo x Variável).
-  function drawPaymentPieChart(): string | null {
-    const entries = paymentByMethodBrand.filter((v) => v.amount > 0);
-    if (entries.length === 0) return null;
-    const baseColors: Record<string, string> = { money: "#059669", pix: "#7C3AED", debit: "#2563EB", credit: "#D97706", crediario: "#DC2626" };
-    const canvas = document.createElement("canvas");
-    canvas.width = 460; canvas.height = 300;
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return null;
-    ctx.fillStyle = "#ffffff";
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-    const cx = 140, cy = 150, r = 100;
-    const total = entries.reduce((a, v) => a + v.amount, 0);
-    let start = -Math.PI / 2;
-    entries.forEach((seg) => {
-      const angle = (seg.amount / total) * Math.PI * 2;
-      ctx.beginPath();
-      ctx.moveTo(cx, cy);
-      ctx.arc(cx, cy, r, start, start + angle);
-      ctx.closePath();
-      ctx.fillStyle = baseColors[seg.method] ?? "#64748B";
-      ctx.fill();
-      start += angle;
-    });
-    ctx.font = "bold 12px Arial";
-    let ly = 30;
-    entries.forEach((seg) => {
-      ctx.fillStyle = baseColors[seg.method] ?? "#64748B";
-      ctx.fillRect(300, ly, 14, 14);
-      ctx.fillStyle = "#1E293B";
-      const pct = total > 0 ? Math.round((seg.amount / total) * 100) : 0;
-      ctx.fillText(`${methodBrandLabel(seg.method, seg.brand)} · ${pct}%`, 320, ly + 12);
-      ly += 24;
-    });
-    return canvas.toDataURL("image/png").split(",")[1];
-  }
-
   async function exportSessionsToExcel() {
     setExporting(true);
     try {
+      // Sombra local: exporta sempre o período escolhido no modal (exportFrom/
+      // exportTo), independente do que a aba Relatório está mostrando na tela.
+      const { sessionsInPeriod: filtered, orders: allOrders } = await fetchSessionsAndOrdersForPeriod(exportFrom, exportTo);
+      const paymentByMethodBrand = computePaymentByMethodBrand(allOrders);
+      const soldItems = computeSoldItems(allOrders);
+      const financeTotals = computeFinanceTotals(allOrders);
+      const grandTotal = paymentByMethodBrand.reduce((a, v) => a + v.amount, 0);
+      const periodPreset = exportPreset;
+      const navYear = exportNavYear;
+      const navMonth = exportNavMonth;
+      const dateFrom = exportFrom;
+      const dateTo = exportTo;
+
+      function drawPaymentPieChart(): string | null {
+        const entries = paymentByMethodBrand.filter((v) => v.amount > 0);
+        if (entries.length === 0) return null;
+        const canvas = document.createElement("canvas");
+        canvas.width = 460; canvas.height = 300;
+        const ctx = canvas.getContext("2d");
+        if (!ctx) return null;
+        ctx.fillStyle = "#ffffff";
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        const cx = 140, cy = 150, r = 100;
+        const total = entries.reduce((a, v) => a + v.amount, 0);
+        let start = -Math.PI / 2;
+        entries.forEach((seg) => {
+          const angle = (seg.amount / total) * Math.PI * 2;
+          ctx.beginPath();
+          ctx.moveTo(cx, cy);
+          ctx.arc(cx, cy, r, start, start + angle);
+          ctx.closePath();
+          ctx.fillStyle = PM_COLOR[seg.method] ?? "#64748B";
+          ctx.fill();
+          start += angle;
+        });
+        ctx.font = "bold 12px Arial";
+        let ly = 30;
+        entries.forEach((seg) => {
+          ctx.fillStyle = PM_COLOR[seg.method] ?? "#64748B";
+          ctx.fillRect(300, ly, 14, 14);
+          ctx.fillStyle = "#1E293B";
+          const pct = total > 0 ? Math.round((seg.amount / total) * 100) : 0;
+          ctx.fillText(`${methodBrandLabel(seg.method, seg.brand)} · ${pct}%`, 320, ly + 12);
+          ly += 24;
+        });
+        return canvas.toDataURL("image/png").split(",")[1];
+      }
+
       const wb = new ExcelJS.Workbook();
       wb.creator = "Store BoxSys";
       wb.created = new Date();
@@ -534,11 +639,26 @@ export default function CashSessionHistory() {
       URL.revokeObjectURL(url);
     } finally {
       setExporting(false);
-      setShowExport(false);
+      setShowExportModal(false);
     }
   }
 
-  function exportSessionsToPDF() {
+  async function exportSessionsToPDF() {
+    setExporting(true);
+    // Sombra local: exporta sempre o período escolhido no modal (exportFrom/
+    // exportTo), independente do que a aba Relatório está mostrando na tela.
+    const { sessionsInPeriod: filtered, orders: allOrders } = await fetchSessionsAndOrdersForPeriod(exportFrom, exportTo);
+    const paymentByMethodBrand = computePaymentByMethodBrand(allOrders);
+    const soldItems = computeSoldItems(allOrders);
+    const financeTotals = computeFinanceTotals(allOrders);
+    const grandTotal = paymentByMethodBrand.reduce((a, v) => a + v.amount, 0);
+    const periodPreset = exportPreset;
+    const navYear = exportNavYear;
+    const navMonth = exportNavMonth;
+    const dateFrom = exportFrom;
+    const dateTo = exportTo;
+    setExporting(false);
+
     const periodLabel = periodPreset === "month" ? `${MONTHS[navMonth]} ${navYear}`
       : periodPreset === "year" ? String(navYear)
       : periodPreset === "custom" ? `${dateFrom} a ${dateTo}`
@@ -630,7 +750,7 @@ export default function CashSessionHistory() {
     win.document.close();
     win.focus();
     setTimeout(() => win.print(), 400);
-    setShowExport(false);
+    setShowExportModal(false);
   }
 
   const openDetail = async (id: number) => {
@@ -654,85 +774,32 @@ export default function CashSessionHistory() {
         title="Histórico de Caixa"
         subtitle="Todas as aberturas e fechamentos de caixa — quem abriu, quem fechou e a diferença apurada"
         action={
-          <div className="relative">
-            <Button
-              variant="secondary"
-              icon={exporting ? <Loader2 size={14} className="animate-spin" /> : <Download size={14} />}
-              onClick={() => setShowExport((v) => !v)}
-              disabled={exporting || filtered.length === 0}
-            >
-              Exportar <ChevronDown size={12} />
-            </Button>
-            {showExport && (
-              <>
-                <div className="fixed inset-0 z-40" onClick={() => setShowExport(false)} />
-                <div className="absolute right-0 top-11 w-56 bg-white border border-slate-200 rounded-xl shadow-xl z-50 overflow-hidden">
-                  <button
-                    onClick={exportSessionsToExcel}
-                    className="w-full flex items-center gap-3 px-4 py-3 text-[12px] font-bold text-slate-700 hover:bg-slate-50 transition-colors"
-                  >
-                    <FileSpreadsheet size={15} className="text-emerald-600" /> Excel (.xlsx)
-                  </button>
-                  <button
-                    onClick={exportSessionsToPDF}
-                    className="w-full flex items-center gap-3 px-4 py-3 text-[12px] font-bold text-slate-700 hover:bg-slate-50 transition-colors border-t border-slate-100"
-                  >
-                    <FileText size={15} className="text-rose-600" /> PDF
-                  </button>
-                </div>
-              </>
-            )}
-          </div>
+          <Button variant="secondary" icon={<Download size={14} />} onClick={openExportModal}>
+            Exportar
+          </Button>
         }
       />
 
-      {/* Filtro de período */}
-      <div className="flex items-center gap-2 flex-wrap">
-        {(periodPreset === "month" || periodPreset === "year") && (
-          <div className="flex items-center gap-1 bg-slate-50 border border-slate-200 rounded-xl p-1">
-            <button onClick={() => navigatePeriod(-1)} className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-500 hover:bg-white hover:text-slate-900 transition-all">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
-            </button>
-            <span className="px-3 h-7 flex items-center rounded-lg text-[11px] font-black uppercase tracking-widest bg-slate-900 text-white min-w-[140px] justify-center">
-              {periodPreset === "year" ? navYear : `${MONTHS[navMonth]} ${navYear}`}
-            </span>
-            <button onClick={() => navigatePeriod(1)} className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-500 hover:bg-white hover:text-slate-900 transition-all">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
-            </button>
-          </div>
-        )}
-        <div className="flex items-center gap-1 bg-slate-50 border border-slate-200 rounded-xl p-1">
-          {([["all", "Tudo"], ["month", "Mês"], ["year", "Ano"]] as const).map(([k, l]) => (
-            <button
-              key={k}
-              onClick={() => applyPeriodPreset(k)}
-              className={cn(
-                "h-7 px-3 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all",
-                periodPreset === k ? "bg-slate-900 text-white shadow-sm" : "text-slate-500 hover:text-slate-700"
-              )}
-            >{l}</button>
-          ))}
-        </div>
-        <button
-          onClick={() => setPeriodPreset(periodPreset === "custom" ? "all" : "custom")}
-          className={cn(
-            "h-9 px-3 rounded-xl flex items-center gap-1.5 text-[9px] font-black uppercase tracking-widest border transition-all",
-            periodPreset === "custom" ? "bg-blue-600 text-white border-blue-600" : "bg-white text-slate-400 border-slate-200 hover:border-slate-400"
-          )}
-        >
-          <Calendar size={12} /> Período Livre
-        </button>
-        {periodPreset === "custom" && (
-          <div className="flex items-center gap-2">
-            <input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)}
-              className="pl-3 pr-3 h-9 bg-slate-50 border border-slate-200 rounded-xl text-[11px] font-bold focus:outline-none focus:border-blue-400 transition-all w-[148px]" />
-            <span className="text-[10px] font-black text-slate-300 uppercase">até</span>
-            <input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)}
-              className="pl-3 pr-3 h-9 bg-slate-50 border border-slate-200 rounded-xl text-[11px] font-bold focus:outline-none focus:border-blue-400 transition-all w-[148px]" />
-          </div>
-        )}
+      {/* Abas principais */}
+      <div className="flex gap-1 bg-slate-100 p-1 rounded-xl w-fit">
+        {([
+          { value: "sessions", label: "Sessões", icon: Wallet },
+          { value: "report", label: "Relatório", icon: BarChart3 },
+        ] as { value: "sessions" | "report"; label: string; icon: React.FC<{ size: number }> }[]).map((t) => (
+          <button
+            key={t.value}
+            onClick={() => setMainTab(t.value)}
+            className={cn(
+              "flex items-center gap-1.5 px-4 py-2 rounded-lg text-[12px] font-bold transition-all",
+              mainTab === t.value ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"
+            )}
+          >
+            <t.icon size={13} /> {t.label}
+          </button>
+        ))}
       </div>
 
+      {mainTab === "sessions" && (
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm">
         <div className="flex items-center gap-0 border-b border-slate-100 divide-x divide-slate-100">
           {[
@@ -769,33 +836,6 @@ export default function CashSessionHistory() {
             <option value="closed">Fechado</option>
           </select>
         </div>
-
-        {/* Balanço por forma de pagamento/bandeira do período filtrado */}
-        {(loadingReport || paymentByMethodBrand.length > 0) && (
-          <div className="px-4 pb-4">
-            <div className="bg-slate-50 border border-slate-100 rounded-xl p-3">
-              <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2.5">
-                Balanço por Forma de Pagamento {loadingReport && <Loader2 size={10} className="inline animate-spin ml-1" />}
-              </p>
-              {loadingReport && paymentByMethodBrand.length === 0 ? (
-                <p className="text-[11px] text-slate-400">Carregando vendas do período...</p>
-              ) : (
-                <div className="flex flex-wrap gap-2">
-                  {paymentByMethodBrand.map((seg) => (
-                    <div key={`${seg.method}-${seg.brand}`} className="flex items-center gap-2 bg-white border border-slate-200 rounded-lg px-3 py-2">
-                      <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wide">{methodBrandLabel(seg.method, seg.brand)}</span>
-                      <span className="text-[12px] font-mono font-black text-slate-800">{money(seg.amount)}</span>
-                    </div>
-                  ))}
-                  <div className="flex items-center gap-2 bg-slate-900 rounded-lg px-3 py-2">
-                    <span className="text-[10px] font-bold text-slate-300 uppercase tracking-wide">Total</span>
-                    <span className="text-[12px] font-mono font-black text-white">{money(grandTotal)}</span>
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-        )}
 
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse">
@@ -855,6 +895,257 @@ export default function CashSessionHistory() {
           </table>
         </div>
       </div>
+      )}
+
+      {mainTab === "report" && (
+        <div className="space-y-4">
+          {/* Filtro de período */}
+          <div className="flex items-center gap-2 flex-wrap">
+            {(periodPreset === "month" || periodPreset === "year") && (
+              <div className="flex items-center gap-1 bg-slate-50 border border-slate-200 rounded-xl p-1">
+                <button onClick={() => navigatePeriod(-1)} className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-500 hover:bg-white hover:text-slate-900 transition-all">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+                </button>
+                <span className="px-3 h-7 flex items-center rounded-lg text-[11px] font-black uppercase tracking-widest bg-slate-900 text-white min-w-[140px] justify-center">
+                  {periodPreset === "year" ? navYear : `${MONTHS[navMonth]} ${navYear}`}
+                </span>
+                <button onClick={() => navigatePeriod(1)} className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-500 hover:bg-white hover:text-slate-900 transition-all">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+                </button>
+              </div>
+            )}
+            <div className="flex items-center gap-1 bg-slate-50 border border-slate-200 rounded-xl p-1">
+              {([["all", "Tudo"], ["month", "Mês"], ["year", "Ano"]] as const).map(([k, l]) => (
+                <button
+                  key={k}
+                  onClick={() => applyPeriodPreset(k)}
+                  className={cn(
+                    "h-7 px-3 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all",
+                    periodPreset === k ? "bg-slate-900 text-white shadow-sm" : "text-slate-500 hover:text-slate-700"
+                  )}
+                >{l}</button>
+              ))}
+            </div>
+            <button
+              onClick={() => setPeriodPreset(periodPreset === "custom" ? "month" : "custom")}
+              className={cn(
+                "h-9 px-3 rounded-xl flex items-center gap-1.5 text-[9px] font-black uppercase tracking-widest border transition-all",
+                periodPreset === "custom" ? "bg-blue-600 text-white border-blue-600" : "bg-white text-slate-400 border-slate-200 hover:border-slate-400"
+              )}
+            >
+              <Calendar size={12} /> Período Livre
+            </button>
+            {periodPreset === "custom" && (
+              <div className="flex items-center gap-2">
+                <input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)}
+                  className="pl-3 pr-3 h-9 bg-slate-50 border border-slate-200 rounded-xl text-[11px] font-bold focus:outline-none focus:border-blue-400 transition-all w-[148px]" />
+                <span className="text-[10px] font-black text-slate-300 uppercase">até</span>
+                <input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)}
+                  className="pl-3 pr-3 h-9 bg-slate-50 border border-slate-200 rounded-xl text-[11px] font-bold focus:outline-none focus:border-blue-400 transition-all w-[148px]" />
+              </div>
+            )}
+            {loadingReport && <Loader2 size={16} className="animate-spin text-slate-400" />}
+          </div>
+
+          {sessionsForReport.length === 0 ? (
+            <div className="bg-white rounded-2xl border border-slate-200 shadow-sm py-16 text-center text-slate-400 text-sm">
+              Nenhuma sessão de caixa nesse período
+            </div>
+          ) : (
+            <>
+              {/* Cards por forma de pagamento/bandeira */}
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+                {paymentByMethodBrand.map((seg) => (
+                  <div key={`${seg.method}-${seg.brand}`} className="bg-white rounded-2xl border border-slate-200 shadow-sm p-4">
+                    <div className={cn("w-9 h-9 rounded-xl flex items-center justify-center mb-2.5", PM_ICON_BG[seg.method] ?? "bg-slate-100 text-slate-500")}>
+                      <Wallet size={16} />
+                    </div>
+                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">{methodBrandLabel(seg.method, seg.brand)}</p>
+                    <p className="text-xl font-black text-slate-800 mt-0.5 font-mono">{money(seg.amount)}</p>
+                  </div>
+                ))}
+                <div className="bg-slate-900 rounded-2xl p-4">
+                  <div className="w-9 h-9 rounded-xl bg-white/10 flex items-center justify-center mb-2.5">
+                    <DollarSign size={16} className="text-white" />
+                  </div>
+                  <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Total do Período</p>
+                  <p className="text-xl font-black text-white mt-0.5 font-mono">{money(grandTotal)}</p>
+                </div>
+              </div>
+
+              {/* Gráficos: pizza por forma de pagamento + evolução diária */}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
+                  <div className="flex items-center gap-2 mb-4">
+                    <PieChartIcon size={14} className="text-slate-400" />
+                    <h3 className="text-[11px] font-black uppercase tracking-widest text-slate-700">Por Forma de Pagamento</h3>
+                  </div>
+                  {paymentByMethodBrand.length > 0 ? (
+                    <div className="h-64">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <PieChart>
+                          <Pie
+                            data={paymentByMethodBrand.map((s) => ({ name: methodBrandLabel(s.method, s.brand), value: s.amount, method: s.method }))}
+                            dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={50} outerRadius={85} paddingAngle={2}
+                          >
+                            {paymentByMethodBrand.map((s, i) => (
+                              <Cell key={i} fill={PM_COLOR[s.method] ?? "#64748B"} />
+                            ))}
+                          </Pie>
+                          <Tooltip formatter={(v: number) => money(v)} contentStyle={{ borderRadius: 10, border: "1px solid #f1f5f9", fontSize: 11, fontWeight: 700 }} />
+                          <Legend iconType="circle" iconSize={7} formatter={(v) => <span style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase" }}>{v}</span>} />
+                        </PieChart>
+                      </ResponsiveContainer>
+                    </div>
+                  ) : (
+                    <p className="text-center text-sm text-slate-400 py-16">Sem vendas no período</p>
+                  )}
+                </div>
+
+                <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
+                  <div className="flex items-center gap-2 mb-4">
+                    <BarChart3 size={14} className="text-slate-400" />
+                    <h3 className="text-[11px] font-black uppercase tracking-widest text-slate-700">Evolução Diária</h3>
+                  </div>
+                  {salesByDay.length > 0 ? (
+                    <div className="h-64">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <BarChart data={salesByDay}>
+                          <CartesianGrid strokeDasharray="4 4" vertical={false} stroke="#f1f5f9" />
+                          <XAxis dataKey="date" axisLine={false} tickLine={false} tick={{ fontSize: 9, fill: "#94a3b8", fontWeight: 700 }} dy={8}
+                            tickFormatter={(v: string) => new Date(v + "T00:00:00").toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" })} />
+                          <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 9, fill: "#94a3b8", fontWeight: 700 }} width={48} />
+                          <Tooltip
+                            formatter={(v: number) => money(v)}
+                            labelFormatter={(v: string) => new Date(v + "T00:00:00").toLocaleDateString("pt-BR")}
+                            contentStyle={{ borderRadius: 10, border: "1px solid #f1f5f9", fontSize: 11, fontWeight: 700 }}
+                          />
+                          <Bar dataKey="total" radius={[6, 6, 0, 0]} fill="#2563EB" />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </div>
+                  ) : (
+                    <p className="text-center text-sm text-slate-400 py-16">Sem vendas no período</p>
+                  )}
+                </div>
+              </div>
+
+              {/* Tabela de itens vendidos */}
+              <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                <div className="flex items-center gap-2 px-5 py-4 border-b border-slate-100">
+                  <ListOrdered size={14} className="text-slate-400" />
+                  <h3 className="text-[11px] font-black uppercase tracking-widest text-slate-700">Itens Vendidos ({soldItems.length})</h3>
+                </div>
+                <div className="overflow-x-auto max-h-[420px] overflow-y-auto">
+                  <table className="w-full text-left border-collapse">
+                    <thead>
+                      <tr className="bg-slate-50/60 sticky top-0">
+                        {["Pedido", "Produto", "Qtd", "Total", "Data", "Cliente", "Vendedor", "Pagamento"].map((h) => (
+                          <th key={h} className="px-4 py-2.5 text-[9px] font-black text-slate-400 uppercase tracking-widest whitespace-nowrap">{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {soldItems.length === 0 && (
+                        <tr><td colSpan={8} className="px-4 py-8 text-center text-slate-400 text-xs">Nenhum item vendido no período</td></tr>
+                      )}
+                      {soldItems.map((it, i) => (
+                        <tr key={i} className="border-t border-slate-100">
+                          <td className="px-4 py-2 text-xs font-mono text-slate-400 whitespace-nowrap">#{String(it.orderId).padStart(6, "0")}</td>
+                          <td className="px-4 py-2 text-xs font-semibold text-slate-700">{it.productName}</td>
+                          <td className="px-4 py-2 text-xs text-slate-500 text-center">{it.quantity}</td>
+                          <td className="px-4 py-2 text-xs font-mono font-bold text-slate-800 whitespace-nowrap">{money(it.total)}</td>
+                          <td className="px-4 py-2 text-xs text-slate-400 whitespace-nowrap">{new Date(it.createdAt).toLocaleString("pt-BR")}</td>
+                          <td className="px-4 py-2 text-xs text-slate-500 whitespace-nowrap">{it.customerName}</td>
+                          <td className="px-4 py-2 text-xs text-slate-500 whitespace-nowrap">{it.sellerName}</td>
+                          <td className="px-4 py-2 text-xs text-slate-500 whitespace-nowrap">{it.paymentLabel}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </>
+          )}
+        </div>
+      )}
+
+      {/* Modal de exportação — escolhe o período antes de gerar o arquivo */}
+      <Modal
+        open={showExportModal}
+        onClose={() => { if (!exporting) setShowExportModal(false); }}
+        title="Exportar Relatório"
+        size="sm"
+      >
+        <div className="space-y-4">
+          <p className="text-[11px] text-slate-500">Escolha o período que deseja exportar.</p>
+
+          {(exportPreset === "month" || exportPreset === "year") && (
+            <div className="flex items-center gap-1 bg-slate-50 border border-slate-200 rounded-xl p-1 w-fit">
+              <button onClick={() => navigateExportPeriod(-1)} className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-500 hover:bg-white hover:text-slate-900 transition-all">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+              </button>
+              <span className="px-3 h-7 flex items-center rounded-lg text-[11px] font-black uppercase tracking-widest bg-slate-900 text-white min-w-[140px] justify-center">
+                {exportPreset === "year" ? exportNavYear : `${MONTHS[exportNavMonth]} ${exportNavYear}`}
+              </span>
+              <button onClick={() => navigateExportPeriod(1)} className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-500 hover:bg-white hover:text-slate-900 transition-all">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+              </button>
+            </div>
+          )}
+
+          <div className="flex items-center gap-1 bg-slate-50 border border-slate-200 rounded-xl p-1 w-fit">
+            {([["all", "Tudo"], ["month", "Mês"], ["year", "Ano"]] as const).map(([k, l]) => (
+              <button
+                key={k}
+                onClick={() => applyExportPreset(k)}
+                className={cn(
+                  "h-7 px-3 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all",
+                  exportPreset === k ? "bg-slate-900 text-white shadow-sm" : "text-slate-500 hover:text-slate-700"
+                )}
+              >{l}</button>
+            ))}
+          </div>
+
+          <button
+            onClick={() => applyExportPreset(exportPreset === "custom" ? "month" : "custom")}
+            className={cn(
+              "h-9 px-3 rounded-xl flex items-center gap-1.5 text-[9px] font-black uppercase tracking-widest border transition-all w-fit",
+              exportPreset === "custom" ? "bg-blue-600 text-white border-blue-600" : "bg-white text-slate-400 border-slate-200 hover:border-slate-400"
+            )}
+          >
+            <Calendar size={12} /> Dia específico / Período Livre
+          </button>
+          {exportPreset === "custom" && (
+            <div className="flex items-center gap-2">
+              <input type="date" value={exportFrom} onChange={(e) => { setExportFrom(e.target.value); setExportTo((prev) => prev || e.target.value); }}
+                className="pl-3 pr-3 h-9 bg-slate-50 border border-slate-200 rounded-xl text-[11px] font-bold focus:outline-none focus:border-blue-400 transition-all w-[148px]" />
+              <span className="text-[10px] font-black text-slate-300 uppercase">até</span>
+              <input type="date" value={exportTo} onChange={(e) => setExportTo(e.target.value)}
+                className="pl-3 pr-3 h-9 bg-slate-50 border border-slate-200 rounded-xl text-[11px] font-bold focus:outline-none focus:border-blue-400 transition-all w-[148px]" />
+            </div>
+          )}
+
+          <div className="flex gap-2 pt-2 border-t border-slate-100">
+            <Button
+              variant="secondary"
+              icon={exporting ? <Loader2 size={14} className="animate-spin" /> : <FileSpreadsheet size={14} className="text-emerald-600" />}
+              onClick={exportSessionsToExcel}
+              disabled={exporting}
+            >
+              Excel (.xlsx)
+            </Button>
+            <Button
+              variant="secondary"
+              icon={exporting ? <Loader2 size={14} className="animate-spin" /> : <FileText size={14} className="text-rose-600" />}
+              onClick={exportSessionsToPDF}
+              disabled={exporting}
+            >
+              PDF
+            </Button>
+          </div>
+        </div>
+      </Modal>
 
       {/* Modal de detalhe */}
       {(detail || detailLoading) && (
