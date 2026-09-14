@@ -15,6 +15,27 @@ import { onRealtime } from "../../lib/realtime";
 
 const PRAZO_CANCELAMENTO_MINUTOS = 30;
 
+interface CustomerOption { id: number; name: string; phone?: string; document?: string }
+
+function maskPhone(v: string) {
+  const d = v.replace(/\D/g, "").slice(0, 11);
+  if (d.length <= 10) return d.replace(/(\d{2})(\d{4})(\d{0,4})/, "($1) $2-$3").replace(/-$/, "");
+  return d.replace(/(\d{2})(\d{5})(\d{0,4})/, "($1) $2-$3").replace(/-$/, "");
+}
+function maskDoc(v: string) {
+  const d = v.replace(/\D/g, "");
+  if (d.length <= 11) return d.replace(/(\d{3})(\d{3})(\d{3})(\d{0,2})/, "$1.$2.$3-$4").replace(/-$/, "").replace(/\.{1,}$/, "");
+  return d.slice(0, 14).replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{0,2})/, "$1.$2.$3/$4-$5").replace(/-$/, "").replace(/\/$/, "");
+}
+// Digita como centavos (ex.: "150" -> "1,50", "15000" -> "150,00") — mesmo padrão
+// usado no fechamento de caixa, evita erro de digitar vírgula/ponto errado.
+function maskCurrency(v: string) {
+  const d = v.replace(/\D/g, "");
+  if (!d) return "";
+  const cents = parseInt(d, 10);
+  return (cents / 100).toFixed(2).replace(".", ",");
+}
+
 const STATUS_META: Record<NfceStatus, { label: string; color: string; bg: string; icon: React.ReactNode }> = {
   pending:    { label: "Aguardando",  color: "text-blue-600",    bg: "bg-blue-50",    icon: <Clock size={12} /> },
   processing: { label: "Processando", color: "text-blue-600",    bg: "bg-blue-50",    icon: <Loader2 size={12} className="animate-spin" /> },
@@ -786,8 +807,14 @@ function NfseTabContent() {
   const token = localStorage.getItem("token");
 
   const [showAvulsaModal, setShowAvulsaModal] = useState(false);
+  const [avulsaCustomers, setAvulsaCustomers] = useState<CustomerOption[]>([]);
+  const [avulsaCustomerSearch, setAvulsaCustomerSearch] = useState("");
+  const [avulsaSelectedCustomer, setAvulsaSelectedCustomer] = useState<CustomerOption | null>(null);
+  const [avulsaShowNewCustomer, setAvulsaShowNewCustomer] = useState(false);
+  const [avulsaNewCustomerSaving, setAvulsaNewCustomerSaving] = useState(false);
   const [avulsaCustomerName, setAvulsaCustomerName] = useState("");
   const [avulsaCustomerPhone, setAvulsaCustomerPhone] = useState("");
+  const [avulsaCustomerDoc, setAvulsaCustomerDoc] = useState("");
   const [avulsaCodigo, setAvulsaCodigo] = useState("140601");
   const [avulsaDescricao, setAvulsaDescricao] = useState("");
   const [avulsaValor, setAvulsaValor] = useState("");
@@ -807,12 +834,59 @@ function NfseTabContent() {
   useEffect(() => onRealtime("nfse:changed", () => { fetchInvoices(); }), []);
 
   const resetAvulsaForm = () => {
+    setAvulsaCustomerSearch("");
+    setAvulsaSelectedCustomer(null);
+    setAvulsaShowNewCustomer(false);
     setAvulsaCustomerName("");
     setAvulsaCustomerPhone("");
+    setAvulsaCustomerDoc("");
     setAvulsaCodigo("140601");
     setAvulsaDescricao("");
     setAvulsaValor("");
     setAvulsaError(null);
+  };
+
+  const openAvulsaModal = () => {
+    resetAvulsaForm();
+    setShowAvulsaModal(true);
+    fetch("/api/customers", { headers: { Authorization: `Bearer ${token}` } })
+      .then((r) => r.json())
+      .then((d) => setAvulsaCustomers(Array.isArray(d) ? d : []))
+      .catch(() => {});
+  };
+
+  const avulsaFilteredCustomers = useMemo(() => {
+    const term = avulsaCustomerSearch.trim().toLowerCase();
+    if (!term) return [];
+    return avulsaCustomers.filter((c) =>
+      c.name.toLowerCase().includes(term) || (c.phone ?? "").includes(term) || (c.document ?? "").includes(term),
+    ).slice(0, 6);
+  }, [avulsaCustomers, avulsaCustomerSearch]);
+
+  const handleCreateAvulsaCustomer = async () => {
+    if (!avulsaCustomerName.trim()) return;
+    setAvulsaNewCustomerSaving(true);
+    try {
+      const res = await fetch("/api/customers", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          name: avulsaCustomerName.trim(),
+          phone: avulsaCustomerPhone.replace(/\D/g, "") || null,
+          document: avulsaCustomerDoc.replace(/\D/g, "") || null,
+        }),
+      });
+      const created = await res.json();
+      if (!res.ok) {
+        setAvulsaError(created.error || "Falha ao cadastrar cliente");
+        return;
+      }
+      setAvulsaCustomers((prev) => [...prev, created]);
+      setAvulsaSelectedCustomer(created);
+      setAvulsaShowNewCustomer(false);
+    } finally {
+      setAvulsaNewCustomerSaving(false);
+    }
   };
 
   const handleEmitAvulsa = async () => {
@@ -823,8 +897,9 @@ function NfseTabContent() {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify({
-          customer_name: avulsaCustomerName || undefined,
-          customer_phone: avulsaCustomerPhone || undefined,
+          customer_id: avulsaSelectedCustomer?.id,
+          customer_name: avulsaSelectedCustomer?.name,
+          customer_phone: avulsaSelectedCustomer?.phone,
           codigo_tributacao_nacional: avulsaCodigo,
           descricao_servico: avulsaDescricao,
           valor_servico: Number(avulsaValor.replace(",", ".")),
@@ -963,7 +1038,7 @@ function NfseTabContent() {
     <div className="space-y-6">
       <div className="flex items-center justify-between gap-2">
         <button
-          onClick={() => { resetAvulsaForm(); setShowAvulsaModal(true); }}
+          onClick={openAvulsaModal}
           className="h-9 bg-violet-600 hover:bg-violet-700 text-white px-4 rounded-xl flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest transition-all shadow-sm"
         >
           <Plus size={13} /> Nova NFS-e Avulsa
@@ -1340,15 +1415,64 @@ function NfseTabContent() {
         <div className="space-y-3">
           <div>
             <label className="text-[9px] font-black text-slate-400 uppercase tracking-wide block mb-1">Cliente (opcional)</label>
-            <input value={avulsaCustomerName} onChange={(e) => setAvulsaCustomerName(e.target.value)}
-              placeholder="Deixe em branco para Consumidor Final"
-              className="w-full h-9 px-3 rounded-lg border border-slate-200 text-xs font-medium outline-none focus:border-violet-400 transition-all" />
-          </div>
-          <div>
-            <label className="text-[9px] font-black text-slate-400 uppercase tracking-wide block mb-1">Telefone (opcional)</label>
-            <input value={avulsaCustomerPhone} onChange={(e) => setAvulsaCustomerPhone(e.target.value)}
-              placeholder="(00) 00000-0000"
-              className="w-full h-9 px-3 rounded-lg border border-slate-200 text-xs font-medium outline-none focus:border-violet-400 transition-all" />
+            {avulsaSelectedCustomer ? (
+              <div className="flex items-center justify-between gap-2 bg-violet-50 border border-violet-200 rounded-lg px-3 h-9">
+                <div className="min-w-0">
+                  <span className="text-xs font-bold text-slate-700 truncate block">{avulsaSelectedCustomer.name}</span>
+                </div>
+                <button onClick={() => setAvulsaSelectedCustomer(null)} className="text-slate-400 hover:text-slate-600 shrink-0">
+                  <XCircle size={14} />
+                </button>
+              </div>
+            ) : avulsaShowNewCustomer ? (
+              <div className="space-y-2 bg-slate-50 border border-slate-200 rounded-lg p-3">
+                <input value={avulsaCustomerName} onChange={(e) => setAvulsaCustomerName(e.target.value)}
+                  placeholder="Nome do cliente"
+                  className="w-full h-9 px-3 rounded-lg border border-slate-200 text-xs font-medium outline-none focus:border-violet-400 transition-all bg-white" />
+                <div className="grid grid-cols-2 gap-2">
+                  <input value={avulsaCustomerPhone} onChange={(e) => setAvulsaCustomerPhone(maskPhone(e.target.value))} inputMode="numeric"
+                    placeholder="(00) 00000-0000"
+                    className="w-full h-9 px-3 rounded-lg border border-slate-200 text-xs font-medium outline-none focus:border-violet-400 transition-all bg-white" />
+                  <input value={avulsaCustomerDoc} onChange={(e) => setAvulsaCustomerDoc(maskDoc(e.target.value))} inputMode="numeric"
+                    placeholder="CPF/CNPJ"
+                    className="w-full h-9 px-3 rounded-lg border border-slate-200 text-xs font-medium outline-none focus:border-violet-400 transition-all bg-white" />
+                </div>
+                <div className="flex gap-2">
+                  <button onClick={() => setAvulsaShowNewCustomer(false)}
+                    className="flex-1 h-8 rounded-lg border border-slate-200 text-[10px] font-bold text-slate-500 hover:bg-slate-100 transition-all">
+                    Cancelar
+                  </button>
+                  <button onClick={handleCreateAvulsaCustomer} disabled={!avulsaCustomerName.trim() || avulsaNewCustomerSaving}
+                    className="flex-1 h-8 rounded-lg bg-violet-600 hover:bg-violet-700 disabled:opacity-50 text-white text-[10px] font-bold transition-all">
+                    {avulsaNewCustomerSaving ? "Salvando…" : "Salvar Cliente"}
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-1.5">
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={13} />
+                  <input value={avulsaCustomerSearch} onChange={(e) => setAvulsaCustomerSearch(e.target.value)}
+                    placeholder="Buscar cliente ou deixar em branco (Consumidor Final)"
+                    className="w-full pl-8 pr-3 h-9 rounded-lg border border-slate-200 text-xs font-medium outline-none focus:border-violet-400 transition-all" />
+                </div>
+                {avulsaFilteredCustomers.length > 0 && (
+                  <div className="border border-slate-200 rounded-lg divide-y divide-slate-100 overflow-hidden max-h-32 overflow-y-auto">
+                    {avulsaFilteredCustomers.map((c) => (
+                      <button key={c.id} onClick={() => { setAvulsaSelectedCustomer(c); setAvulsaCustomerSearch(""); }}
+                        className="w-full text-left px-3 py-2 text-xs hover:bg-violet-50 transition-all">
+                        <span className="font-bold text-slate-700">{c.name}</span>
+                        {c.phone && <span className="text-slate-400 ml-2">{c.phone}</span>}
+                      </button>
+                    ))}
+                  </div>
+                )}
+                <button onClick={() => { setAvulsaShowNewCustomer(true); setAvulsaCustomerName(avulsaCustomerSearch); setAvulsaCustomerSearch(""); }}
+                  className="text-[10px] font-bold text-violet-600 hover:text-violet-700 transition-all">
+                  + Cadastrar novo cliente
+                </button>
+              </div>
+            )}
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
@@ -1359,7 +1483,7 @@ function NfseTabContent() {
             </div>
             <div>
               <label className="text-[9px] font-black text-slate-400 uppercase tracking-wide block mb-1">Valor (R$)</label>
-              <input value={avulsaValor} onChange={(e) => setAvulsaValor(e.target.value.replace(/[^0-9.,]/g, ""))}
+              <input value={avulsaValor} onChange={(e) => setAvulsaValor(maskCurrency(e.target.value))} inputMode="numeric"
                 placeholder="0,00"
                 className="w-full h-9 px-3 rounded-lg border border-slate-200 text-xs font-mono outline-none focus:border-violet-400 transition-all" />
             </div>
@@ -1370,6 +1494,12 @@ function NfseTabContent() {
               placeholder="O que foi feito — obrigatório para a prefeitura"
               className="w-full px-3 py-2 rounded-lg border border-slate-200 text-xs font-medium outline-none resize-none focus:border-violet-400 transition-all" />
           </div>
+          {!avulsaSelectedCustomer && (
+            <p className="text-[10px] text-amber-600 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+              Sem cliente identificado, a nota sai como "Consumidor Final". Algumas prefeituras exigem CPF/CNPJ do
+              tomador acima de certo valor — confira a regra do seu município caso a nota seja rejeitada.
+            </p>
+          )}
           {avulsaError && (
             <div className="bg-rose-50 border border-rose-200 rounded-xl px-3 py-2.5 text-[11px] font-bold text-rose-600">
               {avulsaError}

@@ -200,13 +200,23 @@ export async function testNfseEmission(req: Request, res: Response) {
 export async function emitNfseAvulsa(req: Request, res: Response) {
   try {
     const tenantId = getTenantId(req);
-    const { customer_name, customer_phone, codigo_tributacao_nacional, descricao_servico, valor_servico } = req.body as {
+    const { customer_id, customer_name, customer_phone, codigo_tributacao_nacional, descricao_servico, valor_servico } = req.body as {
+      customer_id?: number;
       customer_name?: string;
       customer_phone?: string;
       codigo_tributacao_nacional?: string;
       descricao_servico?: string;
       valor_servico?: number;
     };
+
+    // Se veio customer_id, confere que o cliente é deste tenant antes de vincular —
+    // resolveTomador() em emitir.ts usa o CPF/CNPJ cadastrado nesse Customer pra
+    // preencher o tomador da NFS-e (sem isso, a nota sai só com o nome, sem documento).
+    let customer: { id: number; name: string } | null = null;
+    if (customer_id) {
+      customer = await prisma.customer.findFirst({ where: { id: customer_id, tenant_id: tenantId }, select: { id: true, name: true } });
+      if (!customer) { res.status(404).json({ error: "Cliente não encontrado" }); return; }
+    }
 
     const valorServico = Number(valor_servico);
     if (!valorServico || valorServico <= 0) {
@@ -248,7 +258,8 @@ export async function emitNfseAvulsa(req: Request, res: Response) {
           tenant_id: tenantId,
           number: (last?.number ?? 0) + 1,
           status: "finalizado",
-          customer_name: customer_name?.trim() || "Consumidor Final",
+          customer_id: customer?.id ?? null,
+          customer_name: customer?.name || customer_name?.trim() || "Consumidor Final",
           customer_phone: customer_phone || null,
           has_equipment: false,
           reported_issue: "NFS-e avulsa — emitida diretamente pela tela de Notas Fiscais, sem ordem de serviço associada.",
