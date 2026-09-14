@@ -192,6 +192,98 @@ export async function testNfseEmission(req: Request, res: Response) {
   }
 }
 
+// Emite uma NFS-e "avulsa" — para um serviço que não passou pelo fluxo normal de
+// Ordem de Serviço (ex.: mão de obra cobrada à parte, sem abrir uma OS completa).
+// Em vez de duplicar toda a lógica fiscal, cria por baixo dos panos uma OS mínima já
+// "finalizada" só para servir de vínculo, e reaproveita 100% o mesmo emitirNfse() já
+// testado em produção — igual ao padrão usado em testNfseEmission (linha ~119).
+export async function emitNfseAvulsa(req: Request, res: Response) {
+  try {
+    const tenantId = getTenantId(req);
+    const { customer_name, customer_phone, codigo_tributacao_nacional, descricao_servico, valor_servico } = req.body as {
+      customer_name?: string;
+      customer_phone?: string;
+      codigo_tributacao_nacional?: string;
+      descricao_servico?: string;
+      valor_servico?: number;
+    };
+
+    const valorServico = Number(valor_servico);
+    if (!valorServico || valorServico <= 0) {
+      res.status(422).json({ error: "Informe um valor de serviço maior que zero" });
+      return;
+    }
+    if (!codigo_tributacao_nacional) {
+      res.status(422).json({ error: "Informe o código de tributação nacional do serviço (subitem da lista LC 116/03)" });
+      return;
+    }
+    if (!descricao_servico?.trim()) {
+      res.status(422).json({ error: "Informe a descrição do serviço" });
+      return;
+    }
+
+    const tenant = await prisma.tenant.findUnique({
+      where: { id: tenantId },
+      select: { nfse_environment: true, nfse_serie: true, nfse_next_number: true, nfce_cert_path: true, nfce_cert_password: true, nfse_codigo_municipio: true },
+    });
+    if (!tenant) { res.status(404).json({ error: "Loja não encontrada" }); return; }
+    if (!tenant.nfce_cert_path || !tenant.nfce_cert_password) {
+      res.status(422).json({ error: "Envie o certificado digital A1 antes de emitir (Configurações > Dados Fiscais)." });
+      return;
+    }
+    if (!tenant.nfse_codigo_municipio) {
+      res.status(422).json({ error: "Informe o código do município (IBGE) antes de emitir (Configurações > Dados Fiscais)." });
+      return;
+    }
+
+    const last = await prisma.serviceOrder.findFirst({
+      where: { tenant_id: tenantId },
+      orderBy: { number: "desc" },
+      select: { number: true },
+    });
+
+    const { invoice, serviceOrderId } = await prisma.$transaction(async (tx) => {
+      const order = await tx.serviceOrder.create({
+        data: {
+          tenant_id: tenantId,
+          number: (last?.number ?? 0) + 1,
+          status: "finalizado",
+          customer_name: customer_name?.trim() || "Consumidor Final",
+          customer_phone: customer_phone || null,
+          has_equipment: false,
+          reported_issue: "NFS-e avulsa — emitida diretamente pela tela de Notas Fiscais, sem ordem de serviço associada.",
+          service_value: valorServico,
+          service_description: descricao_servico.trim(),
+          subtotal: valorServico,
+          total_amount: valorServico,
+        },
+      });
+      const created = await tx.nfseInvoice.create({
+        data: {
+          tenant_id: tenantId, service_order_id: order.id, status: "pending",
+          environment: tenant.nfse_environment, serie: tenant.nfse_serie, numero: tenant.nfse_next_number,
+          codigo_tributacao_nacional, descricao_servico: descricao_servico.trim(), valor_servico: valorServico,
+        },
+      });
+      await tx.tenant.update({ where: { id: tenantId }, data: { nfse_next_number: { increment: 1 } } });
+      return { invoice: created, serviceOrderId: order.id };
+    });
+
+    emitToTenant(tenantId, "nfse:changed", { serviceOrderId });
+    emitirNfse({
+      serviceOrderId,
+      codigoTributacaoNacional: codigo_tributacao_nacional,
+      descricaoServico: descricao_servico.trim(),
+      valorServico,
+    }).catch((error) => console.error("[emitNfseAvulsa] erro:", error));
+
+    res.json(invoice);
+  } catch (err) {
+    console.error("[emitNfseAvulsa] error:", err);
+    res.status(500).json({ error: "Não foi possível iniciar a emissão da NFS-e avulsa" });
+  }
+}
+
 export async function retryNfse(req: Request, res: Response) {
   try {
     const serviceOrderId = Number(req.params.serviceOrderId);

@@ -3,6 +3,7 @@ import { Router } from "express";
 import {
   getNfseByServiceOrder,
   emitNfseForServiceOrder,
+  emitNfseAvulsa,
   testNfseEmission,
   retryNfse,
   deleteNfse,
@@ -19,6 +20,7 @@ router.use(authenticateToken);
 
 router.get("/", listNfse);
 router.post("/test", testNfseEmission);
+router.post("/avulsa", emitNfseAvulsa);
 router.get("/:serviceOrderId", getNfseByServiceOrder);
 router.post("/:serviceOrderId/emit", emitNfseForServiceOrder);
 router.post("/:serviceOrderId/retry", retryNfse);

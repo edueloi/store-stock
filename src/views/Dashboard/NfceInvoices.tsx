@@ -1,9 +1,9 @@
 import { useState, useEffect, useMemo } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useSearchParams, useNavigate } from "react-router-dom";
 import ExcelJS from "exceljs";
 import {
   FileCheck, Search, Download, RefreshCw, FileText, AlertTriangle,
-  CheckCircle2, Loader2, Clock, XCircle, Ban, Archive, Calendar, Trash2,
+  CheckCircle2, Loader2, Clock, XCircle, Ban, Archive, Calendar, Trash2, Plus,
 } from "lucide-react";
 import PageHeader from "../../components/layout/PageHeader";
 import { NfceInvoice, NfceStatus, NfseInvoice, NfseStatus } from "../../types";
@@ -96,6 +96,7 @@ async function downloadAuthenticated(url: string, token: string | null, filename
 }
 
 function NfceTabContent() {
+  const navigate = useNavigate();
   const [invoices, setInvoices] = useState<NfceInvoice[]>([]);
   const [loading, setLoading] = useState(true);
   const [exporting, setExporting] = useState(false);
@@ -293,7 +294,14 @@ function NfceTabContent() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-end">
+      <div className="flex items-center justify-between gap-2">
+        <button
+          onClick={() => navigate("/admin/pdv")}
+          className="h-9 bg-slate-900 hover:bg-slate-800 text-white px-4 rounded-xl flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest transition-all shadow-sm"
+          title="A NFC-e avulsa é emitida a partir de uma venda no PDV — use o botão 'Item Avulso' no carrinho para vender algo fora do catálogo."
+        >
+          <Plus size={13} /> Nova Venda (PDV)
+        </button>
         <button
           onClick={async () => { setExporting(true); try { await exportNfceToExcel(filtered); } finally { setExporting(false); } }}
           disabled={exporting || filtered.length === 0}
@@ -777,6 +785,15 @@ function NfseTabContent() {
   const notify = useToast();
   const token = localStorage.getItem("token");
 
+  const [showAvulsaModal, setShowAvulsaModal] = useState(false);
+  const [avulsaCustomerName, setAvulsaCustomerName] = useState("");
+  const [avulsaCustomerPhone, setAvulsaCustomerPhone] = useState("");
+  const [avulsaCodigo, setAvulsaCodigo] = useState("140601");
+  const [avulsaDescricao, setAvulsaDescricao] = useState("");
+  const [avulsaValor, setAvulsaValor] = useState("");
+  const [avulsaEmitting, setAvulsaEmitting] = useState(false);
+  const [avulsaError, setAvulsaError] = useState<string | null>(null);
+
   const fetchInvoices = () => {
     setLoading(true);
     fetch("/api/nfse?pageSize=200", { headers: { Authorization: `Bearer ${token}` } })
@@ -788,6 +805,43 @@ function NfseTabContent() {
 
   useEffect(fetchInvoices, []);
   useEffect(() => onRealtime("nfse:changed", () => { fetchInvoices(); }), []);
+
+  const resetAvulsaForm = () => {
+    setAvulsaCustomerName("");
+    setAvulsaCustomerPhone("");
+    setAvulsaCodigo("140601");
+    setAvulsaDescricao("");
+    setAvulsaValor("");
+    setAvulsaError(null);
+  };
+
+  const handleEmitAvulsa = async () => {
+    setAvulsaEmitting(true);
+    setAvulsaError(null);
+    try {
+      const res = await fetch("/api/nfse/avulsa", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          customer_name: avulsaCustomerName || undefined,
+          customer_phone: avulsaCustomerPhone || undefined,
+          codigo_tributacao_nacional: avulsaCodigo,
+          descricao_servico: avulsaDescricao,
+          valor_servico: Number(avulsaValor.replace(",", ".")),
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setAvulsaError(data.error || "Falha ao emitir NFS-e avulsa");
+        return;
+      }
+      setShowAvulsaModal(false);
+      resetAvulsaForm();
+      fetchInvoices();
+    } finally {
+      setAvulsaEmitting(false);
+    }
+  };
 
   const handleRetry = async (serviceOrderId: number) => {
     setRetrying(serviceOrderId);
@@ -907,7 +961,13 @@ function NfseTabContent() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-end">
+      <div className="flex items-center justify-between gap-2">
+        <button
+          onClick={() => { resetAvulsaForm(); setShowAvulsaModal(true); }}
+          className="h-9 bg-violet-600 hover:bg-violet-700 text-white px-4 rounded-xl flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest transition-all shadow-sm"
+        >
+          <Plus size={13} /> Nova NFS-e Avulsa
+        </button>
         <button
           onClick={async () => { setExporting(true); try { await exportNfseToExcel(filtered); } finally { setExporting(false); } }}
           disabled={exporting || filtered.length === 0}
@@ -1253,6 +1313,66 @@ function NfseTabContent() {
           {cancelError && (
             <div className="bg-rose-50 border border-rose-200 rounded-xl px-3 py-2.5 text-[11px] font-bold text-rose-600">
               {cancelError}
+            </div>
+          )}
+        </div>
+      </Modal>
+
+      <Modal
+        open={showAvulsaModal}
+        onClose={() => { if (!avulsaEmitting) setShowAvulsaModal(false); }}
+        title="Nova NFS-e Avulsa"
+        subtitle="Emite uma nota de serviço sem precisar abrir uma Ordem de Serviço"
+        size="sm"
+        footer={
+          <>
+            <Button variant="secondary" onClick={() => setShowAvulsaModal(false)} disabled={avulsaEmitting}>Voltar</Button>
+            <Button
+              onClick={handleEmitAvulsa}
+              disabled={avulsaEmitting || !avulsaCodigo || !avulsaDescricao.trim() || !avulsaValor || Number(avulsaValor.replace(",", ".")) <= 0}
+              loading={avulsaEmitting}
+            >
+              Emitir NFS-e
+            </Button>
+          </>
+        }
+      >
+        <div className="space-y-3">
+          <div>
+            <label className="text-[9px] font-black text-slate-400 uppercase tracking-wide block mb-1">Cliente (opcional)</label>
+            <input value={avulsaCustomerName} onChange={(e) => setAvulsaCustomerName(e.target.value)}
+              placeholder="Deixe em branco para Consumidor Final"
+              className="w-full h-9 px-3 rounded-lg border border-slate-200 text-xs font-medium outline-none focus:border-violet-400 transition-all" />
+          </div>
+          <div>
+            <label className="text-[9px] font-black text-slate-400 uppercase tracking-wide block mb-1">Telefone (opcional)</label>
+            <input value={avulsaCustomerPhone} onChange={(e) => setAvulsaCustomerPhone(e.target.value)}
+              placeholder="(00) 00000-0000"
+              className="w-full h-9 px-3 rounded-lg border border-slate-200 text-xs font-medium outline-none focus:border-violet-400 transition-all" />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-[9px] font-black text-slate-400 uppercase tracking-wide block mb-1">Cód. Serviço</label>
+              <input value={avulsaCodigo} onChange={(e) => setAvulsaCodigo(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                placeholder="140601"
+                className="w-full h-9 px-3 rounded-lg border border-slate-200 text-xs font-mono outline-none focus:border-violet-400 transition-all" />
+            </div>
+            <div>
+              <label className="text-[9px] font-black text-slate-400 uppercase tracking-wide block mb-1">Valor (R$)</label>
+              <input value={avulsaValor} onChange={(e) => setAvulsaValor(e.target.value.replace(/[^0-9.,]/g, ""))}
+                placeholder="0,00"
+                className="w-full h-9 px-3 rounded-lg border border-slate-200 text-xs font-mono outline-none focus:border-violet-400 transition-all" />
+            </div>
+          </div>
+          <div>
+            <label className="text-[9px] font-black text-slate-400 uppercase tracking-wide block mb-1">Descrição do Serviço</label>
+            <textarea rows={3} value={avulsaDescricao} onChange={(e) => setAvulsaDescricao(e.target.value)}
+              placeholder="O que foi feito — obrigatório para a prefeitura"
+              className="w-full px-3 py-2 rounded-lg border border-slate-200 text-xs font-medium outline-none resize-none focus:border-violet-400 transition-all" />
+          </div>
+          {avulsaError && (
+            <div className="bg-rose-50 border border-rose-200 rounded-xl px-3 py-2.5 text-[11px] font-bold text-rose-600">
+              {avulsaError}
             </div>
           )}
         </div>
