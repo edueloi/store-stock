@@ -317,6 +317,21 @@ const STATUS_CONFIG: Record<AccountStatus, { label: string; color: string; bg: s
 const CATEGORIES = ["Fornecedor", "Aluguel", "Energia", "Água", "Internet", "Funcionário", "Imposto", "Empréstimo", "Outro"];
 const MONTHS = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
 
+// Mesmo padrão de filtro de período do Fluxo de Caixa (Finance.tsx) e de Contas
+// a Receber — navegador de mês/ano com atalho pra período livre, em vez de dois
+// <select> soltos sem noção de "mês atual".
+type PeriodPreset = "month" | "year" | "custom" | "all";
+
+function monthRange(year: number, month: number): { from: string; to: string } {
+  const pad = (n: number) => String(n).padStart(2, "0");
+  const lastDay = new Date(year, month + 1, 0).getDate();
+  return { from: `${year}-${pad(month + 1)}-01`, to: `${year}-${pad(month + 1)}-${pad(lastDay)}` };
+}
+
+function yearRange(year: number): { from: string; to: string } {
+  return { from: `${year}-01-01`, to: `${year}-12-31` };
+}
+
 type ModalMode = "create" | "edit" | "pay" | "delete" | null;
 
 interface FormData {
@@ -356,9 +371,41 @@ export default function ContasPagar() {
   const [searchParams] = useSearchParams();
   const [search, setSearch] = useState(() => searchParams.get("fornecedor") || "");
   const [statusFilter, setStatusFilter] = useState<AccountStatus | "all">("all");
-  const [monthFilter, setMonthFilter] = useState<number | "all">("all");
-  const [yearFilter, setYearFilter] = useState<number | "all">("all");
   const [costTypeFilter, setCostTypeFilter] = useState<"all" | "fixed" | "variable">("all");
+
+  // Filtro de período — default "Tudo" preserva o comportamento atual (nada
+  // some da lista até o operador escolher um recorte de período).
+  const [periodPreset, setPeriodPreset] = useState<PeriodPreset>("all");
+  const nowRef = useState(() => new Date())[0];
+  const [navYear, setNavYear] = useState(nowRef.getFullYear());
+  const [navMonth, setNavMonth] = useState(nowRef.getMonth());
+  const [dateFrom, setDateFrom] = useState(() => monthRange(nowRef.getFullYear(), nowRef.getMonth()).from);
+  const [dateTo, setDateTo] = useState(() => monthRange(nowRef.getFullYear(), nowRef.getMonth()).to);
+
+  const applyPeriodPreset = (p: PeriodPreset) => {
+    setPeriodPreset(p);
+    if (p === "month") { const r = monthRange(navYear, navMonth); setDateFrom(r.from); setDateTo(r.to); }
+    else if (p === "year") { const r = yearRange(navYear); setDateFrom(r.from); setDateTo(r.to); }
+  };
+
+  const navigatePeriod = (delta: number) => {
+    if (periodPreset === "year") {
+      const y = navYear + delta;
+      setNavYear(y);
+      setPeriodPreset("year");
+      const r = yearRange(y);
+      setDateFrom(r.from); setDateTo(r.to);
+      return;
+    }
+    let m = navMonth + delta;
+    let y = navYear;
+    if (m > 11) { m = 0; y++; }
+    if (m < 0) { m = 11; y--; }
+    setNavMonth(m); setNavYear(y);
+    setPeriodPreset("month");
+    const r = monthRange(y, m);
+    setDateFrom(r.from); setDateTo(r.to);
+  };
 
   // Classificação contábil da conta em si (independe de ser recorrente ou não) —
   // usada nos relatórios/Excel/PDF pra separar custo fixo x variável.
@@ -829,20 +876,16 @@ export default function ContasPagar() {
       .filter(item => {
         if (statusFilter !== "all" && item.status !== statusFilter) return false;
         if (costTypeFilter !== "all" && item.cost_type !== costTypeFilter) return false;
-        if (monthFilter !== "all" && new Date(item.due_date).getMonth() !== monthFilter) return false;
-        if (yearFilter !== "all" && new Date(item.due_date).getFullYear() !== yearFilter) return false;
+        if (periodPreset !== "all") {
+          const due = item.due_date.substring(0, 10);
+          if (due < dateFrom || due > dateTo) return false;
+        }
         if (search &&
             !item.description.toLowerCase().includes(search.toLowerCase()) &&
             !(item.supplier_name || "").toLowerCase().includes(search.toLowerCase())) return false;
         return true;
       });
-  }, [items, statusFilter, costTypeFilter, monthFilter, yearFilter, search]);
-
-  const availableYears = useMemo(() => {
-    const years = new Set(items.map((i) => new Date(i.due_date).getFullYear()));
-    years.add(new Date().getFullYear());
-    return Array.from(years).sort((a, b) => b - a);
-  }, [items]);
+  }, [items, statusFilter, costTypeFilter, periodPreset, dateFrom, dateTo, search]);
 
   const totalPending = items.filter(i => i.status === "pending" && !isOverdue(i.due_date, i.status as AccountStatus)).reduce((a, i) => a + Number(i.amount), 0);
   const totalOverdue = items.filter(i => isOverdue(i.due_date, i.status as AccountStatus)).reduce((a, i) => a + Number(i.amount), 0);
@@ -944,23 +987,65 @@ export default function ContasPagar() {
             </div>
           </div>
           <div className="flex items-center gap-3 flex-wrap justify-between">
-            <div className="flex items-center gap-1.5 flex-wrap">
-              <select
-                value={monthFilter}
-                onChange={(e) => setMonthFilter(e.target.value === "all" ? "all" : Number(e.target.value))}
-                className="h-9 px-2.5 bg-slate-50 border border-slate-200 rounded-lg text-[10px] font-bold outline-none focus:border-blue-400 transition-all"
+            <div className="flex items-center gap-2 flex-wrap">
+              {/* ← Mês/Ano → navigator — só faz sentido com Mês ou Ano selecionado */}
+              {(periodPreset === "month" || periodPreset === "year") && (
+                <div className="flex items-center gap-1 bg-slate-50 border border-slate-200 rounded-xl p-1">
+                  <button
+                    onClick={() => navigatePeriod(-1)}
+                    className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-500 hover:bg-white hover:text-slate-900 transition-all"
+                  >
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+                  </button>
+                  <span className="px-3 h-7 flex items-center rounded-lg text-[11px] font-black uppercase tracking-widest bg-slate-900 text-white min-w-[140px] justify-center">
+                    {periodPreset === "year" ? navYear : `${MONTHS[navMonth]} ${navYear}`}
+                  </span>
+                  <button
+                    onClick={() => navigatePeriod(1)}
+                    className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-500 hover:bg-white hover:text-slate-900 transition-all"
+                  >
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+                  </button>
+                </div>
+              )}
+
+              {/* Tudo / Mês / Ano / Período Livre */}
+              <div className="flex items-center gap-1 bg-slate-50 border border-slate-200 rounded-xl p-1">
+                {([["all", "Tudo"], ["month", "Mês"], ["year", "Ano"]] as const).map(([k, l]) => (
+                  <button
+                    key={k}
+                    onClick={() => applyPeriodPreset(k)}
+                    className={cn(
+                      "h-7 px-3 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all",
+                      periodPreset === k ? "bg-slate-900 text-white shadow-sm" : "text-slate-500 hover:text-slate-700"
+                    )}
+                  >{l}</button>
+                ))}
+              </div>
+              <button
+                onClick={() => setPeriodPreset(periodPreset === "custom" ? "all" : "custom")}
+                className={cn(
+                  "h-9 px-3 rounded-xl flex items-center gap-1.5 text-[9px] font-black uppercase tracking-widest border transition-all",
+                  periodPreset === "custom" ? "bg-blue-600 text-white border-blue-600" : "bg-white text-slate-400 border-slate-200 hover:border-slate-400"
+                )}
               >
-                <option value="all">Todos os meses</option>
-                {MONTHS.map((m, i) => <option key={m} value={i}>{m}</option>)}
-              </select>
-              <select
-                value={yearFilter}
-                onChange={(e) => setYearFilter(e.target.value === "all" ? "all" : Number(e.target.value))}
-                className="h-9 px-2.5 bg-slate-50 border border-slate-200 rounded-lg text-[10px] font-bold outline-none focus:border-blue-400 transition-all"
-              >
-                <option value="all">Todos os anos</option>
-                {availableYears.map((y) => <option key={y} value={y}>{y}</option>)}
-              </select>
+                <Calendar size={12} /> Período Livre
+              </button>
+              {periodPreset === "custom" && (
+                <div className="flex items-center gap-2">
+                  <input
+                    type="date" value={dateFrom}
+                    onChange={(e) => setDateFrom(e.target.value)}
+                    className="pl-3 pr-3 h-9 bg-slate-50 border border-slate-200 rounded-xl text-[11px] font-bold focus:outline-none focus:border-blue-400 transition-all w-[148px]"
+                  />
+                  <span className="text-[10px] font-black text-slate-300 uppercase">até</span>
+                  <input
+                    type="date" value={dateTo}
+                    onChange={(e) => setDateTo(e.target.value)}
+                    className="pl-3 pr-3 h-9 bg-slate-50 border border-slate-200 rounded-xl text-[11px] font-bold focus:outline-none focus:border-blue-400 transition-all w-[148px]"
+                  />
+                </div>
+              )}
               <div className="flex gap-1.5">
                 {([["all", "Todos"], ["fixed", "Fixo"], ["variable", "Variável"]] as const).map(([k, l]) => (
                   <button
