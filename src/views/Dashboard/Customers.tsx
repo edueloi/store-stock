@@ -2,16 +2,17 @@ import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   Users, UserPlus, Phone, Search,
-  AlertTriangle, X, ChevronRight,
+  AlertTriangle, X, ChevronRight, ChevronLeft,
   DollarSign, CheckCircle2,
   TrendingDown, AlertCircle,
-  Loader2,
+  Loader2, LayoutGrid, List, MapPin,
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { cn } from "../../lib/utils";
 import PageHeader from "../../components/layout/PageHeader";
 import Modal from "../../components/ui/Modal";
 import Button from "../../components/ui/Button";
+import StatsGrid from "../../components/ui/StatsGrid";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -81,6 +82,58 @@ function maskDoc(v: string) {
 
 type MainTab = "customers" | "debtors";
 
+// Rodapé de paginação client-side — mesmo padrão já usado no Catálogo
+// (Inventory.tsx), reaproveitado aqui pra manter consistência visual.
+function PaginationFooter({
+  total, itemLabel, safePage, totalPages, pageSize, onPageChange,
+}: {
+  total: number; itemLabel: string; safePage: number; totalPages: number; pageSize: number;
+  onPageChange: (p: number) => void;
+}) {
+  if (totalPages <= 1) return null;
+  return (
+    <div className="flex items-center justify-between px-1">
+      <span className="text-[11px] text-slate-400 font-medium">
+        {(safePage - 1) * pageSize + 1}–{Math.min(safePage * pageSize, total)} de {total} {itemLabel}{total !== 1 ? "s" : ""}
+      </span>
+      <div className="flex items-center gap-1">
+        <button onClick={() => onPageChange(1)} disabled={safePage === 1}
+          className="w-8 h-8 flex items-center justify-center rounded-lg border border-slate-200 text-slate-400 hover:border-blue-400 hover:text-blue-600 disabled:opacity-30 disabled:cursor-not-allowed transition-all text-xs font-bold">
+          «
+        </button>
+        <button onClick={() => onPageChange(Math.max(1, safePage - 1))} disabled={safePage === 1}
+          className="w-8 h-8 flex items-center justify-center rounded-lg border border-slate-200 text-slate-400 hover:border-blue-400 hover:text-blue-600 disabled:opacity-30 disabled:cursor-not-allowed transition-all">
+          <ChevronLeft size={14} />
+        </button>
+        {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+          let page: number;
+          if (totalPages <= 5) page = i + 1;
+          else if (safePage <= 3) page = i + 1;
+          else if (safePage >= totalPages - 2) page = totalPages - 4 + i;
+          else page = safePage - 2 + i;
+          return (
+            <button key={page} onClick={() => onPageChange(page)}
+              className={cn(
+                "w-8 h-8 flex items-center justify-center rounded-lg border text-xs font-bold transition-all",
+                page === safePage ? "bg-blue-600 text-white border-blue-600" : "border-slate-200 text-slate-500 hover:border-blue-400 hover:text-blue-600"
+              )}>
+              {page}
+            </button>
+          );
+        })}
+        <button onClick={() => onPageChange(Math.min(totalPages, safePage + 1))} disabled={safePage === totalPages}
+          className="w-8 h-8 flex items-center justify-center rounded-lg border border-slate-200 text-slate-400 hover:border-blue-400 hover:text-blue-600 disabled:opacity-30 disabled:cursor-not-allowed transition-all">
+          <ChevronRight size={14} />
+        </button>
+        <button onClick={() => onPageChange(totalPages)} disabled={safePage === totalPages}
+          className="w-8 h-8 flex items-center justify-center rounded-lg border border-slate-200 text-slate-400 hover:border-blue-400 hover:text-blue-600 disabled:opacity-30 disabled:cursor-not-allowed transition-all text-xs font-bold">
+          »
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export default function Customers() {
   const navigate = useNavigate();
   const [mainTab, setMainTab] = useState<MainTab>("customers");
@@ -88,6 +141,9 @@ export default function Customers() {
   const [debtors, setDebtors]     = useState<Debtor[]>([]);
   const [loading, setLoading]     = useState(true);
   const [search, setSearch]       = useState("");
+  const [viewMode, setViewMode]   = useState<"grid" | "table">("grid");
+  const [pageSize, setPageSize]   = useState(24);
+  const [currentPage, setCurrentPage] = useState(1);
 
   // Customer form (create/edit)
   const [showForm, setShowForm]   = useState(false);
@@ -259,6 +315,14 @@ export default function Customers() {
 
   const totalDebt = debtors.reduce((s, d) => s + d.total_debt, 0);
 
+  useEffect(() => { setCurrentPage(1); }, [search, mainTab, viewMode, pageSize]);
+
+  const pagedItems = mainTab === "customers" ? filteredCustomers : filteredDebtors;
+  const totalPages = Math.max(1, Math.ceil(pagedItems.length / pageSize));
+  const safePage = Math.min(currentPage, totalPages);
+  const pagedCustomers = filteredCustomers.slice((safePage - 1) * pageSize, safePage * pageSize);
+  const pagedDebtors = filteredDebtors.slice((safePage - 1) * pageSize, safePage * pageSize);
+
   // ─────────────────────────────────────────────────────────────────────────────
 
   return (
@@ -267,61 +331,71 @@ export default function Customers() {
         title="Clientes"
         subtitle="Clientes, fiado, histórico de compras e notas internas"
         action={
-          <button
-            onClick={openCreate}
-            className="h-9 px-4 bg-blue-600 text-white rounded-lg flex items-center gap-2 text-[12px] font-bold hover:bg-blue-700 transition-all shadow-md shadow-blue-500/20"
-          >
-            <UserPlus size={14} /> Novo Cliente
-          </button>
+          <Button icon={<UserPlus size={14} />} onClick={openCreate}>
+            Novo Cliente
+          </Button>
         }
       />
 
       {/* Stats */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        {[
-          { label: "Total Clientes",  value: customers.length,    color: "text-slate-700",   bg: "bg-slate-50",   icon: Users },
-          { label: "Com Dívida",      value: debtors.length,      color: "text-orange-600",  bg: "bg-orange-50",  icon: AlertCircle },
-          { label: "Total em Fiado",  value: fmt(totalDebt),      color: "text-red-600",     bg: "bg-red-50",     icon: DollarSign },
-          { label: "Clientes em Risco", value: customers.filter(c => c.risk_flag).length, color: "text-rose-600", bg: "bg-rose-50", icon: AlertTriangle },
-        ].map((s) => (
-          <div key={s.label} className={cn("rounded-xl p-4 border border-white/60 shadow-sm flex items-center gap-3", s.bg)}>
-            <s.icon size={20} className={cn(s.color, "shrink-0")} />
-            <div>
-              <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500 leading-none">{s.label}</p>
-              <p className={cn("text-xl font-black mt-0.5 leading-none", s.color)}>{s.value}</p>
-            </div>
-          </div>
-        ))}
-      </div>
+      <StatsGrid
+        stats={[
+          { label: "Total Clientes",  value: customers.length, icon: <Users size={16} />, accent: "slate" },
+          { label: "Com Dívida",      value: debtors.length,   icon: <AlertCircle size={16} />, accent: "amber" },
+          { label: "Total em Fiado",  value: fmt(totalDebt),   icon: <DollarSign size={16} />, accent: "red" },
+          { label: "Clientes em Risco", value: customers.filter(c => c.risk_flag).length, icon: <AlertTriangle size={16} />, accent: "purple" },
+        ]}
+      />
 
       {/* Main tabs */}
-      <div className="flex gap-1 bg-slate-100 p-1 rounded-xl w-fit">
-        {([
-          { value: "customers", label: "Todos os Clientes", icon: Users },
-          { value: "debtors",   label: `Devedores (${debtors.length})`, icon: TrendingDown },
-        ] as { value: MainTab; label: string; icon: React.FC<{ size: number }> }[]).map((t) => (
-          <button
-            key={t.value}
-            onClick={() => setMainTab(t.value)}
-            className={cn(
-              "flex items-center gap-1.5 px-4 py-2 rounded-lg text-[12px] font-bold transition-all",
-              mainTab === t.value ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"
-            )}
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <div className="flex gap-1 bg-slate-100 p-1 rounded-xl w-fit">
+          {([
+            { value: "customers", label: "Todos os Clientes", icon: Users },
+            { value: "debtors",   label: `Devedores (${debtors.length})`, icon: TrendingDown },
+          ] as { value: MainTab; label: string; icon: React.FC<{ size: number }> }[]).map((t) => (
+            <button
+              key={t.value}
+              onClick={() => setMainTab(t.value)}
+              className={cn(
+                "flex items-center gap-1.5 px-4 py-2 rounded-lg text-[12px] font-bold transition-all",
+                mainTab === t.value ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"
+              )}
+            >
+              <t.icon size={13} /> {t.label}
+            </button>
+          ))}
+        </div>
+
+        {mainTab === "customers" && (
+          <Button
+            variant="secondary"
+            icon={viewMode === "table" ? <LayoutGrid size={14} /> : <List size={14} />}
+            onClick={() => setViewMode((v) => (v === "table" ? "grid" : "table"))}
           >
-            <t.icon size={13} /> {t.label}
-          </button>
-        ))}
+            {viewMode === "table" ? "Grade" : "Tabela"}
+          </Button>
+        )}
       </div>
 
-      {/* Search */}
-      <div className="relative max-w-sm">
-        <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-        <input
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder={mainTab === "customers" ? "Buscar cliente…" : "Buscar devedor…"}
-          className="w-full pl-9 pr-3 h-9 rounded-lg border border-slate-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-        />
+      {/* Search + page size */}
+      <div className="flex items-center gap-2 flex-wrap">
+        <div className="relative flex-1 min-w-[200px] max-w-sm">
+          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+          <input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder={mainTab === "customers" ? "Buscar cliente…" : "Buscar devedor…"}
+            className="w-full pl-9 pr-3 h-9 rounded-lg border border-slate-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+        </div>
+        <select
+          value={pageSize}
+          onChange={(e) => setPageSize(Number(e.target.value))}
+          className="h-9 px-2.5 rounded-lg border border-slate-200 text-[12px] font-semibold bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+        >
+          {[12, 24, 50, 100].map((n) => <option key={n} value={n}>{n}/página</option>)}
+        </select>
       </div>
 
       {/* ── CUSTOMERS LIST ─────────────────────────────────────────────────── */}
@@ -337,60 +411,119 @@ export default function Customers() {
                 Cadastrar cliente
               </button>
             </div>
-          ) : (
+          ) : viewMode === "grid" ? (
             <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
-              {filteredCustomers.map((c) => (
-                <motion.div
-                  key={c.id}
-                  whileHover={{ y: -2 }}
-                  onClick={() => navigate(`/admin/customers/${c.id}`)}
-                  className={cn(
-                    "bg-white rounded-2xl border shadow-sm hover:shadow-md transition-all cursor-pointer p-4 flex flex-col gap-3",
-                    c.risk_flag ? "border-rose-200 ring-1 ring-rose-100" : "border-slate-200"
-                  )}
-                >
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="flex items-center gap-3 min-w-0">
-                      <div className={cn(
-                        "w-10 h-10 rounded-xl flex items-center justify-center font-black text-lg uppercase shrink-0",
-                        c.risk_flag ? "bg-rose-50 text-rose-500 border border-rose-200" : "bg-blue-50 text-blue-600 border border-blue-100"
-                      )}>
-                        {c.name[0]}
+              <AnimatePresence>
+                {pagedCustomers.map((c) => (
+                  <motion.div
+                    key={c.id}
+                    layout
+                    initial={{ opacity: 0, scale: 0.97 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0, scale: 0.97 }}
+                    whileHover={{ y: -2 }}
+                    onClick={() => navigate(`/admin/customers/${c.id}`)}
+                    className={cn(
+                      "bg-white rounded-2xl border shadow-sm hover:shadow-md transition-all cursor-pointer p-4 flex flex-col gap-3",
+                      c.risk_flag ? "border-rose-200 ring-1 ring-rose-100" : "border-slate-200"
+                    )}
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div className={cn(
+                          "w-11 h-11 rounded-xl flex items-center justify-center font-black text-lg uppercase shrink-0",
+                          c.risk_flag ? "bg-rose-50 text-rose-500 border border-rose-200" : "bg-blue-50 text-blue-600 border border-blue-100"
+                        )}>
+                          {c.name[0]}
+                        </div>
+                        <div className="min-w-0">
+                          <p className="font-black text-slate-800 text-[13px] truncate">{c.name}</p>
+                          {c.phone && (
+                            <p className="text-[11px] text-slate-400 flex items-center gap-1 mt-0.5">
+                              <Phone size={9} /> {c.phone}
+                            </p>
+                          )}
+                          {(c.address_city || c.address_state) && (
+                            <p className="text-[10px] text-slate-400 flex items-center gap-1 mt-0.5 truncate">
+                              <MapPin size={9} className="shrink-0" />
+                              {[c.address_city, c.address_state].filter(Boolean).join(" - ")}
+                            </p>
+                          )}
+                        </div>
                       </div>
-                      <div className="min-w-0">
-                        <p className="font-black text-slate-800 text-[13px] truncate">{c.name}</p>
-                        {c.phone && (
-                          <p className="text-[11px] text-slate-400 flex items-center gap-1 mt-0.5">
-                            <Phone size={9} /> {c.phone}
-                          </p>
+                      <div className="flex items-center gap-1 shrink-0">
+                        {c.risk_flag && (
+                          <span title="Cliente em risco" className="p-1 bg-rose-50 text-rose-500 rounded-lg">
+                            <AlertTriangle size={12} />
+                          </span>
                         )}
                       </div>
                     </div>
-                    <div className="flex items-center gap-1 shrink-0">
-                      {c.risk_flag && (
-                        <span title="Cliente em risco" className="p-1 bg-rose-50 text-rose-500 rounded-lg">
-                          <AlertTriangle size={12} />
-                        </span>
-                      )}
-                      {(c.total_debt ?? 0) > 0 && (
-                        <span className="text-[10px] font-black text-red-500 bg-red-50 px-1.5 py-0.5 rounded-full">
-                          {fmt(c.total_debt!)}
-                        </span>
-                      )}
-                    </div>
-                  </div>
 
-                  <div className="flex items-center justify-between pt-1 border-t border-slate-100">
-                    <span className="text-[9px] text-slate-400 font-semibold">
-                      Desde {fmtDate(c.created_at)}
-                    </span>
-                    <span className="text-[10px] text-blue-600 font-bold flex items-center gap-0.5">
-                      Ver ficha <ChevronRight size={11} />
-                    </span>
-                  </div>
-                </motion.div>
-              ))}
+                    {(c.total_debt ?? 0) > 0 && (
+                      <span className="self-start text-[10px] font-black text-red-500 bg-red-50 border border-red-100 px-2 py-1 rounded-lg">
+                        Deve {fmt(c.total_debt!)}
+                      </span>
+                    )}
+
+                    <div className="flex items-center justify-between pt-1 border-t border-slate-100">
+                      <span className="text-[9px] text-slate-400 font-semibold">
+                        Desde {fmtDate(c.created_at)}
+                      </span>
+                      <span className="text-[10px] text-blue-600 font-bold flex items-center gap-0.5">
+                        Ver ficha <ChevronRight size={11} />
+                      </span>
+                    </div>
+                  </motion.div>
+                ))}
+              </AnimatePresence>
             </div>
+          ) : (
+            <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden overflow-x-auto">
+              <table className="w-full text-sm whitespace-nowrap">
+                <thead>
+                  <tr className="bg-slate-50 border-b border-slate-200">
+                    <th className="px-4 py-3 text-left text-[10px] font-black uppercase tracking-wider text-slate-500">Cliente</th>
+                    <th className="px-4 py-3 text-left text-[10px] font-black uppercase tracking-wider text-slate-500">Telefone</th>
+                    <th className="px-4 py-3 text-left text-[10px] font-black uppercase tracking-wider text-slate-500">Cidade</th>
+                    <th className="px-4 py-3 text-right text-[10px] font-black uppercase tracking-wider text-slate-500">Dívida</th>
+                    <th className="px-4 py-3 text-center text-[10px] font-black uppercase tracking-wider text-slate-500">Risco</th>
+                    <th className="px-4 py-3 text-left text-[10px] font-black uppercase tracking-wider text-slate-500">Cliente desde</th>
+                    <th className="px-4 py-3 text-right text-[10px] font-black uppercase tracking-wider text-slate-500">Ação</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {pagedCustomers.map((c) => (
+                    <tr key={c.id} className="hover:bg-slate-50 transition-colors cursor-pointer" onClick={() => navigate(`/admin/customers/${c.id}`)}>
+                      <td className="px-4 py-3 font-semibold text-slate-800">{c.name}</td>
+                      <td className="px-4 py-3 text-slate-500">{c.phone ?? "–"}</td>
+                      <td className="px-4 py-3 text-slate-500">{[c.address_city, c.address_state].filter(Boolean).join(" - ") || "–"}</td>
+                      <td className="px-4 py-3 text-right font-black text-red-600">{(c.total_debt ?? 0) > 0 ? fmt(c.total_debt!) : "–"}</td>
+                      <td className="px-4 py-3 text-center">
+                        {c.risk_flag ? <AlertTriangle size={14} className="text-rose-500 mx-auto" /> : <span className="text-slate-300 text-xs">—</span>}
+                      </td>
+                      <td className="px-4 py-3 text-slate-400 text-[12px]">{fmtDate(c.created_at)}</td>
+                      <td className="px-4 py-3 text-right" onClick={(e) => e.stopPropagation()}>
+                        <button onClick={() => navigate(`/admin/customers/${c.id}`)} className="text-[11px] font-bold text-blue-600 hover:underline">
+                          Ver ficha
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          {!loading && filteredCustomers.length > 0 && (
+            <PaginationFooter
+              total={filteredCustomers.length}
+              itemLabel="cliente"
+              safePage={safePage}
+              totalPages={totalPages}
+              pageSize={pageSize}
+              onPageChange={setCurrentPage}
+            />
           )}
         </>
       )}
@@ -404,8 +537,8 @@ export default function Customers() {
               <p className="text-sm font-medium">Nenhum devedor em aberto</p>
             </div>
           ) : (
-            <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-              <table className="w-full text-sm">
+            <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden overflow-x-auto">
+              <table className="w-full text-sm whitespace-nowrap">
                 <thead>
                   <tr className="bg-slate-50 border-b border-slate-200">
                     <th className="px-4 py-3 text-left text-[10px] font-black uppercase tracking-wider text-slate-500">Cliente</th>
@@ -417,7 +550,7 @@ export default function Customers() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {filteredDebtors.map((d) => (
+                  {pagedDebtors.map((d) => (
                     <tr key={d.customer_id} className="hover:bg-slate-50 transition-colors">
                       <td className="px-4 py-3">
                         <span className="font-semibold text-slate-800">{d.customer_name}</span>
@@ -454,6 +587,17 @@ export default function Customers() {
                 </tfoot>
               </table>
             </div>
+          )}
+
+          {filteredDebtors.length > 0 && (
+            <PaginationFooter
+              total={filteredDebtors.length}
+              itemLabel="devedor"
+              safePage={safePage}
+              totalPages={totalPages}
+              pageSize={pageSize}
+              onPageChange={setCurrentPage}
+            />
           )}
         </>
       )}

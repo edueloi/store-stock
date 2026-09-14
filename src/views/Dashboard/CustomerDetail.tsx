@@ -10,6 +10,7 @@ import { cn } from "../../lib/utils";
 import PageHeader from "../../components/layout/PageHeader";
 import Modal from "../../components/ui/Modal";
 import Button from "../../components/ui/Button";
+import StatsGrid from "../../components/ui/StatsGrid";
 import { downloadHtmlAsPdf } from "../../lib/pdf";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -696,7 +697,7 @@ export default function CustomerDetail() {
       </div>
 
       {/* Detail tabs */}
-      <div className="flex gap-0 border-b border-slate-200 overflow-x-auto">
+      <div className="flex gap-1 bg-slate-100 p-1 rounded-xl w-fit overflow-x-auto max-w-full">
         {([
           { value: "summary", label: "Resumo", icon: Users },
           { value: "fiado", label: `Crediário / Fiado (${detail.debts.filter((d) => d.status === "open").length})`, icon: DollarSign },
@@ -708,8 +709,8 @@ export default function CustomerDetail() {
             key={t.value}
             onClick={() => { setDetailTab(t.value); if (t.value === "loyalty") fetchLoyalty(detail.id); }}
             className={cn(
-              "flex items-center gap-1.5 px-4 py-2.5 text-[12px] font-bold whitespace-nowrap border-b-2 transition-all",
-              detailTab === t.value ? "border-blue-600 text-blue-600" : "border-transparent text-slate-500 hover:text-slate-700"
+              "flex items-center gap-1.5 px-4 py-2 rounded-lg text-[12px] font-bold whitespace-nowrap transition-all",
+              detailTab === t.value ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"
             )}
           >
             <t.icon size={13} /> {t.label}
@@ -718,23 +719,18 @@ export default function CustomerDetail() {
       </div>
 
       {/* Tab content */}
-      <div className="max-w-3xl">
+      <div className="max-w-4xl">
         {/* ─ SUMMARY ─ */}
         {detailTab === "summary" && (
           <div className="space-y-4">
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-              {[
-                { label: "Total de Compras", value: detail.orders.length, icon: ShoppingBag },
-                { label: "Gasto Total", value: fmt(detail.orders.reduce((s, o) => s + Number(o.total_amount), 0)), icon: DollarSign },
-                { label: "Fiados em Aberto", value: detail.debts.filter((d) => d.status === "open").length, icon: AlertCircle },
-                { label: "Notas Internas", value: detail.customer_notes.length, icon: StickyNote },
-              ].map((s) => (
-                <div key={s.label} className="bg-slate-50 rounded-xl p-3 border border-slate-100">
-                  <p className="text-[9px] font-black uppercase tracking-wider text-slate-400">{s.label}</p>
-                  <p className="text-lg font-black text-slate-800 mt-0.5">{s.value}</p>
-                </div>
-              ))}
-            </div>
+            <StatsGrid
+              stats={[
+                { label: "Total de Compras", value: detail.orders.length, icon: <ShoppingBag size={16} />, accent: "blue" },
+                { label: "Gasto Total", value: fmt(detail.orders.reduce((s, o) => s + Number(o.total_amount), 0)), icon: <DollarSign size={16} />, accent: "emerald" },
+                { label: "Fiados em Aberto", value: detail.debts.filter((d) => d.status === "open").length, icon: <AlertCircle size={16} />, accent: "red" },
+                { label: "Notas Internas", value: detail.customer_notes.length, icon: <StickyNote size={16} />, accent: "amber" },
+              ]}
+            />
 
             <div className="bg-white rounded-xl border border-slate-200 p-4 space-y-3">
               <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Dados Cadastrais</p>
