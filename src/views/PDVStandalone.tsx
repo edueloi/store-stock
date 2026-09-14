@@ -1685,13 +1685,20 @@ export default function PDVStandalone() {
       const leftText = truncate(left, W - rightText.length - 1);
       return `${leftText}${" ".repeat(Math.max(1, W - leftText.length - rightText.length))}${rightText}`;
     };
+    // Formato compacto (dd/mm HH:MM, 11 chars) — o "row" corta o lado direito
+    // em 15 chars, e "12/09/2026, 16:42:33" (toLocaleString completo) tem 21
+    // chars e sempre saía cortado no meio da hora ("16:").
+    const dateTimeShort = (d: Date) => {
+      const pad = (n: number) => String(n).padStart(2, "0");
+      return `${pad(d.getDate())}/${pad(d.getMonth() + 1)} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+    };
 
     let receipt = "\n";
     receipt += `${center(tenantName.toUpperCase())}\n`;
     receipt += `${rule}\n${center("FECHAMENTO DE CAIXA")}\n${thin}\n`;
     receipt += row("Operador", operatorName || "-") + "\n";
-    receipt += row("Abertura", new Date(session.opened_at).toLocaleString("pt-BR")) + "\n";
-    receipt += row("Fechamento", new Date(session.closed_at).toLocaleString("pt-BR")) + "\n";
+    receipt += row("Abertura", dateTimeShort(new Date(session.opened_at))) + "\n";
+    receipt += row("Fechamento", session.closed_at ? dateTimeShort(new Date(session.closed_at)) : "-") + "\n";
     receipt += `${thin}\n`;
     receipt += row("Valor de abertura", `R$ ${money(Number(session.opening_amount))}`) + "\n";
     if (session.payment_breakdown) {

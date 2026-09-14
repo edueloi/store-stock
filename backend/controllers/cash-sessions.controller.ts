@@ -181,7 +181,16 @@ export async function getCashSessionDetail(req: Request, res: Response) {
       where: { id, tenant_id: tenantId },
       include: {
         orders: {
-          select: { id: true, total_amount: true, payment_method: true, created_at: true, status: true },
+          select: {
+            id: true, total_amount: true, payment_method: true, created_at: true, status: true,
+            customer_name: true,
+            items: {
+              select: {
+                quantity: true, unit_price: true, name: true,
+                product: { select: { name: true } },
+              },
+            },
+          },
           orderBy: { created_at: "asc" },
         },
       },

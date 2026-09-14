@@ -31,12 +31,31 @@ interface CashSession {
   payment_breakdown: Record<string, CashSessionPaymentBreakdownEntry> | null;
 }
 
+interface CashSessionOrderItem {
+  quantity: number;
+  unit_price: string | number;
+  name: string | null;
+  product: { name: string } | null;
+}
+
 interface CashSessionOrder {
   id: number;
   total_amount: string | number;
   payment_method: string;
   created_at: string;
   status: string;
+  customer_name: string | null;
+  items: CashSessionOrderItem[];
+}
+
+// payment_method é salvo como "money:50.00|pix:20.00" (múltiplas formas numa
+// venda) — mesmo formato usado no PDV, ver PaymentBadges em outras telas.
+function parsePaymentMethods(raw: string): string[] {
+  if (!raw) return [];
+  return raw.split("|").map((seg) => {
+    const method = seg.split(":")[0]?.split("-")[0] ?? seg;
+    return PM_LABEL[method] ?? method;
+  });
 }
 
 interface CashSessionDetail extends CashSession {
@@ -53,6 +72,7 @@ export default function CashSessionHistory() {
   const [statusFilter, setStatusFilter] = useState<"all" | "open" | "closed">("all");
   const [detail, setDetail] = useState<CashSessionDetail | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
+  const [expandedOrderId, setExpandedOrderId] = useState<number | null>(null);
 
   const token = localStorage.getItem("token");
 
@@ -146,6 +166,7 @@ export default function CashSessionHistory() {
   const openDetail = async (id: number) => {
     setDetailLoading(true);
     setDetail(null);
+    setExpandedOrderId(null);
     try {
       const res = await fetch(`/api/cash-sessions/${id}`, { headers: { Authorization: `Bearer ${token}` } });
       const data = await res.json();
@@ -380,15 +401,53 @@ export default function CashSessionHistory() {
                     {detail.orders.length === 0 && (
                       <p className="text-[11px] text-slate-400 py-4 text-center">Nenhuma venda registrada nesta sessão.</p>
                     )}
-                    {detail.orders.map((o) => (
-                      <div key={o.id} className="flex items-center justify-between px-3 py-2 bg-slate-50 rounded-xl border border-slate-100">
-                        <div>
-                          <p className="text-[11px] font-bold text-slate-700">#{String(o.id).padStart(6, "0")}</p>
-                          <p className="text-[9px] text-slate-400">{new Date(o.created_at).toLocaleTimeString("pt-BR")}</p>
+                    {detail.orders.map((o) => {
+                      const isOpen = expandedOrderId === o.id;
+                      const methods = parsePaymentMethods(o.payment_method);
+                      return (
+                        <div key={o.id} className="bg-slate-50 rounded-xl border border-slate-100 overflow-hidden">
+                          <button
+                            onClick={() => setExpandedOrderId(isOpen ? null : o.id)}
+                            className="w-full flex items-center justify-between px-3 py-2 text-left hover:bg-slate-100/60 transition-colors"
+                          >
+                            <div className="min-w-0">
+                              <div className="flex items-center gap-1.5">
+                                <p className="text-[11px] font-bold text-slate-700">#{String(o.id).padStart(6, "0")}</p>
+                                {methods.map((m, i) => (
+                                  <span key={i} className="text-[8px] font-black uppercase tracking-widest text-blue-500 bg-blue-50 border border-blue-100 px-1.5 py-0.5 rounded">
+                                    {m}
+                                  </span>
+                                ))}
+                              </div>
+                              <p className="text-[9px] text-slate-400 truncate">
+                                {new Date(o.created_at).toLocaleTimeString("pt-BR")}
+                                {o.customer_name ? ` · ${o.customer_name}` : ""}
+                              </p>
+                            </div>
+                            <div className="flex items-center gap-2 shrink-0">
+                              <p className="text-[11px] font-mono font-black text-slate-800">{money(o.total_amount)}</p>
+                              <ChevronRight size={13} className={cn("text-slate-400 transition-transform", isOpen && "rotate-90")} />
+                            </div>
+                          </button>
+                          {isOpen && (
+                            <div className="px-3 pb-2.5 pt-0.5 space-y-1 border-t border-slate-200/70">
+                              {o.items.length === 0 ? (
+                                <p className="text-[10px] text-slate-400 py-1.5">Sem itens registrados.</p>
+                              ) : o.items.map((item, i) => (
+                                <div key={i} className="flex items-center justify-between text-[10px] py-1">
+                                  <span className="text-slate-600 truncate pr-2">
+                                    {item.quantity}× {item.product?.name ?? item.name ?? "Item avulso"}
+                                  </span>
+                                  <span className="font-mono font-bold text-slate-700 shrink-0">
+                                    {money(Number(item.unit_price) * item.quantity)}
+                                  </span>
+                                </div>
+                              ))}
+                            </div>
+                          )}
                         </div>
-                        <p className="text-[11px] font-mono font-black text-slate-800">{money(o.total_amount)}</p>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 </div>
               </div>
