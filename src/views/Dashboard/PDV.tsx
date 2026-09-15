@@ -17,6 +17,7 @@ import { computeMeasuredPrice } from "../../utils/measurePricing";
 import { productHasStock } from "../../utils/productStock";
 import { fetchCurrentCashSession, openCashSession as apiOpenCashSession, closeCashSession as apiCloseCashSession, CashSessionInfo, ClosedCashSession } from "../../lib/cashSession";
 import PaymentSegmentsEditor, { PaymentSegment, newPaymentSegment } from "../../components/PaymentSegmentsEditor";
+import { buildInstallmentBookletText, printThermalText } from "../../lib/thermalReceipt";
 import { htmlToPdfBase64 } from "../../lib/pdf";
 import OpenCashSessionScreen from "../../components/pdv/OpenCashSessionScreen";
 import CloseCashSessionModal from "../../components/pdv/CloseCashSessionModal";
@@ -77,6 +78,7 @@ interface PaymentEntry {
 
 interface CompletedSale {
   orderId: number;
+  customerId?: number | null;
   customerName: string;
   payments: PaymentEntry[];
   items: { name: string; quantity: number; price: number; image_url?: string; dimensionsLabel?: string; code?: string }[];
@@ -1613,6 +1615,36 @@ export default function PDV() {
     printViaIframe(buildThermalHtml(sale));
   };
 
+  const [generatingBooklet, setGeneratingBooklet] = useState(false);
+
+  // Busca a dívida de crediário recém-criada por esta venda (o POST /api/sales
+  // não devolve isso, só orderId) e imprime o carnê — um canhoto por parcela —
+  // na impressora térmica, mesmo mecanismo do cupom de venda.
+  const handleGenerateBooklet = async (sale: CompletedSale) => {
+    if (!sale.customerId) {
+      setPrintError("Venda sem cliente vinculado — não é possível gerar o carnê.");
+      return;
+    }
+    setGeneratingBooklet(true);
+    setPrintError(null);
+    try {
+      const res = await fetch(`/api/customers/${sale.customerId}/debts`, { headers: { Authorization: `Bearer ${token}` } });
+      const debts = await res.json();
+      const debt = Array.isArray(debts) ? debts.find((d: { order_id: number | null }) => d.order_id === sale.orderId) : null;
+      if (!debt?.installments?.length) {
+        setPrintError("Não encontrei as parcelas desta venda para gerar o carnê.");
+        return;
+      }
+      const text = buildInstallmentBookletText(sale.tenantName, sale.customerName, debt.description, debt.installments);
+      const result = await printThermalText(text, "Carnê de Pagamento");
+      if (!result.ok) setPrintError(result.error || "Falha ao imprimir o carnê.");
+    } catch {
+      setPrintError("Erro ao gerar o carnê.");
+    } finally {
+      setGeneratingBooklet(false);
+    }
+  };
+
   const handleOpenCashDrawer = async () => {
     if (!window.boxsysDesktop?.openCashDrawer) return;
     const result = await window.boxsysDesktop.openCashDrawer();
@@ -1838,6 +1870,7 @@ export default function PDV() {
 
         const sale: CompletedSale = {
           orderId: data.orderId,
+          customerId: selectedCustomerId,
           customerName,
           payments: payments.map((p) => ({ ...p })),
           items: [
@@ -4037,6 +4070,20 @@ export default function PDV() {
                   </div>
                   <ChevronRight size={15} className="text-slate-300 group-hover:text-slate-500 shrink-0" />
                 </button>
+
+                {completedSale.payments.some((p) => p.method === "crediario") && (
+                  <button onClick={() => handleGenerateBooklet(completedSale)} disabled={generatingBooklet}
+                    className="w-full flex items-center gap-3.5 h-16 bg-slate-50 hover:bg-slate-100 active:scale-[0.98] disabled:opacity-60 border border-slate-200 rounded-2xl px-4 transition-all group">
+                    <div className="w-10 h-10 bg-amber-600 rounded-xl flex items-center justify-center shrink-0 group-hover:bg-amber-700 transition-colors">
+                      {generatingBooklet ? <Loader2 size={17} className="text-white animate-spin" /> : <FileText size={17} className="text-white" />}
+                    </div>
+                    <div className="text-left flex-1 min-w-0">
+                      <p className="text-[12px] font-black text-slate-900 uppercase tracking-wide">Gerar Carnê</p>
+                      <p className="text-[10px] text-slate-400 font-medium">Imprime um canhoto por parcela</p>
+                    </div>
+                    <ChevronRight size={15} className="text-slate-300 group-hover:text-slate-500 shrink-0" />
+                  </button>
+                )}
 
                 {window.boxsysDesktop?.openCashDrawer && (
                   <button onClick={handleOpenCashDrawer}

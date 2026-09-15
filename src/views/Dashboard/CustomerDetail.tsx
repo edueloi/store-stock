@@ -4,7 +4,7 @@ import {
   Phone, Mail, MapPin, AlertTriangle, X, Plus, ChevronRight, Trash2,
   DollarSign, Clock, CheckCircle2, FileText, ShoppingBag, StickyNote,
   Edit2, Save, XCircle, Shield, Star, Gift, Award, Loader2, Users,
-  AlertCircle, ChevronLeft, CreditCard, Search, Calendar,
+  AlertCircle, ChevronLeft, CreditCard, Search, Calendar, Printer,
 } from "lucide-react";
 import { cn } from "../../lib/utils";
 import PageHeader from "../../components/layout/PageHeader";
@@ -13,6 +13,7 @@ import Button from "../../components/ui/Button";
 import StatsGrid from "../../components/ui/StatsGrid";
 import { downloadHtmlAsPdf } from "../../lib/pdf";
 import PaymentSegmentsEditor, { PaymentSegment, newPaymentSegment } from "../../components/PaymentSegmentsEditor";
+import { buildInstallmentBookletText, printThermalText } from "../../lib/thermalReceipt";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -234,6 +235,7 @@ export default function CustomerDetail() {
   const [cardFees, setCardFees] = useState<Record<string, number[]>>({});
   const [maxInstallments, setMaxInstallments] = useState(1);
   const [enabledBrands, setEnabledBrands] = useState<Record<string, boolean>>({});
+  const [tenantName, setTenantName] = useState("Loja");
 
   // Note form
   const [noteBody, setNoteBody] = useState("");
@@ -300,6 +302,7 @@ export default function CustomerDetail() {
         if (d?.card_fees) setCardFees(d.card_fees);
         if (d?.max_installments) setMaxInstallments(Number(d.max_installments));
         if (d?.enabled_brands) setEnabledBrands(d.enabled_brands as Record<string, boolean>);
+        if (d?.name) setTenantName(d.name);
       })
       .catch(() => {});
   }, []);
@@ -584,6 +587,17 @@ export default function CustomerDetail() {
 </body></html>`;
 
     await downloadHtmlAsPdf(html, `carne-${detail.name.replace(/\s+/g, "-").toLowerCase()}-${debt.id}.pdf`);
+  }
+
+  // Imprime o carnê de verdade na impressora térmica — um canhoto por parcela
+  // ainda em aberto (reimpressão não repete parcelas já pagas), mesmo template
+  // usado no PDV logo após fechar uma venda parcelada.
+  async function printInstallmentBooklet(debt: Debt) {
+    if (!detail || !debt.installments?.length) return;
+    const openInstallments = debt.installments.filter((i) => i.status !== "paid");
+    if (openInstallments.length === 0) return;
+    const text = buildInstallmentBookletText(tenantName, detail.name, debt.description, openInstallments);
+    await printThermalText(text, `Carnê — ${debt.description}`);
   }
 
   function openReconfigure(debt: Debt) {
@@ -939,6 +953,11 @@ export default function CustomerDetail() {
                                 className="w-20 h-7 px-2 rounded-lg border border-slate-200 text-[11px] font-mono focus:outline-none focus:border-blue-400" />
                             )}
                             <div className="flex gap-1">
+                              {isInstallmentPlan && (
+                                <button onClick={() => printInstallmentBooklet(d)} title="Imprimir carnê (impressora térmica)" className="p-1.5 bg-emerald-100 hover:bg-emerald-200 text-emerald-600 rounded-lg transition-colors">
+                                  <Printer size={13} />
+                                </button>
+                              )}
                               {isInstallmentPlan && (
                                 <button onClick={() => downloadInstallmentBooklet(d)} title="Gerar carnê (PDF)" className="p-1.5 bg-blue-100 hover:bg-blue-200 text-blue-600 rounded-lg transition-colors">
                                   <FileText size={13} />
