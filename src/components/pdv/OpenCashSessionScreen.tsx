@@ -59,8 +59,10 @@ export default function OpenCashSessionScreen({
   };
 
   return (
-    <div className="h-full w-full flex items-center justify-center bg-slate-100 font-sans overflow-y-auto py-6">
-      <div className="w-full max-w-sm bg-white rounded-2xl border border-slate-200 shadow-xl p-6 space-y-5 my-auto">
+    <div className="h-full w-full flex items-center justify-center bg-slate-100 font-sans overflow-y-auto py-6 px-4">
+      <div className={`w-full bg-white rounded-2xl border border-slate-200 shadow-xl p-6 space-y-5 my-auto transition-all ${
+        mode === "count" ? "max-w-4xl" : "max-w-sm"
+      }`}>
         <div className="flex flex-col items-center text-center gap-2">
           <div className="w-12 h-12 rounded-2xl flex items-center justify-center text-white shadow"
             style={{ background: "linear-gradient(135deg, #3b82f6, #1d4ed8)" }}>
@@ -77,7 +79,7 @@ export default function OpenCashSessionScreen({
           )}
         </div>
 
-        <div className="flex bg-slate-100 border border-slate-200 rounded-xl p-1 gap-1">
+        <div className="flex bg-slate-100 border border-slate-200 rounded-xl p-1 gap-1 max-w-sm mx-auto">
           <button
             onClick={() => setMode("simple")}
             className={`flex-1 h-8 rounded-lg text-[10px] font-black uppercase tracking-wide flex items-center justify-center gap-1.5 transition-all ${
@@ -113,52 +115,58 @@ export default function OpenCashSessionScreen({
               </div>
             </div>
           ) : (
-            <div className="space-y-2">
+            <div className="space-y-3">
               <label className="text-[10px] font-bold uppercase tracking-widest text-slate-500 block">
                 Quantidade de cada cédula/moeda
               </label>
-              <div className="rounded-xl border border-slate-200 divide-y divide-slate-100 max-h-64 overflow-y-auto">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 max-h-[50vh] sm:max-h-80 overflow-y-auto pr-0.5">
                 {DENOMINATIONS.map((d) => {
                   const qty = Number(counts[d.value]) || 0;
                   const subtotal = qty * d.value;
                   return (
-                    <div key={d.value} className="flex items-center gap-2 px-3 py-2">
-                      <span className={`text-[9px] font-black uppercase tracking-wide px-1.5 py-0.5 rounded shrink-0 ${
+                    <div key={d.value} className={`flex items-center gap-2 px-3 py-2 rounded-xl border transition-colors ${
+                      qty > 0 ? "border-blue-200 bg-blue-50/40" : "border-slate-200 bg-white"
+                    }`}>
+                      <span className={`text-[9px] font-black uppercase tracking-wide px-1.5 py-1 rounded shrink-0 ${
                         d.kind === "bill" ? "bg-emerald-50 text-emerald-600" : "bg-amber-50 text-amber-600"
                       }`}>
                         {d.kind === "bill" ? "Nota" : "Moeda"}
                       </span>
-                      <span className="text-[12px] font-bold text-slate-700 flex-1">{d.label}</span>
+                      <span className="text-[12px] font-bold text-slate-700 flex-1 min-w-0 truncate">{d.label}</span>
                       <input
                         type="text" inputMode="numeric" placeholder="0"
                         value={counts[d.value] ?? ""}
                         onChange={(e) => setCount(d.value, e.target.value)}
-                        className="w-14 h-8 px-2 rounded-lg border border-slate-200 text-[12px] font-mono font-bold text-center text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400"
+                        className="w-14 h-9 px-2 rounded-lg border border-slate-200 text-[13px] font-mono font-bold text-center text-slate-800 shrink-0 focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400"
                       />
-                      <span className="text-[11px] font-mono font-bold text-slate-400 w-16 text-right shrink-0">
+                      <span className="text-[10px] font-mono font-bold text-slate-400 w-16 text-right shrink-0">
                         {subtotal > 0 ? `R$ ${subtotal.toFixed(2)}` : "—"}
                       </span>
                     </div>
                   );
                 })}
               </div>
-              <div className="flex items-center justify-between px-3 py-2.5 rounded-xl bg-blue-50 border border-blue-100">
-                <span className="text-[10px] font-black uppercase tracking-widest text-blue-600">Total contado</span>
-                <span className="text-[16px] font-mono font-black text-blue-700">R$ {countedTotal.toFixed(2)}</span>
-              </div>
             </div>
           )}
-          <div>
-            <label className="text-[10px] font-bold uppercase tracking-widest text-slate-500 block mb-1">
-              Observação (opcional)
-            </label>
-            <textarea
-              value={openingNote}
-              onChange={(e) => setOpeningNote(e.target.value)}
-              rows={2}
-              placeholder="Ex: Troco padrão do dia"
-              className="w-full px-3 py-2 rounded-xl border border-slate-200 text-[12px] font-medium text-slate-700 resize-none focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400"
-            />
+          <div className={mode === "count" ? "grid grid-cols-1 sm:grid-cols-[1fr_auto] gap-3 items-end" : ""}>
+            <div>
+              <label className="text-[10px] font-bold uppercase tracking-widest text-slate-500 block mb-1">
+                Observação (opcional)
+              </label>
+              <textarea
+                value={openingNote}
+                onChange={(e) => setOpeningNote(e.target.value)}
+                rows={2}
+                placeholder="Ex: Troco padrão do dia"
+                className="w-full px-3 py-2 rounded-xl border border-slate-200 text-[12px] font-medium text-slate-700 resize-none focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400"
+              />
+            </div>
+            {mode === "count" && (
+              <div className="flex sm:flex-col items-center sm:items-end justify-between sm:justify-center gap-1 px-4 py-2.5 rounded-xl bg-blue-50 border border-blue-100 sm:h-[62px]">
+                <span className="text-[9px] font-black uppercase tracking-widest text-blue-600 whitespace-nowrap">Total contado</span>
+                <span className="text-[18px] font-mono font-black text-blue-700 whitespace-nowrap">R$ {countedTotal.toFixed(2)}</span>
+              </div>
+            )}
           </div>
         </div>
 
