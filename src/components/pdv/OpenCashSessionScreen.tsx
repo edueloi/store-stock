@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Wallet, Loader2 } from "lucide-react";
+import { Wallet, Loader2, Calculator, Pencil } from "lucide-react";
 
 interface OpenCashSessionScreenProps {
   operatorName?: string;
@@ -8,20 +8,49 @@ interface OpenCashSessionScreenProps {
   disabledMessage?: string;
 }
 
+// Denominações de cédulas e moedas em circulação no Brasil, da maior pra
+// menor — ordem que o operador normalmente segue ao contar a gaveta.
+const DENOMINATIONS: { value: number; label: string; kind: "bill" | "coin" }[] = [
+  { value: 200, label: "R$ 200", kind: "bill" },
+  { value: 100, label: "R$ 100", kind: "bill" },
+  { value: 50, label: "R$ 50", kind: "bill" },
+  { value: 20, label: "R$ 20", kind: "bill" },
+  { value: 10, label: "R$ 10", kind: "bill" },
+  { value: 5, label: "R$ 5", kind: "bill" },
+  { value: 2, label: "R$ 2", kind: "bill" },
+  { value: 1, label: "R$ 1", kind: "coin" },
+  { value: 0.5, label: "50 centavos", kind: "coin" },
+  { value: 0.25, label: "25 centavos", kind: "coin" },
+  { value: 0.1, label: "10 centavos", kind: "coin" },
+  { value: 0.05, label: "5 centavos", kind: "coin" },
+];
+
 export default function OpenCashSessionScreen({
   operatorName, onOpen, disabled, disabledMessage,
 }: OpenCashSessionScreenProps) {
+  const [mode, setMode] = useState<"simple" | "count">("simple");
   const [openingAmount, setOpeningAmount] = useState("0");
+  const [counts, setCounts] = useState<Record<number, string>>({});
   const [openingNote, setOpeningNote] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const countedTotal = DENOMINATIONS.reduce(
+    (sum, d) => sum + d.value * (Number(counts[d.value]) || 0), 0,
+  );
+
+  const finalAmount = mode === "count" ? countedTotal : Number(openingAmount) || 0;
+
+  const setCount = (value: number, qty: string) => {
+    setCounts((prev) => ({ ...prev, [value]: qty.replace(/\D/g, "") }));
+  };
 
   const handleSubmit = async () => {
     if (submitting || disabled) return;
     setSubmitting(true);
     setError(null);
     try {
-      await onOpen(Number(openingAmount) || 0, openingNote || undefined);
+      await onOpen(finalAmount, openingNote || undefined);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Erro ao abrir caixa");
     } finally {
@@ -30,8 +59,8 @@ export default function OpenCashSessionScreen({
   };
 
   return (
-    <div className="h-full w-full flex items-center justify-center bg-slate-100 font-sans">
-      <div className="w-full max-w-sm bg-white rounded-2xl border border-slate-200 shadow-xl p-6 space-y-5">
+    <div className="h-full w-full flex items-center justify-center bg-slate-100 font-sans overflow-y-auto py-6">
+      <div className="w-full max-w-sm bg-white rounded-2xl border border-slate-200 shadow-xl p-6 space-y-5 my-auto">
         <div className="flex flex-col items-center text-center gap-2">
           <div className="w-12 h-12 rounded-2xl flex items-center justify-center text-white shadow"
             style={{ background: "linear-gradient(135deg, #3b82f6, #1d4ed8)" }}>
@@ -48,21 +77,77 @@ export default function OpenCashSessionScreen({
           )}
         </div>
 
+        <div className="flex bg-slate-100 border border-slate-200 rounded-xl p-1 gap-1">
+          <button
+            onClick={() => setMode("simple")}
+            className={`flex-1 h-8 rounded-lg text-[10px] font-black uppercase tracking-wide flex items-center justify-center gap-1.5 transition-all ${
+              mode === "simple" ? "bg-white text-slate-800 shadow" : "text-slate-400"
+            }`}
+          >
+            <Pencil size={12} /> Digitar valor
+          </button>
+          <button
+            onClick={() => setMode("count")}
+            className={`flex-1 h-8 rounded-lg text-[10px] font-black uppercase tracking-wide flex items-center justify-center gap-1.5 transition-all ${
+              mode === "count" ? "bg-white text-slate-800 shadow" : "text-slate-400"
+            }`}
+          >
+            <Calculator size={12} /> Contar cédulas
+          </button>
+        </div>
+
         <div className="space-y-3">
-          <div>
-            <label className="text-[10px] font-bold uppercase tracking-widest text-slate-500 block mb-1">
-              Valor inicial em dinheiro
-            </label>
-            <div className="relative">
-              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[13px] font-bold text-slate-400">R$</span>
-              <input
-                type="number" step="0.01" min="0"
-                value={openingAmount}
-                onChange={(e) => setOpeningAmount(e.target.value)}
-                className="w-full h-11 pl-9 pr-3 rounded-xl border border-slate-200 text-[15px] font-mono font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400"
-              />
+          {mode === "simple" ? (
+            <div>
+              <label className="text-[10px] font-bold uppercase tracking-widest text-slate-500 block mb-1">
+                Valor inicial em dinheiro
+              </label>
+              <div className="relative">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[13px] font-bold text-slate-400">R$</span>
+                <input
+                  type="number" step="0.01" min="0"
+                  value={openingAmount}
+                  onChange={(e) => setOpeningAmount(e.target.value)}
+                  className="w-full h-11 pl-9 pr-3 rounded-xl border border-slate-200 text-[15px] font-mono font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400"
+                />
+              </div>
             </div>
-          </div>
+          ) : (
+            <div className="space-y-2">
+              <label className="text-[10px] font-bold uppercase tracking-widest text-slate-500 block">
+                Quantidade de cada cédula/moeda
+              </label>
+              <div className="rounded-xl border border-slate-200 divide-y divide-slate-100 max-h-64 overflow-y-auto">
+                {DENOMINATIONS.map((d) => {
+                  const qty = Number(counts[d.value]) || 0;
+                  const subtotal = qty * d.value;
+                  return (
+                    <div key={d.value} className="flex items-center gap-2 px-3 py-2">
+                      <span className={`text-[9px] font-black uppercase tracking-wide px-1.5 py-0.5 rounded shrink-0 ${
+                        d.kind === "bill" ? "bg-emerald-50 text-emerald-600" : "bg-amber-50 text-amber-600"
+                      }`}>
+                        {d.kind === "bill" ? "Nota" : "Moeda"}
+                      </span>
+                      <span className="text-[12px] font-bold text-slate-700 flex-1">{d.label}</span>
+                      <input
+                        type="text" inputMode="numeric" placeholder="0"
+                        value={counts[d.value] ?? ""}
+                        onChange={(e) => setCount(d.value, e.target.value)}
+                        className="w-14 h-8 px-2 rounded-lg border border-slate-200 text-[12px] font-mono font-bold text-center text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400"
+                      />
+                      <span className="text-[11px] font-mono font-bold text-slate-400 w-16 text-right shrink-0">
+                        {subtotal > 0 ? `R$ ${subtotal.toFixed(2)}` : "—"}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+              <div className="flex items-center justify-between px-3 py-2.5 rounded-xl bg-blue-50 border border-blue-100">
+                <span className="text-[10px] font-black uppercase tracking-widest text-blue-600">Total contado</span>
+                <span className="text-[16px] font-mono font-black text-blue-700">R$ {countedTotal.toFixed(2)}</span>
+              </div>
+            </div>
+          )}
           <div>
             <label className="text-[10px] font-bold uppercase tracking-widest text-slate-500 block mb-1">
               Observação (opcional)
@@ -95,7 +180,7 @@ export default function OpenCashSessionScreen({
           className="w-full h-11 rounded-xl bg-slate-900 text-white text-[12px] font-black uppercase tracking-widest flex items-center justify-center gap-2 hover:bg-slate-800 transition-all disabled:opacity-40"
         >
           {submitting ? <Loader2 size={14} className="animate-spin" /> : <Wallet size={14} />}
-          {submitting ? "Abrindo..." : "Abrir Caixa"}
+          {submitting ? "Abrindo..." : `Abrir Caixa · R$ ${finalAmount.toFixed(2)}`}
         </button>
       </div>
     </div>
