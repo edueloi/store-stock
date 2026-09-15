@@ -16,6 +16,7 @@ import { SERVICE_CATEGORIES, SERVICE_UNITS } from "./Services";
 import { computeMeasuredPrice } from "../../utils/measurePricing";
 import { productHasStock } from "../../utils/productStock";
 import { fetchCurrentCashSession, openCashSession as apiOpenCashSession, closeCashSession as apiCloseCashSession, CashSessionInfo, ClosedCashSession } from "../../lib/cashSession";
+import PaymentSegmentsEditor, { PaymentSegment, newPaymentSegment } from "../../components/PaymentSegmentsEditor";
 import { htmlToPdfBase64 } from "../../lib/pdf";
 import OpenCashSessionScreen from "../../components/pdv/OpenCashSessionScreen";
 import CloseCashSessionModal from "../../components/pdv/CloseCashSessionModal";
@@ -211,12 +212,14 @@ export default function PDV() {
   const [crediarioLoading, setCrediarioLoading] = useState(false);
   const [crediarioExpandedId, setCrediarioExpandedId] = useState<number | null>(null);
   const [crediarioPayAmount, setCrediarioPayAmount] = useState<Record<number, string>>({});
-  const [crediarioPayMethod, setCrediarioPayMethod] = useState<Record<number, "money" | "pix" | "debit" | "credit">>({});
+  const [crediarioPaySegments, setCrediarioPaySegments] = useState<Record<number, PaymentSegment[]>>({});
   const [crediarioPaying, setCrediarioPaying] = useState<number | null>(null);
+  const [crediarioPayError, setCrediarioPayError] = useState<Record<number, string>>({});
   // Parcelas — chaveados por id de parcela (tabela diferente de debt, não reaproveitar os mapas acima)
   const [crediarioInstallmentPayAmount, setCrediarioInstallmentPayAmount] = useState<Record<number, string>>({});
-  const [crediarioInstallmentPayMethod, setCrediarioInstallmentPayMethod] = useState<Record<number, "money" | "pix" | "debit" | "credit">>({});
+  const [crediarioInstallmentPaySegments, setCrediarioInstallmentPaySegments] = useState<Record<number, PaymentSegment[]>>({});
   const [crediarioPayingInstallmentId, setCrediarioPayingInstallmentId] = useState<number | null>(null);
+  const [crediarioInstallmentPayError, setCrediarioInstallmentPayError] = useState<Record<number, string>>({});
   // Juros de crediário (configurado em Settings, aplicado manualmente por parcela)
   const [crediarioInterestRate, setCrediarioInterestRate] = useState(0);
   const [crediarioGraceDays, setCrediarioGraceDays] = useState(0);
@@ -987,47 +990,63 @@ export default function PDV() {
 
   const handlePayCrediarioDebt = async (debt: CustomerDebtLite) => {
     const remaining = Number(debt.amount) - Number(debt.amount_paid);
-    const amount = Number(crediarioPayAmount[debt.id] ?? remaining);
-    if (!amount || amount <= 0 || amount > remaining + 0.005) return;
+    const segments = crediarioPaySegments[debt.id] ?? [newPaymentSegment(remaining.toFixed(2))];
+    const payments = segments
+      .filter((s) => (Number(s.amount) || 0) > 0)
+      .map((s) => ({ method: s.method, brand: s.cardBrand, installments: s.installments, amount: Number(s.amount) }));
+    if (payments.length === 0) {
+      setCrediarioPayError((prev) => ({ ...prev, [debt.id]: "Informe ao menos uma forma de pagamento" }));
+      return;
+    }
     setCrediarioPaying(debt.id);
+    setCrediarioPayError((prev) => { const next = { ...prev }; delete next[debt.id]; return next; });
     try {
-      const res = await fetch(`/api/customers/${crediarioCustomer!.id}/debts/${debt.id}/pay-partial`, {
+      const res = await fetch(`/api/customers/${crediarioCustomer!.id}/debts/${debt.id}/pay-multi`, {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ amount, payment_method: crediarioPayMethod[debt.id] ?? "money" }),
+        body: JSON.stringify({ payments }),
       });
       if (res.ok && crediarioCustomer) {
         await loadCrediarioCustomer(crediarioCustomer);
         setCrediarioPayAmount((prev) => { const next = { ...prev }; delete next[debt.id]; return next; });
-        setCrediarioPayMethod((prev) => { const next = { ...prev }; delete next[debt.id]; return next; });
+        setCrediarioPaySegments((prev) => { const next = { ...prev }; delete next[debt.id]; return next; });
+      } else {
+        const errData = await res.json().catch(() => ({}));
+        setCrediarioPayError((prev) => ({ ...prev, [debt.id]: errData.error || "Erro ao registrar pagamento" }));
       }
     } finally {
       setCrediarioPaying(null);
     }
   };
 
-  // Paga uma parcela específica (não a dívida em bloco) — pra dividir entre formas,
-  // o operador chama isso mais de uma vez seguidas pra mesma parcela, com valores/formas
-  // diferentes; cada chamada já revalida o saldo restante da parcela no servidor.
+  // Paga uma parcela específica (não a dívida em bloco), agora suportando múltiplas
+  // formas numa única chamada atômica (dinheiro + cartão, por exemplo).
   const handlePayInstallment = async (debt: CustomerDebtLite, installment: DebtInstallmentLite) => {
     const remaining = Number(installment.amount) - Number(installment.amount_paid);
-    const amount = Number(crediarioInstallmentPayAmount[installment.id] ?? remaining);
-    if (!amount || amount <= 0 || amount > remaining + 0.005) return;
+    const segments = crediarioInstallmentPaySegments[installment.id] ?? [newPaymentSegment(remaining.toFixed(2))];
+    const payments = segments
+      .filter((s) => (Number(s.amount) || 0) > 0)
+      .map((s) => ({ method: s.method, brand: s.cardBrand, installments: s.installments, amount: Number(s.amount) }));
+    if (payments.length === 0) {
+      setCrediarioInstallmentPayError((prev) => ({ ...prev, [installment.id]: "Informe ao menos uma forma de pagamento" }));
+      return;
+    }
     setCrediarioPayingInstallmentId(installment.id);
+    setCrediarioInstallmentPayError((prev) => { const next = { ...prev }; delete next[installment.id]; return next; });
     try {
-      const res = await fetch(`/api/customers/${crediarioCustomer!.id}/debts/${debt.id}/pay-partial`, {
+      const res = await fetch(`/api/customers/${crediarioCustomer!.id}/debts/${debt.id}/pay-multi`, {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ amount, payment_method: crediarioInstallmentPayMethod[installment.id] ?? "money", installment_id: installment.id }),
+        body: JSON.stringify({ payments, installment_id: installment.id }),
       });
       if (!res.ok) {
         const errData = await res.json().catch(() => ({}));
-        alert(errData.error || "Erro ao pagar parcela.");
+        setCrediarioInstallmentPayError((prev) => ({ ...prev, [installment.id]: errData.error || "Erro ao pagar parcela." }));
         return;
       }
       if (crediarioCustomer) await loadCrediarioCustomer(crediarioCustomer);
       setCrediarioInstallmentPayAmount((prev) => { const next = { ...prev }; delete next[installment.id]; return next; });
-      setCrediarioInstallmentPayMethod((prev) => { const next = { ...prev }; delete next[installment.id]; return next; });
+      setCrediarioInstallmentPaySegments((prev) => { const next = { ...prev }; delete next[installment.id]; return next; });
     } finally {
       setCrediarioPayingInstallmentId(null);
     }
@@ -1235,7 +1254,7 @@ export default function PDV() {
   useEffect(() => {
     if (!showCrediarioModal) {
       setCrediarioSearch(""); setCrediarioCustomer(null); setCrediarioDebts([]);
-      setCrediarioExpandedId(null); setCrediarioPayAmount({}); setCrediarioPayMethod({});
+      setCrediarioExpandedId(null); setCrediarioPayAmount({}); setCrediarioPaySegments({});
     }
   }, [showCrediarioModal]);
 
@@ -4447,23 +4466,23 @@ export default function PDV() {
                                         </div>
                                         {instOpen && (
                                           <>
-                                            <div className="grid grid-cols-4 gap-1 mt-1.5">
-                                              {([ ["money", "Dinheiro"], ["pix", "PIX"], ["debit", "Débito"], ["credit", "Crédito"] ] as const).map(([method, label]) => (
-                                                <button key={method} onClick={() => setCrediarioInstallmentPayMethod((prev) => ({ ...prev, [inst.id]: method }))}
-                                                  className={cn("h-6 rounded-md border text-[7px] font-black uppercase tracking-wide transition-all", (crediarioInstallmentPayMethod[inst.id] ?? "money") === method ? "bg-blue-600 border-blue-500 text-white" : "bg-white border-slate-200 text-slate-500 hover:border-blue-300")}>{label}</button>
-                                              ))}
+                                            <div className="mt-1.5">
+                                              <PaymentSegmentsEditor
+                                                segments={crediarioInstallmentPaySegments[inst.id] ?? [newPaymentSegment(instRemaining.toFixed(2))]}
+                                                onChange={(segs) => setCrediarioInstallmentPaySegments((prev) => ({ ...prev, [inst.id]: segs }))}
+                                                cardFees={cardFees}
+                                                maxInstallments={maxInstallments}
+                                                enabledBrands={enabledBrands}
+                                                totalToPay={instRemaining}
+                                              />
                                             </div>
-                                            <div className="flex gap-1.5 mt-1.5">
-                                              <input type="number" min={0} max={instRemaining} step="0.01"
-                                                value={crediarioInstallmentPayAmount[inst.id] ?? instRemaining.toFixed(2)}
-                                                onChange={(e) => setCrediarioInstallmentPayAmount((prev) => ({ ...prev, [inst.id]: e.target.value }))}
-                                                className="flex-1 h-7 px-2 rounded-md border border-slate-200 text-[10px] font-mono focus:outline-none focus:border-blue-400" />
-                                              <button onClick={() => handlePayInstallment(d, inst)} disabled={crediarioPayingInstallmentId === inst.id}
-                                                className="h-7 px-2.5 rounded-md bg-emerald-600 text-white text-[9px] font-black uppercase tracking-wider hover:bg-emerald-700 disabled:opacity-50 transition-all">
-                                                {crediarioPayingInstallmentId === inst.id ? <Loader2 size={11} className="animate-spin" /> : "Pagar"}
-                                              </button>
-                                            </div>
-                                            <p className="text-[8px] text-slate-400 mt-1">Pra dividir entre formas, pague um valor parcial e repita com outra forma.</p>
+                                            {crediarioInstallmentPayError[inst.id] && (
+                                              <p className="text-[9px] font-bold text-red-600 mt-1">{crediarioInstallmentPayError[inst.id]}</p>
+                                            )}
+                                            <button onClick={() => handlePayInstallment(d, inst)} disabled={crediarioPayingInstallmentId === inst.id}
+                                              className="w-full h-7 mt-1.5 rounded-md bg-emerald-600 text-white text-[9px] font-black uppercase tracking-wider hover:bg-emerald-700 disabled:opacity-50 transition-all flex items-center justify-center gap-1.5">
+                                              {crediarioPayingInstallmentId === inst.id ? <Loader2 size={11} className="animate-spin" /> : "Confirmar pagamento"}
+                                            </button>
                                             {instSuggestedInterest > 0 && (
                                               <div className="flex items-center justify-between gap-2 mt-1.5 pt-1.5 border-t border-red-200">
                                                 <p className="text-[8px] text-red-600 font-semibold">Juros sugerido: R$ {instSuggestedInterest.toFixed(2)}</p>
@@ -4482,22 +4501,23 @@ export default function PDV() {
                                 </div>
                               ) : (
                                 <>
-                                  <div className="grid grid-cols-4 gap-1 mt-2">
-                                    {([ ["money", "Dinheiro"], ["pix", "PIX"], ["debit", "Débito"], ["credit", "Crédito"] ] as const).map(([method, label]) => (
-                                      <button key={method} onClick={() => setCrediarioPayMethod((prev) => ({ ...prev, [d.id]: method }))}
-                                        className={cn("h-7 rounded-lg border text-[8px] font-black uppercase tracking-wide transition-all", (crediarioPayMethod[d.id] ?? "money") === method ? "bg-blue-600 border-blue-500 text-white" : "bg-white border-slate-200 text-slate-500 hover:border-blue-300")}>{label}</button>
-                                    ))}
+                                  <div className="mt-2">
+                                    <PaymentSegmentsEditor
+                                      segments={crediarioPaySegments[d.id] ?? [newPaymentSegment(remaining.toFixed(2))]}
+                                      onChange={(segs) => setCrediarioPaySegments((prev) => ({ ...prev, [d.id]: segs }))}
+                                      cardFees={cardFees}
+                                      maxInstallments={maxInstallments}
+                                      enabledBrands={enabledBrands}
+                                      totalToPay={remaining}
+                                    />
                                   </div>
-                                  <div className="flex gap-2 mt-2">
-                                    <input type="number" min={0} max={remaining} step="0.01"
-                                      value={crediarioPayAmount[d.id] ?? remaining.toFixed(2)}
-                                      onChange={(e) => setCrediarioPayAmount((prev) => ({ ...prev, [d.id]: e.target.value }))}
-                                      className="flex-1 h-8 px-2 rounded-lg border border-slate-200 text-[11px] font-mono focus:outline-none focus:border-blue-400" />
-                                    <button onClick={() => handlePayCrediarioDebt(d)} disabled={crediarioPaying === d.id}
-                                      className="h-8 px-3 rounded-lg bg-emerald-600 text-white text-[10px] font-black uppercase tracking-wider hover:bg-emerald-700 disabled:opacity-50 transition-all">
-                                      {crediarioPaying === d.id ? <Loader2 size={12} className="animate-spin" /> : "Pagar"}
-                                    </button>
-                                  </div>
+                                  {crediarioPayError[d.id] && (
+                                    <p className="text-[9px] font-bold text-red-600 mt-1">{crediarioPayError[d.id]}</p>
+                                  )}
+                                  <button onClick={() => handlePayCrediarioDebt(d)} disabled={crediarioPaying === d.id}
+                                    className="w-full h-8 mt-2 rounded-lg bg-emerald-600 text-white text-[10px] font-black uppercase tracking-wider hover:bg-emerald-700 disabled:opacity-50 transition-all flex items-center justify-center gap-1.5">
+                                    {crediarioPaying === d.id ? <Loader2 size={12} className="animate-spin" /> : "Confirmar pagamento"}
+                                  </button>
                                 </>
                               )}
                             </div>

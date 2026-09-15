@@ -95,6 +95,16 @@ export async function closeCashSession(req: Request, res: Response) {
       select: { payment_method: true, fee_amount: true },
     });
 
+    // Pagamentos de dívida (crediário) recebidos dentro desta sessão de caixa — cada
+    // linha já é 1 segmento de forma de pagamento com sua própria taxa calculada (ver
+    // customers.controller.ts registerDebtPaymentMulti), então soma direto, sem
+    // precisar ratear como é feito abaixo para Order (que agrega N segmentos num único
+    // fee_amount por pedido).
+    const debtPayments = await prisma.customerDebtPayment.findMany({
+      where: { tenant_id: tenantId, cash_session_id: id },
+      select: { payment_method: true, amount: true, fee_amount: true },
+    });
+
     const totals: Record<string, number> = {};
     const fees: Record<string, number> = {};
     for (const order of orders) {
@@ -110,6 +120,15 @@ export async function closeCashSession(req: Request, res: Response) {
         if (seg.method !== "money" && orderFee > 0 && orderGross > 0) {
           fees[seg.method] = (fees[seg.method] ?? 0) + orderFee * (seg.amount / orderGross);
         }
+      }
+    }
+    for (const dp of debtPayments) {
+      const method = dp.payment_method || "money";
+      const amount = Number(dp.amount) || 0;
+      const fee = Number(dp.fee_amount) || 0;
+      totals[method] = (totals[method] ?? 0) + amount;
+      if (method !== "money" && fee > 0) {
+        fees[method] = (fees[method] ?? 0) + fee;
       }
     }
 

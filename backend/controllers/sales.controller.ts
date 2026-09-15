@@ -4,7 +4,7 @@ import { prisma } from "../config/prisma";
 import type { AuthenticatedRequest } from "../types/auth";
 import { awardPointsForOrder } from "./loyalty.controller";
 import { localDateString } from "../utils/date";
-import { parsePaymentMethod, buildMethodSummary } from "../utils/payment-method";
+import { parsePaymentMethod, buildMethodSummary, computeSegmentFeeRaw } from "../utils/payment-method";
 import { decrementProductStock, returnProductStock } from "../utils/stock-adjust";
 import { emitToTenant } from "../services/realtime.service";
 
@@ -183,26 +183,15 @@ async function finalizeSaleOrder(params: FinalizeSaleParams): Promise<{ orderId:
     // antes do desconto), normalizamos cada segmento pelo fator de desconto:
     //   fator = (gross - desconto) / gross  →  proporção do que sobra após o desconto.
     const discountFactor = grossAmount > 0 ? Math.max(0, (grossAmount - discountVal) / grossAmount) : 1;
-    const rateForSeg = (seg: typeof pmSegments[number]): number => {
-      if (seg.method === "credit") return cardFees[seg.brand]?.[seg.installments - 1] ?? 0;
-      if (seg.method === "debit")  return cardFees[`debit_${seg.brand}`]?.[0] ?? 0;
-      if (seg.method === "pix")    return cardFees["pix"]?.[0] ?? 0;
-      return 0;
-    };
 
     // Calculate machine fee for all payment methods (credit, debit, pix)
-    const machineFee  = pmSegments.reduce((sum, seg) => {
-      if (seg.amount <= 0) return sum;
-      const base = seg.amount * discountFactor; // base com desconto aplicado
-      return sum + base * (rateForSeg(seg) / 100);
-    }, 0);
+    const machineFee  = pmSegments.reduce((sum, seg) => sum + computeSegmentFeeRaw(seg, cardFees, discountFactor), 0);
     const roundedFee   = Math.round(machineFee * 100) / 100;
 
     // Taxa repassada ao cliente (soma dos segmentos com repasse ativo)
     const passedFee = pmSegments.reduce((sum, seg) => {
-      if (!isPassFeeForSegment(seg.method) || seg.amount <= 0) return sum;
-      const base = seg.amount * discountFactor;
-      return sum + base * (rateForSeg(seg) / 100);
+      if (!isPassFeeForSegment(seg.method)) return sum;
+      return sum + computeSegmentFeeRaw(seg, cardFees, discountFactor);
     }, 0);
     const roundedPassedFee = Math.round(passedFee * 100) / 100;
 

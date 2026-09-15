@@ -12,6 +12,7 @@ import Modal from "../../components/ui/Modal";
 import Button from "../../components/ui/Button";
 import StatsGrid from "../../components/ui/StatsGrid";
 import { downloadHtmlAsPdf } from "../../lib/pdf";
+import PaymentSegmentsEditor, { PaymentSegment, newPaymentSegment } from "../../components/PaymentSegmentsEditor";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -208,14 +209,16 @@ export default function CustomerDetail() {
   const [expandedOrderId, setExpandedOrderId] = useState<number | null>(null);
   const [selectedDebtIds, setSelectedDebtIds] = useState<Set<number>>(new Set());
   const [payAmounts, setPayAmounts] = useState<Record<number, string>>({});
-  const [payMethod, setPayMethod] = useState("money");
+  const [paySegments, setPaySegments] = useState<PaymentSegment[]>([newPaymentSegment()]);
   const [payingDebts, setPayingDebts] = useState(false);
+  const [payDebtsError, setPayDebtsError] = useState<string | null>(null);
 
   // Parcelas do crediário
   const [selectedInstallmentIds, setSelectedInstallmentIds] = useState<Set<number>>(new Set());
   const [installmentPayAmounts, setInstallmentPayAmounts] = useState<Record<number, string>>({});
-  const [installmentPayMethod, setInstallmentPayMethod] = useState<Record<number, "money" | "pix" | "debit" | "credit">>({});
+  const [installmentPaySegments, setInstallmentPaySegments] = useState<Record<number, PaymentSegment[]>>({});
   const [payingInstallmentId, setPayingInstallmentId] = useState<number | null>(null);
+  const [payInstallmentError, setPayInstallmentError] = useState<Record<number, string>>({});
   const [reconfigureDebtId, setReconfigureDebtId] = useState<number | null>(null);
   const [reconfigureCount, setReconfigureCount] = useState("1");
   const [reconfigureFirstDue, setReconfigureFirstDue] = useState("");
@@ -225,6 +228,12 @@ export default function CustomerDetail() {
   const [crediarioInterestRate, setCrediarioInterestRate] = useState(0);
   const [crediarioGraceDays, setCrediarioGraceDays] = useState(0);
   const [applyingInterestId, setApplyingInterestId] = useState<number | null>(null);
+
+  // Taxa de maquininha/bandeiras/parcelas — mesma config usada no checkout do PDV,
+  // reaproveitada aqui pra calcular a taxa quando o pagamento de fiado é no cartão.
+  const [cardFees, setCardFees] = useState<Record<string, number[]>>({});
+  const [maxInstallments, setMaxInstallments] = useState(1);
+  const [enabledBrands, setEnabledBrands] = useState<Record<string, boolean>>({});
 
   // Note form
   const [noteBody, setNoteBody] = useState("");
@@ -288,6 +297,9 @@ export default function CustomerDetail() {
       .then((d) => {
         setCrediarioInterestRate(Number(d?.crediario_interest_rate) || 0);
         setCrediarioGraceDays(Number(d?.crediario_grace_days) || 0);
+        if (d?.card_fees) setCardFees(d.card_fees);
+        if (d?.max_installments) setMaxInstallments(Number(d.max_installments));
+        if (d?.enabled_brands) setEnabledBrands(d.enabled_brands as Record<string, boolean>);
       })
       .catch(() => {});
   }, []);
@@ -412,17 +424,36 @@ export default function CustomerDetail() {
   async function handlePaySelectedDebts() {
     if (!detail || selectedDebtIds.size === 0) return;
     setPayingDebts(true);
+    setPayDebtsError(null);
     try {
+      const payments = paySegments
+        .filter((s) => (Number(s.amount) || 0) > 0)
+        .map((s) => ({ method: s.method, brand: s.cardBrand, installments: s.installments, amount: Number(s.amount) }));
+      if (payments.length === 0) { setPayDebtsError("Informe ao menos uma forma de pagamento"); return; }
+
+      // Uma dívida selecionada por vez, cada uma com a mesma composição de formas —
+      // se houver mais de uma dívida selecionada, os segmentos precisam ser
+      // proporcionalmente ajustados por dívida (feito abaixo por dívida individual,
+      // usando o valor a pagar daquela dívida como referência).
       for (const debtId of selectedDebtIds) {
-        const amount = Number(payAmounts[debtId] ?? 0);
-        if (amount <= 0) continue;
-        await fetch(`/api/customers/${detail.id}/debts/${debtId}/pay-partial`, {
+        const debtAmount = Number(payAmounts[debtId] ?? 0);
+        if (debtAmount <= 0) continue;
+        const segTotal = payments.reduce((s, p) => s + p.amount, 0);
+        const scale = segTotal > 0 ? debtAmount / segTotal : 1;
+        const scaledPayments = payments.map((p) => ({ ...p, amount: Math.round(p.amount * scale * 100) / 100 }));
+        const res = await fetch(`/api/customers/${detail.id}/debts/${debtId}/pay-multi`, {
           method: "POST", headers: authH(),
-          body: JSON.stringify({ amount, payment_method: payMethod }),
+          body: JSON.stringify({ payments: scaledPayments }),
         });
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          setPayDebtsError(data.error || "Falha ao registrar pagamento");
+          return;
+        }
       }
       setSelectedDebtIds(new Set());
       setPayAmounts({});
+      setPaySegments([newPaymentSegment()]);
       await fetchDetail(detail.id);
     } finally {
       setPayingDebts(false);
@@ -443,17 +474,31 @@ export default function CustomerDetail() {
   async function handlePayInstallment(debtId: number, installmentId: number, installmentNumber: number, amount: number) {
     if (!detail || amount <= 0) return;
     setPayingInstallmentId(installmentId);
+    setPayInstallmentError((prev) => { const next = { ...prev }; delete next[installmentId]; return next; });
     try {
-      const res = await fetch(`/api/customers/${detail.id}/debts/${debtId}/pay-partial`, {
+      const segments = installmentPaySegments[installmentId] ?? [newPaymentSegment(amount.toFixed(2))];
+      const payments = segments
+        .filter((s) => (Number(s.amount) || 0) > 0)
+        .map((s) => ({ method: s.method, brand: s.cardBrand, installments: s.installments, amount: Number(s.amount) }));
+      if (payments.length === 0) {
+        setPayInstallmentError((prev) => ({ ...prev, [installmentId]: "Informe ao menos uma forma de pagamento" }));
+        return;
+      }
+      const res = await fetch(`/api/customers/${detail.id}/debts/${debtId}/pay-multi`, {
         method: "POST", headers: authH(),
-        body: JSON.stringify({ amount, payment_method: installmentPayMethod[installmentId] ?? "money", installment_id: installmentId }),
+        body: JSON.stringify({ payments, installment_id: installmentId }),
       });
       if (res.ok) {
-        await downloadPaymentReceipt(installmentNumber, amount);
+        const methodLabel = payments.length > 1 ? "Múltiplas formas" : PM_LABELS[payments[0].method] ?? payments[0].method;
+        await downloadPaymentReceipt(installmentNumber, amount, methodLabel);
+      } else {
+        const data = await res.json().catch(() => ({}));
+        setPayInstallmentError((prev) => ({ ...prev, [installmentId]: data.error || "Falha ao registrar pagamento" }));
+        return;
       }
       setSelectedInstallmentIds((prev) => { const next = new Set(prev); next.delete(installmentId); return next; });
       setInstallmentPayAmounts((prev) => { const next = { ...prev }; delete next[installmentId]; return next; });
-      setInstallmentPayMethod((prev) => { const next = { ...prev }; delete next[installmentId]; return next; });
+      setInstallmentPaySegments((prev) => { const next = { ...prev }; delete next[installmentId]; return next; });
       await fetchDetail(detail.id);
     } finally {
       setPayingInstallmentId(null);
@@ -477,7 +522,7 @@ export default function CustomerDetail() {
     }
   }
 
-  async function downloadPaymentReceipt(installmentNumber: number, amount: number) {
+  async function downloadPaymentReceipt(installmentNumber: number, amount: number, methodLabel: string) {
     if (!detail) return;
     const now = new Date();
     const html = `<!DOCTYPE html>
@@ -495,7 +540,7 @@ export default function CustomerDetail() {
   <h1>Recibo de Pagamento</h1>
   <div class="row"><span class="lbl">Cliente</span><span class="val">${detail.name}</span></div>
   <div class="row"><span class="lbl">Parcela</span><span class="val">${installmentNumber}</span></div>
-  <div class="row"><span class="lbl">Forma de pagamento</span><span class="val">${PM_LABELS[payMethod] ?? payMethod}</span></div>
+  <div class="row"><span class="lbl">Forma de pagamento</span><span class="val">${methodLabel}</span></div>
   <div class="row"><span class="lbl">Data</span><span class="val">${now.toLocaleDateString("pt-BR")} ${now.toLocaleTimeString("pt-BR")}</span></div>
   <div class="amount">${fmt(amount)}</div>
 </body></html>`;
@@ -954,29 +999,25 @@ export default function CustomerDetail() {
                                 <span className="text-[12px] font-mono font-black text-slate-700 shrink-0">{fmt(instRemaining)}</span>
                                 {inst.status !== "open" && <CheckCircle2 size={15} className="text-emerald-600 shrink-0" />}
                               </div>
-                              {inst.status === "open" && (
-                                <div className="flex flex-wrap items-center gap-1.5 pt-1">
-                                  {selectedInstallmentIds.has(inst.id) && (
-                                    <>
-                                      <select value={installmentPayMethod[inst.id] ?? "money"}
-                                        onChange={(e) => setInstallmentPayMethod((prev) => ({ ...prev, [inst.id]: e.target.value as "money" | "pix" | "debit" | "credit" }))}
-                                        className="h-7 px-1 rounded-lg border border-slate-200 text-[9px] font-bold focus:outline-none focus:border-blue-400 shrink-0">
-                                        <option value="money">Dinheiro</option>
-                                        <option value="pix">PIX</option>
-                                        <option value="debit">Débito</option>
-                                        <option value="credit">Crédito</option>
-                                      </select>
-                                      <input type="number" min={0} max={instRemaining} step="0.01"
-                                        value={installmentPayAmounts[inst.id] ?? instRemaining.toFixed(2)}
-                                        onChange={(e) => setInstallmentPayAmounts((prev) => ({ ...prev, [inst.id]: e.target.value }))}
-                                        className="w-20 h-7 px-1.5 rounded-lg border border-slate-200 text-[10px] font-mono focus:outline-none focus:border-blue-400 shrink-0" />
-                                    </>
+                              {inst.status === "open" && selectedInstallmentIds.has(inst.id) && (
+                                <div className="pt-1 space-y-2">
+                                  <PaymentSegmentsEditor
+                                    segments={installmentPaySegments[inst.id] ?? [newPaymentSegment((installmentPayAmounts[inst.id] ?? instRemaining.toFixed(2)))]}
+                                    onChange={(segs) => setInstallmentPaySegments((prev) => ({ ...prev, [inst.id]: segs }))}
+                                    cardFees={cardFees}
+                                    maxInstallments={maxInstallments}
+                                    enabledBrands={enabledBrands}
+                                    totalToPay={Number(installmentPayAmounts[inst.id] ?? instRemaining)}
+                                  />
+                                  {payInstallmentError[inst.id] && (
+                                    <p className="text-[10px] font-bold text-red-600">{payInstallmentError[inst.id]}</p>
                                   )}
                                   <button
-                                    onClick={() => handlePayInstallment(d.id, inst.id, inst.number, Number(installmentPayAmounts[inst.id] ?? instRemaining))}
+                                    onClick={() => handlePayInstallment(d.id, inst.id, inst.number, (installmentPaySegments[inst.id] ?? []).reduce((s, seg) => s + (Number(seg.amount) || 0), 0) || instRemaining)}
                                     disabled={payingInstallmentId === inst.id}
-                                    className="p-1.5 bg-emerald-100 hover:bg-emerald-200 text-emerald-600 rounded-lg transition-colors shrink-0 disabled:opacity-50 ml-auto">
+                                    className="w-full h-8 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-[11px] font-bold disabled:opacity-50 transition-all flex items-center justify-center gap-1.5">
                                     {payingInstallmentId === inst.id ? <Loader2 size={13} className="animate-spin" /> : <CheckCircle2 size={13} />}
+                                    Confirmar pagamento
                                   </button>
                                 </div>
                               )}
@@ -1003,16 +1044,18 @@ export default function CustomerDetail() {
             )}
 
             {selectedDebtIds.size > 0 && (
-              <div className="sticky bottom-0 bg-white border border-slate-200 rounded-xl p-3 flex items-center gap-2 shadow-lg">
-                <select value={payMethod} onChange={(e) => setPayMethod(e.target.value)}
-                  className="h-9 px-2 rounded-lg border border-slate-200 text-[12px] font-medium focus:outline-none focus:ring-2 focus:ring-blue-500">
-                  <option value="money">Dinheiro</option>
-                  <option value="pix">PIX</option>
-                  <option value="debit">Débito</option>
-                  <option value="credit">Crédito</option>
-                </select>
+              <div className="sticky bottom-0 bg-white border border-slate-200 rounded-xl p-3 space-y-2 shadow-lg">
+                <PaymentSegmentsEditor
+                  segments={paySegments}
+                  onChange={setPaySegments}
+                  cardFees={cardFees}
+                  maxInstallments={maxInstallments}
+                  enabledBrands={enabledBrands}
+                  totalToPay={Array.from(selectedDebtIds).reduce((s, id) => s + Number(payAmounts[id] ?? 0), 0)}
+                />
+                {payDebtsError && <p className="text-[10px] font-bold text-red-600">{payDebtsError}</p>}
                 <button onClick={handlePaySelectedDebts} disabled={payingDebts}
-                  className="flex-1 h-9 bg-emerald-600 text-white rounded-lg text-[12px] font-bold hover:bg-emerald-700 disabled:opacity-50 transition-all">
+                  className="w-full h-9 bg-emerald-600 text-white rounded-lg text-[12px] font-bold hover:bg-emerald-700 disabled:opacity-50 transition-all">
                   {payingDebts ? "Pagando…" : `Pagar ${selectedDebtIds.size} dívida(s)`}
                 </button>
               </div>

@@ -559,10 +559,11 @@ model CashSession {
   created_at DateTime @default(now())
   updated_at DateTime @updatedAt
 
-  tenant    Tenant  @relation(fields: [tenant_id], references: [id])
-  opened_by User    @relation("CashSessionOpenedBy", fields: [opened_by_id], references: [id])
-  closed_by User?   @relation("CashSessionClosedBy", fields: [closed_by_id], references: [id], onDelete: SetNull)
-  orders    Order[]
+  tenant        Tenant                @relation(fields: [tenant_id], references: [id])
+  opened_by     User                  @relation("CashSessionOpenedBy", fields: [opened_by_id], references: [id])
+  closed_by     User?                 @relation("CashSessionClosedBy", fields: [closed_by_id], references: [id], onDelete: SetNull)
+  orders        Order[]
+  debt_payments CustomerDebtPayment[]
 
   @@index([tenant_id, status])
   @@index([opened_by_id])
@@ -996,16 +997,27 @@ model CustomerDebtPayment {
   installment_id Int?
   amount         Decimal  @db.Decimal(10, 2)
   payment_method String?
+  // Campos abaixo: suportam pagamento de fiado com múltiplas formas (uma linha por
+  // segmento, mesmo grão de Order.payment_method na venda normal, só que aqui cada
+  // segmento já é uma linha própria em vez de uma string composta com "|").
+  card_brand      String?   // "visa" | "master" | "elo" | "amex" | "hiper" | "other" — só p/ debit/credit
+  installments    Int?      // nº de parcelas do CARTÃO (não confundir com parcela do crediário)
+  gross_amount    Decimal?  @db.Decimal(10, 2)
+  fee_amount      Decimal?  @db.Decimal(10, 2) // taxa de maquininha deste segmento
+  net_amount      Decimal?  @db.Decimal(10, 2) // gross_amount - fee_amount
+  cash_session_id Int?      // sessão de caixa aberta no momento do pagamento (null = fora do caixa)
   paid_at        DateTime @default(now())
   created_at     DateTime @default(now())
 
-  debt        CustomerDebt             @relation(fields: [debt_id], references: [id], onDelete: Cascade)
-  installment CustomerDebtInstallment? @relation(fields: [installment_id], references: [id], onDelete: SetNull)
-  tenant      Tenant                   @relation(fields: [tenant_id], references: [id])
+  debt         CustomerDebt             @relation(fields: [debt_id], references: [id], onDelete: Cascade)
+  installment  CustomerDebtInstallment? @relation(fields: [installment_id], references: [id], onDelete: SetNull)
+  tenant       Tenant                   @relation(fields: [tenant_id], references: [id])
+  cash_session CashSession?             @relation(fields: [cash_session_id], references: [id], onDelete: SetNull)
 
   @@index([debt_id])
   @@index([installment_id])
   @@index([tenant_id])
+  @@index([cash_session_id])
   @@map("customer_debt_payments")
 }
 
