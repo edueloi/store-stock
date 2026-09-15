@@ -1909,37 +1909,52 @@ ${
               </div>
 
               {/* ── Header ── */}
-              <div className="shrink-0 px-5 pt-4 pb-3 flex items-center justify-between gap-3 border-b border-slate-100">
-                <div className="flex items-center gap-3 min-w-0">
-                  <div className={cn(
-                    "w-10 h-10 rounded-2xl flex items-center justify-center shrink-0",
-                    selectedOrder.status !== "completed" ? (selectedOrder.status === "cancelled" ? "bg-red-100" : "bg-amber-100")
-                      : isCrediarioOrder(selectedOrder.payment_method) ? "bg-violet-100" : "bg-emerald-100"
-                  )}>
-                    {selectedOrder.status === "completed"
-                      ? (isCrediarioOrder(selectedOrder.payment_method) ? <Clock size={20} className="text-violet-600" /> : <CheckCircle2 size={20} className="text-emerald-600" />)
-                      : selectedOrder.status === "cancelled" ? <XCircle size={20} className="text-red-600" />
-                      : <Clock size={20} className="text-amber-600" />}
+              <div className="shrink-0 px-5 pt-4 pb-3 space-y-3 border-b border-slate-100">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className={cn(
+                      "w-10 h-10 rounded-2xl flex items-center justify-center shrink-0",
+                      selectedOrder.status !== "completed" ? (selectedOrder.status === "cancelled" ? "bg-red-100" : "bg-amber-100")
+                        : isCrediarioOrder(selectedOrder.payment_method) ? "bg-violet-100" : "bg-emerald-100"
+                    )}>
+                      {selectedOrder.status === "completed"
+                        ? (isCrediarioOrder(selectedOrder.payment_method) ? <Clock size={20} className="text-violet-600" /> : <CheckCircle2 size={20} className="text-emerald-600" />)
+                        : selectedOrder.status === "cancelled" ? <XCircle size={20} className="text-red-600" />
+                        : <Clock size={20} className="text-amber-600" />}
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] leading-none mb-1">Pedido</p>
+                      <h4 className="text-xl font-black text-slate-900 leading-none tracking-tight truncate">
+                        #{String(selectedOrder.id).padStart(6, "0")}
+                      </h4>
+                    </div>
+                    <span className={cn(
+                      "ml-1 inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-wider border shrink-0",
+                      selectedOrder.status !== "completed" ? (selectedOrder.status === "cancelled" ? "bg-red-50 text-red-500 border-red-100" : "bg-amber-50 text-amber-600 border-amber-100")
+                        : isCrediarioOrder(selectedOrder.payment_method) ? "bg-violet-50 text-violet-600 border-violet-100" : "bg-emerald-50 text-emerald-600 border-emerald-100"
+                    )}>
+                      {selectedOrder.status === "completed"
+                        ? (isCrediarioOrder(selectedOrder.payment_method) ? <><Clock size={9} /> Crediário</> : <><CheckCircle2 size={9} /> Pago</>)
+                        : selectedOrder.status === "cancelled" ? <><XCircle size={9} /> Cancelado</>
+                        : <><Clock size={9} /> Pendente</>}
+                    </span>
                   </div>
-                  <div className="min-w-0">
-                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] leading-none mb-1">Pedido</p>
-                    <h4 className="text-xl font-black text-slate-900 leading-none tracking-tight">
-                      #{String(selectedOrder.id).padStart(6, "0")}
-                    </h4>
-                  </div>
-                  <span className={cn(
-                    "ml-1 inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-wider border shrink-0",
-                    selectedOrder.status !== "completed" ? (selectedOrder.status === "cancelled" ? "bg-red-50 text-red-500 border-red-100" : "bg-amber-50 text-amber-600 border-amber-100")
-                      : isCrediarioOrder(selectedOrder.payment_method) ? "bg-violet-50 text-violet-600 border-violet-100" : "bg-emerald-50 text-emerald-600 border-emerald-100"
-                  )}>
-                    {selectedOrder.status === "completed"
-                      ? (isCrediarioOrder(selectedOrder.payment_method) ? <><Clock size={9} /> Crediário</> : <><CheckCircle2 size={9} /> Pago</>)
-                      : selectedOrder.status === "cancelled" ? <><XCircle size={9} /> Cancelado</>
-                      : <><Clock size={9} /> Pendente</>}
-                  </span>
-                </div>
 
-                <div className="flex items-center gap-1.5 shrink-0">
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    <button onClick={() => { setSelectedIds(new Set([selectedOrder.id])); setShowDeleteModal(true); }}
+                      className="w-8 h-8 flex items-center justify-center rounded-xl bg-red-50 border border-red-100 text-red-400 hover:bg-red-100 hover:text-red-600 transition-all" title="Deletar">
+                      <Trash2 size={14} />
+                    </button>
+                    <button onClick={() => setIsDetailModalOpen(false)}
+                      className="w-8 h-8 flex items-center justify-center rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-500 transition-all">
+                      <X size={15} />
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {selectedOrder.status !== "cancelled" && (
+                <div className="shrink-0 px-5 pb-3 flex items-center gap-1.5 flex-wrap border-b border-slate-100 -mt-3">
                   {selectedOrder.status === "pending" && (
                     <button onClick={() => handleUpdateStatus(selectedOrder.id, "completed")}
                       className="h-8 px-3 bg-emerald-600 text-white rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-emerald-700 active:scale-95 transition-all shadow-md shadow-emerald-200">
@@ -1959,16 +1974,8 @@ ${
                       Cancelar
                     </button>
                   )}
-                  <button onClick={() => { setSelectedIds(new Set([selectedOrder.id])); setShowDeleteModal(true); }}
-                    className="w-8 h-8 flex items-center justify-center rounded-xl bg-red-50 border border-red-100 text-red-400 hover:bg-red-100 hover:text-red-600 transition-all" title="Deletar">
-                    <Trash2 size={14} />
-                  </button>
-                  <button onClick={() => setIsDetailModalOpen(false)}
-                    className="w-8 h-8 flex items-center justify-center rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-500 transition-all">
-                    <X size={15} />
-                  </button>
                 </div>
-              </div>
+              )}
 
               {/* ── Scrollable body ── */}
               <div className="flex-1 overflow-y-auto overscroll-contain">
