@@ -305,6 +305,16 @@ export function buildNfceXml(input: BuildNfceInput): BuildNfceResult {
       detPag.ele("card").ele("tpIntegra").txt("2");
     }
   }
+  // vTroco é obrigatório sempre que a soma dos pagamentos exceder o total da nota
+  // (rejeição SEFAZ "Ausência de troco quando o valor dos pagamentos informados for
+  // maior que o total da nota") — calculado aqui, não confiando só em
+  // order.change_amount (pode estar null em vendas antigas ou por payload incompleto
+  // do frontend), pra sempre bater com o que os segmentos de pagamento realmente somam.
+  const totalPago = payments.reduce((sum, seg) => sum + seg.amount, 0);
+  const troco = Math.round((totalPago - Number(order.total_amount)) * 100) / 100;
+  if (troco > 0) {
+    pag.ele("vTroco").txt(troco.toFixed(2));
+  }
 
   const xml = doc.end({ prettyPrint: false });
   return { chaveAcesso, xml };
