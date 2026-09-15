@@ -1968,12 +1968,10 @@ ${
                       Devolver/Trocar
                     </button>
                   )}
-                  {selectedOrder.status !== "cancelled" && (
-                    <button onClick={() => setShowCancelModal(true)}
-                      className="h-8 px-3 bg-red-50 text-red-500 border border-red-100 rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-red-100 active:scale-95 transition-all">
-                      Cancelar
-                    </button>
-                  )}
+                  <button onClick={() => setShowCancelModal(true)}
+                    className="h-8 px-3 bg-red-50 text-red-500 border border-red-100 rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-red-100 active:scale-95 transition-all">
+                    Cancelar
+                  </button>
                 </div>
               )}
 
