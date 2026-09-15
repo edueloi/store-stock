@@ -29,7 +29,16 @@ export function thermalRow(left: string, right = ""): string {
 export interface BookletInstallment {
   number: number;
   due_date: string;
-  amount: number;
+  amount: number | string;
+}
+
+// Formata uma data que pode chegar como "YYYY-MM-DD" pura ou como ISO completo
+// (ex.: Prisma serializa DateTime como "2026-10-15T00:00:00.000Z") — pegar só os
+// 10 primeiros chars antes de montar o Date evita concatenar um T00:00:00 extra
+// numa string que já tinha hora, o que produzia "Invalid Date".
+function formatDueDate(dueDate: string): string {
+  const datePart = dueDate.slice(0, 10);
+  return new Date(`${datePart}T00:00:00`).toLocaleDateString("pt-BR");
 }
 
 // Carnê de pagamento — um canhoto por parcela (número, vencimento, valor, campo
@@ -51,9 +60,11 @@ export function buildInstallmentBookletText(
     text += thermalRow("Referente a", debtDescription) + "\n";
     text += `${thermalThin}\n`;
     text += thermalRow("Parcela", `${inst.number}/${total}`) + "\n";
-    text += thermalRow("Vencimento", new Date(`${inst.due_date}T00:00:00`).toLocaleDateString("pt-BR")) + "\n";
+    text += thermalRow("Vencimento", formatDueDate(inst.due_date)) + "\n";
     text += `${thermalRule}\n`;
-    text += thermalRow("VALOR", `R$ ${thermalMoney(inst.amount)}`) + "\n";
+    // amount chega como string quando serializado a partir de um Decimal do
+    // Prisma (ex.: "27.46") — Number() normaliza antes de formatar.
+    text += thermalRow("VALOR", `R$ ${thermalMoney(Number(inst.amount))}`) + "\n";
     text += `${thermalRule}\n\n`;
     text += "Assinatura: ________________________\n";
     text += "\n";
