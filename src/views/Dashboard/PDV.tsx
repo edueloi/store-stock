@@ -617,6 +617,30 @@ export default function PDV() {
   // essa digitação e redirecionamos pro campo de scan quando nenhum outro campo
   // editável estiver em foco — assim funciona "solto" na tela sem atrapalhar
   // quem está digitando de propósito em outro campo (ver comentário abaixo).
+  //
+  // Refs (não state) pra ler o valor atual de searchTerm/addProductSearch de
+  // dentro do efeito sem precisar deles no array de dependências. Tê-los como
+  // dependência fazia o efeito inteiro desmontar/remontar a CADA tecla digitada
+  // (porque a própria captura chama setSearchTerm a cada tecla) — isso recriava
+  // buffer/timer do zero no meio de uma leitura em andamento, deixando o timer
+  // antigo (não cancelado pelo cleanup) pendente e disparando handleScan uma
+  // segunda vez além do Enter que finaliza a leitura, duplicando o produto.
+  const searchTermRef = useRef(searchTerm);
+  searchTermRef.current = searchTerm;
+  const addProductSearchRef = useRef(addProductSearch);
+  addProductSearchRef.current = addProductSearch;
+  // Mesma lógica pra handleScan: ele é recriado (useCallback com deps
+  // [products, token, addToCartDirect]) toda vez que um scan bem-sucedido muda
+  // `products` — se handleScan estivesse no array de dependências do efeito,
+  // bipar rápido o suficiente pra um re-render de "products" cair no meio da
+  // digitação de uma bipada seguinte remontava o efeito e deixava o timer da
+  // montagem antiga pendente, disparando handleScan uma segunda vez pro mesmo
+  // código (produto duplicado no carrinho). A ref garante que o efeito sempre
+  // chama a versão mais recente de handleScan sem precisar remontar por causa
+  // dela.
+  const handleScanRef = useRef(handleScan);
+  handleScanRef.current = handleScan;
+
   useEffect(() => {
     let lastKeyTime = 0;
     let buffer = "";
@@ -642,7 +666,7 @@ export default function PDV() {
       buffer = "";
       if (timer) { clearTimeout(timer); timer = null; }
       clearActiveSearchField();
-      if (code.trim().length >= 3) handleScan(code.trim());
+      if (code.trim().length >= 3) handleScanRef.current(code.trim());
     };
 
     const onKeyDown = (e: KeyboardEvent) => {
@@ -709,8 +733,8 @@ export default function PDV() {
       // reconhecida como scanner.
       e.preventDefault();
       if (buffer === "") {
-        buffer = activeSearchField === "main" ? searchTerm
-          : activeSearchField === "addModal" ? addProductSearch
+        buffer = activeSearchField === "main" ? searchTermRef.current
+          : activeSearchField === "addModal" ? addProductSearchRef.current
           : "";
       }
       buffer += e.key;
@@ -724,13 +748,24 @@ export default function PDV() {
         const b = buffer;
         buffer = "";
         clearActiveSearchField();
-        if (b.trim().length >= 3) handleScan(b.trim());
+        if (b.trim().length >= 3) handleScanRef.current(b.trim());
       }, 300);
     };
 
     window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, [handleScan, searchTerm, addProductSearch]);
+    return () => {
+      window.removeEventListener("keydown", onKeyDown);
+      // Cancela qualquer timer de flush pendente desta montagem — sem isso, se
+      // o efeito remontar por qualquer outro motivo no meio de uma leitura, o
+      // timer da montagem antiga ainda dispararia handleScan mais tarde,
+      // duplicando o produto no carrinho.
+      if (timer) clearTimeout(timer);
+    };
+    // Monta uma única vez — handleScan/searchTerm/addProductSearch são lidos
+    // via ref (handleScanRef/searchTermRef/addProductSearchRef) de propósito,
+    // pra nunca remontar este efeito no meio de uma leitura do scanner.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // ── cart helpers ──────────────────────────────────────────────────────────────
   const addToCart = (product: Product, options?: Record<string, string>) => {
