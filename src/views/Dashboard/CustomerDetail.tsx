@@ -220,6 +220,11 @@ export default function CustomerDetail() {
   const [installmentPaySegments, setInstallmentPaySegments] = useState<Record<number, PaymentSegment[]>>({});
   const [payingInstallmentId, setPayingInstallmentId] = useState<number | null>(null);
   const [payInstallmentError, setPayInstallmentError] = useState<Record<number, string>>({});
+
+  // Estorno de pagamento (operador marcou por engano) — pede confirmação antes de
+  // reverter, já que desfaz um pagamento real e cria um lançamento de estorno no
+  // financeiro.
+  const [reversingPaymentId, setReversingPaymentId] = useState<number | null>(null);
   const [reconfigureDebtId, setReconfigureDebtId] = useState<number | null>(null);
   const [reconfigureCount, setReconfigureCount] = useState("1");
   const [reconfigureFirstDue, setReconfigureFirstDue] = useState("");
@@ -635,6 +640,26 @@ export default function CustomerDetail() {
     });
   }
 
+  function handleReversePayment(debtId: number, paymentId: number, amount: number) {
+    if (!detail) return;
+    const customerId = detail.id;
+    setConfirmDialog({
+      title: "Estornar pagamento",
+      message: `Reverter este pagamento de ${fmt(amount)}? A dívida/parcela volta a ficar em aberto e um lançamento de estorno é criado no financeiro. Não pode ser desfeito automaticamente.`,
+      onConfirm: async () => {
+        setReversingPaymentId(paymentId);
+        try {
+          const res = await fetch(`/api/customers/${customerId}/debts/${debtId}/payments/${paymentId}/reverse`, {
+            method: "POST", headers: authH(),
+          });
+          if (res.ok) await fetchDetail(customerId);
+        } finally {
+          setReversingPaymentId(null);
+        }
+      },
+    });
+  }
+
   // ── note actions
 
   async function handleAddNote() {
@@ -899,7 +924,8 @@ export default function CustomerDetail() {
                   const hasOrderItems = !!d.order?.items?.length;
                   const isInstallmentPlan = (d.installments?.length ?? 0) > 1;
                   const hasAnyPayment = (d.installments ?? []).some((i) => Number(i.amount_paid) > 0);
-                  const canExpand = hasOrderItems || isInstallmentPlan;
+                  const hasPayments = (d.payments?.length ?? 0) > 0;
+                  const canExpand = hasOrderItems || isInstallmentPlan || hasPayments;
                   return (
                     <div key={d.id} className={cn(
                       "rounded-xl border overflow-hidden",
@@ -1054,6 +1080,29 @@ export default function CustomerDetail() {
                               </div>
                             );
                           })}
+                        </div>
+                      )}
+                      {isExpanded && hasPayments && (
+                        <div className="px-3 pb-3 pt-2 border-t border-slate-100 space-y-1.5">
+                          <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Pagamentos registrados</p>
+                          {d.payments!.map((p) => (
+                            <div key={p.id} className="flex items-center justify-between gap-2 bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5">
+                              <div className="min-w-0">
+                                <p className="text-[11px] font-bold text-slate-700">{fmt(Number(p.amount))}</p>
+                                <p className="text-[9px] text-slate-400">
+                                  {p.payment_method ? PM_LABELS[p.payment_method] ?? p.payment_method : "—"} · {fmtDate(p.paid_at)}
+                                </p>
+                              </div>
+                              <button
+                                onClick={() => handleReversePayment(d.id, p.id, Number(p.amount))}
+                                disabled={reversingPaymentId === p.id}
+                                title="Estornar pagamento"
+                                className="shrink-0 h-7 px-2.5 rounded-lg border border-red-200 text-red-600 hover:bg-red-50 text-[9px] font-black uppercase tracking-wide disabled:opacity-50 transition-all flex items-center gap-1">
+                                {reversingPaymentId === p.id ? <Loader2 size={11} className="animate-spin" /> : <XCircle size={11} />}
+                                Estornar
+                              </button>
+                            </div>
+                          ))}
                         </div>
                       )}
                     </div>

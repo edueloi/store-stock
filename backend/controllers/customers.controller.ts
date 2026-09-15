@@ -499,6 +499,91 @@ export async function payDebtMulti(req: Request, res: Response) {
   }
 }
 
+// Desfaz um pagamento de dívida/parcela já registrado — usado quando o operador
+// marcou um pagamento por engano. Exclui o CustomerDebtPayment, subtrai o valor da
+// parcela (se vinculada) e da dívida, voltando status/amount_paid pro estado
+// anterior. Não apaga o Finance original (sem vínculo direto de volta pro
+// pagamento, arriscado demais localizar e excluir o certo) — em vez disso cria um
+// lançamento de estorno (amount negativo), mantendo o histórico contábil auditável.
+export async function reverseDebtPayment(req: Request, res: Response) {
+  try {
+    const tenantId = getTenantId(req);
+    const debtId = Number(req.params.debtId);
+    const paymentId = Number(req.params.paymentId);
+
+    const payment = await prisma.customerDebtPayment.findFirst({
+      where: { id: paymentId, debt_id: debtId, tenant_id: tenantId },
+    });
+    if (!payment) {
+      res.status(404).json({ error: "Pagamento não encontrado" });
+      return;
+    }
+
+    const debt = await prisma.customerDebt.findFirst({ where: { id: debtId, tenant_id: tenantId } });
+    if (!debt) {
+      res.status(404).json({ error: "Dívida não encontrada" });
+      return;
+    }
+
+    const customer = await prisma.customer.findUnique({ where: { id: debt.customer_id } });
+    const amount = Number(payment.amount);
+
+    await prisma.$transaction(async (tx) => {
+      if (payment.installment_id) {
+        const installment = await tx.customerDebtInstallment.findUnique({ where: { id: payment.installment_id } });
+        if (installment) {
+          const newInstallmentPaid = Math.max(0, Number(installment.amount_paid) - amount);
+          await tx.customerDebtInstallment.update({
+            where: { id: installment.id },
+            data: {
+              amount_paid: newInstallmentPaid,
+              status: "open",
+              paid_at: null,
+            },
+          });
+        }
+      }
+
+      const newDebtPaid = Math.max(0, Number(debt.amount_paid) - amount);
+      await tx.customerDebt.update({
+        where: { id: debtId },
+        data: {
+          amount_paid: newDebtPaid,
+          status: "open",
+          paid_at: null,
+        },
+      });
+
+      await tx.customerDebtPayment.delete({ where: { id: paymentId } });
+
+      await tx.finance.create({
+        data: {
+          tenant_id: tenantId,
+          type: "expense",
+          description: `Estorno de pagamento fiado — ${customer?.name ?? "Cliente"}: ${debt.description}`,
+          amount,
+          payment_method: payment.payment_method,
+          source: "debt_payment_reversal",
+          date: localDateString(),
+        },
+      });
+    });
+
+    const updated = await prisma.customerDebt.findUnique({
+      where: { id: debtId },
+      include: { installments: { orderBy: { number: "asc" } }, payments: { orderBy: { paid_at: "desc" } } },
+    });
+
+    emitToTenant(tenantId, "finance:changed", { debtId });
+    if (payment.cash_session_id) emitToTenant(tenantId, "cash-session:changed", { debtId });
+
+    res.json({ success: true, debt: updated });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Falha ao estornar pagamento" });
+  }
+}
+
 export async function payDebt(req: Request, res: Response) {
   try {
     const tenantId = getTenantId(req);

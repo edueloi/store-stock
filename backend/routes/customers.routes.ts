@@ -10,6 +10,7 @@ import {
   payDebt,
   payDebtPartial,
   payDebtMulti,
+  reverseDebtPayment,
   applyInstallmentInterest,
   deleteDebt,
   listDebtInstallments,
@@ -37,6 +38,7 @@ router.post("/:id/debts",           createDebt);
 router.post("/:id/debts/:debtId/pay", payDebt);
 router.post("/:id/debts/:debtId/pay-partial", payDebtPartial);
 router.post("/:id/debts/:debtId/pay-multi", payDebtMulti);
+router.post("/:id/debts/:debtId/payments/:paymentId/reverse", reverseDebtPayment);
 router.post("/:id/debts/:debtId/installments/:instId/apply-interest", applyInstallmentInterest);
 router.delete("/:id/debts/:debtId", deleteDebt);
 router.get("/:id/debts/:debtId/installments", listDebtInstallments);
