@@ -324,6 +324,23 @@ export default function Inventory() {
   const [sortField, setSortField] = useState<SortField>("id");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
 
+  // Uppercase automático no onChange troca o value do input controlado pelo
+  // valor já transformado, e o navegador joga o cursor pro final do texto
+  // (mesmo o comprimento não mudando) — precisa restaurar a posição manualmente
+  // depois do re-render, senão editar no meio da palavra vira "digita, cursor
+  // pula pro fim, precisa apertar seta pra voltar".
+  function handleUppercaseChange(
+    e: React.ChangeEvent<HTMLInputElement>,
+    apply: (upper: string) => void,
+  ) {
+    const input = e.target;
+    const pos = input.selectionStart;
+    apply(input.value.toUpperCase());
+    requestAnimationFrame(() => {
+      if (pos !== null) input.setSelectionRange(pos, pos);
+    });
+  }
+
   const toggleSort = (field: SortField) => {
     if (sortField === field) setSortDir(d => d === "asc" ? "desc" : "asc");
     else { setSortField(field); setSortDir("desc"); }
@@ -1199,7 +1216,7 @@ export default function Inventory() {
               <input type="text" required placeholder="Ex: Camiseta Básica Preta"
                 className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs font-bold uppercase outline-none h-10 focus:border-blue-400 focus:ring-2 focus:ring-blue-500/10 transition-all"
                 value={editingProduct?.name || ""}
-                onChange={e => setEditingProduct(prev => ({ ...prev!, name: e.target.value.toUpperCase() }))} />
+                onChange={e => handleUppercaseChange(e, (upper) => setEditingProduct(prev => ({ ...prev!, name: upper })))} />
             </div>
             <div className="space-y-1">
               <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest px-1">SKU / Identificador</label>
@@ -1282,14 +1299,14 @@ export default function Inventory() {
                 <input type="text" placeholder="UN"
                   className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs font-mono font-bold uppercase outline-none h-10 focus:border-blue-400 focus:ring-2 focus:ring-blue-500/10 transition-all"
                   value={editingProduct?.unidade_comercial ?? "UN"}
-                  onChange={e => setEditingProduct(prev => ({ ...prev!, unidade_comercial: e.target.value.toUpperCase() }))} />
+                  onChange={e => handleUppercaseChange(e, (upper) => setEditingProduct(prev => ({ ...prev!, unidade_comercial: upper })))} />
               </div>
               <div className="space-y-1">
                 <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest px-1">Unidade Tributável</label>
                 <input type="text" placeholder="UN"
                   className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs font-mono font-bold uppercase outline-none h-10 focus:border-blue-400 focus:ring-2 focus:ring-blue-500/10 transition-all"
                   value={editingProduct?.unidade_tributavel ?? "UN"}
-                  onChange={e => setEditingProduct(prev => ({ ...prev!, unidade_tributavel: e.target.value.toUpperCase() }))} />
+                  onChange={e => handleUppercaseChange(e, (upper) => setEditingProduct(prev => ({ ...prev!, unidade_tributavel: upper })))} />
               </div>
             </div>
 
