@@ -892,6 +892,15 @@ export default function Orders() {
     };
 
     const payments = parsePayments(order.payment_method);
+    // Troco: recalculado da diferença real entre a soma dos pagamentos e o total —
+    // não depende de order.change_amount (pode estar null caso o valor não tenha
+    // sido persistido por algum motivo no momento da venda), então sempre bate com
+    // o que o comprovante já mostra em "Pagamento" acima.
+    const paidTotal = (order.payment_method || "").split("|").reduce((sum, seg) => {
+      const amt = Number(seg.trim().split(":")[1]);
+      return sum + (Number.isFinite(amt) ? amt : 0);
+    }, 0);
+    const changeAmount = Math.round((paidTotal - Number(order.total_amount)) * 100) / 100;
     const hasDiscount = order.discount_amount && Number(order.discount_amount) > 0;
     const hasFee = order.fee_amount && Number(order.fee_amount) > 0;
     const grossAmount = order.gross_amount
@@ -1011,6 +1020,14 @@ ${payments
 </div>`
   )
   .join("")}
+${
+  changeAmount > 0
+    ? `<div class="pay-row">
+  <span class="pay-label">Troco</span>
+  <span class="pay-amount">R$ ${changeAmount.toFixed(2)}</span>
+</div>`
+    : ""
+}
 
 <div class="footer">
   <span class="thanks">Obrigado pela preferência!</span>
@@ -1078,9 +1095,17 @@ ${payments
       receipt += row("Juros máquina", `+ R$ ${money(Number(order.fee_amount))}`) + "\n";
     }
     receipt += `${rule}\n${row("Valor Total R$", money(Number(order.total_amount)))}\n${rule}\n`;
-    parsePaymentsSimple(order.payment_method).forEach((p) => {
+    const parsedPayments = parsePaymentsSimple(order.payment_method);
+    parsedPayments.forEach((p) => {
       receipt += row(`Forma Pagamento: ${p.label}`, `R$ ${money(p.amount)}`) + "\n";
     });
+    // Troco recalculado da diferença real (mesma lógica do template HTML acima) —
+    // não depende de order.change_amount, que pode estar null.
+    const paidTotalThermal = parsedPayments.reduce((sum, p) => sum + p.amount, 0);
+    const changeThermal = Math.round((paidTotalThermal - Number(order.total_amount)) * 100) / 100;
+    if (changeThermal > 0) {
+      receipt += row("Troco R$", money(changeThermal)) + "\n";
+    }
     receipt += `${thin}\n${center("Obrigado pela preferência!")}\n${center("Volte sempre!")}\n\n\n`;
     return receipt;
   };

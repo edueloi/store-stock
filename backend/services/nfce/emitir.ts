@@ -238,7 +238,14 @@ export async function emitirNfce(orderId: number): Promise<void> {
         total: Number(item.unit_price) * item.quantity,
       })),
       totalAmount: Number(order.total_amount),
-      changeAmount: order.change_amount ? Number(order.change_amount) : null,
+      // Recalculado da diferença real entre pagamentos e total — não depende só de
+      // order.change_amount (pode estar null se o payload da venda não trouxe esse
+      // campo), mesma lógica usada em xmlBuilder.ts pro vTroco do XML.
+      changeAmount: (() => {
+        const paidTotal = payments.reduce((sum, p) => sum + p.amount, 0);
+        const change = Math.round((paidTotal - Number(order.total_amount)) * 100) / 100;
+        return change > 0 ? change : (order.change_amount ? Number(order.change_amount) : null);
+      })(),
       qrCodeUrl,
       paymentSummary,
       customerLabel,

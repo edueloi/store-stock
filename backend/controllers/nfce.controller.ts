@@ -63,7 +63,13 @@ async function rebuildDanfePdf(orderId: number, tenantId: number, invoice: { acc
       };
     }),
     totalAmount: Number(order.total_amount),
-    changeAmount: order.change_amount ? Number(order.change_amount) : null,
+    // Recalculado da diferença real entre pagamentos e total — mesma lógica de
+    // emitir.ts, não depende só de order.change_amount (pode estar null).
+    changeAmount: (() => {
+      const paidTotal = payments.reduce((sum, p) => sum + p.amount, 0);
+      const change = Math.round((paidTotal - Number(order.total_amount)) * 100) / 100;
+      return change > 0 ? change : (order.change_amount ? Number(order.change_amount) : null);
+    })(),
     qrCodeUrl: invoice.qrcode_url,
     paymentSummary,
     customerLabel,
