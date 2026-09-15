@@ -51,6 +51,11 @@ model Tenant {
   crediario_interest_rate Decimal @default(0) @db.Decimal(5, 2) // % ao mês
   crediario_grace_days    Int     @default(0)
 
+  // --- Devolução/troca: prazo configurável (dias desde a venda) usado só como
+  // aviso visual na tela de devolução — nunca bloqueia a confirmação, é decisão
+  // comercial do lojista, não regra fiscal. ---
+  return_deadline_days Int? @default(30)
+
   // --- Módulos habilitados por tenant (liberado manualmente pelo Super Admin) ---
   fluxo_producao_enabled Boolean @default(false)
   // Libera as etapas "Aguardando arte"/"Arte finalizada" no fluxo de Ordem de Serviço —
@@ -135,6 +140,8 @@ model Tenant {
   held_sales             HeldSale[]
   held_sale_actions      HeldSaleAction[]
   desktop_terminals      DesktopTerminal[]
+  order_returns          OrderReturn[]
+  customer_credits       CustomerCredit[]
   plan                   SubscriptionPlan?     @relation(fields: [plan_id], references: [id], onDelete: SetNull)
   platform_subscription  PlatformSubscription?
 
@@ -529,6 +536,8 @@ model Order {
   nfce_invoice          NfceInvoice?
   terminal_transactions TerminalTransaction[]
   debts                 CustomerDebt[]
+  returns               OrderReturn[]
+  credit_usages         CustomerCreditUsage[]
 
   @@index([cash_session_id])
   @@map("orders")
@@ -696,6 +705,95 @@ model OrderAction {
   @@map("order_actions")
 }
 
+// Devolução/troca de item(ns) de um pedido já vendido — granularidade por item e
+// quantidade parcial (não precisa devolver o pedido inteiro). Uma operação do
+// operador = um OrderReturn com N OrderReturnItem, um único motivo, um único
+// crédito resultante, um único lançamento no financeiro (mesma lógica de
+// "um evento de negócio" já usada no estorno de pagamento de crediário).
+model OrderReturn {
+  id            Int      @id @default(autoincrement())
+  tenant_id     Int
+  order_id      Int
+  reason        String?  @db.Text
+  credit_amount Decimal  @default(0) @db.Decimal(10, 2)
+  created_by    String?
+  created_at    DateTime @default(now())
+
+  order  Order            @relation(fields: [order_id], references: [id], onDelete: Cascade)
+  tenant Tenant           @relation(fields: [tenant_id], references: [id])
+  items  OrderReturnItem[]
+  // Lado inverso do 1:1 — a FK real (order_return_id, única) vive em
+  // CustomerCredit, não aqui, pra evitar duas colunas redundantes apontando
+  // pra mesma relação.
+  credit CustomerCredit?
+
+  @@index([order_id])
+  @@index([tenant_id])
+  @@map("order_returns")
+}
+
+model OrderReturnItem {
+  id              Int     @id @default(autoincrement())
+  order_return_id Int
+  order_item_id   Int
+  quantity        Int
+  // Preço PAGO na venda original (copiado de OrderItem.unit_price no momento da
+  // devolução) — nunca o preço de tabela atual do produto, que pode ter mudado.
+  unit_price      Decimal @db.Decimal(10, 2)
+  // Controla só se o item físico volta ao estoque vendável (produto com defeito
+  // não deveria) — não afeta se o valor é reembolsado/vira crédito, isso sempre
+  // acontece pra todo item devolvido.
+  restock         Boolean @default(true)
+
+  order_return OrderReturn @relation(fields: [order_return_id], references: [id], onDelete: Cascade)
+  order_item   OrderItem   @relation(fields: [order_item_id], references: [id], onDelete: Cascade)
+
+  @@index([order_return_id])
+  @@index([order_item_id])
+  @@map("order_return_items")
+}
+
+// Saldo de crédito de troca por cliente, gerado por uma devolução (quando o
+// pedido original tinha cliente identificado) e resgatável como forma de
+// pagamento numa venda nova no PDV. balance separado de amount permite uso
+// parcial em múltiplas vendas futuras.
+model CustomerCredit {
+  id              Int      @id @default(autoincrement())
+  tenant_id       Int
+  customer_id     Int
+  amount          Decimal  @db.Decimal(10, 2)
+  balance         Decimal  @db.Decimal(10, 2)
+  source          String   @default("order_return")
+  order_return_id Int?     @unique
+  status          String   @default("active") // active | used
+  created_at      DateTime @default(now())
+  updated_at      DateTime @updatedAt
+
+  tenant       Tenant                @relation(fields: [tenant_id], references: [id])
+  customer     Customer              @relation(fields: [customer_id], references: [id], onDelete: Cascade)
+  order_return OrderReturn?          @relation(fields: [order_return_id], references: [id], onDelete: SetNull)
+  usages       CustomerCreditUsage[]
+
+  @@index([tenant_id, customer_id])
+  @@map("customer_credits")
+}
+
+// Rastreabilidade auditável de qual venda consumiu qual parte de qual crédito.
+model CustomerCreditUsage {
+  id                 Int      @id @default(autoincrement())
+  customer_credit_id Int
+  order_id           Int
+  amount             Decimal  @db.Decimal(10, 2)
+  created_at         DateTime @default(now())
+
+  customer_credit CustomerCredit @relation(fields: [customer_credit_id], references: [id], onDelete: Cascade)
+  order           Order          @relation(fields: [order_id], references: [id], onDelete: Cascade)
+
+  @@index([customer_credit_id])
+  @@index([order_id])
+  @@map("customer_credit_usages")
+}
+
 model Seller {
   id              Int      @id @default(autoincrement())
   tenant_id       Int
@@ -739,17 +837,23 @@ model Technician {
 }
 
 model OrderItem {
-  id               Int     @id @default(autoincrement())
-  order_id         Int
-  product_id       Int?
-  name             String? // nome digitado na hora — só para item avulso (product_id nulo)
-  ncm              String? // opcional, só para item avulso — fallback "00000000" se vazio
-  quantity         Int
-  unit_price       Decimal @db.Decimal(10, 2)
-  dimensions_label String?
+  id                Int     @id @default(autoincrement())
+  order_id          Int
+  product_id        Int?
+  name              String? // nome digitado na hora — só para item avulso (product_id nulo)
+  ncm               String? // opcional, só para item avulso — fallback "00000000" se vazio
+  quantity          Int
+  unit_price        Decimal @db.Decimal(10, 2)
+  dimensions_label  String?
+  // Desnormalizado (somado a cada devolução, dentro da mesma transação que cria o
+  // OrderReturnItem) — evita groupBy toda vez que a tela precisa saber "quanto
+  // ainda pode devolver" (quantity - returned_quantity). Mesmo padrão de
+  // CustomerDebt.amount_paid, mantido junto de CustomerDebtPayment.
+  returned_quantity Int     @default(0)
 
-  order   Order    @relation(fields: [order_id], references: [id], onDelete: Cascade)
-  product Product? @relation(fields: [product_id], references: [id], onDelete: Cascade)
+  order   Order              @relation(fields: [order_id], references: [id], onDelete: Cascade)
+  product Product?           @relation(fields: [product_id], references: [id], onDelete: Cascade)
+  returns OrderReturnItem[]
 
   @@map("order_items")
 }
@@ -933,6 +1037,7 @@ model Customer {
   customer_notes CustomerNote[]
   point_entries  CustomerPoint[]
   redemptions    PointRedemption[]
+  credits        CustomerCredit[]
 
   @@map("customers")
 }

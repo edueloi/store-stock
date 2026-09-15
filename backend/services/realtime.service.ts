@@ -16,8 +16,10 @@ export type RealtimeEvent =
   | "order:updated"          // pedido teve status/dados alterados
   | "order:cancelled"        // pedido cancelado
   | "order:deleted"          // pedido excluído
+  | "order:returned"         // devolução/troca registrada num pedido
   | "finance:changed"        // lançamento financeiro (contas a pagar/receber, caixa) criado/editado/removido
   | "cash-session:changed"   // sessão de caixa aberta ou fechada
+  | "customer-credit:changed" // saldo de crédito de troca de um cliente mudou
   | "service-order:changed"  // ordem de serviço criada ou com status alterado
   | "consignment:changed"    // consignação criada, editada ou liquidada
   | "nfce:changed"           // NFC-e emitida, autorizada, rejeitada ou cancelada

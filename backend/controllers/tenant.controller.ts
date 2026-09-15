@@ -112,6 +112,7 @@ export async function updateTenant(req: Request, res: Response) {
     if (b.logout_on_cash_close !== undefined) data.logout_on_cash_close = Boolean(b.logout_on_cash_close);
     if (b.crediario_interest_rate !== undefined) data.crediario_interest_rate = Math.min(30, Math.max(0, Number(b.crediario_interest_rate) || 0));
     if (b.crediario_grace_days !== undefined)    data.crediario_grace_days    = Math.min(90, Math.max(0, Number(b.crediario_grace_days) || 0));
+    if (b.return_deadline_days !== undefined)    data.return_deadline_days    = b.return_deadline_days === null ? null : Math.min(365, Math.max(0, Number(b.return_deadline_days) || 0));
 
     // Dados fiscais
     if (b.razao_social !== undefined)        data.razao_social        = b.razao_social;

@@ -6,6 +6,7 @@ import {
   updateCustomer,
   deleteCustomer,
   listDebts,
+  getCustomerCredits,
   createDebt,
   payDebt,
   payDebtPartial,
@@ -31,6 +32,8 @@ router.get("/:id",                  getCustomer);
 router.post("/",                    createCustomer);
 router.put("/:id",                  updateCustomer);
 router.delete("/:id",               deleteCustomer);
+
+router.get("/:id/credits",          getCustomerCredits);
 
 // Debts (fiado)
 router.get("/:id/debts",            listDebts);

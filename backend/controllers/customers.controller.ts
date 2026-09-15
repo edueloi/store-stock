@@ -193,6 +193,24 @@ export async function deleteCustomer(req: Request, res: Response) {
 
 // ─── Debts (Fiado) ────────────────────────────────────────────────────────────
 
+// Saldo de crédito de troca disponível do cliente (gerado por devoluções) —
+// consumível como forma de pagamento numa venda nova no PDV.
+export async function getCustomerCredits(req: Request, res: Response) {
+  try {
+    const tenantId = getTenantId(req);
+    const customerId = Number(req.params.id);
+    const credits = await prisma.customerCredit.findMany({
+      where: { tenant_id: tenantId, customer_id: customerId, status: "active" },
+      orderBy: { created_at: "asc" },
+    });
+    const balance = credits.reduce((sum, c) => sum + Number(c.balance), 0);
+    res.json({ balance: Math.round(balance * 100) / 100, credits });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Falha ao buscar saldo de crédito" });
+  }
+}
+
 export async function listDebts(req: Request, res: Response) {
   try {
     const tenantId = getTenantId(req);

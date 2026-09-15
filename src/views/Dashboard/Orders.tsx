@@ -23,6 +23,8 @@ import {
   ArrowUp,
   ArrowDown,
   FileText,
+  RotateCcw,
+  Gift,
 } from "lucide-react";
 import PageHeader from "../../components/layout/PageHeader";
 import { Order, Product } from "../../types";
@@ -33,6 +35,7 @@ import { useToast } from "../../components/ui/Toast";
 import { onRealtimeAny } from "../../lib/realtime";
 import { fetchRemotePrintTerminals, requestRemotePrint, type RemotePrintTerminal } from "../../lib/remotePrint";
 import { Printer } from "lucide-react";
+import OrderReturnModal from "./OrderReturnModal";
 
 // Baixa um arquivo autenticado (Bearer token) via fetch+blob — um <a href> direto
 // não envia o header Authorization e o backend responde 401.
@@ -61,6 +64,7 @@ interface OrderDetail extends Order {
     product_name: string;
     quantity: number;
     unit_price: number;
+    returned_quantity?: number;
   }>;
 }
 
@@ -77,6 +81,7 @@ interface TenantBasic {
   address_state?: string;
   address_zip?: string;
   address?: string;
+  return_deadline_days?: number | null;
   policies?: {
     returns?: string;
     shipping?: string;
@@ -393,6 +398,8 @@ export default function Orders() {
   const [cancelReason, setCancelReason] = useState("");
   const [cancelledBy, setCancelledBy] = useState("");
   const [cancelling, setCancelling] = useState(false);
+  const [showReturnModal, setShowReturnModal] = useState(false);
+  const [returnResult, setReturnResult] = useState<{ credit: { id: number; amount: number } | null; creditAmount: number } | null>(null);
 
   // Bulk selection state
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
@@ -512,7 +519,7 @@ export default function Orders() {
 
   // Reflete na hora pedidos criados/cancelados/excluídos em outro terminal/tela.
   useEffect(() => onRealtimeAny(
-    ["order:created", "order:updated", "order:cancelled", "order:deleted", "nfce:changed"],
+    ["order:created", "order:updated", "order:cancelled", "order:deleted", "order:returned", "nfce:changed"],
     () => { fetchOrders(); },
   ), []);
 
@@ -1939,6 +1946,13 @@ ${
                       Efetivar
                     </button>
                   )}
+                  {selectedOrder.status === "completed" &&
+                    selectedOrder.items.some((i) => i.quantity - (i.returned_quantity ?? 0) > 0) && (
+                    <button onClick={() => { setReturnResult(null); setShowReturnModal(true); }}
+                      className="h-8 px-3 bg-amber-50 text-amber-600 border border-amber-100 rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-amber-100 active:scale-95 transition-all">
+                      Devolver/Trocar
+                    </button>
+                  )}
                   {selectedOrder.status !== "cancelled" && (
                     <button onClick={() => setShowCancelModal(true)}
                       className="h-8 px-3 bg-red-50 text-red-500 border border-red-100 rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-red-100 active:scale-95 transition-all">
@@ -2189,6 +2203,68 @@ ${
               </div>
             </motion.div>
           </>
+        )}
+      </AnimatePresence>
+
+      {/* Devolução/troca */}
+      {showReturnModal && selectedOrder && !returnResult && (
+        <OrderReturnModal
+          orderId={selectedOrder.id}
+          orderCreatedAt={selectedOrder.created_at}
+          customerId={selectedOrder.customer_id}
+          customerName={selectedOrder.customer_name}
+          items={selectedOrder.items}
+          returnDeadlineDays={tenant?.return_deadline_days}
+          onClose={() => setShowReturnModal(false)}
+          onSuccess={(result) => {
+            setReturnResult(result);
+            fetchOrderDetails(selectedOrder.id);
+            fetchOrders();
+          }}
+        />
+      )}
+
+      {/* Resultado pós-devolução — oferece "usar crédito agora" quando houve crédito */}
+      <AnimatePresence>
+        {showReturnModal && selectedOrder && returnResult && (
+          <div className="fixed inset-0 z-[600] flex items-center justify-center px-4 bg-slate-900/50 backdrop-blur-sm">
+            <motion.div initial={{ opacity: 0, scale: 0.92 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.92 }}
+              className="bg-white rounded-3xl shadow-2xl w-full max-w-sm overflow-hidden">
+              <div className="px-6 py-5 bg-emerald-50 border-b border-emerald-100 flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-emerald-100 flex items-center justify-center">
+                  <CheckCircle2 size={18} className="text-emerald-600" />
+                </div>
+                <div>
+                  <p className="text-[10px] font-bold text-emerald-500 uppercase tracking-widest">Devolução Registrada</p>
+                  <p className="text-sm font-black text-emerald-900">R$ {returnResult.creditAmount.toFixed(2)}</p>
+                </div>
+              </div>
+              <div className="p-6 space-y-4">
+                {returnResult.credit ? (
+                  <div className="flex items-start gap-2.5 rounded-xl px-3 py-2.5 bg-violet-50 border border-violet-100 text-[11px] text-violet-700">
+                    <Gift size={14} className="shrink-0 mt-0.5" />
+                    <span>Crédito de R$ {returnResult.credit.amount.toFixed(2)} gerado para {selectedOrder.customer_name || "o cliente"}.</span>
+                  </div>
+                ) : (
+                  <p className="text-[11px] text-slate-500 font-medium leading-relaxed">
+                    Valor devolvido em dinheiro/estorno — sem cliente identificado nesta venda para vincular um crédito.
+                  </p>
+                )}
+                <div className="flex gap-2">
+                  <button onClick={() => { setShowReturnModal(false); setReturnResult(null); }}
+                    className="flex-1 h-10 rounded-xl border border-slate-200 text-sm font-semibold text-slate-600 hover:bg-slate-100">
+                    Fechar
+                  </button>
+                  {returnResult.credit && (
+                    <button onClick={() => navigate(`/admin/pdv?customerId=${selectedOrder.customer_id}&creditId=${returnResult.credit!.id}`)}
+                      className="flex-1 h-10 bg-violet-600 text-white rounded-xl text-sm font-bold hover:bg-violet-700">
+                      Usar crédito agora
+                    </button>
+                  )}
+                </div>
+              </div>
+            </motion.div>
+          </div>
         )}
       </AnimatePresence>
 

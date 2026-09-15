@@ -688,6 +688,7 @@ export default function Settings() {
   // ── Crediário: juros configurável sobre parcela em atraso ───────────────────
   const [crediarioInterestRate, setCrediarioInterestRate] = useState(0);
   const [crediarioGraceDays, setCrediarioGraceDays] = useState(0);
+  const [returnDeadlineDays, setReturnDeadlineDays] = useState(30);
   const [savingCrediario, setSavingCrediario] = useState(false);
 
   // ── Terminal (maquininha API) ────────────────────────────────────────────────
@@ -740,6 +741,7 @@ export default function Settings() {
         if (d?.pass_fee_by_method) setPassFeeByMethod(d.pass_fee_by_method as Record<string, boolean>);
         if (d?.crediario_interest_rate !== undefined) setCrediarioInterestRate(Number(d.crediario_interest_rate));
         if (d?.crediario_grace_days !== undefined) setCrediarioGraceDays(Number(d.crediario_grace_days));
+        if (d?.return_deadline_days !== undefined && d.return_deadline_days !== null) setReturnDeadlineDays(Number(d.return_deadline_days));
         setLoading(false);
       });
 
@@ -1071,6 +1073,7 @@ export default function Settings() {
         body: JSON.stringify({
           crediario_interest_rate: crediarioInterestRate,
           crediario_grace_days: crediarioGraceDays,
+          return_deadline_days: returnDeadlineDays,
         }),
       });
       if (res.ok) {
@@ -2541,6 +2544,24 @@ export default function Settings() {
                     Juros nunca é cobrado sozinho: essa taxa só serve de sugestão na tela de crediário
                     (Cliente / PDV). Aplicar o valor a uma parcela é sempre uma ação manual do operador.
                   </p>
+                </div>
+
+                <p className="text-[10px] font-black uppercase tracking-widest text-slate-700 border-l-4 border-blue-500 pl-3">
+                  Devolução & Troca
+                </p>
+
+                <div className="flex items-center justify-between gap-4 p-4 bg-white border border-slate-200 rounded-xl">
+                  <div>
+                    <p className="text-[12px] font-bold text-slate-700">Prazo de devolução</p>
+                    <p className="text-[10px] text-slate-400 mt-0.5">Dias desde a venda — só um aviso na tela de devolução, nunca bloqueia.</p>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <button onClick={() => setReturnDeadlineDays((v) => Math.max(0, v - 1))}
+                      className="w-8 h-8 rounded-lg bg-slate-100 hover:bg-slate-200 border border-slate-200 text-slate-600 font-black text-lg flex items-center justify-center transition-all">−</button>
+                    <span className="w-10 text-center font-mono font-black text-[16px] text-slate-800">{returnDeadlineDays}d</span>
+                    <button onClick={() => setReturnDeadlineDays((v) => Math.min(365, v + 1))}
+                      className="w-8 h-8 rounded-lg bg-slate-100 hover:bg-slate-200 border border-slate-200 text-slate-600 font-black text-lg flex items-center justify-center transition-all">+</button>
+                  </div>
                 </div>
 
                 <SaveButton onClick={handleSaveCrediario} label={savingCrediario ? "Salvando..." : "Salvar Configurações"} />

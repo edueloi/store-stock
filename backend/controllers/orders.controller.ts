@@ -305,6 +305,184 @@ export async function cancelOrder(req: Request, res: Response) {
   }
 }
 
+interface OrderReturnLineInput {
+  order_item_id: number;
+  quantity: number;
+  restock: boolean;
+}
+
+// Devolução/troca de item(ns) de um pedido — granularidade por item e quantidade
+// parcial (diferente de cancelOrder, que só reverte o pedido inteiro). Uma
+// operação = um OrderReturn com N OrderReturnItem, um único crédito resultante,
+// um único lançamento de estorno no financeiro (não apaga a venda original,
+// diferente de cancelOrder — mesmo padrão auditável de reverseDebtPayment em
+// customers.controller.ts).
+export async function createOrderReturn(req: Request, res: Response) {
+  try {
+    const tenantId = getTenantId(req);
+    const orderId = Number(req.params.id);
+    const { items, reason } = req.body as { items: OrderReturnLineInput[]; reason?: string };
+
+    if (!Array.isArray(items) || items.length === 0) {
+      res.status(422).json({ error: "Informe ao menos um item para devolver" });
+      return;
+    }
+
+    const order = await prisma.order.findFirst({ where: { id: orderId, tenant_id: tenantId } });
+    if (!order) { res.status(404).json({ error: "Pedido não encontrado" }); return; }
+    if (order.status === "cancelled") {
+      res.status(400).json({ error: "Pedido já cancelado — estoque e financeiro já foram revertidos por inteiro" });
+      return;
+    }
+    if (order.status !== "completed") {
+      res.status(400).json({ error: "Só é possível devolver itens de um pedido já efetivado" });
+      return;
+    }
+
+    const actor = getActor(req);
+
+    const result = await prisma.$transaction(async (tx) => {
+      // Relê os OrderItem de dentro da transação — evita que duas devoluções
+      // concorrentes do mesmo item validem contra o mesmo returned_quantity
+      // desatualizado e juntas somem mais do que foi vendido.
+      const orderItemIds = items.map((l) => l.order_item_id);
+      const orderItems = await tx.orderItem.findMany({
+        where: { id: { in: orderItemIds }, order_id: orderId },
+      });
+      const orderItemById = new Map(orderItems.map((oi) => [oi.id, oi]));
+
+      for (const line of items) {
+        const oi = orderItemById.get(line.order_item_id);
+        if (!oi) throw new Error(`ITEM_NOT_FOUND:${line.order_item_id}`);
+        const available = oi.quantity - oi.returned_quantity;
+        if (!Number.isInteger(line.quantity) || line.quantity <= 0 || line.quantity > available) {
+          throw new Error(`INVALID_QUANTITY:${line.order_item_id}`);
+        }
+      }
+
+      const orderReturn = await tx.orderReturn.create({
+        data: { tenant_id: tenantId, order_id: orderId, reason: reason || null, created_by: actor },
+      });
+
+      let creditAmount = 0;
+      for (const line of items) {
+        const oi = orderItemById.get(line.order_item_id)!;
+        const unitPrice = Number(oi.unit_price);
+
+        await tx.orderReturnItem.create({
+          data: {
+            order_return_id: orderReturn.id,
+            order_item_id: oi.id,
+            quantity: line.quantity,
+            unit_price: unitPrice,
+            restock: line.restock,
+          },
+        });
+
+        await tx.orderItem.update({
+          where: { id: oi.id },
+          data: { returned_quantity: { increment: line.quantity } },
+        });
+
+        // Item avulso (product_id null) nunca debitou estoque — nunca reverte,
+        // mesma regra de revertStock (linha 38). Descarte (restock false) também
+        // não reverte: produto com defeito não deve voltar a ser vendável.
+        if (line.restock && oi.product_id) {
+          await tx.product.update({
+            where: { id: oi.product_id },
+            data: { stock_quantity: { increment: line.quantity } },
+          });
+          await tx.stockMovement.create({
+            data: {
+              tenant_id: tenantId,
+              product_id: oi.product_id,
+              quantity: line.quantity,
+              type: "order_return",
+              reason: reason || `Devolução — Pedido #${orderId}`,
+            },
+          });
+        }
+
+        // Restock só controla se o item físico volta ao estoque vendável — o
+        // valor sempre é reembolsado/vira crédito pra todo item devolvido,
+        // independente da condição em que voltou.
+        creditAmount += unitPrice * line.quantity;
+      }
+      creditAmount = Math.round(creditAmount * 100) / 100;
+
+      const finance = await tx.finance.create({
+        data: {
+          tenant_id: tenantId,
+          type: "expense",
+          description: `Devolução — Pedido #${orderId}`,
+          amount: creditAmount,
+          source: "order_return",
+          order_id: orderId,
+          date: localDateString(),
+        },
+      });
+
+      let credit: { id: number; amount: number } | null = null;
+      if (order.customer_id && creditAmount > 0) {
+        const created = await tx.customerCredit.create({
+          data: {
+            tenant_id: tenantId,
+            customer_id: order.customer_id,
+            amount: creditAmount,
+            balance: creditAmount,
+            source: "order_return",
+            order_return_id: orderReturn.id,
+          },
+        });
+        credit = { id: created.id, amount: creditAmount };
+      }
+
+      await tx.orderReturn.update({ where: { id: orderReturn.id }, data: { credit_amount: creditAmount } });
+
+      await tx.orderAction.create({
+        data: {
+          tenant_id: tenantId,
+          order_id: orderId,
+          action: "returned",
+          actor,
+          note: reason || null,
+          meta: { order_return_id: orderReturn.id, credit_amount: creditAmount, finance_id: finance.id, credit_id: credit?.id ?? null },
+        },
+      });
+
+      return { orderReturnId: orderReturn.id, creditAmount, credit };
+    });
+
+    emitToTenant(tenantId, "order:returned", { orderId });
+    emitToTenant(tenantId, "stock:changed", { orderId });
+    emitToTenant(tenantId, "finance:changed", { orderId });
+    if (result.credit) emitToTenant(tenantId, "customer-credit:changed", { customerId: order.customer_id });
+
+    res.json({ success: true, ...result });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : "";
+    if (msg.startsWith("ITEM_NOT_FOUND")) { res.status(404).json({ error: "Item do pedido não encontrado" }); return; }
+    if (msg.startsWith("INVALID_QUANTITY")) { res.status(422).json({ error: "Quantidade a devolver inválida ou maior que a disponível" }); return; }
+    console.error(err);
+    res.status(500).json({ error: "Falha ao registrar devolução" });
+  }
+}
+
+export async function listOrderReturns(req: Request, res: Response) {
+  try {
+    const tenantId = getTenantId(req);
+    const orderId = Number(req.params.id);
+    const returns = await prisma.orderReturn.findMany({
+      where: { order_id: orderId, tenant_id: tenantId },
+      include: { items: true, credit: true },
+      orderBy: { created_at: "desc" },
+    });
+    res.json(returns);
+  } catch {
+    res.status(500).json({ error: "Falha ao buscar devoluções" });
+  }
+}
+
 export async function deleteOrder(req: Request, res: Response) {
   try {
     const tenantId = getTenantId(req);
