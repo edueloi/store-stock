@@ -3,6 +3,7 @@ import type { Request, Response } from "express";
 import { prisma } from "../config/prisma";
 import { localDateString } from "../utils/date";
 import type { AuthenticatedRequest } from "../types/auth";
+import { recalculateCashSessionSummary } from "./cash-sessions.controller";
 
 function getTenantId(req: Request) {
   return (req as AuthenticatedRequest).user.tenantId;
@@ -140,6 +141,14 @@ export async function updateFinanceEntry(req: Request, res: Response) {
             ...(newPm               ? { payment_method:  newPm       } : {}),
           },
         });
+
+        // Editar a forma de pagamento (dinheiro → PIX, etc.) ou o valor de uma venda
+        // muda quanto cada forma deveria somar no fechamento de caixa — sem recalcular
+        // aqui, o Histórico de Caixa (esperado/diferença por forma) fica desatualizado
+        // até alguém fechar/reabrir a sessão de novo, mesmo sessões já fechadas.
+        if (order.cash_session_id) {
+          await recalculateCashSessionSummary(tenantId, order.cash_session_id);
+        }
       }
     }
 
@@ -157,7 +166,21 @@ export async function deleteFinanceEntry(req: Request, res: Response) {
     const existing = await prisma.finance.findFirst({ where: { id: Number(id), tenant_id: tenantId } });
     if (!existing) return res.status(404).json({ error: "Not found" });
 
+    // Descobre a sessão de caixa do pedido vinculado (se houver) ANTES de apagar o
+    // lançamento — depois de excluído não tem mais como achar essa referência.
+    const cashSessionId = existing.order_id
+      ? (await prisma.order.findFirst({ where: { id: existing.order_id, tenant_id: tenantId }, select: { cash_session_id: true } }))?.cash_session_id
+      : null;
+
     await prisma.finance.delete({ where: { id: Number(id) } });
+
+    // Excluir um lançamento tira aquele valor do esperado por forma de pagamento —
+    // sem recalcular, o Histórico de Caixa fica desatualizado (mesma razão do
+    // cancelamento/exclusão de pedido).
+    if (cashSessionId) {
+      await recalculateCashSessionSummary(tenantId, cashSessionId);
+    }
+
     res.json({ ok: true });
   } catch {
     res.status(500).json({ error: "Failed to delete finance entry" });
@@ -170,7 +193,26 @@ export async function deleteManyFinanceEntries(req: Request, res: Response) {
     const { ids } = req.body as { ids: number[] };
     if (!Array.isArray(ids) || ids.length === 0) return res.status(400).json({ error: "ids required" });
 
+    const existingEntries = await prisma.finance.findMany({
+      where: { id: { in: ids }, tenant_id: tenantId },
+      select: { order_id: true },
+    });
+    const orderIds = existingEntries.map((e) => e.order_id).filter((id): id is number => id != null);
+    const cashSessionIds = orderIds.length > 0
+      ? new Set(
+          (await prisma.order.findMany({
+            where: { id: { in: orderIds }, tenant_id: tenantId, cash_session_id: { not: null } },
+            select: { cash_session_id: true },
+          })).map((o) => o.cash_session_id!)
+        )
+      : new Set<number>();
+
     await prisma.finance.deleteMany({ where: { id: { in: ids }, tenant_id: tenantId } });
+
+    for (const sessionId of cashSessionIds) {
+      await recalculateCashSessionSummary(tenantId, sessionId);
+    }
+
     res.json({ ok: true });
   } catch {
     res.status(500).json({ error: "Failed to delete finance entries" });

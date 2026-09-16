@@ -324,6 +324,32 @@ function buildMenu() {
       label: "PDV",
       submenu: [
         { label: "Recarregar", accelerator: "CmdOrCtrl+R", click: () => loadEntry() },
+        {
+          label: "Limpar Cache e Recarregar",
+          accelerator: "CmdOrCtrl+Shift+R",
+          click: async () => {
+            // "Recarregar" comum reusa o cache HTTP/Service Worker normalmente — não
+            // resolve quando o terminal fica preso numa versão antiga (o app não
+            // empacota o frontend, só aponta pra URL de produção via loadURL, então
+            // o cache é o mesmo problema de um navegador comum). Isso aqui é o
+            // botão que faltava: limpa cache de disco + desregistra o Service
+            // Worker antes de recarregar, forçando buscar tudo de novo do servidor.
+            try {
+              const ses = mainWindow.webContents.session;
+              await ses.clearCache();
+              await mainWindow.webContents.executeJavaScript(
+                `navigator.serviceWorker?.getRegistrations().then(rs => Promise.all(rs.map(r => r.unregister())))`,
+                true
+              ).catch(() => {});
+              loadEntry();
+            } catch (err) {
+              dialog.showMessageBox(mainWindow, {
+                type: "error", title: "Limpar Cache",
+                message: `Não foi possível limpar o cache: ${err?.message || err}`,
+              });
+            }
+          },
+        },
         { label: "Tela Cheia", accelerator: "F11", click: () => mainWindow.setFullScreen(!mainWindow.isFullScreen()) },
         { type: "separator" },
         { label: "Abrir Gaveta", accelerator: "F4", click: () => mainWindow.webContents.send("pdv:shortcut", "open-drawer") },
