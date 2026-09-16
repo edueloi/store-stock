@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from "react";
 import ExcelJS from "exceljs";
 import {
-  Search, Wallet, CheckCircle2, Clock, X, Loader2, User, Calendar, ChevronRight, Printer,
+  Search, Wallet, CheckCircle2, Clock, X, Loader2, User, Calendar, ChevronRight, ChevronLeft, Printer,
   Download, FileSpreadsheet, FileText, PieChart as PieChartIcon, ListOrdered, BarChart3, DollarSign,
 } from "lucide-react";
 import {
@@ -124,6 +124,12 @@ export default function CashSessionHistory() {
   const [detail, setDetail] = useState<CashSessionDetail | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
   const [expandedOrderId, setExpandedOrderId] = useState<number | null>(null);
+  // Filtro/paginação da lista "Vendas nesta sessão" dentro do modal de detalhe —
+  // sessões com muitas vendas ficavam impossíveis de navegar sem isso.
+  const [orderDatePreset, setOrderDatePreset] = useState<"all" | "today" | "yesterday" | "7d" | "month">("all");
+  const [orderSearch, setOrderSearch] = useState("");
+  const [orderPage, setOrderPage] = useState(1);
+  const ORDERS_PAGE_SIZE = 10;
   const [mainTab, setMainTab] = useState<"sessions" | "report">("sessions");
   const [showExportModal, setShowExportModal] = useState(false);
   const [exporting, setExporting] = useState(false);
@@ -775,6 +781,9 @@ export default function CashSessionHistory() {
     setDetailLoading(true);
     setDetail(null);
     setExpandedOrderId(null);
+    setOrderDatePreset("all");
+    setOrderSearch("");
+    setOrderPage(1);
     try {
       const res = await fetch(`/api/cash-sessions/${id}`, { headers: { Authorization: `Bearer ${token}` } });
       const data = await res.json();
@@ -785,6 +794,53 @@ export default function CashSessionHistory() {
       setDetailLoading(false);
     }
   };
+
+  // Filtro de data + busca da lista "Vendas nesta sessão" — os presets (Hoje/Ontem/
+  // 7 dias/Mês) comparam contra a data local do dispositivo, não UTC, senão uma venda
+  // feita às 21h horário de Brasília cairia no dia seguinte pro filtro.
+  const filteredDetailOrders = useMemo(() => {
+    if (!detail) return [];
+    const now = new Date();
+    const startOfDay = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate());
+    const today0 = startOfDay(now);
+
+    let from: Date | null = null;
+    if (orderDatePreset === "today") from = today0;
+    else if (orderDatePreset === "yesterday") from = new Date(today0.getTime() - 24 * 60 * 60 * 1000);
+    else if (orderDatePreset === "7d") from = new Date(today0.getTime() - 7 * 24 * 60 * 60 * 1000);
+    else if (orderDatePreset === "month") from = new Date(now.getFullYear(), now.getMonth(), 1);
+
+    let to: Date | null = null;
+    if (orderDatePreset === "yesterday") to = today0;
+
+    const term = orderSearch.trim().toLowerCase();
+
+    return detail.orders.filter((o) => {
+      const createdAt = new Date(o.created_at);
+      if (from && createdAt < from) return false;
+      if (to && createdAt >= to) return false;
+      if (term) {
+        const idMatch = String(o.id).includes(term) || `#${String(o.id).padStart(6, "0")}`.toLowerCase().includes(term);
+        const customerMatch = (o.customer_name || "").toLowerCase().includes(term);
+        const itemMatch = o.items.some((it) => (it.product?.name ?? it.name ?? "").toLowerCase().includes(term));
+        if (!idMatch && !customerMatch && !itemMatch) return false;
+      }
+      return true;
+    });
+  }, [detail, orderDatePreset, orderSearch]);
+
+  const orderTotalPages = Math.max(1, Math.ceil(filteredDetailOrders.length / ORDERS_PAGE_SIZE));
+  const paginatedDetailOrders = filteredDetailOrders.slice(
+    (orderPage - 1) * ORDERS_PAGE_SIZE,
+    orderPage * ORDERS_PAGE_SIZE,
+  );
+
+  // Volta pra página 1 sempre que o filtro mudar — senão o usuário pode ficar preso
+  // numa página que não existe mais depois de filtrar (ex.: estava na página 3, o
+  // filtro deixou só 1 página de resultado).
+  useEffect(() => {
+    setOrderPage(1);
+  }, [orderDatePreset, orderSearch]);
 
   return (
     <div className="space-y-6">
@@ -1301,14 +1357,51 @@ export default function CashSessionHistory() {
                 )}
 
                 <div>
-                  <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2">
-                    Vendas nesta sessão ({detail.orders.length})
-                  </p>
+                  <div className="flex items-center justify-between gap-2 mb-2">
+                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest shrink-0">
+                      Vendas nesta sessão ({filteredDetailOrders.length}{filteredDetailOrders.length !== detail.orders.length ? ` de ${detail.orders.length}` : ""})
+                    </p>
+                  </div>
+
+                  <div className="flex flex-col sm:flex-row gap-1.5 mb-2">
+                    <div className="relative flex-1 min-w-0">
+                      <Search size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-300" />
+                      <input
+                        value={orderSearch}
+                        onChange={(e) => setOrderSearch(e.target.value)}
+                        placeholder="Buscar por ID, cliente ou produto..."
+                        className="w-full h-8 pl-7 pr-2.5 rounded-lg border border-slate-200 bg-slate-50 text-[11px] font-semibold text-slate-700 placeholder-slate-400 outline-none focus:border-amber-400 focus:bg-white transition-colors"
+                      />
+                    </div>
+                    <div className="flex gap-1 shrink-0 overflow-x-auto">
+                      {([
+                        ["all", "Tudo"],
+                        ["today", "Hoje"],
+                        ["yesterday", "Ontem"],
+                        ["7d", "7 dias"],
+                        ["month", "Mês"],
+                      ] as const).map(([k, l]) => (
+                        <button
+                          key={k}
+                          onClick={() => setOrderDatePreset(k)}
+                          className={cn(
+                            "h-8 px-2.5 rounded-lg text-[10px] font-black uppercase tracking-wide whitespace-nowrap transition-colors shrink-0",
+                            orderDatePreset === k ? "bg-slate-800 text-white" : "bg-slate-100 text-slate-500 hover:bg-slate-200",
+                          )}
+                        >
+                          {l}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
                   <div className="space-y-1.5">
-                    {detail.orders.length === 0 && (
-                      <p className="text-[11px] text-slate-400 py-4 text-center">Nenhuma venda registrada nesta sessão.</p>
+                    {filteredDetailOrders.length === 0 && (
+                      <p className="text-[11px] text-slate-400 py-4 text-center">
+                        {detail.orders.length === 0 ? "Nenhuma venda registrada nesta sessão." : "Nenhuma venda encontrada com esse filtro."}
+                      </p>
                     )}
-                    {detail.orders.map((o) => {
+                    {paginatedDetailOrders.map((o) => {
                       const isOpen = expandedOrderId === o.id;
                       const methods = parsePaymentMethods(o.payment_method);
                       return (
@@ -1327,7 +1420,7 @@ export default function CashSessionHistory() {
                                 ))}
                               </div>
                               <p className="text-[9px] text-slate-400 truncate">
-                                {new Date(o.created_at).toLocaleTimeString("pt-BR")}
+                                {new Date(o.created_at).toLocaleString("pt-BR")}
                                 {o.customer_name ? ` · ${o.customer_name}` : ""}
                               </p>
                             </div>
@@ -1356,6 +1449,26 @@ export default function CashSessionHistory() {
                       );
                     })}
                   </div>
+
+                  {filteredDetailOrders.length > ORDERS_PAGE_SIZE && (
+                    <div className="flex items-center justify-between gap-2 pt-2.5 mt-1 border-t border-slate-100">
+                      <button
+                        onClick={() => setOrderPage((p) => Math.max(1, p - 1))}
+                        disabled={orderPage <= 1}
+                        className="h-7 px-2 rounded-lg bg-slate-100 text-slate-500 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-200 transition-colors flex items-center gap-1 text-[10px] font-black uppercase"
+                      >
+                        <ChevronLeft size={12} /> Anterior
+                      </button>
+                      <p className="text-[10px] font-bold text-slate-400">Página {orderPage} de {orderTotalPages}</p>
+                      <button
+                        onClick={() => setOrderPage((p) => Math.min(orderTotalPages, p + 1))}
+                        disabled={orderPage >= orderTotalPages}
+                        className="h-7 px-2 rounded-lg bg-slate-100 text-slate-500 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-200 transition-colors flex items-center gap-1 text-[10px] font-black uppercase"
+                      >
+                        Próxima <ChevronRight size={12} />
+                      </button>
+                    </div>
+                  )}
                 </div>
               </div>
             )}
