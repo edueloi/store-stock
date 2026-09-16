@@ -2211,6 +2211,12 @@ ${nfceInvoice.protocol ? `<div class="row"><span class="bold">Protocolo:</span><
       paymentMethod: pmString,
       discount: discountValue,
       surcharge: surchargeValue > 0 ? surchargeValue : undefined,
+      // Sem isso, o fechamento de caixa contava o valor RECEBIDO em dinheiro (incluindo
+      // o que vira troco) como se tivesse ficado na gaveta — o PDV do Dashboard já envia
+      // esse campo (PDV.tsx), mas o Standalone nunca enviou, deixando change_amount
+      // sempre null nas vendas feitas por aqui e inflando o "esperado em dinheiro" do
+      // fechamento por todo troco dado no dia (bug real visto em produção).
+      changeAmount: change > 0 ? change : undefined,
       passFeeToCustomer,
       passFeeByMethod,
       crediarioInstallments: crediarioPayment?.crediarioInstallments ?? undefined,
