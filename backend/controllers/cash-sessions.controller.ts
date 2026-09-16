@@ -92,7 +92,7 @@ export async function closeCashSession(req: Request, res: Response) {
 
     const orders = await prisma.order.findMany({
       where: { tenant_id: tenantId, cash_session_id: id, status: "completed" },
-      select: { payment_method: true, fee_amount: true },
+      select: { payment_method: true, fee_amount: true, change_amount: true },
     });
 
     // Pagamentos de dívida (crediário) recebidos dentro desta sessão de caixa — cada
@@ -111,12 +111,27 @@ export async function closeCashSession(req: Request, res: Response) {
       const segs = parsePaymentMethod(order.payment_method ?? "money").filter((seg) => seg.amount > 0);
       const orderGross = segs.reduce((sum, seg) => sum + seg.amount, 0);
       const orderFee = Number(order.fee_amount) || 0;
+      // O segmento "money" guarda o valor RECEBIDO do cliente (ex.: cliente paga R$20
+      // numa compra de R$5,99), não o que fica na gaveta — sem subtrair o troco aqui,
+      // o "esperado em dinheiro" do fechamento de caixa ficava inflado por todo troco
+      // dado no dia, gerando uma diferença negativa gigante e falsa (bug real visto em
+      // produção: sessão com 484,90 esperado vs 190,80 contado, quando o esperado
+      // correto — descontando troco — era 420,38).
+      const changeAmount = Number(order.change_amount) || 0;
+      let changeToApply = changeAmount;
       for (const seg of segs) {
-        totals[seg.method] = (totals[seg.method] ?? 0) + seg.amount;
+        let segAmount = seg.amount;
+        if (seg.method === "money" && changeToApply > 0) {
+          const applied = Math.min(changeToApply, segAmount);
+          segAmount -= applied;
+          changeToApply -= applied;
+        }
+        totals[seg.method] = (totals[seg.method] ?? 0) + segAmount;
         // fee_amount é gravado por pedido, não por forma de pagamento — em venda
         // com pagamento misto (ex.: metade PIX, metade crédito), rateia a taxa
         // do pedido proporcionalmente ao valor de cada segmento. Dinheiro nunca
-        // tem taxa de maquininha, mesmo que aponte pra cá por engano.
+        // tem taxa de maquininha, mesmo que aponte pra cá por engano. O rateio usa o
+        // valor bruto original do segmento (orderGross), não o líquido pós-troco.
         if (seg.method !== "money" && orderFee > 0 && orderGross > 0) {
           fees[seg.method] = (fees[seg.method] ?? 0) + orderFee * (seg.amount / orderGross);
         }
