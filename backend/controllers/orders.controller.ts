@@ -5,6 +5,7 @@ import type { AuthenticatedRequest } from "../types/auth";
 import { localDateString } from "../utils/date";
 import { cancelarNfce } from "../services/nfce/cancelar";
 import { emitToTenant } from "../services/realtime.service";
+import { recalculateCashSessionSummary } from "./cash-sessions.controller";
 
 function getTenantId(req: Request) {
   return (req as AuthenticatedRequest).user.tenantId;
@@ -271,6 +272,14 @@ export async function cancelOrder(req: Request, res: Response) {
           type:        "income",
         },
       });
+    }
+
+    // Se este pedido pertencia a uma sessão de caixa (aberta ou já fechada), recalcula
+    // o resumo dela agora — sem isso, cancelar uma venda em dinheiro de uma sessão já
+    // fechada não tira o valor do "esperado", deixando a diferença do fechamento
+    // desatualizada/errada para sempre (bug real visto em produção).
+    if (order.cash_session_id) {
+      await recalculateCashSessionSummary(tenantId, order.cash_session_id);
     }
 
     // Log the cancellation action
@@ -541,6 +550,14 @@ export async function deleteOrder(req: Request, res: Response) {
     await prisma.orderItem.deleteMany({ where: { order_id: orderId } });
     await prisma.orderService.deleteMany({ where: { order_id: orderId } });
     await prisma.order.delete({ where: { id: orderId } });
+
+    // Se este pedido pertencia a uma sessão de caixa (aberta ou já fechada), recalcula
+    // o resumo dela agora que o pedido não existe mais — mesma razão do cancelamento:
+    // sem isso, excluir uma venda em dinheiro de uma sessão já fechada não tira o valor
+    // do "esperado", deixando a diferença do fechamento errada para sempre.
+    if (order.cash_session_id) {
+      await recalculateCashSessionSummary(tenantId, order.cash_session_id);
+    }
 
     emitToTenant(tenantId, "order:deleted", { orderId });
     emitToTenant(tenantId, "stock:changed", { orderId });

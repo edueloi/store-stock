@@ -13,6 +13,95 @@ function getUserId(req: Request) {
   return (req as AuthenticatedRequest).user.userId;
 }
 
+// Recalcula o resumo financeiro (esperado/contado/diferença por forma de pagamento)
+// de uma sessão de caixa a partir dos pedidos e pagamentos de dívida vinculados a ela
+// — usado tanto ao fechar o caixa quanto para RE-calcular uma sessão já fechada depois
+// que um pedido dela é cancelado/excluído (sem isso, cancelar uma venda em dinheiro
+// não tira o valor do "esperado" de uma sessão que já foi fechada, deixando a
+// diferença do fechamento desatualizada/errada para sempre).
+export async function recalculateCashSessionSummary(tenantId: number, sessionId: number) {
+  const session = await prisma.cashSession.findFirst({ where: { id: sessionId, tenant_id: tenantId } });
+  if (!session) return null;
+
+  const orders = await prisma.order.findMany({
+    where: { tenant_id: tenantId, cash_session_id: sessionId, status: "completed" },
+    select: { payment_method: true, fee_amount: true, change_amount: true },
+  });
+  const debtPayments = await prisma.customerDebtPayment.findMany({
+    where: { tenant_id: tenantId, cash_session_id: sessionId },
+    select: { payment_method: true, amount: true, fee_amount: true },
+  });
+
+  const totals: Record<string, number> = {};
+  const fees: Record<string, number> = {};
+  for (const order of orders) {
+    const segs = parsePaymentMethod(order.payment_method ?? "money").filter((seg) => seg.amount > 0);
+    const orderGross = segs.reduce((sum, seg) => sum + seg.amount, 0);
+    const orderFee = Number(order.fee_amount) || 0;
+    const changeAmount = Number(order.change_amount) || 0;
+    let changeToApply = changeAmount;
+    for (const seg of segs) {
+      let segAmount = seg.amount;
+      if (seg.method === "money" && changeToApply > 0) {
+        const applied = Math.min(changeToApply, segAmount);
+        segAmount -= applied;
+        changeToApply -= applied;
+      }
+      totals[seg.method] = (totals[seg.method] ?? 0) + segAmount;
+      if (seg.method !== "money" && orderFee > 0 && orderGross > 0) {
+        fees[seg.method] = (fees[seg.method] ?? 0) + orderFee * (seg.amount / orderGross);
+      }
+    }
+  }
+  for (const dp of debtPayments) {
+    const method = dp.payment_method || "money";
+    const amount = Number(dp.amount) || 0;
+    const fee = Number(dp.fee_amount) || 0;
+    totals[method] = (totals[method] ?? 0) + amount;
+    if (method !== "money" && fee > 0) {
+      fees[method] = (fees[method] ?? 0) + fee;
+    }
+  }
+
+  const openingAmount = Number(session.opening_amount);
+  const moneyExpected = Math.round((openingAmount + (totals.money ?? 0)) * 100) / 100;
+  // Sessão ainda aberta não tem "contado" definido ainda — mantém null (só existe
+  // depois que o operador fecha o caixa e informa o valor contado na gaveta).
+  const counted = session.counted_amount !== null ? Number(session.counted_amount) : null;
+  const difference = counted !== null ? Math.round((counted - moneyExpected) * 100) / 100 : null;
+
+  const existingBreakdown = (session.payment_breakdown as Record<string, any>) ?? {};
+  const paymentBreakdown: Record<string, { expected: number; counted?: number; difference?: number; fee?: number; net?: number }> = {
+    money: counted !== null ? { expected: moneyExpected, counted, difference: difference! } : { expected: moneyExpected },
+  };
+  for (const method of Object.keys(totals)) {
+    if (method === "money") continue;
+    const expected = Math.round(totals[method] * 100) / 100;
+    const fee = Math.round((fees[method] ?? 0) * 100) / 100;
+    const countedForMethod = existingBreakdown[method]?.counted;
+    paymentBreakdown[method] = {
+      expected,
+      fee: fee > 0 ? fee : undefined,
+      net: fee > 0 ? Math.round((expected - fee) * 100) / 100 : undefined,
+      ...(countedForMethod !== undefined
+        ? { counted: countedForMethod, difference: Math.round((countedForMethod - expected) * 100) / 100 }
+        : {}),
+    };
+  }
+
+  const updated = await prisma.cashSession.update({
+    where: { id: sessionId },
+    data: {
+      expected_amount: moneyExpected,
+      ...(session.status === "closed" ? { difference_amount: difference } : {}),
+      payment_breakdown: paymentBreakdown,
+    },
+  });
+
+  emitToTenant(tenantId, "cash-session:changed", { cashSessionId: sessionId });
+  return updated;
+}
+
 export async function getCurrentCashSession(req: Request, res: Response) {
   try {
     const tenantId = getTenantId(req);
