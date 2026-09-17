@@ -100,16 +100,6 @@ interface CashSessionOrder {
   items: CashSessionOrderItem[];
 }
 
-// payment_method é salvo como "money:50.00|pix:20.00" (múltiplas formas numa
-// venda) — mesmo formato usado no PDV, ver PaymentBadges em outras telas.
-function parsePaymentMethods(raw: string): string[] {
-  if (!raw) return [];
-  return raw.split("|").map((seg) => {
-    const method = seg.split(":")[0]?.split("-")[0] ?? seg;
-    return PM_LABEL[method] ?? method;
-  });
-}
-
 interface CashSessionDetail extends CashSession {
   orders: CashSessionOrder[];
 }
@@ -124,7 +114,6 @@ export default function CashSessionHistory() {
   const [statusFilter, setStatusFilter] = useState<"all" | "open" | "closed">("all");
   const [detail, setDetail] = useState<CashSessionDetail | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
-  const [expandedOrderId, setExpandedOrderId] = useState<number | null>(null);
   const [mainTab, setMainTab] = useState<"sessions" | "report">("sessions");
   const [showExportModal, setShowExportModal] = useState(false);
   const [exporting, setExporting] = useState(false);
@@ -374,6 +363,16 @@ export default function CashSessionHistory() {
     withDifference: sessions.filter((s) => s.status === "closed" && Number(s.difference_amount) !== 0).length,
   }), [sessions]);
 
+  const goToReportForSession = (session: CashSessionDetail) => {
+    const from = session.opened_at.substring(0, 10);
+    const to = (session.closed_at ?? new Date().toISOString()).substring(0, 10);
+    setDateFrom(from);
+    setDateTo(to);
+    setPeriodPreset("custom");
+    setMainTab("report");
+    setDetail(null);
+  };
+
   const printSessionReceipt = (session: CashSessionDetail) => {
     const W = 42;
     const rule = "=".repeat(W);
@@ -402,6 +401,14 @@ export default function CashSessionHistory() {
       receipt += `${thin}\n${center("POR FORMA DE PAGAMENTO")}\n${thin}\n`;
       Object.entries(session.payment_breakdown).forEach(([method, entry]) => {
         receipt += row(PM_LABEL[method] ?? method, `R$ ${money2(entry.expected)}`) + "\n";
+        // Só "Dinheiro" soma o fundo de abertura ao valor esperado — deixa explícito
+        // essa conta (abertura + vendas) pra não parecer que a loja vendeu mais em
+        // dinheiro do que realmente vendeu naquele dia.
+        if (method === "money") {
+          const salesOnly = Math.round((entry.expected - Number(session.opening_amount)) * 100) / 100;
+          receipt += row("  Fundo de abertura", `R$ ${money2(Number(session.opening_amount))}`) + "\n";
+          receipt += row("  + Vendas em dinheiro", `R$ ${money2(salesOnly)}`) + "\n";
+        }
         if (entry.counted !== undefined) receipt += row("  Contado", `R$ ${money2(entry.counted)}`) + "\n";
         if (entry.difference !== undefined && entry.difference !== 0) {
           receipt += row("  Diferença", `${entry.difference > 0 ? "+" : ""}R$ ${money2(entry.difference)}`) + "\n";
@@ -787,7 +794,6 @@ export default function CashSessionHistory() {
   const openDetail = async (id: number) => {
     setDetailLoading(true);
     setDetail(null);
-    setExpandedOrderId(null);
     try {
       const res = await fetch(`/api/cash-sessions/${id}`, { headers: { Authorization: `Bearer ${token}` } });
       const data = await res.json();
@@ -1313,62 +1319,17 @@ export default function CashSessionHistory() {
                   <div className="text-[11px] text-slate-500"><span className="font-bold text-slate-700">Obs. fechamento:</span> {detail.closing_note}</div>
                 )}
 
-                <div>
-                  <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2">
-                    Vendas nesta sessão ({detail.orders.length})
-                  </p>
-                  <div className="space-y-1.5">
-                    {detail.orders.length === 0 && (
-                      <p className="text-[11px] text-slate-400 py-4 text-center">Nenhuma venda registrada nesta sessão.</p>
-                    )}
-                    {detail.orders.map((o) => {
-                      const isOpen = expandedOrderId === o.id;
-                      const methods = parsePaymentMethods(o.payment_method);
-                      return (
-                        <div key={o.id} className="bg-slate-50 rounded-xl border border-slate-100 overflow-hidden">
-                          <button
-                            onClick={() => setExpandedOrderId(isOpen ? null : o.id)}
-                            className="w-full flex items-center justify-between px-3 py-2 text-left hover:bg-slate-100/60 transition-colors"
-                          >
-                            <div className="min-w-0">
-                              <div className="flex items-center gap-1.5">
-                                <p className="text-[11px] font-bold text-slate-700">#{String(o.id).padStart(6, "0")}</p>
-                                {methods.map((m, i) => (
-                                  <span key={i} className="text-[8px] font-black uppercase tracking-widest text-blue-500 bg-blue-50 border border-blue-100 px-1.5 py-0.5 rounded">
-                                    {m}
-                                  </span>
-                                ))}
-                              </div>
-                              <p className="text-[9px] text-slate-400 truncate">
-                                {new Date(o.created_at).toLocaleTimeString("pt-BR")}
-                                {o.customer_name ? ` · ${o.customer_name}` : ""}
-                              </p>
-                            </div>
-                            <div className="flex items-center gap-2 shrink-0">
-                              <p className="text-[11px] font-mono font-black text-slate-800">{money(o.total_amount)}</p>
-                              <ChevronRight size={13} className={cn("text-slate-400 transition-transform", isOpen && "rotate-90")} />
-                            </div>
-                          </button>
-                          {isOpen && (
-                            <div className="px-3 pb-2.5 pt-0.5 space-y-1 border-t border-slate-200/70">
-                              {o.items.length === 0 ? (
-                                <p className="text-[10px] text-slate-400 py-1.5">Sem itens registrados.</p>
-                              ) : o.items.map((item, i) => (
-                                <div key={i} className="flex items-center justify-between text-[10px] py-1">
-                                  <span className="text-slate-600 truncate pr-2">
-                                    {item.quantity}× {item.product?.name ?? item.name ?? "Item avulso"}
-                                  </span>
-                                  <span className="font-mono font-bold text-slate-700 shrink-0">
-                                    {money(Number(item.unit_price) * item.quantity)}
-                                  </span>
-                                </div>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })}
+                <div className="bg-slate-50 rounded-xl border border-slate-100 p-3.5 flex items-center justify-between gap-3">
+                  <div>
+                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Vendas nesta sessão</p>
+                    <p className="text-[15px] font-black text-slate-800">{detail.orders.length}</p>
                   </div>
+                  <button
+                    onClick={() => goToReportForSession(detail)}
+                    className="flex items-center gap-1.5 h-9 px-3 bg-blue-600 text-white rounded-xl text-[11px] font-bold hover:bg-blue-700 active:scale-95 transition-all shrink-0"
+                  >
+                    Ver Relatório de Vendas <ChevronRight size={14} />
+                  </button>
                 </div>
               </div>
             )}
