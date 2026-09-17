@@ -322,7 +322,7 @@ export async function getCashSessionDetail(req: Request, res: Response) {
         orders: {
           select: {
             id: true, total_amount: true, gross_amount: true, discount_amount: true, fee_amount: true,
-            payment_method: true, created_at: true, status: true,
+            payment_method: true, change_amount: true, created_at: true, status: true,
             customer_name: true, seller_name: true,
             items: {
               select: {

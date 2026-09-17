@@ -92,6 +92,7 @@ interface CashSessionOrder {
   discount_amount: string | number | null;
   fee_amount: string | number | null;
   payment_method: string;
+  change_amount: string | number | null;
   created_at: string;
   status: string;
   customer_name: string | null;
@@ -273,10 +274,22 @@ export default function CashSessionHistory() {
     const totals: Record<string, { method: string; brand: string; amount: number }> = {};
     orders.forEach((o) => {
       if (o.status === "cancelled") return;
+      // O segmento "money" guarda o valor RECEBIDO do cliente (ex.: paga R$20 numa
+      // compra de R$5,99), não o que fica de fato na loja — sem descontar o troco
+      // aqui, o card "Dinheiro" deste relatório inflava pelo troco de cada venda
+      // (mesmo bug já corrigido no fechamento de caixa em cash-sessions.controller.ts,
+      // reincidindo aqui porque é um cálculo duplicado no frontend).
+      let changeToApply = Number(o.change_amount) || 0;
       parseOrderPayments(o.payment_method).forEach((seg) => {
+        let amount = seg.amount;
+        if (seg.method === "money" && changeToApply > 0) {
+          const applied = Math.min(changeToApply, amount);
+          amount -= applied;
+          changeToApply -= applied;
+        }
         const key = `${seg.method}-${seg.brand}`;
         if (!totals[key]) totals[key] = { method: seg.method, brand: seg.brand, amount: 0 };
-        totals[key].amount += seg.amount;
+        totals[key].amount += amount;
       });
     });
     return Object.values(totals).sort((a, b) => b.amount - a.amount);
