@@ -1259,6 +1259,12 @@ export default function CashSessionHistory() {
                   {detail.status === "closed" && (
                     <>
                       <div className="flex justify-between text-[11px] font-bold text-slate-400">
+                        <span>Vendas em dinheiro</span>
+                        <span className="font-mono text-white">
+                          {money(Math.round((Number(detail.expected_amount) - Number(detail.opening_amount)) * 100) / 100)}
+                        </span>
+                      </div>
+                      <div className="flex justify-between text-[11px] font-bold text-slate-400 pt-1 border-t border-slate-800">
                         <span>Esperado</span>
                         <span className="font-mono text-white">{money(detail.expected_amount)}</span>
                       </div>
