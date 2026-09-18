@@ -14,6 +14,8 @@ export interface CashSessionPaymentBreakdownEntry {
   difference?: number;
   fee?: number;
   net?: number;
+  sales_amount?: number;
+  debt_payment_amount?: number;
 }
 
 export interface ClosedCashSession {

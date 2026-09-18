@@ -1723,12 +1723,23 @@ export default function PDV() {
     receipt += row("Abertura", dateTimeShort(new Date(session.opened_at))) + "\n";
     receipt += row("Fechamento", session.closed_at ? dateTimeShort(new Date(session.closed_at)) : "-") + "\n";
     receipt += `${thin}\n`;
-    receipt += row("Valor de abertura", `R$ ${money(Number(session.opening_amount))}`) + "\n";
     let totalFee = 0;
     if (session.payment_breakdown) {
       receipt += `${thin}\n${center("POR FORMA DE PAGAMENTO")}\n${thin}\n`;
       Object.entries(session.payment_breakdown).forEach(([method, entry]) => {
-        receipt += row(PM_LABEL[method as PaymentMethod] ?? method, `R$ ${money(entry.expected)}`) + "\n";
+        if (method === "money") {
+          const openingAmount = Number(session.opening_amount);
+          const salesAmount = entry.sales_amount ?? Math.round((entry.expected - openingAmount) * 100) / 100;
+          receipt += `${center("DINHEIRO NA GAVETA")}\n`;
+          receipt += row("Fundo inicial (troco)", `R$ ${money(openingAmount)}`) + "\n";
+          receipt += row("+ Vendas em dinheiro", `R$ ${money(salesAmount)}`) + "\n";
+          if (entry.debt_payment_amount) {
+            receipt += row("+ Receb. crediário", `R$ ${money(entry.debt_payment_amount)}`) + "\n";
+          }
+          receipt += row("= TOTAL ESPERADO", `R$ ${money(entry.expected)}`) + "\n";
+        } else {
+          receipt += row(PM_LABEL[method as PaymentMethod] ?? method, `R$ ${money(entry.expected)}`) + "\n";
+        }
         if (entry.fee) {
           totalFee += entry.fee;
           receipt += row("  Taxa maquininha", `-R$ ${money(entry.fee)}`) + "\n";

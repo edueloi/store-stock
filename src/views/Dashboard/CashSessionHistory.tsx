@@ -60,6 +60,8 @@ interface CashSessionPaymentBreakdownEntry {
   expected: number;
   counted?: number;
   difference?: number;
+  sales_amount?: number;
+  debt_payment_amount?: number;
 }
 
 interface CashSession {
@@ -396,18 +398,24 @@ export default function CashSessionHistory() {
     receipt += row("Abertura", new Date(session.opened_at).toLocaleString("pt-BR")) + "\n";
     if (session.closed_at) receipt += row("Fechamento", new Date(session.closed_at).toLocaleString("pt-BR")) + "\n";
     receipt += `${thin}\n`;
-    receipt += row("Valor de abertura", `R$ ${money2(Number(session.opening_amount))}`) + "\n";
     if (session.payment_breakdown) {
       receipt += `${thin}\n${center("POR FORMA DE PAGAMENTO")}\n${thin}\n`;
       Object.entries(session.payment_breakdown).forEach(([method, entry]) => {
-        receipt += row(PM_LABEL[method] ?? method, `R$ ${money2(entry.expected)}`) + "\n";
         // Só "Dinheiro" soma o fundo de abertura ao valor esperado — deixa explícito
         // essa conta (abertura + vendas) pra não parecer que a loja vendeu mais em
         // dinheiro do que realmente vendeu naquele dia.
         if (method === "money") {
-          const salesOnly = Math.round((entry.expected - Number(session.opening_amount)) * 100) / 100;
-          receipt += row("  Fundo de abertura", `R$ ${money2(Number(session.opening_amount))}`) + "\n";
-          receipt += row("  + Vendas em dinheiro", `R$ ${money2(salesOnly)}`) + "\n";
+          const openingAmount = Number(session.opening_amount);
+          const salesAmount = entry.sales_amount ?? Math.round((entry.expected - openingAmount) * 100) / 100;
+          receipt += `${center("DINHEIRO NA GAVETA")}\n`;
+          receipt += row("Fundo inicial (troco)", `R$ ${money2(openingAmount)}`) + "\n";
+          receipt += row("+ Vendas em dinheiro", `R$ ${money2(salesAmount)}`) + "\n";
+          if (entry.debt_payment_amount) {
+            receipt += row("+ Receb. crediário", `R$ ${money2(entry.debt_payment_amount)}`) + "\n";
+          }
+          receipt += row("= TOTAL ESPERADO", `R$ ${money2(entry.expected)}`) + "\n";
+        } else {
+          receipt += row(PM_LABEL[method] ?? method, `R$ ${money2(entry.expected)}`) + "\n";
         }
         if (entry.counted !== undefined) receipt += row("  Contado", `R$ ${money2(entry.counted)}`) + "\n";
         if (entry.difference !== undefined && entry.difference !== 0) {

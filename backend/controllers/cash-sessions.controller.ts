@@ -34,6 +34,8 @@ export async function recalculateCashSessionSummary(tenantId: number, sessionId:
 
   const totals: Record<string, number> = {};
   const fees: Record<string, number> = {};
+  let moneySales = 0;
+  let moneyDebtPayments = 0;
   for (const order of orders) {
     const segs = parsePaymentMethod(order.payment_method ?? "money").filter((seg) => seg.amount > 0);
     const orderGross = segs.reduce((sum, seg) => sum + seg.amount, 0);
@@ -48,6 +50,7 @@ export async function recalculateCashSessionSummary(tenantId: number, sessionId:
         changeToApply -= applied;
       }
       totals[seg.method] = (totals[seg.method] ?? 0) + segAmount;
+      if (seg.method === "money") moneySales += segAmount;
       if (seg.method !== "money" && orderFee > 0 && orderGross > 0) {
         fees[seg.method] = (fees[seg.method] ?? 0) + orderFee * (seg.amount / orderGross);
       }
@@ -58,6 +61,7 @@ export async function recalculateCashSessionSummary(tenantId: number, sessionId:
     const amount = Number(dp.amount) || 0;
     const fee = Number(dp.fee_amount) || 0;
     totals[method] = (totals[method] ?? 0) + amount;
+    if (method === "money") moneyDebtPayments += amount;
     if (method !== "money" && fee > 0) {
       fees[method] = (fees[method] ?? 0) + fee;
     }
@@ -71,8 +75,13 @@ export async function recalculateCashSessionSummary(tenantId: number, sessionId:
   const difference = counted !== null ? Math.round((counted - moneyExpected) * 100) / 100 : null;
 
   const existingBreakdown = (session.payment_breakdown as Record<string, any>) ?? {};
-  const paymentBreakdown: Record<string, { expected: number; counted?: number; difference?: number; fee?: number; net?: number }> = {
-    money: counted !== null ? { expected: moneyExpected, counted, difference: difference! } : { expected: moneyExpected },
+  const paymentBreakdown: Record<string, { expected: number; counted?: number; difference?: number; fee?: number; net?: number; sales_amount?: number; debt_payment_amount?: number }> = {
+    money: {
+      expected: moneyExpected,
+      sales_amount: Math.round(moneySales * 100) / 100,
+      debt_payment_amount: Math.round(moneyDebtPayments * 100) / 100,
+      ...(counted !== null ? { counted, difference: difference! } : {}),
+    },
   };
   for (const method of Object.keys(totals)) {
     if (method === "money") continue;
@@ -196,6 +205,8 @@ export async function closeCashSession(req: Request, res: Response) {
 
     const totals: Record<string, number> = {};
     const fees: Record<string, number> = {};
+    let moneySales = 0;
+    let moneyDebtPayments = 0;
     for (const order of orders) {
       const segs = parsePaymentMethod(order.payment_method ?? "money").filter((seg) => seg.amount > 0);
       const orderGross = segs.reduce((sum, seg) => sum + seg.amount, 0);
@@ -216,6 +227,7 @@ export async function closeCashSession(req: Request, res: Response) {
           changeToApply -= applied;
         }
         totals[seg.method] = (totals[seg.method] ?? 0) + segAmount;
+        if (seg.method === "money") moneySales += segAmount;
         // fee_amount é gravado por pedido, não por forma de pagamento — em venda
         // com pagamento misto (ex.: metade PIX, metade crédito), rateia a taxa
         // do pedido proporcionalmente ao valor de cada segmento. Dinheiro nunca
@@ -231,6 +243,7 @@ export async function closeCashSession(req: Request, res: Response) {
       const amount = Number(dp.amount) || 0;
       const fee = Number(dp.fee_amount) || 0;
       totals[method] = (totals[method] ?? 0) + amount;
+      if (method === "money") moneyDebtPayments += amount;
       if (method !== "money" && fee > 0) {
         fees[method] = (fees[method] ?? 0) + fee;
       }
@@ -241,8 +254,14 @@ export async function closeCashSession(req: Request, res: Response) {
     const counted = Math.round((Number(countedAmount) || 0) * 100) / 100;
     const difference = Math.round((counted - moneyExpected) * 100) / 100;
 
-    const paymentBreakdown: Record<string, { expected: number; counted?: number; difference?: number; fee?: number; net?: number }> = {
-      money: { expected: moneyExpected, counted, difference },
+    const paymentBreakdown: Record<string, { expected: number; counted?: number; difference?: number; fee?: number; net?: number; sales_amount?: number; debt_payment_amount?: number }> = {
+      money: {
+        expected: moneyExpected,
+        counted,
+        difference,
+        sales_amount: Math.round(moneySales * 100) / 100,
+        debt_payment_amount: Math.round(moneyDebtPayments * 100) / 100,
+      },
     };
     for (const method of Object.keys(totals)) {
       if (method === "money") continue;
