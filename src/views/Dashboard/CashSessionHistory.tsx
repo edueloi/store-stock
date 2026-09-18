@@ -398,6 +398,19 @@ export default function CashSessionHistory() {
     receipt += row("Abertura", new Date(session.opened_at).toLocaleString("pt-BR")) + "\n";
     if (session.closed_at) receipt += row("Fechamento", new Date(session.closed_at).toLocaleString("pt-BR")) + "\n";
     receipt += `${thin}\n`;
+
+    const validOrders = session.orders.filter((o) => o.status !== "cancelled");
+    const totalGross = validOrders.reduce((sum, o) => sum + Number(o.gross_amount ?? o.total_amount), 0);
+    const totalDiscount = validOrders.reduce((sum, o) => sum + Number(o.discount_amount ?? 0), 0);
+    const totalFee = validOrders.reduce((sum, o) => sum + Number(o.fee_amount ?? 0), 0);
+    if (totalDiscount > 0 || totalFee > 0) {
+      receipt += `${thin}\n${center("VENDAS DO PERÍODO")}\n${thin}\n`;
+      receipt += row("Vendas (bruto)", `R$ ${money2(totalGross)}`) + "\n";
+      if (totalDiscount > 0) receipt += row("(-) Descontos", `R$ ${money2(totalDiscount)}`) + "\n";
+      if (totalFee > 0) receipt += row("(-) Taxa maquininha", `R$ ${money2(totalFee)}`) + "\n";
+      receipt += row("= Vendas (líquido)", `R$ ${money2(totalGross - totalDiscount - totalFee)}`) + "\n";
+    }
+
     if (session.payment_breakdown) {
       receipt += `${thin}\n${center("POR FORMA DE PAGAMENTO")}\n${thin}\n`;
       Object.entries(session.payment_breakdown).forEach(([method, entry]) => {
@@ -1289,6 +1302,39 @@ export default function CashSessionHistory() {
                     </>
                   )}
                 </div>
+
+                {(() => {
+                  const validOrders = detail.orders.filter((o) => o.status !== "cancelled");
+                  const totalGross = validOrders.reduce((sum, o) => sum + Number(o.gross_amount ?? o.total_amount), 0);
+                  const totalDiscount = validOrders.reduce((sum, o) => sum + Number(o.discount_amount ?? 0), 0);
+                  const totalFee = validOrders.reduce((sum, o) => sum + Number(o.fee_amount ?? 0), 0);
+                  if (totalDiscount === 0 && totalFee === 0) return null;
+                  return (
+                    <div className="bg-slate-50 rounded-xl border border-slate-100 p-3.5 space-y-1.5">
+                      <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Vendas do período</p>
+                      <div className="flex justify-between text-[11px] font-bold text-slate-500">
+                        <span>Vendas (bruto)</span>
+                        <span className="font-mono text-slate-700">{money(totalGross)}</span>
+                      </div>
+                      {totalDiscount > 0 && (
+                        <div className="flex justify-between text-[11px] font-bold text-rose-500">
+                          <span>(-) Descontos</span>
+                          <span className="font-mono">{money(totalDiscount)}</span>
+                        </div>
+                      )}
+                      {totalFee > 0 && (
+                        <div className="flex justify-between text-[11px] font-bold text-rose-500">
+                          <span>(-) Taxa maquininha</span>
+                          <span className="font-mono">{money(totalFee)}</span>
+                        </div>
+                      )}
+                      <div className="flex justify-between text-[12px] font-black pt-1 border-t border-slate-200">
+                        <span className="text-slate-700 uppercase">Vendas (líquido)</span>
+                        <span className="font-mono text-slate-900">{money(totalGross - totalDiscount - totalFee)}</span>
+                      </div>
+                    </div>
+                  );
+                })()}
 
                 {detail.status === "closed" && detail.payment_breakdown && (
                   <div className="rounded-xl border border-slate-200 overflow-hidden">
