@@ -296,6 +296,11 @@ export default function CashSessionHistory() {
         quantity: it.quantity,
         unitPrice: Number(it.unit_price),
         total: Number(it.unit_price) * it.quantity,
+        // Desconto/taxa são do pedido inteiro (não existe rateio por item no
+        // banco) — mostrado aqui repetido em cada item do mesmo pedido, pra
+        // dar visibilidade sem inventar um rateio que não existe.
+        discountAmount: Number(o.discount_amount ?? 0),
+        feeAmount: Number(o.fee_amount ?? 0),
         createdAt: o.created_at,
         customerName: o.customer_name || "Balcão",
         sellerName: o.seller_name || "—",
@@ -650,7 +655,8 @@ export default function CashSessionHistory() {
       const wsItems = wb.addWorksheet("Itens Vendidos", { pageSetup: { paperSize: 9, orientation: "landscape", fitToPage: true } });
       wsItems.columns = [
         { key: "order", width: 10 }, { key: "product", width: 30 }, { key: "qty", width: 8 },
-        { key: "unit", width: 12 }, { key: "total", width: 14 }, { key: "date", width: 18 },
+        { key: "unit", width: 12 }, { key: "total", width: 14 }, { key: "discount", width: 12 },
+        { key: "fee", width: 12 }, { key: "date", width: 18 },
         { key: "customer", width: 20 }, { key: "seller", width: 18 }, { key: "payment", width: 22 },
       ];
       wsItems.getRow(1).getCell(1).value = "Itens Vendidos";
@@ -659,7 +665,7 @@ export default function CashSessionHistory() {
       wsItems.getRow(2).getCell(1).font = font({ size: 9, italic: true, color: "94A3B8" });
       wsItems.getRow(3).height = 4;
 
-      const HEADERS_I = ["Pedido", "Produto", "Qtd", "Unitário", "Total", "Data/Hora", "Cliente", "Vendedor", "Pagamento"];
+      const HEADERS_I = ["Pedido", "Produto", "Qtd", "Unitário", "Total", "Desconto (pedido)", "Taxa (pedido)", "Data/Hora", "Cliente", "Vendedor", "Pagamento"];
       HEADERS_I.forEach((h, i) => {
         const cell = wsItems.getRow(4).getCell(i + 1);
         cell.value = h; cell.font = font({ bold: true, size: 10, color: "FFFFFF" });
@@ -673,19 +679,20 @@ export default function CashSessionHistory() {
         const altBg = i % 2 === 0 ? "FFFFFF" : "F8FAFC";
         const cells = [
           `#${String(it.orderId).padStart(6, "0")}`, it.productName, it.quantity,
-          it.unitPrice, it.total, new Date(it.createdAt).toLocaleString("pt-BR"),
+          it.unitPrice, it.total, it.discountAmount || null, it.feeAmount || null,
+          new Date(it.createdAt).toLocaleString("pt-BR"),
           it.customerName, it.sellerName, it.paymentLabel,
         ];
         cells.forEach((val, ci) => {
           const cell = row.getCell(ci + 1);
           cell.value = val;
           cell.fill = fill(altBg); cell.border = border(); cell.font = font({ size: 10 });
-          if (ci === 3 || ci === 4) { cell.numFmt = '"R$" #,##0.00'; cell.alignment = { horizontal: "right" }; }
+          if ([3, 4, 5, 6].includes(ci)) { cell.numFmt = '"R$" #,##0.00'; cell.alignment = { horizontal: "right" }; }
           if (ci === 2) cell.alignment = { horizontal: "right" };
         });
       });
       if (soldItems.length > 0) {
-        wsItems.autoFilter = { from: { row: 4, column: 1 }, to: { row: 4 + soldItems.length, column: 9 } };
+        wsItems.autoFilter = { from: { row: 4, column: 1 }, to: { row: 4 + soldItems.length, column: 11 } };
       }
 
       const buf = await wb.xlsx.writeBuffer();
@@ -743,6 +750,8 @@ export default function CashSessionHistory() {
         <td>${it.productName}</td>
         <td style="text-align:center">${it.quantity}</td>
         <td style="text-align:right">${money(it.total)}</td>
+        <td style="text-align:right">${it.discountAmount > 0 ? money(it.discountAmount) : "—"}</td>
+        <td style="text-align:right">${it.feeAmount > 0 ? money(it.feeAmount) : "—"}</td>
         <td style="text-align:center">${new Date(it.createdAt).toLocaleString("pt-BR")}</td>
         <td>${it.customerName}</td>
         <td>${it.sellerName}</td>
@@ -798,7 +807,7 @@ export default function CashSessionHistory() {
 
 <p class="summary-title">Itens Vendidos (${soldItems.length})</p>
 <table>
-  <thead><tr><th>Pedido</th><th>Produto</th><th style="text-align:center">Qtd</th><th style="text-align:right">Total</th><th style="text-align:center">Data</th><th>Cliente</th><th>Vendedor</th><th>Pagamento</th></tr></thead>
+  <thead><tr><th>Pedido</th><th>Produto</th><th style="text-align:center">Qtd</th><th style="text-align:right">Total</th><th style="text-align:right">Desconto</th><th style="text-align:right">Taxa</th><th style="text-align:center">Data</th><th>Cliente</th><th>Vendedor</th><th>Pagamento</th></tr></thead>
   <tbody>${itemRows}</tbody>
 </table>
 </body></html>`;
@@ -1121,14 +1130,14 @@ export default function CashSessionHistory() {
                   <table className="w-full text-left border-collapse">
                     <thead className="sticky top-0 z-10">
                       <tr className="bg-slate-50">
-                        {["Pedido", "Produto", "Qtd", "Total", "Data", "Cliente", "Vendedor", "Pagamento"].map((h) => (
+                        {["Pedido", "Produto", "Qtd", "Total", "Desconto", "Taxa", "Data", "Cliente", "Vendedor", "Pagamento"].map((h) => (
                           <th key={h} className="px-4 py-2.5 text-[9px] font-black text-slate-400 uppercase tracking-widest whitespace-nowrap bg-slate-50 border-b border-slate-200">{h}</th>
                         ))}
                       </tr>
                     </thead>
                     <tbody>
                       {filteredSoldItems.length === 0 && (
-                        <tr><td colSpan={8} className="px-4 py-8 text-center text-slate-400 text-xs">Nenhum item vendido no período</td></tr>
+                        <tr><td colSpan={10} className="px-4 py-8 text-center text-slate-400 text-xs">Nenhum item vendido no período</td></tr>
                       )}
                       {filteredSoldItems.map((it, i) => (
                         <tr key={i} className="border-t border-slate-100">
@@ -1136,6 +1145,8 @@ export default function CashSessionHistory() {
                           <td className="px-4 py-2 text-xs font-semibold text-slate-700">{it.productName}</td>
                           <td className="px-4 py-2 text-xs text-slate-500 text-center">{it.quantity}</td>
                           <td className="px-4 py-2 text-xs font-mono font-bold text-slate-800 whitespace-nowrap">{money(it.total)}</td>
+                          <td className="px-4 py-2 text-xs font-mono text-rose-500 whitespace-nowrap">{it.discountAmount > 0 ? money(it.discountAmount) : "—"}</td>
+                          <td className="px-4 py-2 text-xs font-mono text-rose-500 whitespace-nowrap">{it.feeAmount > 0 ? money(it.feeAmount) : "—"}</td>
                           <td className="px-4 py-2 text-xs text-slate-400 whitespace-nowrap">{new Date(it.createdAt).toLocaleString("pt-BR")}</td>
                           <td className="px-4 py-2 text-xs text-slate-500 whitespace-nowrap">{it.customerName}</td>
                           <td className="px-4 py-2 text-xs text-slate-500 whitespace-nowrap">{it.sellerName}</td>
