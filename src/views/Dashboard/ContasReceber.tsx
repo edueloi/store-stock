@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef } from "react";
 import { useNavigate } from "react-router-dom";
+import ExcelJS from "exceljs";
 import PageHeader from "../../components/layout/PageHeader";
 import {
   Plus,
@@ -24,8 +25,11 @@ import {
   Repeat,
   Percent,
   Layers,
+  Download,
+  FileSpreadsheet,
+  Upload,
 } from "lucide-react";
-import { AccountReceivable, AccountStatus } from "../../types";
+import { AccountReceivable, AccountStatus, Tenant } from "../../types";
 import { cn } from "../../lib/utils";
 import { useToast } from "../../components/ui/Toast";
 import { onRealtime } from "../../lib/realtime";
@@ -73,6 +77,165 @@ function splitEvenly(total: number, count: number): string[] {
   return Array.from({ length: count }, (_, i) =>
     (i === count - 1 ? Math.round((total - base * (count - 1)) * 100) / 100 : base).toFixed(2)
   );
+}
+
+// ─── Export Excel — mesmo padrão visual de Contas a Pagar (cabeçalho com
+// nome/CNPJ, tabela formatada), sem a divisão Fixo/Variável (não existe
+// classificação equivalente em AccountReceivable).
+async function exportReceivablesToExcel(items: AccountReceivable[], tenant: Partial<Tenant> | null) {
+  const wb = new ExcelJS.Workbook();
+  wb.creator = "Store BoxSys";
+  wb.created = new Date();
+
+  const font = (opts: { bold?: boolean; italic?: boolean; size?: number; color?: string }): Partial<ExcelJS.Font> => ({
+    name: "Calibri", size: opts.size ?? 11, bold: !!opts.bold, italic: !!opts.italic,
+    color: { argb: `FF${opts.color ?? "1E293B"}` },
+  });
+  const fill = (hex: string): ExcelJS.Fill => ({ type: "pattern", pattern: "solid", fgColor: { argb: `FF${hex}` } });
+  const border = (): Partial<ExcelJS.Borders> => ({
+    top: { style: "thin", color: { argb: "FFE2E8F0" } }, bottom: { style: "thin", color: { argb: "FFE2E8F0" } },
+    left: { style: "thin", color: { argb: "FFE2E8F0" } }, right: { style: "thin", color: { argb: "FFE2E8F0" } },
+  });
+
+  const ws = wb.addWorksheet("Contas a Receber", { pageSetup: { paperSize: 9, orientation: "landscape", fitToPage: true } });
+  ws.columns = [
+    { key: "seq", width: 5 }, { key: "desc", width: 34 }, { key: "customer", width: 20 },
+    { key: "cat", width: 16 }, { key: "due", width: 14 }, { key: "status", width: 14 }, { key: "amount", width: 16 },
+  ];
+
+  ws.getRow(1).height = 28;
+  const c1 = ws.getRow(1).getCell(1);
+  c1.value = tenant?.name || "Store BoxSys";
+  c1.font = font({ bold: true, size: 18, color: "1E3A5F" });
+
+  const metaParts: string[] = [];
+  if ((tenant as any)?.cnpj) metaParts.push(`CNPJ: ${(tenant as any).cnpj}`);
+  if (tenant?.address) metaParts.push(`Endereço: ${tenant.address}`);
+  ws.getRow(2).getCell(1).value = metaParts.join("   |   ") || " ";
+  ws.getRow(2).getCell(1).font = font({ size: 9, color: "64748B" });
+  ws.getRow(2).getCell(6).value = `Gerado em: ${new Date().toLocaleString("pt-BR")}`;
+  ws.getRow(2).getCell(6).font = font({ size: 9, italic: true, color: "94A3B8" });
+  ws.getRow(2).getCell(6).alignment = { horizontal: "right" };
+
+  ws.getRow(3).getCell(1).value = "Contas a Receber";
+  ws.getRow(3).getCell(1).font = font({ bold: true, size: 12, color: "1E3A5F" });
+  ws.getRow(3).height = 18;
+
+  const total = items.reduce((a, r) => a + Number(r.amount), 0);
+  ws.getRow(4).getCell(1).value = `${items.length} lançamento(s)  ·  Total: R$ ${fmt(total)}`;
+  ws.getRow(4).getCell(1).font = font({ size: 9, italic: true, color: "94A3B8" });
+
+  ws.getRow(5).height = 4;
+  for (let c = 1; c <= 7; c++) ws.getRow(5).getCell(c).border = { bottom: { style: "medium", color: { argb: "FF1E3A5F" } } };
+
+  const HEADERS = ["#", "Descrição", "Cliente", "Categoria", "Vencimento", "Status", "Valor (R$)"];
+  HEADERS.forEach((h, i) => {
+    const cell = ws.getRow(6).getCell(i + 1);
+    cell.value = h;
+    cell.font = font({ bold: true, size: 10, color: "FFFFFF" });
+    cell.fill = fill("1E3A5F");
+    cell.alignment = { horizontal: i === 6 ? "right" : "left", vertical: "middle" };
+    cell.border = border();
+  });
+  ws.getRow(6).height = 20;
+
+  items.forEach((item, i) => {
+    const rowNum = 7 + i;
+    const row = ws.getRow(rowNum);
+    row.height = 18;
+    const altBg = i % 2 === 0 ? "FFFFFF" : "F8FAFC";
+    const cells = [
+      i + 1,
+      item.description,
+      item.customer_name || "—",
+      item.category || "—",
+      formatDateBR(item.due_date),
+      STATUS_CONFIG[isOverdue(item.due_date, item.status as AccountStatus) ? "overdue" : item.status as AccountStatus].label,
+      Number(item.amount),
+    ];
+    cells.forEach((val, ci) => {
+      const cell = row.getCell(ci + 1);
+      cell.value = val;
+      cell.fill = fill(altBg);
+      cell.border = border();
+      cell.font = font({ size: 10, bold: ci === 1 });
+      if (ci === 6) { cell.numFmt = '"R$" #,##0.00'; cell.alignment = { horizontal: "right" }; }
+      if (ci === 0) cell.alignment = { horizontal: "center" };
+    });
+  });
+
+  const buf = await wb.xlsx.writeBuffer();
+  const blob = new Blob([buf], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `contas-a-receber-${new Date().toISOString().substring(0, 10)}.xlsx`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+// ─── Export PDF — HTML formatada aberta numa aba nova e impressa, mesmo padrão
+// de Contas a Pagar (sem o resumo Fixo/Variável).
+function exportReceivablesToPDF(items: AccountReceivable[], tenant: Partial<Tenant> | null) {
+  const total = items.reduce((a, i) => a + Number(i.amount), 0);
+  const totalOverdue = items.filter((i) => isOverdue(i.due_date, i.status as AccountStatus)).reduce((a, i) => a + Number(i.amount), 0);
+  const totalReceived = items.filter((i) => i.status === "received").reduce((a, i) => a + Number(i.amount), 0);
+
+  const rows = items.map((item) => `
+    <tr>
+      <td>${item.description}</td>
+      <td style="text-align:center">${item.customer_name || "—"}</td>
+      <td style="text-align:center">${item.category || "—"}</td>
+      <td style="text-align:center">${formatDateBR(item.due_date)}</td>
+      <td style="text-align:right;font-weight:700">R$ ${fmt(Number(item.amount))}</td>
+    </tr>`).join("");
+
+  const html = `<!DOCTYPE html>
+<html lang="pt-BR"><head><meta charset="UTF-8"/><title>Contas a Receber</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Segoe UI', Arial, sans-serif; color: #1e293b; padding: 32px; font-size: 12px; }
+  .header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 24px; border-bottom: 3px solid #1e3a5f; padding-bottom: 16px; }
+  .header h1 { font-size: 20px; font-weight: 900; text-transform: uppercase; letter-spacing: 0.1em; }
+  .header p { font-size: 10px; color: #64748b; margin-top: 2px; }
+  .meta { text-align: right; font-size: 10px; color: #64748b; }
+  .summary { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 24px; }
+  .card { padding: 14px 16px; border-radius: 10px; border: 1px solid #e2e8f0; }
+  .card label { font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.15em; display: block; margin-bottom: 4px; color: #94a3b8; }
+  .card .val { font-size: 18px; font-weight: 900; font-family: monospace; }
+  .card.overdue { background: #fff1f2; border-color: #fecdd3; } .card.overdue .val { color: #e11d48; }
+  .card.received { background: #ecfdf5; border-color: #a7f3d0; } .card.received .val { color: #059669; }
+  .card.total { background: #1e293b; border-color: #1e293b; } .card.total label { color: #64748b; } .card.total .val { color: #fff; }
+  table { width: 100%; border-collapse: collapse; }
+  th { background: #f8fafc; border-bottom: 2px solid #e2e8f0; padding: 10px 12px; text-align: left; font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.15em; color: #94a3b8; }
+  td { padding: 9px 12px; border-bottom: 1px solid #f1f5f9; font-size: 11px; }
+  @media print { body { padding: 16px; } }
+</style></head>
+<body>
+<div class="header">
+  <div><h1>${tenant?.name || "Store BoxSys"}</h1>
+    <p>${tenant?.address || ""}</p>
+    ${(tenant as any)?.cnpj ? `<p>CNPJ: ${(tenant as any).cnpj}</p>` : ""}
+  </div>
+  <div class="meta"><strong>Relatório de Contas a Receber</strong><br/>Gerado em: ${new Date().toLocaleString("pt-BR")}</div>
+</div>
+<div class="summary">
+  <div class="card overdue"><label>Vencidas</label><div class="val">R$ ${fmt(totalOverdue)}</div></div>
+  <div class="card received"><label>Recebido</label><div class="val">R$ ${fmt(totalReceived)}</div></div>
+  <div class="card total"><label>Total</label><div class="val">R$ ${fmt(total)}</div></div>
+</div>
+<table>
+  <thead><tr><th>Descrição</th><th style="text-align:center">Cliente</th><th style="text-align:center">Categoria</th><th style="text-align:center">Vencimento</th><th style="text-align:right">Valor</th></tr></thead>
+  <tbody>${rows}</tbody>
+</table>
+</body></html>`;
+
+  const win = window.open("", "_blank");
+  if (!win) return;
+  win.document.write(html);
+  win.document.close();
+  win.focus();
+  setTimeout(() => win.print(), 400);
 }
 
 const STATUS_CONFIG: Record<AccountStatus, { label: string; color: string; bg: string; icon: React.ReactNode }> = {
@@ -372,6 +535,14 @@ export default function ContasReceber() {
   // com criação rápida sem sair do modal.
   const [customersList, setCustomersList] = useState<{ id: number; name: string }[]>([]);
 
+  const [tenant, setTenant] = useState<Partial<Tenant> | null>(null);
+  const [showExport, setShowExport] = useState(false);
+  const exportRef = useRef<HTMLDivElement>(null);
+  const [showImportModal, setShowImportModal] = useState(false);
+  const [importing, setImporting] = useState(false);
+  const [importResult, setImportResult] = useState<{ created: number; errors: { row: number; error: string }[] } | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
   const token = () => localStorage.getItem("token");
 
   const fetchCustomersList = async () => {
@@ -415,7 +586,109 @@ export default function ContasReceber() {
     setLoading(false);
   };
 
-  useEffect(() => { fetchItems(); fetchCustomersList(); }, []);
+  useEffect(() => {
+    fetchItems();
+    fetchCustomersList();
+    fetch("/api/tenant", { headers: { Authorization: `Bearer ${token()}` } })
+      .then((r) => r.json())
+      .then((d) => setTenant(d))
+      .catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (exportRef.current && !exportRef.current.contains(e.target as Node)) setShowExport(false);
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
+
+  const downloadImportTemplate = async () => {
+    const wb = new ExcelJS.Workbook();
+    const ws = wb.addWorksheet("Modelo");
+    ws.columns = [
+      { key: "desc", width: 34 }, { key: "amount", width: 14 }, { key: "due", width: 14 },
+      { key: "customer", width: 20 }, { key: "cat", width: 16 },
+    ];
+    ws.addRow(["Descrição", "Valor", "Vencimento", "Cliente", "Categoria"]);
+    ws.getRow(1).font = { bold: true };
+    ws.addRow(["Venda a prazo", 350, "2026-09-05", "João da Silva", "Venda"]);
+    ws.addRow(["Serviço prestado", 180.5, "2026-09-10", "", "Serviço"]);
+    const buf = await wb.xlsx.writeBuffer();
+    const blob = new Blob([buf], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = "modelo-contas-a-receber.xlsx"; a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const handleImportFile = async (file: File) => {
+    setImporting(true);
+    setImportResult(null);
+    try {
+      const buf = await file.arrayBuffer();
+      const wb = new ExcelJS.Workbook();
+      await wb.xlsx.load(buf);
+      const ws = wb.worksheets[0];
+      if (!ws) { toastError("Planilha vazia."); setImporting(false); return; }
+
+      const colIndex: Record<string, number> = {};
+      ws.getRow(1).eachCell((cell, colNumber) => {
+        colIndex[String(cell.value || "").trim().toLowerCase()] = colNumber;
+      });
+      const findCol = (...names: string[]) => names.map((n) => colIndex[n]).find((v) => v != null) ?? null;
+      const cDesc = findCol("descrição", "descricao", "description");
+      const cAmount = findCol("valor", "valor (r$)", "amount");
+      const cDue = findCol("vencimento", "due_date", "data");
+      const cCustomer = findCol("cliente", "customer_name", "customer");
+      const cCategory = findCol("categoria", "category");
+
+      if (!cDesc || !cAmount || !cDue) {
+        toastError('A planilha precisa ter as colunas "Descrição", "Valor" e "Vencimento".');
+        setImporting(false);
+        return;
+      }
+
+      const rows: { description: string; amount: number; due_date: string; customer_name?: string; category?: string }[] = [];
+      for (let r = 2; r <= ws.rowCount; r++) {
+        const row = ws.getRow(r);
+        const descVal = row.getCell(cDesc).value;
+        if (!descVal) continue;
+        const dueVal = row.getCell(cDue).value;
+        const dueStr = dueVal instanceof Date ? dueVal.toISOString().substring(0, 10) : String(dueVal || "").trim().substring(0, 10);
+
+        rows.push({
+          description: String(descVal).trim(),
+          amount: Number(row.getCell(cAmount).value) || 0,
+          due_date: dueStr,
+          customer_name: cCustomer ? String(row.getCell(cCustomer).value || "").trim() || undefined : undefined,
+          category: cCategory ? String(row.getCell(cCategory).value || "").trim() || undefined : undefined,
+        });
+      }
+
+      if (rows.length === 0) {
+        toastError("Nenhuma linha válida encontrada na planilha.");
+        setImporting(false);
+        return;
+      }
+
+      const res = await fetch("/api/accounts-receivable/import", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token()}` },
+        body: JSON.stringify({ rows }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok) {
+        setImportResult({ created: data.created || 0, errors: data.errors || [] });
+        if (data.created > 0) { success(`${data.created} conta(s) importada(s)!`); fetchItems(); }
+      } else {
+        toastError(data.error || "Erro ao importar planilha.");
+      }
+    } catch {
+      toastError("Erro ao ler a planilha. Confira o formato do arquivo.");
+    }
+    setImporting(false);
+  };
   useEffect(() => onRealtime("finance:changed", () => { fetchItems(); }), []);
 
   // Lembra o filtro de período escolhido (Tudo/Mês/Ano) entre visitas à tela —
@@ -896,6 +1169,40 @@ export default function ContasReceber() {
                 />
               </div>
             )}
+            <div className="relative ml-auto" ref={exportRef}>
+              <button
+                onClick={() => setShowExport(!showExport)}
+                className="h-9 px-3 rounded-lg flex items-center gap-1.5 text-[9px] font-black uppercase tracking-widest border border-slate-200 bg-white text-slate-500 hover:border-slate-400 transition-all"
+              >
+                <Download size={12} />
+                <span className="hidden sm:block">Exportar</span>
+                <ChevronDown size={10} />
+              </button>
+              {showExport && (
+                <div className="absolute right-0 top-10 w-52 bg-white border border-slate-200 rounded-xl shadow-xl z-50 overflow-hidden">
+                  <button
+                    onClick={() => { exportReceivablesToExcel(filtered, tenant); setShowExport(false); }}
+                    className="w-full flex items-center gap-3 px-4 py-3 text-[10px] font-bold uppercase tracking-widest text-slate-700 hover:bg-slate-50 transition-colors"
+                  >
+                    <FileSpreadsheet size={14} className="text-emerald-600" /> Excel (.xlsx)
+                  </button>
+                  <div className="h-px bg-slate-100 mx-3" />
+                  <button
+                    onClick={() => { exportReceivablesToPDF(filtered, tenant); setShowExport(false); }}
+                    className="w-full flex items-center gap-3 px-4 py-3 text-[10px] font-bold uppercase tracking-widest text-slate-700 hover:bg-slate-50 transition-colors"
+                  >
+                    <FileText size={14} className="text-rose-600" /> PDF / Imprimir
+                  </button>
+                  <div className="h-px bg-slate-100 mx-3" />
+                  <button
+                    onClick={() => { setImportResult(null); setShowImportModal(true); setShowExport(false); }}
+                    className="w-full flex items-center gap-3 px-4 py-3 text-[10px] font-bold uppercase tracking-widest text-slate-700 hover:bg-slate-50 transition-colors"
+                  >
+                    <Upload size={14} className="text-blue-600" /> Importar Planilha
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
           {selectedIds.size > 0 && (
             <div className="flex items-center gap-2 px-1">
@@ -1671,6 +1978,67 @@ export default function ContasReceber() {
                 className="flex-1 h-11 bg-amber-500 hover:bg-amber-400 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2"
               >
                 {applyingInterest ? <Loader2 size={14} className="animate-spin" /> : "Aplicar Juros"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Import Modal */}
+      {showImportModal && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={() => setShowImportModal(false)} />
+          <div className="relative w-full max-w-md bg-white rounded-2xl shadow-2xl overflow-hidden">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
+              <div>
+                <h2 className="text-[13px] font-black uppercase tracking-widest text-slate-900">Importar Planilha</h2>
+                <p className="text-[10px] text-slate-400 mt-0.5">Excel (.xlsx) com contas a receber em massa</p>
+              </div>
+              <button onClick={() => setShowImportModal(false)} className="w-8 h-8 rounded-xl flex items-center justify-center text-slate-400 hover:bg-slate-100 transition-all">
+                <X size={16} />
+              </button>
+            </div>
+            <div className="px-6 py-5 space-y-4">
+              <button
+                onClick={downloadImportTemplate}
+                className="w-full flex items-center justify-center gap-2 h-10 rounded-xl border border-slate-200 text-[10px] font-black uppercase tracking-widest text-slate-600 hover:bg-slate-50 transition-all"
+              >
+                <FileSpreadsheet size={13} /> Baixar Modelo de Planilha
+              </button>
+              <p className="text-[9px] text-slate-400 text-center">
+                Colunas: Descrição, Valor, Vencimento, Cliente, Categoria.
+              </p>
+
+              <input
+                ref={fileInputRef} type="file" accept=".xlsx" className="hidden"
+                onChange={(e) => { const f = e.target.files?.[0]; if (f) handleImportFile(f); e.target.value = ""; }}
+              />
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                disabled={importing}
+                className="w-full h-24 rounded-xl border-2 border-dashed border-slate-300 flex flex-col items-center justify-center gap-2 text-slate-400 hover:border-emerald-400 hover:text-emerald-500 transition-all disabled:opacity-60"
+              >
+                {importing ? <Loader2 size={20} className="animate-spin" /> : <Upload size={20} />}
+                <span className="text-[10px] font-black uppercase tracking-widest">{importing ? "Importando..." : "Selecionar arquivo .xlsx"}</span>
+              </button>
+
+              {importResult && (
+                <div className="rounded-xl border border-slate-200 p-3 space-y-1.5 max-h-40 overflow-y-auto">
+                  <p className="text-[10px] font-black text-emerald-600 uppercase tracking-widest">{importResult.created} conta(s) importada(s)</p>
+                  {importResult.errors.length > 0 && (
+                    <>
+                      <p className="text-[10px] font-black text-rose-500 uppercase tracking-widest">{importResult.errors.length} linha(s) com erro</p>
+                      {importResult.errors.map((e, i) => (
+                        <p key={i} className="text-[9px] text-slate-400">Linha {e.row}: {e.error}</p>
+                      ))}
+                    </>
+                  )}
+                </div>
+              )}
+            </div>
+            <div className="px-6 pb-5">
+              <button onClick={() => setShowImportModal(false)} className="w-full h-11 border border-slate-200 text-[10px] font-black uppercase tracking-widest rounded-xl hover:bg-slate-50 transition-colors">
+                Fechar
               </button>
             </div>
           </div>

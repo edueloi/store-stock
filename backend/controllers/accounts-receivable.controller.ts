@@ -281,3 +281,56 @@ export async function receiveAccount(req: Request, res: Response) {
     res.status(500).json({ error: "Failed to mark as received" });
   }
 }
+
+interface ImportRow {
+  description?: string;
+  amount?: number | string;
+  due_date?: string;
+  customer_name?: string;
+  category?: string;
+}
+
+// Importação de planilha — best-effort por linha (uma linha inválida não derruba as
+// outras); o front já valida antes de mandar, isso aqui é a segunda linha de defesa.
+export async function importAccountsReceivable(req: Request, res: Response) {
+  try {
+    const tenantId = getTenantId(req);
+    const { rows } = req.body as { rows?: ImportRow[] };
+    if (!Array.isArray(rows) || rows.length === 0) {
+      res.status(422).json({ error: "Nenhuma linha para importar" });
+      return;
+    }
+
+    let created = 0;
+    const errors: { row: number; error: string }[] = [];
+
+    for (let i = 0; i < rows.length; i++) {
+      const r = rows[i];
+      const description = (r.description || "").toString().trim();
+      const amount = Number(r.amount);
+      const dueDateStr = (r.due_date || "").toString().trim().substring(0, 10);
+
+      if (!description) { errors.push({ row: i + 1, error: "Descrição vazia" }); continue; }
+      if (!amount || amount <= 0) { errors.push({ row: i + 1, error: "Valor inválido" }); continue; }
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(dueDateStr)) { errors.push({ row: i + 1, error: "Vencimento inválido" }); continue; }
+
+      await prisma.accountReceivable.create({
+        data: {
+          tenant_id: tenantId,
+          description,
+          amount,
+          due_date: new Date(`${dueDateStr}T12:00:00`),
+          customer_name: r.customer_name?.toString().trim() || null,
+          category: r.category?.toString().trim() || null,
+        },
+      });
+      created++;
+    }
+
+    if (created > 0) emitToTenant(tenantId, "finance:changed", { count: created });
+    res.json({ created, errors });
+  } catch (err) {
+    console.error("importAccountsReceivable error:", err);
+    res.status(500).json({ error: "Falha ao importar planilha" });
+  }
+}

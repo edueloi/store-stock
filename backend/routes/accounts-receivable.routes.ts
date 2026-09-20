@@ -8,6 +8,7 @@ import {
   applyInterestReceivable,
   bulkReceiveAccountsReceivable,
   bulkDeleteAccountsReceivable,
+  importAccountsReceivable,
 } from "../controllers/accounts-receivable.controller";
 import { authenticateToken } from "../middlewares/auth.middleware";
 
@@ -18,6 +19,7 @@ router.get("/", listAccountsReceivable);
 router.post("/", createAccountReceivable);
 router.post("/bulk-receive", bulkReceiveAccountsReceivable);
 router.post("/bulk-delete", bulkDeleteAccountsReceivable);
+router.post("/import", importAccountsReceivable);
 router.put("/:id", updateAccountReceivable);
 router.delete("/:id", deleteAccountReceivable);
 router.post("/:id/receive", receiveAccount);
