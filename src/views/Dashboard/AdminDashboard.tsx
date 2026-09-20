@@ -392,6 +392,60 @@ function DueSoonBillsToastWatcher({ bills }: { bills: DueSoonBill[] }) {
   return null;
 }
 
+// Mesmo padrão dos watchers acima, agora para parcelas de crediário já vencidas
+// (não "vencendo em breve" como as contas a pagar — crediário já atrasado é o que
+// mais importa avisar, já que é dinheiro de cliente parado).
+const OVERDUE_INSTALLMENTS_SEEN_KEY = "overdue_installments_seen_ids";
+
+function loadOverdueInstallmentsSeenIds(): Set<number> {
+  try {
+    const raw = localStorage.getItem(OVERDUE_INSTALLMENTS_SEEN_KEY);
+    const parsed = raw ? JSON.parse(raw) : [];
+    return new Set(Array.isArray(parsed) ? parsed : []);
+  } catch {
+    return new Set();
+  }
+}
+
+function saveOverdueInstallmentsSeenIds(ids: Set<number>) {
+  try { localStorage.setItem(OVERDUE_INSTALLMENTS_SEEN_KEY, JSON.stringify([...ids])); } catch { /* localStorage indisponível */ }
+}
+
+interface OverdueInstallment { id: number; customer_name: string; due_date: string; remaining: number }
+
+function OverdueInstallmentsToastWatcher({ installments }: { installments: OverdueInstallment[] }) {
+  const { warning } = useToast();
+  const seenIds = useRef<Set<number> | null>(null);
+
+  useEffect(() => {
+    if (seenIds.current === null) {
+      seenIds.current = loadOverdueInstallmentsSeenIds();
+    }
+
+    const currentIds = new Set(installments.map((i) => i.id));
+    const newlyOverdue = installments.filter((i) => !seenIds.current!.has(i.id));
+
+    // Mantém só quem ainda está vencido — se foi paga sai desta lista, e pode
+    // avisar de novo se o cliente atrasar outra parcela depois.
+    const updated = new Set([...seenIds.current].filter((id) => currentIds.has(id)));
+    newlyOverdue.forEach((i) => updated.add(i.id));
+    seenIds.current = updated;
+    saveOverdueInstallmentsSeenIds(updated);
+
+    if (newlyOverdue.length === 0) return;
+
+    if (newlyOverdue.length === 1) {
+      const i = newlyOverdue[0];
+      warning(`Parcela de crediário vencida: ${i.customer_name} — R$ ${i.remaining.toFixed(2)}`, 8000);
+    } else {
+      const total = newlyOverdue.reduce((sum, i) => sum + i.remaining, 0);
+      warning(`${newlyOverdue.length} parcelas de crediário vencidas — R$ ${total.toFixed(2)} no total`, 8000);
+    }
+  }, [installments, warning]);
+
+  return null;
+}
+
 export default function AdminDashboard() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(() => {
     if (window.innerWidth <= 1024) return false;
@@ -406,6 +460,7 @@ export default function AdminDashboard() {
   const lowStockCount = lowStockProducts.length;
   const [heldSales, setHeldSales] = useState<HeldSale[]>([]);
   const [dueSoonBills, setDueSoonBills] = useState<DueSoonBill[]>([]);
+  const [overdueInstallments, setOverdueInstallments] = useState<OverdueInstallment[]>([]);
   const [subscriptionOverdue, setSubscriptionOverdue] = useState(false);
   const location = useLocation();
   const navigate = useNavigate();
@@ -485,6 +540,28 @@ export default function AdminDashboard() {
     };
     fetchDueSoon();
     const interval = setInterval(fetchDueSoon, 60000);
+    return () => { cancelled = true; clearInterval(interval); };
+  }, []);
+
+  // Parcelas de crediário já vencidas — endpoint dedicado (já retorna com o
+  // saldo restante calculado), mesmo padrão de polling dos demais badges.
+  useEffect(() => {
+    let cancelled = false;
+    const fetchOverdueInstallments = async () => {
+      try {
+        const res = await fetch("/api/customers/debts/installments", {
+          headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
+        });
+        if (!res.ok || cancelled) return;
+        const data = await res.json();
+        if (!Array.isArray(data)) return;
+        const now = Date.now();
+        const overdue = data.filter((i: { due_date: string }) => new Date(i.due_date).getTime() < now);
+        if (!cancelled) setOverdueInstallments(overdue);
+      } catch { /* silencioso — badge apenas não atualiza nesta rodada */ }
+    };
+    fetchOverdueInstallments();
+    const interval = setInterval(fetchOverdueInstallments, 60000);
     return () => { cancelled = true; clearInterval(interval); };
   }, []);
 
@@ -677,6 +754,7 @@ export default function AdminDashboard() {
     <LowStockToastWatcher products={lowStockProducts} />
     <HeldSalesToastWatcher sales={heldSales} />
     <DueSoonBillsToastWatcher bills={dueSoonBills} />
+    <OverdueInstallmentsToastWatcher installments={overdueInstallments} />
     <div className="flex h-screen bg-[#f8fafc] overflow-hidden font-sans text-slate-800 relative">
 
       {/* ── SIDEBAR DESKTOP ─────────────────────────────────────────────── */}
@@ -725,12 +803,14 @@ export default function AdminDashboard() {
                         item.path === "/admin/consignacoes" ? overdueConsignments
                           : item.path === "/admin/stock" ? lowStockCount
                           : item.path === "/admin/contas-pagar" ? dueSoonBills.length
+                          : item.path === "/admin/contas-receber" ? overdueInstallments.length
                           : item.path === "/admin/assinatura" ? (subscriptionOverdue ? 1 : 0)
                           : undefined
                       }
                       badgeLabel={
                         item.path === "/admin/stock" ? "com estoque baixo"
                           : item.path === "/admin/contas-pagar" ? "vencendo em breve"
+                          : item.path === "/admin/contas-receber" ? "parcelas de crediário vencidas"
                           : item.path === "/admin/assinatura" ? "em atraso"
                           : undefined
                       }
@@ -798,6 +878,7 @@ export default function AdminDashboard() {
                         item.path === "/admin/consignacoes" ? overdueConsignments
                           : item.path === "/admin/stock" ? lowStockCount
                           : item.path === "/admin/contas-pagar" ? dueSoonBills.length
+                          : item.path === "/admin/contas-receber" ? overdueInstallments.length
                           : item.path === "/admin/assinatura" ? (subscriptionOverdue ? 1 : 0)
                           : 0;
                       return (

@@ -894,3 +894,47 @@ export async function listDebtors(req: Request, res: Response) {
     res.status(500).json({ error: "Falha ao listar devedores" });
   }
 }
+
+// Todas as parcelas de crediário em aberto do tenant (não só de um cliente),
+// pra alimentar a aba "Crediário" em Contas a Receber e o badge/toast de
+// parcelas vencidas — "overdue"/"vencido" é sempre derivado comparando
+// due_date com hoje, igual já é feito em CustomerDebtInstallment em toda a
+// tela (não existe esse status persistido no banco).
+export async function listOpenInstallments(req: Request, res: Response) {
+  try {
+    const tenantId = getTenantId(req);
+    const installments = await prisma.customerDebtInstallment.findMany({
+      where: { tenant_id: tenantId, status: "open" },
+      include: {
+        debt: {
+          select: {
+            id: true,
+            description: true,
+            customer: { select: { id: true, name: true, phone: true, risk_flag: true } },
+          },
+        },
+      },
+      orderBy: { due_date: "asc" },
+    });
+
+    const result = installments.map((inst) => ({
+      id: inst.id,
+      debt_id: inst.debt_id,
+      customer_id: inst.debt.customer.id,
+      customer_name: inst.debt.customer.name,
+      customer_phone: inst.debt.customer.phone,
+      risk_flag: inst.debt.customer.risk_flag,
+      description: inst.debt.description,
+      number: inst.number,
+      due_date: inst.due_date,
+      amount: Number(inst.amount),
+      amount_paid: Number(inst.amount_paid),
+      remaining: Math.round((Number(inst.amount) - Number(inst.amount_paid)) * 100) / 100,
+    }));
+
+    res.json(result);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Falha ao listar parcelas em aberto" });
+  }
+}

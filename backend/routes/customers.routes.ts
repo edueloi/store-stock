@@ -19,6 +19,7 @@ import {
   createNote,
   deleteNote,
   listDebtors,
+  listOpenInstallments,
 } from "../controllers/customers.controller";
 import { authenticateToken } from "../middlewares/auth.middleware";
 
@@ -28,6 +29,7 @@ router.use(authenticateToken);
 
 router.get("/",                     listCustomers);
 router.get("/debtors",              listDebtors);
+router.get("/debts/installments",   listOpenInstallments);
 router.get("/:id",                  getCustomer);
 router.post("/",                    createCustomer);
 router.put("/:id",                  updateCustomer);

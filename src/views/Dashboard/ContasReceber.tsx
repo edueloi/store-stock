@@ -6,6 +6,7 @@ import {
   CheckCircle2,
   Clock,
   AlertCircle,
+  AlertTriangle,
   XCircle,
   ChevronDown,
   Loader2,
@@ -120,7 +121,167 @@ const EMPTY_FORM: FormData = {
   notes: "",
 };
 
+interface CrediarioInstallment {
+  id: number;
+  debt_id: number;
+  customer_id: number;
+  customer_name: string;
+  customer_phone: string | null;
+  risk_flag: boolean;
+  description: string;
+  number: number;
+  due_date: string;
+  amount: number;
+  amount_paid: number;
+  remaining: number;
+}
+
+// Aba "Crediário" — parcelas de venda fiado (CustomerDebtInstallment), sistema
+// separado dos lançamentos administrativos de Contas a Receber (sem FK entre
+// os dois no banco). Busca própria, filtro próprio, sem misturar com `items`/
+// `filtered` da aba admin.
+function CrediarioTab() {
+  const [installments, setInstallments] = useState<CrediarioInstallment[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [statusFilter, setStatusFilter] = useState<"all" | "overdue">("all");
+  const [search, setSearch] = useState("");
+
+  useEffect(() => {
+    const token = localStorage.getItem("token");
+    fetch("/api/customers/debts/installments", { headers: { Authorization: `Bearer ${token}` } })
+      .then((r) => r.json())
+      .then((data) => setInstallments(Array.isArray(data) ? data : []))
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
+
+  const now = Date.now();
+  const withOverdue = installments.map((i) => ({
+    ...i,
+    isOverdue: new Date(i.due_date).getTime() < now,
+    daysLate: Math.max(0, Math.floor((now - new Date(i.due_date).getTime()) / 86_400_000)),
+  }));
+
+  const filtered = withOverdue.filter((i) => {
+    if (statusFilter === "overdue" && !i.isOverdue) return false;
+    if (search && !i.customer_name.toLowerCase().includes(search.toLowerCase()) &&
+        !i.description.toLowerCase().includes(search.toLowerCase())) return false;
+    return true;
+  });
+
+  const overdueList = withOverdue.filter((i) => i.isOverdue);
+  const totalOverdue = overdueList.reduce((sum, i) => sum + i.remaining, 0);
+  const totalOpen = withOverdue.reduce((sum, i) => sum + i.remaining, 0);
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-16">
+        <Loader2 size={22} className="animate-spin text-slate-300" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm relative overflow-hidden">
+          <div className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2">Em Aberto</div>
+          <div className="text-2xl font-mono font-black text-slate-800">R$ {fmt(totalOpen)}</div>
+          <div className="mt-1 text-[9px] font-bold text-slate-400 uppercase">{withOverdue.length} parcelas</div>
+        </div>
+        <div className="bg-white p-5 rounded-2xl border border-rose-200 shadow-sm relative overflow-hidden">
+          <div className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2">Vencidas</div>
+          <div className="text-2xl font-mono font-black text-rose-600">R$ {fmt(totalOverdue)}</div>
+          <div className="mt-1 text-[9px] font-bold text-slate-400 uppercase">{overdueList.length} parcelas vencidas</div>
+          <div className="absolute right-4 top-4 w-10 h-10 rounded-xl bg-rose-50 flex items-center justify-center text-rose-400">
+            <AlertCircle size={20} />
+          </div>
+        </div>
+        <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm relative overflow-hidden">
+          <div className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2">Clientes Devedores</div>
+          <div className="text-2xl font-mono font-black text-slate-800">{new Set(withOverdue.map((i) => i.customer_id)).size}</div>
+          <div className="mt-1 text-[9px] font-bold text-slate-400 uppercase">com parcela em aberto</div>
+        </div>
+      </div>
+
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+        <div className="px-5 py-3 border-b border-slate-100 flex items-center gap-3 flex-wrap">
+          <div className="relative flex-1 min-w-[200px]">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={12} />
+            <input
+              type="text"
+              placeholder="Buscar por cliente ou descrição..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="w-full pl-8 pr-3 h-9 bg-slate-50 border border-slate-200 rounded-lg text-[10px] font-bold uppercase tracking-widest placeholder:text-slate-300 focus:outline-none focus:border-blue-400 transition-all"
+            />
+          </div>
+          <div className="flex gap-1.5">
+            {([["all", "Todas"], ["overdue", "Vencidas"]] as const).map(([k, l]) => (
+              <button
+                key={k}
+                onClick={() => setStatusFilter(k)}
+                className={cn(
+                  "h-9 px-3 rounded-lg text-[9px] font-black uppercase tracking-widest border transition-all",
+                  statusFilter === k
+                    ? "bg-slate-900 text-white border-slate-900"
+                    : "bg-white text-slate-400 border-slate-200 hover:border-slate-400"
+                )}
+              >{l}</button>
+            ))}
+          </div>
+        </div>
+
+        <div className="overflow-x-auto">
+          <table className="w-full text-left border-collapse">
+            <thead>
+              <tr className="bg-slate-50">
+                {["Cliente", "Descrição", "Parcela", "Vencimento", "Valor Restante", "Status"].map((h) => (
+                  <th key={h} className="px-4 py-2.5 text-[9px] font-black text-slate-400 uppercase tracking-widest whitespace-nowrap border-b border-slate-200">{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.length === 0 && (
+                <tr><td colSpan={6} className="px-4 py-8 text-center text-slate-400 text-xs">Nenhuma parcela em aberto</td></tr>
+              )}
+              {filtered.map((i) => (
+                <tr key={i.id} className="border-t border-slate-100">
+                  <td className="px-4 py-2.5 text-xs font-bold text-slate-700 whitespace-nowrap">
+                    {i.customer_name}
+                    {i.risk_flag && <AlertTriangle size={11} className="inline ml-1.5 text-rose-400" />}
+                  </td>
+                  <td className="px-4 py-2.5 text-xs text-slate-500">{i.description}</td>
+                  <td className="px-4 py-2.5 text-xs text-slate-500 text-center whitespace-nowrap">{i.number}</td>
+                  <td className="px-4 py-2.5 text-xs text-slate-500 whitespace-nowrap">{formatDateBR(i.due_date)}</td>
+                  <td className="px-4 py-2.5 text-xs font-mono font-bold text-slate-800 whitespace-nowrap">R$ {fmt(i.remaining)}</td>
+                  <td className="px-4 py-2.5 whitespace-nowrap">
+                    {i.isOverdue ? (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-widest bg-rose-50 border border-rose-200 text-rose-600">
+                        <AlertCircle size={10} /> Vencida há {i.daysLate}d
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-widest bg-amber-50 border border-amber-200 text-amber-600">
+                        <Clock size={10} /> Em aberto
+                      </span>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function ContasReceber() {
+  // "admin" = lançamentos manuais (comportamento existente, intocado); "crediario"
+  // = parcelas de venda fiado (CustomerDebtInstallment) — sistema separado no
+  // banco (sem FK entre os dois), por isso vive num componente à parte
+  // (CrediarioTab) em vez de misturado na mesma lista/filtros.
+  const [mainTab, setMainTab] = useState<"admin" | "crediario">("admin");
   const { success, error: toastError } = useToast();
   const [items, setItems] = useState<AccountReceivable[]>([]);
   const [loading, setLoading] = useState(true);
@@ -559,15 +720,34 @@ export default function ContasReceber() {
         title="Contas a Receber"
         subtitle="Controle de recebimentos e vencimentos"
         action={
-          <button
-            onClick={openCreate}
-            className="h-9 px-4 bg-emerald-600 text-white rounded-xl flex items-center gap-2 text-[10px] font-black uppercase tracking-widest hover:bg-emerald-500 transition-all active:scale-95"
-          >
-            <Plus size={13} strokeWidth={3} /> Nova Conta
-          </button>
+          mainTab === "admin" ? (
+            <button
+              onClick={openCreate}
+              className="h-9 px-4 bg-emerald-600 text-white rounded-xl flex items-center gap-2 text-[10px] font-black uppercase tracking-widest hover:bg-emerald-500 transition-all active:scale-95"
+            >
+              <Plus size={13} strokeWidth={3} /> Nova Conta
+            </button>
+          ) : undefined
         }
       />
 
+      <div className="flex items-center gap-1 bg-slate-100 border border-slate-200 rounded-xl p-1 w-fit">
+        {([["admin", "Administrativo"], ["crediario", "Crediário"]] as const).map(([k, l]) => (
+          <button
+            key={k}
+            onClick={() => setMainTab(k)}
+            className={cn(
+              "h-8 px-4 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all",
+              mainTab === k ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"
+            )}
+          >{l}</button>
+        ))}
+      </div>
+
+      {mainTab === "crediario" && <CrediarioTab />}
+
+      {mainTab === "admin" && (
+      <>
       {/* Summary cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
         <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm relative overflow-hidden">
@@ -1483,6 +1663,8 @@ export default function ContasReceber() {
             </div>
           </div>
         </div>
+      )}
+      </>
       )}
     </div>
   );
