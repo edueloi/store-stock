@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from "react";
+import { useNavigate } from "react-router-dom";
 import PageHeader from "../../components/layout/PageHeader";
 import {
   Plus,
@@ -141,6 +142,7 @@ interface CrediarioInstallment {
 // os dois no banco). Busca própria, filtro próprio, sem misturar com `items`/
 // `filtered` da aba admin.
 function CrediarioTab() {
+  const navigate = useNavigate();
   const [installments, setInstallments] = useState<CrediarioInstallment[]>([]);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState<"all" | "overdue">("all");
@@ -236,17 +238,22 @@ function CrediarioTab() {
           <table className="w-full text-left border-collapse">
             <thead>
               <tr className="bg-slate-50">
-                {["Cliente", "Descrição", "Parcela", "Vencimento", "Valor Restante", "Status"].map((h) => (
+                {["Cliente", "Descrição", "Parcela", "Vencimento", "Valor Restante", "Status", ""].map((h) => (
                   <th key={h} className="px-4 py-2.5 text-[9px] font-black text-slate-400 uppercase tracking-widest whitespace-nowrap border-b border-slate-200">{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
               {filtered.length === 0 && (
-                <tr><td colSpan={6} className="px-4 py-8 text-center text-slate-400 text-xs">Nenhuma parcela em aberto</td></tr>
+                <tr><td colSpan={7} className="px-4 py-8 text-center text-slate-400 text-xs">Nenhuma parcela em aberto</td></tr>
               )}
               {filtered.map((i) => (
-                <tr key={i.id} className="border-t border-slate-100">
+                <tr
+                  key={i.id}
+                  onClick={() => navigate(`/admin/customers/${i.customer_id}?tab=fiado`)}
+                  className="border-t border-slate-100 hover:bg-blue-50/40 cursor-pointer transition-colors"
+                  title="Ver crediário deste cliente"
+                >
                   <td className="px-4 py-2.5 text-xs font-bold text-slate-700 whitespace-nowrap">
                     {i.customer_name}
                     {i.risk_flag && <AlertTriangle size={11} className="inline ml-1.5 text-rose-400" />}
@@ -265,6 +272,11 @@ function CrediarioTab() {
                         <Clock size={10} /> Em aberto
                       </span>
                     )}
+                  </td>
+                  <td className="px-4 py-2.5 whitespace-nowrap text-right">
+                    <span className="inline-flex items-center gap-1 text-[9px] font-black uppercase tracking-widest text-blue-600">
+                      Ver Cliente <ChevronDown size={11} className="-rotate-90" />
+                    </span>
                   </td>
                 </tr>
               ))}

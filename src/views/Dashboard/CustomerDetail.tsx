@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import {
   Phone, Mail, MapPin, AlertTriangle, X, Plus, ChevronRight, Trash2,
   DollarSign, Clock, CheckCircle2, FileText, ShoppingBag, StickyNote,
@@ -170,8 +170,17 @@ export default function CustomerDetail() {
   const navigate = useNavigate();
   const customerId = Number(id);
 
+  // Permite chegar aqui já na aba certa via link (ex.: "Ver Crediário" a partir
+  // de Contas a Receber) — `?tab=fiado` abre direto na aba de fiado em vez de
+  // sempre cair no resumo.
+  const [searchParams] = useSearchParams();
+  const initialTab = searchParams.get("tab");
   const [detail, setDetail] = useState<CustomerDetailData | null>(null);
-  const [detailTab, setDetailTab] = useState<DetailTab>("summary");
+  const [detailTab, setDetailTab] = useState<DetailTab>(
+    initialTab === "fiado" || initialTab === "history" || initialTab === "notes" || initialTab === "loyalty"
+      ? initialTab
+      : "summary"
+  );
   const [loadingDetail, setLoadingDetail] = useState(true);
 
   // Edit form (reaproveita o mesmo modal simplificado de edição rápida)
