@@ -314,6 +314,22 @@ async function registerDebtPayment(
     const newAmountPaid = Number(debt.amount_paid) + amount;
     const isFullyPaid = newAmountPaid >= Number(debt.amount) - 0.005;
 
+    // Mesmo cuidado de registerDebtPaymentMulti: se a dívida quitou inteira mas
+    // o pagamento não veio vinculado a uma parcela específica, fecha também as
+    // parcelas que tivessem ficado abertas — evita dívida "paid" com parcela
+    // órfã em "open".
+    if (isFullyPaid && !installment) {
+      const pendingInstallments = await tx.customerDebtInstallment.findMany({
+        where: { debt_id: debtId, status: { not: "paid" } },
+      });
+      for (const inst of pendingInstallments) {
+        await tx.customerDebtInstallment.update({
+          where: { id: inst.id },
+          data: { amount_paid: inst.amount, status: "paid", paid_at: new Date() },
+        });
+      }
+    }
+
     const updated = await tx.customerDebt.update({
       where: { id: debtId },
       data: {
@@ -441,6 +457,24 @@ async function registerDebtPaymentMulti(
 
     const newAmountPaid = Number(debt.amount_paid) + totalAmount;
     const isFullyPaid = newAmountPaid >= Number(debt.amount) - 0.005;
+
+    // Se a dívida inteira foi quitada mas o pagamento não veio vinculado a uma
+    // parcela específica (ex.: "pagar tudo" em vez de pagar parcela a parcela),
+    // fecha também as CustomerDebtInstallment que ainda estivessem abertas —
+    // sem isso a dívida "mãe" fica "paid" enquanto a(s) parcela(s) ficam órfãs
+    // em "open" pra sempre, aparecendo como pendente em qualquer tela que leia
+    // só a parcela (ex.: aba Crediário de Contas a Receber).
+    if (isFullyPaid && !installment) {
+      const pendingInstallments = await tx.customerDebtInstallment.findMany({
+        where: { debt_id: debtId, status: { not: "paid" } },
+      });
+      for (const inst of pendingInstallments) {
+        await tx.customerDebtInstallment.update({
+          where: { id: inst.id },
+          data: { amount_paid: inst.amount, status: "paid", paid_at: new Date() },
+        });
+      }
+    }
 
     const updated = await tx.customerDebt.update({
       where: { id: debtId },
