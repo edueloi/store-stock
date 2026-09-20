@@ -23,7 +23,7 @@ import { computeMeasuredPrice } from "../utils/measurePricing";
 import { productHasStock } from "../utils/productStock";
 import { fetchCurrentCashSession, openCashSession as apiOpenCashSession, closeCashSession as apiCloseCashSession, CashSessionInfo, ClosedCashSession } from "../lib/cashSession";
 import PaymentSegmentsEditor, { PaymentSegment, newPaymentSegment } from "../components/PaymentSegmentsEditor";
-import { buildInstallmentBookletText, printThermalText } from "../lib/thermalReceipt";
+import { buildInstallmentBookletText, printThermalText, buildCashCloseReceiptText } from "../lib/thermalReceipt";
 import { htmlToPdfBase64 } from "../lib/pdf";
 import OpenCashSessionScreen from "../components/pdv/OpenCashSessionScreen";
 import CloseCashSessionModal from "../components/pdv/CloseCashSessionModal";
@@ -1743,83 +1743,6 @@ export default function PDVStandalone() {
     return receipt;
   };
 
-  // Comprovante impresso ao fechar o caixa — resumo de entradas/saídas por forma
-  // de pagamento (esperado x contado x diferença), igual ao cupom de venda mas
-  // sem NFC-e. Só é chamado quando "Imprimir via de fechamento de caixa" está
-  // ativo nas Configurações.
-  const buildCashCloseReceiptText = (session: ClosedCashSession) => {
-    const now = new Date();
-    const W = 42;
-    const rule = "=".repeat(W);
-    const thin = "-".repeat(W);
-    const money = (value: number) => value.toFixed(2).replace(".", ",");
-    const truncate = (value: string, max = W) => String(value || "").slice(0, max);
-    const center = (value: string) => {
-      const text = truncate(value);
-      return " ".repeat(Math.max(0, Math.floor((W - text.length) / 2))) + text;
-    };
-    const row = (left: string, right = "") => {
-      const rightText = truncate(right, 15);
-      const leftText = truncate(left, W - rightText.length - 1);
-      return `${leftText}${" ".repeat(Math.max(1, W - leftText.length - rightText.length))}${rightText}`;
-    };
-    // Formato compacto (dd/mm HH:MM, 11 chars) — o "row" corta o lado direito
-    // em 15 chars, e "12/09/2026, 16:42:33" (toLocaleString completo) tem 21
-    // chars e sempre saía cortado no meio da hora ("16:").
-    const dateTimeShort = (d: Date) => {
-      const pad = (n: number) => String(n).padStart(2, "0");
-      return `${pad(d.getDate())}/${pad(d.getMonth() + 1)} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
-    };
-
-    let receipt = "\n";
-    receipt += `${center(tenantName.toUpperCase())}\n`;
-    receipt += `${rule}\n${center("FECHAMENTO DE CAIXA")}\n${thin}\n`;
-    receipt += row("Operador", operatorName || "-") + "\n";
-    receipt += row("Abertura", dateTimeShort(new Date(session.opened_at))) + "\n";
-    receipt += row("Fechamento", session.closed_at ? dateTimeShort(new Date(session.closed_at)) : "-") + "\n";
-    receipt += `${thin}\n`;
-    let totalFee = 0;
-    if (session.payment_breakdown) {
-      receipt += `${thin}\n${center("POR FORMA DE PAGAMENTO")}\n${thin}\n`;
-      Object.entries(session.payment_breakdown).forEach(([method, entry]) => {
-        if (method === "money") {
-          const openingAmount = Number(session.opening_amount);
-          const salesAmount = entry.sales_amount ?? Math.round((entry.expected - openingAmount) * 100) / 100;
-          receipt += `${center("DINHEIRO NA GAVETA")}\n`;
-          receipt += row("Fundo inicial (troco)", `R$ ${money(openingAmount)}`) + "\n";
-          receipt += row("+ Vendas em dinheiro", `R$ ${money(salesAmount)}`) + "\n";
-          if (entry.debt_payment_amount) {
-            receipt += row("+ Receb. crediário", `R$ ${money(entry.debt_payment_amount)}`) + "\n";
-          }
-          receipt += row("= TOTAL ESPERADO", `R$ ${money(entry.expected)}`) + "\n";
-        } else {
-          receipt += row(PM_LABEL[method as PaymentMethod] ?? method, `R$ ${money(entry.expected)}`) + "\n";
-        }
-        if (entry.fee) {
-          totalFee += entry.fee;
-          receipt += row("  Taxa maquininha", `-R$ ${money(entry.fee)}`) + "\n";
-          receipt += row("  Líquido", `R$ ${money(entry.net ?? entry.expected - entry.fee)}`) + "\n";
-        }
-        if (entry.counted !== undefined) {
-          receipt += row("  Contado", `R$ ${money(entry.counted)}`) + "\n";
-        }
-        if (entry.difference !== undefined && entry.difference !== 0) {
-          receipt += row("  Diferença", `${entry.difference > 0 ? "+" : ""}R$ ${money(entry.difference)}`) + "\n";
-        }
-      });
-    }
-    receipt += `${rule}\n`;
-    receipt += row("TOTAL ESPERADO", `R$ ${money(Number(session.expected_amount))}`) + "\n";
-    if (totalFee > 0) {
-      receipt += row("TOTAL TAXAS", `-R$ ${money(totalFee)}`) + "\n";
-      receipt += row("TOTAL LÍQUIDO", `R$ ${money(Number(session.expected_amount) - totalFee)}`) + "\n";
-    }
-    receipt += row("TOTAL CONTADO", `R$ ${money(Number(session.counted_amount))}`) + "\n";
-    const diff = Number(session.difference_amount);
-    receipt += row(diff === 0 ? "CAIXA CONFERE" : diff > 0 ? "SOBRA" : "FALTA", `R$ ${money(Math.abs(diff))}`) + "\n";
-    receipt += `${rule}\n\n\n`;
-    return receipt;
-  };
 
   const buildThermalHtml = (sale: CompletedSale) => {
     const now = new Date().toLocaleString("pt-BR");
@@ -5185,12 +5108,8 @@ ${nfceInvoice.protocol ? `<div class="row"><span class="bold">Protocolo:</span><
             }
             const closed = await apiCloseCashSession(token, cashSession.id, counted, breakdown, note);
             if (printCashCloseReceipt && !closed.pendingSync) {
-              const receiptText = buildCashCloseReceiptText(closed);
-              if (window.boxsysDesktop?.printReceipt) {
-                window.boxsysDesktop.printReceipt(receiptText).catch(() => {});
-              } else {
-                printViaIframe(`<pre style="font-family:'Courier New',monospace;font-size:12px;white-space:pre-wrap">${receiptText}</pre>`);
-              }
+              const receiptText = buildCashCloseReceiptText(tenantName, operatorName, closed, PM_LABEL);
+              printThermalText(receiptText, "Fechamento de Caixa").catch(() => {});
             }
             return closed;
           }}

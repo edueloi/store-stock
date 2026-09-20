@@ -78,6 +78,95 @@ export function buildInstallmentBookletText(
   return text;
 }
 
+// Formato compacto (dd/mm HH:MM, 11 chars) — thermalRow corta o lado direito em
+// 15 chars, e "12/09/2026, 16:42:33" (toLocaleString completo) tem 21 chars e
+// sempre saía cortado no meio da hora ("16:").
+function dateTimeShort(d: Date): string {
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${pad(d.getDate())}/${pad(d.getMonth() + 1)} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+export interface CashCloseReceiptPaymentEntry {
+  expected: number;
+  counted?: number;
+  difference?: number;
+  fee?: number;
+  net?: number;
+  sales_amount?: number;
+  debt_payment_amount?: number;
+}
+
+export interface CashCloseReceiptSession {
+  opening_amount: number | string;
+  counted_amount: number | string;
+  expected_amount: number | string;
+  difference_amount: number | string;
+  payment_breakdown: Record<string, CashCloseReceiptPaymentEntry> | null;
+  opened_at: string;
+  closed_at: string | null;
+}
+
+// Comprovante impresso ao fechar o caixa — resumo de entradas por forma de
+// pagamento (esperado x contado x diferença). Usado tanto no fechamento ao
+// vivo (PDV.tsx/PDVStandalone.tsx) quanto na reimpressão a partir do
+// Histórico de Caixa — precisa ser o MESMO texto nos dois lugares, por isso
+// vive aqui em vez de duplicado em cada tela.
+export function buildCashCloseReceiptText(
+  tenantName: string,
+  operatorName: string,
+  session: CashCloseReceiptSession,
+  pmLabel: Record<string, string>,
+): string {
+  let receipt = "\n";
+  receipt += `${thermalCenter(tenantName.toUpperCase())}\n`;
+  receipt += `${thermalRule}\n${thermalCenter("FECHAMENTO DE CAIXA")}\n${thermalThin}\n`;
+  receipt += thermalRow("Operador", operatorName || "-") + "\n";
+  receipt += thermalRow("Abertura", dateTimeShort(new Date(session.opened_at))) + "\n";
+  receipt += thermalRow("Fechamento", session.closed_at ? dateTimeShort(new Date(session.closed_at)) : "-") + "\n";
+  receipt += `${thermalThin}\n`;
+  let totalFee = 0;
+  if (session.payment_breakdown) {
+    receipt += `${thermalThin}\n${thermalCenter("POR FORMA DE PAGAMENTO")}\n${thermalThin}\n`;
+    Object.entries(session.payment_breakdown).forEach(([method, entry]) => {
+      if (method === "money") {
+        const openingAmount = Number(session.opening_amount);
+        const salesAmount = entry.sales_amount ?? Math.round((entry.expected - openingAmount) * 100) / 100;
+        receipt += `${thermalCenter("DINHEIRO NA GAVETA")}\n`;
+        receipt += thermalRow("Fundo inicial (troco)", `R$ ${thermalMoney(openingAmount)}`) + "\n";
+        receipt += thermalRow("+ Vendas em dinheiro", `R$ ${thermalMoney(salesAmount)}`) + "\n";
+        if (entry.debt_payment_amount) {
+          receipt += thermalRow("+ Receb. crediário", `R$ ${thermalMoney(entry.debt_payment_amount)}`) + "\n";
+        }
+        receipt += thermalRow("= TOTAL ESPERADO", `R$ ${thermalMoney(entry.expected)}`) + "\n";
+      } else {
+        receipt += thermalRow(pmLabel[method] ?? method, `R$ ${thermalMoney(entry.expected)}`) + "\n";
+      }
+      if (entry.fee) {
+        totalFee += entry.fee;
+        receipt += thermalRow("  Taxa maquininha", `-R$ ${thermalMoney(entry.fee)}`) + "\n";
+        receipt += thermalRow("  Líquido", `R$ ${thermalMoney(entry.net ?? entry.expected - entry.fee)}`) + "\n";
+      }
+      if (entry.counted !== undefined) {
+        receipt += thermalRow("  Contado", `R$ ${thermalMoney(entry.counted)}`) + "\n";
+      }
+      if (entry.difference !== undefined && entry.difference !== 0) {
+        receipt += thermalRow("  Diferença", `${entry.difference > 0 ? "+" : ""}R$ ${thermalMoney(entry.difference)}`) + "\n";
+      }
+    });
+  }
+  receipt += `${thermalRule}\n`;
+  receipt += thermalRow("TOTAL ESPERADO", `R$ ${thermalMoney(Number(session.expected_amount))}`) + "\n";
+  if (totalFee > 0) {
+    receipt += thermalRow("TOTAL TAXAS", `-R$ ${thermalMoney(totalFee)}`) + "\n";
+    receipt += thermalRow("TOTAL LÍQUIDO", `R$ ${thermalMoney(Number(session.expected_amount) - totalFee)}`) + "\n";
+  }
+  receipt += thermalRow("TOTAL CONTADO", `R$ ${thermalMoney(Number(session.counted_amount))}`) + "\n";
+  const diff = Number(session.difference_amount);
+  receipt += thermalRow(diff === 0 ? "CAIXA CONFERE" : diff > 0 ? "SOBRA" : "FALTA", `R$ ${thermalMoney(Math.abs(diff))}`) + "\n";
+  receipt += `${thermalRule}\n\n\n`;
+  return receipt;
+}
+
 export function buildThermalHtml(text: string, title: string): string {
   return `<!DOCTYPE html>
 <html>

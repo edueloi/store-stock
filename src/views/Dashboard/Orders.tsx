@@ -34,6 +34,7 @@ import { downloadHtmlAsPdf } from "../../lib/pdf";
 import { useToast } from "../../components/ui/Toast";
 import { onRealtimeAny } from "../../lib/realtime";
 import { fetchRemotePrintTerminals, requestRemotePrint, type RemotePrintTerminal } from "../../lib/remotePrint";
+import { printThermalText } from "../../lib/thermalReceipt";
 import { Printer } from "lucide-react";
 import OrderReturnModal from "./OrderReturnModal";
 
@@ -1130,22 +1131,12 @@ ${
     }
   };
 
+  // Reimpressão do cupom — mesmo texto/formato de 42 colunas da venda original
+  // (buildOrderThermalText), pra ir direto na impressora térmica igual saiu na
+  // hora da venda, em vez do comprovante A4 aberto no navegador.
   const handlePrintReceipt = () => {
     if (!selectedOrder) return;
-    const html = buildReceiptHtml(selectedOrder);
-    const iframe = document.createElement("iframe");
-    iframe.style.cssText = "position:fixed;right:0;bottom:0;width:0;height:0;border:none";
-    document.body.appendChild(iframe);
-    const doc = iframe.contentDocument || iframe.contentWindow?.document;
-    if (!doc) return;
-    doc.open();
-    doc.write(html);
-    doc.close();
-    setTimeout(() => {
-      iframe.contentWindow?.focus();
-      iframe.contentWindow?.print();
-      setTimeout(() => document.body.removeChild(iframe), 1000);
-    }, 400);
+    printThermalText(buildOrderThermalText(selectedOrder), "Comprovante");
   };
 
   const handleDownloadReceipt = async () => {

@@ -11,6 +11,9 @@ import PageHeader from "../../components/layout/PageHeader";
 import Button from "../../components/ui/Button";
 import Modal from "../../components/ui/Modal";
 import { cn } from "../../lib/utils";
+import {
+  buildCashCloseReceiptText, printThermalText, thermalThin, thermalCenter, thermalRow,
+} from "../../lib/thermalReceipt";
 
 // Mesmo padrão de filtro de período já usado em Fluxo de Caixa/Contas a
 // Pagar/Contas a Receber — navegador de mês/ano com atalho pra período livre.
@@ -187,6 +190,19 @@ export default function CashSessionHistory() {
   };
 
   const token = localStorage.getItem("token");
+
+  // Nome da loja pro cabeçalho do cupom impresso — buscado sob demanda (só ao
+  // imprimir) em vez de guardado em estado, já que essa tela não precisa dele
+  // pra mais nada.
+  const fetchTenantName = async () => {
+    try {
+      const res = await fetch("/api/tenant", { headers: { Authorization: `Bearer ${token}` } });
+      const data = await res.json();
+      return data?.name || "BoxSys Store";
+    } catch {
+      return "BoxSys Store";
+    }
+  };
 
   useEffect(() => {
     fetch("/api/cash-sessions", { headers: { Authorization: `Bearer ${token}` } })
@@ -380,91 +396,29 @@ export default function CashSessionHistory() {
     setDetail(null);
   };
 
-  const printSessionReceipt = (session: CashSessionDetail) => {
-    const W = 42;
-    const rule = "=".repeat(W);
-    const thin = "-".repeat(W);
+  // Mesmo cupom impresso no fechamento ao vivo (PDV.tsx) — usa a função
+  // compartilhada pra reimpressão a partir daqui nunca divergir do que já
+  // saiu na hora do fechamento.
+  const printSessionReceipt = async (session: CashSessionDetail) => {
     const money2 = (v: number) => v.toFixed(2).replace(".", ",");
-    const truncate = (v: string, max = W) => String(v || "").slice(0, max);
-    const center = (v: string) => {
-      const text = truncate(v);
-      return " ".repeat(Math.max(0, Math.floor((W - text.length) / 2))) + text;
-    };
-    const row = (left: string, right = "") => {
-      const rightText = truncate(right, 15);
-      const leftText = truncate(left, W - rightText.length - 1);
-      return `${leftText}${" ".repeat(Math.max(1, W - leftText.length - rightText.length))}${rightText}`;
-    };
-
-    let receipt = "\n";
-    receipt += `${rule}\n${center("FECHAMENTO DE CAIXA")}\n${thin}\n`;
-    receipt += row("Aberto por", session.opened_by_name) + "\n";
-    receipt += row("Fechado por", session.closed_by_name ?? "-") + "\n";
-    receipt += row("Abertura", new Date(session.opened_at).toLocaleString("pt-BR")) + "\n";
-    if (session.closed_at) receipt += row("Fechamento", new Date(session.closed_at).toLocaleString("pt-BR")) + "\n";
-    receipt += `${thin}\n`;
-
     const validOrders = session.orders.filter((o) => o.status !== "cancelled");
     const totalGross = validOrders.reduce((sum, o) => sum + Number(o.gross_amount ?? o.total_amount), 0);
     const totalDiscount = validOrders.reduce((sum, o) => sum + Number(o.discount_amount ?? 0), 0);
     const totalFee = validOrders.reduce((sum, o) => sum + Number(o.fee_amount ?? 0), 0);
+
+    let extra = "";
     if (totalDiscount > 0 || totalFee > 0) {
-      receipt += `${thin}\n${center("VENDAS DO PERÍODO")}\n${thin}\n`;
-      receipt += row("Vendas (bruto)", `R$ ${money2(totalGross)}`) + "\n";
-      if (totalDiscount > 0) receipt += row("(-) Descontos", `R$ ${money2(totalDiscount)}`) + "\n";
-      if (totalFee > 0) receipt += row("(-) Taxa maquininha", `R$ ${money2(totalFee)}`) + "\n";
-      receipt += row("= Vendas (líquido)", `R$ ${money2(totalGross - totalDiscount - totalFee)}`) + "\n";
+      extra += `${thermalThin}\n${thermalCenter("VENDAS DO PERÍODO")}\n${thermalThin}\n`;
+      extra += thermalRow("Vendas (bruto)", `R$ ${money2(totalGross)}`) + "\n";
+      if (totalDiscount > 0) extra += thermalRow("(-) Descontos", `R$ ${money2(totalDiscount)}`) + "\n";
+      if (totalFee > 0) extra += thermalRow("(-) Taxa maquininha", `R$ ${money2(totalFee)}`) + "\n";
+      extra += thermalRow("= Vendas (líquido)", `R$ ${money2(totalGross - totalDiscount - totalFee)}`) + "\n";
     }
 
-    if (session.payment_breakdown) {
-      receipt += `${thin}\n${center("POR FORMA DE PAGAMENTO")}\n${thin}\n`;
-      Object.entries(session.payment_breakdown).forEach(([method, entry]) => {
-        // Só "Dinheiro" soma o fundo de abertura ao valor esperado — deixa explícito
-        // essa conta (abertura + vendas) pra não parecer que a loja vendeu mais em
-        // dinheiro do que realmente vendeu naquele dia.
-        if (method === "money") {
-          const openingAmount = Number(session.opening_amount);
-          const salesAmount = entry.sales_amount ?? Math.round((entry.expected - openingAmount) * 100) / 100;
-          receipt += `${center("DINHEIRO NA GAVETA")}\n`;
-          receipt += row("Fundo inicial (troco)", `R$ ${money2(openingAmount)}`) + "\n";
-          receipt += row("+ Vendas em dinheiro", `R$ ${money2(salesAmount)}`) + "\n";
-          if (entry.debt_payment_amount) {
-            receipt += row("+ Receb. crediário", `R$ ${money2(entry.debt_payment_amount)}`) + "\n";
-          }
-          receipt += row("= TOTAL ESPERADO", `R$ ${money2(entry.expected)}`) + "\n";
-        } else {
-          receipt += row(PM_LABEL[method] ?? method, `R$ ${money2(entry.expected)}`) + "\n";
-        }
-        if (entry.counted !== undefined) receipt += row("  Contado", `R$ ${money2(entry.counted)}`) + "\n";
-        if (entry.difference !== undefined && entry.difference !== 0) {
-          receipt += row("  Diferença", `${entry.difference > 0 ? "+" : ""}R$ ${money2(entry.difference)}`) + "\n";
-        }
-      });
-    }
-    receipt += `${rule}\n`;
-    receipt += row("TOTAL ESPERADO", `R$ ${money2(Number(session.expected_amount))}`) + "\n";
-    receipt += row("TOTAL CONTADO", `R$ ${money2(Number(session.counted_amount))}`) + "\n";
-    const diff = Number(session.difference_amount);
-    receipt += row(diff === 0 ? "CAIXA CONFERE" : diff > 0 ? "SOBRA" : "FALTA", `R$ ${money2(Math.abs(diff))}`) + "\n";
-    receipt += `${rule}\n\n\n`;
-
-    if (window.boxsysDesktop?.printReceipt) {
-      window.boxsysDesktop.printReceipt(receipt).catch(() => {});
-      return;
-    }
-    const iframe = document.createElement("iframe");
-    Object.assign(iframe.style, { position: "fixed", right: "0", bottom: "0", width: "0", height: "0", border: "none" });
-    document.body.appendChild(iframe);
-    const doc = iframe.contentDocument || iframe.contentWindow?.document;
-    if (!doc) return;
-    doc.open();
-    doc.write(`<pre style="font-family:'Courier New',monospace;font-size:12px;white-space:pre-wrap">${receipt}</pre>`);
-    doc.close();
-    setTimeout(() => {
-      iframe.contentWindow?.focus();
-      iframe.contentWindow?.print();
-      setTimeout(() => document.body.removeChild(iframe), 1500);
-    }, 400);
+    const tenantName = await fetchTenantName();
+    const operatorName = session.closed_by_name ?? session.opened_by_name;
+    const receipt = buildCashCloseReceiptText(tenantName, operatorName, session, PM_LABEL) + extra;
+    await printThermalText(receipt, "Fechamento de Caixa");
   };
 
   const grandTotal = paymentByMethodBrand.reduce((a, v) => a + v.amount, 0);
