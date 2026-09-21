@@ -137,21 +137,20 @@ export function buildNfceXml(input: BuildNfceInput): BuildNfceResult {
   emit.ele("CRT").txt(String(tenant.crt));
 
   // ── dest (opcional — Nota Fiscal Paulista) ────────────────────────────────
-  // Em HOMOLOGAÇÃO a própria SEFAZ exige que a razão social do destinatário seja
-  // sempre o texto fixo de teste — mandar o nome real do cliente (mesmo que
-  // verdadeiro) é rejeitado com "Razão Social do destinatário diferente de NF-E
-  // EMITIDA EM AMBIENTE DE HOMOLOGACAO - SEM VALOR FISCAL". Em produção, usa o
-  // nome real quando disponível (a SEFAZ não exige xNome quando só há CPF/CNPJ,
-  // mas preenchê-lo corretamente evita essa mesma rejeição se o destinatário for
-  // pessoa jurídica).
-  if (customerDocument) {
+  // Em HOMOLOGAÇÃO a SEFAZ só reconhece CPF/CNPJ cadastrados por ela mesma como
+  // "de teste" — um documento real de cliente (mesmo válido e ativo na Receita)
+  // é rejeitado com "CNPJ/CPF do destinatário não cadastrado na Receita
+  // Federal" (cStat 181), porque a base de homologação não tem esse
+  // destinatário. Por isso em homologação NUNCA enviamos o CPF/CNPJ real do
+  // cliente — a nota de teste fica sem destinatário identificado (não tem
+  // valor fiscal mesmo). Só em produção o documento real é enviado, junto do
+  // texto fixo exigido só em homologação para xNome (ver comentário abaixo).
+  if (!isHomologacao && customerDocument) {
     const digits = onlyDigits(customerDocument);
     const dest = doc.ele("dest");
     if (digits.length === 11) dest.ele("CPF").txt(digits);
     else if (digits.length === 14) dest.ele("CNPJ").txt(digits);
-    const destName = isHomologacao
-      ? "NF-E EMITIDA EM AMBIENTE DE HOMOLOGACAO - SEM VALOR FISCAL"
-      : trimText(customerName) || undefined;
+    const destName = trimText(customerName) || undefined;
     if (destName) dest.ele("xNome").txt(destName);
     dest.ele("indIEDest").txt("9"); // não contribuinte
   }
