@@ -1050,6 +1050,16 @@ model Customer {
   address_state           String?   @db.Char(2)
   address_zip             String?
   address_country         String?   @default("Brasil")
+  // Dados fiscais preenchidos automaticamente ao buscar um CNPJ (BrasilAPI) —
+  // "name" continua sendo o nome fantasia/apelido usado no dia a dia (cupom,
+  // listagens); estes campos guardam o retorno oficial da Receita Federal.
+  legal_name              String?
+  trade_name              String?
+  cnae_code               String?
+  cnae_description        String?
+  legal_nature            String?
+  registration_status     String?
+  registration_status_date DateTime?
   notes                   String?   @db.Text
   credit_limit            Decimal?  @db.Decimal(10, 2)
   consignment_limit       Decimal?  @db.Decimal(10, 2)

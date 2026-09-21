@@ -40,6 +40,13 @@ interface Customer {
   created_at: string;
   total_debt?: number;
   open_debts?: number;
+  legal_name?: string;
+  trade_name?: string;
+  cnae_code?: string;
+  cnae_description?: string;
+  legal_nature?: string;
+  registration_status?: string;
+  registration_status_date?: string;
 }
 
 interface Debtor {
@@ -173,6 +180,15 @@ export default function Customers() {
   const [fZip, setFZip]           = useState("");
   const [fCountry, setFCountry]   = useState("Brasil");
   const [cepLoading, setCepLoading] = useState(false);
+  const [cnpjLoading, setCnpjLoading] = useState(false);
+  const [cnpjError, setCnpjError] = useState<string | null>(null);
+  const [fLegalName, setFLegalName] = useState("");
+  const [fTradeName, setFTradeName] = useState("");
+  const [fCnaeCode, setFCnaeCode] = useState("");
+  const [fCnaeDescription, setFCnaeDescription] = useState("");
+  const [fLegalNature, setFLegalNature] = useState("");
+  const [fRegistrationStatus, setFRegistrationStatus] = useState("");
+  const [fRegistrationStatusDate, setFRegistrationStatusDate] = useState("");
   const [fNotes, setFNotes]       = useState("");
   const [fCredit, setFCredit]     = useState("");
   const [fConsignmentLimit, setFConsignmentLimit] = useState("");
@@ -247,6 +263,8 @@ export default function Customers() {
     setFName(""); setFEmail(""); setFPhone(""); setFDoc("");
     setFAddr(""); setFStreet(""); setFNumber(""); setFComplement(""); setFDistrict(""); setFCity(""); setFState(""); setFZip(""); setFCountry("Brasil");
     setFNotes(""); setFCredit(""); setFConsignmentLimit(""); setFBirth(""); setFRisk(false); setFRiskReason("");
+    setFLegalName(""); setFTradeName(""); setFCnaeCode(""); setFCnaeDescription(""); setFLegalNature(""); setFRegistrationStatus(""); setFRegistrationStatusDate("");
+    setCnpjError(null);
     setShowForm(true);
   }
 
@@ -261,6 +279,11 @@ export default function Customers() {
     setFConsignmentLimit(c.consignment_limit ? String(c.consignment_limit) : "");
     setFBirth(c.birth_date ? c.birth_date.slice(0, 10) : "");
     setFRisk(c.risk_flag); setFRiskReason(c.risk_reason ?? "");
+    setFLegalName(c.legal_name ?? ""); setFTradeName(c.trade_name ?? "");
+    setFCnaeCode(c.cnae_code ?? ""); setFCnaeDescription(c.cnae_description ?? "");
+    setFLegalNature(c.legal_nature ?? ""); setFRegistrationStatus(c.registration_status ?? "");
+    setFRegistrationStatusDate(c.registration_status_date ? c.registration_status_date.slice(0, 10) : "");
+    setCnpjError(null);
     setShowForm(true);
   }
 
@@ -284,6 +307,40 @@ export default function Customers() {
       // silencioso — mesmo comportamento do lookup de CEP do Tenant
     } finally {
       setCepLoading(false);
+    }
+  }
+
+  async function handleLookupCNPJ() {
+    const raw = fDoc.replace(/\D/g, "");
+    if (raw.length !== 14) return;
+    setCnpjLoading(true);
+    setCnpjError(null);
+    try {
+      const res = await fetch(`https://brasilapi.com.br/api/cnpj/v1/${raw}`);
+      if (!res.ok) { setCnpjError("CNPJ não encontrado."); return; }
+      const d = await res.json();
+      const displayName = d.nome_fantasia?.trim() || d.razao_social?.trim();
+      if (displayName) setFName(displayName);
+      if (d.email) setFEmail(d.email);
+      if (d.ddd_telefone_1) setFPhone(maskPhone(d.ddd_telefone_1));
+      if (d.cep) setFZip(String(d.cep).replace(/\D/g, ""));
+      if (d.logradouro) setFStreet(d.logradouro);
+      if (d.numero) setFNumber(d.numero);
+      if (d.complemento) setFComplement(d.complemento);
+      if (d.bairro) setFDistrict(d.bairro);
+      if (d.municipio) setFCity(d.municipio);
+      if (d.uf) setFState(d.uf);
+      setFLegalName(d.razao_social?.trim() ?? "");
+      setFTradeName(d.nome_fantasia?.trim() ?? "");
+      setFCnaeCode(d.cnae_fiscal ? String(d.cnae_fiscal) : "");
+      setFCnaeDescription(d.cnae_fiscal_descricao ?? "");
+      setFLegalNature(d.natureza_juridica ?? "");
+      setFRegistrationStatus(d.descricao_situacao_cadastral ?? "");
+      setFRegistrationStatusDate(d.data_situacao_cadastral ?? "");
+    } catch {
+      setCnpjError("Falha ao consultar CNPJ. Tente novamente.");
+    } finally {
+      setCnpjLoading(false);
     }
   }
 
@@ -314,6 +371,13 @@ export default function Customers() {
         birth_date: fBirth || null,
         risk_flag: fRisk,
         risk_reason: fRiskReason || null,
+        legal_name: fLegalName || null,
+        trade_name: fTradeName || null,
+        cnae_code: fCnaeCode || null,
+        cnae_description: fCnaeDescription || null,
+        legal_nature: fLegalNature || null,
+        registration_status: fRegistrationStatus || null,
+        registration_status_date: fRegistrationStatusDate || null,
       };
       if (editCust) {
         await fetch(`/api/customers/${editCust.id}`, {
@@ -734,15 +798,64 @@ export default function Customers() {
                   </div>
                   <div>
                     <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block mb-1">CPF/CNPJ</label>
-                    <input
-                      value={fDoc}
-                      onChange={(e) => setFDoc(maskDoc(e.target.value))}
-                      placeholder="000.000.000-00"
-                      inputMode="numeric"
-                      className="w-full h-9 px-3 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    />
+                    <div className="flex gap-1.5">
+                      <input
+                        value={fDoc}
+                        onChange={(e) => { setFDoc(maskDoc(e.target.value)); setCnpjError(null); }}
+                        placeholder="000.000.000-00"
+                        inputMode="numeric"
+                        className="w-full h-9 px-3 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      />
+                      {fDoc.replace(/\D/g, "").length === 14 && (
+                        <button type="button" onClick={handleLookupCNPJ} disabled={cnpjLoading}
+                          title="Buscar dados do CNPJ na Receita Federal"
+                          className="h-9 px-2.5 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-50 transition-all flex items-center justify-center shrink-0">
+                          {cnpjLoading ? <Loader2 size={14} className="animate-spin" /> : <Search size={14} />}
+                        </button>
+                      )}
+                    </div>
                   </div>
                 </div>
+                {cnpjError && (
+                  <p className="text-[11px] font-semibold text-red-500 bg-red-50 border border-red-100 rounded-lg px-3 py-2">{cnpjError}</p>
+                )}
+                {fDoc.replace(/\D/g, "").length === 14 && (fLegalName || fCnaeDescription || fRegistrationStatus) && (
+                  <div className="space-y-2 bg-slate-50 border border-slate-100 rounded-lg p-3">
+                    <p className="text-[9px] font-black uppercase tracking-widest text-slate-400">Dados Fiscais (Receita Federal)</p>
+                    {fLegalName && (
+                      <div>
+                        <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block mb-1">Razão Social</label>
+                        <input value={fLegalName} onChange={(e) => setFLegalName(e.target.value)}
+                          className="w-full h-9 px-3 rounded-lg border border-slate-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                      </div>
+                    )}
+                    <div className="grid grid-cols-2 gap-2">
+                      {fLegalNature && (
+                        <div>
+                          <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block mb-1">Natureza Jurídica</label>
+                          <p className="text-[12px] font-semibold text-slate-700 h-9 px-3 flex items-center rounded-lg border border-slate-200 bg-white truncate">{fLegalNature}</p>
+                        </div>
+                      )}
+                      {fRegistrationStatus && (
+                        <div>
+                          <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block mb-1">Situação Cadastral</label>
+                          <p className={cn(
+                            "text-[12px] font-bold h-9 px-3 flex items-center rounded-lg border",
+                            fRegistrationStatus === "ATIVA" ? "border-emerald-200 bg-emerald-50 text-emerald-700" : "border-amber-200 bg-amber-50 text-amber-700"
+                          )}>{fRegistrationStatus}</p>
+                        </div>
+                      )}
+                    </div>
+                    {fCnaeDescription && (
+                      <div>
+                        <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block mb-1">CNAE Principal</label>
+                        <p className="text-[12px] font-semibold text-slate-700 px-3 py-2 rounded-lg border border-slate-200 bg-white">
+                          {fCnaeCode ? `${fCnaeCode} — ` : ""}{fCnaeDescription}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                )}
                 <div>
                   <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block mb-1">Data de Aniversário</label>
                   <input

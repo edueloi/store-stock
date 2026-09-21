@@ -105,6 +105,7 @@ export async function createCustomer(req: Request, res: Response) {
     const {
       name, email, phone, document, address, notes, credit_limit, consignment_limit, risk_flag, risk_reason, birth_date,
       address_street, address_number, address_complement, address_district, address_city, address_state, address_zip, address_country,
+      legal_name, trade_name, cnae_code, cnae_description, legal_nature, registration_status, registration_status_date,
     } = req.body;
     const customer = await prisma.customer.create({
       data: {
@@ -128,6 +129,13 @@ export async function createCustomer(req: Request, res: Response) {
         risk_flag: risk_flag ?? false,
         risk_reason: risk_reason || null,
         birth_date: birth_date ? new Date(birth_date) : null,
+        legal_name: legal_name || null,
+        trade_name: trade_name || null,
+        cnae_code: cnae_code || null,
+        cnae_description: cnae_description || null,
+        legal_nature: legal_nature || null,
+        registration_status: registration_status || null,
+        registration_status_date: registration_status_date ? new Date(registration_status_date) : null,
       },
     });
     res.json(customer);
@@ -144,6 +152,7 @@ export async function updateCustomer(req: Request, res: Response) {
     const {
       name, email, phone, document, address, notes, credit_limit, consignment_limit, risk_flag, risk_reason, birth_date,
       address_street, address_number, address_complement, address_district, address_city, address_state, address_zip, address_country,
+      legal_name, trade_name, cnae_code, cnae_description, legal_nature, registration_status, registration_status_date,
     } = req.body;
 
     await prisma.customer.updateMany({
@@ -168,6 +177,13 @@ export async function updateCustomer(req: Request, res: Response) {
         ...(risk_flag !== undefined && { risk_flag }),
         ...(risk_reason !== undefined && { risk_reason: risk_reason || null }),
         ...(birth_date !== undefined && { birth_date: birth_date ? new Date(birth_date) : null }),
+        ...(legal_name !== undefined && { legal_name: legal_name || null }),
+        ...(trade_name !== undefined && { trade_name: trade_name || null }),
+        ...(cnae_code !== undefined && { cnae_code: cnae_code || null }),
+        ...(cnae_description !== undefined && { cnae_description: cnae_description || null }),
+        ...(legal_nature !== undefined && { legal_nature: legal_nature || null }),
+        ...(registration_status !== undefined && { registration_status: registration_status || null }),
+        ...(registration_status_date !== undefined && { registration_status_date: registration_status_date ? new Date(registration_status_date) : null }),
       },
     });
 
