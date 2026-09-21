@@ -68,10 +68,10 @@ export default function CloseCashSessionModal({ onCancel, onConfirm, onFinish }:
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-      <div className={`w-full bg-white rounded-2xl border border-slate-200 shadow-2xl overflow-hidden transition-all max-h-[92vh] flex flex-col ${
-        step === "count" && mode === "count" ? "max-w-3xl" : "max-w-md"
+      <div className={`w-full bg-white rounded-2xl border border-slate-200 shadow-2xl overflow-hidden transition-all max-h-[90vh] flex flex-col ${
+        step === "count" && mode === "count" ? "max-w-2xl" : "max-w-md"
       }`}>
-        <div className="flex items-center justify-between px-5 h-14 border-b border-slate-100">
+        <div className="flex items-center justify-between px-5 h-12 border-b border-slate-100 shrink-0">
           <div className="flex items-center gap-2">
             <Wallet size={16} className="text-slate-500" />
             <p className="text-[13px] font-black text-slate-800">
@@ -86,82 +86,80 @@ export default function CloseCashSessionModal({ onCancel, onConfirm, onFinish }:
         </div>
 
         {step === "count" ? (
-          <div className="p-5 space-y-4 overflow-y-auto min-h-0">
-            <p className="text-[11px] text-slate-400 font-medium leading-relaxed">
-              Informe o valor em dinheiro contado na gaveta. O valor esperado só será exibido
-              após a confirmação — e a ação não poderá ser desfeita.
-            </p>
+          <div className="flex flex-col min-h-0 flex-1">
+            <div className="px-5 pt-4 pb-3 space-y-3 shrink-0">
+              <p className="text-[11px] text-slate-400 font-medium leading-relaxed hidden sm:block">
+                Informe o valor em dinheiro contado na gaveta. O valor esperado só será exibido
+                após a confirmação — e a ação não poderá ser desfeita.
+              </p>
 
-            <div className="flex bg-slate-100 border border-slate-200 rounded-xl p-1 gap-1 max-w-sm">
-              <button
-                onClick={() => setMode("simple")}
-                className={`flex-1 h-8 rounded-lg text-[10px] font-black uppercase tracking-wide flex items-center justify-center gap-1.5 transition-all ${
-                  mode === "simple" ? "bg-white text-slate-800 shadow" : "text-slate-400"
-                }`}
-              >
-                <Pencil size={12} /> Digitar valor
-              </button>
-              <button
-                onClick={() => setMode("count")}
-                className={`flex-1 h-8 rounded-lg text-[10px] font-black uppercase tracking-wide flex items-center justify-center gap-1.5 transition-all ${
-                  mode === "count" ? "bg-white text-slate-800 shadow" : "text-slate-400"
-                }`}
-              >
-                <Calculator size={12} /> Contar cédulas
-              </button>
+              <div className="flex bg-slate-100 border border-slate-200 rounded-xl p-1 gap-1 max-w-sm">
+                <button
+                  onClick={() => setMode("simple")}
+                  className={`flex-1 h-8 rounded-lg text-[10px] font-black uppercase tracking-wide flex items-center justify-center gap-1.5 transition-all ${
+                    mode === "simple" ? "bg-white text-slate-800 shadow" : "text-slate-400"
+                  }`}
+                >
+                  <Pencil size={12} /> Digitar valor
+                </button>
+                <button
+                  onClick={() => setMode("count")}
+                  className={`flex-1 h-8 rounded-lg text-[10px] font-black uppercase tracking-wide flex items-center justify-center gap-1.5 transition-all ${
+                    mode === "count" ? "bg-white text-slate-800 shadow" : "text-slate-400"
+                  }`}
+                >
+                  <Calculator size={12} /> Contar cédulas
+                </button>
+              </div>
             </div>
 
-            {mode === "simple" ? (
-              <div>
-                <label className="text-[10px] font-bold uppercase tracking-widest text-slate-500 block mb-1">
-                  Dinheiro contado
-                </label>
-                <div className="relative">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[13px] font-bold text-slate-400">R$</span>
-                  <input
-                    type="text" inputMode="numeric" autoFocus
-                    value={countedMoneyDisplay}
-                    onChange={(e) => setCountedMoneyCents(e.target.value.replace(/\D/g, ""))}
-                    className="w-full h-11 pl-9 pr-3 rounded-xl border border-slate-200 text-[15px] font-mono font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400"
-                  />
+            <div className="px-5 space-y-3 overflow-y-auto min-h-0 flex-1">
+              {mode === "simple" ? (
+                <div>
+                  <label className="text-[10px] font-bold uppercase tracking-widest text-slate-500 block mb-1">
+                    Dinheiro contado
+                  </label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[13px] font-bold text-slate-400">R$</span>
+                    <input
+                      type="text" inputMode="numeric" autoFocus
+                      value={countedMoneyDisplay}
+                      onChange={(e) => setCountedMoneyCents(e.target.value.replace(/\D/g, ""))}
+                      className="w-full h-11 pl-9 pr-3 rounded-xl border border-slate-200 text-[15px] font-mono font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400"
+                    />
+                  </div>
                 </div>
-              </div>
-            ) : (
-              <div className="space-y-3">
-                <label className="text-[10px] font-bold uppercase tracking-widest text-slate-500 block">
-                  Quantidade de cada cédula/moeda
-                </label>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-[50vh] sm:max-h-80 overflow-y-auto pr-0.5">
-                  {CASH_DENOMINATIONS.map((d) => {
-                    const qty = Number(denomCounts[d.value]) || 0;
-                    const subtotal = qty * d.value;
-                    return (
-                      <div key={d.value} className={`flex items-center gap-2 px-3 py-2 rounded-xl border transition-colors ${
-                        qty > 0 ? "border-blue-200 bg-blue-50/40" : "border-slate-200 bg-white"
-                      }`}>
-                        <span className={`text-[9px] font-black uppercase tracking-wide px-1.5 py-1 rounded shrink-0 ${
-                          d.kind === "bill" ? "bg-emerald-50 text-emerald-600" : "bg-amber-50 text-amber-600"
+              ) : (
+                <div className="space-y-2">
+                  <label className="text-[10px] font-bold uppercase tracking-widest text-slate-500 block">
+                    Quantidade de cada cédula/moeda
+                  </label>
+                  <div className="grid grid-cols-2 lg:grid-cols-3 gap-1.5">
+                    {CASH_DENOMINATIONS.map((d) => {
+                      const qty = Number(denomCounts[d.value]) || 0;
+                      return (
+                        <div key={d.value} className={`flex items-center gap-1.5 px-2 py-1.5 rounded-lg border transition-colors ${
+                          qty > 0 ? "border-blue-200 bg-blue-50/40" : "border-slate-200 bg-white"
                         }`}>
-                          {d.kind === "bill" ? "Nota" : "Moeda"}
-                        </span>
-                        <span className="text-[12px] font-bold text-slate-700 flex-1 min-w-0 whitespace-nowrap">{d.label}</span>
-                        <input
-                          type="text" inputMode="numeric" placeholder="0"
-                          value={denomCounts[d.value] ?? ""}
-                          onChange={(e) => setDenomCount(d.value, e.target.value)}
-                          className="w-14 h-9 px-2 rounded-lg border border-slate-200 text-[13px] font-mono font-bold text-center text-slate-800 shrink-0 focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400"
-                        />
-                        <span className="text-[10px] font-mono font-bold text-slate-400 w-16 text-right shrink-0 hidden sm:block">
-                          {subtotal > 0 ? `R$ ${subtotal.toFixed(2)}` : "—"}
-                        </span>
-                      </div>
-                    );
-                  })}
+                          <span className={`text-[8px] font-black uppercase tracking-wide px-1 py-0.5 rounded shrink-0 ${
+                            d.kind === "bill" ? "bg-emerald-50 text-emerald-600" : "bg-amber-50 text-amber-600"
+                          }`}>
+                            {d.kind === "bill" ? "Nota" : "Moeda"}
+                          </span>
+                          <span className="text-[11px] font-bold text-slate-700 flex-1 min-w-0 whitespace-nowrap">{d.label}</span>
+                          <input
+                            type="text" inputMode="numeric" placeholder="0"
+                            value={denomCounts[d.value] ?? ""}
+                            onChange={(e) => setDenomCount(d.value, e.target.value)}
+                            className="w-12 h-8 px-1 rounded-md border border-slate-200 text-[12px] font-mono font-bold text-center text-slate-800 shrink-0 focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400"
+                          />
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
-              </div>
-            )}
+              )}
 
-            <div className={mode === "count" ? "grid grid-cols-1 sm:grid-cols-[1fr_auto] gap-3 items-end" : ""}>
               <div>
                 <label className="text-[10px] font-bold uppercase tracking-widest text-slate-500 block mb-1">
                   Observações (opcional)
@@ -169,39 +167,41 @@ export default function CloseCashSessionModal({ onCancel, onConfirm, onFinish }:
                 <textarea
                   value={closingNote}
                   onChange={(e) => setClosingNote(e.target.value)}
-                  rows={2}
+                  rows={mode === "count" ? 1 : 2}
                   className="w-full px-3 py-2 rounded-xl border border-slate-200 text-[12px] font-medium text-slate-700 resize-none focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400"
                 />
               </div>
+
+              {error && (
+                <p className="text-[11px] font-semibold text-red-500 bg-red-50 border border-red-100 rounded-xl px-3 py-2">
+                  {error}
+                </p>
+              )}
+
+              <div className="flex items-start gap-2 bg-amber-50 border border-amber-100 rounded-xl px-3 py-2">
+                <AlertTriangle size={14} className="text-amber-500 shrink-0 mt-0.5" />
+                <p className="text-[10px] font-semibold text-amber-700 leading-relaxed">
+                  Após confirmar, os valores não poderão ser alterados.
+                </p>
+              </div>
+            </div>
+
+            <div className="px-5 pb-5 pt-3 shrink-0 space-y-2">
               {mode === "count" && (
-                <div className="flex sm:flex-col items-center sm:items-end justify-between sm:justify-center gap-1 px-4 py-2.5 rounded-xl bg-blue-50 border border-blue-100 sm:h-[62px]">
+                <div className="flex items-center justify-between gap-2 px-4 py-2 rounded-xl bg-blue-50 border border-blue-100">
                   <span className="text-[9px] font-black uppercase tracking-widest text-blue-600 whitespace-nowrap">Total contado</span>
-                  <span className="text-[18px] font-mono font-black text-blue-700 whitespace-nowrap">R$ {denomTotal.toFixed(2)}</span>
+                  <span className="text-[16px] font-mono font-black text-blue-700 whitespace-nowrap">R$ {denomTotal.toFixed(2)}</span>
                 </div>
               )}
+              <button
+                onClick={handleConfirm}
+                disabled={submitting}
+                className="w-full h-11 rounded-xl bg-slate-900 text-white text-[12px] font-black uppercase tracking-widest flex items-center justify-center gap-2 hover:bg-slate-800 transition-all disabled:opacity-40"
+              >
+                {submitting ? <Loader2 size={14} className="animate-spin" /> : <Wallet size={14} />}
+                {submitting ? "Confirmando..." : "Confirmar Fechamento"}
+              </button>
             </div>
-
-            {error && (
-              <p className="text-[11px] font-semibold text-red-500 bg-red-50 border border-red-100 rounded-xl px-3 py-2">
-                {error}
-              </p>
-            )}
-
-            <div className="flex items-start gap-2 bg-amber-50 border border-amber-100 rounded-xl px-3 py-2">
-              <AlertTriangle size={14} className="text-amber-500 shrink-0 mt-0.5" />
-              <p className="text-[10px] font-semibold text-amber-700 leading-relaxed">
-                Após confirmar, os valores não poderão ser alterados.
-              </p>
-            </div>
-
-            <button
-              onClick={handleConfirm}
-              disabled={submitting}
-              className="w-full h-11 rounded-xl bg-slate-900 text-white text-[12px] font-black uppercase tracking-widest flex items-center justify-center gap-2 hover:bg-slate-800 transition-all disabled:opacity-40"
-            >
-              {submitting ? <Loader2 size={14} className="animate-spin" /> : <Wallet size={14} />}
-              {submitting ? "Confirmando..." : "Confirmar Fechamento"}
-            </button>
           </div>
         ) : result?.pendingSync ? (
           <div className="p-5 space-y-4 overflow-y-auto min-h-0">
