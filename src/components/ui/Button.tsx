@@ -52,7 +52,7 @@ const Button = forwardRef<HTMLButtonElement, ButtonProps>(
         ref={ref}
         disabled={disabled || loading}
         className={cn(
-          "inline-flex items-center justify-center font-bold uppercase tracking-widest rounded-xl transition-all duration-150 disabled:opacity-50 disabled:cursor-not-allowed select-none shrink-0",
+          "inline-flex max-w-full min-w-0 items-center justify-center font-bold uppercase tracking-widest rounded-xl transition-all duration-150 disabled:opacity-50 disabled:cursor-not-allowed select-none shrink-0",
           variantClasses[variant],
           sizeClasses[size],
           className
@@ -64,7 +64,7 @@ const Button = forwardRef<HTMLButtonElement, ButtonProps>(
         ) : (
           icon && <span className="shrink-0">{icon}</span>
         )}
-        {children && <span>{children}</span>}
+        {children && <span className="min-w-0 truncate">{children}</span>}
         {!loading && iconRight && <span className="shrink-0">{iconRight}</span>}
       </button>
     );

@@ -48,8 +48,8 @@ export function TabList({ children, className, variant = "pill" }: TabListProps)
     <div
       role="tablist"
       className={cn(
-        "flex gap-1",
-        variant === "pill" && "bg-slate-100 p-1 rounded-xl w-fit",
+        "flex max-w-full gap-1 overflow-x-auto overscroll-x-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
+        variant === "pill" && "w-full rounded-xl bg-slate-100 p-1 sm:w-fit",
         variant === "underline" && "border-b border-slate-200 gap-0",
         className
       )}
@@ -80,7 +80,7 @@ export function Tab({ id, children, icon, badge, disabled = false }: TabProps) {
       disabled={disabled}
       onClick={() => !disabled && setActive(id)}
       className={cn(
-        "relative flex items-center gap-2 px-4 py-2 text-[11px] font-black uppercase tracking-wider rounded-lg transition-colors",
+        "relative flex shrink-0 items-center gap-2 px-4 py-2 text-[11px] font-black uppercase tracking-wider rounded-lg transition-colors",
         isActive
           ? "text-blue-600"
           : "text-slate-500 hover:text-slate-800",

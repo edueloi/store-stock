@@ -11,7 +11,7 @@ interface TableProps {
 export function Table({ children, className }: TableProps) {
   return (
     <div className={cn("bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden", className)}>
-      <div className="overflow-x-auto">
+      <div className="overflow-x-auto overscroll-x-contain [-webkit-overflow-scrolling:touch]">
         <table className="w-full text-left border-collapse">{children}</table>
       </div>
     </div>
@@ -40,7 +40,7 @@ export function Th({ children, className, align = "left" }: ThProps) {
   return (
     <th
       className={cn(
-        "px-5 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest whitespace-nowrap",
+        "px-3 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest whitespace-nowrap sm:px-5 sm:py-4",
         align === "right" && "text-right",
         align === "center" && "text-center",
         className
@@ -94,7 +94,7 @@ export function Td({ children, className, align = "left", mono = false }: TdProp
   return (
     <td
       className={cn(
-        "px-5 py-4 text-xs text-slate-700",
+        "px-3 py-3 text-xs text-slate-700 sm:px-5 sm:py-4",
         mono && "font-mono font-bold",
         !mono && "font-medium",
         align === "right" && "text-right",
@@ -152,7 +152,7 @@ export function ActionButton({ onClick, icon, variant = "neutral", title }: Acti
       title={title}
       onClick={(e) => { e.stopPropagation(); onClick?.(e); }}
       className={cn(
-        "w-8 h-8 flex items-center justify-center rounded-xl border border-transparent transition-all",
+        "w-10 h-10 sm:w-8 sm:h-8 flex items-center justify-center rounded-xl border border-transparent transition-all",
         actionVariant[variant]
       )}
     >

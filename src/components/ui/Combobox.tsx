@@ -155,6 +155,10 @@ export default function Combobox({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
+  const viewportWidth = typeof window === "undefined" ? 1024 : window.innerWidth;
+  const dropdownWidth = Math.min(Math.max(pos.width, 200), viewportWidth - 16);
+  const dropdownLeft = Math.min(Math.max(pos.left, 8), viewportWidth - dropdownWidth - 8);
+
   const dropdown = open ? (
     <AnimatePresence>
       <motion.div
@@ -168,9 +172,9 @@ export default function Combobox({
           position: "fixed",
           top: pos.openUp ? undefined : pos.top,
           bottom: pos.openUp ? window.innerHeight - pos.top : undefined,
-          left: pos.left,
-          width: pos.width,
-          minWidth: 200,
+          left: dropdownLeft,
+          width: dropdownWidth,
+          minWidth: 0,
           zIndex: 99999,
         }}
         className="bg-white border border-slate-200 rounded-2xl shadow-xl overflow-hidden"
@@ -263,7 +267,7 @@ export default function Combobox({
         onClick={toggle}
         onKeyDown={handleKeyDown}
         className={cn(
-          "flex items-center h-10 px-3 gap-2 rounded-xl border bg-white cursor-pointer transition-all outline-none",
+          "flex items-center h-11 px-3 gap-2 rounded-xl border bg-white cursor-pointer transition-all outline-none sm:h-10",
           open ? "border-blue-500 ring-2 ring-blue-100 shadow-sm" : "border-slate-200 hover:border-slate-300",
           error && "border-red-400 ring-2 ring-red-100",
           disabled && "opacity-50 cursor-not-allowed bg-slate-50",

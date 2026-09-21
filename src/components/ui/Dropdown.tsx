@@ -27,7 +27,7 @@ interface DropdownMenuProps {
 
 export function DropdownMenu({ items, trigger, placement = "bottom-end", className }: DropdownMenuProps) {
   const defaultTrigger = (
-    <button className="w-8 h-8 flex items-center justify-center rounded-xl border border-transparent text-slate-400 hover:text-slate-700 hover:bg-slate-100 hover:border-slate-200 transition-all">
+    <button aria-label="Mais ações" className="w-10 h-10 sm:w-8 sm:h-8 flex items-center justify-center rounded-xl border border-transparent text-slate-400 hover:text-slate-700 hover:bg-slate-100 hover:border-slate-200 transition-all">
       <svg width="15" height="15" viewBox="0 0 15 15" fill="currentColor">
         <circle cx="7.5" cy="2.5" r="1.5" /><circle cx="7.5" cy="7.5" r="1.5" /><circle cx="7.5" cy="12.5" r="1.5" />
       </svg>

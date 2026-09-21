@@ -39,7 +39,7 @@ const accentConfig: Record<Accent, { icon: string; value: string; badge: string 
 const colClasses: Record<2 | 3 | 4, string> = {
   2: "grid-cols-1 sm:grid-cols-2",
   3: "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3",
-  4: "grid-cols-2 lg:grid-cols-4",
+  4: "grid-cols-1 min-[380px]:grid-cols-2 lg:grid-cols-4",
 };
 
 // ── StatCard ───────────────────────────────────────────────────────────────
@@ -48,9 +48,9 @@ function StatCard({ label, value, icon, accent = "slate", trend, trendLabel, pre
   const cfg = accentConfig[accent];
 
   return (
-    <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm space-y-3">
+    <div className="min-w-0 space-y-3 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm sm:p-4">
       <div className="flex items-center justify-between">
-        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none">
+        <p className="truncate text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none">
           {label}
         </p>
         {icon && (
@@ -63,7 +63,7 @@ function StatCard({ label, value, icon, accent = "slate", trend, trendLabel, pre
       {loading ? (
         <div className="h-7 w-24 bg-slate-100 animate-pulse rounded-lg" />
       ) : (
-        <p className={cn("text-2xl font-black tracking-tight leading-none", cfg.value)}>
+        <p className={cn("break-words text-xl font-black tracking-tight leading-none sm:text-2xl", cfg.value)}>
           {prefix && <span className="text-base font-bold opacity-70 mr-0.5">{prefix}</span>}
           {value}
           {suffix && <span className="text-base font-bold opacity-70 ml-0.5">{suffix}</span>}
@@ -90,7 +90,7 @@ function StatCard({ label, value, icon, accent = "slate", trend, trendLabel, pre
 
 export default function StatsGrid({ stats, columns = 4, className }: StatsGridProps) {
   return (
-    <div className={cn("grid gap-4", colClasses[columns], className)}>
+    <div className={cn("grid gap-3 sm:gap-4", colClasses[columns], className)}>
       {stats.map((s, i) => (
         <StatCard
           key={i}

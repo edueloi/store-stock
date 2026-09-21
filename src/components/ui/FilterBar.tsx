@@ -16,11 +16,11 @@ export function FilterBar({ children, className, activeCount = 0, onClearAll }: 
   return (
     <div
       className={cn(
-        "flex flex-wrap items-center gap-2 px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl",
+        "flex flex-col items-stretch gap-2 bg-slate-50 border border-slate-200 rounded-xl px-3 py-3 sm:flex-row sm:flex-wrap sm:items-center sm:px-4 sm:py-2.5",
         className
       )}
     >
-      <span className="flex items-center gap-1.5 text-[10px] font-black text-slate-400 uppercase tracking-widest shrink-0 mr-1">
+      <span className="flex shrink-0 items-center gap-1.5 text-[10px] font-black text-slate-400 uppercase tracking-widest sm:mr-1">
         <Filter size={11} />
         Filtros
       </span>
@@ -30,7 +30,7 @@ export function FilterBar({ children, className, activeCount = 0, onClearAll }: 
       {activeCount > 0 && onClearAll && (
         <button
           onClick={onClearAll}
-          className="ml-auto flex items-center gap-1 text-[10px] font-bold text-red-500 hover:text-red-700 uppercase tracking-wider transition-colors"
+          className="flex w-fit items-center gap-1 text-[10px] font-bold text-red-500 hover:text-red-700 uppercase tracking-wider transition-colors sm:ml-auto"
         >
           <X size={11} />
           Limpar ({activeCount})

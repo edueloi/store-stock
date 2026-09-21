@@ -141,7 +141,7 @@ export default function Popover({
           transition={{ type: "spring", damping: 28, stiffness: 350 }}
           style={{ position: "absolute", top: coords.top, left: coords.left, zIndex: 9999 }}
           className={cn(
-            "bg-white border border-slate-200 rounded-2xl shadow-xl overflow-hidden",
+            "max-h-[calc(100dvh-1rem)] max-w-[calc(100vw-1rem)] overflow-y-auto rounded-2xl border border-slate-200 bg-white shadow-xl",
             className
           )}
         >
@@ -181,14 +181,14 @@ export function PopoverItem({ icon, children, onClick, variant = "default", disa
       onClick={() => { close?.(); onClick?.(); }}
       disabled={disabled}
       className={cn(
-        "w-full flex items-center gap-3 px-4 py-2.5 text-xs font-semibold transition-colors",
+        "flex w-full min-w-0 items-center gap-3 px-4 py-2.5 text-left text-xs font-semibold transition-colors",
         variant === "default" && "text-slate-700 hover:bg-slate-50",
         variant === "danger"  && "text-red-600 hover:bg-red-50",
         disabled && "opacity-40 cursor-not-allowed pointer-events-none"
       )}
     >
-      {icon && <span className="opacity-60">{icon}</span>}
-      {children}
+      {icon && <span className="shrink-0 opacity-60">{icon}</span>}
+      <span className="min-w-0 truncate">{children}</span>
     </button>
   );
 }

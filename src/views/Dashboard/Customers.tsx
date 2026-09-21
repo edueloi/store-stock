@@ -5,7 +5,7 @@ import {
   AlertTriangle, X, ChevronRight, ChevronLeft,
   DollarSign, CheckCircle2,
   TrendingDown, AlertCircle,
-  Loader2, LayoutGrid, List, MapPin,
+  Loader2, LayoutGrid, List, MapPin, Mail, StickyNote, WalletCards,
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { cn } from "../../lib/utils";
@@ -81,6 +81,17 @@ function maskDoc(v: string) {
 // ─── Main Component ───────────────────────────────────────────────────────────
 
 type MainTab = "customers" | "debtors";
+type CustomerViewMode = "grid" | "table";
+
+const CUSTOMER_VIEW_MODE_PREF = "customers_view_mode";
+
+function getCachedViewMode(): CustomerViewMode {
+  try {
+    return localStorage.getItem(CUSTOMER_VIEW_MODE_PREF) === "table" ? "table" : "grid";
+  } catch {
+    return "grid";
+  }
+}
 
 // Rodapé de paginação client-side — mesmo padrão já usado no Catálogo
 // (Inventory.tsx), reaproveitado aqui pra manter consistência visual.
@@ -92,13 +103,13 @@ function PaginationFooter({
 }) {
   if (totalPages <= 1) return null;
   return (
-    <div className="flex items-center justify-between px-1">
+    <div className="flex flex-col items-center justify-between gap-2 px-1 min-[480px]:flex-row">
       <span className="text-[11px] text-slate-400 font-medium">
         {(safePage - 1) * pageSize + 1}–{Math.min(safePage * pageSize, total)} de {total} {itemLabel}{total !== 1 ? "s" : ""}
       </span>
       <div className="flex items-center gap-1">
         <button onClick={() => onPageChange(1)} disabled={safePage === 1}
-          className="w-8 h-8 flex items-center justify-center rounded-lg border border-slate-200 text-slate-400 hover:border-blue-400 hover:text-blue-600 disabled:opacity-30 disabled:cursor-not-allowed transition-all text-xs font-bold">
+          className="hidden min-[480px]:flex w-8 h-8 items-center justify-center rounded-lg border border-slate-200 text-slate-400 hover:border-blue-400 hover:text-blue-600 disabled:opacity-30 disabled:cursor-not-allowed transition-all text-xs font-bold">
           «
         </button>
         <button onClick={() => onPageChange(Math.max(1, safePage - 1))} disabled={safePage === 1}
@@ -126,7 +137,7 @@ function PaginationFooter({
           <ChevronRight size={14} />
         </button>
         <button onClick={() => onPageChange(totalPages)} disabled={safePage === totalPages}
-          className="w-8 h-8 flex items-center justify-center rounded-lg border border-slate-200 text-slate-400 hover:border-blue-400 hover:text-blue-600 disabled:opacity-30 disabled:cursor-not-allowed transition-all text-xs font-bold">
+          className="hidden min-[480px]:flex w-8 h-8 items-center justify-center rounded-lg border border-slate-200 text-slate-400 hover:border-blue-400 hover:text-blue-600 disabled:opacity-30 disabled:cursor-not-allowed transition-all text-xs font-bold">
           »
         </button>
       </div>
@@ -141,7 +152,7 @@ export default function Customers() {
   const [debtors, setDebtors]     = useState<Debtor[]>([]);
   const [loading, setLoading]     = useState(true);
   const [search, setSearch]       = useState("");
-  const [viewMode, setViewMode]   = useState<"grid" | "table">("grid");
+  const [viewMode, setViewMode]   = useState<CustomerViewMode>(getCachedViewMode);
   const [pageSize, setPageSize]   = useState(24);
   const [currentPage, setCurrentPage] = useState(1);
 
@@ -197,6 +208,37 @@ export default function Customers() {
   }, []);
 
   useEffect(() => { fetchAll(); }, [fetchAll]);
+
+  // Mantém a escolha Grade/Tabela por usuário, inclusive ao abrir o sistema em outro dispositivo.
+  useEffect(() => {
+    let active = true;
+    const loadViewPreference = async () => {
+      try {
+        const res = await fetch(`/api/preferences/${CUSTOMER_VIEW_MODE_PREF}`, {
+          headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
+        });
+        const value = await res.json();
+        if (active && (value === "grid" || value === "table")) {
+          setViewMode(value);
+          localStorage.setItem(CUSTOMER_VIEW_MODE_PREF, value);
+        }
+      } catch {
+        // A preferência local mantém a tela utilizável mesmo sem conexão.
+      }
+    };
+    loadViewPreference();
+    return () => { active = false; };
+  }, []);
+
+  const changeViewMode = (mode: CustomerViewMode) => {
+    setViewMode(mode);
+    try { localStorage.setItem(CUSTOMER_VIEW_MODE_PREF, mode); } catch { /* sem armazenamento local */ }
+    fetch(`/api/preferences/${CUSTOMER_VIEW_MODE_PREF}`, {
+      method: "PUT",
+      headers: authH(),
+      body: JSON.stringify({ value: mode }),
+    }).catch(() => { /* cache local já foi atualizado */ });
+  };
 
   // ── form helpers
 
@@ -326,7 +368,7 @@ export default function Customers() {
   // ─────────────────────────────────────────────────────────────────────────────
 
   return (
-    <div className="space-y-4">
+    <div className="min-w-0 space-y-4 sm:space-y-5">
       <PageHeader
         title="Clientes"
         subtitle="Clientes, fiado, histórico de compras e notas internas"
@@ -348,8 +390,8 @@ export default function Customers() {
       />
 
       {/* Main tabs */}
-      <div className="flex items-center justify-between gap-3 flex-wrap">
-        <div className="flex gap-1 bg-slate-100 p-1 rounded-xl w-fit">
+      <div className="flex flex-col gap-3 min-[480px]:flex-row min-[480px]:items-center min-[480px]:justify-between">
+        <div className="flex max-w-full overflow-x-auto bg-slate-100 p-1 rounded-xl [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           {([
             { value: "customers", label: "Todos os Clientes", icon: Users },
             { value: "debtors",   label: `Devedores (${debtors.length})`, icon: TrendingDown },
@@ -358,7 +400,7 @@ export default function Customers() {
               key={t.value}
               onClick={() => setMainTab(t.value)}
               className={cn(
-                "flex items-center gap-1.5 px-4 py-2 rounded-lg text-[12px] font-bold transition-all",
+                "flex shrink-0 items-center gap-1.5 px-3 sm:px-4 py-2 rounded-lg text-[11px] sm:text-[12px] font-bold transition-all",
                 mainTab === t.value ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"
               )}
             >
@@ -371,7 +413,8 @@ export default function Customers() {
           <Button
             variant="secondary"
             icon={viewMode === "table" ? <LayoutGrid size={14} /> : <List size={14} />}
-            onClick={() => setViewMode((v) => (v === "table" ? "grid" : "table"))}
+            onClick={() => changeViewMode(viewMode === "table" ? "grid" : "table")}
+            className="w-full min-[480px]:w-auto"
           >
             {viewMode === "table" ? "Grade" : "Tabela"}
           </Button>
@@ -379,20 +422,20 @@ export default function Customers() {
       </div>
 
       {/* Search + page size */}
-      <div className="flex items-center gap-2 flex-wrap">
-        <div className="relative flex-1 min-w-[200px] max-w-sm">
+      <div className="flex flex-col gap-2 min-[480px]:flex-row min-[480px]:items-center">
+        <div className="relative w-full min-w-0 min-[480px]:max-w-sm">
           <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
           <input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder={mainTab === "customers" ? "Buscar cliente…" : "Buscar devedor…"}
-            className="w-full pl-9 pr-3 h-9 rounded-lg border border-slate-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full pl-9 pr-3 h-11 sm:h-9 rounded-xl border border-slate-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
         </div>
         <select
           value={pageSize}
           onChange={(e) => setPageSize(Number(e.target.value))}
-          className="h-9 px-2.5 rounded-lg border border-slate-200 text-[12px] font-semibold bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="h-11 w-full rounded-xl border border-slate-200 px-3 text-[12px] font-semibold bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 min-[480px]:h-9 min-[480px]:w-auto"
         >
           {[12, 24, 50, 100].map((n) => <option key={n} value={n}>{n}/página</option>)}
         </select>
@@ -412,10 +455,16 @@ export default function Customers() {
               </button>
             </div>
           ) : viewMode === "grid" ? (
-            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-2 2xl:grid-cols-3">
               <AnimatePresence>
-                {pagedCustomers.map((c) => (
-                  <motion.div
+                {pagedCustomers.map((c) => {
+                  const hasDebt = Number(c.total_debt ?? 0) > 0;
+                  const hasCreditLimit = Number(c.credit_limit ?? 0) > 0;
+                  const location = [c.address_city, c.address_state].filter(Boolean).join(" · ") || c.address;
+                  const preference = c.notes?.trim();
+
+                  return (
+                  <motion.article
                     key={c.id}
                     layout
                     initial={{ opacity: 0, scale: 0.97 }}
@@ -424,58 +473,69 @@ export default function Customers() {
                     whileHover={{ y: -2 }}
                     onClick={() => navigate(`/admin/customers/${c.id}`)}
                     className={cn(
-                      "bg-white rounded-2xl border shadow-sm hover:shadow-md transition-all cursor-pointer p-4 flex flex-col gap-3",
+                      "group flex min-w-0 cursor-pointer flex-col rounded-2xl border bg-white p-4 shadow-sm transition-all hover:border-blue-200 hover:shadow-md sm:p-5",
                       c.risk_flag ? "border-rose-200 ring-1 ring-rose-100" : "border-slate-200"
                     )}
                   >
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="flex items-center gap-3 min-w-0">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex min-w-0 items-center gap-3">
                         <div className={cn(
-                          "w-11 h-11 rounded-xl flex items-center justify-center font-black text-lg uppercase shrink-0",
+                          "flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border text-lg font-black uppercase",
                           c.risk_flag ? "bg-rose-50 text-rose-500 border border-rose-200" : "bg-blue-50 text-blue-600 border border-blue-100"
                         )}>
                           {c.name[0]}
                         </div>
                         <div className="min-w-0">
-                          <p className="font-black text-slate-800 text-[13px] truncate">{c.name}</p>
-                          {c.phone && (
-                            <p className="text-[11px] text-slate-400 flex items-center gap-1 mt-0.5">
-                              <Phone size={9} /> {c.phone}
-                            </p>
-                          )}
-                          {(c.address_city || c.address_state) && (
-                            <p className="text-[10px] text-slate-400 flex items-center gap-1 mt-0.5 truncate">
-                              <MapPin size={9} className="shrink-0" />
-                              {[c.address_city, c.address_state].filter(Boolean).join(" - ")}
-                            </p>
-                          )}
+                          <p className="line-clamp-2 text-[13px] font-black leading-tight text-slate-900">{c.name}</p>
+                          <p className="mt-1 text-[10px] font-bold uppercase tracking-wider text-slate-400">Cliente desde {fmtDate(c.created_at)}</p>
                         </div>
                       </div>
-                      <div className="flex items-center gap-1 shrink-0">
+                      <div className="flex shrink-0 items-center gap-1">
                         {c.risk_flag && (
-                          <span title="Cliente em risco" className="p-1 bg-rose-50 text-rose-500 rounded-lg">
-                            <AlertTriangle size={12} />
+                          <span title="Cliente em risco" className="inline-flex items-center gap-1 rounded-lg border border-rose-100 bg-rose-50 px-2 py-1 text-[9px] font-black uppercase tracking-wide text-rose-600">
+                            <AlertTriangle size={11} /> Risco
                           </span>
                         )}
                       </div>
                     </div>
 
-                    {(c.total_debt ?? 0) > 0 && (
-                      <span className="self-start text-[10px] font-black text-red-500 bg-red-50 border border-red-100 px-2 py-1 rounded-lg">
-                        Deve {fmt(c.total_debt!)}
-                      </span>
+                    <div className="grid grid-cols-1 gap-2 border-y border-slate-100 py-3 min-[430px]:grid-cols-2">
+                      <div className="flex min-w-0 items-center gap-2 text-slate-500">
+                        {c.phone ? <Phone size={13} className="shrink-0 text-blue-500" /> : <Mail size={13} className="shrink-0 text-blue-500" />}
+                        <span className="truncate text-[11px] font-semibold">{c.phone ?? c.email ?? "Contato não informado"}</span>
+                      </div>
+                      <div className="flex min-w-0 items-center gap-2 text-slate-500">
+                        <MapPin size={13} className="shrink-0 text-blue-500" />
+                        <span className="truncate text-[11px] font-semibold">{location || "Endereço não informado"}</span>
+                      </div>
+                    </div>
+
+                    {preference && (
+                      <div className="flex min-w-0 items-start gap-2 rounded-xl bg-blue-50/70 px-3 py-2.5 text-blue-800">
+                        <StickyNote size={13} className="mt-0.5 shrink-0 text-blue-500" />
+                        <div className="min-w-0">
+                          <p className="text-[9px] font-black uppercase tracking-widest text-blue-500">Preferências</p>
+                          <p className="mt-0.5 line-clamp-2 text-[11px] font-medium leading-relaxed">{preference}</p>
+                        </div>
+                      </div>
                     )}
 
-                    <div className="flex items-center justify-between pt-1 border-t border-slate-100">
-                      <span className="text-[9px] text-slate-400 font-semibold">
-                        Desde {fmtDate(c.created_at)}
-                      </span>
-                      <span className="text-[10px] text-blue-600 font-bold flex items-center gap-0.5">
+                    <div className="mt-auto flex items-center justify-between gap-3 pt-1">
+                      <div className="min-w-0">
+                        {hasDebt ? (
+                          <p className="text-[11px] font-black text-rose-600">Em aberto: {fmt(Number(c.total_debt))}</p>
+                        ) : hasCreditLimit ? (
+                          <p className="flex items-center gap-1 text-[11px] font-bold text-slate-500"><WalletCards size={12} /> Limite: {fmt(Number(c.credit_limit))}</p>
+                        ) : (
+                          <p className="text-[11px] font-bold text-emerald-600">Sem pendências</p>
+                        )}
+                      </div>
+                      <span className="flex shrink-0 items-center gap-0.5 text-[10px] font-black text-blue-600 transition-transform group-hover:translate-x-0.5">
                         Ver ficha <ChevronRight size={11} />
                       </span>
                     </div>
-                  </motion.div>
-                ))}
+                  </motion.article>
+                )})}
               </AnimatePresence>
             </div>
           ) : (
@@ -537,7 +597,36 @@ export default function Customers() {
               <p className="text-sm font-medium">Nenhum devedor em aberto</p>
             </div>
           ) : (
-            <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden overflow-x-auto">
+            <>
+              <div className="space-y-3 md:hidden">
+                {pagedDebtors.map((d) => (
+                  <button
+                    key={d.customer_id}
+                    onClick={() => navigate(`/admin/customers/${d.customer_id}`)}
+                    className="w-full rounded-2xl border border-slate-200 bg-white p-4 text-left shadow-sm transition-colors hover:border-rose-200"
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="truncate text-[13px] font-black text-slate-900">{d.customer_name}</p>
+                        <p className="mt-1 flex items-center gap-1 text-[11px] font-medium text-slate-500"><Phone size={11} /> {d.customer_phone ?? "Contato não informado"}</p>
+                      </div>
+                      {d.risk_flag && <span className="inline-flex shrink-0 items-center gap-1 rounded-lg bg-rose-50 px-2 py-1 text-[9px] font-black uppercase text-rose-600"><AlertTriangle size={11} /> Risco</span>}
+                    </div>
+                    <div className="mt-3 grid grid-cols-2 gap-2 border-t border-slate-100 pt-3">
+                      <div>
+                        <p className="text-[9px] font-black uppercase tracking-widest text-slate-400">Parcelas</p>
+                        <p className="mt-1 text-sm font-black text-slate-700">{d.open_debts}</p>
+                      </div>
+                      <div className="border-l border-slate-100 pl-3">
+                        <p className="text-[9px] font-black uppercase tracking-widest text-slate-400">Em aberto</p>
+                        <p className="mt-1 text-sm font-black text-rose-600">{fmt(d.total_debt)}</p>
+                      </div>
+                    </div>
+                    <span className="mt-3 flex items-center gap-1 text-[10px] font-black uppercase tracking-wider text-blue-600">Ver ficha <ChevronRight size={12} /></span>
+                  </button>
+                ))}
+              </div>
+              <div className="hidden overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-sm md:block">
               <table className="w-full text-sm whitespace-nowrap">
                 <thead>
                   <tr className="bg-slate-50 border-b border-slate-200">
@@ -586,7 +675,8 @@ export default function Customers() {
                   </tr>
                 </tfoot>
               </table>
-            </div>
+              </div>
+            </>
           )}
 
           {filteredDebtors.length > 0 && (

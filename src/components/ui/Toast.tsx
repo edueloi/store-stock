@@ -83,7 +83,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
     <ToastContext.Provider value={value}>
       {children}
       {/* Container */}
-      <div className="fixed bottom-4 right-4 z-[200] flex flex-col gap-2 pointer-events-none">
+      <div className="pointer-events-none fixed bottom-[calc(4rem+env(safe-area-inset-bottom,0px))] left-3 right-3 z-[200] flex flex-col gap-2 sm:bottom-4 sm:left-auto sm:right-4">
         <AnimatePresence initial={false}>
           {toasts.map((t) => {
             const { icon, classes } = variantConfig[t.variant];
@@ -95,13 +95,12 @@ export function ToastProvider({ children }: { children: ReactNode }) {
                 exit={{ opacity: 0, y: 8, scale: 0.95 }}
                 transition={{ type: "spring", damping: 26, stiffness: 320 }}
                 className={cn(
-                  "pointer-events-auto flex items-center gap-3 px-4 py-3 rounded-xl border shadow-lg",
-                  "text-xs font-semibold min-w-[220px] max-w-[360px]",
+                  "pointer-events-auto flex w-full min-w-0 items-center gap-3 rounded-xl border px-4 py-3 shadow-lg sm:min-w-[220px] sm:max-w-[360px]",
                   classes
                 )}
               >
                 <span className="shrink-0">{icon}</span>
-                <span className="flex-1 leading-snug">{t.message}</span>
+                <span className="min-w-0 flex-1 break-words leading-snug">{t.message}</span>
                 <button
                   onClick={() => dismiss(t.id)}
                   className="shrink-0 opacity-60 hover:opacity-100 transition-opacity"

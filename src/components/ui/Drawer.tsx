@@ -36,7 +36,7 @@ const sideVariants: Record<DrawerSide, { initial: TargetAndTransition; animate: 
     initial: { y: "100%" },
     animate: { y: 0 },
     exit: { y: "100%" },
-    classes: "bottom-0 left-0 right-0 rounded-t-2xl max-h-[85vh]",
+    classes: "bottom-0 left-0 right-0 rounded-t-2xl max-h-[92dvh]",
   },
 };
 
@@ -73,7 +73,7 @@ export default function Drawer({
             exit={sv.exit}
             transition={{ type: "spring", damping: 30, stiffness: 350 }}
             className={cn(
-              "absolute bg-white shadow-2xl border-slate-200 flex flex-col overflow-hidden",
+              "absolute flex flex-col overflow-hidden bg-white shadow-2xl border-slate-200",
               side !== "bottom" && "border-l",
               side === "left" && "border-r border-l-0",
               side === "bottom" && "border-t",
@@ -83,10 +83,10 @@ export default function Drawer({
           >
             {/* Header */}
             {(title || subtitle) && (
-              <div className="px-6 py-4 bg-slate-50 border-b border-slate-200 flex items-center justify-between shrink-0">
-                <div>
+              <div className="flex shrink-0 items-center justify-between gap-3 border-b border-slate-200 bg-slate-50 px-4 py-4 sm:px-6">
+                <div className="min-w-0">
                   {title && (
-                    <h3 className="text-xs font-black text-slate-900 uppercase tracking-widest leading-none">
+                    <h3 className="truncate text-xs font-black text-slate-900 uppercase tracking-widest leading-none">
                       {title}
                     </h3>
                   )}
@@ -98,7 +98,8 @@ export default function Drawer({
                 </div>
                 <button
                   onClick={onClose}
-                  className="p-1.5 hover:bg-slate-200 rounded-lg text-slate-400 hover:text-slate-700 transition-colors"
+                  aria-label="Fechar"
+                  className="shrink-0 rounded-lg p-2 text-slate-400 transition-colors hover:bg-slate-200 hover:text-slate-700"
                 >
                   <X size={16} />
                 </button>
@@ -106,11 +107,11 @@ export default function Drawer({
             )}
 
             {/* Body */}
-            <div className="flex-1 overflow-y-auto p-6">{children}</div>
+            <div className="flex-1 overflow-y-auto overscroll-contain p-4 sm:p-6">{children}</div>
 
             {/* Footer */}
             {footer && (
-              <div className="px-6 py-4 bg-slate-50 border-t border-slate-200 flex items-center justify-end gap-3 shrink-0">
+              <div className="flex shrink-0 items-center justify-end gap-3 border-t border-slate-200 bg-slate-50 px-4 py-4 sm:px-6">
                 {footer}
               </div>
             )}
