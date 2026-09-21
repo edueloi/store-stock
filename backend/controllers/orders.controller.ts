@@ -120,6 +120,52 @@ export async function listOrders(req: Request, res: Response) {
   }
 }
 
+// Busca vendas já concluídas por número do pedido, nome do cliente ou nome de
+// produto vendido — usado pelo PDV (interno e standalone) para o operador
+// localizar e reimprimir o cupom de uma venda antiga sem precisar abrir a
+// tela de Pedidos do dashboard admin (o PDV standalone nem tem acesso a ela).
+export async function searchOrders(req: Request, res: Response) {
+  try {
+    const tenantId = getTenantId(req);
+    const q = String(req.query.q ?? "").trim();
+    if (!q) { res.json([]); return; }
+
+    const asNumber = Number(q.replace(/\D/g, ""));
+    const orders = await prisma.order.findMany({
+      where: {
+        tenant_id: tenantId,
+        status: "completed",
+        OR: [
+          ...(q.replace(/\D/g, "") && !Number.isNaN(asNumber) ? [{ id: asNumber }] : []),
+          { customer_name: { contains: q } },
+          { items: { some: { name: { contains: q } } } },
+          { items: { some: { product: { name: { contains: q } } } } },
+        ],
+      },
+      orderBy: { created_at: "desc" },
+      take: 30,
+      include: {
+        items: { include: { product: { select: { name: true } } } },
+      },
+    });
+
+    res.json(orders.map((order) => ({
+      id: order.id,
+      created_at: order.created_at,
+      customer_name: order.customer_name,
+      total_amount: order.total_amount,
+      payment_method: order.payment_method,
+      items: order.items.map((item) => ({
+        product_name: item.product?.name ?? item.name,
+        quantity: item.quantity,
+      })),
+    })));
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Falha ao buscar vendas" });
+  }
+}
+
 export async function getOrderById(req: Request, res: Response) {
   try {
     const order = await prisma.order.findFirst({

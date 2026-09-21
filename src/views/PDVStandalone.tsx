@@ -29,6 +29,7 @@ import { htmlToPdfBase64 } from "../lib/pdf";
 import OpenCashSessionScreen from "../components/pdv/OpenCashSessionScreen";
 import CloseCashSessionModal from "../components/pdv/CloseCashSessionModal";
 import HeldSalesDrawer from "../components/pdv/HeldSalesDrawer";
+import SaleHistoryDrawer from "../components/pdv/SaleHistoryDrawer";
 import { cancelHeldSale, createHeldSale, getOpenHeldSalesCount, type HeldSale } from "../lib/heldSales";
 import { ToastProvider } from "../components/ui/Toast";
 
@@ -323,6 +324,7 @@ export default function PDVStandalone() {
   // vendas em espera (comanda) — segurar o carrinho atual e retomar depois. Exige rede
   // (reserva estoque no servidor), por isso fica desabilitado quando offline.
   const [showHeldSalesDrawer, setShowHeldSalesDrawer] = useState(false);
+  const [showSaleHistoryDrawer, setShowSaleHistoryDrawer] = useState(false);
   const [openHeldSalesCount, setOpenHeldSalesCount] = useState(0);
   const [activeHeldSaleId, setActiveHeldSaleId] = useState<number | null>(null);
   const [holdingSale, setHoldingSale] = useState(false);
@@ -338,6 +340,10 @@ export default function PDVStandalone() {
   const [measureServiceHeight, setMeasureServiceHeight] = useState("");
   const [measureServiceWidth, setMeasureServiceWidth] = useState("");
   const [tenantName, setTenantName]   = useState("PDV");
+  // Objeto bruto do tenant (address_street/address_number separados, como o
+  // backend devolve) — necessário pra buildOrderReceiptText, que espera esses
+  // campos crus, diferente de tenantAddress (já formatado como string única).
+  const [tenantRaw, setTenantRaw] = useState<{ name?: string; address_street?: string; address_number?: string; document?: string } | null>(null);
   const [tenantAddress, setTenantAddress] = useState("");
   const [tenantDocument, setTenantDocument] = useState("");
 
@@ -759,6 +765,7 @@ export default function PDVStandalone() {
     const applyTenant = (tenant: Record<string, unknown> | null | undefined) => {
       if (!tenant) return;
       const t = tenant as Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
+      setTenantRaw({ name: t.name, address_street: t.address_street, address_number: t.address_number, document: t.document });
       if (t.name) setTenantName(t.name);
       if (t.document) setTenantDocument(t.document);
       if (t.address_street) {
@@ -2456,6 +2463,11 @@ ${nfceInvoice.protocol ? `<div class="row"><span class="bold">Protocolo:</span><
                 {openHeldSalesCount > 99 ? "99+" : openHeldSalesCount}
               </span>
             )}
+          </button>
+          <button onClick={() => setShowSaleHistoryDrawer(true)} title="Histórico de Vendas — buscar e reimprimir cupom"
+            className="flex items-center gap-1.5 px-2.5 h-8 rounded-xl text-[10px] font-bold text-slate-500 border border-slate-200 hover:bg-blue-50 hover:text-blue-600 hover:border-blue-200 transition-all">
+            <Printer size={11} />
+            <span className="hidden 2xl:block">Reimprimir venda</span>
           </button>
           {/* Fullscreen toggle */}
           <button onClick={toggleFullscreen} title={isFullscreen ? "Sair de tela cheia" : "Tela cheia"}
@@ -5021,6 +5033,17 @@ ${nfceInvoice.protocol ? `<div class="row"><span class="bold">Protocolo:</span><
           onClose={() => setShowHeldSalesDrawer(false)}
           token={token || ""}
           onResume={resumeFromHeldSale}
+        />
+      </ToastProvider>
+
+      {/* ── HISTÓRICO DE VENDAS (buscar e reimprimir cupom) ─────────────────── */}
+      <ToastProvider>
+        <SaleHistoryDrawer
+          open={showSaleHistoryDrawer}
+          onClose={() => setShowSaleHistoryDrawer(false)}
+          token={token || ""}
+          tenant={tenantRaw}
+          isOnline={isOnline}
         />
       </ToastProvider>
 

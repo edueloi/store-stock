@@ -22,6 +22,7 @@ import { htmlToPdfBase64 } from "../../lib/pdf";
 import OpenCashSessionScreen from "../../components/pdv/OpenCashSessionScreen";
 import CloseCashSessionModal from "../../components/pdv/CloseCashSessionModal";
 import HeldSalesDrawer from "../../components/pdv/HeldSalesDrawer";
+import SaleHistoryDrawer from "../../components/pdv/SaleHistoryDrawer";
 import { cancelHeldSale, createHeldSale, getOpenHeldSalesCount, type HeldSale } from "../../lib/heldSales";
 import { onRealtimeAny } from "../../lib/realtime";
 import { fetchRemotePrintTerminals, requestRemotePrint, type RemotePrintTerminal } from "../../lib/remotePrint";
@@ -191,6 +192,7 @@ export default function PDV() {
   const [showConsignmentLookup, setShowConsignmentLookup] = useState(false);
   // vendas em espera (comanda) — segurar o carrinho atual e retomar depois
   const [showHeldSalesDrawer, setShowHeldSalesDrawer] = useState(false);
+  const [showSaleHistoryDrawer, setShowSaleHistoryDrawer] = useState(false);
   const [openHeldSalesCount, setOpenHeldSalesCount] = useState(0);
   const [activeHeldSaleId, setActiveHeldSaleId] = useState<number | null>(null);
   const [holdingSale, setHoldingSale] = useState(false);
@@ -2087,6 +2089,11 @@ export default function PDV() {
                 </span>
               )}
             </button>
+            <button onClick={() => setShowSaleHistoryDrawer(true)} title="Histórico de Vendas"
+              className="flex items-center gap-1.5 px-2 min-[1800px]:px-3 h-8 rounded-xl text-[10px] font-bold uppercase tracking-widest text-slate-500 border border-slate-200 hover:bg-blue-50 hover:text-blue-600 hover:border-blue-200 transition-all shrink-0">
+              <Printer size={11} />
+              <span className="hidden min-[1800px]:inline">Reimprimir Venda</span>
+            </button>
           </div>
         )}
 
@@ -2155,6 +2162,10 @@ export default function PDV() {
                           {openHeldSalesCount > 99 ? "99+" : openHeldSalesCount}
                         </span>
                       )}
+                    </button>
+                    <button onClick={() => { setShowSaleHistoryDrawer(true); setShowMobileActionsMenu(false); }}
+                      className="w-full flex items-center gap-2.5 px-3 h-10 rounded-xl text-[12px] font-bold text-slate-600 hover:bg-slate-50 transition-all">
+                      <Printer size={14} /> Reimprimir Venda
                     </button>
                   </motion.div>
                 </>
@@ -4698,6 +4709,14 @@ export default function PDV() {
         onClose={() => setShowHeldSalesDrawer(false)}
         token={token || ""}
         onResume={resumeFromHeldSale}
+      />
+
+      {/* ── HISTÓRICO DE VENDAS (buscar e reimprimir cupom) ─────────────────── */}
+      <SaleHistoryDrawer
+        open={showSaleHistoryDrawer}
+        onClose={() => setShowSaleHistoryDrawer(false)}
+        token={token || ""}
+        tenant={tenant}
       />
 
       {/* ── ADICIONAR PRODUTO (dentro da etapa de pagamento) ────────────────── */}

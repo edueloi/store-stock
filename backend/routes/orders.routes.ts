@@ -4,6 +4,7 @@ import {
   getOrderById,
   getOrderActions,
   listOrders,
+  searchOrders,
   updateOrderStatus,
   updateOrderDocument,
   cancelOrder,
@@ -19,6 +20,7 @@ const router = Router();
 router.use(authenticateToken);
 
 router.get("/", listOrders);
+router.get("/search", searchOrders);
 router.delete("/bulk", bulkDeleteOrders);
 router.get("/:id/actions", getOrderActions);
 router.get("/:id", getOrderById);
