@@ -76,12 +76,14 @@ export async function emitirNfce(orderId: number): Promise<void> {
     // equivalentes) — prioriza o documento avulso digitado na venda; se não houver, usa o
     // documento do cliente cadastrado vinculado ao pedido.
     let customerDocument = order.customer_document ?? undefined;
-    if (!customerDocument && order.customer_id) {
+    let customerName: string | undefined;
+    if (order.customer_id) {
       const customer = await prisma.customer.findUnique({
         where: { id: order.customer_id },
-        select: { document: true },
+        select: { document: true, name: true },
       });
-      customerDocument = customer?.document ?? undefined;
+      if (!customerDocument) customerDocument = customer?.document ?? undefined;
+      customerName = customer?.name ?? undefined;
     }
 
     // Item avulso (vendido sem produto no catálogo, ver sales.controller.ts) não tem
@@ -118,6 +120,7 @@ export async function emitirNfce(orderId: number): Promise<void> {
       numero,
       serie,
       customerDocument,
+      customerName,
     });
 
     const cert = loadPfx(tenant.nfce_cert_path, tenant.nfce_cert_password);
@@ -222,13 +225,8 @@ export async function emitirNfce(orderId: number): Promise<void> {
     const paymentLabels: Record<string, string> = { money: "Dinheiro", pix: "PIX", debit: "Débito", credit: "Crédito" };
     const paymentSummary = payments.map((p) => `${paymentLabels[p.method] ?? p.method}: R$ ${p.amount.toFixed(2)}`).join(" + ");
 
-    // CPF/CNPJ do destinatário (mesma prioridade usada para a NFC-e em si, ver
-    // customerDocument acima) — se ausente, o cupom identifica como consumidor não identificado.
-    let customerName: string | undefined;
-    if (order.customer_id) {
-      const customer = await prisma.customer.findUnique({ where: { id: order.customer_id }, select: { name: true } });
-      customerName = customer?.name ?? undefined;
-    }
+    // customerName já foi buscado acima (mesma prioridade de customerDocument, usada
+    // também no XML) — se ausente, o cupom identifica como consumidor não identificado.
     const customerLabel = customerDocument
       ? `CONSUMIDOR: ${customerName ?? ""} ${customerDocument}`.trim()
       : "CONSUMIDOR NÃO IDENTIFICADO";

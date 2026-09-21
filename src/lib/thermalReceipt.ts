@@ -167,6 +167,100 @@ export function buildCashCloseReceiptText(
   return receipt;
 }
 
+export interface OrderReceiptTenant {
+  name?: string | null;
+  address_street?: string | null;
+  address_number?: string | null;
+  document?: string | null;
+}
+
+export interface OrderReceiptItem {
+  product_name: string;
+  quantity: number;
+  unit_price: number | string;
+}
+
+export interface OrderReceiptOrder {
+  id: number;
+  created_at: string;
+  customer_name?: string | null;
+  seller_name?: string | null;
+  items: OrderReceiptItem[];
+  payment_method?: string | null;
+  gross_amount?: number | string | null;
+  discount_amount?: number | string | null;
+  fee_amount?: number | string | null;
+  total_amount: number | string;
+}
+
+const ORDER_RECEIPT_PM_LABEL: Record<string, string> = { money: "Dinheiro", pix: "PIX", debit: "Débito", credit: "Crédito", crediario: "Crediário" };
+
+function parseOrderReceiptPayments(raw?: string | null) {
+  if (!raw) return [{ method: "", label: "Não informado", installments: 1, amount: 0 }];
+  return raw.split("|").map((seg) => {
+    const [methodPart, amountStr] = seg.trim().split(":");
+    const tokens = (methodPart ?? "").split("-");
+    const method = tokens[0]?.toLowerCase() ?? "";
+    const installments = tokens[2] ? parseInt(tokens[2].replace("x", ""), 10) || 1 : 1;
+    const amount = Number(amountStr) || 0;
+    return { method, label: ORDER_RECEIPT_PM_LABEL[method] ?? (method ? method.charAt(0).toUpperCase() + method.slice(1) : "—"), installments, amount };
+  });
+}
+
+// Cupom de venda — mesmo texto/formato de 42 colunas que sai impresso de
+// verdade na hora da venda (PDV.tsx). Extraído aqui pra ser compartilhado
+// entre a reimpressão em Pedidos (Orders.tsx) e o link "Imprimir Cupom" no
+// Fluxo de Caixa (Finance.tsx), que antes não tinha esse botão — sem essa
+// função única, os dois lugares divergiam do cupom real do PDV.
+export function buildOrderReceiptText(tenant: OrderReceiptTenant | null | undefined, order: OrderReceiptOrder): string {
+  const orderId = `#${String(order.id).padStart(6, "0")}`;
+  const dateTime = new Date(order.created_at).toLocaleString("pt-BR");
+
+  let receipt = "\n";
+  receipt += `${thermalCenter((tenant?.name || "").toUpperCase())}\n`;
+  if (tenant?.address_street) {
+    const addr = [tenant.address_street, tenant.address_number].filter(Boolean).join(", ");
+    if (addr) receipt += `${thermalCenter(addr)}\n`;
+  }
+  if (tenant?.document) receipt += `${thermalCenter(`CNPJ: ${tenant.document}`)}\n`;
+  receipt += `${thermalRow(dateTime, `COO: ${orderId}`)}\n${thermalRule}\n`;
+  receipt += `${thermalCenter("CUPOM")}\n${thermalThin}\n`;
+  receipt += "ITEM  DESCRIÇÃO\n";
+  receipt += "      QTD  X UNITÁRIO       VALOR (R$)\n";
+  receipt += `${thermalThin}\n`;
+  order.items.forEach((item, idx) => {
+    receipt += `${String(idx + 1).padStart(3, "0")}   ${truncate(item.product_name, 34)}\n`;
+    receipt += thermalRow(`      ${item.quantity} UN x ${thermalMoney(Number(item.unit_price))}`, thermalMoney(Number(item.unit_price) * item.quantity)) + "\n";
+  });
+  receipt += `${thermalThin}\n`;
+  receipt += thermalRow("Cliente", order.customer_name || "Consumidor final") + "\n";
+  if (order.seller_name) receipt += thermalRow("Vendedor", order.seller_name) + "\n";
+  receipt += thermalRow("Qtde. Total Itens", String(order.items.reduce((sum, i) => sum + i.quantity, 0))) + "\n";
+  const grossAmount = order.gross_amount != null ? Number(order.gross_amount) : Number(order.total_amount);
+  const discountAmount = order.discount_amount ? Number(order.discount_amount) : 0;
+  const feeAmount = order.fee_amount ? Number(order.fee_amount) : 0;
+  if (discountAmount > 0 || feeAmount > 0) {
+    receipt += thermalRow("Subtotal", `R$ ${thermalMoney(grossAmount)}`) + "\n";
+  }
+  if (discountAmount > 0) receipt += thermalRow("Desconto", `- R$ ${thermalMoney(discountAmount)}`) + "\n";
+  if (feeAmount > 0) receipt += thermalRow("Acréscimo", `+ R$ ${thermalMoney(feeAmount)}`) + "\n";
+  receipt += `${thermalRule}\n${thermalRow("Valor Total R$", thermalMoney(Number(order.total_amount)))}\n${thermalRule}\n`;
+  const parsedPayments = parseOrderReceiptPayments(order.payment_method);
+  parsedPayments.forEach((p) => {
+    const installmentsLabel = p.method === "credit" && p.installments > 1 ? ` ${p.installments}x` : "";
+    receipt += thermalRow(`Forma Pagamento: ${p.label}${installmentsLabel}`, `R$ ${thermalMoney(p.amount)}`) + "\n";
+  });
+  // Troco recalculado da diferença real — não depende de order.change_amount,
+  // que pode estar null.
+  const paidTotalThermal = parsedPayments.reduce((sum, p) => sum + p.amount, 0);
+  const changeThermal = Math.round((paidTotalThermal - Number(order.total_amount)) * 100) / 100;
+  if (changeThermal > 0) {
+    receipt += thermalRow("Troco R$", thermalMoney(changeThermal)) + "\n";
+  }
+  receipt += `${thermalThin}\n${thermalCenter("Obrigado pela preferência!")}\n${thermalCenter("Volte sempre!")}\n\n\n`;
+  return receipt;
+}
+
 export function buildThermalHtml(text: string, title: string): string {
   return `<!DOCTYPE html>
 <html>

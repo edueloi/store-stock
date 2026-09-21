@@ -34,7 +34,7 @@ import { downloadHtmlAsPdf } from "../../lib/pdf";
 import { useToast } from "../../components/ui/Toast";
 import { onRealtimeAny } from "../../lib/realtime";
 import { fetchRemotePrintTerminals, requestRemotePrint, type RemotePrintTerminal } from "../../lib/remotePrint";
-import { printThermalText } from "../../lib/thermalReceipt";
+import { printThermalText, buildOrderReceiptText } from "../../lib/thermalReceipt";
 import { Printer } from "lucide-react";
 import OrderReturnModal from "./OrderReturnModal";
 
@@ -390,6 +390,11 @@ export default function Orders() {
   const typeDropRef   = useRef<HTMLDivElement>(null);
   const [searchTerm, setSearchTerm] = useState(() => searchParams.get("search") ?? "");
   const [selectedOrder, setSelectedOrder] = useState<OrderDetail | null>(null);
+  // Espelha selectedOrder?.id em ref pra ser lido dentro do listener de realtime
+  // (useEffect com deps [], closure fixa) sem precisar re-registrar o listener a
+  // cada troca de pedido selecionado.
+  const selectedOrderIdRef = useRef<number | null>(null);
+  useEffect(() => { selectedOrderIdRef.current = selectedOrder?.id ?? null; }, [selectedOrder?.id]);
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
   const [generatingWarrantyPdf, setGeneratingWarrantyPdf] = useState(false);
   const [generatingReceiptPdf, setGeneratingReceiptPdf] = useState(false);
@@ -465,9 +470,12 @@ export default function Orders() {
       });
       const data = await res.json();
       if (!res.ok) { notify.error(data.error || "Não foi possível emitir a nota fiscal."); return; }
-      setOrders((prev) => prev.map((o) => (
-        o.id === orderId ? { ...o, nfce_invoice: { status: data.status, access_key: data.access_key } } : o
-      )));
+      const nfceUpdate = { nfce_invoice: { status: data.status, access_key: data.access_key } };
+      setOrders((prev) => prev.map((o) => (o.id === orderId ? { ...o, ...nfceUpdate } : o)));
+      // O modal de detalhe (selectedOrder) é um estado separado da lista — sem isso o
+      // painel aberto ficava com o status antigo até fechar/reabrir ou dar F5, mesmo
+      // depois da nota ser emitida (o usuário só via a mudança recarregando a página).
+      setSelectedOrder((prev) => (prev && prev.id === orderId ? { ...prev, ...nfceUpdate } : prev));
       notify.success("Emissão da NFC-e iniciada — atualize a lista em alguns segundos para ver o status.");
     } catch {
       notify.error("Erro ao solicitar a emissão da nota fiscal.");
@@ -521,7 +529,16 @@ export default function Orders() {
   // Reflete na hora pedidos criados/cancelados/excluídos em outro terminal/tela.
   useEffect(() => onRealtimeAny(
     ["order:created", "order:updated", "order:cancelled", "order:deleted", "order:returned", "nfce:changed"],
-    () => { fetchOrders(); },
+    (payload) => {
+      fetchOrders();
+      // A emissão de NFC-e roda em background (autorização/rejeição chega depois via
+      // este evento) — sem isso, o modal de detalhe aberto (selectedOrder, estado
+      // separado da lista) ficava com o status antigo até fechar/reabrir ou dar F5.
+      const orderId = payload?.orderId;
+      if (orderId != null && selectedOrderIdRef.current === orderId) {
+        fetchOrderDetails(orderId);
+      }
+    },
   ), []);
 
   const fetchOrderDetails = async (id: number) => {
@@ -1048,86 +1065,7 @@ ${
   // Texto em colunas fixas (42 caracteres) para impressora térmica ESC/POS — mesmo
   // padrão de buildThermalText do PDV, adaptado aos campos disponíveis em OrderDetail
   // (não tem código/SKU por item, diferente do carrinho do PDV).
-  const buildOrderThermalText = (order: OrderDetail): string => {
-    const W = 42;
-    const rule = "=".repeat(W);
-    const thin = "-".repeat(W);
-    const money = (v: number) => v.toFixed(2).replace(".", ",");
-    const truncate = (value: string, max = W) => String(value || "").slice(0, max);
-    const center = (value: string) => {
-      const text = truncate(value);
-      return " ".repeat(Math.max(0, Math.floor((W - text.length) / 2))) + text;
-    };
-    const row = (left: string, right = "") => {
-      const rightText = truncate(right, 15);
-      const leftText = truncate(left, W - rightText.length - 1);
-      return `${leftText}${" ".repeat(Math.max(1, W - leftText.length - rightText.length))}${rightText}`;
-    };
-    // Mesmo parser de segmentos usado no PDV (parsePaymentMethod) — extrai
-    // método, bandeira e parcelas, não só o rótulo simples, pra reconstruir o
-    // cupom com o MESMO conteúdo que saiu impresso de verdade na venda (o
-    // formato anterior aqui não mostrava parcelas nem subtotal, divergindo do
-    // cupom real do PDV).
-    const PM_LABEL_LOCAL: Record<string, string> = { money: "Dinheiro", pix: "PIX", debit: "Débito", credit: "Crédito", crediario: "Crediário" };
-    const parsePaymentsFull = (raw?: string | null) => {
-      if (!raw) return [{ method: "", label: "Não informado", installments: 1, amount: 0 }];
-      return raw.split("|").map((seg) => {
-        const [methodPart, amountStr] = seg.trim().split(":");
-        const tokens = (methodPart ?? "").split("-");
-        const method = tokens[0]?.toLowerCase() ?? "";
-        const installments = tokens[2] ? parseInt(tokens[2].replace("x", ""), 10) || 1 : 1;
-        const amount = Number(amountStr) || 0;
-        return { method, label: PM_LABEL_LOCAL[method] ?? (method ? method.charAt(0).toUpperCase() + method.slice(1) : "—"), installments, amount };
-      });
-    };
-
-    const orderId = `#${String(order.id).padStart(6, "0")}`;
-    const dateTime = new Date(order.created_at).toLocaleString("pt-BR");
-
-    let receipt = "\n";
-    receipt += `${center((tenant?.name || "").toUpperCase())}\n`;
-    if (tenant?.address_street) {
-      const addr = [tenant.address_street, tenant.address_number].filter(Boolean).join(", ");
-      if (addr) receipt += `${center(addr)}\n`;
-    }
-    if (tenant?.document) receipt += `${center(`CNPJ: ${tenant.document}`)}\n`;
-    receipt += `${row(dateTime, `COO: ${orderId}`)}\n${rule}\n`;
-    receipt += `${center("CUPOM")}\n${thin}\n`;
-    receipt += "ITEM  DESCRIÇÃO\n";
-    receipt += "      QTD  X UNITÁRIO       VALOR (R$)\n";
-    receipt += `${thin}\n`;
-    order.items.forEach((item, idx) => {
-      receipt += `${String(idx + 1).padStart(3, "0")}   ${truncate(item.product_name, 34)}\n`;
-      receipt += row(`      ${item.quantity} UN x ${money(item.unit_price)}`, money(item.unit_price * item.quantity)) + "\n";
-    });
-    receipt += `${thin}\n`;
-    receipt += row("Cliente", order.customer_name || "Consumidor final") + "\n";
-    if (order.seller_name) receipt += row("Vendedor", order.seller_name) + "\n";
-    receipt += row("Qtde. Total Itens", String(order.items.reduce((sum, i) => sum + i.quantity, 0))) + "\n";
-    const grossAmount = order.gross_amount != null ? Number(order.gross_amount) : Number(order.total_amount);
-    const discountAmount = order.discount_amount ? Number(order.discount_amount) : 0;
-    const feeAmount = order.fee_amount ? Number(order.fee_amount) : 0;
-    if (discountAmount > 0 || feeAmount > 0) {
-      receipt += row("Subtotal", `R$ ${money(grossAmount)}`) + "\n";
-    }
-    if (discountAmount > 0) receipt += row("Desconto", `- R$ ${money(discountAmount)}`) + "\n";
-    if (feeAmount > 0) receipt += row("Acréscimo", `+ R$ ${money(feeAmount)}`) + "\n";
-    receipt += `${rule}\n${row("Valor Total R$", money(Number(order.total_amount)))}\n${rule}\n`;
-    const parsedPayments = parsePaymentsFull(order.payment_method);
-    parsedPayments.forEach((p) => {
-      const installmentsLabel = p.method === "credit" && p.installments > 1 ? ` ${p.installments}x` : "";
-      receipt += row(`Forma Pagamento: ${p.label}${installmentsLabel}`, `R$ ${money(p.amount)}`) + "\n";
-    });
-    // Troco recalculado da diferença real (mesma lógica do template HTML acima) —
-    // não depende de order.change_amount, que pode estar null.
-    const paidTotalThermal = parsedPayments.reduce((sum, p) => sum + p.amount, 0);
-    const changeThermal = Math.round((paidTotalThermal - Number(order.total_amount)) * 100) / 100;
-    if (changeThermal > 0) {
-      receipt += row("Troco R$", money(changeThermal)) + "\n";
-    }
-    receipt += `${thin}\n${center("Obrigado pela preferência!")}\n${center("Volte sempre!")}\n\n\n`;
-    return receipt;
-  };
+  const buildOrderThermalText = (order: OrderDetail): string => buildOrderReceiptText(tenant, order);
 
   const handleRemotePrintOrder = async (terminalId: number) => {
     if (!selectedOrder) return;
@@ -1268,7 +1206,7 @@ ${
     );
 
   return (
-    <div className="space-y-6">
+    <div className="min-w-0 space-y-5 sm:space-y-6">
       <PageHeader
         title="Pedidos"
         subtitle="Gestão e acompanhamento de vendas"
@@ -1280,7 +1218,7 @@ ${
               finally { setExporting(false); }
             }}
             disabled={exporting || sortedOrders.length === 0}
-            className="h-9 bg-white border border-slate-200 px-4 rounded-xl flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest hover:bg-slate-50 transition-all text-slate-600 shadow-sm disabled:opacity-40">
+            className="h-10 w-full justify-center bg-white border border-slate-200 px-4 rounded-xl flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest hover:bg-slate-50 transition-all text-slate-600 shadow-sm disabled:opacity-40 sm:h-9 sm:w-auto">
             {exporting ? <Loader2 size={13} className="animate-spin" /> : <Download size={13} />} Exportar
           </button>
         }
@@ -1289,24 +1227,24 @@ ${
       {/* ── Toolbar: KPIs compactos + filtros numa linha ───────────── */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm">
         {/* KPI strip */}
-        <div className="flex items-center gap-0 border-b border-slate-100 divide-x divide-slate-100">
+        <div className="grid grid-cols-2 border-b border-slate-100 divide-x divide-y divide-slate-100 sm:grid-cols-4 sm:divide-y-0">
           {[
             { label: "Total",      value: filteredOrders.length,                                              color: "text-slate-900" },
             { label: "Pendentes",  value: filteredOrders.filter(o => o.status === "pending").length,          color: "text-amber-500" },
             { label: "Efetivados", value: filteredOrders.filter(o => o.status === "completed").length,        color: "text-emerald-500" },
             { label: "Cancelados", value: filteredOrders.filter(o => o.status === "cancelled").length,        color: "text-rose-500"   },
           ].map(k => (
-            <div key={k.label} className="flex-1 px-5 py-4 flex flex-col gap-0.5">
-              <span className={cn("text-2xl font-black tracking-tight font-mono leading-none", k.color)}>{k.value}</span>
+            <div key={k.label} className="min-w-0 px-4 py-3 flex flex-col gap-0.5 sm:px-5 sm:py-4">
+              <span className={cn("text-xl font-black tracking-tight font-mono leading-none sm:text-2xl", k.color)}>{k.value}</span>
               <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">{k.label}</span>
             </div>
           ))}
         </div>
 
         {/* Filter bar */}
-        <div className="flex items-center gap-2 px-4 py-3 flex-wrap">
+        <div className="grid grid-cols-1 items-center gap-2 px-3 py-3 min-[480px]:grid-cols-2 sm:px-4 xl:grid-cols-[minmax(220px,1fr)_auto_auto_auto_auto]">
           {/* Search */}
-          <div className="relative flex-1 min-w-[180px]">
+          <div className="relative min-w-0 min-[480px]:col-span-2 xl:col-span-1">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={13} />
             <input
               type="text"
@@ -1328,11 +1266,11 @@ ${
             const cur = STATUS_OPTS.find(o => o.value === selectedStatus) ?? STATUS_OPTS[0];
             const active = selectedStatus !== "all";
             return (
-              <div className="relative shrink-0" ref={statusDropRef}>
+              <div className="relative min-w-0" ref={statusDropRef}>
                 <button
                   onClick={() => { setShowStatusDrop(v => !v); setShowTypeDrop(false); }}
                   className={cn(
-                    "h-9 pl-3 pr-2.5 rounded-xl border flex items-center gap-2 text-[11px] font-black uppercase tracking-widest transition-all whitespace-nowrap",
+                    "h-10 w-full pl-3 pr-2.5 rounded-xl border flex items-center gap-2 text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap sm:h-9 sm:text-[11px] min-[480px]:w-auto",
                     active
                       ? selectedStatus === "completed" ? "bg-emerald-600 text-white border-emerald-600"
                         : selectedStatus === "pending"   ? "bg-amber-500 text-white border-amber-500"
@@ -1385,11 +1323,11 @@ ${
             const cur = TYPE_OPTS.find(o => o.value === selectedType) ?? TYPE_OPTS[0];
             const active = selectedType !== "all";
             return (
-              <div className="relative shrink-0" ref={typeDropRef}>
+              <div className="relative min-w-0" ref={typeDropRef}>
                 <button
                   onClick={() => { setShowTypeDrop(v => !v); setShowStatusDrop(false); }}
                   className={cn(
-                    "h-9 pl-3 pr-2.5 rounded-xl border flex items-center gap-2 text-[11px] font-black uppercase tracking-widest transition-all whitespace-nowrap",
+                    "h-10 w-full pl-3 pr-2.5 rounded-xl border flex items-center gap-2 text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap sm:h-9 sm:text-[11px] min-[480px]:w-auto",
                     active
                       ? selectedType === "services" ? "bg-violet-600 text-white border-violet-600"
                         : selectedType === "mixed"   ? "bg-indigo-600 text-white border-indigo-600"
@@ -1431,17 +1369,17 @@ ${
           })()}
 
           {/* Date range */}
-          <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-200 rounded-xl px-3 h-9 shrink-0">
+          <div className="flex min-w-0 items-center gap-1.5 bg-slate-50 border border-slate-200 rounded-xl px-3 h-10 sm:h-9">
             <Calendar size={12} className="text-slate-400 shrink-0" />
             <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)}
-              className="text-[11px] font-medium text-slate-700 outline-none bg-transparent cursor-pointer w-[105px]" />
+              className="min-w-0 flex-1 text-[11px] font-medium text-slate-700 outline-none bg-transparent cursor-pointer" />
             <span className="text-slate-300 font-bold text-[10px]">—</span>
             <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)}
-              className="text-[11px] font-medium text-slate-700 outline-none bg-transparent cursor-pointer w-[105px]" />
+              className="min-w-0 flex-1 text-[11px] font-medium text-slate-700 outline-none bg-transparent cursor-pointer" />
           </div>
 
           {/* Quick presets */}
-          <div className="flex items-center gap-1 shrink-0 bg-slate-50 border border-slate-200 rounded-xl p-1">
+          <div className="grid grid-cols-4 items-center gap-1 bg-slate-50 border border-slate-200 rounded-xl p-1">
             {[
               { label: "Hoje", from: todayStr(),        to: todayStr() },
               { label: "7d",   from: (() => { const d = new Date(); d.setDate(d.getDate() - 6); return d.toISOString().slice(0,10); })(), to: todayStr() },
@@ -1452,7 +1390,7 @@ ${
               return (
                 <button key={p.label} onClick={() => { setDateFrom(p.from); setDateTo(p.to); }}
                   className={cn(
-                    "h-7 px-3 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all",
+                    "h-8 px-2 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all sm:h-7 sm:px-3",
                     active ? "bg-slate-900 text-white shadow-sm" : "text-slate-500 hover:text-slate-700"
                   )}
                 >
@@ -1471,25 +1409,25 @@ ${
             initial={{ opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 8 }}
-            className="flex items-center justify-between bg-slate-900 text-white rounded-2xl px-5 py-3 shadow-xl shadow-slate-900/20"
+            className="flex flex-col justify-between gap-3 bg-slate-900 text-white rounded-2xl px-4 py-3 shadow-xl shadow-slate-900/20 min-[480px]:flex-row min-[480px]:items-center sm:px-5"
           >
-            <div className="flex items-center gap-3">
+            <div className="flex min-w-0 items-center gap-3">
               <CheckSquare size={16} className="text-blue-400" />
-              <span className="text-[11px] font-black uppercase tracking-widest">
+              <span className="text-[10px] font-black uppercase tracking-widest sm:text-[11px]">
                 {selectedIds.size} pedido{selectedIds.size !== 1 ? "s" : ""} selecionado
                 {selectedIds.size !== 1 ? "s" : ""}
               </span>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="grid w-full grid-cols-2 gap-2 min-[480px]:flex min-[480px]:w-auto">
               <button
                 onClick={clearSelection}
-                className="h-8 px-3 rounded-xl bg-white/10 hover:bg-white/20 text-[10px] font-black uppercase tracking-widest transition-all"
+                className="h-9 px-3 rounded-xl bg-white/10 hover:bg-white/20 text-[10px] font-black uppercase tracking-widest transition-all min-[480px]:h-8"
               >
                 Limpar
               </button>
               <button
                 onClick={() => setShowDeleteModal(true)}
-                className="h-8 px-4 rounded-xl bg-red-500 hover:bg-red-600 text-[10px] font-black uppercase tracking-widest flex items-center gap-2 transition-all shadow-lg shadow-red-500/30"
+                className="h-9 px-4 rounded-xl bg-red-500 hover:bg-red-600 text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-all shadow-lg shadow-red-500/30 min-[480px]:h-8"
               >
                 <Trash2 size={13} /> Deletar
               </button>
@@ -1767,7 +1705,7 @@ ${
       </div>
 
       {/* Mobile Card-Based List */}
-      <div className="lg:hidden space-y-4 pb-12">
+      <div className="lg:hidden space-y-3 pb-8">
         {pagedOrders.map((order) => {
           const isChecked = selectedIds.has(order.id);
           return (
@@ -1775,20 +1713,20 @@ ${
               layout
               key={order.id}
               className={cn(
-                "bg-white p-5 rounded-[28px] border border-slate-200 shadow-sm transition-all",
+                "bg-white p-4 rounded-2xl border border-slate-200 shadow-sm transition-all sm:p-5 sm:rounded-[28px]",
                 isChecked && "border-blue-300 ring-2 ring-blue-100"
               )}
             >
-              <div className="flex justify-between items-start mb-4">
+              <div className="flex items-start justify-between gap-3 mb-4">
                 <div
-                  className="flex items-center gap-3 flex-1 cursor-pointer"
+                  className="flex min-w-0 flex-1 items-center gap-3 cursor-pointer"
                   onClick={() => fetchOrderDetails(order.id)}
                 >
-                  <div className="space-y-1">
+                  <div className="min-w-0 space-y-1">
                     <span className="text-[10px] font-mono font-black text-slate-300">
                       #{String(order.id).padStart(6, "0")}
                     </span>
-                    <h4 className="text-xs font-black text-slate-900 uppercase tracking-tight">
+                    <h4 className="truncate text-xs font-black text-slate-900 uppercase tracking-tight">
                       {order.customer_name || "Cliente Balcão"}
                     </h4>
                   </div>
@@ -1819,13 +1757,14 @@ ${
                         return next;
                       });
                     }}
+                    aria-label={`Selecionar pedido #${String(order.id).padStart(6, "0")}`}
                     className="w-4 h-4 rounded accent-slate-900 cursor-pointer"
                   />
                 </div>
               </div>
 
               <div
-                className="flex justify-between items-end pt-4 border-t border-slate-50 cursor-pointer"
+                className="flex items-end justify-between gap-3 pt-4 border-t border-slate-50 cursor-pointer"
                 onClick={() => fetchOrderDetails(order.id)}
               >
                 <div className="space-y-1">
@@ -1837,12 +1776,12 @@ ${
                   </div>
                   <div className="flex items-center gap-2 text-slate-400">
                     <CreditCard size={10} />
-                    <span className="text-[9px] font-black uppercase tracking-tighter">
-                      {order.payment_method || "Cartão"}
+                    <span className="max-w-[145px] truncate text-[9px] font-black uppercase tracking-tighter">
+                      {formatPaymentLabel(order.payment_method)}
                     </span>
                   </div>
                 </div>
-                <div className="text-right">
+                <div className="shrink-0 text-right">
                   <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">
                     Montante Líquido
                   </p>
@@ -1878,9 +1817,41 @@ ${
                   )}
                 </div>
               )}
+              <button
+                onClick={() => fetchOrderDetails(order.id)}
+                className="mt-3 flex h-10 w-full items-center justify-center gap-1.5 rounded-xl border border-slate-200 text-[10px] font-black uppercase tracking-widest text-slate-700 transition-colors hover:bg-slate-50"
+              >
+                Ver pedido <ChevronRight size={13} />
+              </button>
             </motion.div>
           );
         })}
+        {sortedOrders.length === 0 && (
+          <div className="rounded-2xl border border-slate-200 bg-white px-4 py-12 text-center text-[11px] font-bold uppercase tracking-widest text-slate-400">
+            Nenhum pedido encontrado
+          </div>
+        )}
+        {totalPages > 1 && (
+          <div className="flex items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white px-3 py-2 shadow-sm">
+            <button
+              onClick={() => goToPage(safePage - 1)}
+              disabled={safePage === 1}
+              className="h-10 rounded-xl px-3 text-[10px] font-black uppercase tracking-wider text-slate-600 hover:bg-slate-100 disabled:opacity-30"
+            >
+              Anterior
+            </button>
+            <span className="whitespace-nowrap text-[10px] font-black uppercase tracking-widest text-slate-500">
+              {safePage} de {totalPages}
+            </span>
+            <button
+              onClick={() => goToPage(safePage + 1)}
+              disabled={safePage === totalPages}
+              className="h-10 rounded-xl bg-slate-900 px-3 text-[10px] font-black uppercase tracking-wider text-white disabled:opacity-30"
+            >
+              Próximo
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Details Modal */}

@@ -26,12 +26,14 @@ import {
   CreditCard,
   Package,
   ExternalLink,
+  Printer,
   Banknote,
 } from "lucide-react";
 import { FinanceEntry, Tenant } from "../../types";
 import { cn } from "../../lib/utils";
 import Modal from "../../components/ui/Modal";
 import { onRealtimeAny } from "../../lib/realtime";
+import { printThermalText, buildOrderReceiptText } from "../../lib/thermalReceipt";
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
 
@@ -759,7 +761,11 @@ export default function Finance() {
 
   // order detail fetched when a PDV sale entry is opened
   interface OrderItem { product_name: string; image_url?: string | null; quantity: number; unit_price: number }
-  interface OrderDetail { id: number; customer_name: string; items: OrderItem[]; services: { name: string; unit_price: number; quantity: number }[] }
+  interface OrderDetail {
+    id: number; customer_name: string; items: OrderItem[]; services: { name: string; unit_price: number; quantity: number }[];
+    created_at: string; seller_name?: string | null; payment_method?: string | null;
+    gross_amount?: number | null; discount_amount?: number | null; fee_amount?: number | null; total_amount: number;
+  }
   const [orderDetail, setOrderDetail] = useState<OrderDetail | null>(null);
   const [loadingOrder, setLoadingOrder] = useState(false);
 
@@ -1981,16 +1987,26 @@ export default function Finance() {
                     if (!orderId) return null;
                     return (
                       <div className="bg-slate-50 rounded-2xl border border-slate-100 overflow-hidden">
-                        <div className="px-4 py-2 border-b border-slate-100 bg-slate-100/60 flex items-center justify-between">
+                        <div className="px-4 py-2 border-b border-slate-100 bg-slate-100/60 flex items-center justify-between gap-2">
                           <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">
                             Itens do Pedido #{orderId}
                           </p>
-                          <button
-                            onClick={() => navigate(`/admin/orders?search=${orderId}`)}
-                            className="flex items-center gap-1 text-[9px] font-black text-blue-600 hover:text-blue-700 uppercase tracking-widest transition-colors"
-                          >
-                            <ExternalLink size={10} /> Ver pedido
-                          </button>
+                          <div className="flex items-center gap-3 shrink-0">
+                            {orderDetail && (
+                              <button
+                                onClick={() => printThermalText(buildOrderReceiptText(tenant, orderDetail), "Comprovante")}
+                                className="flex items-center gap-1 text-[9px] font-black text-emerald-600 hover:text-emerald-700 uppercase tracking-widest transition-colors"
+                              >
+                                <Printer size={10} /> Imprimir Cupom
+                              </button>
+                            )}
+                            <button
+                              onClick={() => navigate(`/admin/orders?search=${orderId}`)}
+                              className="flex items-center gap-1 text-[9px] font-black text-blue-600 hover:text-blue-700 uppercase tracking-widest transition-colors"
+                            >
+                              <ExternalLink size={10} /> Ver pedido
+                            </button>
+                          </div>
                         </div>
                         <div className="divide-y divide-slate-100">
                           {loadingOrder ? (

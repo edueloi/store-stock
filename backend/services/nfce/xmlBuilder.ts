@@ -15,7 +15,8 @@ export interface BuildNfceInput {
   payments: PaymentSegment[];
   numero: number;
   serie: number;
-  customerDocument?: string; // CPF do consumidor, para Nota Fiscal Paulista
+  customerDocument?: string; // CPF/CNPJ do consumidor, para Nota Fiscal Paulista
+  customerName?: string; // nome/razão social do destinatário — só usado em produção (ver dest.xNome)
 }
 
 export interface BuildNfceResult {
@@ -64,7 +65,8 @@ const TPAG_MAP: Record<string, string> = {
 };
 
 export function buildNfceXml(input: BuildNfceInput): BuildNfceResult {
-  const { tenant, order, items, payments, numero, serie, customerDocument } = input;
+  const { tenant, order, items, payments, numero, serie, customerDocument, customerName } = input;
+  const isHomologacao = tenant.nfce_environment !== "producao";
 
   const now = new Date();
   const chaveAcesso = gerarChaveAcesso({
@@ -135,11 +137,22 @@ export function buildNfceXml(input: BuildNfceInput): BuildNfceResult {
   emit.ele("CRT").txt(String(tenant.crt));
 
   // ── dest (opcional — Nota Fiscal Paulista) ────────────────────────────────
+  // Em HOMOLOGAÇÃO a própria SEFAZ exige que a razão social do destinatário seja
+  // sempre o texto fixo de teste — mandar o nome real do cliente (mesmo que
+  // verdadeiro) é rejeitado com "Razão Social do destinatário diferente de NF-E
+  // EMITIDA EM AMBIENTE DE HOMOLOGACAO - SEM VALOR FISCAL". Em produção, usa o
+  // nome real quando disponível (a SEFAZ não exige xNome quando só há CPF/CNPJ,
+  // mas preenchê-lo corretamente evita essa mesma rejeição se o destinatário for
+  // pessoa jurídica).
   if (customerDocument) {
     const digits = onlyDigits(customerDocument);
     const dest = doc.ele("dest");
     if (digits.length === 11) dest.ele("CPF").txt(digits);
     else if (digits.length === 14) dest.ele("CNPJ").txt(digits);
+    const destName = isHomologacao
+      ? "NF-E EMITIDA EM AMBIENTE DE HOMOLOGACAO - SEM VALOR FISCAL"
+      : trimText(customerName) || undefined;
+    if (destName) dest.ele("xNome").txt(destName);
     dest.ele("indIEDest").txt("9"); // não contribuinte
   }
 

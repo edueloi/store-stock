@@ -139,6 +139,8 @@ function NfceTabContent() {
   const [batchLoading, setBatchLoading] = useState<"retry" | "xml" | "danfe" | null>(null);
   const [whatsappConnected, setWhatsappConnected] = useState(false);
   const [sendingWhatsapp, setSendingWhatsapp] = useState<number | null>(null);
+  const [whatsappNumberTarget, setWhatsappNumberTarget] = useState<NfceInvoice | null>(null);
+  const [whatsappNumberInput, setWhatsappNumberInput] = useState("");
   const notify = useToast();
 
   // Date filter — default: first → last day of current month
@@ -175,20 +177,28 @@ function NfceTabContent() {
       .catch(() => {});
   }, []);
 
-  const handleSendWhatsapp = async (inv: NfceInvoice) => {
+  const handleSendWhatsapp = async (inv: NfceInvoice, numberOverride?: string) => {
     setSendingWhatsapp(inv.order_id);
     try {
       const res = await fetch(`/api/nfce/${inv.order_id}/send-whatsapp`, {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({}),
+        body: JSON.stringify(numberOverride ? { number: numberOverride } : {}),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
+        // Sem telefone cadastrado no pedido — em vez de só bloquear, oferece
+        // digitar o número na hora (pedido do lojista: não travar o envio).
+        if (res.status === 422 && !numberOverride) {
+          setWhatsappNumberTarget(inv);
+          setWhatsappNumberInput("");
+          return;
+        }
         notify.error(data.error || "Falha ao enviar pelo WhatsApp.");
         return;
       }
       notify.success("NFC-e enviada pelo WhatsApp!");
+      setWhatsappNumberTarget(null);
     } catch {
       notify.error("Erro de conexão ao enviar pelo WhatsApp.");
     } finally {
@@ -834,6 +844,38 @@ function NfceTabContent() {
       </Modal>
 
       <Modal
+        open={!!whatsappNumberTarget}
+        onClose={() => setWhatsappNumberTarget(null)}
+        title="Enviar NFC-e por WhatsApp"
+        subtitle={whatsappNumberTarget ? `Pedido #${String(whatsappNumberTarget.order_id).padStart(6, "0")} não tem telefone de cliente cadastrado` : undefined}
+        size="sm"
+        footer={
+          <>
+            <Button variant="secondary" onClick={() => setWhatsappNumberTarget(null)} disabled={sendingWhatsapp !== null}>Voltar</Button>
+            <Button
+              onClick={() => whatsappNumberTarget && handleSendWhatsapp(whatsappNumberTarget, whatsappNumberInput.replace(/\D/g, ""))}
+              disabled={sendingWhatsapp !== null || whatsappNumberInput.replace(/\D/g, "").length < 10}
+              loading={sendingWhatsapp !== null}
+            >
+              Enviar
+            </Button>
+          </>
+        }
+      >
+        <div className="space-y-3">
+          <p className="text-xs text-slate-500">Informe o número de WhatsApp que vai receber o DANFE.</p>
+          <input
+            type="tel"
+            autoFocus
+            placeholder="(11) 91234-5678"
+            value={whatsappNumberInput}
+            onChange={(e) => setWhatsappNumberInput(e.target.value)}
+            className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-sm font-medium outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-500/10 transition-all"
+          />
+        </div>
+      </Modal>
+
+      <Modal
         open={!!deleteTarget}
         onClose={() => { if (!deleting) { setDeleteTarget(null); setDeleteError(null); } }}
         title="Excluir tentativa de NFC-e"
@@ -939,6 +981,8 @@ function NfseTabContent() {
   const [batchLoading, setBatchLoading] = useState<"retry" | null>(null);
   const [whatsappConnected, setWhatsappConnected] = useState(false);
   const [sendingWhatsapp, setSendingWhatsapp] = useState<number | null>(null);
+  const [whatsappNumberTarget, setWhatsappNumberTarget] = useState<NfseInvoice | null>(null);
+  const [whatsappNumberInput, setWhatsappNumberInput] = useState("");
   const notify = useToast();
   const token = localStorage.getItem("token");
 
@@ -976,20 +1020,26 @@ function NfseTabContent() {
       .catch(() => {});
   }, []);
 
-  const handleSendWhatsapp = async (inv: NfseInvoice) => {
+  const handleSendWhatsapp = async (inv: NfseInvoice, numberOverride?: string) => {
     setSendingWhatsapp(inv.service_order_id);
     try {
       const res = await fetch(`/api/nfse/${inv.service_order_id}/send-whatsapp`, {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({}),
+        body: JSON.stringify(numberOverride ? { number: numberOverride } : {}),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
+        if (res.status === 422 && !numberOverride) {
+          setWhatsappNumberTarget(inv);
+          setWhatsappNumberInput("");
+          return;
+        }
         notify.error(data.error || "Falha ao enviar pelo WhatsApp.");
         return;
       }
       notify.success("NFS-e enviada pelo WhatsApp!");
+      setWhatsappNumberTarget(null);
     } catch {
       notify.error("Erro de conexão ao enviar pelo WhatsApp.");
     } finally {
@@ -1566,6 +1616,38 @@ function NfseTabContent() {
               {cancelError}
             </div>
           )}
+        </div>
+      </Modal>
+
+      <Modal
+        open={!!whatsappNumberTarget}
+        onClose={() => setWhatsappNumberTarget(null)}
+        title="Enviar NFS-e por WhatsApp"
+        subtitle="OS não tem telefone de cliente cadastrado"
+        size="sm"
+        footer={
+          <>
+            <Button variant="secondary" onClick={() => setWhatsappNumberTarget(null)} disabled={sendingWhatsapp !== null}>Voltar</Button>
+            <Button
+              onClick={() => whatsappNumberTarget && handleSendWhatsapp(whatsappNumberTarget, whatsappNumberInput.replace(/\D/g, ""))}
+              disabled={sendingWhatsapp !== null || whatsappNumberInput.replace(/\D/g, "").length < 10}
+              loading={sendingWhatsapp !== null}
+            >
+              Enviar
+            </Button>
+          </>
+        }
+      >
+        <div className="space-y-3">
+          <p className="text-xs text-slate-500">Informe o número de WhatsApp que vai receber o PDF da NFS-e.</p>
+          <input
+            type="tel"
+            autoFocus
+            placeholder="(11) 91234-5678"
+            value={whatsappNumberInput}
+            onChange={(e) => setWhatsappNumberInput(e.target.value)}
+            className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-sm font-medium outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-500/10 transition-all"
+          />
         </div>
       </Modal>
 
