@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { Wallet, Loader2, Calculator, Pencil } from "lucide-react";
+import { CASH_DENOMINATIONS as DENOMINATIONS } from "../../lib/cashSession";
 
 interface OpenCashSessionScreenProps {
   operatorName?: string;
@@ -7,23 +8,6 @@ interface OpenCashSessionScreenProps {
   disabled?: boolean;
   disabledMessage?: string;
 }
-
-// Denominações de cédulas e moedas em circulação no Brasil, da maior pra
-// menor — ordem que o operador normalmente segue ao contar a gaveta.
-const DENOMINATIONS: { value: number; label: string; kind: "bill" | "coin" }[] = [
-  { value: 200, label: "R$ 200", kind: "bill" },
-  { value: 100, label: "R$ 100", kind: "bill" },
-  { value: 50, label: "R$ 50", kind: "bill" },
-  { value: 20, label: "R$ 20", kind: "bill" },
-  { value: 10, label: "R$ 10", kind: "bill" },
-  { value: 5, label: "R$ 5", kind: "bill" },
-  { value: 2, label: "R$ 2", kind: "bill" },
-  { value: 1, label: "R$ 1", kind: "coin" },
-  { value: 0.5, label: "50 centavos", kind: "coin" },
-  { value: 0.25, label: "25 centavos", kind: "coin" },
-  { value: 0.1, label: "10 centavos", kind: "coin" },
-  { value: 0.05, label: "5 centavos", kind: "coin" },
-];
 
 export default function OpenCashSessionScreen({
   operatorName, onOpen, disabled, disabledMessage,
@@ -132,14 +116,14 @@ export default function OpenCashSessionScreen({
                       }`}>
                         {d.kind === "bill" ? "Nota" : "Moeda"}
                       </span>
-                      <span className="text-[12px] font-bold text-slate-700 flex-1 min-w-0 truncate">{d.label}</span>
+                      <span className="text-[12px] font-bold text-slate-700 flex-1 min-w-0 whitespace-nowrap">{d.label}</span>
                       <input
                         type="text" inputMode="numeric" placeholder="0"
                         value={counts[d.value] ?? ""}
                         onChange={(e) => setCount(d.value, e.target.value)}
                         className="w-14 h-9 px-2 rounded-lg border border-slate-200 text-[13px] font-mono font-bold text-center text-slate-800 shrink-0 focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400"
                       />
-                      <span className="text-[10px] font-mono font-bold text-slate-400 w-16 text-right shrink-0">
+                      <span className="text-[10px] font-mono font-bold text-slate-400 w-16 text-right shrink-0 hidden sm:block">
                         {subtotal > 0 ? `R$ ${subtotal.toFixed(2)}` : "—"}
                       </span>
                     </div>

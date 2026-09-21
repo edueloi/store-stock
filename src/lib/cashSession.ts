@@ -1,3 +1,21 @@
+// Denominações de cédulas e moedas em circulação no Brasil, da maior pra
+// menor — ordem que o operador normalmente segue ao contar a gaveta.
+// Compartilhada entre a tela de abertura e a de fechamento de caixa.
+export const CASH_DENOMINATIONS: { value: number; label: string; kind: "bill" | "coin" }[] = [
+  { value: 200, label: "R$ 200", kind: "bill" },
+  { value: 100, label: "R$ 100", kind: "bill" },
+  { value: 50, label: "R$ 50", kind: "bill" },
+  { value: 20, label: "R$ 20", kind: "bill" },
+  { value: 10, label: "R$ 10", kind: "bill" },
+  { value: 5, label: "R$ 5", kind: "bill" },
+  { value: 2, label: "R$ 2", kind: "bill" },
+  { value: 1, label: "R$ 1,00", kind: "coin" },
+  { value: 0.5, label: "R$ 0,50", kind: "coin" },
+  { value: 0.25, label: "R$ 0,25", kind: "coin" },
+  { value: 0.1, label: "R$ 0,10", kind: "coin" },
+  { value: 0.05, label: "R$ 0,05", kind: "coin" },
+];
+
 export interface CashSessionInfo {
   id: number;
   opened_at: string;
