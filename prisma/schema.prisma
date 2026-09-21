@@ -56,6 +56,15 @@ model Tenant {
   // comercial do lojista, não regra fiscal. ---
   return_deadline_days Int? @default(30)
 
+  // --- Relatórios automáticos por email (semanal/mensal) — enviados via job de
+  // cron pra uma lista de destinatários configurável, com resumo de vendas,
+  // estoque, contas a pagar/receber e crediário do período fechado. ---
+  weekly_report_enabled   Boolean @default(false)
+  monthly_report_enabled  Boolean @default(false)
+  // Array de emails (string[]), serializado como JSON — mesmo padrão já usado
+  // pra outras listas no Tenant (enabled_brands, pass_fee_by_method).
+  report_recipient_emails Json?
+
   // --- Módulos habilitados por tenant (liberado manualmente pelo Super Admin) ---
   fluxo_producao_enabled Boolean @default(false)
   // Libera as etapas "Aguardando arte"/"Arte finalizada" no fluxo de Ordem de Serviço —

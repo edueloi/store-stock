@@ -6,7 +6,7 @@ import {
   Bell, Sun, Moon, Package, AlertTriangle, Lock, Image, Upload, X, FileCheck, ShieldCheck,
   Smartphone, Zap, UserPlus, Trash2, Edit2, Eye, EyeOff, ShoppingCart, User,
   Monitor, Download, WifiOff, Terminal, CheckCircle2, XCircle, ClipboardList, Wallet,
-  Percent, Landmark, MousePointer2, CheckSquare,
+  Percent, Landmark, MousePointer2, CheckSquare, Mail, Send,
 } from "lucide-react";
 import PageHeader from "../../components/layout/PageHeader";
 import DesktopTerminalsSection from "./DesktopTerminalsSection";
@@ -179,6 +179,7 @@ const NAV = [
       { id: "security", icon: Shield, label: "Segurança" },
       { id: "users", icon: Users, label: "Time & Acessos" },
       { id: "desktop", icon: Monitor, label: "App Desktop PDV" },
+      { id: "email_reports", icon: Mail, label: "Relatórios por Email" },
     ],
   },
 ];
@@ -691,6 +692,14 @@ export default function Settings() {
   const [returnDeadlineDays, setReturnDeadlineDays] = useState(30);
   const [savingCrediario, setSavingCrediario] = useState(false);
 
+  // ── Relatórios automáticos por email (semanal/mensal) ────────────────────────
+  const [weeklyReportEnabled, setWeeklyReportEnabled] = useState(false);
+  const [monthlyReportEnabled, setMonthlyReportEnabled] = useState(false);
+  const [reportRecipientEmails, setReportRecipientEmails] = useState<string[]>([]);
+  const [newReportEmail, setNewReportEmail] = useState("");
+  const [savingReports, setSavingReports] = useState(false);
+  const [sendingReportNow, setSendingReportNow] = useState<"weekly" | "monthly" | null>(null);
+
   // ── Terminal (maquininha API) ────────────────────────────────────────────────
   type TerminalProvider = "rede" | "stone" | "mercadopago" | "cielo" | "pagseguro";
   const TERMINAL_PROVIDERS: { id: TerminalProvider; label: string; color: string }[] = [
@@ -742,6 +751,9 @@ export default function Settings() {
         if (d?.crediario_interest_rate !== undefined) setCrediarioInterestRate(Number(d.crediario_interest_rate));
         if (d?.crediario_grace_days !== undefined) setCrediarioGraceDays(Number(d.crediario_grace_days));
         if (d?.return_deadline_days !== undefined && d.return_deadline_days !== null) setReturnDeadlineDays(Number(d.return_deadline_days));
+        if (d?.weekly_report_enabled !== undefined) setWeeklyReportEnabled(Boolean(d.weekly_report_enabled));
+        if (d?.monthly_report_enabled !== undefined) setMonthlyReportEnabled(Boolean(d.monthly_report_enabled));
+        if (Array.isArray(d?.report_recipient_emails)) setReportRecipientEmails(d.report_recipient_emails);
         setLoading(false);
       });
 
@@ -1088,6 +1100,73 @@ export default function Settings() {
       setSavingCrediario(false);
     }
   };
+
+  const handleSaveReports = async () => {
+    setSavingReports(true);
+    try {
+      const res = await fetch("/api/tenant", {
+        method: "PUT",
+        headers: API_HEADERS(),
+        body: JSON.stringify({
+          weekly_report_enabled: weeklyReportEnabled,
+          monthly_report_enabled: monthlyReportEnabled,
+          report_recipient_emails: reportRecipientEmails,
+        }),
+      });
+      if (res.ok) {
+        toast.success("Configurações de relatórios salvas!");
+      } else {
+        const err = await res.json().catch(() => ({}));
+        toast.error("Erro ao salvar: " + (err?.error ?? res.status));
+      }
+    } catch {
+      toast.error("Erro de conexão ao salvar configurações de relatórios.");
+    } finally {
+      setSavingReports(false);
+    }
+  };
+
+  const handleSendReportNow = async (kind: "weekly" | "monthly") => {
+    if (reportRecipientEmails.length === 0) {
+      toast.error("Adicione ao menos um email destinatário antes de enviar.");
+      return;
+    }
+    setSendingReportNow(kind);
+    try {
+      const res = await fetch("/api/tenant/send-report-now", {
+        method: "POST",
+        headers: API_HEADERS(),
+        body: JSON.stringify({ kind }),
+      });
+      if (res.ok) {
+        toast.success(`Relatório ${kind === "weekly" ? "semanal" : "mensal"} enviado!`);
+      } else {
+        const err = await res.json().catch(() => ({}));
+        toast.error("Erro ao enviar: " + (err?.error ?? res.status));
+      }
+    } catch {
+      toast.error("Erro de conexão ao enviar relatório.");
+    } finally {
+      setSendingReportNow(null);
+    }
+  };
+
+  const addReportEmail = () => {
+    const trimmed = newReportEmail.trim();
+    if (!trimmed || !/^\S+@\S+\.\S+$/.test(trimmed)) {
+      toast.error("Informe um email válido.");
+      return;
+    }
+    if (reportRecipientEmails.includes(trimmed)) {
+      toast.error("Esse email já está na lista.");
+      return;
+    }
+    setReportRecipientEmails((prev) => [...prev, trimmed]);
+    setNewReportEmail("");
+  };
+
+  const removeReportEmail = (email: string) =>
+    setReportRecipientEmails((prev) => prev.filter((e) => e !== email));
 
   const terminalFieldsMissing = () =>
     TERMINAL_CREDENTIAL_FIELDS[terminalProvider].some((f) => !terminalCredentials[f.key]);
@@ -2565,6 +2644,96 @@ export default function Settings() {
                 </div>
 
                 <SaveButton onClick={handleSaveCrediario} label={savingCrediario ? "Salvando..." : "Salvar Configurações"} />
+              </div>
+            )}
+
+            {/* ── Relatórios por Email ──────────────────────────────────── */}
+            {active === "email_reports" && (
+              <div className="space-y-6">
+                <SectionHeader
+                  title="Relatórios por Email"
+                  subtitle="Resumo semanal e mensal de vendas, estoque, contas e crediário — enviado automaticamente"
+                />
+
+                <div className="flex items-center justify-between gap-4 p-4 bg-white border border-slate-200 rounded-xl">
+                  <div>
+                    <p className="text-[12px] font-bold text-slate-700">Relatório semanal</p>
+                    <p className="text-[10px] text-slate-400 mt-0.5">Toda segunda-feira às 8h, referente à semana anterior.</p>
+                  </div>
+                  <Toggle checked={weeklyReportEnabled} onChange={setWeeklyReportEnabled} />
+                </div>
+
+                <div className="flex items-center justify-between gap-4 p-4 bg-white border border-slate-200 rounded-xl">
+                  <div>
+                    <p className="text-[12px] font-bold text-slate-700">Relatório mensal</p>
+                    <p className="text-[10px] text-slate-400 mt-0.5">Todo dia 1º do mês, referente ao mês anterior (já fechado).</p>
+                  </div>
+                  <Toggle checked={monthlyReportEnabled} onChange={setMonthlyReportEnabled} />
+                </div>
+
+                <div className="space-y-3">
+                  <p className="text-[10px] font-black uppercase tracking-widest text-slate-700 border-l-4 border-blue-500 pl-3">
+                    Destinatários
+                  </p>
+                  <p className="text-[10px] text-slate-400">
+                    Emails que recebem os relatórios. Se a lista estiver vazia, é enviado para todos os usuários com acesso de administrador.
+                  </p>
+                  <div className="flex gap-2">
+                    <input
+                      type="email"
+                      value={newReportEmail}
+                      onChange={(e) => setNewReportEmail(e.target.value)}
+                      onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addReportEmail(); } }}
+                      placeholder="email@exemplo.com"
+                      className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-4 h-11 text-sm font-medium outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-400 transition-all"
+                    />
+                    <button
+                      onClick={addReportEmail}
+                      className="h-11 px-5 bg-slate-900 hover:bg-slate-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all active:scale-95"
+                    >
+                      Adicionar
+                    </button>
+                  </div>
+                  {reportRecipientEmails.length > 0 && (
+                    <div className="space-y-1.5">
+                      {reportRecipientEmails.map((email) => (
+                        <div key={email} className="flex items-center justify-between gap-3 px-4 py-2.5 bg-slate-50 border border-slate-100 rounded-xl">
+                          <span className="text-[12px] font-bold text-slate-700">{email}</span>
+                          <button onClick={() => removeReportEmail(email)} className="text-slate-400 hover:text-rose-500 transition-colors">
+                            <X size={14} />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                <SaveButton onClick={handleSaveReports} label={savingReports ? "Salvando..." : "Salvar Configurações"} />
+
+                <div className="space-y-3 pt-2">
+                  <p className="text-[10px] font-black uppercase tracking-widest text-slate-700 border-l-4 border-emerald-500 pl-3">
+                    Testar envio
+                  </p>
+                  <p className="text-[10px] text-slate-400">
+                    Envia agora, pro período já fechado mais recente — útil pra conferir o email antes de esperar o próximo disparo automático. Salve os destinatários antes de testar.
+                  </p>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <button
+                      onClick={() => handleSendReportNow("weekly")}
+                      disabled={sendingReportNow !== null}
+                      className="h-11 flex items-center justify-center gap-2 rounded-xl border border-slate-200 text-[10px] font-black uppercase tracking-widest text-slate-600 hover:bg-slate-50 transition-all disabled:opacity-60"
+                    >
+                      {sendingReportNow === "weekly" ? <Loader2 size={13} className="animate-spin" /> : <Send size={13} />} Enviar Semanal Agora
+                    </button>
+                    <button
+                      onClick={() => handleSendReportNow("monthly")}
+                      disabled={sendingReportNow !== null}
+                      className="h-11 flex items-center justify-center gap-2 rounded-xl border border-slate-200 text-[10px] font-black uppercase tracking-widest text-slate-600 hover:bg-slate-50 transition-all disabled:opacity-60"
+                    >
+                      {sendingReportNow === "monthly" ? <Loader2 size={13} className="animate-spin" /> : <Send size={13} />} Enviar Mensal Agora
+                    </button>
+                  </div>
+                </div>
               </div>
             )}
 

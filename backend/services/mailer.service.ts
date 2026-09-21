@@ -11,7 +11,7 @@ const transporter = nodemailer.createTransport({
   },
 });
 
-function baseTemplate(content: string) {
+export function baseTemplate(content: string) {
   return `<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
@@ -127,5 +127,15 @@ export async function sendWelcomeEmail(to: string, name: string, storeName: stri
     to,
     subject: `Bem-vindo à BoxSys, ${name}! Sua loja está pronta 🎉`,
     html: baseTemplate(content),
+  });
+}
+
+export async function sendReportEmail(to: string[], subject: string, html: string) {
+  if (to.length === 0) return;
+  await transporter.sendMail({
+    from: `"BoxSys Store" <${env.smtpUser}>`,
+    to,
+    subject,
+    html,
   });
 }

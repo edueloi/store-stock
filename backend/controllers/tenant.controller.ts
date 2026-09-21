@@ -11,6 +11,7 @@ import type { AuthenticatedRequest } from "../types/auth";
 import { buildTenantAccessUrl, normalizeSubdomain } from "../utils/tenant-domain";
 import { encryptSecret } from "../utils/secretCrypto";
 import { parsePfx } from "../services/nfce/signer";
+import { sendReportNow } from "../services/email-reports.service";
 
 function getTenantId(req: Request) {
   return (req as AuthenticatedRequest).user.tenantId;
@@ -113,6 +114,13 @@ export async function updateTenant(req: Request, res: Response) {
     if (b.crediario_interest_rate !== undefined) data.crediario_interest_rate = Math.min(30, Math.max(0, Number(b.crediario_interest_rate) || 0));
     if (b.crediario_grace_days !== undefined)    data.crediario_grace_days    = Math.min(90, Math.max(0, Number(b.crediario_grace_days) || 0));
     if (b.return_deadline_days !== undefined)    data.return_deadline_days    = b.return_deadline_days === null ? null : Math.min(365, Math.max(0, Number(b.return_deadline_days) || 0));
+    if (b.weekly_report_enabled !== undefined)  data.weekly_report_enabled  = Boolean(b.weekly_report_enabled);
+    if (b.monthly_report_enabled !== undefined) data.monthly_report_enabled = Boolean(b.monthly_report_enabled);
+    if (b.report_recipient_emails !== undefined) {
+      data.report_recipient_emails = Array.isArray(b.report_recipient_emails)
+        ? b.report_recipient_emails.filter((e: unknown) => typeof e === "string" && e.trim()).map((e: string) => e.trim())
+        : null;
+    }
 
     // Dados fiscais
     if (b.razao_social !== undefined)        data.razao_social        = b.razao_social;
@@ -240,5 +248,24 @@ export async function deleteNfceCertificate(req: Request, res: Response) {
   } catch (err) {
     console.error("deleteNfceCertificate error:", err);
     res.status(500).json({ error: "Falha ao remover certificado" });
+  }
+}
+
+// Dispara o relatório (semanal ou mensal) na hora, pro tenant logado — usado
+// pelo botão "Enviar agora" em Configurações, pra validar o envio sem esperar
+// o próximo disparo automático (segunda de manhã / dia 1º do mês).
+export async function sendReportNowHandler(req: Request, res: Response) {
+  try {
+    const tenantId = getTenantId(req);
+    const { kind } = req.body as { kind?: "weekly" | "monthly" };
+    if (kind !== "weekly" && kind !== "monthly") {
+      res.status(422).json({ error: "Informe kind: 'weekly' ou 'monthly'" });
+      return;
+    }
+    await sendReportNow(tenantId, kind);
+    res.json({ success: true });
+  } catch (err) {
+    console.error("sendReportNowHandler error:", err);
+    res.status(500).json({ error: "Falha ao enviar relatório" });
   }
 }
