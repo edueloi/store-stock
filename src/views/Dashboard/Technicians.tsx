@@ -17,6 +17,14 @@ interface Technician {
   is_active: boolean;
   notes?: string;
   created_at: string;
+  user_id?: number | null;
+}
+
+interface TeamUser {
+  id: number;
+  name: string;
+  email: string;
+  role: string;
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -27,7 +35,7 @@ const authH = () => ({
 });
 
 const emptyForm = (): Omit<Technician, "id" | "created_at"> => ({
-  name: "", phone: "", document: "", is_active: true, notes: "",
+  name: "", phone: "", document: "", is_active: true, notes: "", user_id: null,
 });
 
 // ─── Component ────────────────────────────────────────────────────────────────
@@ -43,6 +51,8 @@ export default function Technicians() {
   const [saving, setSaving]       = useState(false);
   const [saved, setSaved]         = useState(false);
 
+  const [teamUsers, setTeamUsers] = useState<TeamUser[]>([]);
+
   const fetchTechnicians = useCallback(async () => {
     setLoading(true);
     try {
@@ -53,7 +63,13 @@ export default function Technicians() {
     }
   }, []);
 
-  useEffect(() => { fetchTechnicians(); }, [fetchTechnicians]);
+  const fetchTeamUsers = useCallback(async () => {
+    const r = await fetch("/api/team", { headers: authH() });
+    const d = await r.json();
+    setTeamUsers(Array.isArray(d) ? d : []);
+  }, []);
+
+  useEffect(() => { fetchTechnicians(); fetchTeamUsers(); }, [fetchTechnicians, fetchTeamUsers]);
 
   const openNew = () => { setEditing(null); setForm(emptyForm()); setShowModal(true); };
 
@@ -61,7 +77,7 @@ export default function Technicians() {
     setEditing(t);
     setForm({
       name: t.name, phone: t.phone ?? "", document: t.document ?? "",
-      is_active: t.is_active, notes: t.notes ?? "",
+      is_active: t.is_active, notes: t.notes ?? "", user_id: t.user_id ?? null,
     });
     setShowModal(true);
   };
@@ -263,6 +279,22 @@ export default function Technicians() {
                         className="w-full h-10 px-3 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                       />
                     </div>
+                  </div>
+
+                  <div>
+                    <label className="text-[10px] font-black uppercase tracking-wider text-slate-500 block mb-1">
+                      Vincular a um usuário do sistema
+                    </label>
+                    <select
+                      value={form.user_id ?? ""}
+                      onChange={(e) => setForm((f) => ({ ...f, user_id: e.target.value ? Number(e.target.value) : null }))}
+                      className="w-full h-10 px-3 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                      <option value="">Nenhum</option>
+                      {teamUsers.map((u) => (
+                        <option key={u.id} value={u.id}>{u.name} ({u.email})</option>
+                      ))}
+                    </select>
                   </div>
 
                   <div className="flex items-center justify-between bg-slate-50 rounded-xl px-4 py-3">

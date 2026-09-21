@@ -32,6 +32,14 @@ interface Seller {
   is_active: boolean;
   notes?: string;
   created_at: string;
+  user_id?: number | null;
+}
+
+interface TeamUser {
+  id: number;
+  name: string;
+  email: string;
+  role: string;
 }
 
 interface SellerStats extends Seller {
@@ -86,7 +94,7 @@ const MEDAL_ICONS = [
 
 const emptyForm = (): Omit<Seller, "id" | "created_at"> => ({
   name: "", email: "", phone: "", document: "",
-  commission_rate: 0, is_active: true, notes: "",
+  commission_rate: 0, is_active: true, notes: "", user_id: null,
 });
 
 const emptyGoalForm = () => ({
@@ -136,6 +144,8 @@ export default function Sellers() {
   const [goalForm, setGoalForm]             = useState(emptyGoalForm());
   const [savingGoal, setSavingGoal]         = useState(false);
 
+  const [teamUsers, setTeamUsers] = useState<TeamUser[]>([]);
+
   // ── Fetch ──────────────────────────────────────────────────────────────────
 
   const fetchStats = useCallback(async () => {
@@ -152,6 +162,12 @@ export default function Sellers() {
   const fetchSellers = useCallback(async () => {
     const r = await fetch("/api/sellers", { headers: authH() });
     setSellers(await r.json());
+  }, []);
+
+  const fetchTeamUsers = useCallback(async () => {
+    const r = await fetch("/api/team", { headers: authH() });
+    const d = await r.json();
+    setTeamUsers(Array.isArray(d) ? d : []);
   }, []);
 
   const fetchGoalsRanking = useCallback(async () => {
@@ -176,7 +192,7 @@ export default function Sellers() {
     }
   }, []);
 
-  useEffect(() => { fetchStats(); fetchSellers(); fetchSellerGoals(); }, [fetchStats, fetchSellers, fetchSellerGoals]);
+  useEffect(() => { fetchStats(); fetchSellers(); fetchSellerGoals(); fetchTeamUsers(); }, [fetchStats, fetchSellers, fetchSellerGoals, fetchTeamUsers]);
   useEffect(() => { if (rankingMode === "goals") fetchGoalsRanking(); }, [rankingMode, fetchGoalsRanking]);
 
   // ── CRUD ──────────────────────────────────────────────────────────────────
@@ -188,7 +204,7 @@ export default function Sellers() {
     setForm({
       name: s.name, email: s.email ?? "", phone: s.phone ?? "",
       document: s.document ?? "", commission_rate: Number(s.commission_rate),
-      is_active: s.is_active, notes: s.notes ?? "",
+      is_active: s.is_active, notes: s.notes ?? "", user_id: s.user_id ?? null,
     });
     setShowModal(true);
   };
@@ -1102,6 +1118,26 @@ export default function Sellers() {
                       placeholder="000.000.000-00"
                       className="w-full h-10 px-3 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                     />
+                  </div>
+
+                  {/* Vínculo de login */}
+                  <div>
+                    <label className="text-[10px] font-black uppercase tracking-wider text-slate-500 block mb-1">
+                      Vincular a um usuário do sistema
+                    </label>
+                    <select
+                      value={form.user_id ?? ""}
+                      onChange={(e) => setForm((f) => ({ ...f, user_id: e.target.value ? Number(e.target.value) : null }))}
+                      className="w-full h-10 px-3 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                      <option value="">Nenhum</option>
+                      {teamUsers.map((u) => (
+                        <option key={u.id} value={u.id}>{u.name} ({u.email})</option>
+                      ))}
+                    </select>
+                    <p className="text-[10px] text-slate-400 mt-1">
+                      Quando este usuário fizer login no PDV, o vendedor já vem selecionado por padrão.
+                    </p>
                   </div>
 
                   {/* Comissão */}

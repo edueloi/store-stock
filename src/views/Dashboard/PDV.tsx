@@ -25,6 +25,7 @@ import HeldSalesDrawer from "../../components/pdv/HeldSalesDrawer";
 import { cancelHeldSale, createHeldSale, getOpenHeldSalesCount, type HeldSale } from "../../lib/heldSales";
 import { onRealtimeAny } from "../../lib/realtime";
 import { fetchRemotePrintTerminals, requestRemotePrint, type RemotePrintTerminal } from "../../lib/remotePrint";
+import { getStoredUser } from "../../lib/session";
 
 function maskPhone(v: string) {
   const d = v.replace(/\D/g, "").slice(0, 11);
@@ -326,7 +327,7 @@ export default function PDV() {
   const [loadingOrders, setLoadingOrders] = useState(false);
 
   // sellers
-  const [sellers, setSellers]         = useState<{ id: number; name: string; commission_rate: number }[]>([]);
+  const [sellers, setSellers]         = useState<{ id: number; name: string; commission_rate: number; user_id?: number | null }[]>([]);
   const [selectedSellerId, setSelectedSellerId] = useState<number | null>(null);
   const [showNewSellerModal, setShowNewSellerModal] = useState(false);
   const [newSellerName, setNewSellerName] = useState("");
@@ -411,7 +412,13 @@ export default function PDV() {
       .catch(() => {});
     fetch("/api/sellers", { headers })
       .then((r) => r.json())
-      .then((d) => setSellers(Array.isArray(d) ? d.filter((s: any) => s.is_active) : []))
+      .then((d) => {
+        const active = Array.isArray(d) ? d.filter((s: any) => s.is_active) : [];
+        setSellers(active);
+        const myUserId = getStoredUser()?.id;
+        const linked = myUserId != null ? active.find((s: any) => s.user_id === myUserId) : null;
+        if (linked) setSelectedSellerId((prev) => prev ?? linked.id);
+      })
       .catch(() => {});
     fetch("/api/services", { headers })
       .then((r) => r.json())

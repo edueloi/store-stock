@@ -328,6 +328,8 @@ model User {
   menu_permissions     UserMenuPermission[]
   stage_permissions    UserStagePermission[]
   push_subscriptions   PushSubscription[]
+  seller               Seller?
+  technician           Technician?
 
   @@map("users")
 }
@@ -822,10 +824,15 @@ model Seller {
   commission_rate Decimal  @default(0) @db.Decimal(5, 2)
   is_active       Boolean  @default(true)
   notes           String?  @db.Text
+  // Login do sistema vinculado a este vendedor — quando esse usuário loga e
+  // abre o PDV, o vendedor já vem pré-selecionado automaticamente (PDV.tsx e
+  // PDVStandalone.tsx), sem precisar escolher manualmente toda vez.
+  user_id         Int?     @unique
   created_at      DateTime @default(now())
   updated_at      DateTime @updatedAt
 
   tenant         Tenant         @relation(fields: [tenant_id], references: [id])
+  user           User?          @relation(fields: [user_id], references: [id], onDelete: SetNull)
   orders         Order[]
   service_orders ServiceOrder[]
   goals          Goal[]
@@ -845,10 +852,13 @@ model Technician {
   document   String?
   is_active  Boolean  @default(true)
   notes      String?  @db.Text
+  // Mesmo vínculo de login que Seller.user_id — ver comentário acima.
+  user_id    Int?     @unique
   created_at DateTime @default(now())
   updated_at DateTime @updatedAt
 
   tenant         Tenant         @relation(fields: [tenant_id], references: [id])
+  user           User?          @relation(fields: [user_id], references: [id], onDelete: SetNull)
   service_orders ServiceOrder[]
 
   @@map("technicians")

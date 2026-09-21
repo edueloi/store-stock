@@ -19,11 +19,28 @@ export async function listSellers(req: Request, res: Response) {
   }
 }
 
+// Valida que o usuário escolhido pertence ao mesmo tenant e ainda não está
+// vinculado a outro vendedor (user_id é @unique) — sem isso o Prisma rejeitaria
+// com um erro cru de constraint, difícil de entender pro lojista.
+async function validateSellerUserLink(tenantId: number, userId: number | null, excludeSellerId?: number) {
+  if (userId == null) return null;
+  const user = await prisma.user.findFirst({ where: { id: userId, tenant_id: tenantId } });
+  if (!user) return "Usuário não encontrado.";
+  const already = await prisma.seller.findFirst({ where: { user_id: userId, id: { not: excludeSellerId ?? -1 } } });
+  if (already) return `Este usuário já está vinculado ao vendedor "${already.name}".`;
+  return null;
+}
+
 export async function createSeller(req: Request, res: Response) {
   try {
+    const tenantId = getTenantId(req);
+    const userId = req.body.user_id ? Number(req.body.user_id) : null;
+    const linkError = await validateSellerUserLink(tenantId, userId);
+    if (linkError) { res.status(422).json({ error: linkError }); return; }
+
     const seller = await prisma.seller.create({
       data: {
-        tenant_id:       getTenantId(req),
+        tenant_id:       tenantId,
         name:            req.body.name,
         email:           req.body.email    || null,
         phone:           req.body.phone    || null,
@@ -31,6 +48,7 @@ export async function createSeller(req: Request, res: Response) {
         commission_rate: req.body.commission_rate ?? 0,
         is_active:       req.body.is_active ?? true,
         notes:           req.body.notes    || null,
+        user_id:         userId,
       },
     });
     res.json(seller);
@@ -42,13 +60,20 @@ export async function createSeller(req: Request, res: Response) {
 export async function updateSeller(req: Request, res: Response) {
   try {
     const tenantId = getTenantId(req);
+    const sellerId = Number(req.params.id);
     const existing = await prisma.seller.findFirst({
-      where: { id: Number(req.params.id), tenant_id: tenantId },
+      where: { id: sellerId, tenant_id: tenantId },
     });
     if (!existing) return res.status(404).json({ error: "Vendedor não encontrado" });
 
+    const userId = req.body.user_id !== undefined
+      ? (req.body.user_id ? Number(req.body.user_id) : null)
+      : existing.user_id;
+    const linkError = await validateSellerUserLink(tenantId, userId, sellerId);
+    if (linkError) { res.status(422).json({ error: linkError }); return; }
+
     const seller = await prisma.seller.update({
-      where: { id: Number(req.params.id) },
+      where: { id: sellerId },
       data: {
         name:            req.body.name,
         email:           req.body.email    || null,
@@ -57,6 +82,7 @@ export async function updateSeller(req: Request, res: Response) {
         commission_rate: req.body.commission_rate ?? existing.commission_rate,
         is_active:       req.body.is_active ?? existing.is_active,
         notes:           req.body.notes    || null,
+        user_id:         userId,
       },
     });
     res.json(seller);

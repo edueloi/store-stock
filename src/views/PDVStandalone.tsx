@@ -115,7 +115,7 @@ interface CompletedSale {
   offline?: boolean;
 }
 
-interface SellerEntry { id: number; name: string; commission_rate: number }
+interface SellerEntry { id: number; name: string; commission_rate: number; user_id?: number | null }
 interface ServiceItem  {
   id: number; name: string; price: number; description?: string; unit?: string; category?: string; quantity?: number;
   sale_unit?: "unidade" | "m2" | "linear"; price_per_measure?: number | null; min_billable_quantity?: number | null;
@@ -816,6 +816,11 @@ export default function PDVStandalone() {
         const list = Array.isArray(d) ? d.filter((s: SellerEntry & { is_active?: boolean }) => s.is_active !== false) : [];
         setSellers(list);
         cacheSet("sellers", list);
+        try {
+          const myUserId = JSON.parse(localStorage.getItem("user") || "null")?.id;
+          const linked = myUserId != null ? list.find((s) => s.user_id === myUserId) : null;
+          if (linked) setSelectedSellerId((prev) => prev ?? linked.id);
+        } catch { /* ignore */ }
       })
       .catch(() => { cacheGet<SellerEntry[]>("sellers").then((d) => { if (d) setSellers(d); }); });
 
