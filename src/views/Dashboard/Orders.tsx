@@ -1063,14 +1063,21 @@ ${
       const leftText = truncate(left, W - rightText.length - 1);
       return `${leftText}${" ".repeat(Math.max(1, W - leftText.length - rightText.length))}${rightText}`;
     };
-    const parsePaymentsSimple = (raw?: string | null) => {
-      if (!raw) return [{ label: "Não informado", amount: 0 }];
+    // Mesmo parser de segmentos usado no PDV (parsePaymentMethod) — extrai
+    // método, bandeira e parcelas, não só o rótulo simples, pra reconstruir o
+    // cupom com o MESMO conteúdo que saiu impresso de verdade na venda (o
+    // formato anterior aqui não mostrava parcelas nem subtotal, divergindo do
+    // cupom real do PDV).
+    const PM_LABEL_LOCAL: Record<string, string> = { money: "Dinheiro", pix: "PIX", debit: "Débito", credit: "Crédito", crediario: "Crediário" };
+    const parsePaymentsFull = (raw?: string | null) => {
+      if (!raw) return [{ method: "", label: "Não informado", installments: 1, amount: 0 }];
       return raw.split("|").map((seg) => {
-        const parts = seg.trim().split(":");
-        const method = parts[0]?.split("-")[0]?.toLowerCase() ?? "";
-        const amount = Number(parts[1]) || 0;
-        const labels: Record<string, string> = { money: "Dinheiro", pix: "PIX", debit: "Débito", credit: "Crédito" };
-        return { label: labels[method] ?? (method ? method.charAt(0).toUpperCase() + method.slice(1) : "—"), amount };
+        const [methodPart, amountStr] = seg.trim().split(":");
+        const tokens = (methodPart ?? "").split("-");
+        const method = tokens[0]?.toLowerCase() ?? "";
+        const installments = tokens[2] ? parseInt(tokens[2].replace("x", ""), 10) || 1 : 1;
+        const amount = Number(amountStr) || 0;
+        return { method, label: PM_LABEL_LOCAL[method] ?? (method ? method.charAt(0).toUpperCase() + method.slice(1) : "—"), installments, amount };
       });
     };
 
@@ -1084,7 +1091,7 @@ ${
       if (addr) receipt += `${center(addr)}\n`;
     }
     if (tenant?.document) receipt += `${center(`CNPJ: ${tenant.document}`)}\n`;
-    receipt += `${row(dateTime, orderId)}\n${rule}\n`;
+    receipt += `${row(dateTime, `COO: ${orderId}`)}\n${rule}\n`;
     receipt += `${center("CUPOM")}\n${thin}\n`;
     receipt += "ITEM  DESCRIÇÃO\n";
     receipt += "      QTD  X UNITÁRIO       VALOR (R$)\n";
@@ -1095,17 +1102,21 @@ ${
     });
     receipt += `${thin}\n`;
     receipt += row("Cliente", order.customer_name || "Consumidor final") + "\n";
+    if (order.seller_name) receipt += row("Vendedor", order.seller_name) + "\n";
     receipt += row("Qtde. Total Itens", String(order.items.reduce((sum, i) => sum + i.quantity, 0))) + "\n";
-    if (order.discount_amount && Number(order.discount_amount) > 0) {
-      receipt += row("Desconto", `- R$ ${money(Number(order.discount_amount))}`) + "\n";
+    const grossAmount = order.gross_amount != null ? Number(order.gross_amount) : Number(order.total_amount);
+    const discountAmount = order.discount_amount ? Number(order.discount_amount) : 0;
+    const feeAmount = order.fee_amount ? Number(order.fee_amount) : 0;
+    if (discountAmount > 0 || feeAmount > 0) {
+      receipt += row("Subtotal", `R$ ${money(grossAmount)}`) + "\n";
     }
-    if (order.fee_amount && Number(order.fee_amount) > 0) {
-      receipt += row("Juros máquina", `+ R$ ${money(Number(order.fee_amount))}`) + "\n";
-    }
+    if (discountAmount > 0) receipt += row("Desconto", `- R$ ${money(discountAmount)}`) + "\n";
+    if (feeAmount > 0) receipt += row("Acréscimo", `+ R$ ${money(feeAmount)}`) + "\n";
     receipt += `${rule}\n${row("Valor Total R$", money(Number(order.total_amount)))}\n${rule}\n`;
-    const parsedPayments = parsePaymentsSimple(order.payment_method);
+    const parsedPayments = parsePaymentsFull(order.payment_method);
     parsedPayments.forEach((p) => {
-      receipt += row(`Forma Pagamento: ${p.label}`, `R$ ${money(p.amount)}`) + "\n";
+      const installmentsLabel = p.method === "credit" && p.installments > 1 ? ` ${p.installments}x` : "";
+      receipt += row(`Forma Pagamento: ${p.label}${installmentsLabel}`, `R$ ${money(p.amount)}`) + "\n";
     });
     // Troco recalculado da diferença real (mesma lógica do template HTML acima) —
     // não depende de order.change_amount, que pode estar null.

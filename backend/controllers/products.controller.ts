@@ -10,6 +10,28 @@ function getTenantId(req: Request) {
   return (req as AuthenticatedRequest).user.tenantId;
 }
 
+// Validação preventiva mínima de CFOP — pega o caso mais comum de rejeição na
+// SEFAZ ("CFOP não permitido para o CSOSN informado"): um CFOP de ENTRADA
+// (série 1xxx/2xxx/3xxx, usado em compra/devolução de compra) cadastrado num
+// produto que depois é vendido pela NFC-e, que sempre exige CFOP de SAÍDA
+// (série 5xxx dentro do estado, 6xxx fora do estado, 7xxx exterior). Não
+// valida a combinação fina CFOP×CSOSN (exigiria uma tabela de regras fiscais
+// completa) — só bloqueia o erro estrutural mais provável, que é a via de
+// entrada mais comum desse bug: importar CFOP de XML de nota de COMPRA
+// (ver XmlImportModal.tsx) para o cadastro de um produto de venda.
+function validateCfop(cfop: unknown): string | null {
+  if (cfop === undefined || cfop === null || cfop === "") return null;
+  const value = String(cfop);
+  if (!/^\d{4}$/.test(value)) {
+    return "CFOP inválido — precisa ter exatamente 4 dígitos.";
+  }
+  const firstDigit = value[0];
+  if (firstDigit === "1" || firstDigit === "2" || firstDigit === "3") {
+    return `CFOP ${value} é de ENTRADA (compra/devolução) — produtos vendidos pela NFC-e precisam de um CFOP de SAÍDA (começando com 5, 6 ou 7). Ex.: 5102 para venda dentro do estado.`;
+  }
+  return null;
+}
+
 export async function getLowStockCount(req: Request, res: Response) {
   try {
     const tenantId = getTenantId(req);
@@ -102,6 +124,13 @@ export async function createProduct(req: Request, res: Response) {
       created_at, updated_at,
       ...rest
     } = req.body;
+
+    const cfopError = validateCfop(rest.cfop);
+    if (cfopError) {
+      res.status(422).json({ error: cfopError });
+      return;
+    }
+
     const product = await prisma.product.create({
       data: {
         ...rest,
@@ -191,6 +220,12 @@ export async function updateProduct(req: Request, res: Response) {
       created_at, updated_at,
       ...rest
     } = req.body;
+
+    const cfopError = validateCfop(rest.cfop);
+    if (cfopError) {
+      res.status(422).json({ error: cfopError });
+      return;
+    }
 
     await prisma.product.updateMany({
       where: { id, tenant_id: tenantId },
