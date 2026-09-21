@@ -220,6 +220,24 @@ async function setPreference(key: string, value: unknown) {
   } catch { /* offline: cache local já foi atualizado */ }
 }
 
+// Os pollers de 60s abaixo (estoque baixo, vendas em espera, contas a pagar
+// vencendo, crediário vencido) sempre criam um array novo a cada resposta,
+// mesmo quando o conteúdo é idêntico ao ciclo anterior — isso força React a
+// re-renderizar o AdminDashboard inteiro (sidebar + header + rota atual) a
+// cada minuto, e como os ~6 pollers são armados quase no mesmo instante
+// (todos no mount), a rajada de re-renders em sequência é percebida como uma
+// "piscada" da tela. Comparar por id antes de trocar o estado faz React
+// pular o re-render quando nada realmente mudou (mesma referência = bail-out).
+function setIfChanged<T extends { id: number | string }>(
+  setter: (updater: (prev: T[]) => T[]) => void,
+  next: T[],
+) {
+  setter((prev) => {
+    if (prev.length === next.length && prev.every((p, i) => p.id === next[i].id)) return prev;
+    return next;
+  });
+}
+
 // ── Toast de estoque crítico ──────────────────────────────────────────────
 // Dispara um alerta apenas para produtos que ENTRARAM na lista de estoque
 // baixo desde a última vez que o usuário foi avisado. Essa lista de "já
@@ -495,7 +513,7 @@ export default function AdminDashboard() {
         });
         if (!res.ok || cancelled) return;
         const data = await res.json();
-        if (!cancelled) setLowStockProducts(Array.isArray(data?.products) ? data.products : []);
+        if (!cancelled) setIfChanged(setLowStockProducts, Array.isArray(data?.products) ? data.products : []);
       } catch { /* silencioso — badge apenas não atualiza nesta rodada */ }
     };
     fetchLowStock();
@@ -509,7 +527,7 @@ export default function AdminDashboard() {
     const fetchHeldSales = async () => {
       try {
         const data = await listHeldSales(localStorage.getItem("token") ?? "", "held");
-        if (!cancelled) setHeldSales(data);
+        if (!cancelled) setIfChanged(setHeldSales, data);
       } catch { /* silencioso — nesta rodada só não atualiza */ }
     };
     fetchHeldSales();
@@ -535,7 +553,7 @@ export default function AdminDashboard() {
           const daysUntil = (new Date(b.due_date).getTime() - now) / 86_400_000;
           return daysUntil >= 0 && daysUntil <= DUE_SOON_DAYS;
         });
-        if (!cancelled) setDueSoonBills(soon);
+        if (!cancelled) setIfChanged(setDueSoonBills, soon);
       } catch { /* silencioso — nesta rodada só não atualiza */ }
     };
     fetchDueSoon();
@@ -557,7 +575,7 @@ export default function AdminDashboard() {
         if (!Array.isArray(data)) return;
         const now = Date.now();
         const overdue = data.filter((i: { due_date: string }) => new Date(i.due_date).getTime() < now);
-        if (!cancelled) setOverdueInstallments(overdue);
+        if (!cancelled) setIfChanged(setOverdueInstallments, overdue);
       } catch { /* silencioso — badge apenas não atualiza nesta rodada */ }
     };
     fetchOverdueInstallments();
