@@ -764,7 +764,7 @@ export default function Finance() {
   interface OrderDetail {
     id: number; customer_name: string; items: OrderItem[]; services: { name: string; unit_price: number; quantity: number }[];
     created_at: string; seller_name?: string | null; payment_method?: string | null;
-    gross_amount?: number | null; discount_amount?: number | null; fee_amount?: number | null; total_amount: number;
+    gross_amount?: number | null; discount_amount?: number | null; fee_amount?: number | null; surcharge_amount?: number | null; total_amount: number;
   }
   const [orderDetail, setOrderDetail] = useState<OrderDetail | null>(null);
   const [loadingOrder, setLoadingOrder] = useState(false);
@@ -2056,6 +2056,37 @@ export default function Finance() {
                             </div>
                           )}
                         </div>
+                        {orderDetail && (() => {
+                          const gross = orderDetail.gross_amount != null ? Number(orderDetail.gross_amount) : null;
+                          const discount = orderDetail.discount_amount ? Number(orderDetail.discount_amount) : 0;
+                          const fee = orderDetail.fee_amount ? Number(orderDetail.fee_amount) : 0;
+                          const surcharge = orderDetail.surcharge_amount != null
+                            ? Number(orderDetail.surcharge_amount)
+                            : (gross != null ? Number(orderDetail.total_amount) - gross - fee + discount : 0);
+                          if (discount <= 0 && fee <= 0 && surcharge <= 0.009) return null;
+                          return (
+                            <div className="px-4 py-2.5 border-t border-slate-100 space-y-1">
+                              {discount > 0 && (
+                                <div className="flex justify-between text-[10px] font-bold text-rose-500">
+                                  <span>Desconto</span>
+                                  <span className="font-mono">− R$ {discount.toFixed(2)}</span>
+                                </div>
+                              )}
+                              {surcharge > 0.009 && (
+                                <div className="flex justify-between text-[10px] font-bold text-amber-600">
+                                  <span>Acréscimo</span>
+                                  <span className="font-mono">+ R$ {surcharge.toFixed(2)}</span>
+                                </div>
+                              )}
+                              {fee > 0 && (
+                                <div className="flex justify-between text-[10px] font-bold text-amber-600">
+                                  <span>Taxa Maquininha</span>
+                                  <span className="font-mono">+ R$ {fee.toFixed(2)}</span>
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })()}
                       </div>
                     );
                   })()}

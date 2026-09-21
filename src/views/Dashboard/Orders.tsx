@@ -2093,12 +2093,21 @@ ${
                   </div>
                 </div>
 
-                {/* Subtotal / desconto / taxa / total */}
+                {/* Subtotal / desconto / acréscimo / taxa / total */}
                 {(() => {
                   const hasGross = selectedOrder.gross_amount != null && Number(selectedOrder.gross_amount) !== Number(selectedOrder.total_amount);
                   const hasDisc  = selectedOrder.discount_amount != null && Number(selectedOrder.discount_amount) > 0;
                   const hasFee   = selectedOrder.fee_amount != null && Number(selectedOrder.fee_amount) > 0;
-                  if (!hasGross && !hasDisc && !hasFee) return null;
+                  // Pedidos criados antes do campo surcharge_amount existir têm o acréscimo
+                  // embutido só na diferença gross/total — reconstituído aqui como fallback
+                  // pra não sumir o valor em pedidos antigos.
+                  const surchargeRaw = selectedOrder.surcharge_amount != null
+                    ? Number(selectedOrder.surcharge_amount)
+                    : (selectedOrder.gross_amount != null
+                        ? Number(selectedOrder.total_amount) - Number(selectedOrder.gross_amount) - Number(selectedOrder.fee_amount ?? 0) + Number(selectedOrder.discount_amount ?? 0)
+                        : 0);
+                  const hasSurcharge = surchargeRaw > 0.009;
+                  if (!hasGross && !hasDisc && !hasFee && !hasSurcharge) return null;
                   return (
                     <div className="mx-4 mt-2 rounded-2xl border border-slate-100 overflow-hidden">
                       {hasGross && (
@@ -2111,6 +2120,12 @@ ${
                         <div className="px-4 py-2.5 flex justify-between items-center border-b border-slate-50">
                           <span className="text-[11px] font-bold text-rose-500">Desconto</span>
                           <span className="font-mono text-[11px] font-bold text-rose-500">− R$ {Number(selectedOrder.discount_amount).toFixed(2)}</span>
+                        </div>
+                      )}
+                      {hasSurcharge && (
+                        <div className="px-4 py-2.5 flex justify-between items-center border-b border-slate-50">
+                          <span className="text-[11px] font-bold text-amber-600">Acréscimo</span>
+                          <span className="font-mono text-[11px] font-bold text-amber-600">+ R$ {surchargeRaw.toFixed(2)}</span>
                         </div>
                       )}
                       {hasFee && (

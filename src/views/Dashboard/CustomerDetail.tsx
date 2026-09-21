@@ -66,6 +66,10 @@ interface OrderItem {
 interface Order {
   id: number;
   total_amount: number;
+  gross_amount?: number | null;
+  discount_amount?: number | null;
+  fee_amount?: number | null;
+  surcharge_amount?: number | null;
   payment_method?: string;
   created_at: string;
   items: OrderItem[];
@@ -1128,6 +1132,38 @@ export default function CustomerDetail() {
                               <span className="font-mono">{fmt(Number(it.unit_price) * it.quantity)}</span>
                             </div>
                           ))}
+                          {(() => {
+                            const o = d.order!;
+                            const gross = o.gross_amount != null ? Number(o.gross_amount) : null;
+                            const discount = o.discount_amount ? Number(o.discount_amount) : 0;
+                            const fee = o.fee_amount ? Number(o.fee_amount) : 0;
+                            const surcharge = o.surcharge_amount != null
+                              ? Number(o.surcharge_amount)
+                              : (gross != null ? Number(o.total_amount) - gross - fee + discount : 0);
+                            if (discount <= 0 && fee <= 0 && surcharge <= 0.009) return null;
+                            return (
+                              <div className="pt-2 mt-1 border-t border-slate-100 space-y-0.5">
+                                {discount > 0 && (
+                                  <div className="flex justify-between text-[11px] text-rose-500">
+                                    <span>Desconto</span>
+                                    <span className="font-mono">− {fmt(discount)}</span>
+                                  </div>
+                                )}
+                                {surcharge > 0.009 && (
+                                  <div className="flex justify-between text-[11px] text-amber-600">
+                                    <span>Acréscimo</span>
+                                    <span className="font-mono">+ {fmt(surcharge)}</span>
+                                  </div>
+                                )}
+                                {fee > 0 && (
+                                  <div className="flex justify-between text-[11px] text-amber-600">
+                                    <span>Taxa Maquininha</span>
+                                    <span className="font-mono">+ {fmt(fee)}</span>
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })()}
                         </div>
                       )}
                       {isExpanded && isInstallmentPlan && (

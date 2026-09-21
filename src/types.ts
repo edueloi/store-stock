@@ -205,6 +205,7 @@ export interface Order {
   gross_amount?: number | null;
   discount_amount?: number | null;
   fee_amount?: number | null;
+  surcharge_amount?: number | null;
   status: 'pending' | 'completed' | 'cancelled';
   payment_method?: string;
   cancelled_by?: string | null;

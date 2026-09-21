@@ -526,7 +526,8 @@ model Order {
   total_amount      Decimal   @db.Decimal(10, 2)
   gross_amount      Decimal?  @db.Decimal(10, 2)
   discount_amount   Decimal?  @db.Decimal(10, 2)
-  fee_amount        Decimal?  @db.Decimal(10, 2)
+  fee_amount        Decimal?  @db.Decimal(10, 2) // taxa de maquininha (cartão/PIX) — repassada ou absorvida, ver PDV "Taxa Maquininha"
+  surcharge_amount  Decimal?  @db.Decimal(10, 2) // acréscimo manual aplicado pelo operador na venda (campo "Acréscimo" do PDV) — distinto de fee_amount
   change_amount     Decimal?  @db.Decimal(10, 2) // troco (venda em dinheiro), calculado no PDV e enviado na criação da venda — usado no DANFE/recibo
   status            String    @default("pending")
   order_type        String    @default("products")

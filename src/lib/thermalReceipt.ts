@@ -190,6 +190,7 @@ export interface OrderReceiptOrder {
   gross_amount?: number | string | null;
   discount_amount?: number | string | null;
   fee_amount?: number | string | null;
+  surcharge_amount?: number | string | null;
   total_amount: number | string;
 }
 
@@ -239,11 +240,19 @@ export function buildOrderReceiptText(tenant: OrderReceiptTenant | null | undefi
   const grossAmount = order.gross_amount != null ? Number(order.gross_amount) : Number(order.total_amount);
   const discountAmount = order.discount_amount ? Number(order.discount_amount) : 0;
   const feeAmount = order.fee_amount ? Number(order.fee_amount) : 0;
-  if (discountAmount > 0 || feeAmount > 0) {
+  // Pedidos criados antes do campo surcharge_amount existir têm o acréscimo
+  // embutido só na diferença gross/total — reconstituído como fallback.
+  const surchargeAmount = order.surcharge_amount != null
+    ? Number(order.surcharge_amount)
+    : (order.gross_amount != null
+        ? Number(order.total_amount) - grossAmount - feeAmount + discountAmount
+        : 0);
+  if (discountAmount > 0 || feeAmount > 0 || surchargeAmount > 0.009) {
     receipt += thermalRow("Subtotal", `R$ ${thermalMoney(grossAmount)}`) + "\n";
   }
   if (discountAmount > 0) receipt += thermalRow("Desconto", `- R$ ${thermalMoney(discountAmount)}`) + "\n";
-  if (feeAmount > 0) receipt += thermalRow("Acréscimo", `+ R$ ${thermalMoney(feeAmount)}`) + "\n";
+  if (surchargeAmount > 0.009) receipt += thermalRow("Acréscimo", `+ R$ ${thermalMoney(surchargeAmount)}`) + "\n";
+  if (feeAmount > 0) receipt += thermalRow("Taxa Maquininha", `+ R$ ${thermalMoney(feeAmount)}`) + "\n";
   receipt += `${thermalRule}\n${thermalRow("Valor Total R$", thermalMoney(Number(order.total_amount)))}\n${thermalRule}\n`;
   const parsedPayments = parseOrderReceiptPayments(order.payment_method);
   parsedPayments.forEach((p) => {
