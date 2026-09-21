@@ -644,6 +644,14 @@ model NfceInvoice {
   cancelled_at    DateTime?
   cancel_xml_path String?
 
+  // Snapshot da nota de HOMOLOGAÇÃO anterior, guardado aqui antes de sobrescrever
+  // o registro com uma emissão de PRODUÇÃO pro mesmo pedido — preserva o rastro
+  // de que aquele teste existiu sem precisar de uma segunda linha na tabela (o
+  // @unique em order_id mantém "1 pedido = 1 nota ativa", que é o que o resto do
+  // código já assume). Nunca é preenchido ao contrário (produção não é
+  // sobrescrita por homologação) — ver superseded_homologacao no controller.
+  superseded_homologacao Json?
+
   created_at DateTime @default(now())
   updated_at DateTime @updatedAt
 

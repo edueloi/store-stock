@@ -132,6 +132,9 @@ function NfceTabContent() {
   const [deleteTarget, setDeleteTarget] = useState<NfceInvoice | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [productionTarget, setProductionTarget] = useState<NfceInvoice | null>(null);
+  const [emittingProduction, setEmittingProduction] = useState(false);
+  const [productionError, setProductionError] = useState<string | null>(null);
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [batchLoading, setBatchLoading] = useState<"retry" | "xml" | "danfe" | null>(null);
   const [whatsappConnected, setWhatsappConnected] = useState(false);
@@ -223,6 +226,30 @@ function NfceTabContent() {
       fetchInvoices();
     } finally {
       setCancelling(false);
+    }
+  };
+
+  const handleEmitProduction = async () => {
+    if (!productionTarget) return;
+    setEmittingProduction(true);
+    setProductionError(null);
+    try {
+      const res = await fetch(`/api/nfce/${productionTarget.order_id}/emit-production`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setProductionError(data.error || "Falha ao emitir NFC-e de produção");
+        return;
+      }
+      setProductionTarget(null);
+      fetchInvoices();
+      notify.success("Emissão em Produção iniciada!");
+    } catch {
+      setProductionError("Erro de conexão ao emitir NFC-e de produção");
+    } finally {
+      setEmittingProduction(false);
     }
   };
 
@@ -541,6 +568,11 @@ function NfceTabContent() {
                           {inv.rejection_reason}
                         </p>
                       )}
+                      {inv.environment === "homologacao" && (
+                        <span className="ml-1.5 inline-flex items-center px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wide bg-amber-50 text-amber-600 border border-amber-200" title="Nota de teste — sem valor fiscal">
+                          Homologação
+                        </span>
+                      )}
                     </td>
                     <td className="px-4 py-2.5 pl-6 text-xs text-slate-500 whitespace-nowrap">
                       {inv.authorized_at ? new Date(inv.authorized_at).toLocaleString("pt-BR") : "—"}
@@ -563,6 +595,15 @@ function NfceTabContent() {
                               <Trash2 size={12} /> Excluir
                             </button>
                           </>
+                        )}
+                        {inv.status === "authorized" && inv.environment === "homologacao" && (
+                          <button
+                            onClick={() => { setProductionTarget(inv); setProductionError(null); }}
+                            className="h-8 px-3 bg-amber-500 hover:bg-amber-600 text-white rounded-lg text-[9px] font-black uppercase tracking-widest flex items-center gap-1.5 transition-all"
+                            title="Essa nota é só teste (sem valor fiscal) — emitir uma nota nova, de produção, pro mesmo pedido"
+                          >
+                            <FileCheck size={12} /> Emitir em Produção
+                          </button>
                         )}
                         {inv.status === "authorized" && (
                           <>
@@ -646,6 +687,13 @@ function NfceTabContent() {
                 {(inv.status === "error" || inv.status === "rejected") && inv.rejection_reason && (
                   <p className="text-[10px] text-rose-500 font-medium pl-7">{inv.rejection_reason}</p>
                 )}
+                {inv.environment === "homologacao" && (
+                  <p className="pl-7">
+                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wide bg-amber-50 text-amber-600 border border-amber-200" title="Nota de teste — sem valor fiscal">
+                      Homologação
+                    </span>
+                  </p>
+                )}
 
                 <div className="flex items-center justify-between pl-7">
                   <span className="text-[10px] text-slate-400 font-medium">
@@ -668,6 +716,14 @@ function NfceTabContent() {
                           <Trash2 size={12} /> Excluir
                         </button>
                       </>
+                    )}
+                    {inv.status === "authorized" && inv.environment === "homologacao" && (
+                      <button
+                        onClick={() => { setProductionTarget(inv); setProductionError(null); }}
+                        className="h-8 px-3 bg-amber-500 hover:bg-amber-600 text-white rounded-lg text-[9px] font-black uppercase tracking-widest flex items-center gap-1.5 transition-all"
+                      >
+                        <FileCheck size={12} /> Emitir em Produção
+                      </button>
                     )}
                     {inv.status === "authorized" && (
                       <>
@@ -739,6 +795,39 @@ function NfceTabContent() {
           {cancelError && (
             <div className="bg-rose-50 border border-rose-200 rounded-xl px-3 py-2.5 text-[11px] font-bold text-rose-600">
               {cancelError}
+            </div>
+          )}
+        </div>
+      </Modal>
+
+      <Modal
+        open={!!productionTarget}
+        onClose={() => { if (!emittingProduction) { setProductionTarget(null); setProductionError(null); } }}
+        title="Emitir NFC-e de Produção"
+        subtitle={productionTarget ? `Pedido #${String(productionTarget.order_id).padStart(6, "0")} — nota atual é só teste (Homologação)` : undefined}
+        size="sm"
+        footer={
+          <>
+            <Button variant="secondary" onClick={() => setProductionTarget(null)} disabled={emittingProduction}>Voltar</Button>
+            <Button
+              onClick={handleEmitProduction}
+              disabled={emittingProduction}
+              loading={emittingProduction}
+            >
+              Emitir de Produção
+            </Button>
+          </>
+        }
+      >
+        <div className="space-y-3">
+          <p className="text-xs text-slate-500">
+            A nota atual (nº {productionTarget?.number}) foi emitida em <strong>Homologação</strong> — é só teste, sem valor fiscal.
+            Esta ação emite uma <strong>NFC-e nova</strong> (novo número, ambiente Produção) para o mesmo pedido, essa sim com valor fiscal real.
+            O registro de homologação fica guardado como histórico, mas deixa de ser exibido.
+          </p>
+          {productionError && (
+            <div className="bg-rose-50 border border-rose-200 rounded-xl px-3 py-2.5 text-[11px] font-bold text-rose-600">
+              {productionError}
             </div>
           )}
         </div>

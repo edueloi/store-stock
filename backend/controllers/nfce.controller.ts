@@ -169,6 +169,80 @@ export async function retryNfce(req: Request, res: Response) {
   }
 }
 
+/** Emite uma NFC-e de PRODUÇÃO (com valor fiscal real) pro mesmo pedido de uma nota que
+ * hoje está autorizada em HOMOLOGAÇÃO (sem valor fiscal, por definição da própria SEFAZ).
+ * Só age nesse caso específico — pra qualquer outro status, o fluxo normal (emit/retry)
+ * já resolve. Guarda um snapshot da nota de homologação em `superseded_homologacao` antes
+ * de sobrescrever o registro, preservando o rastro de que aquele teste existiu (o
+ * `@unique` em order_id impede ter duas linhas — ver schema.prisma). Exige que o tenant já
+ * esteja configurado para produção (não força a config por baixo dos panos numa ação tão
+ * sensível — evita emitir em produção sem o certificado/CSC de produção estarem prontos). */
+export async function emitNfceAsProduction(req: Request, res: Response) {
+  try {
+    const orderId = Number(req.params.orderId);
+    const tenantId = getTenantId(req);
+
+    const tenant = await prisma.tenant.findUnique({
+      where: { id: tenantId },
+      select: { nfce_environment: true, nfce_series: true, nfce_next_number: true },
+    });
+    if (!tenant) { res.status(404).json({ error: "Loja não encontrada" }); return; }
+    if (tenant.nfce_environment !== "producao") {
+      res.status(422).json({ error: "Configure o ambiente da loja para Produção (Configurações > Dados Fiscais) antes de emitir a nota de produção." });
+      return;
+    }
+
+    const invoice = await prisma.nfceInvoice.findFirst({ where: { order_id: orderId, tenant_id: tenantId } });
+    if (!invoice) { res.status(404).json({ error: "Nota fiscal não encontrada para este pedido" }); return; }
+    if (invoice.status !== "authorized" || invoice.environment !== "homologacao") {
+      res.status(409).json({ error: "Essa ação só se aplica a uma nota já autorizada em ambiente de Homologação." });
+      return;
+    }
+
+    const homologacaoSnapshot = {
+      access_key: invoice.access_key,
+      protocol: invoice.protocol,
+      authorized_at: invoice.authorized_at,
+      series: invoice.series,
+      number: invoice.number,
+      xml_path: invoice.xml_path,
+      danfe_path: invoice.danfe_path,
+      qrcode_url: invoice.qrcode_url,
+      superseded_at: new Date().toISOString(),
+    };
+
+    await prisma.$transaction(async (tx) => {
+      await tx.nfceInvoice.update({
+        where: { id: invoice.id },
+        data: {
+          status: "pending",
+          environment: "producao",
+          series: tenant.nfce_series,
+          number: tenant.nfce_next_number,
+          access_key: null,
+          protocol: null,
+          authorized_at: null,
+          rejection_code: null,
+          rejection_reason: null,
+          xml_path: null,
+          danfe_path: null,
+          qrcode_url: null,
+          attempts: 0,
+          superseded_homologacao: homologacaoSnapshot,
+        },
+      });
+      await tx.tenant.update({ where: { id: tenantId }, data: { nfce_next_number: { increment: 1 } } });
+    });
+
+    emitToTenant(tenantId, "nfce:changed", { orderId });
+    emitirNfce(orderId).catch((error) => console.error("[emitNfceAsProduction] erro:", error));
+    res.json({ success: true });
+  } catch (err) {
+    console.error("emitNfceAsProduction error:", err);
+    res.status(500).json({ error: "Falha ao emitir NFC-e de produção" });
+  }
+}
+
 /** Remove a tentativa de NFC-e (rejeitada/com erro), mantendo a venda intacta — permite
  * reemitir do zero depois. Nunca permite excluir uma nota AUTORIZADA: essa tem valor
  * fiscal e só pode ser cancelada (rota /cancel), nunca apagada do banco. */
