@@ -181,6 +181,21 @@ export async function emitirNfce(orderId: number): Promise<void> {
 
     // cStat 100 = Autorizado o uso da NF-e
     if (cStat !== "100") {
+      // Salva o XML mesmo rejeitado — antes ele só era gravado em disco quando
+      // autorizado, então uma rejeição de schema/estrutura (ex.: cStat 225)
+      // não deixava rastro nenhum pra diagnosticar depois (o log do console
+      // some quando o PM2 gira os arquivos de log). Diretório separado de
+      // "rejected" pra nunca ser confundido com XML autorizado de verdade.
+      try {
+        const monthDir = `${order.created_at.getFullYear()}${String(order.created_at.getMonth() + 1).padStart(2, "0")}`;
+        const dir = path.join(env.nfceXmlDir, String(tenant.id), "rejected", monthDir);
+        ensureDir(dir);
+        const rejectedXmlPath = path.join(dir, `${chaveAcesso || `order-${orderId}-${Date.now()}`}-rejected.xml`);
+        fs.writeFileSync(rejectedXmlPath, signedXmlWithDecl, "utf-8");
+      } catch (writeErr) {
+        console.error(`[emitirNfce] falha ao salvar XML rejeitado — order=${orderId}:`, writeErr);
+      }
+
       await prisma.nfceInvoice.update({
         where: { id: invoice.id },
         data: {
