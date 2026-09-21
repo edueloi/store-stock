@@ -260,16 +260,26 @@ export function buildNfceXml(input: BuildNfceInput): BuildNfceResult {
   icmsTot.ele("vST").txt("0.00");
   icmsTot.ele("vFCPST").txt("0.00");
   icmsTot.ele("vFCPSTRet").txt("0.00");
+  const vDesc = order.discount_amount ? Number(order.discount_amount) : 0;
+  // A SEFAZ exige vNF = vProd - vDesc + vFrete + vSeg + vOutro (+ tributos aplicáveis).
+  // order.total_amount pode vir maior que a soma dos itens quando o PDV aplica um
+  // acréscimo manual na venda (campo "Acréscimo", independente de juros de
+  // crediário/cartão) — essa diferença precisa aparecer em algum campo do
+  // totalizador, senão a nota é rejeitada com "Total da NF difere do somatório dos
+  // valores que compõe o valor total da NF" (visto no pedido #001115: vProd 764.85
+  // vs total_amount 818.39, acréscimo de R$ 53.54 não lançado em lugar nenhum).
+  // vOutro ("outras despesas acessórias") é o campo fiscal correto pra isso.
+  const vOutro = Math.max(0, Math.round((Number(order.total_amount) - (vProdTotal - vDesc)) * 100) / 100);
   icmsTot.ele("vProd").txt(vProdTotal.toFixed(2));
   icmsTot.ele("vFrete").txt("0.00");
   icmsTot.ele("vSeg").txt("0.00");
-  icmsTot.ele("vDesc").txt((order.discount_amount ? Number(order.discount_amount) : 0).toFixed(2));
+  icmsTot.ele("vDesc").txt(vDesc.toFixed(2));
   icmsTot.ele("vII").txt("0.00");
   icmsTot.ele("vIPI").txt("0.00");
   icmsTot.ele("vIPIDevol").txt("0.00");
   icmsTot.ele("vPIS").txt("0.00");
   icmsTot.ele("vCOFINS").txt("0.00");
-  icmsTot.ele("vOutro").txt("0.00");
+  icmsTot.ele("vOutro").txt(vOutro.toFixed(2));
   icmsTot.ele("vNF").txt(Number(order.total_amount).toFixed(2));
 
   // Totalizador do grupo IBS/CBS — irmão de ICMSTot dentro de <total>, exigido pela
