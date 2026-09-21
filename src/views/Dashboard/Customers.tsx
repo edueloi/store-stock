@@ -371,7 +371,7 @@ export default function Customers() {
     <div className="min-w-0 space-y-4 sm:space-y-5">
       <PageHeader
         title="Clientes"
-        subtitle="Clientes, fiado, histórico de compras e notas internas"
+        subtitle="Clientes, crédito, histórico de compras e notas internas"
         action={
           <Button icon={<UserPlus size={14} />} onClick={openCreate}>
             Novo Cliente
@@ -383,8 +383,8 @@ export default function Customers() {
       <StatsGrid
         stats={[
           { label: "Total Clientes",  value: customers.length, icon: <Users size={16} />, accent: "slate" },
-          { label: "Com Dívida",      value: debtors.length,   icon: <AlertCircle size={16} />, accent: "amber" },
-          { label: "Total em Fiado",  value: fmt(totalDebt),   icon: <DollarSign size={16} />, accent: "red" },
+          { label: "Com Pendências",  value: debtors.length,   icon: <AlertCircle size={16} />, accent: "amber" },
+          { label: "Saldo em Aberto", value: fmt(totalDebt),   icon: <DollarSign size={16} />, accent: "red" },
           { label: "Clientes em Risco", value: customers.filter(c => c.risk_flag).length, icon: <AlertTriangle size={16} />, accent: "purple" },
         ]}
       />
@@ -394,7 +394,7 @@ export default function Customers() {
         <div className="flex max-w-full overflow-x-auto bg-slate-100 p-1 rounded-xl [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           {([
             { value: "customers", label: "Todos os Clientes", icon: Users },
-            { value: "debtors",   label: `Devedores (${debtors.length})`, icon: TrendingDown },
+            { value: "debtors",   label: `Com pendências (${debtors.length})`, icon: TrendingDown },
           ] as { value: MainTab; label: string; icon: React.FC<{ size: number }> }[]).map((t) => (
             <button
               key={t.value}
@@ -428,7 +428,7 @@ export default function Customers() {
           <input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder={mainTab === "customers" ? "Buscar cliente…" : "Buscar devedor…"}
+            placeholder={mainTab === "customers" ? "Buscar cliente…" : "Buscar cliente com pendência…"}
             className="w-full pl-9 pr-3 h-11 sm:h-9 rounded-xl border border-slate-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
         </div>
@@ -546,7 +546,7 @@ export default function Customers() {
                     <th className="px-4 py-3 text-left text-[10px] font-black uppercase tracking-wider text-slate-500">Cliente</th>
                     <th className="px-4 py-3 text-left text-[10px] font-black uppercase tracking-wider text-slate-500">Telefone</th>
                     <th className="px-4 py-3 text-left text-[10px] font-black uppercase tracking-wider text-slate-500">Cidade</th>
-                    <th className="px-4 py-3 text-right text-[10px] font-black uppercase tracking-wider text-slate-500">Dívida</th>
+                    <th className="px-4 py-3 text-right text-[10px] font-black uppercase tracking-wider text-slate-500">Saldo em aberto</th>
                     <th className="px-4 py-3 text-center text-[10px] font-black uppercase tracking-wider text-slate-500">Risco</th>
                     <th className="px-4 py-3 text-left text-[10px] font-black uppercase tracking-wider text-slate-500">Cliente desde</th>
                     <th className="px-4 py-3 text-right text-[10px] font-black uppercase tracking-wider text-slate-500">Ação</th>
@@ -594,7 +594,7 @@ export default function Customers() {
           {filteredDebtors.length === 0 ? (
             <div className="flex flex-col items-center py-16 text-slate-400 gap-3">
               <CheckCircle2 size={40} strokeWidth={1} />
-              <p className="text-sm font-medium">Nenhum devedor em aberto</p>
+              <p className="text-sm font-medium">Nenhum cliente com pendência em aberto</p>
             </div>
           ) : (
             <>
@@ -633,7 +633,7 @@ export default function Customers() {
                     <th className="px-4 py-3 text-left text-[10px] font-black uppercase tracking-wider text-slate-500">Cliente</th>
                     <th className="px-4 py-3 text-left text-[10px] font-black uppercase tracking-wider text-slate-500 hidden sm:table-cell">Telefone</th>
                     <th className="px-4 py-3 text-center text-[10px] font-black uppercase tracking-wider text-slate-500">Parcelas</th>
-                    <th className="px-4 py-3 text-right text-[10px] font-black uppercase tracking-wider text-slate-500">Total Devendo</th>
+                    <th className="px-4 py-3 text-right text-[10px] font-black uppercase tracking-wider text-slate-500">Saldo em aberto</th>
                     <th className="px-4 py-3 text-center text-[10px] font-black uppercase tracking-wider text-slate-500">Risco</th>
                     <th className="px-4 py-3 text-right text-[10px] font-black uppercase tracking-wider text-slate-500">Ação</th>
                   </tr>
@@ -682,7 +682,7 @@ export default function Customers() {
           {filteredDebtors.length > 0 && (
             <PaginationFooter
               total={filteredDebtors.length}
-              itemLabel="devedor"
+              itemLabel="cliente com pendência"
               safePage={safePage}
               totalPages={totalPages}
               pageSize={pageSize}

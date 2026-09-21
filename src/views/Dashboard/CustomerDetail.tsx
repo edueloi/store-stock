@@ -717,7 +717,7 @@ export default function CustomerDetail() {
   const debtByOrderId = new Map(detail.debts.filter((d) => d.order_id).map((d) => [d.order_id as number, d]));
 
   return (
-    <div className="space-y-4">
+    <div className="min-w-0 space-y-4 sm:space-y-5">
       <PageHeader
         title={detail.name}
         subtitle="Ficha completa do cliente"
@@ -805,7 +805,7 @@ export default function CustomerDetail() {
       </div>
 
       {/* Detail tabs */}
-      <div className="flex gap-1 bg-slate-100 p-1 rounded-xl w-fit overflow-x-auto max-w-full">
+      <div className="flex max-w-full gap-1 overflow-x-auto rounded-xl bg-slate-100 p-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         {([
           { value: "summary", label: "Resumo", icon: Users },
           { value: "fiado", label: `Crediário / Fiado (${detail.debts.filter((d) => d.status === "open").length})`, icon: DollarSign },
@@ -817,7 +817,7 @@ export default function CustomerDetail() {
             key={t.value}
             onClick={() => { setDetailTab(t.value); if (t.value === "loyalty") fetchLoyalty(detail.id); }}
             className={cn(
-              "flex items-center gap-1.5 px-4 py-2 rounded-lg text-[12px] font-bold whitespace-nowrap transition-all",
+              "flex shrink-0 items-center gap-1.5 px-3 py-2 rounded-lg text-[11px] font-bold whitespace-nowrap transition-all sm:px-4 sm:text-[12px]",
               detailTab === t.value ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"
             )}
           >
@@ -827,7 +827,7 @@ export default function CustomerDetail() {
       </div>
 
       {/* Tab content */}
-      <div className="max-w-4xl">
+      <div className="max-w-7xl">
         {/* ─ SUMMARY ─ */}
         {detailTab === "summary" && (
           <div className="space-y-4">
@@ -835,59 +835,82 @@ export default function CustomerDetail() {
               stats={[
                 { label: "Total de Compras", value: detail.orders.length, icon: <ShoppingBag size={16} />, accent: "blue" },
                 { label: "Gasto Total", value: fmt(detail.orders.reduce((s, o) => s + Number(o.total_amount), 0)), icon: <DollarSign size={16} />, accent: "emerald" },
-                { label: "Fiados em Aberto", value: detail.debts.filter((d) => d.status === "open").length, icon: <AlertCircle size={16} />, accent: "red" },
-                { label: "Notas Internas", value: detail.customer_notes.length, icon: <StickyNote size={16} />, accent: "amber" },
+                { label: "Em Aberto", value: fmt(Number(detail.total_debt)), icon: <AlertCircle size={16} />, accent: "red" },
+                { label: "Limite de Crédito", value: detail.credit_limit ? fmt(Number(detail.credit_limit)) : "Não definido", icon: <CreditCard size={16} />, accent: "purple" },
               ]}
             />
 
-            <div className="bg-white rounded-xl border border-slate-200 p-4 space-y-3">
-              <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Dados Cadastrais</p>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
-                <div>
-                  <p className="text-[9px] font-black uppercase tracking-wider text-slate-400">CPF/CNPJ</p>
-                  <p className="text-slate-700 font-medium">{detail.document || "—"}</p>
+            <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
+              <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5 xl:col-span-2">
+                <div className="mb-4 flex items-center justify-between gap-3">
+                  <div>
+                    <p className="text-[11px] font-black uppercase tracking-widest text-slate-700">Dados do cliente</p>
+                    <p className="mt-1 text-[11px] text-slate-400">Informações salvas no cadastro</p>
+                  </div>
+                  <button onClick={openEdit} className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-xl border border-slate-200 px-3 text-[10px] font-black uppercase tracking-wider text-slate-600 transition-colors hover:border-blue-200 hover:bg-blue-50 hover:text-blue-600">
+                    <Edit2 size={12} /> Editar
+                  </button>
                 </div>
-                <div>
-                  <p className="text-[9px] font-black uppercase tracking-wider text-slate-400 flex items-center gap-1"><Calendar size={9} /> Aniversário</p>
-                  <p className="text-slate-700 font-medium">{detail.birth_date ? fmtDate(detail.birth_date) : "—"}</p>
-                </div>
-                <div>
-                  <p className="text-[9px] font-black uppercase tracking-wider text-slate-400">Limite de Crédito</p>
-                  <p className="text-slate-700 font-medium">{detail.credit_limit ? fmt(Number(detail.credit_limit)) : "Sem limite definido"}</p>
-                </div>
-                <div>
-                  <p className="text-[9px] font-black uppercase tracking-wider text-slate-400">Limite de Consignação</p>
-                  <p className="text-slate-700 font-medium">{detail.consignment_limit ? fmt(Number(detail.consignment_limit)) : "Sem limite definido"}</p>
-                </div>
-                <div>
-                  <p className="text-[9px] font-black uppercase tracking-wider text-slate-400">Cliente desde</p>
-                  <p className="text-slate-700 font-medium">{fmtDate(detail.created_at)}</p>
-                </div>
-              </div>
-              {(detail.address_street || detail.address) && (
-                <div className="pt-2 border-t border-slate-100">
-                  <p className="text-[9px] font-black uppercase tracking-wider text-slate-400 flex items-center gap-1 mb-1"><MapPin size={9} /> Endereço</p>
-                  <p className="text-sm text-slate-700">
-                    {detail.address_street ? (
-                      <>
-                        {detail.address_street}{detail.address_number ? `, ${detail.address_number}` : ""}
-                        {detail.address_complement ? ` - ${detail.address_complement}` : ""}
-                        {detail.address_district ? ` · ${detail.address_district}` : ""}
-                        {detail.address_city ? ` · ${detail.address_city}${detail.address_state ? `/${detail.address_state}` : ""}` : ""}
-                        {detail.address_zip ? ` · CEP ${detail.address_zip}` : ""}
-                      </>
-                    ) : detail.address}
-                  </p>
-                </div>
-              )}
-            </div>
 
-            {detail.notes && (
-              <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-[12px] text-amber-800">
-                <p className="font-bold mb-1 flex items-center gap-1"><FileText size={11} /> Observações do cadastro</p>
-                {detail.notes}
-              </div>
-            )}
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <div className="rounded-xl border border-slate-100 bg-slate-50/70 p-3">
+                    <p className="flex items-center gap-1.5 text-[9px] font-black uppercase tracking-widest text-slate-400"><Phone size={11} /> Telefone</p>
+                    {detail.phone ? <a href={`tel:${detail.phone}`} className="mt-1.5 block truncate text-[13px] font-bold text-slate-800 hover:text-blue-600">{detail.phone}</a> : <p className="mt-1.5 text-[13px] font-medium text-slate-400">Não informado</p>}
+                  </div>
+                  <div className="rounded-xl border border-slate-100 bg-slate-50/70 p-3">
+                    <p className="flex items-center gap-1.5 text-[9px] font-black uppercase tracking-widest text-slate-400"><Mail size={11} /> E-mail</p>
+                    {detail.email ? <a href={`mailto:${detail.email}`} className="mt-1.5 block truncate text-[13px] font-bold text-slate-800 hover:text-blue-600">{detail.email}</a> : <p className="mt-1.5 text-[13px] font-medium text-slate-400">Não informado</p>}
+                  </div>
+                  <div className="rounded-xl border border-slate-100 bg-slate-50/70 p-3">
+                    <p className="text-[9px] font-black uppercase tracking-widest text-slate-400">CPF/CNPJ</p>
+                    <p className="mt-1.5 break-all text-[13px] font-bold text-slate-800">{detail.document || "Não informado"}</p>
+                  </div>
+                  <div className="rounded-xl border border-slate-100 bg-slate-50/70 p-3">
+                    <p className="flex items-center gap-1.5 text-[9px] font-black uppercase tracking-widest text-slate-400"><Calendar size={11} /> Aniversário</p>
+                    <p className="mt-1.5 text-[13px] font-bold text-slate-800">{detail.birth_date ? fmtDate(detail.birth_date) : "Não informado"}</p>
+                  </div>
+                </div>
+              </section>
+
+              <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
+                <p className="text-[11px] font-black uppercase tracking-widest text-slate-700">Limites e situação</p>
+                <div className="mt-4 space-y-3">
+                  <div className="rounded-xl border border-blue-100 bg-blue-50/70 p-3">
+                    <p className="text-[9px] font-black uppercase tracking-widest text-blue-500">Limite de crédito</p>
+                    <p className="mt-1 text-lg font-black tracking-tight text-blue-700">{detail.credit_limit ? fmt(Number(detail.credit_limit)) : "Não definido"}</p>
+                  </div>
+                  <div className="rounded-xl border border-violet-100 bg-violet-50/70 p-3">
+                    <p className="text-[9px] font-black uppercase tracking-widest text-violet-500">Limite de consignação</p>
+                    <p className="mt-1 text-lg font-black tracking-tight text-violet-700">{detail.consignment_limit ? fmt(Number(detail.consignment_limit)) : "Não definido"}</p>
+                  </div>
+                  <div className="flex items-center justify-between gap-3 border-t border-slate-100 pt-3">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Cliente desde</span>
+                    <span className="text-[12px] font-black text-slate-700">{fmtDate(detail.created_at)}</span>
+                  </div>
+                </div>
+              </section>
+
+              <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5 xl:col-span-2">
+                <p className="flex items-center gap-1.5 text-[11px] font-black uppercase tracking-widest text-slate-700"><MapPin size={13} className="text-blue-500" /> Endereço</p>
+                {(detail.address_street || detail.address) ? (
+                  <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                    <div className="min-w-0"><p className="text-[9px] font-black uppercase tracking-widest text-slate-400">Logradouro</p><p className="mt-1 break-words text-[13px] font-bold text-slate-800">{detail.address_street || detail.address || "—"}</p></div>
+                    <div><p className="text-[9px] font-black uppercase tracking-widest text-slate-400">Número / complemento</p><p className="mt-1 text-[13px] font-bold text-slate-800">{[detail.address_number, detail.address_complement].filter(Boolean).join(" · ") || "Não informado"}</p></div>
+                    <div><p className="text-[9px] font-black uppercase tracking-widest text-slate-400">Bairro</p><p className="mt-1 text-[13px] font-bold text-slate-800">{detail.address_district || "Não informado"}</p></div>
+                    <div><p className="text-[9px] font-black uppercase tracking-widest text-slate-400">Cidade / UF</p><p className="mt-1 text-[13px] font-bold text-slate-800">{[detail.address_city, detail.address_state].filter(Boolean).join(" / ") || "Não informado"}</p></div>
+                    <div><p className="text-[9px] font-black uppercase tracking-widest text-slate-400">CEP</p><p className="mt-1 text-[13px] font-bold text-slate-800">{detail.address_zip || "Não informado"}</p></div>
+                    <div><p className="text-[9px] font-black uppercase tracking-widest text-slate-400">País</p><p className="mt-1 text-[13px] font-bold text-slate-800">{detail.address_country || "Brasil"}</p></div>
+                  </div>
+                ) : (
+                  <p className="mt-3 text-[13px] text-slate-400">Nenhum endereço cadastrado.</p>
+                )}
+              </section>
+
+              <section className="rounded-2xl border border-amber-200 bg-amber-50/70 p-4 shadow-sm sm:p-5">
+                <p className="flex items-center gap-1.5 text-[11px] font-black uppercase tracking-widest text-amber-800"><StickyNote size={13} /> Preferências</p>
+                <p className="mt-3 whitespace-pre-wrap break-words text-[12px] leading-relaxed text-amber-900">{detail.notes?.trim() || "Nenhuma preferência ou observação cadastrada."}</p>
+              </section>
+            </div>
           </div>
         )}
 

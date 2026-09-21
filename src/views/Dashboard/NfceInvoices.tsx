@@ -5,6 +5,7 @@ import {
   FileCheck, Search, Download, RefreshCw, FileText, AlertTriangle,
   CheckCircle2, Loader2, Clock, XCircle, Ban, Archive, Calendar, Trash2, Plus,
   MessageCircle,
+  Info,
 } from "lucide-react";
 import PageHeader from "../../components/layout/PageHeader";
 import { NfceInvoice, NfceStatus, NfseInvoice, NfseStatus } from "../../types";
@@ -141,6 +142,7 @@ function NfceTabContent() {
   const [sendingWhatsapp, setSendingWhatsapp] = useState<number | null>(null);
   const [whatsappNumberTarget, setWhatsappNumberTarget] = useState<NfceInvoice | null>(null);
   const [whatsappNumberInput, setWhatsappNumberInput] = useState("");
+  const [errorDetailTarget, setErrorDetailTarget] = useState<NfceInvoice | null>(null);
   const notify = useToast();
 
   // Date filter — default: first → last day of current month
@@ -574,9 +576,13 @@ function NfceTabContent() {
                         {meta.icon} {meta.label}
                       </span>
                       {(inv.status === "error" || inv.status === "rejected") && inv.rejection_reason && (
-                        <p className="text-[10px] text-rose-500 font-medium mt-1 truncate" title={inv.rejection_reason}>
-                          {inv.rejection_reason}
-                        </p>
+                        <button
+                          onClick={() => setErrorDetailTarget(inv)}
+                          className="flex items-center gap-1 text-[10px] text-rose-500 hover:text-rose-700 font-medium mt-1 max-w-full underline decoration-dotted"
+                        >
+                          <span className="truncate">{inv.rejection_reason}</span>
+                          <Info size={11} className="shrink-0" />
+                        </button>
                       )}
                       {inv.environment === "homologacao" && (
                         <span className="ml-1.5 inline-flex items-center px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wide bg-amber-50 text-amber-600 border border-amber-200" title="Nota de teste — sem valor fiscal">
@@ -695,7 +701,13 @@ function NfceTabContent() {
                 </div>
 
                 {(inv.status === "error" || inv.status === "rejected") && inv.rejection_reason && (
-                  <p className="text-[10px] text-rose-500 font-medium pl-7">{inv.rejection_reason}</p>
+                  <button
+                    onClick={() => setErrorDetailTarget(inv)}
+                    className="flex items-center gap-1 text-[10px] text-rose-500 hover:text-rose-700 font-medium pl-7 max-w-full underline decoration-dotted text-left"
+                  >
+                    <span className="truncate">{inv.rejection_reason}</span>
+                    <Info size={11} className="shrink-0" />
+                  </button>
                 )}
                 {inv.environment === "homologacao" && (
                   <p className="pl-7">
@@ -876,6 +888,27 @@ function NfceTabContent() {
       </Modal>
 
       <Modal
+        open={!!errorDetailTarget}
+        onClose={() => setErrorDetailTarget(null)}
+        title="Detalhe da Rejeição"
+        subtitle={errorDetailTarget ? `Nota nº ${errorDetailTarget.number} · Pedido #${String(errorDetailTarget.order_id).padStart(6, "0")}` : undefined}
+        size="sm"
+        footer={<Button onClick={() => setErrorDetailTarget(null)}>Fechar</Button>}
+      >
+        <div className="space-y-3">
+          <div className="bg-rose-50 border border-rose-200 rounded-xl px-4 py-3 text-[13px] font-medium text-rose-700 leading-relaxed break-words">
+            {errorDetailTarget?.rejection_reason}
+          </div>
+          <button
+            onClick={() => { navigator.clipboard?.writeText(errorDetailTarget?.rejection_reason || ""); notify.success("Copiado!"); }}
+            className="text-[10px] font-black text-slate-400 hover:text-slate-600 uppercase tracking-widest transition-colors"
+          >
+            Copiar mensagem
+          </button>
+        </div>
+      </Modal>
+
+      <Modal
         open={!!deleteTarget}
         onClose={() => { if (!deleting) { setDeleteTarget(null); setDeleteError(null); } }}
         title="Excluir tentativa de NFC-e"
@@ -983,6 +1016,7 @@ function NfseTabContent() {
   const [sendingWhatsapp, setSendingWhatsapp] = useState<number | null>(null);
   const [whatsappNumberTarget, setWhatsappNumberTarget] = useState<NfseInvoice | null>(null);
   const [whatsappNumberInput, setWhatsappNumberInput] = useState("");
+  const [errorDetailTarget, setErrorDetailTarget] = useState<NfseInvoice | null>(null);
   const notify = useToast();
   const token = localStorage.getItem("token");
 
@@ -1390,9 +1424,13 @@ function NfseTabContent() {
                         {meta.icon} {meta.label}
                       </span>
                       {(inv.status === "error" || inv.status === "rejected") && inv.rejection_reason && (
-                        <p className="text-[10px] text-rose-500 font-medium mt-1 truncate" title={inv.rejection_reason}>
-                          {inv.rejection_reason}
-                        </p>
+                        <button
+                          onClick={() => setErrorDetailTarget(inv)}
+                          className="flex items-center gap-1 text-[10px] text-rose-500 hover:text-rose-700 font-medium mt-1 max-w-full underline decoration-dotted"
+                        >
+                          <span className="truncate">{inv.rejection_reason}</span>
+                          <Info size={11} className="shrink-0" />
+                        </button>
                       )}
                     </td>
                     <td className="px-4 py-2.5 pl-6 text-xs text-slate-500 whitespace-nowrap">
@@ -1493,7 +1531,13 @@ function NfseTabContent() {
                 </div>
 
                 {(inv.status === "error" || inv.status === "rejected") && inv.rejection_reason && (
-                  <p className="text-[10px] text-rose-500 font-medium pl-7">{inv.rejection_reason}</p>
+                  <button
+                    onClick={() => setErrorDetailTarget(inv)}
+                    className="flex items-center gap-1 text-[10px] text-rose-500 hover:text-rose-700 font-medium pl-7 max-w-full underline decoration-dotted text-left"
+                  >
+                    <span className="truncate">{inv.rejection_reason}</span>
+                    <Info size={11} className="shrink-0" />
+                  </button>
                 )}
 
                 <div className="flex items-center justify-between pl-7">
@@ -1648,6 +1692,27 @@ function NfseTabContent() {
             onChange={(e) => setWhatsappNumberInput(e.target.value)}
             className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-sm font-medium outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-500/10 transition-all"
           />
+        </div>
+      </Modal>
+
+      <Modal
+        open={!!errorDetailTarget}
+        onClose={() => setErrorDetailTarget(null)}
+        title="Detalhe da Rejeição"
+        subtitle={errorDetailTarget ? `OS #${errorDetailTarget.service_order_id}` : undefined}
+        size="sm"
+        footer={<Button onClick={() => setErrorDetailTarget(null)}>Fechar</Button>}
+      >
+        <div className="space-y-3">
+          <div className="bg-rose-50 border border-rose-200 rounded-xl px-4 py-3 text-[13px] font-medium text-rose-700 leading-relaxed break-words">
+            {errorDetailTarget?.rejection_reason}
+          </div>
+          <button
+            onClick={() => { navigator.clipboard?.writeText(errorDetailTarget?.rejection_reason || ""); notify.success("Copiado!"); }}
+            className="text-[10px] font-black text-slate-400 hover:text-slate-600 uppercase tracking-widest transition-colors"
+          >
+            Copiar mensagem
+          </button>
         </div>
       </Modal>
 
