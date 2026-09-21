@@ -10,15 +10,15 @@ function getTenantId(req: Request) {
   return (req as AuthenticatedRequest).user.tenantId;
 }
 
-// Validação preventiva mínima de CFOP — pega o caso mais comum de rejeição na
-// SEFAZ ("CFOP não permitido para o CSOSN informado"): um CFOP de ENTRADA
+// Aviso preventivo (NÃO bloqueia salvar) sobre o caso mais comum de rejeição
+// na SEFAZ ("CFOP não permitido para o CSOSN informado"): um CFOP de ENTRADA
 // (série 1xxx/2xxx/3xxx, usado em compra/devolução de compra) cadastrado num
 // produto que depois é vendido pela NFC-e, que sempre exige CFOP de SAÍDA
-// (série 5xxx dentro do estado, 6xxx fora do estado, 7xxx exterior). Não
-// valida a combinação fina CFOP×CSOSN (exigiria uma tabela de regras fiscais
-// completa) — só bloqueia o erro estrutural mais provável, que é a via de
-// entrada mais comum desse bug: importar CFOP de XML de nota de COMPRA
-// (ver XmlImportModal.tsx) para o cadastro de um produto de venda.
+// (série 5xxx dentro do estado, 6xxx fora do estado, 7xxx exterior). Retorna
+// o aviso junto da resposta de sucesso — o lojista decide se corrige, sem
+// travar o cadastro (pode ter um motivo legítimo pra registrar assim mesmo).
+// Não valida a combinação fina CFOP×CSOSN (exigiria uma tabela de regras
+// fiscais completa), só o erro estrutural mais provável.
 function validateCfop(cfop: unknown): string | null {
   if (cfop === undefined || cfop === null || cfop === "") return null;
   const value = String(cfop);
@@ -125,11 +125,7 @@ export async function createProduct(req: Request, res: Response) {
       ...rest
     } = req.body;
 
-    const cfopError = validateCfop(rest.cfop);
-    if (cfopError) {
-      res.status(422).json({ error: cfopError });
-      return;
-    }
+    const cfopWarning = validateCfop(rest.cfop);
 
     const product = await prisma.product.create({
       data: {
@@ -147,7 +143,7 @@ export async function createProduct(req: Request, res: Response) {
 
     emitToTenant(getTenantId(req), "product:changed", { productId: product.id });
 
-    res.json({ id: product.id });
+    res.json({ id: product.id, ...(cfopWarning ? { warning: cfopWarning } : {}) });
   } catch {
     res.status(500).json({ error: "Failed to create product" });
   }
@@ -221,11 +217,7 @@ export async function updateProduct(req: Request, res: Response) {
       ...rest
     } = req.body;
 
-    const cfopError = validateCfop(rest.cfop);
-    if (cfopError) {
-      res.status(422).json({ error: cfopError });
-      return;
-    }
+    const cfopWarning = validateCfop(rest.cfop);
 
     await prisma.product.updateMany({
       where: { id, tenant_id: tenantId },
@@ -269,7 +261,7 @@ export async function updateProduct(req: Request, res: Response) {
     emitToTenant(tenantId, "product:changed", { productId: id });
     emitToTenant(tenantId, "stock:changed", { productId: id });
 
-    res.json({ success: true });
+    res.json({ success: true, ...(cfopWarning ? { warning: cfopWarning } : {}) });
   } catch {
     res.status(500).json({ error: "Failed to update product" });
   }

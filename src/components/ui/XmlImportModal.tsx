@@ -227,7 +227,11 @@ export default function XmlImportModal({ open, onClose, onImported }: XmlImportM
             }),
           });
           if (res.ok) {
-            setProducts(prev => prev.map((x, idx) => idx === i ? { ...x, importing: false, done: true, doneLabel: "Criado" } : x));
+            const data = await res.json().catch(() => ({}));
+            // Aviso não-bloqueante (ex.: CFOP importado da nota de entrada é
+            // incompatível com venda) — o produto já foi criado mesmo assim.
+            const doneLabel = data?.warning ? `Criado — ${data.warning}` : "Criado";
+            setProducts(prev => prev.map((x, idx) => idx === i ? { ...x, importing: false, done: true, doneLabel } : x));
           } else {
             const err = await res.json().catch(() => ({}));
             setProducts(prev => prev.map((x, idx) => idx === i ? { ...x, importing: false, error: err.error || "Erro ao criar" } : x));

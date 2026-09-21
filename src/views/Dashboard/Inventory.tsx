@@ -544,8 +544,17 @@ export default function Inventory() {
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${localStorage.getItem("token")}` },
         body: JSON.stringify(payload),
       });
-      if (res.ok) { setIsModalOpen(false); fetchInventory(); }
-    } catch { /* noop */ }
+      const data = await res.json().catch(() => ({}));
+      if (res.ok) {
+        // Aviso não-bloqueante (ex.: CFOP incompatível pra venda) — o produto já
+        // foi salvo, só avisa pra o lojista corrigir quando puder.
+        if (data?.warning) toast.warning(data.warning, 10000);
+        setIsModalOpen(false);
+        fetchInventory();
+      } else {
+        toast.error(data?.error || "Erro ao salvar produto.");
+      }
+    } catch { toast.error("Erro de conexão ao salvar produto."); }
     finally { setSaving(false); }
   };
 
