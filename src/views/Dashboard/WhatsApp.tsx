@@ -81,6 +81,8 @@ interface WorkspaceState {
   evolution_instance: string;
   webhook_secret: string;
   fallback_phone: string;
+  finance_alerts_phone: string;
+  finance_alerts_enabled: boolean;
   settings: WorkspaceSettings;
   menus: MenuOption[];
   templates: WorkspaceTemplates;
@@ -308,6 +310,7 @@ export default function WhatsApp() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [pinging, setPinging] = useState(false);
+  const [sendingFinanceAlerts, setSendingFinanceAlerts] = useState(false);
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus | null>(null);
   const [loadingConnection, setLoadingConnection] = useState(false);
   const [connectionError, setConnectionError] = useState<string | null>(null);
@@ -511,6 +514,30 @@ export default function WhatsApp() {
       toast.error("Erro de conexão ao salvar o WhatsApp.");
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleSendFinanceAlertsNow = async () => {
+    setSendingFinanceAlerts(true);
+    try {
+      const response = await fetch("/api/whatsapp/send-finance-alerts", {
+        method: "POST",
+        headers: authHeaders(),
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        toast.error(data.error || "Falha ao enviar alerta financeiro.");
+        return;
+      }
+      if (data.sent) {
+        toast.success("Alerta financeiro enviado!");
+      } else {
+        toast.success(data.reason || "Nada vencendo para avisar agora.");
+      }
+    } catch {
+      toast.error("Erro de conexão ao enviar alerta financeiro.");
+    } finally {
+      setSendingFinanceAlerts(false);
     }
   };
 
@@ -1119,6 +1146,60 @@ export default function WhatsApp() {
           </div>
         </SectionCard>
         )}
+
+        <SectionCard
+          title="Alertas Financeiros"
+          subtitle="Avisa por WhatsApp sobre contas a pagar, a receber e crediário vencendo"
+          icon={<BadgeAlert size={18} />}
+        >
+          <div className="space-y-5">
+            <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+              <div>
+                <Label>Número que recebe os alertas</Label>
+                <input
+                  value={workspace.finance_alerts_phone}
+                  onChange={(e) => handleWorkspaceField("finance_alerts_phone", e.target.value)}
+                  placeholder="5511999999999"
+                  className="w-full h-11 rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm font-medium"
+                />
+              </div>
+              <div>
+                <Label>Envio automático diário</Label>
+                <div className="w-full h-11 rounded-2xl border border-slate-200 bg-slate-50 px-4 flex items-center justify-between">
+                  <span className="text-sm font-semibold text-slate-700">
+                    {workspace.finance_alerts_enabled ? "Ativo" : "Desativado"}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => handleWorkspaceField("finance_alerts_enabled", !workspace.finance_alerts_enabled)}
+                    className={cn(
+                      "w-11 h-6 rounded-full relative transition-all",
+                      workspace.finance_alerts_enabled ? "bg-emerald-500" : "bg-slate-300",
+                    )}
+                  >
+                    <span
+                      className={cn(
+                        "absolute top-1 h-4 w-4 rounded-full bg-white shadow-sm transition-all",
+                        workspace.finance_alerts_enabled ? "left-6" : "left-1",
+                      )}
+                    />
+                  </button>
+                </div>
+              </div>
+            </div>
+            <p className="text-xs text-slate-400">
+              Resumo enviado uma vez por dia com contas a pagar, a receber e parcelas de crediário vencendo nos próximos 3 dias (ou já vencidas). Salve o número antes de testar.
+            </p>
+            <button
+              onClick={handleSendFinanceAlertsNow}
+              disabled={sendingFinanceAlerts}
+              className="h-10 px-4 rounded-xl border border-slate-200 text-[10px] font-black uppercase tracking-widest text-slate-600 hover:bg-slate-50 flex items-center gap-2 disabled:opacity-50"
+            >
+              {sendingFinanceAlerts ? <Loader2 size={13} className="animate-spin" /> : <Send size={13} />}
+              Enviar Agora
+            </button>
+          </div>
+        </SectionCard>
 
         <div className="space-y-6">
           <SectionCard

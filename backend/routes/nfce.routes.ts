@@ -12,6 +12,7 @@ import {
   downloadNfceXmlBatch,
   downloadDanfeBatch,
   listNfce,
+  sendNfceWhatsapp,
 } from "../controllers/nfce.controller";
 import { authenticateToken } from "../middlewares/auth.middleware";
 
@@ -30,5 +31,6 @@ router.post("/:orderId/cancel", cancelNfce);
 router.delete("/:orderId", deleteNfce);
 router.get("/:orderId/danfe", downloadDanfe);
 router.get("/:orderId/xml", downloadNfceXml);
+router.post("/:orderId/send-whatsapp", sendNfceWhatsapp);
 
 export default router;

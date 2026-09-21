@@ -8,7 +8,7 @@ import { createServer as createViteServer } from "vite";
 import { createApp } from "./app";
 import { env } from "./config/env";
 import { seedDefaultTenant } from "./services/seed.service";
-import { startWhatsappMaintenanceLoop } from "./services/whatsapp.service";
+import { startWhatsappMaintenanceLoop, startFinanceAlertsLoop } from "./services/whatsapp.service";
 import { startPointsReminderLoop } from "./services/loyalty-notifications.service";
 import { startPushNotificationsLoop } from "./services/push-notifications.service";
 import { startPlatformBillingSuspensionLoop } from "./services/billing/platform-billing-suspension.service";
@@ -67,6 +67,7 @@ async function attachFrontend(app: express.Express) {
 export async function startServer() {
   await seedDefaultTenant();
   startWhatsappMaintenanceLoop();
+  startFinanceAlertsLoop();
   startPointsReminderLoop();
   startQuoteExpirationLoop();
   startPushNotificationsLoop();

@@ -4,6 +4,7 @@ import ExcelJS from "exceljs";
 import {
   FileCheck, Search, Download, RefreshCw, FileText, AlertTriangle,
   CheckCircle2, Loader2, Clock, XCircle, Ban, Archive, Calendar, Trash2, Plus,
+  MessageCircle,
 } from "lucide-react";
 import PageHeader from "../../components/layout/PageHeader";
 import { NfceInvoice, NfceStatus, NfseInvoice, NfseStatus } from "../../types";
@@ -133,6 +134,8 @@ function NfceTabContent() {
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [batchLoading, setBatchLoading] = useState<"retry" | "xml" | "danfe" | null>(null);
+  const [whatsappConnected, setWhatsappConnected] = useState(false);
+  const [sendingWhatsapp, setSendingWhatsapp] = useState<number | null>(null);
   const notify = useToast();
 
   // Date filter — default: first → last day of current month
@@ -159,6 +162,36 @@ function NfceTabContent() {
 
   useEffect(() => { fetchInvoices(); }, []);
   useEffect(() => onRealtime("nfce:changed", () => { fetchInvoices(); }), []);
+
+  // Botão "Enviar por WhatsApp" só aparece com o bot realmente conectado —
+  // sem isso o envio falharia silenciosamente lá no backend.
+  useEffect(() => {
+    fetch("/api/whatsapp/connection-status", { headers: { Authorization: `Bearer ${token}` } })
+      .then((r) => r.json())
+      .then((d) => setWhatsappConnected(Boolean(d?.connected)))
+      .catch(() => {});
+  }, []);
+
+  const handleSendWhatsapp = async (inv: NfceInvoice) => {
+    setSendingWhatsapp(inv.order_id);
+    try {
+      const res = await fetch(`/api/nfce/${inv.order_id}/send-whatsapp`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({}),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        notify.error(data.error || "Falha ao enviar pelo WhatsApp.");
+        return;
+      }
+      notify.success("NFC-e enviada pelo WhatsApp!");
+    } catch {
+      notify.error("Erro de conexão ao enviar pelo WhatsApp.");
+    } finally {
+      setSendingWhatsapp(null);
+    }
+  };
 
   const handleRetry = async (orderId: number) => {
     setRetrying(orderId);
@@ -541,6 +574,12 @@ function NfceTabContent() {
                               className="h-8 px-3 bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 rounded-lg text-[9px] font-black uppercase tracking-widest flex items-center gap-1.5 transition-all">
                               <FileCheck size={12} /> XML
                             </button>
+                            {whatsappConnected && (
+                              <button onClick={() => handleSendWhatsapp(inv)} disabled={sendingWhatsapp === inv.order_id}
+                                className="h-8 px-3 bg-emerald-50 border border-emerald-200 hover:bg-emerald-100 text-emerald-700 rounded-lg text-[9px] font-black uppercase tracking-widest flex items-center gap-1.5 transition-all disabled:opacity-60">
+                                {sendingWhatsapp === inv.order_id ? <Loader2 size={12} className="animate-spin" /> : <MessageCircle size={12} />} WhatsApp
+                              </button>
+                            )}
                             {minutesSinceAuthorized(inv) <= PRAZO_CANCELAMENTO_MINUTOS && (
                               <button
                                 onClick={() => { setCancelTarget(inv); setCancelReason(""); setCancelError(null); }}
@@ -640,6 +679,12 @@ function NfceTabContent() {
                           className="h-8 px-3 bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 rounded-lg text-[9px] font-black uppercase tracking-widest flex items-center gap-1.5 transition-all">
                           <FileCheck size={12} /> XML
                         </button>
+                        {whatsappConnected && (
+                          <button onClick={() => handleSendWhatsapp(inv)} disabled={sendingWhatsapp === inv.order_id}
+                            className="h-8 px-3 bg-emerald-50 border border-emerald-200 hover:bg-emerald-100 text-emerald-700 rounded-lg text-[9px] font-black uppercase tracking-widest flex items-center gap-1.5 transition-all disabled:opacity-60">
+                            {sendingWhatsapp === inv.order_id ? <Loader2 size={12} className="animate-spin" /> : <MessageCircle size={12} />} WhatsApp
+                          </button>
+                        )}
                         {minutesSinceAuthorized(inv) <= PRAZO_CANCELAMENTO_MINUTOS && (
                           <button
                             onClick={() => { setCancelTarget(inv); setCancelReason(""); setCancelError(null); }}
@@ -803,6 +848,8 @@ function NfseTabContent() {
   const [cancelError, setCancelError] = useState<string | null>(null);
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [batchLoading, setBatchLoading] = useState<"retry" | null>(null);
+  const [whatsappConnected, setWhatsappConnected] = useState(false);
+  const [sendingWhatsapp, setSendingWhatsapp] = useState<number | null>(null);
   const notify = useToast();
   const token = localStorage.getItem("token");
 
@@ -832,6 +879,34 @@ function NfseTabContent() {
 
   useEffect(fetchInvoices, []);
   useEffect(() => onRealtime("nfse:changed", () => { fetchInvoices(); }), []);
+
+  useEffect(() => {
+    fetch("/api/whatsapp/connection-status", { headers: { Authorization: `Bearer ${token}` } })
+      .then((r) => r.json())
+      .then((d) => setWhatsappConnected(Boolean(d?.connected)))
+      .catch(() => {});
+  }, []);
+
+  const handleSendWhatsapp = async (inv: NfseInvoice) => {
+    setSendingWhatsapp(inv.service_order_id);
+    try {
+      const res = await fetch(`/api/nfse/${inv.service_order_id}/send-whatsapp`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({}),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        notify.error(data.error || "Falha ao enviar pelo WhatsApp.");
+        return;
+      }
+      notify.success("NFS-e enviada pelo WhatsApp!");
+    } catch {
+      notify.error("Erro de conexão ao enviar pelo WhatsApp.");
+    } finally {
+      setSendingWhatsapp(null);
+    }
+  };
 
   const resetAvulsaForm = () => {
     setAvulsaCustomerSearch("");
@@ -1213,6 +1288,12 @@ function NfseTabContent() {
                               className="h-8 px-3 bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 rounded-lg text-[9px] font-black uppercase tracking-widest flex items-center gap-1.5 transition-all">
                               <FileCheck size={12} /> XML
                             </button>
+                            {whatsappConnected && (
+                              <button onClick={() => handleSendWhatsapp(inv)} disabled={sendingWhatsapp === inv.service_order_id}
+                                className="h-8 px-3 bg-emerald-50 border border-emerald-200 hover:bg-emerald-100 text-emerald-700 rounded-lg text-[9px] font-black uppercase tracking-widest flex items-center gap-1.5 transition-all disabled:opacity-60">
+                                {sendingWhatsapp === inv.service_order_id ? <Loader2 size={12} className="animate-spin" /> : <MessageCircle size={12} />} WhatsApp
+                              </button>
+                            )}
                             <button
                               onClick={() => { setCancelTarget(inv); setCancelReason(""); setCancelError(null); }}
                               className="h-8 px-3 bg-white border border-rose-200 hover:bg-rose-50 text-rose-600 rounded-lg text-[9px] font-black uppercase tracking-widest flex items-center gap-1.5 transition-all"
@@ -1308,6 +1389,12 @@ function NfseTabContent() {
                           className="h-8 px-3 bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 rounded-lg text-[9px] font-black uppercase tracking-widest flex items-center gap-1.5 transition-all">
                           <FileCheck size={12} /> XML
                         </button>
+                        {whatsappConnected && (
+                          <button onClick={() => handleSendWhatsapp(inv)} disabled={sendingWhatsapp === inv.service_order_id}
+                            className="h-8 px-3 bg-emerald-50 border border-emerald-200 hover:bg-emerald-100 text-emerald-700 rounded-lg text-[9px] font-black uppercase tracking-widest flex items-center gap-1.5 transition-all disabled:opacity-60">
+                            {sendingWhatsapp === inv.service_order_id ? <Loader2 size={12} className="animate-spin" /> : <MessageCircle size={12} />} WhatsApp
+                          </button>
+                        )}
                         <button
                           onClick={() => { setCancelTarget(inv); setCancelReason(""); setCancelError(null); }}
                           className="h-8 px-3 bg-white border border-rose-200 hover:bg-rose-50 text-rose-600 rounded-lg text-[9px] font-black uppercase tracking-widest flex items-center gap-1.5 transition-all"

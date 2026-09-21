@@ -14,6 +14,7 @@ import {
   sendWhatsappConversationMessageHandler,
   sendWhatsappDocumentHandler,
   sendWhatsappMenuTest,
+  sendFinanceAlertsHandler,
   updateWhatsappAgentHandler,
   whatsappWebhookHandler,
 } from "../controllers/whatsapp.controller";
@@ -32,6 +33,7 @@ router.get("/connection-status", getWhatsappConnectionStatusHandler);
 router.post("/connect", connectWhatsappHandler);
 router.post("/test-menu", sendWhatsappMenuTest);
 router.post("/send-document", sendWhatsappDocumentHandler);
+router.post("/send-finance-alerts", sendFinanceAlertsHandler);
 
 router.post("/agents", createWhatsappAgentHandler);
 router.patch("/agents/:id", updateWhatsappAgentHandler);

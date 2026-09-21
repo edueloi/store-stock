@@ -484,6 +484,8 @@ async function getWorkspacePayload(tenantId: number) {
     evolution_instance: workspace.evolution_instance ?? "",
     webhook_secret: workspace.webhook_secret ?? "",
     fallback_phone: workspace.fallback_phone ?? tenant.whatsapp ?? "",
+    finance_alerts_phone: workspace.finance_alerts_phone ?? "",
+    finance_alerts_enabled: workspace.finance_alerts_enabled,
     settings: parseSettings(workspace.settings),
     menus: parseMenus(workspace.menus),
     templates: parseTemplates(workspace.templates),
@@ -604,6 +606,8 @@ export async function updateWhatsappWorkspace(
     evolution_instance: string;
     webhook_secret: string;
     fallback_phone: string;
+    finance_alerts_phone: string;
+    finance_alerts_enabled: boolean;
     settings: Partial<WhatsappWorkspaceSettings>;
     menus: WhatsappMenuOption[];
     templates: Partial<WhatsappTemplates>;
@@ -643,6 +647,14 @@ export async function updateWhatsappWorkspace(
         payload.fallback_phone === undefined
           ? workspace.fallback_phone
           : payload.fallback_phone.trim(),
+      finance_alerts_phone:
+        payload.finance_alerts_phone === undefined
+          ? workspace.finance_alerts_phone
+          : payload.finance_alerts_phone.trim(),
+      finance_alerts_enabled:
+        payload.finance_alerts_enabled === undefined
+          ? workspace.finance_alerts_enabled
+          : Boolean(payload.finance_alerts_enabled),
       settings: payload.settings
         ? asJson({ ...currentSettings, ...payload.settings })
         : asJson(currentSettings),
@@ -2197,6 +2209,116 @@ export function startWhatsappMaintenanceLoop() {
       console.error("WhatsApp maintenance failed:", error);
     });
   }, MAINTENANCE_INTERVAL_MS);
+
+  timer.unref?.();
+}
+
+// ─── Avisos financeiros pelo bot (contas a pagar/receber/crediário vencendo) ───
+// Mesmo horizonte de 3 dias já usado no badge "Vencendo em Breve" de Contas a
+// Pagar/Receber (DUE_SOON_DAYS nas telas React) — aqui inclui também já vencidas,
+// igual countDueSoonPayables já faz.
+const FINANCE_ALERT_DAYS = 3;
+
+async function buildFinanceAlertText(tenantId: number): Promise<string | null> {
+  const cutoff = new Date();
+  cutoff.setDate(cutoff.getDate() + FINANCE_ALERT_DAYS);
+  cutoff.setHours(23, 59, 59, 999);
+
+  const [payables, receivables, installments] = await Promise.all([
+    prisma.accountPayable.findMany({
+      where: { tenant_id: tenantId, status: "pending", due_date: { lte: cutoff } },
+      select: { description: true, amount: true, due_date: true },
+      orderBy: { due_date: "asc" },
+    }),
+    prisma.accountReceivable.findMany({
+      where: { tenant_id: tenantId, status: "pending", due_date: { lte: cutoff } },
+      select: { description: true, amount: true, due_date: true, customer_name: true },
+      orderBy: { due_date: "asc" },
+    }),
+    prisma.customerDebtInstallment.findMany({
+      where: { tenant_id: tenantId, status: "open", due_date: { lte: cutoff } },
+      select: { amount: true, amount_paid: true, due_date: true, debt: { select: { customer: { select: { name: true } } } } },
+      orderBy: { due_date: "asc" },
+    }),
+  ]);
+
+  if (payables.length === 0 && receivables.length === 0 && installments.length === 0) return null;
+
+  const now = new Date();
+  const dueLabel = (d: Date) => (new Date(d) < now ? `VENCIDA ${formatDate(d)}` : `vence ${formatDate(d)}`);
+
+  const lines: string[] = ["📋 *Resumo financeiro — próximos dias*", ""];
+
+  if (payables.length > 0) {
+    const total = payables.reduce((s, p) => s + Number(p.amount), 0);
+    lines.push(`💸 *Contas a pagar* (${payables.length} • ${formatMoney(total)})`);
+    payables.slice(0, 10).forEach((p) => lines.push(`• ${p.description} — ${formatMoney(p.amount)} — ${dueLabel(p.due_date)}`));
+    if (payables.length > 10) lines.push(`… e mais ${payables.length - 10}`);
+    lines.push("");
+  }
+
+  if (receivables.length > 0) {
+    const total = receivables.reduce((s, r) => s + Number(r.amount), 0);
+    lines.push(`💰 *Contas a receber* (${receivables.length} • ${formatMoney(total)})`);
+    receivables.slice(0, 10).forEach((r) => lines.push(`• ${r.customer_name || r.description} — ${formatMoney(r.amount)} — ${dueLabel(r.due_date)}`));
+    if (receivables.length > 10) lines.push(`… e mais ${receivables.length - 10}`);
+    lines.push("");
+  }
+
+  if (installments.length > 0) {
+    const total = installments.reduce((s, i) => s + (Number(i.amount) - Number(i.amount_paid)), 0);
+    lines.push(`🧾 *Crediário* (${installments.length} parcela(s) • ${formatMoney(total)})`);
+    installments.slice(0, 10).forEach((i) => {
+      const remaining = Number(i.amount) - Number(i.amount_paid);
+      lines.push(`• ${i.debt.customer.name} — ${formatMoney(remaining)} — ${dueLabel(i.due_date)}`);
+    });
+    if (installments.length > 10) lines.push(`… e mais ${installments.length - 10}`);
+  }
+
+  return lines.join("\n").trim();
+}
+
+// Dispara o aviso financeiro pro número configurado em WhatsApp > Instância e
+// automação — usado tanto pelo cron diário quanto pelo botão "Enviar agora".
+export async function sendFinanceAlertsNow(tenantId: number) {
+  const workspace = await ensureWorkspace(tenantId);
+  if (!workspace.finance_alerts_phone) {
+    throw new Error("Configure o número de WhatsApp para alertas financeiros antes de enviar.");
+  }
+  const text = await buildFinanceAlertText(tenantId);
+  if (!text) return { sent: false, reason: "Nada vencendo ou vencido nos próximos dias." };
+
+  await sendTextMessage(workspace.id, workspace.finance_alerts_phone, text);
+  return { sent: true };
+}
+
+let financeAlertsLoopStarted = false;
+const FINANCE_ALERTS_INTERVAL_MS = 24 * 60 * 60 * 1000;
+
+async function runFinanceAlertsJob() {
+  const workspaces = await prisma.whatsappWorkspace.findMany({
+    where: { finance_alerts_enabled: true, finance_alerts_phone: { not: null } },
+    select: { tenant_id: true },
+  });
+  for (const w of workspaces) {
+    await sendFinanceAlertsNow(w.tenant_id).catch((err) => {
+      console.error(`Falha ao enviar aviso financeiro pro tenant ${w.tenant_id}:`, err);
+    });
+  }
+}
+
+// Mesmo padrão setInterval de 24h já usado pelos outros loops deste arquivo —
+// diferente dos relatórios por email (que precisam de horário fixo tipo "toda
+// segunda 8h"), aqui "uma vez por dia, mais ou menos de manhã" é suficiente.
+export function startFinanceAlertsLoop() {
+  if (financeAlertsLoopStarted) return;
+  financeAlertsLoopStarted = true;
+
+  const timer = setInterval(() => {
+    runFinanceAlertsJob().catch((error) => {
+      console.error("Finance alerts job failed:", error);
+    });
+  }, FINANCE_ALERTS_INTERVAL_MS);
 
   timer.unref?.();
 }

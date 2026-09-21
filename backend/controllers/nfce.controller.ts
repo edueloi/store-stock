@@ -8,6 +8,7 @@ import { emitirNfce, paymentsFromOrder } from "../services/nfce/emitir";
 import { cancelarNfce } from "../services/nfce/cancelar";
 import { generateDanfePdf } from "../services/nfce/danfe";
 import { emitToTenant } from "../services/realtime.service";
+import { sendWhatsappDocument } from "../services/whatsapp.service";
 
 const PAYMENT_LABELS: Record<string, string> = { money: "Dinheiro", pix: "PIX", debit: "Débito", credit: "Crédito" };
 
@@ -350,6 +351,66 @@ export async function downloadDanfe(req: Request, res: Response) {
     res.send(rebuilt);
   } catch {
     res.status(500).json({ error: "Failed to fetch DANFE" });
+  }
+}
+
+// Manda o DANFE já autorizado pro cliente pelo bot WhatsApp — mesmo PDF do botão
+// "DANFE" (do disco, ou reconstruído se o arquivo não estiver neste servidor),
+// só que enviado como documento em vez de baixado. O frontend só mostra esse
+// botão quando o bot está conectado (GET /api/whatsapp/connection-status).
+export async function sendNfceWhatsapp(req: Request, res: Response) {
+  try {
+    const orderId = Number(req.params.orderId);
+    const tenantId = getTenantId(req);
+    const { number } = req.body as { number?: string };
+
+    const invoice = await prisma.nfceInvoice.findFirst({
+      where: { order_id: orderId, tenant_id: tenantId },
+    });
+    if (!invoice) {
+      res.status(404).json({ error: "Nota fiscal não encontrada para este pedido" });
+      return;
+    }
+    if (invoice.status !== "authorized") {
+      res.status(409).json({ error: `NFC-e ainda não autorizada (status atual: ${invoice.status}).` });
+      return;
+    }
+
+    const order = await prisma.order.findFirst({
+      where: { id: orderId, tenant_id: tenantId },
+      select: { customer_phone: true },
+    });
+    const targetNumber = number || order?.customer_phone;
+    if (!targetNumber) {
+      res.status(422).json({ error: "Informe um número de WhatsApp — este pedido não tem telefone de cliente cadastrado." });
+      return;
+    }
+
+    let pdfBuffer: Buffer;
+    if (invoice.danfe_path && fs.existsSync(invoice.danfe_path)) {
+      pdfBuffer = fs.readFileSync(invoice.danfe_path);
+    } else {
+      const rebuilt = await rebuildDanfePdf(orderId, tenantId, invoice);
+      if (!rebuilt) {
+        res.status(404).json({ error: "O arquivo do DANFE não está disponível e não há dados suficientes para reconstruí-lo." });
+        return;
+      }
+      pdfBuffer = rebuilt;
+    }
+
+    await sendWhatsappDocument(
+      tenantId,
+      targetNumber,
+      pdfBuffer.toString("base64"),
+      `danfe-${invoice.access_key ?? orderId}.pdf`,
+      `Segue o DANFE da sua compra — NFC-e nº ${invoice.number}/${invoice.series}.`,
+    );
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error("sendNfceWhatsapp error:", err);
+    const message = err instanceof Error ? err.message : "Falha ao enviar NFC-e pelo WhatsApp";
+    res.status(500).json({ error: message });
   }
 }
 

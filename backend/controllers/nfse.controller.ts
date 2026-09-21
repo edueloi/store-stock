@@ -7,6 +7,7 @@ import { emitirNfse } from "../services/nfse/emitir";
 import { cancelarNfse } from "../services/nfse/cancelar";
 import type { MotivoCancelamentoNfse } from "../services/nfse/eventoXmlBuilder";
 import { emitToTenant } from "../services/realtime.service";
+import { sendWhatsappDocument } from "../services/whatsapp.service";
 
 function getTenantId(req: Request) {
   return (req as AuthenticatedRequest).user.tenantId;
@@ -434,6 +435,50 @@ export async function downloadNfsePdf(req: Request, res: Response) {
     fs.createReadStream(invoice.nfse_pdf_path).pipe(res);
   } catch {
     res.status(500).json({ error: "Failed to fetch NFS-e PDF" });
+  }
+}
+
+// Manda o PDF da NFS-e já emitida pro cliente pelo bot WhatsApp — mesmo arquivo
+// do botão "PDF", enviado como documento. O frontend só mostra esse botão
+// quando o bot está conectado (GET /api/whatsapp/connection-status).
+export async function sendNfseWhatsapp(req: Request, res: Response) {
+  try {
+    const serviceOrderId = Number(req.params.serviceOrderId);
+    const tenantId = getTenantId(req);
+    const { number } = req.body as { number?: string };
+
+    const invoice = await prisma.nfseInvoice.findFirst({
+      where: { service_order_id: serviceOrderId, tenant_id: tenantId },
+    });
+    if (!invoice?.nfse_pdf_path || !fs.existsSync(invoice.nfse_pdf_path)) {
+      res.status(404).json({ error: "PDF da NFS-e não disponível" });
+      return;
+    }
+
+    const serviceOrder = await prisma.serviceOrder.findFirst({
+      where: { id: serviceOrderId, tenant_id: tenantId },
+      select: { customer_phone: true },
+    });
+    const targetNumber = number || serviceOrder?.customer_phone;
+    if (!targetNumber) {
+      res.status(422).json({ error: "Informe um número de WhatsApp — esta OS não tem telefone de cliente cadastrado." });
+      return;
+    }
+
+    const pdfBuffer = fs.readFileSync(invoice.nfse_pdf_path);
+    await sendWhatsappDocument(
+      tenantId,
+      targetNumber,
+      pdfBuffer.toString("base64"),
+      `nfse-${invoice.chave_acesso ?? serviceOrderId}.pdf`,
+      "Segue a Nota Fiscal de Serviço da sua compra.",
+    );
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error("sendNfseWhatsapp error:", err);
+    const message = err instanceof Error ? err.message : "Falha ao enviar NFS-e pelo WhatsApp";
+    res.status(500).json({ error: message });
   }
 }
 

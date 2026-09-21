@@ -14,6 +14,7 @@ import {
   sendWhatsappDocument,
   sendWhatsappManualMessage,
   sendWhatsappTestMenu,
+  sendFinanceAlertsNow,
   updateWhatsappAgent,
   updateWhatsappWorkspace,
 } from "../services/whatsapp.service";
@@ -146,6 +147,20 @@ export async function sendWhatsappDocumentHandler(req: Request, res: Response) {
   try {
     await sendWhatsappDocument(tenantId, number, base64, fileName, caption);
     res.json({ ok: true });
+  } catch (error) {
+    res.status(400).json({ error: getErrorMessage(error) });
+  }
+}
+
+export async function sendFinanceAlertsHandler(req: Request, res: Response) {
+  const tenantId = getTenantId(req);
+  if (!tenantId) {
+    res.sendStatus(403);
+    return;
+  }
+  try {
+    const result = await sendFinanceAlertsNow(tenantId);
+    res.json(result);
   } catch (error) {
     res.status(400).json({ error: getErrorMessage(error) });
   }

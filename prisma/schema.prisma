@@ -1714,6 +1714,11 @@ model WhatsappWorkspace {
   settings           Json?
   menus              Json?
   templates          Json?
+  // Número que recebe os avisos automáticos de contas a pagar/receber/crediário
+  // vencendo (feature separada do atendimento ao cliente) — configurado pelo
+  // dono da loja, diferente do fallback_phone técnico do provider.
+  finance_alerts_phone   String?
+  finance_alerts_enabled Boolean  @default(false)
   created_at         DateTime @default(now())
   updated_at         DateTime @updatedAt
 
