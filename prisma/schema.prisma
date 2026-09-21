@@ -151,6 +151,7 @@ model Tenant {
   desktop_terminals      DesktopTerminal[]
   order_returns          OrderReturn[]
   customer_credits       CustomerCredit[]
+  automated_message_logs AutomatedMessageLog[]
   plan                   SubscriptionPlan?     @relation(fields: [plan_id], references: [id], onDelete: SetNull)
   platform_subscription  PlatformSubscription?
 
@@ -1705,6 +1706,12 @@ model WhatsappWorkspace {
   id                 Int      @id @default(autoincrement())
   tenant_id          Int      @unique
   is_enabled         Boolean  @default(false)
+  // Vira true na primeira vez que o lojista muda `is_enabled` manualmente (via
+  // toggle na tela) OU na primeira auto-ativação por conexão bem-sucedida —
+  // depois disso, getWhatsappConnectionStatus nunca mais sobrescreve
+  // `is_enabled` sozinho, senão desativar o bot de atendimento não "pegava"
+  // (a próxima checagem de status religava automaticamente).
+  is_enabled_touched Boolean  @default(false)
   provider           String   @default("evolution")
   evolution_base_url String?
   evolution_api_key  String?  @db.Text
@@ -1796,4 +1803,26 @@ model WhatsappMessageLog {
 
   @@index([conversation_id, created_at])
   @@map("whatsapp_message_logs")
+}
+
+// Histórico de envios automáticos do sistema (não atrelados a uma conversa de
+// cliente) — alertas financeiros por WhatsApp, relatórios semanais/mensais por
+// email, etc. Usado pela tela "Logs de Envios Automáticos" pra o lojista
+// conferir o que foi mandado e quando, sem precisar confiar só no console do
+// servidor.
+model AutomatedMessageLog {
+  id         Int      @id @default(autoincrement())
+  tenant_id  Int
+  kind       String // "finance_alert_whatsapp" | "weekly_report_email" | "monthly_report_email"
+  channel    String // "whatsapp" | "email"
+  recipient  String // número ou email de destino
+  status     String // "sent" | "skipped" | "failed"
+  summary    String? @db.Text // resumo curto do conteúdo (ex.: "3 contas a pagar, 2 a receber")
+  error      String? @db.Text
+  created_at DateTime @default(now())
+
+  tenant Tenant @relation(fields: [tenant_id], references: [id])
+
+  @@index([tenant_id, created_at])
+  @@map("automated_message_logs")
 }

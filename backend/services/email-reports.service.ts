@@ -336,9 +336,25 @@ async function sendReportForTenant(tenantId: number, kind: "weekly" | "monthly",
 
   const html = buildReportHtml(tenant.name, data, kind);
   const subject = `${kind === "weekly" ? "Relatório Semanal" : "Relatório Mensal"} · ${tenant.name}`;
-  await sendReportEmail(recipients, subject, html).catch((err) => {
+  const logKind = kind === "weekly" ? "weekly_report_email" : "monthly_report_email";
+  try {
+    await sendReportEmail(recipients, subject, html);
+    await prisma.automatedMessageLog.create({
+      data: {
+        tenant_id: tenantId, kind: logKind, channel: "email",
+        recipient: recipients.join(", "), status: "sent", summary: periodLabel,
+      },
+    });
+  } catch (err) {
     console.error(`Falha ao enviar relatório ${kind} pro tenant ${tenantId}:`, err);
-  });
+    await prisma.automatedMessageLog.create({
+      data: {
+        tenant_id: tenantId, kind: logKind, channel: "email",
+        recipient: recipients.join(", "), status: "failed",
+        error: err instanceof Error ? err.message : String(err),
+      },
+    }).catch(() => {});
+  }
 }
 
 function weekRange(reference: Date): { from: Date; to: Date; label: string } {

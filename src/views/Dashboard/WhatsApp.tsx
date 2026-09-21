@@ -90,6 +90,23 @@ interface WorkspaceState {
   secret_header_name: string;
 }
 
+interface AutomatedMessageLog {
+  id: number;
+  kind: string;
+  channel: string;
+  recipient: string;
+  status: "sent" | "skipped" | "failed";
+  summary: string | null;
+  error: string | null;
+  created_at: string;
+}
+
+const AUTOMATED_LOG_LABEL: Record<string, string> = {
+  finance_alert_whatsapp: "Alerta financeiro (WhatsApp)",
+  weekly_report_email: "Relatório semanal (Email)",
+  monthly_report_email: "Relatório mensal (Email)",
+};
+
 interface Agent {
   id: number;
   name: string;
@@ -311,6 +328,8 @@ export default function WhatsApp() {
   const [saving, setSaving] = useState(false);
   const [pinging, setPinging] = useState(false);
   const [sendingFinanceAlerts, setSendingFinanceAlerts] = useState(false);
+  const [automatedLogs, setAutomatedLogs] = useState<AutomatedMessageLog[]>([]);
+  const [loadingAutomatedLogs, setLoadingAutomatedLogs] = useState(false);
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus | null>(null);
   const [loadingConnection, setLoadingConnection] = useState(false);
   const [connectionError, setConnectionError] = useState<string | null>(null);
@@ -354,6 +373,19 @@ export default function WhatsApp() {
     },
     [toast],
   );
+
+  const loadAutomatedLogs = useCallback(async () => {
+    setLoadingAutomatedLogs(true);
+    try {
+      const response = await fetch("/api/tenant/automated-message-logs", { headers: authHeaders() });
+      const data = await response.json();
+      setAutomatedLogs(Array.isArray(data) ? data : []);
+    } catch {
+      /* silencioso — a lista simplesmente não atualiza nesta tentativa */
+    } finally {
+      setLoadingAutomatedLogs(false);
+    }
+  }, []);
 
   const loadConversation = useCallback(
     async (conversationId: number, silent = false) => {
@@ -405,7 +437,8 @@ export default function WhatsApp() {
   useEffect(() => {
     void loadOverview();
     void loadConnectionStatus();
-  }, [loadOverview, loadConnectionStatus]);
+    void loadAutomatedLogs();
+  }, [loadOverview, loadConnectionStatus, loadAutomatedLogs]);
 
   useEffect(() => {
     const interval = window.setInterval(() => {
@@ -514,6 +547,32 @@ export default function WhatsApp() {
       toast.error("Erro de conexão ao salvar o WhatsApp.");
     } finally {
       setSaving(false);
+    }
+  };
+
+  // Toggle crítico — salva na hora em vez de depender do botão "Salvar módulo"
+  // geral, pra nunca dar a impressão de "já desativei" quando na verdade só
+  // mudou o estado local e ainda não foi persistido.
+  const toggleAutoReply = async () => {
+    if (!workspace) return;
+    const next = !workspace.is_enabled;
+    setWorkspace({ ...workspace, is_enabled: next });
+    try {
+      const response = await fetch("/api/whatsapp/workspace", {
+        method: "PUT",
+        headers: authHeaders(),
+        body: JSON.stringify({ is_enabled: next }),
+      });
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        toast.error(data.error || "Falha ao salvar.");
+        setWorkspace({ ...workspace, is_enabled: !next });
+        return;
+      }
+      toast.success(next ? "Atendimento automático ativado." : "Atendimento automático desativado.");
+    } catch {
+      toast.error("Erro de conexão ao salvar.");
+      setWorkspace({ ...workspace, is_enabled: !next });
     }
   };
 
@@ -1010,25 +1069,10 @@ export default function WhatsApp() {
               </div>
               <div>
                 <Label>Modo</Label>
-                <div className="w-full h-11 rounded-2xl border border-slate-200 bg-slate-50 px-4 flex items-center justify-between">
+                <div className="w-full h-11 rounded-2xl border border-slate-200 bg-slate-50 px-4 flex items-center">
                   <span className="text-sm font-semibold text-slate-700">
-                    {workspace.is_enabled ? "Ativo" : "Desativado"}
+                    {workspace.is_enabled ? "Ativo" : "Desativado"} — controlado no card "Atendimento Automático" acima
                   </span>
-                  <button
-                    type="button"
-                    onClick={() => handleWorkspaceField("is_enabled", !workspace.is_enabled)}
-                    className={cn(
-                      "w-11 h-6 rounded-full relative transition-all",
-                      workspace.is_enabled ? "bg-emerald-500" : "bg-slate-300",
-                    )}
-                  >
-                    <span
-                      className={cn(
-                        "absolute top-1 h-4 w-4 rounded-full bg-white shadow-sm transition-all",
-                        workspace.is_enabled ? "left-6" : "left-1",
-                      )}
-                    />
-                  </button>
                 </div>
               </div>
             </div>
@@ -1148,6 +1192,40 @@ export default function WhatsApp() {
         )}
 
         <SectionCard
+          title="Atendimento Automático"
+          subtitle="O robô que responde clientes (menu, oi, encerramento por inatividade, fidelidade)"
+          icon={<Bot size={18} />}
+        >
+          <div className="space-y-4">
+            <div className="flex items-center justify-between gap-4 p-4 bg-slate-50 border border-slate-100 rounded-2xl">
+              <div>
+                <p className="text-sm font-bold text-slate-700">
+                  {workspace.is_enabled ? "Ativo — respondendo clientes" : "Desativado — não responde clientes"}
+                </p>
+                <p className="text-xs text-slate-400 mt-0.5">
+                  Desativar não desconecta o número — a conexão continua ligada para os envios manuais (alertas financeiros, NF por WhatsApp), só o robô de conversa para de responder.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={toggleAutoReply}
+                className={cn(
+                  "w-11 h-6 rounded-full relative transition-all shrink-0",
+                  workspace.is_enabled ? "bg-emerald-500" : "bg-slate-300",
+                )}
+              >
+                <span
+                  className={cn(
+                    "absolute top-1 h-4 w-4 rounded-full bg-white shadow-sm transition-all",
+                    workspace.is_enabled ? "left-6" : "left-1",
+                  )}
+                />
+              </button>
+            </div>
+          </div>
+        </SectionCard>
+
+        <SectionCard
           title="Alertas Financeiros"
           subtitle="Avisa por WhatsApp sobre contas a pagar, a receber e crediário vencendo"
           icon={<BadgeAlert size={18} />}
@@ -1199,6 +1277,51 @@ export default function WhatsApp() {
               Enviar Agora
             </button>
           </div>
+        </SectionCard>
+
+        <SectionCard
+          title="Logs de Envios Automáticos"
+          subtitle="Alertas financeiros por WhatsApp e relatórios por email — o que foi enviado e quando"
+          icon={<Clock3 size={18} />}
+          action={
+            <button
+              onClick={loadAutomatedLogs}
+              disabled={loadingAutomatedLogs}
+              className="h-9 px-4 rounded-xl border border-slate-200 text-[10px] font-black uppercase tracking-widest text-slate-600 hover:bg-slate-50 flex items-center gap-2 disabled:opacity-50"
+            >
+              {loadingAutomatedLogs ? <Loader2 size={13} className="animate-spin" /> : <RefreshCw size={13} />}
+              Atualizar
+            </button>
+          }
+        >
+          {automatedLogs.length === 0 ? (
+            <p className="text-xs text-slate-400 py-4 text-center">Nenhum envio automático registrado ainda.</p>
+          ) : (
+            <div className="space-y-2 max-h-96 overflow-y-auto">
+              {automatedLogs.map((log) => (
+                <div key={log.id} className="flex items-start justify-between gap-3 p-3 bg-slate-50 border border-slate-100 rounded-xl">
+                  <div className="min-w-0">
+                    <p className="text-[11px] font-bold text-slate-700">
+                      {AUTOMATED_LOG_LABEL[log.kind] ?? log.kind}
+                      <span className="text-slate-400 font-medium"> · {log.recipient}</span>
+                    </p>
+                    {log.summary && <p className="text-[10px] text-slate-400 mt-0.5 truncate">{log.summary}</p>}
+                    {log.error && <p className="text-[10px] text-rose-500 mt-0.5">{log.error}</p>}
+                  </div>
+                  <div className="flex flex-col items-end gap-1 shrink-0">
+                    <span className={cn(
+                      "text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full",
+                      log.status === "sent" ? "bg-emerald-50 text-emerald-600" :
+                      log.status === "failed" ? "bg-rose-50 text-rose-600" : "bg-amber-50 text-amber-600",
+                    )}>
+                      {log.status === "sent" ? "Enviado" : log.status === "failed" ? "Falhou" : "Pulado"}
+                    </span>
+                    <span className="text-[9px] text-slate-400">{new Date(log.created_at).toLocaleString("pt-BR")}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </SectionCard>
 
         <div className="space-y-6">

@@ -624,6 +624,8 @@ export async function updateWhatsappWorkspace(
     data: {
       is_enabled:
         payload.is_enabled === undefined ? workspace.is_enabled : Boolean(payload.is_enabled),
+      is_enabled_touched:
+        payload.is_enabled === undefined ? workspace.is_enabled_touched : true,
       provider: payload.provider?.trim() || workspace.provider,
       evolution_base_url:
         payload.evolution_base_url === undefined
@@ -1913,13 +1915,16 @@ export async function getWhatsappConnectionStatus(tenantId: number) {
 
   const status = await getBaileysConnectionStatus(tenantId, tenant.slug, workspace.webhook_secret ?? "");
 
-  // Assim que a sessão conecta de verdade, ativa o módulo automaticamente — o
-  // lojista não deveria precisar entender "provider" nem clicar em "Salvar módulo"
-  // separadamente só para o bot passar a responder.
-  if (status.connected && (!workspace.is_enabled || workspace.provider !== "baileys")) {
+  // Assim que a sessão conecta de verdade PELA PRIMEIRA VEZ, ativa o módulo
+  // automaticamente — o lojista não deveria precisar entender "provider" nem
+  // clicar em "Salvar módulo" separadamente só para o bot passar a responder.
+  // Só roda enquanto `is_enabled_touched` for false: depois que o lojista toma
+  // qualquer decisão manual (ativar OU desativar), essa auto-ativação nunca
+  // mais sobrescreve a escolha dele a cada checagem de status.
+  if (status.connected && !workspace.is_enabled_touched) {
     await prisma.whatsappWorkspace.update({
       where: { id: workspace.id },
-      data: { is_enabled: true, provider: "baileys" },
+      data: { is_enabled: true, is_enabled_touched: true, provider: "baileys" },
     });
   }
 
@@ -2286,10 +2291,37 @@ export async function sendFinanceAlertsNow(tenantId: number) {
     throw new Error("Configure o número de WhatsApp para alertas financeiros antes de enviar.");
   }
   const text = await buildFinanceAlertText(tenantId);
-  if (!text) return { sent: false, reason: "Nada vencendo ou vencido nos próximos dias." };
+  if (!text) {
+    await prisma.automatedMessageLog.create({
+      data: {
+        tenant_id: tenantId, kind: "finance_alert_whatsapp", channel: "whatsapp",
+        recipient: workspace.finance_alerts_phone, status: "skipped",
+        summary: "Nada vencendo ou vencido nos próximos dias.",
+      },
+    });
+    return { sent: false, reason: "Nada vencendo ou vencido nos próximos dias." };
+  }
 
-  await sendTextMessage(workspace.id, workspace.finance_alerts_phone, text);
-  return { sent: true };
+  try {
+    await sendTextMessage(workspace.id, workspace.finance_alerts_phone, text);
+    await prisma.automatedMessageLog.create({
+      data: {
+        tenant_id: tenantId, kind: "finance_alert_whatsapp", channel: "whatsapp",
+        recipient: workspace.finance_alerts_phone, status: "sent",
+        summary: text.split("\n").slice(0, 3).join(" · ").slice(0, 500),
+      },
+    });
+    return { sent: true };
+  } catch (err) {
+    await prisma.automatedMessageLog.create({
+      data: {
+        tenant_id: tenantId, kind: "finance_alert_whatsapp", channel: "whatsapp",
+        recipient: workspace.finance_alerts_phone, status: "failed",
+        error: err instanceof Error ? err.message : String(err),
+      },
+    });
+    throw err;
+  }
 }
 
 let financeAlertsLoopStarted = false;

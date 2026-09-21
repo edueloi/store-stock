@@ -269,3 +269,20 @@ export async function sendReportNowHandler(req: Request, res: Response) {
     res.status(500).json({ error: "Falha ao enviar relatório" });
   }
 }
+
+// Histórico de envios automáticos (alertas financeiros por WhatsApp,
+// relatórios por email) — pra o lojista conferir o que foi mandado e quando.
+export async function listAutomatedMessageLogs(req: Request, res: Response) {
+  try {
+    const tenantId = getTenantId(req);
+    const logs = await prisma.automatedMessageLog.findMany({
+      where: { tenant_id: tenantId },
+      orderBy: { created_at: "desc" },
+      take: 100,
+    });
+    res.json(logs);
+  } catch (err) {
+    console.error("listAutomatedMessageLogs error:", err);
+    res.status(500).json({ error: "Falha ao buscar histórico de envios" });
+  }
+}
