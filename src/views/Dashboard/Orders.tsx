@@ -25,6 +25,7 @@ import {
   FileText,
   RotateCcw,
   Gift,
+  Plus,
 } from "lucide-react";
 import PageHeader from "../../components/layout/PageHeader";
 import { Order, Product } from "../../types";
@@ -460,6 +461,35 @@ export default function Orders() {
 
   // ── NFC-e por pedido ─────────────────────────────────────────────────────
   const [emittingNfceId, setEmittingNfceId] = useState<number | null>(null);
+  // Informar CPF/CNPJ depois da venda — necessário pra habilitar "Gerar NF" em
+  // pedidos de balcão feitos sem documento, sem precisar refazer a venda.
+  const [documentTarget, setDocumentTarget] = useState<Order | OrderDetail | null>(null);
+  const [documentInput, setDocumentInput] = useState("");
+  const [savingDocument, setSavingDocument] = useState(false);
+
+  const handleSaveDocument = async (emitAfter: boolean) => {
+    if (!documentTarget) return;
+    setSavingDocument(true);
+    try {
+      const digits = documentInput.replace(/\D/g, "");
+      const res = await fetch(`/api/orders/${documentTarget.id}/document`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token()}` },
+        body: JSON.stringify({ customer_document: digits }),
+      });
+      const data = await res.json();
+      if (!res.ok) { notify.error(data.error || "Não foi possível salvar o documento."); return; }
+      setOrders((prev) => prev.map((o) => (o.id === documentTarget.id ? { ...o, customer_document: digits } : o)));
+      setSelectedOrder((prev) => (prev && prev.id === documentTarget.id ? { ...prev, customer_document: digits } : prev));
+      const orderId = documentTarget.id;
+      setDocumentTarget(null);
+      if (emitAfter) await handleEmitNfce(orderId);
+    } catch {
+      notify.error("Erro de conexão ao salvar o documento.");
+    } finally {
+      setSavingDocument(false);
+    }
+  };
 
   const handleEmitNfce = async (orderId: number) => {
     setEmittingNfceId(orderId);
@@ -1591,9 +1621,13 @@ ${
                           {emittingNfceId === order.id ? <Loader2 size={10} className="animate-spin" /> : <FileText size={10} />} Gerar NF
                         </button>
                       ) : (
-                        <span className="text-[9px] text-slate-400 uppercase font-bold tracking-wide" title="Sem CPF/CNPJ cadastrado — apenas cupom comum">
-                          Sem CPF/CNPJ
-                        </span>
+                        <button
+                          onClick={(e) => { e.stopPropagation(); setDocumentTarget(order); setDocumentInput(""); }}
+                          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[9px] text-slate-400 hover:text-blue-600 hover:bg-blue-50 uppercase font-bold tracking-wide transition-colors"
+                          title="Informar CPF/CNPJ para gerar a nota fiscal"
+                        >
+                          <Plus size={10} /> Sem CPF/CNPJ
+                        </button>
                       )}
                     </td>
                     {/* ações — sempre visíveis */}
@@ -1813,7 +1847,12 @@ ${
                       {emittingNfceId === order.id ? <Loader2 size={10} className="animate-spin" /> : <FileText size={10} />} Gerar Nota Fiscal
                     </button>
                   ) : (
-                    <span className="text-[9px] text-slate-400 uppercase font-bold tracking-wide">Sem CPF/CNPJ — só cupom comum</span>
+                    <button
+                      onClick={() => { setDocumentTarget(order); setDocumentInput(""); }}
+                      className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[9px] text-slate-400 hover:text-blue-600 hover:bg-blue-50 uppercase font-bold tracking-wide transition-colors"
+                    >
+                      <Plus size={10} /> Sem CPF/CNPJ — informar
+                    </button>
                   )}
                 </div>
               )}
@@ -2010,6 +2049,12 @@ ${
                     {selectedOrder.customer_phone && (
                       <p className="text-[10px] font-mono text-slate-500 mt-0.5">{selectedOrder.customer_phone}</p>
                     )}
+                    <button
+                      onClick={() => { setDocumentTarget(selectedOrder); setDocumentInput(selectedOrder.customer_document || ""); }}
+                      className="mt-1.5 text-[10px] font-bold text-blue-600 hover:text-blue-700 transition-colors"
+                    >
+                      {selectedOrder.customer_document?.trim() ? `CPF/CNPJ: ${selectedOrder.customer_document}` : "+ Informar CPF/CNPJ"}
+                    </button>
                   </div>
                   <div className="bg-slate-50 rounded-2xl px-4 py-3 border border-slate-100">
                     <p className="text-[9px] font-black text-slate-400 uppercase tracking-[0.18em] mb-1.5">Vendedor</p>
@@ -2316,6 +2361,76 @@ ${
                       <XCircle size={13} className="shrink-0" />
                     )}
                     Confirmar
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* CPF/CNPJ modal — informa/corrige o documento pra habilitar "Gerar NF" */}
+      <AnimatePresence>
+        {documentTarget && (
+          <div className="fixed inset-0 z-[200] flex items-center justify-center px-4 bg-slate-900/50 backdrop-blur-sm">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.92 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.92 }}
+              className="bg-white rounded-3xl shadow-2xl w-full max-w-sm overflow-hidden"
+            >
+              <div className="px-6 py-5 bg-blue-50 border-b border-blue-100 flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-blue-100 flex items-center justify-center">
+                  <FileText size={18} className="text-blue-600" />
+                </div>
+                <div>
+                  <p className="text-[10px] font-bold text-blue-400 uppercase tracking-widest">
+                    CPF/CNPJ do Pedido
+                  </p>
+                  <p className="text-sm font-black text-blue-900">
+                    #{String(documentTarget.id).padStart(6, "0")}
+                  </p>
+                </div>
+              </div>
+              <div className="p-6 space-y-4">
+                <p className="text-[10px] text-slate-500 font-bold leading-relaxed">
+                  Informe o CPF ou CNPJ do cliente para habilitar a emissão da nota fiscal deste pedido.
+                </p>
+                <div className="space-y-1.5">
+                  <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest">
+                    CPF ou CNPJ
+                  </label>
+                  <input
+                    type="text"
+                    autoFocus
+                    value={documentInput}
+                    onChange={(e) => setDocumentInput(e.target.value)}
+                    placeholder="000.000.000-00 ou 00.000.000/0000-00"
+                    className="w-full h-10 px-3 border border-slate-200 rounded-xl text-[11px] font-medium outline-none focus:border-blue-400 bg-slate-50 transition-all"
+                  />
+                </div>
+                <div className="flex gap-2 pt-2">
+                  <button
+                    onClick={() => setDocumentTarget(null)}
+                    disabled={savingDocument}
+                    className="flex-1 h-10 border border-slate-200 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-slate-50 transition-all text-slate-500 disabled:opacity-50"
+                  >
+                    Voltar
+                  </button>
+                  <button
+                    onClick={() => handleSaveDocument(false)}
+                    disabled={savingDocument || documentInput.replace(/\D/g, "").length < 11}
+                    className="flex-1 h-10 border border-blue-200 text-blue-600 rounded-xl text-[10px] font-black uppercase tracking-wide hover:bg-blue-50 transition-all disabled:opacity-50"
+                  >
+                    Só Salvar
+                  </button>
+                  <button
+                    onClick={() => handleSaveDocument(true)}
+                    disabled={savingDocument || documentInput.replace(/\D/g, "").length < 11}
+                    className="flex-1 h-10 bg-blue-600 text-white rounded-xl text-[10px] font-black uppercase tracking-wide hover:bg-blue-700 transition-all disabled:opacity-50 flex items-center justify-center gap-1.5"
+                  >
+                    {savingDocument ? <Loader2 size={13} className="animate-spin" /> : <FileText size={13} />}
+                    Salvar e Gerar NF
                   </button>
                 </div>
               </div>

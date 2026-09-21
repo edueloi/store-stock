@@ -221,6 +221,38 @@ export async function updateOrderStatus(req: Request, res: Response) {
   }
 }
 
+// Permite informar/corrigir o CPF/CNPJ do pedido depois da venda — necessário
+// pra emitir NFC-e/NFS-e de um pedido de balcão feito sem documento (comum
+// no PDV) sem precisar refazer a venda. Endpoint dedicado (em vez de um PUT
+// genérico de pedido) pra não abrir superfície de edição em campos sensíveis
+// como valor/itens/pagamento depois que a venda já foi efetivada.
+export async function updateOrderDocument(req: Request, res: Response) {
+  try {
+    const tenantId = getTenantId(req);
+    const orderId = Number(req.params.id);
+    const { customer_document } = req.body as { customer_document?: string | null };
+
+    const order = await prisma.order.findFirst({ where: { id: orderId, tenant_id: tenantId } });
+    if (!order) { res.status(404).json({ error: "Pedido não encontrado" }); return; }
+
+    const digits = (customer_document ?? "").replace(/\D/g, "");
+    if (digits && digits.length !== 11 && digits.length !== 14) {
+      res.status(422).json({ error: "Informe um CPF (11 dígitos) ou CNPJ (14 dígitos) válido." });
+      return;
+    }
+
+    await prisma.order.update({
+      where: { id: orderId },
+      data: { customer_document: digits || null },
+    });
+
+    emitToTenant(tenantId, "order:updated", { orderId });
+    res.json({ success: true, customer_document: digits || null });
+  } catch {
+    res.status(500).json({ error: "Falha ao atualizar CPF/CNPJ do pedido" });
+  }
+}
+
 export async function cancelOrder(req: Request, res: Response) {
   try {
     const tenantId  = getTenantId(req);
