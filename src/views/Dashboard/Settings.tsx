@@ -696,9 +696,12 @@ export default function Settings() {
   const [weeklyReportEnabled, setWeeklyReportEnabled] = useState(false);
   const [monthlyReportEnabled, setMonthlyReportEnabled] = useState(false);
   const [reportRecipientEmails, setReportRecipientEmails] = useState<string[]>([]);
+  const [savedReportRecipientEmails, setSavedReportRecipientEmails] = useState<string[]>([]);
   const [newReportEmail, setNewReportEmail] = useState("");
   const [savingReports, setSavingReports] = useState(false);
   const [sendingReportNow, setSendingReportNow] = useState<"weekly" | "monthly" | null>(null);
+  const [adminEmails, setAdminEmails] = useState<string[]>([]);
+  const hasUnsavedReportRecipients = JSON.stringify(reportRecipientEmails) !== JSON.stringify(savedReportRecipientEmails);
 
   // ── Terminal (maquininha API) ────────────────────────────────────────────────
   type TerminalProvider = "rede" | "stone" | "mercadopago" | "cielo" | "pagseguro";
@@ -753,9 +756,20 @@ export default function Settings() {
         if (d?.return_deadline_days !== undefined && d.return_deadline_days !== null) setReturnDeadlineDays(Number(d.return_deadline_days));
         if (d?.weekly_report_enabled !== undefined) setWeeklyReportEnabled(Boolean(d.weekly_report_enabled));
         if (d?.monthly_report_enabled !== undefined) setMonthlyReportEnabled(Boolean(d.monthly_report_enabled));
-        if (Array.isArray(d?.report_recipient_emails)) setReportRecipientEmails(d.report_recipient_emails);
+        if (Array.isArray(d?.report_recipient_emails)) {
+          setReportRecipientEmails(d.report_recipient_emails);
+          setSavedReportRecipientEmails(d.report_recipient_emails);
+        }
         setLoading(false);
       });
+
+    fetch("/api/team", { headers: API_HEADERS() })
+      .then((r) => r.json())
+      .then((d) => {
+        if (!Array.isArray(d)) return;
+        setAdminEmails(d.filter((u: any) => u.role === "admin" && u.email).map((u: any) => u.email));
+      })
+      .catch(() => { /* lista de admins é só informativa */ });
 
     fetch("/api/terminals/config", { headers: API_HEADERS() })
       .then((r) => r.json())
@@ -1115,6 +1129,7 @@ export default function Settings() {
       });
       if (res.ok) {
         toast.success("Configurações de relatórios salvas!");
+        setSavedReportRecipientEmails(reportRecipientEmails);
       } else {
         const err = await res.json().catch(() => ({}));
         toast.error("Erro ao salvar: " + (err?.error ?? res.status));
@@ -2678,6 +2693,14 @@ export default function Settings() {
                   <p className="text-[10px] text-slate-400">
                     Emails que recebem os relatórios. Se a lista estiver vazia, é enviado para todos os usuários com acesso de administrador.
                   </p>
+                  {adminEmails.length > 0 && (
+                    <div className="px-4 py-2.5 bg-blue-50 border border-blue-100 rounded-xl">
+                      <p className="text-[9px] font-black uppercase tracking-widest text-blue-600 mb-1">
+                        {reportRecipientEmails.length === 0 ? "Enviando por padrão para os administradores" : "Administradores do sistema"}
+                      </p>
+                      <p className="text-[11px] text-blue-700 font-medium">{adminEmails.join(", ")}</p>
+                    </div>
+                  )}
                   <div className="flex gap-2">
                     <input
                       type="email"
@@ -2708,6 +2731,11 @@ export default function Settings() {
                   )}
                 </div>
 
+                {hasUnsavedReportRecipients && (
+                  <p className="text-[10px] font-bold text-amber-600 bg-amber-50 border border-amber-100 rounded-xl px-4 py-2">
+                    Você tem alterações não salvas na lista de destinatários — clique em "Salvar Configurações" pra confirmar.
+                  </p>
+                )}
                 <SaveButton onClick={handleSaveReports} label={savingReports ? "Salvando..." : "Salvar Configurações"} />
 
                 <div className="space-y-3 pt-2">
