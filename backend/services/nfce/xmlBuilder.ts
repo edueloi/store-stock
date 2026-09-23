@@ -157,14 +157,30 @@ export function buildNfceXml(input: BuildNfceInput): BuildNfceResult {
 
   // ── det (itens) ────────────────────────────────────────────────────────
   let vProdTotal = 0;
+  // Soma bruta dos itens, calculada antes do loop principal só pra ratear o
+  // acréscimo (vOutro) proporcionalmente a cada item — a SEFAZ exige que o
+  // vOutro do totalizador (ICMSTot) seja igual à soma do vOutro de cada item
+  // (regra V16-40, rejeição cStat 604 "Total do vOutro difere do somatório dos
+  // itens"), então não basta jogar um valor solto só no totalizador.
+  const vProdBruto = items.reduce((sum, item) => sum + Math.round(Number(item.unit_price) * item.quantity * 100) / 100, 0);
+  const vDescTotal = order.discount_amount ? Number(order.discount_amount) : 0;
+  const vOutroTotal = Math.max(0, Math.round((Number(order.total_amount) - (vProdBruto - vDescTotal)) * 100) / 100);
+  let vOutroAcumulado = 0;
   // Acumulado do grupo IBS/CBS de todos os itens, usado no totalizador da nota
   // (total.IBSCBSTot) — a SEFAZ exige esse total além do grupo em cada item.
   const ibsCbsAcumulado = { vBC: 0, vIBSUF: 0, vCBS: 0 };
   items.forEach((item, idx) => {
     const nItem = idx + 1;
+    const isLastItem = idx === items.length - 1;
     const vUnCom = Number(item.unit_price);
     const vProd = Math.round(vUnCom * item.quantity * 100) / 100;
     vProdTotal += vProd;
+    // Rateio proporcional ao peso do item no total bruto; o último item absorve
+    // a sobra de arredondamento pra bater exatamente com vOutroTotal.
+    const vOutroItem = vOutroTotal <= 0 ? 0
+      : isLastItem ? Math.round((vOutroTotal - vOutroAcumulado) * 100) / 100
+      : Math.round((vOutroTotal * (vProd / vProdBruto)) * 100) / 100;
+    vOutroAcumulado += vOutroItem;
 
     const det = doc.ele("det", { nItem: String(nItem) });
     const prod = det.ele("prod");
@@ -190,6 +206,7 @@ export function buildNfceXml(input: BuildNfceInput): BuildNfceResult {
     prod.ele("uTrib").txt(item.product.unidade_tributavel);
     prod.ele("qTrib").txt(String(item.quantity));
     prod.ele("vUnTrib").txt(vUnCom.toFixed(10));
+    if (vOutroItem > 0) prod.ele("vOutro").txt(vOutroItem.toFixed(2));
     prod.ele("indTot").txt("1");
 
     const imposto = det.ele("imposto");
@@ -260,26 +277,24 @@ export function buildNfceXml(input: BuildNfceInput): BuildNfceResult {
   icmsTot.ele("vST").txt("0.00");
   icmsTot.ele("vFCPST").txt("0.00");
   icmsTot.ele("vFCPSTRet").txt("0.00");
-  const vDesc = order.discount_amount ? Number(order.discount_amount) : 0;
-  // A SEFAZ exige vNF = vProd - vDesc + vFrete + vSeg + vOutro (+ tributos aplicáveis).
-  // order.total_amount pode vir maior que a soma dos itens quando o PDV aplica um
-  // acréscimo manual na venda (campo "Acréscimo", independente de juros de
-  // crediário/cartão) — essa diferença precisa aparecer em algum campo do
-  // totalizador, senão a nota é rejeitada com "Total da NF difere do somatório dos
-  // valores que compõe o valor total da NF" (visto no pedido #001115: vProd 764.85
-  // vs total_amount 818.39, acréscimo de R$ 53.54 não lançado em lugar nenhum).
-  // vOutro ("outras despesas acessórias") é o campo fiscal correto pra isso.
-  const vOutro = Math.max(0, Math.round((Number(order.total_amount) - (vProdTotal - vDesc)) * 100) / 100);
+  // A SEFAZ exige vNF = vProd - vDesc + vFrete + vSeg + vOutro (+ tributos aplicáveis),
+  // E que o vOutro do totalizador seja igual à soma do vOutro de cada item (regra
+  // V16-40) — por isso vOutroAcumulado (somado item a item no loop acima) é usado
+  // aqui, em vez de recalcular a diferença de novo (evita os dois valores divergirem
+  // por causa de arredondamento). order.total_amount pode vir maior que a soma dos
+  // itens quando o PDV aplica um acréscimo manual na venda (campo "Acréscimo",
+  // independente de juros de crediário/cartão) — visto no pedido #001115: vProd
+  // 764.85 vs total_amount 818.39, acréscimo de R$ 53.54 rateado entre os itens.
   icmsTot.ele("vProd").txt(vProdTotal.toFixed(2));
   icmsTot.ele("vFrete").txt("0.00");
   icmsTot.ele("vSeg").txt("0.00");
-  icmsTot.ele("vDesc").txt(vDesc.toFixed(2));
+  icmsTot.ele("vDesc").txt(vDescTotal.toFixed(2));
   icmsTot.ele("vII").txt("0.00");
   icmsTot.ele("vIPI").txt("0.00");
   icmsTot.ele("vIPIDevol").txt("0.00");
   icmsTot.ele("vPIS").txt("0.00");
   icmsTot.ele("vCOFINS").txt("0.00");
-  icmsTot.ele("vOutro").txt(vOutro.toFixed(2));
+  icmsTot.ele("vOutro").txt(vOutroAcumulado.toFixed(2));
   icmsTot.ele("vNF").txt(Number(order.total_amount).toFixed(2));
 
   // Totalizador do grupo IBS/CBS — irmão de ICMSTot dentro de <total>, exigido pela
