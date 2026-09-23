@@ -62,6 +62,11 @@ const TPAG_MAP: Record<string, string> = {
   pix: "17",
   debit: "04",
   credit: "03",
+  crediario: "05", // "Crédito Loja" — pagamento fiado, sem integração com maquininha
+};
+
+const TPAG_LABEL: Record<string, string> = {
+  crediario: "Crediário",
 };
 
 export function buildNfceXml(input: BuildNfceInput): BuildNfceResult {
@@ -331,6 +336,13 @@ export function buildNfceXml(input: BuildNfceInput): BuildNfceResult {
     const tPag = TPAG_MAP[seg.method] ?? "99";
     const detPag = pag.ele("detPag");
     detPag.ele("tPag").txt(tPag);
+    // xPag é obrigatório pela SEFAZ sempre que tPag = 99 (Outros) — sem isso a nota
+    // é rejeitada com "Descrição do pagamento obrigatória para meio de pagamento
+    // 99-outros" (visto no pedido #001121, pagamento "crediario" caindo no fallback
+    // antes de existir mapeamento próprio pra ele).
+    if (tPag === "99") {
+      detPag.ele("xPag").txt(TPAG_LABEL[seg.method] || seg.method || "Outros");
+    }
     detPag.ele("vPag").txt(seg.amount.toFixed(2));
     // Grupo "card" é exigido pela SEFAZ (rejeição 391) sempre que tPag = 03 (crédito),
     // 04 (débito) OU 17 (PIX) — apesar do nome "card", cobre qualquer forma de
