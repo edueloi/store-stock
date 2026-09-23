@@ -1,4 +1,5 @@
 import fs from "fs";
+import path from "path";
 import archiver from "archiver";
 import type { Request, Response } from "express";
 
@@ -10,7 +11,7 @@ import { generateDanfeA4Pdf } from "../services/nfce/danfe";
 import { emitToTenant } from "../services/realtime.service";
 import { sendWhatsappDocument } from "../services/whatsapp.service";
 
-const PAYMENT_LABELS: Record<string, string> = { money: "Dinheiro", pix: "PIX", debit: "Débito", credit: "Crédito" };
+const PAYMENT_LABELS: Record<string, string> = { money: "Dinheiro", pix: "PIX", debit: "Débito", credit: "Crédito", crediario: "Crediário" };
 
 /** Reconstrói o PDF do DANFE A4 a partir dos dados já salvos (sem precisar do arquivo em disco) —
  * usado quando a nota foi autorizada em outro ambiente (ex.: produção) e este servidor não tem
@@ -28,19 +29,36 @@ async function rebuildDanfePdf(orderId: number, tenantId: number, invoice: { acc
   const payments = paymentsFromOrder(order.payment_method);
   const paymentSummary = payments.map((p) => `${PAYMENT_LABELS[p.method] ?? p.method}: R$ ${p.amount.toFixed(2)}`).join(" + ");
 
+  // Mesma prioridade usada em emitir.ts: documento avulso da venda primeiro, com
+  // fallback pro documento cadastrado no cliente vinculado — sem isso, um pedido
+  // com CNPJ só no Customer (não digitado avulso na venda) exibia "CONSUMIDOR NÃO
+  // IDENTIFICADO" no PDF reconstruído mesmo o XML já enviado à SEFAZ tendo o CNPJ
+  // certo (ele vem do mesmo fallback em emitir.ts, então diverge só aqui).
   let customerName: string | undefined;
+  let customerDocument = order.customer_document ?? undefined;
   if (order.customer_id) {
-    const customer = await prisma.customer.findUnique({ where: { id: order.customer_id }, select: { name: true } });
+    const customer = await prisma.customer.findUnique({ where: { id: order.customer_id }, select: { name: true, document: true } });
     customerName = customer?.name ?? undefined;
+    if (!customerDocument) customerDocument = customer?.document ?? undefined;
   }
-  const customerLabel = order.customer_document
-    ? `CONSUMIDOR: ${customerName ?? ""} ${order.customer_document}`.trim()
+  const customerLabel = customerDocument
+    ? `CONSUMIDOR: ${customerName ?? ""} ${customerDocument}`.trim()
     : "CONSUMIDOR NÃO IDENTIFICADO";
+
+  let logoBuffer: Buffer | null = null;
+  if (tenant.logo_url?.startsWith("/uploads/")) {
+    try {
+      logoBuffer = fs.readFileSync(path.join(process.cwd(), "public", tenant.logo_url));
+    } catch {
+      logoBuffer = null;
+    }
+  }
 
   return generateDanfeA4Pdf({
     storeName: tenant.razao_social || tenant.name,
     storeDocument: `CNPJ: ${tenant.document ?? ""}`,
     storeStateRegistration: tenant.inscricao_estadual,
+    logoBuffer,
     storeAddress: [tenant.address_street, tenant.address_number, tenant.address_city, tenant.address_state].filter(Boolean).join(", "),
     chaveAcesso: invoice.access_key,
     numero: invoice.number,
@@ -64,6 +82,10 @@ async function rebuildDanfePdf(orderId: number, tenantId: number, invoice: { acc
       };
     }),
     totalAmount: Number(order.total_amount),
+    // Mesma lógica de fallback usada em emitir.ts.
+    surchargeAmount: order.surcharge_amount != null
+      ? Number(order.surcharge_amount)
+      : Math.max(0, Math.round((Number(order.total_amount) - (Number(order.gross_amount ?? order.total_amount) - Number(order.discount_amount ?? 0))) * 100) / 100),
     // Recalculado da diferença real entre pagamentos e total — mesma lógica de
     // emitir.ts, não depende só de order.change_amount (pode estar null).
     changeAmount: (() => {

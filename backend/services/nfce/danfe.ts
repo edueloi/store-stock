@@ -24,6 +24,10 @@ export interface DanfeInput {
   storeDocument: string;
   storeStateRegistration?: string | null;
   storeAddress: string;
+  // Logo da loja (mesmo buffer lido de tenant.logo_url em uploads/, ver
+  // nfse/emitir.ts) — só usado pelo DANFE A4; o cupom 80mm não tem espaço
+  // pra imagem.
+  logoBuffer?: Buffer | null;
   chaveAcesso: string;
   numero: number;
   serie: number;
@@ -32,6 +36,10 @@ export interface DanfeInput {
   protocol?: string | null;
   items: DanfeItem[];
   totalAmount: number;
+  // Acréscimo manual aplicado na venda (campo "Acréscimo" do PDV) — a soma dos
+  // itens não bate com totalAmount sem isso aparecer em algum lugar do
+  // documento, senão o cliente estranha "total maior que a soma dos itens".
+  surchargeAmount?: number | null;
   changeAmount?: number | null;
   qrCodeUrl: string;
   paymentSummary: string;
@@ -189,9 +197,13 @@ export async function generateDanfeA4Pdf(input: DanfeInput): Promise<Buffer> {
     doc.rect(30, pageTop, doc.page.width - 60, doc.page.height - pageTop - 30).lineWidth(1).strokeColor(colorBorder).stroke();
 
     const headerTop = pageTop + 10;
-    doc.rect(42, headerTop, 56, 56).lineWidth(1).strokeColor(colorBorder).stroke();
-    doc.fillColor(colorText).font("Helvetica-Bold").fontSize(20)
-      .text((input.storeName || "?").charAt(0).toUpperCase(), 42, headerTop + 15, { width: 56, align: "center" });
+    if (input.logoBuffer) {
+      doc.image(input.logoBuffer, 42, headerTop, { fit: [56, 56] });
+    } else {
+      doc.rect(42, headerTop, 56, 56).lineWidth(1).strokeColor(colorBorder).stroke();
+      doc.fillColor(colorText).font("Helvetica-Bold").fontSize(20)
+        .text((input.storeName || "?").charAt(0).toUpperCase(), 42, headerTop + 15, { width: 56, align: "center" });
+    }
 
     const textX = 42 + 56 + 14;
     const textWidth = pageWidth - 56 - 14 - 170 - 12;
@@ -305,6 +317,17 @@ export async function generateDanfeA4Pdf(input: DanfeInput): Promise<Buffer> {
     doc.moveDown(0.6);
 
     sectionTitle("Valores");
+    const vProdTotal = input.items.reduce((sum, item) => sum + item.total, 0);
+    const surcharge = input.surchargeAmount != null && input.surchargeAmount > 0.009 ? input.surchargeAmount : null;
+    if (surcharge != null) {
+      // Quando a venda é a prazo (crediário), o "Acréscimo" normalmente é juros
+      // de parcelamento — rótulo mais claro que só "Acréscimo" genérico.
+      const isCrediario = /crediário/i.test(input.paymentSummary);
+      const surchargeLabel = isCrediario ? "Acréscimo (venda a prazo)" : "Acréscimo";
+      doc.font("Helvetica").fontSize(8).fillColor(colorMuted)
+        .text(`Subtotal dos itens: ${formatMoney(vProdTotal)}    +    ${surchargeLabel}: ${formatMoney(surcharge)}`, 36, doc.y, { width: pageWidth });
+      doc.moveDown(0.5);
+    }
     const boxY = doc.y;
     const boxH = 50;
     doc.rect(36, boxY, pageWidth, boxH).lineWidth(1).strokeColor(colorBorder).stroke();

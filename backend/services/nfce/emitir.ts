@@ -222,7 +222,7 @@ export async function emitirNfce(orderId: number): Promise<void> {
 
     const qrCodeUrl = qrCodeUrlForXml;
 
-    const paymentLabels: Record<string, string> = { money: "Dinheiro", pix: "PIX", debit: "Débito", credit: "Crédito" };
+    const paymentLabels: Record<string, string> = { money: "Dinheiro", pix: "PIX", debit: "Débito", credit: "Crédito", crediario: "Crediário" };
     const paymentSummary = payments.map((p) => `${paymentLabels[p.method] ?? p.method}: R$ ${p.amount.toFixed(2)}`).join(" + ");
 
     // customerName já foi buscado acima (mesma prioridade de customerDocument, usada
@@ -231,11 +231,23 @@ export async function emitirNfce(orderId: number): Promise<void> {
       ? `CONSUMIDOR: ${customerName ?? ""} ${customerDocument}`.trim()
       : "CONSUMIDOR NÃO IDENTIFICADO";
 
+    // logo_url é sempre um path relativo tipo "/uploads/logos/<tenant>/<arquivo>",
+    // resolvido dentro de public/ — mesmo padrão de nfse/emitir.ts.
+    let logoBuffer: Buffer | null = null;
+    if (tenant.logo_url?.startsWith("/uploads/")) {
+      try {
+        logoBuffer = fs.readFileSync(path.join(process.cwd(), "public", tenant.logo_url));
+      } catch {
+        logoBuffer = null;
+      }
+    }
+
     const danfeInput: DanfeInput = {
       storeName: tenant.razao_social || tenant.name,
       storeDocument: `CNPJ: ${tenant.document ?? ""}`,
       storeStateRegistration: tenant.inscricao_estadual,
       storeAddress: [tenant.address_street, tenant.address_number, tenant.address_city, tenant.address_state].filter(Boolean).join(", "),
+      logoBuffer,
       chaveAcesso,
       numero,
       serie,
@@ -251,6 +263,12 @@ export async function emitirNfce(orderId: number): Promise<void> {
         total: Number(item.unit_price) * item.quantity,
       })),
       totalAmount: Number(order.total_amount),
+      // Igual ao rateio de vOutro no XML (xmlBuilder.ts) — se o pedido não tem
+      // surcharge_amount salvo (vendas antigas, antes desse campo existir),
+      // reconstitui pela diferença entre o total e a soma dos itens/desconto.
+      surchargeAmount: order.surcharge_amount != null
+        ? Number(order.surcharge_amount)
+        : Math.max(0, Math.round((Number(order.total_amount) - (Number(order.gross_amount ?? order.total_amount) - Number(order.discount_amount ?? 0))) * 100) / 100),
       // Recalculado da diferença real entre pagamentos e total — não depende só de
       // order.change_amount (pode estar null se o payload da venda não trouxe esse
       // campo), mesma lógica usada em xmlBuilder.ts pro vTroco do XML.
