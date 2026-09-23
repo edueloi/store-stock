@@ -10,7 +10,7 @@ import { buildNfceXml, type PaymentSegment } from "./xmlBuilder";
 import { loadPfx, assinarNfce } from "./signer";
 import { callSefazSoap, extractProtTag } from "./soapClient";
 import { buildQrCodeUrl, buildUrlChave } from "./qrcode";
-import { generateDanfePdf } from "./danfe";
+import { generateDanfePdf, generateDanfeA4Pdf, type DanfeInput } from "./danfe";
 
 // Traduz o "tPag" derivado do token de pagamento do PDV (ver sales.controller.ts)
 export function paymentsFromOrder(paymentMethod: string | null): PaymentSegment[] {
@@ -231,7 +231,7 @@ export async function emitirNfce(orderId: number): Promise<void> {
       ? `CONSUMIDOR: ${customerName ?? ""} ${customerDocument}`.trim()
       : "CONSUMIDOR NÃO IDENTIFICADO";
 
-    const danfeBuffer = await generateDanfePdf({
+    const danfeInput: DanfeInput = {
       storeName: tenant.razao_social || tenant.name,
       storeDocument: `CNPJ: ${tenant.document ?? ""}`,
       storeStateRegistration: tenant.inscricao_estadual,
@@ -240,7 +240,7 @@ export async function emitirNfce(orderId: number): Promise<void> {
       numero,
       serie,
       emittedAt: new Date(),
-      environment,
+      environment: environment === "producao" ? "producao" : "homologacao",
       protocol: protNFe,
       items: itemsForXml.map((item) => ({
         code: item.product.barcode || item.product.sku || null,
@@ -262,10 +262,18 @@ export async function emitirNfce(orderId: number): Promise<void> {
       qrCodeUrl,
       paymentSummary,
       customerLabel,
-    });
+    };
 
+    const danfeBuffer = await generateDanfePdf(danfeInput);
     const danfePath = path.join(dir, `${chaveAcesso}-danfe.pdf`);
     fs.writeFileSync(danfePath, danfeBuffer);
+
+    // Documento A4 formal — o que o botão "DANFE" na tela e o envio por WhatsApp
+    // de fato servem (ver nfce.controller.ts). O cupom 80mm acima continua
+    // gerado e salvo, mas sem exposição na UI.
+    const danfeA4Buffer = await generateDanfeA4Pdf(danfeInput);
+    const danfeA4Path = path.join(dir, `${chaveAcesso}-danfe-a4.pdf`);
+    fs.writeFileSync(danfeA4Path, danfeA4Buffer);
 
     await prisma.nfceInvoice.update({
       where: { id: invoice.id },
@@ -276,6 +284,7 @@ export async function emitirNfce(orderId: number): Promise<void> {
         authorized_at: new Date(),
         xml_path: xmlPath,
         danfe_path: danfePath,
+        danfe_a4_path: danfeA4Path,
         qrcode_url: qrCodeUrl,
         rejection_code: null,
         rejection_reason: null,

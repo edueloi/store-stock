@@ -6,13 +6,13 @@ import { prisma } from "../config/prisma";
 import type { AuthenticatedRequest } from "../types/auth";
 import { emitirNfce, paymentsFromOrder } from "../services/nfce/emitir";
 import { cancelarNfce } from "../services/nfce/cancelar";
-import { generateDanfePdf } from "../services/nfce/danfe";
+import { generateDanfeA4Pdf } from "../services/nfce/danfe";
 import { emitToTenant } from "../services/realtime.service";
 import { sendWhatsappDocument } from "../services/whatsapp.service";
 
 const PAYMENT_LABELS: Record<string, string> = { money: "Dinheiro", pix: "PIX", debit: "Débito", credit: "Crédito" };
 
-/** Reconstrói o PDF do DANFE a partir dos dados já salvos (sem precisar do arquivo em disco) —
+/** Reconstrói o PDF do DANFE A4 a partir dos dados já salvos (sem precisar do arquivo em disco) —
  * usado quando a nota foi autorizada em outro ambiente (ex.: produção) e este servidor não tem
  * o arquivo localmente. */
 async function rebuildDanfePdf(orderId: number, tenantId: number, invoice: { access_key: string | null; number: number; series: number; authorized_at: Date | null; protocol: string | null; qrcode_url: string | null }) {
@@ -37,7 +37,7 @@ async function rebuildDanfePdf(orderId: number, tenantId: number, invoice: { acc
     ? `CONSUMIDOR: ${customerName ?? ""} ${order.customer_document}`.trim()
     : "CONSUMIDOR NÃO IDENTIFICADO";
 
-  return generateDanfePdf({
+  return generateDanfeA4Pdf({
     storeName: tenant.razao_social || tenant.name,
     storeDocument: `CNPJ: ${tenant.document ?? ""}`,
     storeStateRegistration: tenant.inscricao_estadual,
@@ -406,10 +406,10 @@ export async function downloadDanfe(req: Request, res: Response) {
       res.status(409).json({ error: `DANFE indisponível — a NFC-e deste pedido ainda não foi autorizada (status atual: ${invoice.status}).` });
       return;
     }
-    if (invoice.danfe_path && fs.existsSync(invoice.danfe_path)) {
+    if (invoice.danfe_a4_path && fs.existsSync(invoice.danfe_a4_path)) {
       res.setHeader("Content-Type", "application/pdf");
       res.setHeader("Content-Disposition", `inline; filename="danfe-${invoice.access_key ?? orderId}.pdf"`);
-      fs.createReadStream(invoice.danfe_path).pipe(res);
+      fs.createReadStream(invoice.danfe_a4_path).pipe(res);
       return;
     }
 
@@ -461,8 +461,8 @@ export async function sendNfceWhatsapp(req: Request, res: Response) {
     }
 
     let pdfBuffer: Buffer;
-    if (invoice.danfe_path && fs.existsSync(invoice.danfe_path)) {
-      pdfBuffer = fs.readFileSync(invoice.danfe_path);
+    if (invoice.danfe_a4_path && fs.existsSync(invoice.danfe_a4_path)) {
+      pdfBuffer = fs.readFileSync(invoice.danfe_a4_path);
     } else {
       const rebuilt = await rebuildDanfePdf(orderId, tenantId, invoice);
       if (!rebuilt) {

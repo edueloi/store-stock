@@ -636,7 +636,8 @@ model NfceInvoice {
   rejection_code   String?
   rejection_reason String?   @db.Text
   xml_path         String?
-  danfe_path       String?
+  danfe_path       String? // cupom estreito 80mm — formato de recibo térmico não-fiscal, com elementos exigidos da SEFAZ
+  danfe_a4_path    String? // documento A4 formal (mesmo espírito do PDF da NFS-e) — usado no botão "DANFE" e no envio por WhatsApp
   qrcode_url       String?   @db.Text
   attempts         Int       @default(0)
   last_attempt_at  DateTime?
