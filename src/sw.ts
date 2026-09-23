@@ -25,7 +25,9 @@ precacheAndRoute(self.__WB_MANIFEST);
 
 registerRoute(
   new NavigationRoute(createHandlerBoundToURL("/index.html"), {
-    denylist: [/^\/api/],
+    // Páginas HTML independentes não são rotas do React. Sem esta exceção, o
+    // Service Worker devolve index.html e a navegação termina no login.
+    denylist: [/^\/api/, /^\/logo\.html$/],
   })
 );
 
