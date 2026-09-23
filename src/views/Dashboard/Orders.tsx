@@ -1906,14 +1906,15 @@ ${
               className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm"
             />
 
-            {/* Panel — bottom sheet on mobile, side drawer on desktop */}
+            {/* No celular o detalhe ocupa a tela inteira; um painel baixo deixa
+                conteúdo e ações espremidos e difíceis de alcançar. */}
             <motion.div
               initial={{ y: "100%", opacity: 0 }}
               animate={{ y: 0, opacity: 1 }}
               exit={{ y: "100%", opacity: 0 }}
               transition={{ type: "spring", damping: 30, stiffness: 280 }}
-              className="fixed inset-x-0 bottom-0 z-50 flex flex-col bg-white rounded-t-[28px] shadow-2xl max-h-[92dvh]
-                         sm:inset-auto sm:right-0 sm:top-0 sm:bottom-0 sm:w-[460px] sm:rounded-none sm:rounded-l-[28px] sm:max-h-full sm:border-l border-slate-200"
+              className="fixed inset-0 z-50 flex flex-col bg-white shadow-2xl
+                         sm:left-auto sm:w-[500px] sm:rounded-none sm:rounded-l-[28px] sm:border-l sm:border-slate-200"
             >
               {/* Drag handle — mobile only */}
               <div className="sm:hidden flex justify-center pt-2.5 pb-1 shrink-0">
@@ -1921,11 +1922,11 @@ ${
               </div>
 
               {/* ── Header ── */}
-              <div className="shrink-0 px-5 pt-4 pb-3 space-y-3 border-b border-slate-100">
+              <div className="shrink-0 px-4 sm:px-5 pt-3 sm:pt-4 pb-3 space-y-2 border-b border-slate-100">
                 <div className="flex items-center justify-between gap-3">
                   <div className="flex items-center gap-3 min-w-0">
                     <div className={cn(
-                      "w-10 h-10 rounded-2xl flex items-center justify-center shrink-0",
+                      "w-9 h-9 rounded-xl flex items-center justify-center shrink-0",
                       selectedOrder.status !== "completed" ? (selectedOrder.status === "cancelled" ? "bg-red-100" : "bg-amber-100")
                         : isCrediarioOrder(selectedOrder.payment_method) ? "bg-violet-100" : "bg-emerald-100"
                     )}>
@@ -1936,7 +1937,7 @@ ${
                     </div>
                     <div className="min-w-0">
                       <p className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] leading-none mb-1">Pedido</p>
-                      <h4 className="text-xl font-black text-slate-900 leading-none tracking-tight truncate">
+                      <h4 className="text-lg font-black text-slate-900 leading-none tracking-tight truncate">
                         #{String(selectedOrder.id).padStart(6, "0")}
                       </h4>
                     </div>
@@ -1953,10 +1954,37 @@ ${
                   </div>
 
                   <div className="flex items-center gap-1.5 shrink-0">
-                    <button onClick={() => { setSelectedIds(new Set([selectedOrder.id])); setShowDeleteModal(true); }}
-                      className="w-8 h-8 flex items-center justify-center rounded-xl bg-red-50 border border-red-100 text-red-400 hover:bg-red-100 hover:text-red-600 transition-all" title="Deletar">
-                      <Trash2 size={14} />
-                    </button>
+                    {/* Operações de exceção não disputam espaço com o pedido. */}
+                    <details className="group relative">
+                      <summary className="h-8 px-2.5 cursor-pointer list-none flex items-center gap-1 rounded-xl bg-slate-100 hover:bg-slate-200 text-[9px] font-black uppercase tracking-wider text-slate-600 select-none">
+                        Ações <ChevronRight size={12} className="transition-transform group-open:rotate-90" />
+                      </summary>
+                      <div className="absolute right-0 top-10 z-20 w-48 rounded-xl border border-slate-200 bg-white p-1.5 shadow-xl shadow-slate-900/10">
+                        {selectedOrder.status === "pending" && (
+                          <button onClick={() => handleUpdateStatus(selectedOrder.id, "completed")}
+                            className="w-full h-9 px-2.5 flex items-center rounded-lg text-left text-[10px] font-black uppercase tracking-wider text-emerald-700 hover:bg-emerald-50">
+                            Efetivar pedido
+                          </button>
+                        )}
+                        {selectedOrder.status === "completed" &&
+                          selectedOrder.items.some((i) => i.quantity - (i.returned_quantity ?? 0) > 0) && (
+                          <button onClick={() => { setReturnResult(null); setShowReturnModal(true); }}
+                            className="w-full h-9 px-2.5 flex items-center rounded-lg text-left text-[10px] font-black uppercase tracking-wider text-amber-700 hover:bg-amber-50">
+                            Devolver ou trocar
+                          </button>
+                        )}
+                        {selectedOrder.status !== "cancelled" && (
+                          <button onClick={() => setShowCancelModal(true)}
+                            className="w-full h-9 px-2.5 flex items-center rounded-lg text-left text-[10px] font-black uppercase tracking-wider text-rose-600 hover:bg-rose-50">
+                            Cancelar pedido
+                          </button>
+                        )}
+                        <button onClick={() => { setSelectedIds(new Set([selectedOrder.id])); setShowDeleteModal(true); }}
+                          className="w-full h-9 px-2.5 flex items-center gap-1.5 rounded-lg text-left text-[10px] font-black uppercase tracking-wider text-slate-500 hover:bg-slate-100">
+                          <Trash2 size={12} /> Excluir pedido
+                        </button>
+                      </div>
+                    </details>
                     <button onClick={() => setIsDetailModalOpen(false)}
                       className="w-8 h-8 flex items-center justify-center rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-500 transition-all">
                       <X size={15} />
@@ -1965,34 +1993,12 @@ ${
                 </div>
               </div>
 
-              {selectedOrder.status !== "cancelled" && (
-                <div className="shrink-0 px-5 pb-3 flex items-center gap-1.5 flex-wrap border-b border-slate-100 -mt-3">
-                  {selectedOrder.status === "pending" && (
-                    <button onClick={() => handleUpdateStatus(selectedOrder.id, "completed")}
-                      className="h-8 px-3 bg-emerald-600 text-white rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-emerald-700 active:scale-95 transition-all shadow-md shadow-emerald-200">
-                      Efetivar
-                    </button>
-                  )}
-                  {selectedOrder.status === "completed" &&
-                    selectedOrder.items.some((i) => i.quantity - (i.returned_quantity ?? 0) > 0) && (
-                    <button onClick={() => { setReturnResult(null); setShowReturnModal(true); }}
-                      className="h-8 px-3 bg-amber-50 text-amber-600 border border-amber-100 rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-amber-100 active:scale-95 transition-all">
-                      Devolver/Trocar
-                    </button>
-                  )}
-                  <button onClick={() => setShowCancelModal(true)}
-                    className="h-8 px-3 bg-red-50 text-red-500 border border-red-100 rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-red-100 active:scale-95 transition-all">
-                    Cancelar
-                  </button>
-                </div>
-              )}
-
               {/* ── Scrollable body ── */}
               <div className="flex-1 overflow-y-auto overscroll-contain">
 
                 {/* Hero value card */}
                 <div className={cn(
-                  "mx-4 mt-4 rounded-2xl px-5 py-4 flex items-center justify-between gap-4",
+                  "mx-4 mt-4 rounded-2xl px-4 py-3 flex items-center justify-between gap-4",
                   selectedOrder.status !== "completed" ? (selectedOrder.status === "cancelled" ? "bg-slate-800" : "bg-amber-500")
                     : isCrediarioOrder(selectedOrder.payment_method) ? "bg-violet-600" : "bg-emerald-600"
                 )}>
@@ -2002,17 +2008,17 @@ ${
                         ? (isCrediarioOrder(selectedOrder.payment_method) ? "Em Aberto (Crediário)" : "Total Pago")
                         : selectedOrder.status === "cancelled" ? "Valor Cancelado" : "Valor Pendente"}
                     </p>
-                    <p className="text-3xl font-black font-mono text-white leading-none tracking-tight">
+                    <p className="text-2xl font-black font-mono text-white leading-none tracking-tight">
                       R$ {Number(selectedOrder.total_amount).toFixed(2)}
                     </p>
                     <p className="text-[10px] text-white/60 mt-1.5 font-medium">
                       {new Date(selectedOrder.created_at).toLocaleString("pt-BR")}
                     </p>
                   </div>
-                  <div className="w-14 h-14 rounded-2xl bg-white/15 flex items-center justify-center shrink-0">
-                    {selectedOrder.status === "completed" ? <CheckCircle2 size={28} className="text-white" /> :
-                     selectedOrder.status === "cancelled"  ? <XCircle      size={28} className="text-white" /> :
-                                                             <Clock        size={28} className="text-white" />}
+                  <div className="w-11 h-11 rounded-xl bg-white/15 flex items-center justify-center shrink-0">
+                    {selectedOrder.status === "completed" ? <CheckCircle2 size={22} className="text-white" /> :
+                     selectedOrder.status === "cancelled"  ? <XCircle      size={22} className="text-white" /> :
+                                                             <Clock        size={22} className="text-white" />}
                   </div>
                 </div>
 
@@ -2038,8 +2044,8 @@ ${
                   )}
 
                 {/* Cliente + Vendedor */}
-                <div className="mx-4 mt-3 grid grid-cols-2 gap-2">
-                  <div className="bg-slate-50 rounded-2xl px-4 py-3 border border-slate-100">
+                <div className="mx-4 mt-3 grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  <div className="bg-slate-50 rounded-xl px-3.5 py-3 border border-slate-100">
                     <p className="text-[9px] font-black text-slate-400 uppercase tracking-[0.18em] mb-1.5 flex items-center gap-1">
                       <User size={9} /> Cliente
                     </p>
@@ -2056,7 +2062,7 @@ ${
                       {selectedOrder.customer_document?.trim() ? `CPF/CNPJ: ${selectedOrder.customer_document}` : "+ Informar CPF/CNPJ"}
                     </button>
                   </div>
-                  <div className="bg-slate-50 rounded-2xl px-4 py-3 border border-slate-100">
+                  <div className="bg-slate-50 rounded-xl px-3.5 py-3 border border-slate-100">
                     <p className="text-[9px] font-black text-slate-400 uppercase tracking-[0.18em] mb-1.5">Vendedor</p>
                     <p className="text-[13px] font-black text-slate-900 leading-tight">
                       {selectedOrder.seller_name || "—"}
@@ -2203,41 +2209,53 @@ ${
               </div>
 
               {/* ── Footer actions ── */}
-              <div className="shrink-0 px-4 pt-3 pb-4 border-t border-slate-100 bg-white safe-area-bottom">
+              <div className="shrink-0 px-4 pt-3 pb-4 border-t border-slate-100 bg-white safe-area-bottom space-y-2">
+                {/* A ação mais frequente fica sozinha e clara. Downloads, garantia
+                    e impressão remota não competem visualmente com ela. */}
+                <button onClick={handlePrintReceipt}
+                  className="w-full h-11 bg-slate-900 hover:bg-slate-700 active:scale-[.99] text-white rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-all shadow-lg shadow-slate-900/15">
+                  <Receipt size={14} /> Imprimir cupom
+                </button>
+
                 {remoteTerminals.length > 0 && (
-                  <div className="mb-2 space-y-1.5">
-                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em]">Imprimir em Terminal Vinculado</p>
-                    {remoteTerminals.map((rt) => (
-                      <button key={rt.id}
-                        onClick={() => handleRemotePrintOrder(rt.id)}
-                        disabled={remotePrintSending === rt.id}
-                        className="w-full flex items-center gap-2.5 h-10 px-3 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-xl text-[11px] font-bold text-blue-700 transition-all disabled:opacity-60">
-                        {remotePrintSending === rt.id ? <Loader2 size={13} className="animate-spin" /> : <Printer size={13} />}
-                        {rt.name}
-                      </button>
-                    ))}
-                  </div>
+                  <details className="group rounded-xl border border-blue-100 bg-blue-50/40 overflow-hidden">
+                    <summary className="h-10 px-3 cursor-pointer list-none flex items-center justify-between text-[10px] font-black uppercase tracking-wider text-blue-700 select-none">
+                      Imprimir em outro terminal
+                      <ChevronRight size={14} className="transition-transform group-open:rotate-90" />
+                    </summary>
+                    <div className="px-2.5 pb-2.5 space-y-1.5 border-t border-blue-100">
+                      {remoteTerminals.map((rt) => (
+                        <button key={rt.id}
+                          onClick={() => handleRemotePrintOrder(rt.id)}
+                          disabled={remotePrintSending === rt.id}
+                          className="w-full flex items-center gap-2 h-9 px-3 mt-2.5 bg-white hover:bg-blue-100 border border-blue-200 rounded-lg text-[11px] font-bold text-blue-700 transition-all disabled:opacity-60">
+                          {remotePrintSending === rt.id ? <Loader2 size={13} className="animate-spin" /> : <Printer size={13} />}
+                          {rt.name}
+                        </button>
+                      ))}
+                    </div>
+                  </details>
                 )}
-                <div className="grid grid-cols-2 gap-2 mb-2">
-                  <button onClick={handleDownloadReceipt} disabled={generatingReceiptPdf}
-                    className="h-11 bg-slate-100 hover:bg-slate-200 active:scale-95 rounded-2xl text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-all text-slate-700 disabled:opacity-60">
-                    {generatingReceiptPdf ? <Loader2 size={13} className="animate-spin" /> : <Download size={13} />} Baixar
-                  </button>
-                  <button onClick={handlePrintReceipt}
-                    className="h-11 bg-slate-900 hover:bg-slate-700 active:scale-95 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-all shadow-lg shadow-slate-900/20">
-                    <Receipt size={13} /> Comprovante
-                  </button>
-                </div>
-                <div className="grid grid-cols-2 gap-2">
-                  <button onClick={handleDownloadWarranty} disabled={generatingWarrantyPdf}
-                    className="h-11 bg-emerald-50 hover:bg-emerald-100 active:scale-95 border border-emerald-200 rounded-2xl text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-all text-emerald-700 disabled:opacity-60">
-                    {generatingWarrantyPdf ? <Loader2 size={13} className="animate-spin" /> : <Download size={13} />} Garantia
-                  </button>
-                  <button onClick={handlePrintWarranty}
-                    className="h-11 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-all shadow-lg shadow-emerald-500/25">
-                    <ShieldCheck size={13} /> Imprimir
-                  </button>
-                </div>
+                <details className="group rounded-xl border border-slate-200 overflow-hidden">
+                  <summary className="h-10 px-3 cursor-pointer list-none flex items-center justify-between text-[10px] font-black uppercase tracking-wider text-slate-600 select-none">
+                    Mais opções
+                    <ChevronRight size={14} className="transition-transform group-open:rotate-90" />
+                  </summary>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 p-2.5 border-t border-slate-100 bg-slate-50">
+                    <button onClick={handleDownloadReceipt} disabled={generatingReceiptPdf}
+                      className="h-10 bg-white hover:bg-slate-100 border border-slate-200 rounded-lg text-[10px] font-black uppercase tracking-wider flex items-center justify-center gap-2 transition-all text-slate-700 disabled:opacity-60">
+                      {generatingReceiptPdf ? <Loader2 size={13} className="animate-spin" /> : <Download size={13} />} Baixar cupom
+                    </button>
+                    <button onClick={handleDownloadWarranty} disabled={generatingWarrantyPdf}
+                      className="h-10 bg-white hover:bg-emerald-50 border border-emerald-200 rounded-lg text-[10px] font-black uppercase tracking-wider flex items-center justify-center gap-2 transition-all text-emerald-700 disabled:opacity-60">
+                      {generatingWarrantyPdf ? <Loader2 size={13} className="animate-spin" /> : <Download size={13} />} Baixar garantia
+                    </button>
+                    <button onClick={handlePrintWarranty}
+                      className="h-10 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-[10px] font-black uppercase tracking-wider flex items-center justify-center gap-2 transition-all sm:col-span-2">
+                      <ShieldCheck size={13} /> Imprimir garantia
+                    </button>
+                  </div>
+                </details>
               </div>
             </motion.div>
           </>

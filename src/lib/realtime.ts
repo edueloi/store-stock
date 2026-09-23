@@ -23,6 +23,7 @@ export type RealtimeEvent =
 
 let socket: Socket | null = null;
 let socketToken: string | null = null;
+let desktopTerminalUid: string | null = null;
 
 function getSocket(): Socket | null {
   const token = getStoredToken();
@@ -34,8 +35,24 @@ function getSocket(): Socket | null {
   // reconecta autenticado com o novo.
   socket?.disconnect();
   socketToken = token;
-  socket = io({ auth: { token }, transports: ["websocket", "polling"] });
+  socket = io({
+    auth: { token, ...(desktopTerminalUid ? { terminal_uid: desktopTerminalUid } : {}) },
+    transports: ["websocket", "polling"],
+  });
   return socket;
+}
+
+/** Registra o Electron pareado para que o servidor entregue impressões a ele. */
+export function identifyDesktopTerminal(terminalUid: string) {
+  if (!terminalUid) return;
+  const changed = desktopTerminalUid !== terminalUid;
+  desktopTerminalUid = terminalUid;
+  if (!socket) return;
+
+  if (changed) socket.auth = { token: socketToken, terminal_uid: terminalUid };
+  // O bridge chama este método periodicamente. Além de identificar conexões novas,
+  // isso mantém o "visto por último" fiel enquanto o Electron está aberto.
+  if (socket.connected) socket.emit("terminal:identify", terminalUid);
 }
 
 /**
@@ -64,4 +81,5 @@ export function disconnectRealtime() {
   socket?.disconnect();
   socket = null;
   socketToken = null;
+  desktopTerminalUid = null;
 }

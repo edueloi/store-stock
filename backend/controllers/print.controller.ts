@@ -1,7 +1,7 @@
 import type { Request, Response } from "express";
 import { prisma } from "../config/prisma";
 import type { AuthenticatedRequest } from "../types/auth";
-import { emitToTenant } from "../services/realtime.service";
+import { emitToTerminal } from "../services/realtime.service";
 
 function getTenantId(req: Request) {
   return (req as AuthenticatedRequest).user.tenantId;
@@ -24,13 +24,23 @@ export async function requestRemotePrint(req: Request, res: Response) {
   try {
     const terminal = await prisma.desktopTerminal.findFirst({
       where: { id: terminal_id, tenant_id: tenantId },
-      select: { terminal_uid: true },
+      select: {
+        terminal_uid: true,
+        printers: { where: { role }, select: { id: true }, take: 1 },
+      },
     });
     if (!terminal) {
       res.status(404).json({ error: "Terminal não encontrado" });
       return;
     }
-    emitToTenant(tenantId, "print:requested", { terminal_uid: terminal.terminal_uid, role, text });
+    if (terminal.printers.length === 0) {
+      res.status(422).json({ error: `Nenhuma impressora configurada para "${role}" neste terminal` });
+      return;
+    }
+    if (!emitToTerminal(terminal.terminal_uid, "print:requested", { role, text })) {
+      res.status(409).json({ error: "Terminal está offline. Abra o app desktop vinculado e tente novamente." });
+      return;
+    }
     res.json({ success: true });
   } catch {
     res.status(500).json({ error: "Failed to request remote print" });

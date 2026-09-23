@@ -9,6 +9,19 @@ interface DesktopTerminal {
   printers: { id: number; label: string; role: string }[];
 }
 
+const ONLINE_WINDOW_MS = 45_000;
+
+function getTerminalPresence(lastSeenAt: string) {
+  const elapsed = Date.now() - new Date(lastSeenAt).getTime();
+  if (!Number.isFinite(elapsed) || elapsed < 0) return { online: false, label: "Sem atividade registrada" };
+  if (elapsed <= ONLINE_WINDOW_MS) return { online: true, label: "Online agora" };
+  const minutes = Math.floor(elapsed / 60_000);
+  if (minutes < 60) return { online: false, label: `Visto há ${minutes} min` };
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return { online: false, label: `Visto há ${hours} h` };
+  return { online: false, label: `Visto em ${new Date(lastSeenAt).toLocaleString("pt-BR")}` };
+}
+
 // Vincula uma instalação do app desktop (BoxSys PDV) a este tenant via código de
 // pareamento de 6 dígitos gerado no próprio Electron (menu PDV → Vincular
 // Dispositivo) — o operador digita o código aqui e dá um nome, pra depois saber
@@ -33,7 +46,12 @@ export default function DesktopTerminalsSection() {
       .finally(() => setLoading(false));
   };
 
-  useEffect(fetchTerminals, []);
+  useEffect(() => {
+    fetchTerminals();
+    // Atualiza o estado visual sem o operador precisar recarregar Configurações.
+    const refresh = window.setInterval(fetchTerminals, 30_000);
+    return () => window.clearInterval(refresh);
+  }, []);
 
   const handlePair = async () => {
     if (code.trim().length !== 6 || !name.trim()) {
@@ -124,15 +142,20 @@ export default function DesktopTerminalsSection() {
         ) : terminals.length === 0 ? (
           <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest text-center py-4">Nenhum terminal vinculado ainda</p>
         ) : (
-          terminals.map((t) => (
+          terminals.map((t) => {
+            const presence = getTerminalPresence(t.last_seen_at);
+            return (
             <div key={t.id} className="flex items-center gap-3 px-4 py-3 bg-slate-50 rounded-xl">
               <div className="w-9 h-9 rounded-xl bg-white border border-slate-200 flex items-center justify-center shrink-0">
                 <Monitor size={16} className="text-slate-400" />
               </div>
               <div className="flex-1 min-w-0">
                 <p className="text-[12px] font-bold text-slate-900 truncate">{t.name}</p>
-                <p className="text-[9px] text-slate-400 font-bold uppercase mt-0.5">
-                  {t.printers.length} impressora{t.printers.length !== 1 ? "s" : ""} · Visto por último: {new Date(t.last_seen_at).toLocaleString("pt-BR")}
+                <p className="text-[9px] text-slate-400 font-bold uppercase mt-0.5 flex items-center gap-1.5">
+                  <span className={presence.online ? "w-1.5 h-1.5 rounded-full bg-emerald-500" : "w-1.5 h-1.5 rounded-full bg-slate-300"} />
+                  <span className={presence.online ? "text-emerald-600" : undefined}>{presence.label}</span>
+                  <span className="text-slate-300">·</span>
+                  {t.printers.length} impressora{t.printers.length !== 1 ? "s" : ""}
                 </p>
               </div>
               <button
@@ -143,7 +166,8 @@ export default function DesktopTerminalsSection() {
                 {deletingId === t.id ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
               </button>
             </div>
-          ))
+            );
+          })
         )}
       </div>
     </div>

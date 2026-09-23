@@ -4,6 +4,7 @@ import jwt from "jsonwebtoken";
 import { Server as SocketIOServer } from "socket.io";
 
 import { env } from "../config/env";
+import { prisma } from "../config/prisma";
 import type { AuthTokenPayload } from "../types/auth";
 
 // Eventos em tempo real que o front escuta para atualizar telas sozinho, sem
@@ -27,6 +28,10 @@ export type RealtimeEvent =
   | "print:requested";       // pedido de impressão remota pra um terminal desktop específico
 
 let io: SocketIOServer | null = null;
+
+function terminalRoom(terminalUid: string) {
+  return `desktop-terminal:${terminalUid}`;
+}
 
 export function initRealtime(httpServer: HttpServer) {
   io = new SocketIOServer(httpServer, {
@@ -53,6 +58,31 @@ export function initRealtime(httpServer: HttpServer) {
     if (user?.tenantId) {
       socket.join(`tenant:${user.tenantId}`);
     }
+
+    // Um cliente web comum só entra na sala do tenant. O Electron pareado também
+    // se identifica com seu UID local para receber apenas suas próprias impressões.
+    // A posse é conferida no banco antes de entrar na sala.
+    const identifyTerminal = async (terminalUid: unknown) => {
+      if (!user?.tenantId || typeof terminalUid !== "string" || !terminalUid) return;
+      try {
+        const terminal = await prisma.desktopTerminal.findFirst({
+          where: { terminal_uid: terminalUid, tenant_id: user.tenantId },
+          select: { id: true },
+        });
+        if (!terminal) return;
+        socket.join(terminalRoom(terminalUid));
+        await prisma.desktopTerminal.update({
+          where: { id: terminal.id },
+          data: { last_seen_at: new Date() },
+        });
+      } catch {
+        // A conexão em tempo real continua útil para os demais eventos mesmo se
+        // não for possível atualizar o status do terminal neste momento.
+      }
+    };
+
+    void identifyTerminal(socket.handshake.auth?.terminal_uid);
+    socket.on("terminal:identify", (terminalUid) => { void identifyTerminal(terminalUid); });
   });
 
   return io;
@@ -63,4 +93,12 @@ export function initRealtime(httpServer: HttpServer) {
 export function emitToTenant(tenantId: number | null | undefined, event: RealtimeEvent, payload: unknown = {}) {
   if (!io || !tenantId) return;
   io.to(`tenant:${tenantId}`).emit(event, payload);
+}
+
+// Retorna false quando o terminal pareado não está conectado. Assim a API não
+// confirma uma impressão que seria inevitavelmente perdida.
+export function emitToTerminal(terminalUid: string, event: RealtimeEvent, payload: unknown = {}) {
+  if (!io || !io.sockets.adapter.rooms.get(terminalRoom(terminalUid))?.size) return false;
+  io.to(terminalRoom(terminalUid)).emit(event, payload);
+  return true;
 }
