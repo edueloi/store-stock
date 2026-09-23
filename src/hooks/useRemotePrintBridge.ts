@@ -25,7 +25,15 @@ export function useRemotePrintBridge() {
 
     const registerTerminal = async () => {
       try {
-        const state = await desktop.getPairingState();
+        let state = await desktop.getPairingState();
+        // Pode existir um terminal cadastrado no servidor enquanto o config.json
+        // local ainda não recebeu a confirmação (por exemplo, se a janela de
+        // pareamento foi fechada logo após digitar o código). Recupera esse estado
+        // automaticamente em vez de exigir novo vínculo do operador.
+        if (!state.paired?.id && typeof desktop.checkPairingStatus === "function") {
+          await desktop.checkPairingStatus();
+          state = await desktop.getPairingState();
+        }
         // O UID existe antes do pareamento, mas só um terminal já vinculado pode
         // se registrar no servidor para receber impressões remotas.
         if (cancelled || !state.paired?.id || !state.terminalUid) return;
