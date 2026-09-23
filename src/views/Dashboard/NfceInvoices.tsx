@@ -387,10 +387,10 @@ function NfceTabContent() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between gap-2">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
         <button
           onClick={() => navigate("/admin/pdv")}
-          className="h-9 bg-slate-900 hover:bg-slate-800 text-white px-4 rounded-xl flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest transition-all shadow-sm"
+          className="w-full sm:w-auto h-10 sm:h-9 bg-slate-900 hover:bg-slate-800 text-white px-4 rounded-xl flex items-center justify-center gap-2 text-[10px] font-bold uppercase tracking-widest transition-all shadow-sm"
           title="A NFC-e avulsa é emitida a partir de uma venda no PDV — use o botão 'Item Avulso' no carrinho para vender algo fora do catálogo."
         >
           <Plus size={13} /> Nova Venda (PDV)
@@ -398,29 +398,29 @@ function NfceTabContent() {
         <button
           onClick={async () => { setExporting(true); try { await exportNfceToExcel(filtered); } finally { setExporting(false); } }}
           disabled={exporting || filtered.length === 0}
-          className="h-9 bg-white border border-slate-200 px-4 rounded-xl flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest hover:bg-slate-50 transition-all text-slate-600 shadow-sm disabled:opacity-40"
+          className="w-full sm:w-auto h-10 sm:h-9 bg-white border border-slate-200 px-4 rounded-xl flex items-center justify-center gap-2 text-[10px] font-bold uppercase tracking-widest hover:bg-slate-50 transition-all text-slate-600 shadow-sm disabled:opacity-40"
         >
           {exporting ? <Loader2 size={13} className="animate-spin" /> : <Download size={13} />} Exportar
         </button>
       </div>
 
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm">
-        <div className="flex items-center gap-0 border-b border-slate-100 divide-x divide-slate-100">
+        <div className="grid grid-cols-2 sm:grid-cols-4 border-b border-slate-100 divide-x divide-y sm:divide-y-0 divide-slate-100">
           {[
             { label: "Total",       value: counts.total,      color: "text-slate-900" },
             { label: "Autorizadas", value: counts.authorized, color: "text-emerald-500" },
             { label: "Em processo", value: counts.pending,    color: "text-blue-500" },
             { label: "Com erro",    value: counts.error,      color: "text-rose-500" },
           ].map((k) => (
-            <div key={k.label} className="flex-1 px-5 py-4 flex flex-col gap-0.5">
-              <span className={cn("text-2xl font-black tracking-tight font-mono leading-none", k.color)}>{k.value}</span>
+            <div key={k.label} className="px-4 sm:px-5 py-3 sm:py-4 flex flex-col gap-0.5">
+              <span className={cn("text-xl sm:text-2xl font-black tracking-tight font-mono leading-none", k.color)}>{k.value}</span>
               <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">{k.label}</span>
             </div>
           ))}
         </div>
 
-        <div className="flex items-center gap-2 px-4 py-3 flex-wrap">
-          <div className="relative flex-1 min-w-[180px]">
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-[minmax(220px,1fr)_auto_auto_auto] items-center gap-2 px-4 py-3">
+          <div className="relative min-w-0">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={13} />
             <input
               type="text"
@@ -442,17 +442,17 @@ function NfceTabContent() {
           </select>
 
           {/* Date range */}
-          <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-200 rounded-xl px-3 h-9 shrink-0">
+          <div className="grid grid-cols-[auto_minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-1.5 bg-slate-50 border border-slate-200 rounded-xl px-3 h-9 min-w-0">
             <Calendar size={12} className="text-slate-400 shrink-0" />
             <input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)}
-              className="text-[11px] font-medium text-slate-700 outline-none bg-transparent cursor-pointer w-[105px]" />
+              className="min-w-0 w-full text-[11px] font-medium text-slate-700 outline-none bg-transparent cursor-pointer" />
             <span className="text-slate-300 font-bold text-[10px]">—</span>
             <input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)}
-              className="text-[11px] font-medium text-slate-700 outline-none bg-transparent cursor-pointer w-[105px]" />
+              className="min-w-0 w-full text-[11px] font-medium text-slate-700 outline-none bg-transparent cursor-pointer" />
           </div>
 
           {/* Quick presets */}
-          <div className="flex items-center gap-1 shrink-0 bg-slate-50 border border-slate-200 rounded-xl p-1">
+          <div className="grid grid-cols-4 items-center gap-1 bg-slate-50 border border-slate-200 rounded-xl p-1">
             {[
               { label: "Hoje", from: todayStr(),        to: todayStr() },
               { label: "7d",   from: (() => { const d = new Date(); d.setDate(d.getDate() - 6); return d.toISOString().slice(0, 10); })(), to: todayStr() },
@@ -463,7 +463,7 @@ function NfceTabContent() {
               return (
                 <button key={p.label} onClick={() => { setDateFrom(p.from); setDateTo(p.to); }}
                   className={cn(
-                    "h-7 px-3 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all",
+                    "h-7 px-2 sm:px-3 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all",
                     active ? "bg-slate-900 text-white shadow-sm" : "text-slate-500 hover:text-slate-700"
                   )}
                 >
@@ -506,8 +506,8 @@ function NfceTabContent() {
           </div>
         )}
 
-        <div className="hidden lg:block overflow-auto max-h-[70vh]">
-          <table className="w-full min-w-[1220px] text-left border-collapse table-fixed">
+        <div className="hidden xl:block overflow-auto max-h-[70vh]">
+          <table className="w-full min-w-[1280px] text-left border-collapse table-fixed">
             <colgroup>
               <col className="w-8" />
               <col className="w-14" />
@@ -515,9 +515,9 @@ function NfceTabContent() {
               <col className="w-24" />
               <col className="w-24" />
               <col className="w-[16%]" />
-              <col className="w-32" />
-              <col className="w-32" />
-              <col className="w-80" />
+              <col className="w-44" />
+              <col className="w-36" />
+              <col className="w-72" />
             </colgroup>
             <thead>
               <tr className="sticky top-0 z-10 border-t border-slate-100 bg-slate-50">
@@ -564,7 +564,7 @@ function NfceTabContent() {
                     <td className="px-4 py-2.5 text-[10px] font-mono text-slate-400 truncate" title={inv.access_key || undefined}>
                       {inv.access_key ? `${inv.access_key.slice(0, 8)}…${inv.access_key.slice(-6)}` : "—"}
                     </td>
-                    <td className="px-4 py-2.5 whitespace-nowrap">
+                    <td className="px-4 py-2.5 whitespace-normal">
                       <span
                         title={(inv.status === "error" || inv.status === "rejected") ? (inv.rejection_reason ?? undefined) : undefined}
                         className={cn(
@@ -590,11 +590,11 @@ function NfceTabContent() {
                         </span>
                       )}
                     </td>
-                    <td className="px-4 py-2.5 pl-6 text-xs text-slate-500 whitespace-nowrap">
+                    <td className="px-4 py-2.5 text-xs text-slate-500 whitespace-nowrap">
                       {inv.authorized_at ? new Date(inv.authorized_at).toLocaleString("pt-BR") : "—"}
                     </td>
                     <td className="px-4 py-2.5 pr-5">
-                      <div className="flex items-center gap-2 justify-end flex-nowrap shrink-0">
+                      <div className="flex items-center gap-2 justify-end flex-wrap shrink-0">
                         {(inv.status === "error" || inv.status === "rejected") && (
                           <>
                             <button
@@ -659,7 +659,7 @@ function NfceTabContent() {
         {/* Mobile/tablet: cards empilhados em vez da tabela — a tabela fixa vira
             colunas espremidas demais abaixo de lg, principalmente chave de acesso +
             status + data lado a lado. */}
-        <div className="lg:hidden divide-y divide-slate-100">
+        <div className="xl:hidden divide-y divide-slate-100">
           {loading && (
             <div className="px-4 py-10 text-center text-slate-400 text-xs">Carregando...</div>
           )}
@@ -717,7 +717,7 @@ function NfceTabContent() {
                   </p>
                 )}
 
-                <div className="flex items-center justify-between pl-7">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 pl-7">
                   <span className="text-[10px] text-slate-400 font-medium">
                     {inv.authorized_at ? new Date(inv.authorized_at).toLocaleString("pt-BR") : "—"}
                   </span>
@@ -1284,39 +1284,39 @@ function NfseTabContent() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between gap-2">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
         <button
           onClick={openAvulsaModal}
-          className="h-9 bg-violet-600 hover:bg-violet-700 text-white px-4 rounded-xl flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest transition-all shadow-sm"
+          className="w-full sm:w-auto h-10 sm:h-9 bg-violet-600 hover:bg-violet-700 text-white px-4 rounded-xl flex items-center justify-center gap-2 text-[10px] font-bold uppercase tracking-widest transition-all shadow-sm"
         >
           <Plus size={13} /> Nova NFS-e Avulsa
         </button>
         <button
           onClick={async () => { setExporting(true); try { await exportNfseToExcel(filtered); } finally { setExporting(false); } }}
           disabled={exporting || filtered.length === 0}
-          className="h-9 bg-white border border-slate-200 px-4 rounded-xl flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest hover:bg-slate-50 transition-all text-slate-600 shadow-sm disabled:opacity-40"
+          className="w-full sm:w-auto h-10 sm:h-9 bg-white border border-slate-200 px-4 rounded-xl flex items-center justify-center gap-2 text-[10px] font-bold uppercase tracking-widest hover:bg-slate-50 transition-all text-slate-600 shadow-sm disabled:opacity-40"
         >
           {exporting ? <Loader2 size={13} className="animate-spin" /> : <Download size={13} />} Exportar
         </button>
       </div>
 
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm">
-        <div className="flex items-center gap-0 border-b border-slate-100 divide-x divide-slate-100">
+        <div className="grid grid-cols-2 sm:grid-cols-4 border-b border-slate-100 divide-x divide-y sm:divide-y-0 divide-slate-100">
           {[
             { label: "Total",       value: counts.total,      color: "text-slate-900" },
             { label: "Autorizadas", value: counts.authorized, color: "text-emerald-500" },
             { label: "Em processo", value: counts.pending,    color: "text-blue-500" },
             { label: "Com erro",    value: counts.error,      color: "text-rose-500" },
           ].map((k) => (
-            <div key={k.label} className="flex-1 px-5 py-4 flex flex-col gap-0.5">
-              <span className={cn("text-2xl font-black tracking-tight font-mono leading-none", k.color)}>{k.value}</span>
+            <div key={k.label} className="px-4 sm:px-5 py-3 sm:py-4 flex flex-col gap-0.5">
+              <span className={cn("text-xl sm:text-2xl font-black tracking-tight font-mono leading-none", k.color)}>{k.value}</span>
               <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">{k.label}</span>
             </div>
           ))}
         </div>
 
-        <div className="flex items-center gap-2 px-4 py-3 flex-wrap">
-          <div className="relative flex-1 min-w-[180px]">
+        <div className="grid grid-cols-1 sm:grid-cols-[minmax(0,1fr)_auto] items-center gap-2 px-4 py-3">
+          <div className="relative min-w-0">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={13} />
             <input
               type="text"
@@ -1354,8 +1354,8 @@ function NfseTabContent() {
           </div>
         )}
 
-        <div className="hidden lg:block overflow-auto max-h-[70vh]">
-          <table className="w-full min-w-[1220px] text-left border-collapse table-fixed">
+        <div className="hidden xl:block overflow-auto max-h-[70vh]">
+          <table className="w-full min-w-[1280px] text-left border-collapse table-fixed">
             <colgroup>
               <col className="w-8" />
               <col className="w-14" />
@@ -1363,9 +1363,9 @@ function NfseTabContent() {
               <col className="w-24" />
               <col className="w-32" />
               <col className="w-[16%]" />
-              <col className="w-32" />
-              <col className="w-32" />
-              <col className="w-80" />
+              <col className="w-44" />
+              <col className="w-36" />
+              <col className="w-72" />
             </colgroup>
             <thead>
               <tr className="sticky top-0 z-10 border-t border-slate-100 bg-slate-50">
@@ -1412,7 +1412,7 @@ function NfseTabContent() {
                     <td className="px-4 py-2.5 text-[10px] font-mono text-slate-400 truncate" title={inv.chave_acesso || undefined}>
                       {inv.chave_acesso ? `${inv.chave_acesso.slice(0, 8)}…${inv.chave_acesso.slice(-6)}` : "—"}
                     </td>
-                    <td className="px-4 py-2.5 whitespace-nowrap">
+                    <td className="px-4 py-2.5 whitespace-normal">
                       <span
                         title={(inv.status === "error" || inv.status === "rejected") ? (inv.rejection_reason ?? undefined) : undefined}
                         className={cn(
@@ -1433,11 +1433,11 @@ function NfseTabContent() {
                         </button>
                       )}
                     </td>
-                    <td className="px-4 py-2.5 pl-6 text-xs text-slate-500 whitespace-nowrap">
+                    <td className="px-4 py-2.5 text-xs text-slate-500 whitespace-nowrap">
                       {inv.authorized_at ? new Date(inv.authorized_at).toLocaleString("pt-BR") : "—"}
                     </td>
                     <td className="px-4 py-2.5 pr-5">
-                      <div className="flex items-center gap-2 justify-end flex-nowrap shrink-0">
+                      <div className="flex items-center gap-2 justify-end flex-wrap shrink-0">
                         {(inv.status === "error" || inv.status === "rejected") && (
                           <>
                             <button
@@ -1489,7 +1489,7 @@ function NfseTabContent() {
         </div>
 
         {/* Mobile/tablet: cards empilhados em vez da tabela */}
-        <div className="lg:hidden divide-y divide-slate-100">
+        <div className="xl:hidden divide-y divide-slate-100">
           {loading && (
             <div className="px-4 py-10 text-center text-slate-400 text-xs">Carregando...</div>
           )}
@@ -1540,7 +1540,7 @@ function NfseTabContent() {
                   </button>
                 )}
 
-                <div className="flex items-center justify-between pl-7">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 pl-7">
                   <span className="text-[10px] text-slate-400 font-medium">
                     {inv.authorized_at ? new Date(inv.authorized_at).toLocaleString("pt-BR") : "—"}
                   </span>
@@ -1849,11 +1849,11 @@ export default function NfceInvoices() {
         subtitle="NFC-e e NFS-e emitidas junto à SEFAZ/prefeitura · exporte o relatório para o contador"
       />
 
-      <div className="flex items-center gap-1 bg-slate-100 rounded-xl p-1 w-fit">
+      <div className="flex items-center gap-1 bg-slate-100 rounded-xl p-1 w-full sm:w-fit">
         <button
           onClick={() => setTab("nfce")}
           className={cn(
-            "h-9 px-4 rounded-lg text-[11px] font-black uppercase tracking-widest transition-all",
+            "flex-1 sm:flex-none h-9 px-2.5 sm:px-4 rounded-lg text-[10px] sm:text-[11px] font-black uppercase tracking-wide sm:tracking-widest transition-all whitespace-nowrap",
             tab === "nfce" ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700",
           )}
         >
@@ -1862,7 +1862,7 @@ export default function NfceInvoices() {
         <button
           onClick={() => setTab("nfse")}
           className={cn(
-            "h-9 px-4 rounded-lg text-[11px] font-black uppercase tracking-widest transition-all",
+            "flex-1 sm:flex-none h-9 px-2.5 sm:px-4 rounded-lg text-[10px] sm:text-[11px] font-black uppercase tracking-wide sm:tracking-widest transition-all whitespace-nowrap",
             tab === "nfse" ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700",
           )}
         >
