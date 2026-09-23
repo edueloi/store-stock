@@ -3,7 +3,7 @@ import bwipjs from "bwip-js";
 
 import { generateQrCodePng } from "./qrcode";
 
-function formatCpfCnpjDanfe(v: string | null | undefined): string {
+export function formatCpfCnpjDanfe(v: string | null | undefined): string {
   const d = String(v || "").replace(/\D/g, "");
   if (d.length === 14) return d.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/, "$1.$2.$3/$4-$5");
   if (d.length === 11) return d.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, "$1.$2.$3-$4");
@@ -210,7 +210,7 @@ export async function generateDanfeA4Pdf(input: DanfeInput): Promise<Buffer> {
     doc.fillColor(colorText).font("Helvetica-Bold").fontSize(12)
       .text(input.storeName || "", textX, headerTop, { width: textWidth });
     doc.font("Helvetica").fontSize(8).fillColor(colorMuted);
-    doc.text(input.storeDocument, textX, doc.y + 2, { width: textWidth });
+    doc.text(`CNPJ: ${formatCpfCnpjDanfe(input.storeDocument.replace(/\D/g, ""))}`, textX, doc.y + 2, { width: textWidth });
     if (input.storeAddress) doc.text(input.storeAddress, textX, doc.y + 1, { width: textWidth });
     if (input.storeStateRegistration) doc.text(`IE: ${input.storeStateRegistration}`, textX, doc.y + 1, { width: textWidth });
 

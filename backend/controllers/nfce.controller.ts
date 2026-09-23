@@ -7,7 +7,7 @@ import { prisma } from "../config/prisma";
 import type { AuthenticatedRequest } from "../types/auth";
 import { emitirNfce, paymentsFromOrder } from "../services/nfce/emitir";
 import { cancelarNfce } from "../services/nfce/cancelar";
-import { generateDanfeA4Pdf } from "../services/nfce/danfe";
+import { generateDanfeA4Pdf, formatCpfCnpjDanfe } from "../services/nfce/danfe";
 import { emitToTenant } from "../services/realtime.service";
 import { sendWhatsappDocument } from "../services/whatsapp.service";
 
@@ -37,12 +37,14 @@ async function rebuildDanfePdf(orderId: number, tenantId: number, invoice: { acc
   let customerName: string | undefined;
   let customerDocument = order.customer_document ?? undefined;
   if (order.customer_id) {
-    const customer = await prisma.customer.findUnique({ where: { id: order.customer_id }, select: { name: true, document: true } });
-    customerName = customer?.name ?? undefined;
+    const customer = await prisma.customer.findUnique({ where: { id: order.customer_id }, select: { name: true, legal_name: true, document: true } });
+    // Preferir a razão social (preenchida ao buscar o CNPJ na Receita) sobre o
+    // nome/apelido cadastrado manualmente, que pode estar incompleto.
+    customerName = customer?.legal_name || customer?.name || undefined;
     if (!customerDocument) customerDocument = customer?.document ?? undefined;
   }
   const customerLabel = customerDocument
-    ? `CONSUMIDOR: ${customerName ?? ""} ${customerDocument}`.trim()
+    ? `CONSUMIDOR: ${customerName ?? ""} ${formatCpfCnpjDanfe(customerDocument)}`.trim()
     : "CONSUMIDOR NÃO IDENTIFICADO";
 
   let logoBuffer: Buffer | null = null;

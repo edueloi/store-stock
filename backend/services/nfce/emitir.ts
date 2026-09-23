@@ -10,7 +10,7 @@ import { buildNfceXml, type PaymentSegment } from "./xmlBuilder";
 import { loadPfx, assinarNfce } from "./signer";
 import { callSefazSoap, extractProtTag } from "./soapClient";
 import { buildQrCodeUrl, buildUrlChave } from "./qrcode";
-import { generateDanfePdf, generateDanfeA4Pdf, type DanfeInput } from "./danfe";
+import { generateDanfePdf, generateDanfeA4Pdf, formatCpfCnpjDanfe, type DanfeInput } from "./danfe";
 
 // Traduz o "tPag" derivado do token de pagamento do PDV (ver sales.controller.ts)
 export function paymentsFromOrder(paymentMethod: string | null): PaymentSegment[] {
@@ -80,10 +80,13 @@ export async function emitirNfce(orderId: number): Promise<void> {
     if (order.customer_id) {
       const customer = await prisma.customer.findUnique({
         where: { id: order.customer_id },
-        select: { document: true, name: true },
+        select: { document: true, name: true, legal_name: true },
       });
       if (!customerDocument) customerDocument = customer?.document ?? undefined;
-      customerName = customer?.name ?? undefined;
+      // Preferir a razão social (preenchida ao buscar o CNPJ na Receita) sobre o
+      // nome/apelido cadastrado manualmente, que pode estar incompleto (ex.:
+      // "UNIMED SEDE" em vez de "UNIMED DE TATUI COOPERATIVA DE TRABALHO MEDICO").
+      customerName = customer?.legal_name || customer?.name || undefined;
     }
 
     // Item avulso (vendido sem produto no catálogo, ver sales.controller.ts) não tem
@@ -228,7 +231,7 @@ export async function emitirNfce(orderId: number): Promise<void> {
     // customerName já foi buscado acima (mesma prioridade de customerDocument, usada
     // também no XML) — se ausente, o cupom identifica como consumidor não identificado.
     const customerLabel = customerDocument
-      ? `CONSUMIDOR: ${customerName ?? ""} ${customerDocument}`.trim()
+      ? `CONSUMIDOR: ${customerName ?? ""} ${formatCpfCnpjDanfe(customerDocument)}`.trim()
       : "CONSUMIDOR NÃO IDENTIFICADO";
 
     // logo_url é sempre um path relativo tipo "/uploads/logos/<tenant>/<arquivo>",
