@@ -47,6 +47,11 @@ export default defineConfig(({mode}) => {
     },
     build: {
       rollupOptions: {
+        // Página estática de prévia do logo, publicada em /logo.html.
+        input: {
+          main: path.resolve(__dirname, 'index.html'),
+          logo: path.resolve(__dirname, 'logo.html'),
+        },
         output: {
           // Stable named chunks for heavy libs — avoids hash-mismatch 404s on deploy
           manualChunks(id) {
