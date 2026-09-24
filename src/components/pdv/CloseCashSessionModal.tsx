@@ -22,6 +22,15 @@ function fmt(v: number | string) {
   return `R$ ${Number(v).toFixed(2)}`;
 }
 
+function ClosingMetric({ label, value, tone = "text-slate-800" }: { label: string; value: string; tone?: string }) {
+  return (
+    <div className="min-w-0">
+      <dt className="text-[9px] font-black uppercase tracking-wider text-slate-400">{label}</dt>
+      <dd className={`mt-0.5 truncate font-mono text-[12px] font-bold ${tone}`} title={value}>{value}</dd>
+    </div>
+  );
+}
+
 export default function CloseCashSessionModal({ onCancel, onConfirm, onFinish }: CloseCashSessionModalProps) {
   const [step, setStep] = useState<"count" | "result">("count");
   const [mode, setMode] = useState<"simple" | "count">("simple");
@@ -69,7 +78,7 @@ export default function CloseCashSessionModal({ onCancel, onConfirm, onFinish }:
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
       <div className={`w-full bg-white rounded-2xl border border-slate-200 shadow-2xl overflow-hidden transition-all max-h-[90vh] flex flex-col ${
-        step === "count" && mode === "count" ? "max-w-2xl" : "max-w-md"
+        step === "count" && mode === "count" ? "max-w-2xl" : step === "result" ? "max-w-lg" : "max-w-md"
       }`}>
         <div className="flex items-center justify-between px-5 h-12 border-b border-slate-100 shrink-0">
           <div className="flex items-center gap-2">
@@ -204,7 +213,7 @@ export default function CloseCashSessionModal({ onCancel, onConfirm, onFinish }:
             </div>
           </div>
         ) : result?.pendingSync ? (
-          <div className="p-5 space-y-4 overflow-y-auto min-h-0">
+          <div className="p-4 sm:p-5 space-y-4 overflow-y-auto min-h-0">
             <div className="flex items-center gap-2 rounded-xl px-3 py-2.5 border bg-amber-50 border-amber-100">
               <AlertTriangle size={16} className="text-amber-500" />
               <p className="text-[12px] font-black text-amber-700">Fechamento registrado offline</p>
@@ -221,7 +230,7 @@ export default function CloseCashSessionModal({ onCancel, onConfirm, onFinish }:
             </button>
           </div>
         ) : (
-          <div className="p-5 space-y-4 overflow-y-auto min-h-0">
+          <div className="p-4 sm:p-5 space-y-4 overflow-y-auto min-h-0">
             <div className={`flex items-center gap-2 rounded-xl px-3 py-2.5 border ${
               diff === 0 ? "bg-emerald-50 border-emerald-100" : diff > 0 ? "bg-blue-50 border-blue-100" : "bg-red-50 border-red-100"
             }`}>
@@ -231,54 +240,42 @@ export default function CloseCashSessionModal({ onCancel, onConfirm, onFinish }:
               </p>
             </div>
 
-            <div className="rounded-xl border border-slate-200 overflow-hidden">
-              <table className="w-full text-[11px]">
-                <thead className="bg-slate-50 text-slate-400 uppercase tracking-widest text-[9px] font-bold">
-                  <tr>
-                    <td className="px-3 py-2">Forma</td>
-                    <td className="px-3 py-2 text-right">Esperado</td>
-                    <td className="px-3 py-2 text-right">Taxa</td>
-                    <td className="px-3 py-2 text-right">Líquido</td>
-                    <td className="px-3 py-2 text-right">Contado</td>
-                    <td className="px-3 py-2 text-right">Diferença</td>
-                  </tr>
-                </thead>
-                <tbody>
-                  {Object.entries(breakdown).map(([method, entry]) => (
-                    <tr key={method} className="border-t border-slate-100">
-                      <td className="px-3 py-2 font-bold text-slate-700">{METHOD_LABELS[method] ?? method}</td>
-                      <td className="px-3 py-2 text-right font-mono text-slate-600">{fmt(entry.expected)}</td>
-                      <td className="px-3 py-2 text-right font-mono text-amber-600">
-                        {entry.fee ? `-${fmt(entry.fee)}` : "—"}
-                      </td>
-                      <td className="px-3 py-2 text-right font-mono text-slate-600">
-                        {entry.net !== undefined ? fmt(entry.net) : "—"}
-                      </td>
-                      <td className="px-3 py-2 text-right font-mono text-slate-600">
-                        {entry.counted !== undefined ? fmt(entry.counted) : "—"}
-                      </td>
-                      <td className={`px-3 py-2 text-right font-mono font-bold ${
-                        entry.difference === undefined ? "text-slate-300" :
-                        entry.difference === 0 ? "text-slate-500" : entry.difference > 0 ? "text-blue-600" : "text-red-500"
+            <div className="space-y-2">
+              {Object.entries(breakdown).map(([method, entry]) => {
+                const differenceTone = entry.difference === undefined ? "text-slate-400" :
+                  entry.difference === 0 ? "text-emerald-600" : entry.difference > 0 ? "text-blue-600" : "text-rose-600";
+                const differenceValue = entry.difference === undefined ? "Não informado" :
+                  entry.difference === 0 ? "Confere" : `${entry.difference > 0 ? "+" : ""}${fmt(entry.difference)}`;
+
+                return (
+                  <section key={method} className="rounded-xl border border-slate-200 bg-white p-3 sm:p-4">
+                    <div className="mb-3 flex items-center justify-between gap-3">
+                      <h3 className="text-[12px] font-black text-slate-800">{METHOD_LABELS[method] ?? method}</h3>
+                      <span className={`shrink-0 rounded-full px-2 py-1 text-[9px] font-black uppercase tracking-wide ${
+                        entry.difference === undefined ? "bg-slate-100 text-slate-500" :
+                        entry.difference === 0 ? "bg-emerald-50 text-emerald-700" : entry.difference > 0 ? "bg-blue-50 text-blue-700" : "bg-rose-50 text-rose-700"
                       }`}>
-                        {entry.difference !== undefined ? fmt(entry.difference) : "—"}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-                {totalFee > 0 && (
-                  <tfoot>
-                    <tr className="border-t-2 border-slate-200 bg-slate-50">
-                      <td className="px-3 py-2 font-black text-slate-700 uppercase text-[9px] tracking-widest">Total taxas</td>
-                      <td colSpan={2} className="px-3 py-2 text-right font-mono font-bold text-amber-600">-{fmt(totalFee)}</td>
-                      <td colSpan={3} className="px-3 py-2 text-right font-mono font-bold text-slate-700">
-                        Líquido: {fmt(Number(result?.expected_amount ?? 0) - totalFee)}
-                      </td>
-                    </tr>
-                  </tfoot>
-                )}
-              </table>
+                        {differenceValue}
+                      </span>
+                    </div>
+                    <dl className="grid grid-cols-2 sm:grid-cols-3 gap-x-4 gap-y-3">
+                      <ClosingMetric label="Esperado" value={fmt(entry.expected)} />
+                      <ClosingMetric label="Taxa" value={entry.fee ? `-${fmt(entry.fee)}` : "Sem taxa"} tone={entry.fee ? "text-amber-600" : "text-slate-500"} />
+                      <ClosingMetric label="Líquido" value={entry.net !== undefined ? fmt(entry.net) : "—"} />
+                      <ClosingMetric label="Contado" value={entry.counted !== undefined ? fmt(entry.counted) : "Não contado"} />
+                      <ClosingMetric label="Diferença" value={differenceValue} tone={differenceTone} />
+                    </dl>
+                  </section>
+                );
+              })}
             </div>
+
+            {totalFee > 0 && (
+              <dl className="grid grid-cols-2 gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3 sm:p-4">
+                <ClosingMetric label="Total de taxas" value={`-${fmt(totalFee)}`} tone="text-amber-600" />
+                <ClosingMetric label="Líquido esperado" value={fmt(Number(result?.expected_amount ?? 0) - totalFee)} />
+              </dl>
+            )}
 
             <button
               onClick={onFinish}
