@@ -29,8 +29,8 @@ async function attachFrontend(app: express.Express) {
   }
 
   const distPath = path.join(process.cwd(), "dist");
-  // sw.js (e o manifest do PWA, e qualquer outro precache do injectManifest)
-  // precisam ser sempre revalidados — 1 ano de cache imutável nesses arquivos
+  // O SW e toda página HTML precisam ser sempre revalidados — 1 ano de cache
+  // imutável nesses arquivos
   // é o que fazia o Safari (e às vezes outros navegadores) nunca buscar a
   // versão nova do Service Worker mesmo com registration.update() forçado no
   // foco da aba: o cache HTTP intercepta o request antes de chegar no
@@ -40,7 +40,7 @@ async function attachFrontend(app: express.Express) {
     maxAge: "1y",
     immutable: true,
     setHeaders: (res, filePath) => {
-      if (/(^|\/)(sw\.js|sw\.mjs|manifest\.webmanifest|registerSW\.js)$/.test(filePath)) {
+      if (/\.html$/.test(filePath) || /(^|\/)(sw\.js|sw\.mjs|manifest\.webmanifest|registerSW\.js)$/.test(filePath)) {
         res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
       }
     },
