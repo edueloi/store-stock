@@ -127,7 +127,10 @@ export function buildCashCloseReceiptText(
   let totalFee = 0;
   if (session.payment_breakdown) {
     receipt += `${thermalThin}\n${thermalCenter("POR FORMA DE PAGAMENTO")}\n${thermalThin}\n`;
-    Object.entries(session.payment_breakdown).forEach(([method, entry]) => {
+    Object.entries(session.payment_breakdown).forEach(([method, entry], index) => {
+      // Cada meio de pagamento é um bloco próprio no papel. Sem esse respiro,
+      // PIX, débito, crédito e suas taxas parecem uma única lista contínua.
+      if (index > 0) receipt += `\n${thermalThin}\n`;
       if (method === "money") {
         const openingAmount = Number(session.opening_amount);
         const salesAmount = entry.sales_amount ?? Math.round((entry.expected - openingAmount) * 100) / 100;
