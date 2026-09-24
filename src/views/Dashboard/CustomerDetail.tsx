@@ -488,21 +488,21 @@ export default function CustomerDetail() {
     } finally { setSavingDebt(false); }
   }
 
-  async function handlePayDebt(debtId: number) {
-    if (!detail) return;
-    await fetch(`/api/customers/${detail.id}/debts/${debtId}/pay`, { method: "POST", headers: authH() });
-    await fetchDetail(detail.id);
+  function openDebtPayment(debtId: number, remaining: number) {
+    // Um recebimento por vez deixa o fluxo do caixa claro: dívida escolhida,
+    // forma de pagamento e valor recebido. O valor pode ser editado para uma
+    // baixa parcial sem jamais quitar o saldo inteiro automaticamente.
+    setSelectedDebtIds(new Set([debtId]));
+    setPayAmounts({ [debtId]: remaining.toFixed(2) });
+    setPaySegments([newPaymentSegment(remaining.toFixed(2))]);
+    setPayDebtsError(null);
   }
 
-  function toggleDebtSelection(debtId: number, checked: boolean, remaining: number) {
-    setSelectedDebtIds((prev) => {
-      const next = new Set(prev);
-      if (checked) next.add(debtId); else next.delete(debtId);
-      return next;
-    });
-    if (checked) {
-      setPayAmounts((prev) => ({ ...prev, [debtId]: prev[debtId] ?? remaining.toFixed(2) }));
-    }
+  function cancelDebtPayment() {
+    setSelectedDebtIds(new Set());
+    setPayAmounts({});
+    setPaySegments([newPaymentSegment()]);
+    setPayDebtsError(null);
   }
 
   async function handlePaySelectedDebts() {
@@ -512,28 +512,58 @@ export default function CustomerDetail() {
     try {
       const payments = paySegments
         .filter((s) => (Number(s.amount) || 0) > 0)
-        .map((s) => ({ method: s.method, brand: s.cardBrand, installments: s.installments, amount: Number(s.amount) }));
+        .map((s) => ({ method: s.method, brand: s.cardBrand, installments: s.installments, amount: Math.round(Number(s.amount) * 100) / 100 }));
       if (payments.length === 0) { setPayDebtsError("Informe ao menos uma forma de pagamento"); return; }
 
-      // Uma dívida selecionada por vez, cada uma com a mesma composição de formas —
-      // se houver mais de uma dívida selecionada, os segmentos precisam ser
-      // proporcionalmente ajustados por dívida (feito abaixo por dívida individual,
-      // usando o valor a pagar daquela dívida como referência).
-      for (const debtId of selectedDebtIds) {
-        const debtAmount = Number(payAmounts[debtId] ?? 0);
-        if (debtAmount <= 0) continue;
-        const segTotal = payments.reduce((s, p) => s + p.amount, 0);
-        const scale = segTotal > 0 ? debtAmount / segTotal : 1;
-        const scaledPayments = payments.map((p) => ({ ...p, amount: Math.round(p.amount * scale * 100) / 100 }));
+      const selectedDebts = Array.from(selectedDebtIds).map((debtId) => {
+        const debt = detail.debts.find((item) => item.id === debtId);
+        const remaining = debt ? Number(debt.amount) - Number(debt.amount_paid ?? 0) : 0;
+        const requested = Number(payAmounts[debtId] ?? 0);
+        return { debtId, amount: Math.min(Math.max(0, requested), remaining) };
+      }).filter((debt) => debt.amount > 0);
+
+      const requestedTotal = selectedDebts.reduce((sum, debt) => sum + debt.amount, 0);
+      const receivedTotal = payments.reduce((sum, payment) => sum + payment.amount, 0);
+      if (receivedTotal > requestedTotal + 0.005) {
+        setPayDebtsError("O valor recebido é maior que o total selecionado das dívidas.");
+        return;
+      }
+
+      // Consome exatamente o que foi recebido. Quando o pagamento é parcial,
+      // o restante da dívida permanece em aberto; nunca se aumenta o valor dos
+      // segmentos para quitar uma dívida inteira.
+      const pendingPayments = payments.map((payment) => ({ ...payment }));
+      let remainingToAllocate = Math.round(receivedTotal * 100) / 100;
+
+      for (const { debtId, amount } of selectedDebts) {
+        if (remainingToAllocate <= 0.005) break;
+        let amountForDebt = Math.min(amount, remainingToAllocate);
+        const debtPayments: typeof payments = [];
+
+        for (const payment of pendingPayments) {
+          if (amountForDebt <= 0.005) break;
+          if (payment.amount <= 0.005) continue;
+
+          const allocated = Math.min(payment.amount, amountForDebt);
+          debtPayments.push({ ...payment, amount: Math.round(allocated * 100) / 100 });
+          payment.amount = Math.round((payment.amount - allocated) * 100) / 100;
+          amountForDebt = Math.round((amountForDebt - allocated) * 100) / 100;
+        }
+
+        if (debtPayments.length === 0) break;
+        // Cada chamada recebe somente a parcela efetivamente alocada. Antes,
+        // a escala podia transformar R$ 500 recebidos em baixa de R$ 1.000.
         const res = await fetch(`/api/customers/${detail.id}/debts/${debtId}/pay-multi`, {
           method: "POST", headers: authH(),
-          body: JSON.stringify({ payments: scaledPayments }),
+          body: JSON.stringify({ payments: debtPayments }),
         });
         if (!res.ok) {
           const data = await res.json().catch(() => ({}));
           setPayDebtsError(data.error || "Falha ao registrar pagamento");
           return;
         }
+        const allocatedTotal = debtPayments.reduce((sum, payment) => sum + payment.amount, 0);
+        remainingToAllocate = Math.round((remainingToAllocate - allocatedTotal) * 100) / 100;
       }
       setSelectedDebtIds(new Set());
       setPayAmounts({});
@@ -1002,7 +1032,20 @@ export default function CustomerDetail() {
 
         {/* ─ FIADO / CREDIÁRIO ─ */}
         {detailTab === "fiado" && (
-          <div className="space-y-3">
+          <div className="space-y-4">
+            <section className="overflow-hidden rounded-2xl border border-violet-200 bg-gradient-to-br from-violet-600 to-indigo-700 p-4 text-white shadow-sm sm:p-5">
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <p className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-[0.18em] text-violet-100"><DollarSign size={13} /> Controle de crediário</p>
+                  <h2 className="mt-1 text-lg font-black tracking-tight">Recebimentos e saldo do cliente</h2>
+                  <p className="mt-1 text-[11px] font-medium text-violet-100">Escolha uma dívida para informar valor e forma de pagamento.</p>
+                </div>
+                <div className="rounded-xl border border-white/20 bg-white/10 px-4 py-3 backdrop-blur-sm sm:min-w-40">
+                  <p className="text-[9px] font-black uppercase tracking-widest text-violet-100">Total em aberto</p>
+                  <p className="mt-1 text-xl font-black">{fmt(Number(detail.total_debt))}</p>
+                </div>
+              </div>
+            </section>
             {!showDebtForm ? (
               <button onClick={() => setShowDebtForm(true)}
                 className="w-full h-9 border-2 border-dashed border-slate-200 rounded-xl text-[12px] font-bold text-slate-500 hover:border-blue-400 hover:text-blue-600 transition-all flex items-center justify-center gap-1.5">
@@ -1046,15 +1089,11 @@ export default function CustomerDetail() {
                   const canExpand = hasOrderItems || isInstallmentPlan || hasPayments;
                   return (
                     <div key={d.id} className={cn(
-                      "rounded-xl border overflow-hidden",
-                      d.status === "paid" ? "bg-emerald-50 border-emerald-200" : isOverdue(d.due_date) ? "bg-red-50 border-red-200" : "bg-white border-slate-200"
+                      "rounded-2xl border overflow-hidden transition-all",
+                      d.status === "paid" ? "bg-emerald-50 border-emerald-200" : isOverdue(d.due_date) ? "bg-red-50 border-red-200" : "bg-white border-slate-200 shadow-sm",
+                      selectedDebtIds.has(d.id) && "ring-2 ring-violet-400 border-violet-300"
                     )}>
                       <div className="flex items-start gap-3 p-3">
-                        {d.status === "open" && !isInstallmentPlan && (
-                          <input type="checkbox" checked={selectedDebtIds.has(d.id)}
-                            onChange={(e) => toggleDebtSelection(d.id, e.target.checked, remaining)}
-                            className="mt-1.5 w-4 h-4 accent-blue-600" />
-                        )}
                         <div className={cn("w-8 h-8 rounded-lg flex items-center justify-center shrink-0 mt-0.5", d.status === "paid" ? "bg-emerald-100" : "bg-red-100")}>
                           {d.status === "paid" ? <CheckCircle2 size={15} className="text-emerald-600" /> : <Clock size={15} className="text-red-500" />}
                         </div>
@@ -1090,13 +1129,20 @@ export default function CustomerDetail() {
                         </div>
                         {d.status === "open" && (
                           <div className="flex flex-col items-end gap-1.5 shrink-0">
-                            {!isInstallmentPlan && selectedDebtIds.has(d.id) && (
-                              <input type="number" min={0} max={remaining} step="0.01"
-                                value={payAmounts[d.id] ?? remaining.toFixed(2)}
-                                onChange={(e) => setPayAmounts((prev) => ({ ...prev, [d.id]: e.target.value }))}
-                                className="w-20 h-7 px-2 rounded-lg border border-slate-200 text-[11px] font-mono focus:outline-none focus:border-blue-400" />
-                            )}
                             <div className="flex gap-1">
+                              {!isInstallmentPlan && (
+                                <button
+                                  onClick={() => selectedDebtIds.has(d.id) ? cancelDebtPayment() : openDebtPayment(d.id, remaining)}
+                                  className={cn(
+                                    "h-7 px-2.5 rounded-lg text-[9px] font-black uppercase tracking-wide transition-colors flex items-center gap-1",
+                                    selectedDebtIds.has(d.id)
+                                      ? "bg-violet-600 text-white hover:bg-violet-700"
+                                      : "bg-emerald-600 text-white hover:bg-emerald-700"
+                                  )}
+                                >
+                                  <DollarSign size={11} /> {selectedDebtIds.has(d.id) ? "Recebendo" : "Receber"}
+                                </button>
+                              )}
                               {isInstallmentPlan && (
                                 <button onClick={() => printInstallmentBooklet(d)} title="Imprimir carnê (impressora térmica)" className="p-1.5 bg-emerald-100 hover:bg-emerald-200 text-emerald-600 rounded-lg transition-colors">
                                   <Printer size={13} />
@@ -1110,11 +1156,6 @@ export default function CustomerDetail() {
                               {isInstallmentPlan && !hasAnyPayment && (
                                 <button onClick={() => openReconfigure(d)} title="Reconfigurar parcelas" className="p-1.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg transition-colors">
                                   <Edit2 size={13} />
-                                </button>
-                              )}
-                              {!isInstallmentPlan && (
-                                <button onClick={() => handlePayDebt(d.id)} title="Quitar tudo agora" className="p-1.5 bg-emerald-100 hover:bg-emerald-200 text-emerald-600 rounded-lg transition-colors">
-                                  <CheckCircle2 size={13} />
                                 </button>
                               )}
                               <button onClick={() => handleDeleteDebt(d.id)} title="Remover" className="p-1.5 hover:bg-red-50 text-slate-300 hover:text-red-400 rounded-lg transition-colors">
@@ -1203,6 +1244,7 @@ export default function CustomerDetail() {
                                     maxInstallments={maxInstallments}
                                     enabledBrands={enabledBrands}
                                     totalToPay={Number(installmentPayAmounts[inst.id] ?? instRemaining)}
+                                    allowPartial
                                   />
                                   {payInstallmentError[inst.id] && (
                                     <p className="text-[10px] font-bold text-red-600">{payInstallmentError[inst.id]}</p>
@@ -1262,7 +1304,26 @@ export default function CustomerDetail() {
             )}
 
             {selectedDebtIds.size > 0 && (
-              <div className="sticky bottom-0 bg-white border border-slate-200 rounded-xl p-3 space-y-2 shadow-lg">
+              <div className="sticky bottom-0 rounded-2xl border border-violet-200 bg-white p-3 shadow-xl shadow-violet-100/60 sm:p-4 space-y-3">
+                {(() => {
+                  const debtId = Array.from(selectedDebtIds)[0];
+                  const debt = detail.debts.find((item) => item.id === debtId);
+                  const remaining = debt ? Number(debt.amount) - Number(debt.amount_paid ?? 0) : 0;
+                  const receiving = paySegments.reduce((sum, segment) => sum + (Number(segment.amount) || 0), 0);
+                  const afterPayment = Math.max(0, remaining - receiving);
+                  return (
+                    <div className="flex items-start justify-between gap-3 rounded-xl bg-violet-50 border border-violet-100 px-3 py-2.5">
+                      <div className="min-w-0">
+                        <p className="text-[9px] font-black uppercase tracking-widest text-violet-500">Receber pagamento</p>
+                        <p className="mt-0.5 truncate text-[12px] font-black text-slate-800">{debt?.description ?? "Dívida selecionada"}</p>
+                        <p className="mt-0.5 text-[10px] font-semibold text-slate-500">Em aberto: {fmt(remaining)} · Após esta baixa: {fmt(afterPayment)}</p>
+                      </div>
+                      <button onClick={cancelDebtPayment} className="h-7 px-2.5 rounded-lg border border-violet-200 bg-white text-[9px] font-black uppercase tracking-wide text-violet-600 hover:bg-violet-100 transition-colors shrink-0">
+                        Cancelar
+                      </button>
+                    </div>
+                  );
+                })()}
                 <PaymentSegmentsEditor
                   segments={paySegments}
                   onChange={setPaySegments}
@@ -1270,11 +1331,13 @@ export default function CustomerDetail() {
                   maxInstallments={maxInstallments}
                   enabledBrands={enabledBrands}
                   totalToPay={Array.from(selectedDebtIds).reduce((s, id) => s + Number(payAmounts[id] ?? 0), 0)}
+                  allowPartial
                 />
                 {payDebtsError && <p className="text-[10px] font-bold text-red-600">{payDebtsError}</p>}
                 <button onClick={handlePaySelectedDebts} disabled={payingDebts}
-                  className="w-full h-9 bg-emerald-600 text-white rounded-lg text-[12px] font-bold hover:bg-emerald-700 disabled:opacity-50 transition-all">
-                  {payingDebts ? "Pagando…" : `Pagar ${selectedDebtIds.size} dívida(s)`}
+                  className="w-full h-10 bg-emerald-600 text-white rounded-xl text-[12px] font-black hover:bg-emerald-700 disabled:opacity-50 transition-all flex items-center justify-center gap-1.5">
+                  {payingDebts ? <Loader2 size={14} className="animate-spin" /> : <DollarSign size={14} />}
+                  {payingDebts ? "Registrando…" : "Confirmar recebimento"}
                 </button>
               </div>
             )}

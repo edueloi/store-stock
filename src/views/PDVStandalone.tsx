@@ -4807,6 +4807,7 @@ ${nfceInvoice.protocol ? `<div class="row"><span class="bold">Protocolo:</span><
                                                 maxInstallments={maxInstallments}
                                                 enabledBrands={enabledBrands}
                                                 totalToPay={instRemaining}
+                                                allowPartial
                                               />
                                             </div>
                                             {crediarioInstallmentPayError[inst.id] && (
@@ -4842,6 +4843,7 @@ ${nfceInvoice.protocol ? `<div class="row"><span class="bold">Protocolo:</span><
                                       maxInstallments={maxInstallments}
                                       enabledBrands={enabledBrands}
                                       totalToPay={remaining}
+                                      allowPartial
                                     />
                                   </div>
                                   {crediarioPayError[d.id] && (

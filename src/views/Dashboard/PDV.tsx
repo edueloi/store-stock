@@ -4510,6 +4510,7 @@ export default function PDV() {
                                                 maxInstallments={maxInstallments}
                                                 enabledBrands={enabledBrands}
                                                 totalToPay={instRemaining}
+                                                allowPartial
                                               />
                                             </div>
                                             {crediarioInstallmentPayError[inst.id] && (
@@ -4545,6 +4546,7 @@ export default function PDV() {
                                       maxInstallments={maxInstallments}
                                       enabledBrands={enabledBrands}
                                       totalToPay={remaining}
+                                      allowPartial
                                     />
                                   </div>
                                   {crediarioPayError[d.id] && (

@@ -28,6 +28,9 @@ interface PaymentSegmentsEditorProps {
   // dívida/parcela) — usado só pra mostrar a diferença visualmente, não bloqueia
   // digitação.
   totalToPay: number;
+  // No crediário, a diferença positiva é um saldo que continuará em aberto,
+  // não um impedimento para registrar o pagamento parcial.
+  allowPartial?: boolean;
 }
 
 // Editor de múltiplas formas de pagamento simultâneas (dinheiro + cartão parcelado,
@@ -36,7 +39,7 @@ interface PaymentSegmentsEditorProps {
 // interno, PDVStandalone). Sem opção de "crediário" aqui — pagar fiado com fiado não
 // faz sentido no contexto onde este editor é usado.
 export default function PaymentSegmentsEditor({
-  segments, onChange, cardFees, maxInstallments, enabledBrands, totalToPay,
+  segments, onChange, cardFees, maxInstallments, enabledBrands, totalToPay, allowPartial = false,
 }: PaymentSegmentsEditorProps) {
   const updateSegment = (id: string, patch: Partial<PaymentSegment>) => {
     onChange(segments.map((s) => (s.id === id ? { ...s, ...patch } : s)));
@@ -126,7 +129,11 @@ export default function PaymentSegmentsEditor({
         </button>
         {Math.abs(diff) > 0.005 && (
           <span className={cn("text-[10px] font-bold", diff > 0 ? "text-amber-600" : "text-red-600")}>
-            {diff > 0 ? `Faltam R$ ${diff.toFixed(2)}` : `Excede em R$ ${Math.abs(diff).toFixed(2)}`}
+            {diff > 0
+              ? allowPartial
+                ? `Pagamento parcial: R$ ${diff.toFixed(2)} permanecerá em aberto`
+                : `Faltam R$ ${diff.toFixed(2)}`
+              : `Excede em R$ ${Math.abs(diff).toFixed(2)}`}
           </span>
         )}
       </div>
