@@ -84,6 +84,9 @@ export default function PwaUpdateBanner() {
       navigator.serviceWorker?.getRegistration().then((reg) => reg?.update()).catch(() => {});
     };
     const onVisibilityChange = () => { if (!document.hidden) checkForUpdate(); };
+    // Verifica também na abertura. Isso atende principalmente o Electron, que
+    // pode abrir sempre na mesma janela e não disparar foco/visibilidade.
+    checkForUpdate();
     document.addEventListener("visibilitychange", onVisibilityChange);
     window.addEventListener("focus", checkForUpdate);
     // Além do foco/visibilidade, verifica a cada 15 min mesmo com a aba parada
