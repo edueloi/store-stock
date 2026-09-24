@@ -54,10 +54,6 @@ export default function CloseCashSessionModal({ onCancel, onConfirm, onFinish }:
 
   const handleConfirm = async () => {
     if (submitting) return;
-    if (mode === "simple" && countedMoneyCents === "") {
-      setError("Informe o valor contado em dinheiro");
-      return;
-    }
     setSubmitting(true);
     setError(null);
     try {
