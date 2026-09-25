@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <meta name="theme-color" content="#0f172a" />
     <meta name="robots" content="index, follow" />
-    <meta name="author" content="BoxSys Store" />
+    <meta name="author" content="Store BoxSys" />
     <meta name="format-detection" content="telephone=no" />
     <meta property="og:type" content="website" />
     <meta property="og:locale" content="pt_BR" />
@@ -13,21 +13,20 @@
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-    <meta name="apple-mobile-web-app-title" content="BoxSys PDV" />
+    <meta name="apple-mobile-web-app-title" content="Store BoxSys" />
     <link rel="icon" type="image/png" href="/system/favicon.png" />
-    <!-- apple-touch-icon nunca suporta transparência (o iOS preenche com preto) — sempre a versão com fundo branco sólido -->
-    <link rel="apple-touch-icon" href="/system/logo-maskable-192.png" />
-    <link rel="apple-touch-icon" sizes="152x152" href="/system/logo-maskable-192.png" />
-    <link rel="apple-touch-icon" sizes="180x180" href="/system/logo-maskable-192.png" />
-    <link rel="apple-touch-icon" sizes="167x167" href="/system/logo-maskable-192.png" />
-    <title>BoxSys Store</title>
+    <link rel="apple-touch-icon" href="/system/favicon.png" />
+    <link rel="apple-touch-icon" sizes="152x152" href="/system/favicon.png" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/system/favicon.png" />
+    <link rel="apple-touch-icon" sizes="167x167" href="/system/favicon.png" />
+    <title>Store BoxSys</title>
     <!-- PWA manifest: /pdv route gets the landscape PDV-only manifest, everything else gets the full-system manifest -->
     <script>
       var l = document.createElement('link');
       l.rel = 'manifest';
       if (window.location.pathname.startsWith('/pdv')) {
         l.href = '/pdv-manifest.json';
-        document.title = 'BoxSys PDV';
+        document.title = 'Store BoxSys';
       } else {
         l.href = '/app-manifest.json';
       }
@@ -35,6 +34,18 @@
     </script>
   </head>
   <body>
+    <div id="app-splash" role="status" aria-label="Carregando Store BoxSys">
+      <style>
+        #app-splash{position:fixed;inset:0;z-index:99999;display:grid;place-items:center;background:#09161f;color:#fff;transition:opacity .28s ease,visibility .28s ease}
+        #app-splash.is-ready{opacity:0;visibility:hidden;pointer-events:none}
+        .splash-content{display:flex;flex-direction:column;align-items:center;gap:15px}
+        .splash-mark{width:112px;height:112px;overflow:visible}.splash-mark .piece{transform-box:fill-box;transform-origin:center;opacity:0;animation:splash-piece .62s cubic-bezier(.22,.9,.34,1) both}.splash-mark .a{animation-delay:0ms;--x:-20px;--y:-28px;--r:-8deg}.splash-mark .b{animation-delay:65ms;--x:20px;--y:-27px;--r:8deg}.splash-mark .c{animation-delay:130ms;--x:-34px;--y:3px;--r:-6deg}.splash-mark .d{animation-delay:195ms;--x:34px;--y:3px;--r:6deg}.splash-mark .e{animation-delay:260ms;--x:-14px;--y:23px;--r:-3deg}.splash-mark .f{animation-delay:325ms;--x:14px;--y:23px;--r:3deg}@keyframes splash-piece{0%{opacity:0;transform:translate(var(--x),var(--y)) rotate(var(--r)) scale(.82)}72%{opacity:1;transform:translate(-2px,1px) rotate(0) scale(1.025)}100%{opacity:1;transform:translate(0) rotate(0) scale(1)}}.splash-name{font:800 24px/1 Arial,sans-serif;letter-spacing:-1.1px;opacity:0;animation:splash-name .55s cubic-bezier(.16,1,.3,1) .54s both}.splash-name b{color:#f58d0a}.splash-name strong{color:#297ed1}.splash-sub{font:700 9px/1 Arial,sans-serif;letter-spacing:2.5px;color:#8aa5c7;opacity:0;animation:splash-name .55s cubic-bezier(.16,1,.3,1) .68s both}@keyframes splash-name{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}@media(prefers-reduced-motion:reduce){.splash-mark .piece,.splash-name,.splash-sub{animation:none;opacity:1}}
+      </style>
+      <div class="splash-content">
+        <svg class="splash-mark" viewBox="180 40 280 260" aria-hidden="true"><polygon class="piece a" points="367,77 328,57 236,104 234,109 269,127 273,127 366,80" fill="#297ed1"/><polygon class="piece b" points="348,105 350,108 385,126 389,126 422,108 420,104 387,87" fill="#297ed1"/><polygon class="piece c" points="196,149 198,155 282,198 287,198 319,167 319,163 233,119 228,119" fill="#ed670e"/><polygon class="piece d" points="458,149 427,119 422,119 338,162 337,167 369,198 373,198 455,156" fill="#eb5e10"/><polygon class="piece e" points="224,183 225,238 308,284 321,289 322,186 292,214 287,215" fill="#e53b2c"/><polygon class="piece f" points="430,184 369,216 365,216 334,186 335,288 430,238" fill="#f7920c"/></svg>
+        <div class="splash-name"><b>Store</b><strong> BoxSys</strong></div><div class="splash-sub">SISTEMA DE GESTÃO</div>
+      </div>
+    </div>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>

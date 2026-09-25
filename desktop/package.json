@@ -1,8 +1,8 @@
 {
   "name": "boxsys-pdv",
-  "productName": "BoxSys PDV",
+  "productName": "Store BoxSys",
   "version": "1.3.9",
-  "description": "Terminal de Vendas BoxSys — Aplicativo Desktop",
+  "description": "Store BoxSys — aplicativo desktop de vendas e gestão",
   "main": "main.cjs",
   "author": "BoxSys",
   "license": "UNLICENSED",
@@ -19,7 +19,7 @@
   },
   "build": {
     "appId": "com.boxsys.pdv",
-    "productName": "BoxSys PDV",
+    "productName": "Store BoxSys",
     "directories": {
       "output": "release"
     },
@@ -58,13 +58,13 @@
         }
       ],
       "icon": "icon.png",
-      "artifactName": "BoxSysPDV-Setup.${ext}"
+      "artifactName": "StoreBoxSys-Setup.${ext}"
     },
     "nsis": {
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
-      "shortcutName": "BoxSys PDV"
+      "shortcutName": "Store BoxSys"
     },
     "mac": {
       "target": [
@@ -78,7 +78,7 @@
       ],
       "icon": "icon.png",
       "category": "public.app-category.business",
-      "artifactName": "BoxSysPDV.${ext}"
+      "artifactName": "StoreBoxSys.${ext}"
     },
     "linux": {
       "target": [
@@ -91,7 +91,7 @@
       ],
       "icon": "icon.png",
       "category": "Office",
-      "artifactName": "BoxSysPDV.${ext}"
+      "artifactName": "StoreBoxSys.${ext}"
     }
   },
   "dependencies": {

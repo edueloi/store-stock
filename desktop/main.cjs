@@ -139,7 +139,7 @@ function entryUrl(server, mode) {
 }
 
 function windowTitle(mode) {
-  return mode === "admin" ? "BoxSys — Painel Completo" : "BoxSys PDV — Terminal de Caixa";
+  return mode === "admin" ? "Store BoxSys — Painel Completo" : "Store BoxSys — Terminal de Caixa";
 }
 
 // Quick reachability test against the server
@@ -170,9 +170,9 @@ let isQuitting = false;
 function createTray() {
   const icon = nativeImage.createFromPath(path.join(__dirname, "icon.png"));
   tray = new Tray(icon.resize({ width: 16, height: 16 }));
-  tray.setToolTip("BoxSys PDV");
+  tray.setToolTip("Store BoxSys");
   tray.setContextMenu(Menu.buildFromTemplate([
-    { label: "Abrir BoxSys PDV", click: () => showMainWindow() },
+    { label: "Abrir Store BoxSys", click: () => showMainWindow() },
     { type: "separator" },
     { label: "Sair", click: () => { isQuitting = true; app.quit(); } },
   ]));
