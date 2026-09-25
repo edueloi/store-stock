@@ -3507,20 +3507,20 @@ ${nfceInvoice.protocol ? `<div class="row"><span class="bold">Protocolo:</span><
                       </button>
                     </div>
                     <div className="rounded-xl border border-slate-200 bg-white overflow-hidden">
-                      <table className="w-full text-left">
+                      <table className="w-full table-fixed text-left">
                         <thead>
                           <tr className="bg-slate-50 border-b border-slate-100">
-                            <th className="px-3 py-2 text-[8px] font-black uppercase tracking-wider text-slate-400">Produto</th>
-                            <th className="px-2 py-2 text-[8px] font-black uppercase tracking-wider text-slate-400 text-right">Unit.</th>
-                            <th className="px-2 py-2 text-[8px] font-black uppercase tracking-wider text-slate-400 text-center">Qtd.</th>
-                            <th className="px-3 py-2 text-[8px] font-black uppercase tracking-wider text-slate-400 text-right">Subtotal</th>
+                            <th className="w-[46%] px-3 py-2 text-[8px] font-black uppercase tracking-wider text-slate-400">Produto</th>
+                            <th className="hidden px-2 py-2 text-[8px] font-black uppercase tracking-wider text-slate-400 text-right 3xl:table-cell">Unit.</th>
+                            <th className="w-[23%] px-1 py-2 text-[8px] font-black uppercase tracking-wider text-slate-400 text-center">Qtd.</th>
+                            <th className="w-[22%] px-2 py-2 text-[8px] font-black uppercase tracking-wider text-slate-400 text-right">Subtotal</th>
                             <th className="w-7"></th>
                           </tr>
                         </thead>
                         <tbody>
                           {cart.map((item) => (
                             <tr key={item.cartItemId} className="border-b border-slate-50 last:border-0">
-                              <td className="px-3 py-2 max-w-[140px]">
+                              <td className="px-3 py-2">
                                 <div className="flex items-center gap-1">
                                   <p className="text-[12px] font-semibold text-slate-700 truncate leading-tight">{item.name}</p>
                                   {item.isAvulso && (
@@ -3529,7 +3529,7 @@ ${nfceInvoice.protocol ? `<div class="row"><span class="bold">Protocolo:</span><
                                 </div>
                                 {item.variationLabel && <p className="text-[9px] font-bold text-blue-500 truncate">{item.variationLabel}</p>}
                               </td>
-                              <td className="px-2 py-2 text-right whitespace-nowrap">
+                              <td className="hidden px-2 py-2 text-right whitespace-nowrap 3xl:table-cell">
                                 <div className="inline-flex items-center gap-0.5">
                                   <span className="text-[10px] font-mono text-slate-400">R$</span>
                                   <input
@@ -3541,14 +3541,14 @@ ${nfceInvoice.protocol ? `<div class="row"><span class="bold">Protocolo:</span><
                                   />
                                 </div>
                               </td>
-                              <td className="px-2 py-2">
-                                <div className="flex items-center justify-center gap-0.5 bg-slate-100 border border-slate-200 rounded-lg p-0.5 mx-auto w-fit">
+                              <td className="px-1 py-2">
+                                <div className="mx-auto flex w-fit items-center justify-center gap-0.5 rounded-lg border border-slate-200 bg-slate-100 p-0.5">
                                   <button onClick={() => updateQuantity(item.cartItemId, -1)} className="p-1 hover:bg-white rounded text-slate-500"><Minus size={9} /></button>
-                                  <span className="w-5 text-center font-mono font-black text-[10px] text-slate-700">{item.quantity}</span>
+                                  <span className="w-4 text-center font-mono font-black text-[10px] text-slate-700">{item.quantity}</span>
                                   <button onClick={() => updateQuantity(item.cartItemId, 1)} disabled={!item.isAvulso && item.quantity >= item.stock_quantity} className="p-1 hover:bg-white rounded text-slate-500 disabled:opacity-30"><Plus size={9} /></button>
                                 </div>
                               </td>
-                              <td className="px-3 py-2 text-[12px] font-mono font-black text-slate-800 text-right whitespace-nowrap">R$ {(item.price * item.quantity).toFixed(2)}</td>
+                              <td className="px-2 py-2 text-right font-mono text-[11px] font-black text-slate-800 whitespace-nowrap"><span className="hidden 3xl:inline">R$ </span>{(item.price * item.quantity).toFixed(2)}</td>
                               <td className="pr-2">
                                 <button onClick={() => removeFromCart(item.cartItemId)} className="text-slate-300 hover:text-red-500 transition-colors"><Trash2 size={12} /></button>
                               </td>
