@@ -32,6 +32,10 @@ export default defineConfig(({mode}) => {
             '**/recharts-*.js',
             '**/pdf-*.js',
             '**/logo-boxsys-vazado.png',
+            // O HTML de entrada deve vir da rede a cada navegação; assim uma
+            // atualização não depende de hard refresh para apontar aos novos assets.
+            'index.html',
+            '**/index.html',
           ],
           maximumFileSizeToCacheInBytes: 5 * 1024 * 1024, // 5 MB — covers the full-app main chunk now that the PWA scope isn't limited to /pdv
         },

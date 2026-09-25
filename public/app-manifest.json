@@ -12,13 +12,13 @@
   "lang": "pt-BR",
   "icons": [
     {
-      "src": "/system/favicon.png",
+      "src": "/system/store-boxsys-icon-v1.png",
       "sizes": "500x500",
       "type": "image/png",
       "purpose": "any"
     },
     {
-      "src": "/system/favicon.png",
+      "src": "/system/store-boxsys-icon-v1.png",
       "sizes": "500x500",
       "type": "image/png",
       "purpose": "maskable"

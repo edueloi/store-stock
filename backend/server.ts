@@ -40,7 +40,7 @@ async function attachFrontend(app: express.Express) {
     maxAge: "1y",
     immutable: true,
     setHeaders: (res, filePath) => {
-      if (/\.html$/.test(filePath) || /(^|\/)(sw\.js|sw\.mjs|manifest\.webmanifest|registerSW\.js)$/.test(filePath)) {
+      if (/\.html$/.test(filePath) || /(^|\/)(sw\.js|sw\.mjs|app-manifest\.json|pdv-manifest\.json|manifest\.webmanifest|registerSW\.js)$/.test(filePath)) {
         res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
       }
     },

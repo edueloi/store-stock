@@ -1,21 +1,32 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 // @ts-expect-error -- virtual module provided by vite-plugin-pwa at build time
 import { useRegisterSW } from "virtual:pwa-register/react";
 
-// Banner discreto de atualização do PWA. Em vez de recarregar a página assim que uma
-// versão nova é detectada (o padrão do plugin, que causa reload no meio de uma venda),
-// segura o reload até um momento seguro: a aba ficar em background, ou o usuário
-// confirmar manualmente.
+// Catálogos públicos recebem a versão nova automaticamente. Painel e PDV mostram
+// este banner e só recarregam após a confirmação explícita do operador.
 export default function PwaUpdateBanner() {
   const [visible, setVisible] = useState(false);
+  const reloadAfterUpdate = useRef(false);
+  const host = window.location.hostname.toLowerCase();
+  const isCatalogStore = window.location.pathname.startsWith("/s/")
+    || (!host.includes("localhost") && host !== "127.0.0.1" && host !== "store.boxsys.com.br");
 
   const { updateServiceWorker } = useRegisterSW({
     onNeedReload() {
+      // Catálogos são páginas públicas sem operação de caixa ou formulário de
+      // gestão: podem receber a versão nova diretamente. O painel e o PDV
+      // continuam aguardando a decisão explícita do operador.
+      if (isCatalogStore) {
+        reloadAfterUpdate.current = true;
+        updateServiceWorker(true);
+        return;
+      }
       setVisible(true);
     },
   });
 
   const applyUpdate = () => {
+    reloadAfterUpdate.current = true;
     setVisible(false);
     updateServiceWorker(true);
   };
@@ -54,7 +65,7 @@ export default function PwaUpdateBanner() {
   useEffect(() => {
     let reloading = false;
     const reloadForNewController = () => {
-      if (reloading) return;
+      if (reloading || !reloadAfterUpdate.current) return;
       reloading = true;
       window.location.reload();
     };

@@ -1,6 +1,6 @@
 /// <reference lib="webworker" />
 import { clientsClaim } from "workbox-core";
-import { precacheAndRoute, createHandlerBoundToURL } from "workbox-precaching";
+import { precacheAndRoute } from "workbox-precaching";
 import { registerRoute, NavigationRoute } from "workbox-routing";
 import { NetworkFirst } from "workbox-strategies";
 import { ExpirationPlugin } from "workbox-expiration";
@@ -21,11 +21,20 @@ clientsClaim();
 precacheAndRoute(self.__WB_MANIFEST);
 
 registerRoute(
-  new NavigationRoute(createHandlerBoundToURL("/index.html"), {
+  new NavigationRoute(
+    new NetworkFirst({
+      // HTML nunca fica preso ao precache antigo: busca o index atual e usa
+      // a última cópia somente quando estiver realmente sem conexão.
+      cacheName: "html-navigation",
+      networkTimeoutSeconds: 4,
+      plugins: [new ExpirationPlugin({ maxEntries: 8, maxAgeSeconds: 24 * 60 * 60 })],
+    }),
+    {
     // Páginas HTML independentes não são rotas do React. Sem esta exceção, o
     // Service Worker devolve index.html e a navegação termina no login.
     denylist: [/^\/api/, /^\/logo\.html$/],
-  })
+    }
+  )
 );
 
 registerRoute(
@@ -50,8 +59,8 @@ self.addEventListener("push", (event) => {
   event.waitUntil(
     self.registration.showNotification(payload.title || "BoxSys PDV", {
       body: payload.body || "",
-      icon: "/system/favicon.png",
-      badge: "/system/favicon.png",
+      icon: "/system/store-boxsys-icon-v1.png",
+      badge: "/system/store-boxsys-icon-v1.png",
       data: { url: payload.url || "/" },
     })
   );
