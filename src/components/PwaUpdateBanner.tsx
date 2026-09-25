@@ -101,6 +101,19 @@ export default function PwaUpdateBanner() {
     };
   }, []);
 
+  // Quando a versão nova assume o controle, recarrega usando os assets atuais
+  // sem exigir Ctrl+Shift+R ou limpeza manual de cache.
+  useEffect(() => {
+    let reloading = false;
+    const reloadForNewController = () => {
+      if (reloading) return;
+      reloading = true;
+      window.location.reload();
+    };
+    navigator.serviceWorker?.addEventListener("controllerchange", reloadForNewController);
+    return () => navigator.serviceWorker?.removeEventListener("controllerchange", reloadForNewController);
+  }, []);
+
   if (!visible) return null;
 
   const isDesktopApp = !!(window as any).boxsysDesktop?.isDesktop;

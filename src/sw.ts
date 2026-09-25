@@ -14,6 +14,8 @@ declare const self: ServiceWorkerGlobalScope;
 // em segundo plano, parecendo não fazer nada. Em vez disso, só pula a espera
 // quando o cliente manda essa mensagem — que é exatamente o que
 // updateServiceWorker(true) (useRegisterSW) envia ao clicar no botão.
+self.skipWaiting();
+
 self.addEventListener("message", (event) => {
   if (event.data?.type === "SKIP_WAITING") self.skipWaiting();
 });
