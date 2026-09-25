@@ -361,16 +361,17 @@ export default function StoreFront() {
                 >
                   <Link
                     to={storePath(`/catalogo?cat=${cat.id}`)}
-                    className="group flex flex-col items-center text-center gap-2 p-4 border rounded-2xl bg-[#fffbf5] border-[#f0e6d3] hover:border-amber-300 hover:shadow-[0_6px_20px_rgba(217,119,6,0.12)] transition-all"
+                    className="group relative overflow-hidden flex flex-col items-center text-center gap-2 p-4 border rounded-2xl bg-[#fffbf5] border-[#f0e6d3] hover:border-amber-300 hover:shadow-[0_6px_20px_rgba(217,119,6,0.12)] transition-all"
                   >
+                    <img src={cat.cover_url || "/category-covers/store-boxsys-default.png"} alt="" className="absolute inset-0 w-full h-full object-cover opacity-[0.10] group-hover:opacity-[0.16] transition-opacity" />
                     <div
                       style={{ backgroundColor: style.accent + "18" }}
-                      className="w-9 h-9 flex items-center justify-center group-hover:scale-110 transition-transform duration-300 rounded-xl"
+                      className="relative w-9 h-9 flex items-center justify-center group-hover:scale-110 transition-transform duration-300 rounded-xl"
                     >
                       <Leaf size={15} style={{ color: style.accent }} />
                     </div>
-                    <p className="text-[11px] font-semibold text-stone-700 leading-tight tracking-tight">{cat.name}</p>
-                    <span className="text-[9px] text-stone-400 font-medium">{count} {count === 1 ? "produto" : "produtos"}</span>
+                    <p className="relative text-[11px] font-semibold text-stone-700 leading-tight tracking-tight">{cat.name}</p>
+                    <span className="relative text-[9px] text-stone-400 font-medium">{count} {count === 1 ? "produto" : "produtos"}</span>
                   </Link>
                 </motion.div>
               );

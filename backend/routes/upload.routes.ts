@@ -1,6 +1,6 @@
 import { Router } from "express";
 
-import { upload, uploadLogo, uploadBanner, uploadService, uploadServiceOrderPhoto, uploadProductImage, uploadProductImages, uploadLogoImage, uploadBannerImage, uploadServiceImage, uploadServiceOrderPhotoImage } from "../controllers/upload.controller";
+import { upload, uploadLogo, uploadBanner, uploadService, uploadServiceOrderPhoto, uploadCategory, uploadProductImage, uploadProductImages, uploadLogoImage, uploadBannerImage, uploadServiceImage, uploadServiceOrderPhotoImage, uploadCategoryImage } from "../controllers/upload.controller";
 import { authenticateToken } from "../middlewares/auth.middleware";
 
 const router = Router();
@@ -13,5 +13,6 @@ router.post("/logo",               uploadLogo.single("image"),            upload
 router.post("/banner",             uploadBanner.single("image"),          uploadBannerImage);
 router.post("/service-image",      uploadService.single("image"),         uploadServiceImage);
 router.post("/service-order-photo", uploadServiceOrderPhoto.single("image"), uploadServiceOrderPhotoImage);
+router.post("/category-cover",     uploadCategory.single("image"),            uploadCategoryImage);
 
 export default router;

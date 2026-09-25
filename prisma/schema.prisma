@@ -371,6 +371,9 @@ model Category {
   id         Int      @id @default(autoincrement())
   tenant_id  Int
   name       String
+  icon       String?  @default("package")
+  color      String?  @default("#2563eb")
+  cover_url  String?
   created_at DateTime @default(now())
   updated_at DateTime @updatedAt
 

@@ -32,6 +32,7 @@ import HeldSalesDrawer from "../components/pdv/HeldSalesDrawer";
 import SaleHistoryDrawer from "../components/pdv/SaleHistoryDrawer";
 import { cancelHeldSale, createHeldSale, getOpenHeldSalesCount, type HeldSale } from "../lib/heldSales";
 import { ToastProvider } from "../components/ui/Toast";
+import { CategoryGlyph } from "../components/categories/CategoryGlyph";
 
 type PaymentMethod = "money" | "debit" | "credit" | "pix" | "crediario";
 type CardBrand = "visa" | "master" | "elo" | "amex" | "hiper" | "other";
@@ -2719,7 +2720,7 @@ ${nfceInvoice.protocol ? `<div class="row"><span class="bold">Protocolo:</span><
                 )}
               </button>
             )}
-            {categories.length > 0 && [{ id: null, name: "Todos" }, ...categories.map(c => ({ id: c.id as number | null, name: c.name }))].map((cat) => (
+              {categories.length > 0 && [{ id: null as number | null, name: "Todos" }, ...categories.map(c => ({ id: c.id as number | null, name: c.name, icon: c.icon, color: c.color }))].map((cat) => (
               <button key={cat.id ?? "all"}
                 onClick={() => { setShowServicesTab(false); setSelectedCategory(cat.id); }}
                 className={cn(
@@ -2728,8 +2729,8 @@ ${nfceInvoice.protocol ? `<div class="row"><span class="bold">Protocolo:</span><
                     ? "text-white border-blue-500 shadow"
                     : "bg-white text-slate-500 border-slate-200 hover:border-blue-300 hover:text-blue-600"
                 )}
-                style={!showServicesTab && selectedCategory === cat.id ? { background: "linear-gradient(135deg,#3b82f6,#1d4ed8)" } : {}}>
-                {cat.id !== null && <Tag size={9} />} {cat.name}
+                  style={!showServicesTab && selectedCategory === cat.id ? { background: cat.color || "linear-gradient(135deg,#3b82f6,#1d4ed8)" } : {}}>
+                  {cat.id !== null && <CategoryGlyph icon={cat.icon} size={10} />} {cat.name}
               </button>
             ))}
             </div>

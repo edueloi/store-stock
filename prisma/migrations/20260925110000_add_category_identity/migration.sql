@@ -1,0 +1,4 @@
+ALTER TABLE `categories`
+  ADD COLUMN `icon` VARCHAR(64) NULL DEFAULT 'package',
+  ADD COLUMN `color` VARCHAR(32) NULL DEFAULT '#2563eb',
+  ADD COLUMN `cover_url` VARCHAR(1024) NULL;

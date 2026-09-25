@@ -27,6 +27,7 @@ import { cancelHeldSale, createHeldSale, getOpenHeldSalesCount, type HeldSale } 
 import { onRealtimeAny } from "../../lib/realtime";
 import { fetchRemotePrintTerminals, requestRemotePrint, type RemotePrintTerminal } from "../../lib/remotePrint";
 import { getStoredUser } from "../../lib/session";
+import { CategoryGlyph } from "../../components/categories/CategoryGlyph";
 
 function maskPhone(v: string) {
   const d = v.replace(/\D/g, "").slice(0, 11);
@@ -2244,7 +2245,7 @@ export default function PDV() {
                 </button>
               )}
               {/* Abas de produtos */}
-              {categories.length > 0 && [{ id: null as number | null, name: "Todos" }, ...categories.map(c => ({ id: c.id as number | null, name: c.name }))].map((cat) => (
+              {categories.length > 0 && [{ id: null as number | null, name: "Todos" }, ...categories.map(c => ({ id: c.id as number | null, name: c.name, icon: c.icon, color: c.color }))].map((cat) => (
                 <button key={cat.id ?? "all"}
                   onClick={() => { setSelectedCategory(cat.id); setShowServicesTab(false); }}
                   className={cn(
@@ -2253,8 +2254,8 @@ export default function PDV() {
                       ? "text-white border-blue-500 shadow"
                       : "bg-white text-slate-500 border-slate-200 hover:border-blue-300 hover:text-blue-600"
                   )}
-                  style={!showServicesTab && selectedCategory === cat.id ? { background: "linear-gradient(135deg,#3b82f6,#1d4ed8)" } : {}}>
-                  {cat.id !== null && <Tag size={9} />} {cat.name}
+                  style={!showServicesTab && selectedCategory === cat.id ? { background: cat.color || "linear-gradient(135deg,#3b82f6,#1d4ed8)" } : {}}>
+                  {cat.id !== null && <CategoryGlyph icon={cat.icon} size={10} />} {cat.name}
                 </button>
               ))}
             </div>

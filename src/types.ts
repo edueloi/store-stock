@@ -123,6 +123,10 @@ export interface Category {
   id: number;
   tenant_id: number;
   name: string;
+  icon?: string | null;
+  color?: string | null;
+  cover_url?: string | null;
+  _count?: { products: number };
 }
 
 export interface Product {
