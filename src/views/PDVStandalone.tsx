@@ -2376,13 +2376,19 @@ ${nfceInvoice.protocol ? `<div class="row"><span class="bold">Protocolo:</span><
               <span className="hidden sm:inline">Voltar</span>
             </button>
           )}
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-white/10 bg-white/10">
-            <img src="/system/favicon.png" alt="Store BoxSys" className="h-7 w-7 object-contain" />
-          </div>
-          <div className="min-w-0 border-r border-white/10 pr-2 sm:pr-3">
-            <p className="whitespace-nowrap text-[11px] font-black leading-none tracking-tight"><span className="text-[#f7920c]">Store</span><span className="text-[#5ba9ee]"> BoxSys</span></p>
-            <p className="mt-1 text-[8px] font-bold uppercase tracking-[0.15em] text-slate-400">Terminal PDV</p>
-          </div>
+          {tenantName && tenantName !== "PDV" && (
+            <div className="hidden min-w-0 items-center gap-2 sm:flex">
+              {tenantLogo ? (
+                <img src={tenantLogo} alt={tenantName} className="h-7 w-7 shrink-0 rounded-lg object-contain" />
+              ) : (
+                <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-[#297ed1] text-[11px] font-black text-white">{tenantName.charAt(0).toUpperCase()}</div>
+              )}
+              <div className="min-w-0">
+                <p className="max-w-[130px] truncate text-[12px] font-black leading-none text-white">{tenantName}</p>
+                <span className={cn("mt-1 flex items-center gap-1 text-[8px] font-bold uppercase tracking-wider", isOnline ? "text-emerald-600" : "text-amber-600")}><i className={cn("h-1.5 w-1.5 rounded-full", isOnline ? "bg-emerald-500" : "bg-amber-500")} />{isOnline ? "Terminal online" : "Modo offline"}</span>
+              </div>
+            </div>
+          )}
 
         </div>
 
@@ -2885,7 +2891,7 @@ ${nfceInvoice.protocol ? `<div class="row"><span class="bold">Protocolo:</span><
                 })}
               </div>
             ) : (
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-7 3xl:grid-cols-8 gap-1.5 sm:gap-2">
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 3xl:grid-cols-7 gap-1.5 sm:gap-2">
                 {filteredProducts.map((product) => {
                   const qtyInCart = cart.filter((i) => i.id === product.id).reduce((a, b) => a + b.quantity, 0);
                   const hasVariations = (Array.isArray(product.attributes) && product.attributes.length > 0) ||
