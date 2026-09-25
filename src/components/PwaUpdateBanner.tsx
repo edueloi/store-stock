@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 // @ts-expect-error -- virtual module provided by vite-plugin-pwa at build time
 import { useRegisterSW } from "virtual:pwa-register/react";
 
@@ -8,11 +8,9 @@ import { useRegisterSW } from "virtual:pwa-register/react";
 // confirmar manualmente.
 export default function PwaUpdateBanner() {
   const [visible, setVisible] = useState(false);
-  const pendingReload = useRef(false);
 
   const { updateServiceWorker } = useRegisterSW({
     onNeedReload() {
-      pendingReload.current = true;
       setVisible(true);
     },
   });
@@ -22,56 +20,6 @@ export default function PwaUpdateBanner() {
     updateServiceWorker(true);
   };
 
-  // Aplica sozinho assim que a aba deixa de estar em foco (troca de janela, minimizar,
-  // fim do expediente) — não interrompe o operador no meio do que estiver fazendo.
-  useEffect(() => {
-    const onVisibilityChange = () => {
-      if (document.hidden && pendingReload.current) {
-        pendingReload.current = false;
-        updateServiceWorker(true);
-      }
-    };
-    document.addEventListener("visibilitychange", onVisibilityChange);
-    return () => document.removeEventListener("visibilitychange", onVisibilityChange);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  // O gatilho acima (perda de foco) nunca dispara no app desktop (Electron): é uma
-  // única janela maximizada, sempre em primeiro plano, que nunca perde foco — clientes
-  // ficavam presos indefinidamente em versões antigas, precisando de limpeza manual de
-  // cache (que o app nem oferece). Nesse ambiente, aplica sozinho depois de um período
-  // sem nenhuma interação do operador (clique/tecla/toque) — ausência de interação é o
-  // proxy mais seguro de "não há venda em andamento" que temos sem acoplar este
-  // componente genérico ao estado interno do PDV.
-  useEffect(() => {
-    const isDesktopApp = !!(window as any).boxsysDesktop?.isDesktop;
-    if (!isDesktopApp) return;
-
-    const IDLE_MS = 3 * 60 * 1000;
-    let idleTimer: ReturnType<typeof setTimeout> | null = null;
-
-    const applyIfPending = () => {
-      if (pendingReload.current) {
-        pendingReload.current = false;
-        updateServiceWorker(true);
-      }
-    };
-
-    const resetIdleTimer = () => {
-      if (idleTimer) clearTimeout(idleTimer);
-      idleTimer = setTimeout(applyIfPending, IDLE_MS);
-    };
-
-    const events = ["click", "keydown", "pointerdown", "touchstart"] as const;
-    events.forEach((evt) => window.addEventListener(evt, resetIdleTimer));
-    resetIdleTimer();
-
-    return () => {
-      events.forEach((evt) => window.removeEventListener(evt, resetIdleTimer));
-      if (idleTimer) clearTimeout(idleTimer);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
 
   // Um F5 comum não força o navegador a rebuscar sw.js no servidor — ele usa o
   // cache HTTP normal e só reverifica sozinho depois de várias horas. Forçar
@@ -116,16 +64,12 @@ export default function PwaUpdateBanner() {
 
   if (!visible) return null;
 
-  const isDesktopApp = !!(window as any).boxsysDesktop?.isDesktop;
-
   return (
     <div className="fixed bottom-4 left-4 z-[300] flex items-center gap-3 bg-slate-900 text-white rounded-2xl shadow-xl px-4 py-3 max-w-sm">
       <div className="flex-1 min-w-0">
         <p className="text-xs font-black uppercase tracking-wide">Nova versão disponível</p>
         <p className="text-[11px] text-slate-300 mt-0.5">
-          {isDesktopApp
-            ? "Será aplicada sozinha assim que o caixa ficar parado por alguns minutos."
-            : "Será aplicada automaticamente assim que você trocar de tela."}
+          Atualize quando concluir a operação atual. Nenhum dado em andamento será interrompido.
         </p>
       </div>
       <button

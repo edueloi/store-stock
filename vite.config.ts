@@ -11,7 +11,8 @@ export default defineConfig(({mode}) => {
       react(),
       tailwindcss(),
       VitePWA({
-        registerType: 'autoUpdate',
+        // A nova versão só entra após confirmação do operador no banner.
+        registerType: 'prompt',
         // Manifests are served as static files (public/app-manifest.json, public/pdv-manifest.json)
         // and linked manually in index.html, so the plugin doesn't need to generate one.
         manifest: false,

@@ -7,14 +7,9 @@ import { ExpirationPlugin } from "workbox-expiration";
 
 declare const self: ServiceWorkerGlobalScope;
 
-// Não chama skipWaiting() incondicionalmente aqui — isso faria o SW novo
-// assumir controle sozinho assim que termina de instalar, ANTES do usuário
-// clicar em "Atualizar agora" no PwaUpdateBanner. Resultado observado: o
-// clique no botão só recarregava uma página que já tinha atualizado sozinha
-// em segundo plano, parecendo não fazer nada. Em vez disso, só pula a espera
-// quando o cliente manda essa mensagem — que é exatamente o que
-// updateServiceWorker(true) (useRegisterSW) envia ao clicar no botão.
-self.skipWaiting();
+// A versão nova fica em espera até o operador decidir atualizar. Assim, uma
+// venda, formulário ou lançamento em andamento não é interrompido por reload.
+// O PwaUpdateBanner envia SKIP_WAITING apenas no clique em “Atualizar agora”.
 
 self.addEventListener("message", (event) => {
   if (event.data?.type === "SKIP_WAITING") self.skipWaiting();
@@ -55,8 +50,8 @@ self.addEventListener("push", (event) => {
   event.waitUntil(
     self.registration.showNotification(payload.title || "BoxSys PDV", {
       body: payload.body || "",
-      icon: "/system/logo-any-512.png",
-      badge: "/system/logo-any-192.png",
+      icon: "/system/favicon.png",
+      badge: "/system/favicon.png",
       data: { url: payload.url || "/" },
     })
   );
