@@ -265,6 +265,7 @@ function StoreLayoutInner() {
   const isFashion = style.font === "font-editorial";
   const isTechNova = style.font === "font-tech";
   const isElectronics = storeData.tenant.template_id === "electronics";
+  const isElectric = storeData.tenant.template_id === "electric";
 
   const navLinks = [
     { label: "Início", path: storePath(), icon: <Home size={15} /> },
@@ -301,8 +302,8 @@ function StoreLayoutInner() {
 
         {/* ── NAVBAR ─────────────────────────────────────────────── */}
         <header className={cn("sticky top-0 z-50 border-b shadow-sm",
-          isElectronics
-            ? "bg-[#070b12]/95 backdrop-blur-xl border-[#1a2540]"
+          isElectronics || isElectric
+            ? "bg-[#071426]/95 backdrop-blur-xl border-[#17325d]"
             : isDark
               ? "bg-black border-slate-800"
               : isFashion
@@ -310,7 +311,7 @@ function StoreLayoutInner() {
                 : isTechNova
                   ? "bg-[#f7fbff]/88 backdrop-blur-xl border-[#d7e4ff]"
                   : "bg-white/95 backdrop-blur-md border-slate-200")}>
-          <div className={cn("max-w-7xl mx-auto px-4 flex items-center justify-between gap-4", isFashion || isTechNova || isElectronics ? "h-20" : "h-16")}>
+          <div className={cn("max-w-7xl mx-auto px-4 flex items-center justify-between gap-4", isFashion || isTechNova || isElectronics || isElectric ? "h-[4.5rem]" : "h-16")}>
 
             {/* Logo */}
             <Link to={storePath()} className="flex items-center gap-3 shrink-0">
@@ -318,7 +319,7 @@ function StoreLayoutInner() {
                 style={{ backgroundColor: storeData.tenant.logo_url ? "white" : style.accent }}
                 className={cn(
                   "flex items-center justify-center text-white font-black text-base overflow-hidden shrink-0",
-                  isElectronics
+                  isElectronics || isElectric
                     ? "w-11 h-11 rounded-xl shadow-[0_0_24px_rgba(59,130,246,0.5)]"
                     : isFashion
                       ? "w-11 h-11 shadow-md shadow-[#b5877d]/20"
@@ -336,20 +337,20 @@ function StoreLayoutInner() {
                 <p
                   className={cn(
                     "leading-none",
-                    isElectronics
+                    isElectronics || isElectric
                       ? "text-white font-black text-lg tracking-tight"
                       : isFashion || isTechNova
                         ? "store-display text-2xl font-semibold tracking-[-0.04em]"
                         : "text-sm font-black uppercase tracking-wider"
                   )}
-                  style={{ color: isDark || isElectronics ? "#fff" : isFashion ? "#2d221f" : isTechNova ? "#071426" : "#0f172a" }}
+                  style={{ color: isDark || isElectronics || isElectric ? "#fff" : isFashion ? "#2d221f" : isTechNova ? "#071426" : "#0f172a" }}
                 >
                   {storeData.tenant.name}
                 </p>
                 <div className="flex items-center gap-1 mt-0.5">
-                  <span className={cn("w-1.5 h-1.5 rounded-full", isElectronics ? "bg-blue-400 animate-pulse" : "bg-emerald-500")} />
-                  <span className={cn("text-[9px] font-bold", isElectronics ? "text-blue-400/80 uppercase tracking-[0.22em]" : "text-slate-400", isFashion || isTechNova ? "store-kicker tracking-[0.28em]" : "uppercase tracking-wider")}>
-                    {isElectronics ? "Loja Online" : isFashion ? "Curadoria ativa" : isTechNova ? "Lançamentos ativos" : "Online"}
+                  <span className={cn("w-1.5 h-1.5 rounded-full", isElectronics || isElectric ? "bg-emerald-400 animate-pulse" : "bg-emerald-500")} />
+                  <span className={cn("text-[9px] font-bold", isElectronics || isElectric ? "text-blue-200/80 uppercase tracking-[0.22em]" : "text-slate-400", isFashion || isTechNova ? "store-kicker tracking-[0.28em]" : "uppercase tracking-wider")}>
+                    {isElectronics || isElectric ? "Loja Online" : isFashion ? "Curadoria ativa" : isTechNova ? "Lançamentos ativos" : "Online"}
                   </span>
                 </div>
               </div>
