@@ -1970,7 +1970,7 @@ export default function PDV() {
   }
 
   return (
-    <div className="h-full flex flex-col overflow-hidden bg-slate-100 font-sans">
+    <div className="h-full flex flex-col overflow-hidden bg-slate-100 font-sans [&_button]:cursor-pointer [&_button:disabled]:cursor-not-allowed">
 
       {/* ── TOP BAR ─────────────────────────────────────────────────────────── */}
       <header className="h-14 flex items-center justify-between px-5 shrink-0 bg-white border-b border-slate-200 shadow-sm">
@@ -2212,14 +2212,16 @@ export default function PDV() {
           </div>
 
           {/* Categorias + aba Serviços */}
-          <div className="flex items-center gap-1 shrink-0">
+          <div className="flex min-w-0 items-center gap-1.5 shrink-0 rounded-xl border border-slate-200/80 bg-slate-50/80 p-1 shadow-sm">
             <button
+              type="button"
               onClick={() => scrollCategories(-1)}
               title="Rolar categorias para a esquerda"
-              className="shrink-0 h-7 w-6 rounded-lg bg-white border border-slate-200 text-slate-400 hover:text-blue-600 hover:border-blue-300 flex items-center justify-center transition-all">
+              aria-label="Ver categorias anteriores"
+              className="shrink-0 h-7 w-7 rounded-lg bg-white border border-slate-200 text-slate-400 shadow-sm hover:bg-blue-50 hover:text-blue-600 hover:border-blue-300 flex items-center justify-center transition-all active:scale-95">
               <ChevronLeft size={13} />
             </button>
-            <div ref={categoryScrollRef} className="flex gap-1.5 overflow-x-auto pb-0.5 scrollbar-none">
+            <div ref={categoryScrollRef} className="flex min-w-0 flex-1 gap-1.5 overflow-x-auto py-0.5 scrollbar-none scroll-smooth">
               {/* Aba Serviços — sempre visível se houver serviços */}
               {services.length > 0 && (
                 <button
@@ -2257,13 +2259,15 @@ export default function PDV() {
               ))}
             </div>
             <button
+              type="button"
               onClick={() => scrollCategories(1)}
               title="Rolar categorias para a direita"
-              className="shrink-0 h-7 w-6 rounded-lg bg-white border border-slate-200 text-slate-400 hover:text-blue-600 hover:border-blue-300 flex items-center justify-center transition-all">
+              aria-label="Ver próximas categorias"
+              className="shrink-0 h-7 w-7 rounded-lg bg-white border border-slate-200 text-slate-400 shadow-sm hover:bg-blue-50 hover:text-blue-600 hover:border-blue-300 flex items-center justify-center transition-all active:scale-95">
               <ChevronRight size={13} />
             </button>
             {!showServicesTab && (
-              <div className="ml-1 shrink-0 flex items-center gap-0.5 bg-white border border-slate-200 rounded-lg p-0.5">
+              <div className="ml-0.5 shrink-0 flex items-center gap-0.5 bg-white border border-slate-200 rounded-lg p-0.5 shadow-sm">
                 <button
                   onClick={() => setViewMode("grid")}
                   title="Visualização em cards"

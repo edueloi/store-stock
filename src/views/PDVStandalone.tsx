@@ -297,6 +297,11 @@ export default function PDVStandalone() {
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<number | null>(null);
   const [viewMode, setViewMode] = useState<"grid" | "list">(() => (localStorage.getItem("pdv_view_mode") as "grid" | "list") || "list");
+  const categoryScrollRef = useRef<HTMLDivElement>(null);
+
+  const scrollCategories = (direction: -1 | 1) => {
+    categoryScrollRef.current?.scrollBy({ left: direction * 180, behavior: "smooth" });
+  };
 
   useEffect(() => {
     localStorage.setItem("pdv_view_mode", viewMode);
@@ -2362,7 +2367,7 @@ ${nfceInvoice.protocol ? `<div class="row"><span class="bold">Protocolo:</span><
   }
 
   return (
-    <div className="h-screen flex flex-col overflow-hidden font-sans bg-slate-100">
+    <div className="h-screen flex flex-col overflow-hidden font-sans bg-slate-100 [&_button]:cursor-pointer [&_button:disabled]:cursor-not-allowed">
 
       {/* ── Top Bar ──────────────────────────────────────────────────────────── */}
       <header className="h-14 flex items-center justify-between gap-2 border-b border-[#1e3550] bg-[#0b1728] px-2.5 shadow-lg shadow-slate-950/10 sm:px-4">
@@ -2684,7 +2689,16 @@ ${nfceInvoice.protocol ? `<div class="row"><span class="bold">Protocolo:</span><
           </div>
 
           {/* Categorias + aba Serviços */}
-          <div className="flex gap-1.5 overflow-x-auto pb-0.5 shrink-0 scrollbar-none">
+          <div className="flex min-w-0 items-center gap-1.5 shrink-0 rounded-xl border border-slate-200/80 bg-slate-50/80 p-1 shadow-sm">
+            <button
+              type="button"
+              onClick={() => scrollCategories(-1)}
+              title="Rolar categorias para a esquerda"
+              aria-label="Ver categorias anteriores"
+              className="shrink-0 h-7 w-7 rounded-lg bg-white border border-slate-200 text-slate-400 shadow-sm hover:bg-blue-50 hover:text-blue-600 hover:border-blue-300 flex items-center justify-center transition-all active:scale-95">
+              <ChevronLeft size={13} />
+            </button>
+            <div ref={categoryScrollRef} className="flex min-w-0 flex-1 gap-1.5 overflow-x-auto py-0.5 scrollbar-none scroll-smooth">
             {/* Serviços FIRST */}
             {services.length > 0 && (
               <button
@@ -2718,8 +2732,17 @@ ${nfceInvoice.protocol ? `<div class="row"><span class="bold">Protocolo:</span><
                 {cat.id !== null && <Tag size={9} />} {cat.name}
               </button>
             ))}
+            </div>
+            <button
+              type="button"
+              onClick={() => scrollCategories(1)}
+              title="Rolar categorias para a direita"
+              aria-label="Ver próximas categorias"
+              className="shrink-0 h-7 w-7 rounded-lg bg-white border border-slate-200 text-slate-400 shadow-sm hover:bg-blue-50 hover:text-blue-600 hover:border-blue-300 flex items-center justify-center transition-all active:scale-95">
+              <ChevronRight size={13} />
+            </button>
             {!showServicesTab && (
-              <div className="ml-auto shrink-0 flex items-center gap-0.5 bg-white border border-slate-200 rounded-lg p-0.5 shadow-sm">
+              <div className="ml-0.5 shrink-0 flex items-center gap-0.5 bg-white border border-slate-200 rounded-lg p-0.5 shadow-sm">
                 <button
                   onClick={() => setViewMode("grid")}
                   title="Visualização em cards"
