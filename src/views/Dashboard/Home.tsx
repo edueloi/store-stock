@@ -290,38 +290,40 @@ export default function Home() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="mx-auto w-full max-w-[1600px] space-y-4 sm:space-y-6">
       <PageHeader title="Visão Geral" subtitle={today} />
 
       {/* Filtro de período */}
-      <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm flex flex-wrap items-end gap-3">
-        <div className="flex flex-col gap-1">
+      <div className="flex flex-col gap-4 rounded-3xl border border-slate-200/80 bg-white p-4 shadow-sm sm:p-5 xl:flex-row xl:items-end xl:justify-between">
+        <div className="grid flex-1 grid-cols-1 gap-3 sm:grid-cols-2 xl:max-w-[440px]">
+        <div className="flex min-w-0 flex-col gap-1">
           <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-1">De</label>
           <input
             type="date"
             value={period.from}
             max={period.to}
             onChange={(e) => setPeriod((p) => ({ ...p, from: e.target.value }))}
-            className="px-3 py-2 rounded-xl border border-slate-200 text-sm font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-400"
+            className="w-full min-w-0 rounded-xl border border-slate-200 px-3 py-2.5 text-sm font-medium text-slate-700 transition-colors focus:border-[#297ed1] focus:outline-none focus:ring-2 focus:ring-[#297ed1]/15"
           />
         </div>
-        <div className="flex flex-col gap-1">
+        <div className="flex min-w-0 flex-col gap-1">
           <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-1">Até</label>
           <input
             type="date"
             value={period.to}
             min={period.from}
             onChange={(e) => setPeriod((p) => ({ ...p, to: e.target.value }))}
-            className="px-3 py-2 rounded-xl border border-slate-200 text-sm font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-400"
+            className="w-full min-w-0 rounded-xl border border-slate-200 px-3 py-2.5 text-sm font-medium text-slate-700 transition-colors focus:border-[#297ed1] focus:outline-none focus:ring-2 focus:ring-[#297ed1]/15"
           />
         </div>
-        <div className="flex items-center gap-2 ml-auto">
+        </div>
+        <div className="grid grid-cols-2 gap-2 sm:flex sm:items-center xl:ml-auto">
           <button onClick={setThisMonth}
-            className="px-3 py-2 rounded-xl border border-slate-200 text-xs font-bold text-slate-600 hover:bg-slate-50 hover:border-slate-300 transition-colors">
+            className="cursor-pointer rounded-xl border border-slate-200 px-3 py-2.5 text-xs font-bold text-slate-600 transition-colors hover:border-slate-300 hover:bg-slate-50">
             Mês atual
           </button>
           <button onClick={setLastMonth}
-            className="px-3 py-2 rounded-xl border border-slate-200 text-xs font-bold text-slate-600 hover:bg-slate-50 hover:border-slate-300 transition-colors">
+            className="cursor-pointer rounded-xl border border-slate-200 px-3 py-2.5 text-xs font-bold text-slate-600 transition-colors hover:border-slate-300 hover:bg-slate-50">
             Mês passado
           </button>
         </div>
@@ -329,9 +331,9 @@ export default function Home() {
 
       {/* Toggle Tudo / Catálogo / Serviços — filtra os KPI Cards e o breakdown abaixo */}
       {stats?.summary && (
-        <div className="flex items-center gap-2">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
           <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Ver:</span>
-          <div className="flex items-center gap-1 bg-slate-100 rounded-xl p-1">
+          <div className="grid grid-cols-3 rounded-xl bg-slate-100 p-1 sm:flex sm:items-center sm:gap-1">
             {([
               { v: "all",      label: "Tudo"      },
               { v: "products", label: "Catálogo"  },
@@ -341,7 +343,7 @@ export default function Home() {
                 key={v}
                 onClick={() => changeSalesView(v)}
                 className={cn(
-                  "h-7 px-3 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all",
+                  "h-8 cursor-pointer rounded-lg px-2 text-[9px] font-black uppercase tracking-wider transition-all sm:px-3 sm:tracking-widest",
                   salesView === v
                     ? v === "services" ? "bg-violet-600 text-white shadow-sm"
                       : v === "products" ? "bg-blue-600 text-white shadow-sm"
@@ -358,26 +360,26 @@ export default function Home() {
 
       {/* KPI Cards */}
       {loadingStats ? (
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4 sm:gap-4">
           {[...Array(4)].map((_, i) => (
-            <div key={i} className="bg-white h-24 rounded-2xl border border-slate-100 animate-pulse" />
+            <div key={i} className="h-28 animate-pulse rounded-2xl border border-slate-100 bg-white" />
           ))}
         </div>
       ) : (
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4 sm:gap-4">
           {kpis.map((k, i) => (
             <motion.div
               key={i}
               initial={{ opacity: 0, y: 8 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: i * 0.05 }}
-              className={cn("bg-white p-4 rounded-2xl border shadow-sm hover:shadow-md transition-shadow", k.border)}
+              className={cn("rounded-2xl border bg-white p-4 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md sm:p-5", k.border)}
             >
-              <div className={cn("w-9 h-9 rounded-xl flex items-center justify-center mb-3", k.bg)}>
+              <div className={cn("mb-3 flex h-10 w-10 items-center justify-center rounded-xl", k.bg)}>
                 <k.icon size={18} className={k.color} />
               </div>
               <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-0.5">{k.label}</p>
-              <h3 className="text-lg font-black text-slate-900 tracking-tight font-mono leading-none">{k.value}</h3>
+              <h3 className="font-mono text-xl font-black leading-none tracking-tight text-slate-900 xl:text-2xl">{k.value}</h3>
             </motion.div>
           ))}
         </div>
@@ -386,7 +388,7 @@ export default function Home() {
       {/* Produtos Esgotados / estoque baixo */}
       {stats?.summary?.outOfStockProducts?.length > 0 && (
         <div className="bg-white rounded-2xl border border-red-100 shadow-sm overflow-hidden">
-          <div className="flex items-center justify-between px-5 py-4 bg-red-50 border-b border-red-100">
+          <div className="flex flex-col gap-3 border-b border-red-100 bg-red-50 px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-5">
             <div className="flex items-center gap-2.5">
               <AlertTriangle size={16} className="text-red-500 shrink-0" />
               <div>
@@ -398,13 +400,13 @@ export default function Home() {
               </div>
             </div>
             <button onClick={() => navigate("/admin/stock")}
-              className="text-[10px] font-black uppercase tracking-wider text-red-600 hover:underline shrink-0">
+              className="shrink-0 cursor-pointer text-[10px] font-black uppercase tracking-wider text-red-600 hover:underline">
               Ver estoque
             </button>
           </div>
           <div className="divide-y divide-slate-50 max-h-64 overflow-y-auto">
             {stats.summary.outOfStockProducts.slice(0, 8).map((p: { id: number; name: string; sku: string | null }) => (
-              <div key={p.id} className="flex items-center justify-between px-5 py-2.5 gap-3">
+              <div key={p.id} className="flex items-center justify-between gap-3 px-4 py-3 sm:px-5">
                 <div className="min-w-0">
                   <p className="text-xs font-bold text-slate-900 truncate">{p.name}</p>
                   <p className="text-[9px] font-mono text-slate-400 uppercase">SKU: {p.sku || String(p.id).padStart(6, "0")}</p>
@@ -424,13 +426,13 @@ export default function Home() {
       {/* Breakdown: Produtos vs Serviços — respeita o toggle "Ver" acima */}
       {stats?.summary && (stats.summary.servicesNet > 0 || stats.summary.productsNet > 0) && (
         <div className="space-y-3">
-          <div className={cn("grid gap-4", salesView === "all" ? "grid-cols-1 sm:grid-cols-2" : "grid-cols-1 sm:grid-cols-1 max-w-sm")}>
+          <div className={cn("grid gap-3 sm:gap-4", salesView === "all" ? "grid-cols-1 md:grid-cols-2" : "grid-cols-1 max-w-md")}>
             {/* Produtos card */}
             {(salesView === "all" || salesView === "products") && (
               <motion.div
                 key="products"
                 initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
-                className="bg-white p-4 rounded-2xl border border-blue-100 shadow-sm"
+                className="rounded-2xl border border-blue-100 bg-white p-4 shadow-sm sm:p-5"
               >
                 <div className="flex items-center gap-2 mb-3">
                   <div className="w-8 h-8 rounded-xl bg-blue-50 flex items-center justify-center">
@@ -455,7 +457,7 @@ export default function Home() {
               <motion.div
                 key="services"
                 initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: salesView === "all" ? 0.05 : 0 }}
-                className="bg-white p-4 rounded-2xl border border-violet-100 shadow-sm"
+                className="rounded-2xl border border-violet-100 bg-white p-4 shadow-sm sm:p-5"
               >
                 <div className="flex items-center gap-2 mb-3">
                   <div className="w-8 h-8 rounded-xl bg-violet-50 flex items-center justify-center">
@@ -479,9 +481,9 @@ export default function Home() {
       )}
 
       {/* Chart + Top Products */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2 bg-white p-5 rounded-2xl border border-slate-100 shadow-sm">
-          <div className="flex items-center justify-between mb-5">
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-3 xl:gap-6">
+        <div className="rounded-2xl border border-slate-100 bg-white p-4 shadow-sm sm:p-5 xl:col-span-2">
+          <div className="mb-5 flex items-start justify-between gap-3">
             <div>
               <h3 className="text-xs font-bold uppercase tracking-widest text-slate-900">Faturamento — período</h3>
               <p className="text-[10px] text-slate-400 font-medium mt-0.5">Receita líquida de pedidos concluídos</p>
@@ -489,7 +491,7 @@ export default function Home() {
             <div className="w-2 h-2 bg-blue-500 rounded-full" />
           </div>
           {stats?.salesOverTime?.length > 0 ? (
-            <div className="h-52 -mx-2">
+            <div className="-mx-2 h-64 sm:h-72">
               <ResponsiveContainer width="100%" height="100%">
                 <AreaChart data={stats.salesOverTime}>
                   <defs>
@@ -543,14 +545,14 @@ export default function Home() {
               </ResponsiveContainer>
             </div>
           ) : (
-            <div className="h-52 flex items-center justify-center text-slate-300 flex-col gap-2">
+            <div className="flex h-64 flex-col items-center justify-center gap-2 text-slate-300 sm:h-72">
               <BarChart3 size={36} strokeWidth={1} />
               <p className="text-[10px] font-bold uppercase tracking-widest">Sem dados ainda</p>
             </div>
           )}
         </div>
 
-        <div className="bg-slate-900 rounded-2xl p-5 text-white shadow-xl">
+        <div className="rounded-2xl bg-slate-900 p-5 text-white shadow-xl sm:p-6">
           <div className="flex items-center justify-between mb-5">
             <h3 className="text-xs font-bold uppercase tracking-widest flex items-center gap-2">
               <Trophy size={13} className="text-amber-400" /> Top Produtos
@@ -581,11 +583,11 @@ export default function Home() {
       </div>
 
       {/* Quick Links + Tasks (side by side) */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-2 xl:gap-6">
 
         {/* ── Acessos Rápidos ─────────────────────────────── */}
-        <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
-          <div className="px-5 py-4 flex items-center justify-between border-b border-slate-50">
+        <div className="overflow-hidden rounded-2xl border border-slate-100 bg-white shadow-sm">
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-50 px-4 py-4 sm:px-5">
             <div className="flex items-center gap-3">
               <div className="w-9 h-9 rounded-xl bg-blue-50 flex items-center justify-center">
                 <Globe size={16} className="text-blue-600" />
@@ -597,13 +599,13 @@ export default function Home() {
             </div>
             <button
               onClick={openNewLink}
-              className="flex items-center gap-1.5 px-3 h-8 bg-slate-900 text-white rounded-lg text-[10px] font-bold uppercase tracking-widest hover:bg-slate-700 transition-all active:scale-95"
+              className="flex h-8 cursor-pointer items-center gap-1.5 rounded-lg bg-slate-900 px-3 text-[10px] font-bold uppercase tracking-widest text-white transition-all hover:bg-slate-700 active:scale-95"
             >
               <Plus size={12} /> Novo
             </button>
           </div>
 
-          <div className="p-4">
+          <div className="p-4 sm:p-5">
             {links.length === 0 ? (
               <button
                 onClick={openNewLink}
@@ -613,7 +615,7 @@ export default function Home() {
                 Adicionar primeiro acesso
               </button>
             ) : (
-              <div className="grid grid-cols-3 sm:grid-cols-4 gap-3">
+              <div className="grid grid-cols-3 gap-3 min-[420px]:grid-cols-4 sm:gap-4">
                 {links.map(link => (
                   <div key={link.id} className="group relative flex flex-col items-center gap-2">
                     <a
@@ -657,8 +659,8 @@ export default function Home() {
         </div>
 
         {/* ── Tarefas Diárias ──────────────────────────────── */}
-        <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
-          <div className="px-5 py-4 flex items-center justify-between border-b border-slate-50">
+        <div className="overflow-hidden rounded-2xl border border-slate-100 bg-white shadow-sm">
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-50 px-4 py-4 sm:px-5">
             <div className="flex items-center gap-3">
               <div className="w-9 h-9 rounded-xl bg-amber-50 flex items-center justify-center">
                 <CheckCircle2 size={16} className="text-amber-500" />
@@ -690,7 +692,7 @@ export default function Home() {
                     animate={{ opacity: 1, height: "auto" }}
                     exit={{ opacity: 0, height: 0 }}
                     transition={{ duration: 0.15 }}
-                    className="group flex items-center gap-3 px-5 py-3 hover:bg-slate-50/60 transition-colors"
+                    className="group flex items-center gap-3 px-4 py-3 transition-colors hover:bg-slate-50/60 sm:px-5"
                   >
                     <button
                       onClick={() => toggleTask(task.id)}
@@ -749,7 +751,7 @@ export default function Home() {
             </div>
 
             {/* Add task input */}
-            <div className="shrink-0 border-t border-slate-100 flex items-center gap-2 px-4 py-3">
+            <div className="flex shrink-0 flex-col gap-2 border-t border-slate-100 px-4 py-3 sm:flex-row sm:items-center">
               <input
                 className="flex-1 text-sm bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 placeholder:text-slate-300 transition-all"
                 placeholder="O que você não pode esquecer hoje?"
@@ -760,7 +762,7 @@ export default function Home() {
               <button
                 onClick={addTask}
                 disabled={!taskInput.trim()}
-                className="shrink-0 h-9 px-3 bg-blue-600 text-white rounded-xl text-[10px] font-bold uppercase tracking-widest hover:bg-blue-700 disabled:opacity-30 transition-all active:scale-95 flex items-center gap-1.5"
+                className="flex h-9 w-full cursor-pointer items-center justify-center gap-1.5 rounded-xl bg-blue-600 px-3 text-[10px] font-bold uppercase tracking-widest text-white transition-all hover:bg-blue-700 active:scale-95 disabled:cursor-not-allowed disabled:opacity-30 sm:w-auto"
               >
                 <Plus size={13} /> Adicionar
               </button>

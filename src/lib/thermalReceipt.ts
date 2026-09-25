@@ -32,6 +32,44 @@ export interface BookletInstallment {
   amount: number | string;
 }
 
+export interface DebtPaymentReceipt {
+  customerName: string;
+  debtDescription: string;
+  installmentNumber: number;
+  installmentsTotal: number;
+  amount: number;
+  paymentMethod: string;
+  remainingBalance: number;
+  paidAt?: Date;
+}
+
+// Comprovante de baixa de parcela. Mantém exatamente a largura, a hierarquia e
+// o mecanismo de impressão do cupom de venda do PDV, mas deixa claro que se
+// trata de um recebimento de crediário — não de uma nova venda.
+export function buildDebtPaymentReceiptText(
+  tenantName: string,
+  receipt: DebtPaymentReceipt,
+): string {
+  const paidAt = receipt.paidAt ?? new Date();
+  let text = "\n";
+  text += `${thermalCenter(tenantName.toUpperCase())}\n`;
+  text += `${thermalRule}\n${thermalCenter("COMPROVANTE DE PAGAMENTO")}\n`;
+  text += `${thermalCenter("RECEBIMENTO DE CREDIÁRIO")}\n${thermalThin}\n`;
+  text += thermalRow("Data", dateTimeShort(paidAt)) + "\n";
+  text += thermalRow("Cliente", receipt.customerName) + "\n";
+  text += thermalRow("Referente a", receipt.debtDescription) + "\n";
+  text += thermalRow("Parcela", `${receipt.installmentNumber}/${receipt.installmentsTotal}`) + "\n";
+  text += `${thermalThin}\n`;
+  text += thermalRow("Forma de pagamento", receipt.paymentMethod) + "\n";
+  text += `${thermalRule}\n`;
+  text += thermalRow("VALOR RECEBIDO", `R$ ${thermalMoney(receipt.amount)}`) + "\n";
+  text += thermalRow("SALDO DO CREDIÁRIO", `R$ ${thermalMoney(Math.max(0, receipt.remainingBalance))}`) + "\n";
+  text += `${thermalRule}\n`;
+  text += `${thermalCenter("Pagamento registrado com sucesso")}\n`;
+  text += `${thermalCenter("Obrigado pela preferência!")}\n\n\n`;
+  return text;
+}
+
 // Formata uma data que pode chegar como "YYYY-MM-DD" pura ou como ISO completo
 // (ex.: Prisma serializa DateTime como "2026-10-15T00:00:00.000Z") — pegar só os
 // 10 primeiros chars antes de montar o Date evita concatenar um T00:00:00 extra

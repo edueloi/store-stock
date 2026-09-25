@@ -137,10 +137,10 @@ function SidebarNavItem({
         ref={ref}
         to={to}
         className={cn(
-          "flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-[13px] font-semibold transition-all relative",
+          "flex items-center gap-3 rounded-xl px-3 py-2.5 text-[13px] font-semibold transition-all duration-200 relative",
           isActive
-            ? "bg-[#C9A227] text-white shadow-[0_2px_12px_rgba(201,162,39,0.35)]"
-            : "text-slate-400 hover:bg-white/5 hover:text-white"
+            ? "bg-[#297ed1] text-white shadow-[0_8px_18px_rgba(41,126,209,0.25)] before:absolute before:left-0 before:top-2 before:bottom-2 before:w-1 before:rounded-r-full before:bg-[#f7920c]"
+            : "text-slate-400 hover:bg-white/[0.06] hover:text-white"
         )}
       >
         <span className="relative shrink-0">
@@ -180,8 +180,8 @@ function SidebarFooterButton({
         ref={ref}
         onClick={onClick}
         className={cn(
-          "flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-[13px] font-semibold text-slate-400 transition-all",
-          danger ? "hover:bg-red-500/10 hover:text-red-400" : "hover:bg-white/5 hover:text-white"
+          "flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-[13px] font-semibold text-slate-400 transition-all duration-200",
+          danger ? "hover:bg-red-500/10 hover:text-red-400" : "hover:bg-white/[0.06] hover:text-white"
         )}
       >
         <Icon size={16} className="shrink-0" />
@@ -777,31 +777,33 @@ export default function AdminDashboard() {
 
       {/* ── SIDEBAR DESKTOP ─────────────────────────────────────────────── */}
       <aside className={cn(
-        "bg-[#0f172a] text-slate-300 hidden lg:flex flex-col border-r border-white/5 transition-all duration-300 shrink-0",
-        isSidebarOpen ? "w-60" : "w-[60px]"
+        "bg-[#0b1327] text-slate-300 hidden lg:flex flex-col border-r border-white/10 transition-all duration-300 shrink-0",
+        isSidebarOpen ? "w-64" : "w-[64px]"
       )}>
         {/* Logo */}
         <div className={cn(
-          "flex items-center gap-3 border-b border-white/5 h-16 shrink-0",
+          "flex items-center gap-3 border-b border-white/10 h-[72px] shrink-0",
           isSidebarOpen ? "px-4" : "px-0 justify-center"
         )}>
-          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-white shadow-md">
-            <img src="/system/logo-any-512.png" alt="BoxSys" className="h-5 w-5 object-contain" />
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white/10 ring-1 ring-white/10">
+            <img src="/system/favicon.png" alt="BoxSys" className="h-8 w-8 object-contain" />
           </div>
           {isSidebarOpen && (
             <div className="min-w-0">
-              <p className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-500 leading-none">Box Sys</p>
-              <p className="text-[13px] font-bold text-white leading-tight truncate mt-0.5">{tenantName}</p>
+              <p className="text-[11px] font-black tracking-[0.08em] leading-none">
+                <span className="text-[#f58d0a]">Store</span><span className="text-[#297ed1]"> BoxSys</span>
+              </p>
+              <p className="text-[13px] font-bold text-white leading-tight truncate mt-1">{tenantName}</p>
             </div>
           )}
         </div>
 
         {/* Nav */}
-        <nav className="flex-1 overflow-y-auto pdv-scroll-dark py-2 px-2 space-y-3">
+        <nav className="flex-1 overflow-y-auto pdv-scroll-dark py-3 px-2.5 space-y-4">
           {menuGroups.map((group) => (
             <div key={group.label}>
               {isSidebarOpen && (
-                <p className="mb-1 px-2 text-[9px] font-black uppercase tracking-[0.18em] text-slate-600">
+                <p className="mb-1.5 px-2.5 text-[9px] font-black uppercase tracking-[0.2em] text-slate-500">
                   {group.label}
                 </p>
               )}
@@ -841,7 +843,7 @@ export default function AdminDashboard() {
         </nav>
 
         {/* Footer */}
-        <div className="border-t border-white/5 p-2 space-y-px">
+        <div className="border-t border-white/10 p-2.5 space-y-0.5">
           <SidebarFooterButton onClick={() => navigate("/admin/meu-perfil")} icon={UserCircle} label="Meu Perfil" isSidebarOpen={isSidebarOpen} />
           <SidebarFooterButton onClick={viewPublicStore} icon={Package} label="Ver Loja" isSidebarOpen={isSidebarOpen} />
           <SidebarFooterButton onClick={handleLogout} icon={LogOut} label="Sair" isSidebarOpen={isSidebarOpen} danger />
@@ -865,17 +867,19 @@ export default function AdminDashboard() {
           <motion.aside
             initial={{ x: "-100%" }} animate={{ x: 0 }} exit={{ x: "-100%" }}
             transition={{ type: "spring", damping: 28, stiffness: 220 }}
-            className="fixed inset-y-0 left-0 w-[260px] bg-[#0f172a] text-slate-300 flex flex-col z-[101] lg:hidden border-r border-white/5 shadow-2xl"
+            className="fixed inset-y-0 left-0 w-[280px] bg-[#0b1327] text-slate-300 flex flex-col z-[101] lg:hidden border-r border-white/10 shadow-2xl"
           >
             {/* Logo mobile */}
-            <div className="flex items-center justify-between border-b border-white/5 px-4 h-16 shrink-0">
+            <div className="flex items-center justify-between border-b border-white/10 px-4 h-[72px] shrink-0">
               <div className="flex items-center gap-3">
-                <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-white shadow-md">
-                  <img src="/system/logo-any-512.png" alt="BoxSys" className="h-5 w-5 object-contain" />
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white/10 ring-1 ring-white/10">
+                  <img src="/system/favicon.png" alt="BoxSys" className="h-8 w-8 object-contain" />
                 </div>
                 <div>
-                  <p className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-500 leading-none">Box Sys</p>
-                  <p className="text-[13px] font-bold text-white leading-tight truncate mt-0.5">{tenantName}</p>
+                  <p className="text-[11px] font-black tracking-[0.08em] leading-none">
+                    <span className="text-[#f58d0a]">Store</span><span className="text-[#297ed1]"> BoxSys</span>
+                  </p>
+                  <p className="text-[13px] font-bold text-white leading-tight truncate mt-1">{tenantName}</p>
                 </div>
               </div>
               <button onClick={() => setIsSidebarOpen(false)} className="p-1.5 text-slate-500 hover:text-white rounded-lg hover:bg-white/5">
@@ -883,10 +887,10 @@ export default function AdminDashboard() {
               </button>
             </div>
 
-            <nav className="flex-1 overflow-y-auto pdv-scroll-dark py-2 px-2 space-y-3">
+            <nav className="flex-1 overflow-y-auto pdv-scroll-dark py-3 px-2.5 space-y-4">
               {menuGroups.map((group) => (
                 <div key={group.label}>
-                  <p className="mb-1 px-2 text-[9px] font-black uppercase tracking-[0.18em] text-slate-600">
+                  <p className="mb-1.5 px-2.5 text-[9px] font-black uppercase tracking-[0.2em] text-slate-500">
                     {group.label}
                   </p>
                   <div className="space-y-px">
@@ -902,10 +906,10 @@ export default function AdminDashboard() {
                       return (
                         <Link key={item.path} to={item.path} onClick={() => setIsSidebarOpen(false)}
                           className={cn(
-                            "flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-[13px] font-semibold transition-all",
+                            "relative flex items-center gap-3 rounded-xl px-3 py-2.5 text-[13px] font-semibold transition-all duration-200",
                             isActive
-                              ? "bg-[#C9A227] text-white shadow-[0_2px_12px_rgba(201,162,39,0.35)]"
-                              : "text-slate-400 hover:bg-white/5 hover:text-white"
+                              ? "bg-[#297ed1] text-white shadow-[0_8px_18px_rgba(41,126,209,0.25)] before:absolute before:left-0 before:top-2 before:bottom-2 before:w-1 before:rounded-r-full before:bg-[#f7920c]"
+                              : "text-slate-400 hover:bg-white/[0.06] hover:text-white"
                           )}>
                           <item.icon size={16} />
                           <span className="flex-1">{item.label}</span>
@@ -922,7 +926,7 @@ export default function AdminDashboard() {
               ))}
             </nav>
 
-            <div className="border-t border-white/5 p-2 space-y-px">
+            <div className="border-t border-white/10 p-2.5 space-y-0.5">
               <button onClick={() => { setIsSidebarOpen(false); navigate("/admin/meu-perfil"); }}
                 className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-[13px] font-semibold text-slate-400 transition-all hover:bg-white/5 hover:text-white">
                 <UserCircle size={16} /><span>Meu Perfil</span>

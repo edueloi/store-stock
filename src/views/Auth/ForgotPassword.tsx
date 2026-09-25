@@ -1,7 +1,7 @@
 import { type FormEvent, useState } from "react";
 import { Link } from "react-router-dom";
 import { motion, AnimatePresence } from "motion/react";
-import { ArrowLeft, CheckCircle, Mail } from "lucide-react";
+import { ArrowLeft, CheckCircle } from "lucide-react";
 
 export default function ForgotPassword() {
   const [email, setEmail] = useState("");
@@ -29,21 +29,25 @@ export default function ForgotPassword() {
   };
 
   return (
-    <div className="flex min-h-screen bg-white">
+    <div className="flex min-h-screen bg-[#09161f]">
       {/* Painel esquerdo — mesma identidade do Login */}
-      <aside className="relative hidden w-[44%] min-w-[420px] flex-col justify-between overflow-hidden bg-[#081226] p-10 lg:flex xl:p-14">
+      <aside className="relative hidden w-[52%] min-w-[500px] flex-col justify-between overflow-hidden border-r border-white/10 bg-[#09161f] p-10 lg:flex xl:p-14">
         <div className="pointer-events-none absolute inset-0">
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_15%_15%,rgba(37,99,235,0.28),transparent_38%)]" />
-          <div className="absolute -bottom-24 -right-24 h-96 w-96 rounded-full bg-blue-600/10 blur-[100px]" />
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_18%_18%,rgba(41,126,209,0.28),transparent_34%)]" />
+          <div className="absolute -bottom-24 -right-24 h-96 w-96 rounded-full bg-orange-500/10 blur-[100px]" />
           <div className="absolute inset-0 opacity-[0.07] [background-image:radial-gradient(rgba(255,255,255,0.6)_1px,transparent_1px)] [background-size:32px_32px]" />
         </div>
 
-        <div className="relative">
-          <img src="/system/logo-boxsys-vazado.png" alt="BoxSys" className="h-11 w-auto object-contain" />
+        <div className="relative flex items-center gap-3">
+          <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white/10 ring-1 ring-white/10">
+            <img src="/system/favicon.png" alt="Store BoxSys" className="h-10 w-10 object-contain" />
+          </div>
+          <p className="text-xl font-black tracking-[-0.04em]"><span className="text-[#f58d0a]">Store</span><span className="text-[#5ba9ee]"> BoxSys</span></p>
         </div>
 
         <div className="relative max-w-md">
-          <span className="mb-6 block h-1 w-10 rounded-full bg-amber-400" />
+          <img src="/system/favicon.png" alt="" className="mb-7 h-36 w-36 object-contain" />
+          <span className="mb-6 block h-1 w-12 rounded-full bg-[#f7920c]" />
           <h1 className="text-4xl font-bold leading-[1.12] tracking-[-0.035em] text-white xl:text-5xl">
             Recupere seu acesso<br />
             <span className="text-blue-300">com segurança.</span>
@@ -54,25 +58,26 @@ export default function ForgotPassword() {
         </div>
 
         <p className="relative text-xs text-slate-500">
-          &copy; {new Date().getFullYear()} BoxSys
+          &copy; {new Date().getFullYear()} Store BoxSys
         </p>
       </aside>
 
       {/* Painel direito */}
-      <main className="relative flex flex-1 flex-col items-center justify-center bg-white px-6 py-10 sm:px-10">
-        <div className="mb-12 lg:hidden">
-          <img src="/system/logo-boxsys-vazado.png" alt="BoxSys" className="h-11 w-auto object-contain" />
+      <main className="relative flex flex-1 flex-col items-center justify-center bg-[radial-gradient(circle_at_100%_0%,rgba(41,126,209,0.14),transparent_30%),#0c1926] px-6 py-10 sm:px-10">
+        <div className="mb-10 flex items-center gap-3 lg:hidden">
+          <img src="/system/favicon.png" alt="Store BoxSys" className="h-12 w-12 object-contain" />
+          <p className="text-2xl font-black tracking-[-0.04em]"><span className="text-[#f58d0a]">Store</span><span className="text-[#297ed1]"> BoxSys</span></p>
         </div>
 
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.35, ease: "easeOut" }}
-          className="w-full max-w-[400px]"
+          className="w-full max-w-[390px]"
         >
           <Link
             to="/login"
-            className="mb-9 inline-flex items-center gap-2 text-sm font-medium text-slate-500 transition-colors hover:text-slate-800"
+            className="mb-9 inline-flex items-center gap-2 text-sm font-medium text-slate-400 transition-colors hover:text-white"
           >
             <ArrowLeft size={15} />
             Voltar ao login
@@ -87,19 +92,19 @@ export default function ForgotPassword() {
                 className="space-y-6 text-center"
               >
                 <div className="flex justify-center">
-                  <div className="flex h-20 w-20 items-center justify-center rounded-full bg-emerald-50 border-2 border-emerald-200">
+                  <div className="flex h-20 w-20 items-center justify-center rounded-full border-2 border-emerald-400/30 bg-emerald-400/10">
                     <CheckCircle size={36} className="text-emerald-500" />
                   </div>
                 </div>
                 <div>
-                  <h2 className="text-2xl font-black tracking-[-0.02em] text-slate-900">E-mail enviado!</h2>
-                  <p className="mt-2 text-sm leading-relaxed text-slate-500">
+                  <h2 className="text-2xl font-black tracking-[-0.02em] text-white">E-mail enviado!</h2>
+                  <p className="mt-2 text-sm leading-relaxed text-slate-400">
                     Se <strong>{email}</strong> estiver cadastrado, você receberá as instruções em instantes. Verifique também a caixa de spam.
                   </p>
                 </div>
                 <Link
                   to="/login"
-                  className="inline-flex h-11 w-full items-center justify-center rounded-xl bg-slate-900 text-sm font-bold text-white transition-all hover:bg-slate-800"
+                  className="inline-flex h-11 w-full items-center justify-center rounded-xl bg-[#297ed1] text-sm font-bold text-white transition-all hover:bg-[#1f6ebd]"
                 >
                   Voltar ao login
                 </Link>
@@ -107,25 +112,26 @@ export default function ForgotPassword() {
             ) : (
               <motion.div key="form" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
                 <div className="mb-9">
-                  <h2 className="text-3xl font-bold tracking-[-0.03em] text-slate-950 sm:text-4xl">
+                  <span className="mb-5 block h-1 w-12 rounded-full bg-[#f7920c]" />
+                  <p className="mb-3 text-[11px] font-black uppercase tracking-[0.22em] text-[#f7920c]">Store BoxSys</p>
+                  <h2 className="text-3xl font-bold tracking-[-0.03em] text-white sm:text-4xl">
                     Esqueceu a senha?
                   </h2>
-                  <p className="mt-2 text-sm leading-6 text-slate-500">
+                  <p className="mt-2 text-sm leading-6 text-slate-400">
                     Digite seu e-mail para receber o link de redefinição.
                   </p>
                 </div>
 
                 <form onSubmit={handleSubmit} className="space-y-6">
                   <div className="space-y-1.5">
-                    <label className="block text-sm font-semibold text-slate-700">
+                    <label className="block text-sm font-semibold text-slate-300">
                       E-mail
                     </label>
-                    <div className="flex h-[52px] items-center gap-3 rounded-xl border border-slate-300 bg-white px-4 transition-all focus-within:border-blue-500 focus-within:shadow-[0_0_0_3px_rgba(59,130,246,0.12)]">
-                      <Mail size={18} className="shrink-0 text-slate-400" />
+                    <div className="flex h-[54px] items-center rounded-xl border border-white/10 bg-white/[0.06] px-4 transition-all focus-within:border-[#297ed1] focus-within:bg-white/[0.09] focus-within:shadow-[0_0_0_3px_rgba(41,126,209,0.16)]">
                       <input
                         type="email"
                         autoComplete="email"
-                        className="h-full w-full bg-transparent text-[15px] text-slate-900 placeholder-slate-400 outline-none"
+                        className="auth-input h-full w-full bg-transparent text-[15px] text-white placeholder-slate-500 outline-none"
                         placeholder="seu@email.com"
                         value={email}
                         onChange={(e) => setEmail(e.target.value)}
@@ -143,7 +149,7 @@ export default function ForgotPassword() {
                   <button
                     type="submit"
                     disabled={loading}
-                    className="flex h-[52px] w-full items-center justify-center gap-2 rounded-xl bg-blue-600 text-sm font-bold text-white shadow-[0_8px_20px_rgba(37,99,235,0.22)] transition-all hover:bg-blue-700 hover:shadow-[0_10px_24px_rgba(37,99,235,0.28)] active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-60"
+                    className="flex h-[54px] w-full cursor-pointer items-center justify-center gap-2 rounded-xl bg-[#297ed1] text-sm font-bold text-white shadow-[0_10px_22px_rgba(41,126,209,0.28)] transition-all hover:bg-[#1f6ebd] hover:shadow-[0_12px_26px_rgba(41,126,209,0.34)] active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-60"
                   >
                     {loading ? (
                       <svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none">
@@ -159,8 +165,8 @@ export default function ForgotPassword() {
             )}
           </AnimatePresence>
 
-          <p className="absolute bottom-6 left-0 right-0 text-center text-xs text-slate-400 lg:hidden">
-            &copy; {new Date().getFullYear()} BoxSys
+          <p className="absolute bottom-6 left-0 right-0 text-center text-xs text-slate-500 lg:hidden">
+            &copy; {new Date().getFullYear()} Store BoxSys
           </p>
         </motion.div>
       </main>

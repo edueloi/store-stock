@@ -13,7 +13,7 @@ import Button from "../../components/ui/Button";
 import StatsGrid from "../../components/ui/StatsGrid";
 import { downloadHtmlAsPdf } from "../../lib/pdf";
 import PaymentSegmentsEditor, { PaymentSegment, newPaymentSegment } from "../../components/PaymentSegmentsEditor";
-import { buildInstallmentBookletText, printThermalText } from "../../lib/thermalReceipt";
+import { buildDebtPaymentReceiptText, buildInstallmentBookletText, printThermalText } from "../../lib/thermalReceipt";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -604,7 +604,21 @@ export default function CustomerDetail() {
       });
       if (res.ok) {
         const methodLabel = payments.length > 1 ? "Múltiplas formas" : PM_LABELS[payments[0].method] ?? payments[0].method;
-        await downloadPaymentReceipt(installmentNumber, amount, methodLabel);
+        const debt = detail.debts.find((item) => item.id === debtId);
+        const totalOpenBeforePayment = debt?.installments?.reduce(
+          (sum, item) => sum + Math.max(0, Number(item.amount) - Number(item.amount_paid || 0)), 0
+        ) ?? amount;
+        const receipt = buildDebtPaymentReceiptText(tenantName, {
+          customerName: detail.name,
+          debtDescription: debt?.description || "Crediário",
+          installmentNumber,
+          installmentsTotal: debt?.installments?.length || installmentNumber,
+          amount,
+          paymentMethod: methodLabel,
+          remainingBalance: totalOpenBeforePayment - amount,
+          paidAt: new Date(),
+        });
+        await printThermalText(receipt, `Pagamento de parcela — ${detail.name}`);
       } else {
         const data = await res.json().catch(() => ({}));
         setPayInstallmentError((prev) => ({ ...prev, [installmentId]: data.error || "Falha ao registrar pagamento" }));
@@ -634,32 +648,6 @@ export default function CustomerDetail() {
     } finally {
       setApplyingInterestId(null);
     }
-  }
-
-  async function downloadPaymentReceipt(installmentNumber: number, amount: number, methodLabel: string) {
-    if (!detail) return;
-    const now = new Date();
-    const html = `<!DOCTYPE html>
-<html><head><meta charset="utf-8"><title>Recibo de Pagamento</title>
-<style>
-  * { box-sizing: border-box; }
-  body { font-family: Arial, sans-serif; color: #1e293b; padding: 24px; }
-  h1 { font-size: 15px; margin-bottom: 12px; }
-  .row { display: table; width: 100%; margin: 4px 0; font-size: 12px; }
-  .row .lbl { display: table-cell; color: #64748b; }
-  .row .val { display: table-cell; text-align: right; font-weight: bold; }
-  .amount { margin-top: 16px; font-size: 16px; font-weight: bold; text-align: center; border: 1px solid #cbd5e1; padding: 10px; }
-</style></head>
-<body>
-  <h1>Recibo de Pagamento</h1>
-  <div class="row"><span class="lbl">Cliente</span><span class="val">${detail.name}</span></div>
-  <div class="row"><span class="lbl">Parcela</span><span class="val">${installmentNumber}</span></div>
-  <div class="row"><span class="lbl">Forma de pagamento</span><span class="val">${methodLabel}</span></div>
-  <div class="row"><span class="lbl">Data</span><span class="val">${now.toLocaleDateString("pt-BR")} ${now.toLocaleTimeString("pt-BR")}</span></div>
-  <div class="amount">${fmt(amount)}</div>
-</body></html>`;
-
-    await downloadHtmlAsPdf(html, `recibo-${detail.name.replace(/\s+/g, "-").toLowerCase()}-${now.getTime()}.pdf`);
   }
 
   async function downloadInstallmentBooklet(debt: Debt) {
@@ -814,7 +802,7 @@ export default function CustomerDetail() {
   const debtByOrderId = new Map(detail.debts.filter((d) => d.order_id).map((d) => [d.order_id as number, d]));
 
   return (
-    <div className="min-w-0 space-y-4 sm:space-y-5">
+    <div className="mx-auto min-w-0 w-full max-w-[1600px] space-y-4 sm:space-y-6">
       <PageHeader
         title={detail.name}
         subtitle="Ficha completa do cliente"
@@ -834,12 +822,13 @@ export default function CustomerDetail() {
       />
 
       {/* Customer header card */}
-      <div className={cn("rounded-2xl border p-4 sm:p-6", detail.risk_flag ? "bg-rose-50 border-rose-200" : "bg-white border-slate-200 shadow-sm")}>
-        <div className="flex flex-col sm:flex-row items-start gap-4">
+      <div className={cn("relative overflow-hidden rounded-2xl border p-4 sm:p-6", detail.risk_flag ? "bg-rose-50 border-rose-200" : "bg-white border-slate-200 shadow-sm")}>
+        {!detail.risk_flag && <><div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-[#297ed1] via-[#52a2e8] to-[#f7920c]" /><div className="absolute -right-12 -top-14 h-36 w-36 rounded-full bg-blue-50 blur-3xl" /></>}
+        <div className="relative flex flex-col sm:flex-row items-start gap-4">
           <div className="flex items-center gap-3 sm:gap-4 min-w-0 w-full sm:w-auto">
             <div className={cn(
               "w-12 h-12 sm:w-16 sm:h-16 rounded-2xl flex items-center justify-center font-black text-xl sm:text-3xl uppercase shrink-0",
-              detail.risk_flag ? "bg-rose-100 text-rose-600" : "bg-blue-50 text-blue-600"
+              detail.risk_flag ? "bg-rose-100 text-rose-600" : "bg-gradient-to-br from-[#3b91e4] to-[#176fc4] text-white shadow-lg shadow-blue-200"
             )}>
               {detail.name[0]}
             </div>
@@ -863,19 +852,19 @@ export default function CustomerDetail() {
                 </span>
               )}
             </div>
-            <div className="flex flex-col sm:flex-row sm:flex-wrap gap-1.5 sm:gap-4 mt-2 sm:mt-1.5">
+            <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:gap-2">
               {detail.phone && (
-                <a href={`tel:${detail.phone}`} className="text-[12px] text-slate-500 flex items-center gap-1.5 hover:text-blue-600 min-w-0">
+                <a href={`tel:${detail.phone}`} className="inline-flex min-w-0 items-center gap-1.5 rounded-lg bg-slate-50 px-2.5 py-1.5 text-[12px] font-semibold text-slate-600 transition-colors hover:bg-blue-50 hover:text-blue-600">
                   <Phone size={11} className="shrink-0" /> <span className="truncate">{detail.phone}</span>
                 </a>
               )}
               {detail.email && (
-                <a href={`mailto:${detail.email}`} className="text-[12px] text-slate-500 flex items-center gap-1.5 hover:text-blue-600 min-w-0">
+                <a href={`mailto:${detail.email}`} className="inline-flex min-w-0 items-center gap-1.5 rounded-lg bg-slate-50 px-2.5 py-1.5 text-[12px] font-semibold text-slate-600 transition-colors hover:bg-blue-50 hover:text-blue-600">
                   <Mail size={11} className="shrink-0" /> <span className="truncate">{detail.email}</span>
                 </a>
               )}
               {detail.address && (
-                <span className="text-[12px] text-slate-500 flex items-center gap-1.5 min-w-0">
+                <span className="inline-flex min-w-0 items-center gap-1.5 rounded-lg bg-slate-50 px-2.5 py-1.5 text-[12px] font-semibold text-slate-600">
                   <MapPin size={11} className="shrink-0" /> <span className="truncate">{detail.address}</span>
                 </span>
               )}
@@ -924,7 +913,7 @@ export default function CustomerDetail() {
       </div>
 
       {/* Tab content */}
-      <div className="max-w-7xl">
+        <div className="w-full">
         {/* ─ SUMMARY ─ */}
         {detailTab === "summary" && (
           <div className="space-y-4">
@@ -938,7 +927,7 @@ export default function CustomerDetail() {
             />
 
             <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
-              <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5 xl:col-span-2">
+              <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition-shadow hover:shadow-md sm:p-5 xl:col-span-2">
                 <div className="mb-4 flex items-center justify-between gap-3">
                   <div>
                     <p className="text-[11px] font-black uppercase tracking-widest text-slate-700">Dados do cliente</p>
@@ -988,7 +977,7 @@ export default function CustomerDetail() {
                 )}
               </section>
 
-              <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
+              <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition-shadow hover:shadow-md sm:p-5">
                 <p className="text-[11px] font-black uppercase tracking-widest text-slate-700">Limites e situação</p>
                 <div className="mt-4 space-y-3">
                   <div className="rounded-xl border border-blue-100 bg-blue-50/70 p-3">
@@ -1006,7 +995,7 @@ export default function CustomerDetail() {
                 </div>
               </section>
 
-              <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5 xl:col-span-2">
+              <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition-shadow hover:shadow-md sm:p-5 xl:col-span-2">
                 <p className="flex items-center gap-1.5 text-[11px] font-black uppercase tracking-widest text-slate-700"><MapPin size={13} className="text-blue-500" /> Endereço</p>
                 {(detail.address_street || detail.address) ? (
                   <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
@@ -1022,7 +1011,7 @@ export default function CustomerDetail() {
                 )}
               </section>
 
-              <section className="rounded-2xl border border-amber-200 bg-amber-50/70 p-4 shadow-sm sm:p-5">
+              <section className="rounded-2xl border border-amber-200 bg-amber-50/70 p-4 shadow-sm transition-shadow hover:shadow-md sm:p-5">
                 <p className="flex items-center gap-1.5 text-[11px] font-black uppercase tracking-widest text-amber-800"><StickyNote size={13} /> Preferências</p>
                 <p className="mt-3 whitespace-pre-wrap break-words text-[12px] leading-relaxed text-amber-900">{detail.notes?.trim() || "Nenhuma preferência ou observação cadastrada."}</p>
               </section>

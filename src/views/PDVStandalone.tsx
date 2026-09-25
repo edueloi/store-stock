@@ -3,7 +3,7 @@ import { createPortal } from "react-dom";
 import {
   Search, ShoppingCart, Plus, Minus, Trash2, User, CreditCard,
   Banknote, Percent, CheckCircle2, Package, X, QrCode, Tag,
-  Loader2, Lock, Mail, LogOut, Store, Eye, EyeOff,
+  Loader2, Lock, Mail, LogOut, Eye, EyeOff,
   Printer, FileText, MessageCircle, Phone, ChevronRight, ChevronDown,
   PlusCircle, Barcode, Users, Scan, Star, Gift, UserPlus, Download,
   Maximize2, Minimize2, Wrench, WifiOff, RefreshCw, Terminal,
@@ -199,48 +199,64 @@ function PDVLogin({ onLogin }: { onLogin: (token: string) => void }) {
   };
 
   return (
-    <div className="min-h-screen bg-slate-100 flex items-center justify-center p-6 font-sans">
-      <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="w-full max-w-sm">
+    <div className="relative min-h-screen overflow-hidden bg-[#09161f] p-6 font-sans text-slate-200">
+      <div className="pointer-events-none absolute inset-0 opacity-[0.09]" style={{ backgroundImage: "linear-gradient(rgba(147,197,253,.5) 1px,transparent 1px),linear-gradient(90deg,rgba(147,197,253,.5) 1px,transparent 1px)", backgroundSize: "42px 42px" }} />
+      <div className="pointer-events-none absolute left-0 top-0 h-[520px] w-[520px] rounded-full bg-[#297ed1]/15 blur-[130px]" />
+      <div className="pointer-events-none absolute bottom-0 right-0 h-[420px] w-[420px] rounded-full bg-[#ed670e]/10 blur-[130px]" />
+      <div className="relative mx-auto grid min-h-[calc(100vh-3rem)] w-full max-w-5xl items-center gap-12 lg:grid-cols-[1fr_420px]">
+        <section className="hidden lg:flex flex-col justify-center">
+          <div className="mb-12 flex items-center gap-3">
+            <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-white/10 ring-1 ring-white/10">
+              <img src="/system/favicon.png" alt="Store BoxSys" className="h-11 w-11 object-contain" />
+            </div>
+            <p className="text-2xl font-black tracking-[-0.04em]"><span className="text-[#f58d0a]">Store</span><span className="text-[#5ba9ee]"> BoxSys</span></p>
+          </div>
+          <p className="mb-4 text-[11px] font-black uppercase tracking-[0.24em] text-[#f7920c]">Ponto de venda</p>
+          <h1 className="max-w-md text-5xl font-black leading-[1.04] tracking-[-0.05em] text-white">Venda rápida.<br /><span className="text-[#5ba9ee]">Atendimento fluido.</span></h1>
+          <p className="mt-6 max-w-sm text-base leading-7 text-slate-400">Entre no terminal para abrir o caixa, consultar produtos e concluir suas vendas.</p>
+          <div className="mt-10 flex items-center gap-3 text-xs font-semibold text-slate-500"><span className="h-px w-10 bg-[#f7920c]" /> Ambiente protegido para operadores autorizados</div>
+        </section>
+      <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="w-full max-w-[420px] justify-self-center lg:justify-self-end">
         {/* Barra de status — reflete a conexão real do terminal, não decorativa */}
-        <div className="flex items-center justify-between px-1 mb-2.5">
-          <span className="flex items-center gap-1.5 text-[10px] font-bold text-slate-500">
+        <div className="mb-3 flex items-center justify-between px-1">
+          <span className="flex items-center gap-1.5 text-[10px] font-bold text-slate-400">
             Servidor:
             <span className={cn("font-black", isOnline ? "text-emerald-600" : "text-rose-500")}>
               {isOnline ? "conectado" : "offline"}
             </span>
           </span>
-          <span className="text-[10px] font-bold text-slate-400">BoxSys PDV</span>
+          <span className="text-[10px] font-bold text-slate-500">Terminal PDV</span>
         </div>
 
-        <div className="bg-white border border-slate-200 rounded-2xl shadow-[0_1px_2px_rgba(20,20,30,.04),0_10px_24px_rgba(20,20,30,.06)] overflow-hidden">
-          <div className="flex items-center gap-3 px-5 py-4 border-b border-slate-200">
-            <div className="w-9 h-9 rounded-xl bg-blue-900 flex items-center justify-center shrink-0">
-              <Store size={16} className="text-white" />
+        <div className="overflow-hidden rounded-3xl border border-white/10 bg-[#0d1d2b]/90 shadow-[0_24px_60px_rgba(0,0,0,.28)] backdrop-blur-xl">
+          <div className="flex items-center gap-3 border-b border-white/10 px-6 py-5">
+            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-white/10 ring-1 ring-white/10">
+              <img src="/system/favicon.png" alt="Store BoxSys" className="h-9 w-9 object-contain" />
             </div>
             <div>
-              <h1 className="text-[13px] font-bold text-slate-900 leading-tight">BoxSys PDV</h1>
-              <p className="text-[10px] text-slate-400 mt-0.5">Terminal de Vendas</p>
+              <h1 className="text-[15px] font-black leading-tight"><span className="text-[#f58d0a]">Store</span><span className="text-[#5ba9ee]"> BoxSys</span></h1>
+              <p className="mt-0.5 text-[10px] font-medium text-slate-400">Terminal de Vendas</p>
             </div>
           </div>
 
-          <form onSubmit={handleSubmit} className="px-5 py-5 space-y-3.5">
+          <form onSubmit={handleSubmit} className="space-y-4 px-6 py-6">
             <div>
-              <label className="text-[10px] font-semibold text-slate-500 block mb-1.5">E-mail ou usuário</label>
+              <label className="mb-1.5 block text-[10px] font-semibold text-slate-400">E-mail ou usuário</label>
               <input type="text" value={identifier} onChange={(e) => setIdentifier(e.target.value)} required autoFocus
                 placeholder="ex: joyce.antunes"
-                className="w-full h-10 px-3 rounded-lg border border-slate-200 bg-slate-50 text-[13px] font-medium text-slate-800 placeholder:text-slate-400 focus:outline-none focus:border-blue-800 focus:bg-white focus:ring-2 focus:ring-blue-800/10 transition-all" />
+                className="auth-input h-11 w-full rounded-xl border border-white/10 bg-white/[0.06] px-3.5 text-[13px] font-medium text-white placeholder:text-slate-500 transition-all focus:border-[#297ed1] focus:bg-white/[0.09] focus:outline-none focus:ring-2 focus:ring-[#297ed1]/20" />
             </div>
             <div>
-              <label className="text-[10px] font-semibold text-slate-500 block mb-1.5">Senha</label>
+              <label className="mb-1.5 block text-[10px] font-semibold text-slate-400">Senha</label>
               <div className="relative">
                 <input type={showPassword ? "text" : "password"} value={password} onChange={(e) => setPassword(e.target.value)} required
                   placeholder="••••••••"
-                  className="w-full h-10 pl-3 pr-10 rounded-lg border border-slate-200 bg-slate-50 text-[13px] font-medium text-slate-800 placeholder:text-slate-400 focus:outline-none focus:border-blue-800 focus:bg-white focus:ring-2 focus:ring-blue-800/10 transition-all" />
+                  className="auth-input h-11 w-full rounded-xl border border-white/10 bg-white/[0.06] pl-3.5 pr-10 text-[13px] font-medium text-white placeholder:text-slate-500 transition-all focus:border-[#297ed1] focus:bg-white/[0.09] focus:outline-none focus:ring-2 focus:ring-[#297ed1]/20" />
                 <button
                   type="button"
                   tabIndex={-1}
                   onClick={() => setShowPassword((v) => !v)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 transition-colors hover:text-white"
                   title={showPassword ? "Ocultar senha" : "Mostrar senha"}
                 >
                   {showPassword ? <EyeOff size={15} /> : <Eye size={15} />}
@@ -257,17 +273,18 @@ function PDVLogin({ onLogin }: { onLogin: (token: string) => void }) {
             )}
 
             <button type="submit" disabled={loading}
-              className="w-full h-10 bg-blue-900 hover:bg-blue-950 text-white rounded-lg text-[12px] font-bold transition-all active:scale-[0.98] disabled:opacity-40 flex items-center justify-center gap-2 mt-1">
+              className="mt-2 flex h-11 w-full cursor-pointer items-center justify-center gap-2 rounded-xl bg-[#297ed1] text-[12px] font-bold text-white shadow-[0_10px_22px_rgba(41,126,209,.25)] transition-all hover:bg-[#1f6ebd] active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-40">
               {loading ? <Loader2 size={15} className="animate-spin" /> : null}
               {loading ? "Entrando..." : "Entrar no sistema"}
             </button>
 
-            <div className="pt-3 mt-1 border-t border-slate-100 flex items-center justify-center">
-              <p className="text-[9.5px] text-slate-400">Acesso exclusivo para operadores autorizados</p>
+            <div className="mt-1 flex justify-center border-t border-white/10 pt-4">
+              <p className="text-[9.5px] text-slate-500">Acesso exclusivo para operadores autorizados</p>
             </div>
           </form>
         </div>
       </motion.div>
+    </div>
     </div>
   );
 }
@@ -2348,10 +2365,10 @@ ${nfceInvoice.protocol ? `<div class="row"><span class="bold">Protocolo:</span><
     <div className="h-screen flex flex-col overflow-hidden font-sans bg-slate-100">
 
       {/* ── Top Bar ──────────────────────────────────────────────────────────── */}
-      <header className="h-14 flex items-center justify-between px-2.5 sm:px-4 shrink-0 bg-white border-b border-slate-200 shadow-sm gap-2">
+      <header className="h-14 flex items-center justify-between gap-2 border-b border-[#1e3550] bg-[#0b1728] px-2.5 shadow-lg shadow-slate-950/10 sm:px-4">
 
         {/* Logo + nome */}
-        <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+        <div className="flex min-w-0 items-center gap-2 sm:gap-3">
           {pdvStep === "payment" && showCheckoutModal && (
             <button onClick={() => setPdvStep("cart")} disabled={finishing}
               className="flex items-center gap-1 h-8 px-2.5 rounded-xl text-[10px] font-bold uppercase tracking-widest text-slate-500 border border-slate-200 hover:bg-slate-50 hover:text-slate-700 transition-all disabled:opacity-30 shrink-0 mr-1">
@@ -2359,23 +2376,14 @@ ${nfceInvoice.protocol ? `<div class="row"><span class="bold">Protocolo:</span><
               <span className="hidden sm:inline">Voltar</span>
             </button>
           )}
-          {tenantLogo ? (
-            <img src={tenantLogo} alt={tenantName} className="h-8 w-auto max-w-[56px] sm:max-w-[72px] object-contain rounded-xl shrink-0" />
-          ) : (
-            <div className="w-9 h-9 rounded-xl flex items-center justify-center text-white font-black text-[13px] shadow shrink-0"
-              style={{ background: "linear-gradient(135deg, #3b82f6, #1d4ed8)" }}>
-              {tenantName.charAt(0).toUpperCase()}
-            </div>
-          )}
-          <div className="min-w-0">
-            <p className="text-[13px] font-black text-slate-800 tracking-wide leading-none truncate">{tenantName}</p>
-            <div className="flex items-center gap-1.5 mt-0.5">
-              <div className={cn("w-1.5 h-1.5 rounded-full animate-pulse shrink-0", isOnline ? "bg-emerald-500" : "bg-amber-500")} />
-              <span className={cn("text-[9px] font-semibold uppercase tracking-widest truncate", isOnline ? "text-slate-400" : "text-amber-600")}>
-                {isOnline ? "Terminal Online" : "Modo Offline"}
-              </span>
-            </div>
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-white/10 bg-white/10">
+            <img src="/system/favicon.png" alt="Store BoxSys" className="h-7 w-7 object-contain" />
           </div>
+          <div className="min-w-0 border-r border-white/10 pr-2 sm:pr-3">
+            <p className="whitespace-nowrap text-[11px] font-black leading-none tracking-tight"><span className="text-[#f7920c]">Store</span><span className="text-[#5ba9ee]"> BoxSys</span></p>
+            <p className="mt-1 text-[8px] font-bold uppercase tracking-[0.15em] text-slate-400">Terminal PDV</p>
+          </div>
+
         </div>
 
         {/* Scanner status — centro (oculto só em telas muito estreitas ou durante o pagamento) */}
@@ -2434,28 +2442,28 @@ ${nfceInvoice.protocol ? `<div class="row"><span class="bold">Protocolo:</span><
           {requireCashSession && cashSession && (
             <button onClick={() => setShowCloseCashModal(true)}
               title="Fechar Caixa"
-              className="flex items-center gap-1.5 px-2.5 h-8 rounded-xl text-[10px] font-bold text-slate-500 border border-slate-200 hover:bg-emerald-50 hover:text-emerald-600 hover:border-emerald-200 transition-all">
+              className="flex items-center gap-1.5 px-2.5 h-8 rounded-xl text-[10px] font-bold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 hover:bg-emerald-500/20 hover:border-emerald-500/40 transition-all cursor-pointer">
               <Wallet size={11} />
               <span className="hidden 2xl:block">Fechar caixa</span>
             </button>
           )}
           <button onClick={() => setShowCrediarioModal(true)} title="Crediário (F6)"
-            className="flex items-center gap-1.5 px-2.5 h-8 rounded-xl text-[10px] font-bold text-slate-500 border border-slate-200 hover:bg-amber-50 hover:text-amber-600 hover:border-amber-200 transition-all">
+            className="flex items-center gap-1.5 px-2.5 h-8 rounded-xl text-[10px] font-bold text-amber-400 bg-amber-500/10 border border-amber-500/20 hover:bg-amber-500/20 hover:border-amber-500/40 transition-all cursor-pointer">
             <Wallet size={11} />
             <span className="hidden xl:block">Crediário</span>
           </button>
           <button onClick={() => setShowCustomerLookup(true)} title="Consultar Cliente (F7)"
-            className="flex items-center gap-1.5 px-2.5 h-8 rounded-xl text-[10px] font-bold text-slate-500 border border-slate-200 hover:bg-blue-50 hover:text-blue-600 hover:border-blue-200 transition-all">
+            className="flex items-center gap-1.5 px-2.5 h-8 rounded-xl text-[10px] font-bold text-blue-400 bg-blue-500/10 border border-blue-500/20 hover:bg-blue-500/20 hover:border-blue-500/40 transition-all cursor-pointer">
             <User size={11} />
             <span className="hidden xl:block">Cliente</span>
           </button>
           <button onClick={() => setShowConsignmentLookup(true)} title="Consultar Consignado (F8)"
-            className="flex items-center gap-1.5 px-2.5 h-8 rounded-xl text-[10px] font-bold text-slate-500 border border-slate-200 hover:bg-violet-50 hover:text-violet-600 hover:border-violet-200 transition-all">
+            className="flex items-center gap-1.5 px-2.5 h-8 rounded-xl text-[10px] font-bold text-violet-400 bg-violet-500/10 border border-violet-500/20 hover:bg-violet-500/20 hover:border-violet-500/40 transition-all cursor-pointer">
             <ShoppingBag size={11} />
             <span className="hidden 2xl:block">Consignado</span>
           </button>
           <button onClick={() => setShowHeldSalesDrawer(true)} title="Vendas Abertas"
-            className="relative flex items-center gap-1.5 px-2.5 h-8 rounded-xl text-[10px] font-bold text-slate-500 border border-slate-200 hover:bg-amber-50 hover:text-amber-600 hover:border-amber-200 transition-all">
+            className="relative flex items-center gap-1.5 px-2.5 h-8 rounded-xl text-[10px] font-bold text-orange-400 bg-orange-500/10 border border-orange-500/20 hover:bg-orange-500/20 hover:border-orange-500/40 transition-all cursor-pointer">
             <Clock size={11} />
             <span className="hidden 2xl:block">Vendas abertas</span>
             {openHeldSalesCount > 0 && (
@@ -2465,13 +2473,13 @@ ${nfceInvoice.protocol ? `<div class="row"><span class="bold">Protocolo:</span><
             )}
           </button>
           <button onClick={() => setShowSaleHistoryDrawer(true)} title="Histórico de Vendas — buscar e reimprimir cupom"
-            className="flex items-center gap-1.5 px-2.5 h-8 rounded-xl text-[10px] font-bold text-slate-500 border border-slate-200 hover:bg-blue-50 hover:text-blue-600 hover:border-blue-200 transition-all">
+            className="flex items-center gap-1.5 px-2.5 h-8 rounded-xl text-[10px] font-bold text-sky-400 bg-sky-500/10 border border-sky-500/20 hover:bg-sky-500/20 hover:border-sky-500/40 transition-all cursor-pointer">
             <Printer size={11} />
             <span className="hidden 2xl:block">Reimprimir venda</span>
           </button>
           {/* Fullscreen toggle */}
           <button onClick={toggleFullscreen} title={isFullscreen ? "Sair de tela cheia" : "Tela cheia"}
-            className="hidden xl:flex items-center gap-1.5 px-2.5 h-8 rounded-xl text-[10px] font-bold uppercase tracking-widest text-slate-500 border border-slate-200 hover:bg-slate-50 hover:text-slate-700 transition-all">
+            className="hidden xl:flex items-center gap-1.5 px-2.5 h-8 rounded-xl text-[10px] font-bold uppercase tracking-widest text-slate-300 bg-white/5 border border-white/10 hover:bg-white/10 hover:text-white transition-all cursor-pointer">
             {isFullscreen ? <Minimize2 size={11} /> : <Maximize2 size={11} />}
             {isFullscreen ? "Sair" : "Tela Cheia"}
           </button>
@@ -2479,7 +2487,7 @@ ${nfceInvoice.protocol ? `<div class="row"><span class="bold">Protocolo:</span><
           {/* Instalar PWA */}
           {!pwaInstalled && (installPrompt || isSafari || isIos) && (
             <button onClick={handleInstallPwa} title="Instalar App"
-              className="flex items-center gap-1.5 px-2 sm:px-2.5 h-8 rounded-xl text-[10px] font-bold uppercase tracking-widest text-blue-600 border border-blue-200 bg-blue-50 hover:bg-blue-100 transition-all">
+              className="flex items-center gap-1.5 px-2 sm:px-2.5 h-8 rounded-xl text-[10px] font-bold uppercase tracking-widest text-blue-400 border border-blue-500/30 bg-blue-500/10 hover:bg-blue-500/20 transition-all cursor-pointer">
               <Download size={11} /> <span className="hidden 2xl:inline">Instalar App</span>
             </button>
           )}
@@ -2493,7 +2501,7 @@ ${nfceInvoice.protocol ? `<div class="row"><span class="bold">Protocolo:</span><
             <button ref={userMenuButtonRef} onClick={() => setShowUserMenu((v) => !v)} title={operatorName || "Usuário"}
               className={cn(
                 "flex items-center gap-1.5 px-2 sm:px-3 h-8 rounded-xl text-[10px] font-bold uppercase tracking-widest border transition-all",
-                showUserMenu ? "text-blue-600 border-blue-200 bg-blue-50" : "text-slate-400 border-slate-200 hover:bg-slate-50 hover:text-slate-600"
+                showUserMenu ? "text-blue-400 border-blue-500/30 bg-blue-500/10 cursor-pointer" : "text-slate-300 bg-white/5 border border-white/10 hover:bg-white/10 hover:text-white cursor-pointer"
               )}>
               <Settings size={11} />
               <span className="hidden lg:inline max-w-[100px] truncate">{operatorName || "Usuário"}</span>
@@ -2548,12 +2556,12 @@ ${nfceInvoice.protocol ? `<div class="row"><span class="bold">Protocolo:</span><
                   <X size={14} className="text-white/60" />
                 </button>
                 <div className="relative flex items-center gap-4">
-                  <div className="w-16 h-16 bg-gradient-to-br from-blue-500 to-blue-700 rounded-2xl flex items-center justify-center shadow-xl shadow-blue-500/30">
-                    <Store size={28} className="text-white" />
+                  <div className="flex h-16 w-16 items-center justify-center rounded-2xl border border-white/15 bg-white/10 shadow-xl shadow-blue-950/30">
+                    <img src="/system/favicon.png" alt="Store BoxSys" className="h-12 w-12 object-contain" />
                   </div>
                   <div>
                     <p className="text-[10px] font-black uppercase tracking-[0.25em] text-blue-400 mb-0.5">Terminal de Vendas</p>
-                    <h2 className="text-[22px] font-black text-white leading-none">BoxSys PDV</h2>
+                    <h2 className="text-[22px] font-black leading-none"><span className="text-[#f7920c]">Store</span><span className="text-[#5ba9ee]"> BoxSys</span> <span className="text-white">PDV</span></h2>
                     <p className="text-[11px] text-slate-400 font-medium mt-1">Instale na área de trabalho para acesso rápido</p>
                   </div>
                 </div>
@@ -2726,7 +2734,7 @@ ${nfceInvoice.protocol ? `<div class="row"><span class="bold">Protocolo:</span><
 
           {/* Grid de serviços */}
           {showServicesTab && (
-            <div className="flex-1 overflow-y-auto pr-1 pb-2 pdv-scroll-light">
+            <div className="flex-1 overflow-y-auto pr-1 pt-1.5 pb-2 pdv-scroll-light">
               {services.length === 0 ? (
                 <div className="h-full flex flex-col items-center justify-center gap-3">
                   <Wrench size={44} className="text-slate-300" strokeWidth={1} />
@@ -2803,7 +2811,7 @@ ${nfceInvoice.protocol ? `<div class="row"><span class="bold">Protocolo:</span><
           )}
 
           {/* Grid de produtos */}
-          {!showServicesTab && (<div className="flex-1 overflow-y-auto pr-1 pb-2 pdv-scroll-light">
+          {!showServicesTab && (<div className="flex-1 overflow-y-auto pr-1 pt-1.5 pb-2 pdv-scroll-light">
             {loading ? (
               <div className="h-full flex items-center justify-center">
                 <Loader2 size={28} className="animate-spin text-slate-300" />
@@ -2814,7 +2822,7 @@ ${nfceInvoice.protocol ? `<div class="row"><span class="bold">Protocolo:</span><
                 <p className="text-[11px] font-black uppercase tracking-widest text-slate-400">Nenhum produto encontrado</p>
               </div>
             ) : viewMode === "list" ? (
-              <div className="grid grid-cols-1 lg:grid-cols-2 2xl:grid-cols-3 gap-1.5 sm:gap-2">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-1.5">
                 {filteredProducts.map((product) => {
                   const qtyInCart = cart.filter((i) => i.id === product.id).reduce((a, b) => a + b.quantity, 0);
                   const hasVariations = (Array.isArray(product.attributes) && product.attributes.length > 0) ||
@@ -2824,7 +2832,7 @@ ${nfceInvoice.protocol ? `<div class="row"><span class="bold">Protocolo:</span><
                       onClick={() => addToCart(product)}
                       whileTap={{ scale: 0.98 }}
                       className={cn(
-                        "bg-white rounded-xl border flex items-center gap-3 group relative text-left overflow-hidden transition-all duration-200 px-2.5 py-2",
+                        "bg-white rounded-xl border border-slate-100 flex items-center gap-3 group relative text-left overflow-visible transition-all duration-200 px-3 py-2 hover:bg-blue-50/40 hover:border-blue-200",
                         qtyInCart > 0
                           ? "cursor-pointer border-blue-400 shadow-sm shadow-blue-100"
                           : "cursor-pointer border-slate-200 hover:border-blue-300 hover:shadow-sm hover:shadow-blue-50"
@@ -2846,7 +2854,7 @@ ${nfceInvoice.protocol ? `<div class="row"><span class="bold">Protocolo:</span><
 
                       {/* Info */}
                       <div className="flex-1 min-w-0">
-                        <p className="text-[12px] font-semibold text-slate-700 leading-tight truncate">{product.name}</p>
+                        <p className="text-[12px] font-semibold text-slate-700 leading-snug">{product.name}</p>
                         {hasVariations && <p className="text-[8px] font-black text-blue-500 uppercase tracking-widest">variações</p>}
                       </div>
 
@@ -2877,7 +2885,7 @@ ${nfceInvoice.protocol ? `<div class="row"><span class="bold">Protocolo:</span><
                 })}
               </div>
             ) : (
-              <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-2.5">
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-7 3xl:grid-cols-8 gap-1.5 sm:gap-2">
                 {filteredProducts.map((product) => {
                   const qtyInCart = cart.filter((i) => i.id === product.id).reduce((a, b) => a + b.quantity, 0);
                   const hasVariations = (Array.isArray(product.attributes) && product.attributes.length > 0) ||
@@ -2887,14 +2895,14 @@ ${nfceInvoice.protocol ? `<div class="row"><span class="bold">Protocolo:</span><
                       onClick={() => addToCart(product)}
                       whileTap={{ scale: 0.97 }}
                       className={cn(
-                        "bg-white rounded-2xl border flex flex-col items-start group relative text-left overflow-hidden transition-all duration-200",
+                        "bg-white rounded-3xl border border-slate-100 flex flex-col items-start group relative text-left overflow-hidden transition-all duration-300 shadow-sm hover:shadow-xl hover:-translate-y-1",
                         qtyInCart > 0
                           ? "cursor-pointer border-blue-400 shadow-md shadow-blue-100"
                           : "cursor-pointer border-slate-200 hover:border-blue-300 hover:shadow-md hover:shadow-blue-50"
                       )}>
 
                       {/* Imagem */}
-                      <div className="w-full aspect-[4/3] overflow-hidden relative flex items-center justify-center bg-slate-50">
+                      <div className="w-full aspect-[3/2] overflow-hidden relative flex items-center justify-center bg-slate-50">
                         {product.image_url
                           ? <img src={product.image_url} alt={product.name} className="object-contain w-full h-full group-hover:scale-105 transition-transform duration-500 p-1" />
                           : <div className="w-full h-full flex items-center justify-center"><Package size={24} className="text-slate-300" /></div>}
@@ -2933,18 +2941,18 @@ ${nfceInvoice.protocol ? `<div class="row"><span class="bold">Protocolo:</span><
                       </div>
 
                       {/* Info */}
-                      <div className="p-2 sm:p-2.5 w-full">
-                        <p className="text-[10px] sm:text-[11px] font-semibold text-slate-700 leading-tight line-clamp-2 mb-1.5 min-h-[2.2em]">{product.name}</p>
+                      <div className="p-1.5 sm:p-2 w-full">
+                        <p className="text-[9px] sm:text-[10px] font-bold text-slate-700 leading-tight line-clamp-2 mb-1 min-h-[2.2em]">{product.name}</p>
                         {hasVariations && (
                           <p className="text-[8px] font-black text-blue-500 uppercase tracking-widest mb-1">variações</p>
                         )}
                         {product.discount_price ? (
                           <div className="flex flex-col">
-                            <span className="text-[9px] sm:text-[10px] font-mono text-slate-400 line-through leading-none">R$ {Number(product.price).toFixed(2)}</span>
-                            <span className="text-[12px] sm:text-[14px] font-mono font-black text-emerald-600 leading-tight">R$ {Number(product.discount_price).toFixed(2)}</span>
+                            <span className="text-[8px] sm:text-[9px] font-mono text-slate-400 line-through leading-none">R$ {Number(product.price).toFixed(2)}</span>
+                            <span className="text-[10px] sm:text-[12px] font-mono font-black text-emerald-600 leading-tight">R$ {Number(product.discount_price).toFixed(2)}</span>
                           </div>
                         ) : (
-                          <p className="text-[12px] sm:text-[14px] font-mono font-black text-blue-600">
+                          <p className="text-[10px] sm:text-[12px] font-mono font-black text-blue-600">
                             R$ {Number(product.price).toFixed(2)}
                           </p>
                         )}
@@ -4697,7 +4705,7 @@ ${nfceInvoice.protocol ? `<div class="row"><span class="bold">Protocolo:</span><
               className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[500]" />
             <motion.div initial={{ x: "100%" }} animate={{ x: 0 }} exit={{ x: "100%" }}
               transition={{ type: "spring", damping: 26, stiffness: 200 }}
-              className="fixed inset-y-0 right-0 w-full max-w-sm bg-white z-[510] shadow-2xl flex flex-col">
+              className="fixed inset-y-0 right-0 w-full max-w-md bg-white z-[510] shadow-2xl flex flex-col">
               <div className="flex items-center justify-between px-5 py-4 border-b border-slate-200 shrink-0">
                 <div>
                   <h2 className="font-black text-slate-900 text-[15px]">Crediário</h2>
@@ -4711,7 +4719,7 @@ ${nfceInvoice.protocol ? `<div class="row"><span class="bold">Protocolo:</span><
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={13} />
                   <input value={crediarioSearch} onChange={(e) => setCrediarioSearch(e.target.value)}
                     placeholder="Buscar cliente por nome ou telefone..."
-                    className="w-full pl-9 pr-3 h-10 rounded-xl border border-slate-200 text-[12px] font-medium focus:outline-none focus:border-blue-400" />
+                    className="w-full pl-9 pr-3 h-11 rounded-xl border border-slate-200 text-[12px] font-medium focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 shadow-sm transition-all" />
                 </div>
                 {crediarioFilteredCustomers.length > 0 && !crediarioCustomer && (
                   <div className="mt-2 border border-slate-200 rounded-xl overflow-hidden max-h-40 overflow-y-auto">
@@ -4735,7 +4743,7 @@ ${nfceInvoice.protocol ? `<div class="row"><span class="bold">Protocolo:</span><
                   <div className="flex items-center justify-center h-32"><Loader2 size={20} className="animate-spin text-slate-300" /></div>
                 ) : (
                   <>
-                    <div className="flex items-center justify-between bg-slate-50 rounded-xl px-3 py-2.5 border border-slate-200">
+                    <div className="flex items-center justify-between bg-gradient-to-r from-blue-50 to-slate-50 rounded-2xl px-4 py-3 border border-blue-100 shadow-sm">
                       <div>
                         <p className="text-[12px] font-black text-slate-800">{crediarioCustomer.name}</p>
                         <p className="text-[10px] text-slate-400">{crediarioCustomer.phone}</p>
@@ -4781,7 +4789,7 @@ ${nfceInvoice.protocol ? `<div class="row"><span class="bold">Protocolo:</span><
                                       : 0;
                                     return (
                                       <div key={inst.id} className={cn(
-                                        "rounded-lg border p-2",
+                                        "rounded-xl border p-3",
                                         inst.status === "paid" ? "bg-emerald-50 border-emerald-200" : instOverdue ? "bg-red-50 border-red-200" : "bg-slate-50 border-slate-200"
                                       )}>
                                         <div className="flex items-center justify-between gap-2">
@@ -4814,7 +4822,7 @@ ${nfceInvoice.protocol ? `<div class="row"><span class="bold">Protocolo:</span><
                                               <p className="text-[9px] font-bold text-red-600 mt-1">{crediarioInstallmentPayError[inst.id]}</p>
                                             )}
                                             <button onClick={() => handlePayInstallment(d, inst)} disabled={crediarioPayingInstallmentId === inst.id}
-                                              className="w-full h-7 mt-1.5 rounded-md bg-emerald-600 text-white text-[9px] font-black uppercase tracking-wider hover:bg-emerald-700 disabled:opacity-50 transition-all flex items-center justify-center gap-1.5">
+                                              className="w-full h-8 mt-2 rounded-lg bg-emerald-600 text-white text-[10px] font-black uppercase tracking-wider hover:bg-emerald-700 disabled:opacity-50 transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-sm shadow-emerald-200">
                                               {crediarioPayingInstallmentId === inst.id ? <Loader2 size={11} className="animate-spin" /> : "Confirmar pagamento"}
                                             </button>
                                             {instSuggestedInterest > 0 && (
@@ -4822,7 +4830,7 @@ ${nfceInvoice.protocol ? `<div class="row"><span class="bold">Protocolo:</span><
                                                 <p className="text-[8px] text-red-600 font-semibold">Juros sugerido: R$ {instSuggestedInterest.toFixed(2)}</p>
                                                 <button onClick={() => handleApplyInterest(d, inst, instSuggestedInterest)}
                                                   disabled={crediarioApplyingInterestId === inst.id}
-                                                  className="h-6 px-2 rounded-md bg-red-600 text-white text-[8px] font-black uppercase tracking-wide hover:bg-red-700 disabled:opacity-50 transition-colors shrink-0">
+                                                  className="h-7 px-2.5 rounded-lg bg-red-600 text-white text-[9px] font-black uppercase tracking-wide hover:bg-red-700 disabled:opacity-50 transition-colors shrink-0 cursor-pointer shadow-sm shadow-red-200">
                                                   {crediarioApplyingInterestId === inst.id ? <Loader2 size={10} className="animate-spin" /> : "Aplicar juros"}
                                                 </button>
                                               </div>
@@ -4850,14 +4858,14 @@ ${nfceInvoice.protocol ? `<div class="row"><span class="bold">Protocolo:</span><
                                     <p className="text-[9px] font-bold text-red-600 mt-1">{crediarioPayError[d.id]}</p>
                                   )}
                                   <button onClick={() => handlePayCrediarioDebt(d)} disabled={crediarioPaying === d.id}
-                                    className="w-full h-8 mt-2 rounded-lg bg-emerald-600 text-white text-[10px] font-black uppercase tracking-wider hover:bg-emerald-700 disabled:opacity-50 transition-all flex items-center justify-center gap-1.5">
+                                    className="w-full h-9 mt-2.5 rounded-xl bg-emerald-600 text-white text-[10px] font-black uppercase tracking-wider hover:bg-emerald-700 disabled:opacity-50 transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-sm shadow-emerald-200">
                                     {crediarioPaying === d.id ? <Loader2 size={12} className="animate-spin" /> : "Confirmar pagamento"}
                                   </button>
                                 </>
                               )}
                             </div>
                             {isExpanded && d.order && (
-                              <div className="px-3 pb-3 pt-0 space-y-1 bg-slate-50 border-t border-slate-100">
+                              <div className="px-3.5 pb-3.5 pt-2 space-y-1 bg-slate-50/80 border-t border-slate-100">
                                 {d.order.items.map((it) => (
                                   <div key={it.id} className="flex justify-between text-[10px] text-slate-600 pt-2">
                                     <span>{it.product?.name ?? `Item #${it.id}`} × {it.quantity}</span>

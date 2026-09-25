@@ -184,6 +184,26 @@ const NAV = [
   },
 ];
 
+const SETTING_META: Record<string, { description: string; icon: string; iconBg: string; border: string }> = {
+  identity: { description: "Dados e apresentação da sua loja", icon: "text-[#ed670e]", iconBg: "bg-orange-50", border: "hover:border-orange-200" },
+  design: { description: "Tema, cores e modelos da vitrine", icon: "text-violet-600", iconBg: "bg-violet-50", border: "hover:border-violet-200" },
+  social: { description: "Redes, contatos e canais de venda", icon: "text-cyan-600", iconBg: "bg-cyan-50", border: "hover:border-cyan-200" },
+  hours: { description: "Horários exibidos para seus clientes", icon: "text-amber-600", iconBg: "bg-amber-50", border: "hover:border-amber-200" },
+  payments: { description: "Formas de pagamento e políticas", icon: "text-emerald-600", iconBg: "bg-emerald-50", border: "hover:border-emerald-200" },
+  card_fees: { description: "Taxas e regras da maquininha", icon: "text-indigo-600", iconBg: "bg-indigo-50", border: "hover:border-indigo-200" },
+  crediario: { description: "Parcelas, prazos e juros", icon: "text-rose-600", iconBg: "bg-rose-50", border: "hover:border-rose-200" },
+  warranty: { description: "Termos entregues com seus produtos", icon: "text-orange-600", iconBg: "bg-orange-50", border: "hover:border-orange-200" },
+  service_checklists: { description: "Etapas padrão para ordens de serviço", icon: "text-sky-600", iconBg: "bg-sky-50", border: "hover:border-sky-200" },
+  fiscal: { description: "Informações fiscais e emissão", icon: "text-blue-600", iconBg: "bg-blue-50", border: "hover:border-blue-200" },
+  terminal: { description: "Integração e credenciais do terminal", icon: "text-orange-600", iconBg: "bg-orange-50", border: "hover:border-orange-200" },
+  cash_session: { description: "Abertura, fechamento e regras de caixa", icon: "text-emerald-600", iconBg: "bg-emerald-50", border: "hover:border-emerald-200" },
+  preferences: { description: "Preferências de uso do painel", icon: "text-blue-600", iconBg: "bg-blue-50", border: "hover:border-blue-200" },
+  security: { description: "Proteção, acesso e senha", icon: "text-violet-600", iconBg: "bg-violet-50", border: "hover:border-violet-200" },
+  users: { description: "Equipe, cargos e permissões", icon: "text-sky-600", iconBg: "bg-sky-50", border: "hover:border-sky-200" },
+  desktop: { description: "Instalação e terminais do PDV", icon: "text-indigo-600", iconBg: "bg-indigo-50", border: "hover:border-indigo-200" },
+  email_reports: { description: "Envio automático de relatórios", icon: "text-rose-600", iconBg: "bg-rose-50", border: "hover:border-rose-200" },
+};
+
 // ─── TeamSection ─────────────────────────────────────────────────────────────
 
 type TeamMember = { id: number; name: string; email: string; phone?: string | null; nickname?: string | null; role: string; created_at: string };
@@ -325,7 +345,7 @@ function TeamSection() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="mx-auto w-full max-w-[1600px] space-y-4 sm:space-y-6">
       <SectionHeader title="Time & Acessos" subtitle="Gerencie quem tem acesso ao painel e ao PDV" />
 
       {/* Role legend */}
@@ -346,7 +366,7 @@ function TeamSection() {
       {/* Members list */}
       <div className="bg-white rounded-2xl border border-slate-100 overflow-hidden">
         <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100">
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <Users size={15} className="text-slate-400" />
             <p className="text-[11px] font-black uppercase tracking-widest text-slate-700">Membros</p>
             <span className="bg-slate-100 text-slate-500 text-[9px] font-black px-2 py-0.5 rounded-full">{members.length}</span>
@@ -1295,11 +1315,13 @@ export default function Settings() {
       />
 
       {!active && (
-        <div className="space-y-8">
+        <div className="space-y-6 sm:space-y-8">
           {NAV.map((group) => (
             <div key={group.group}>
-              <div className="flex items-center gap-2 mb-3">
-                <Globe size={12} className={group.color} />
+              <div className="mb-3 flex flex-wrap items-center gap-x-2 gap-y-1 sm:mb-4">
+                <div className={cn("flex h-7 w-7 items-center justify-center rounded-lg bg-white shadow-sm ring-1 ring-slate-100", group.color)}>
+                  <Globe size={13} />
+                </div>
                 <span className={cn("text-[10px] font-black uppercase tracking-[0.2em]", group.color)}>
                   {group.group}
                 </span>
@@ -1307,21 +1329,26 @@ export default function Settings() {
                   · {group.desc}
                 </span>
               </div>
-              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
-                {group.items.map((item) => (
-                  <button
-                    key={item.id}
-                    onClick={() => setActive(item.id)}
-                    className="flex flex-col items-center gap-3 p-5 rounded-2xl border-2 border-slate-100 bg-white hover:border-blue-200 hover:bg-blue-50/30 transition-all"
-                  >
-                    <div className="w-12 h-12 rounded-xl bg-slate-50 flex items-center justify-center">
-                      <item.icon size={22} className="text-slate-600" />
-                    </div>
-                    <span className="text-[11px] font-black uppercase tracking-wide text-slate-700 text-center leading-tight">
-                      {item.label}
-                    </span>
-                  </button>
-                ))}
+              <div className="grid grid-cols-1 gap-3 min-[460px]:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
+                {group.items.map((item) => {
+                  const meta = SETTING_META[item.id] ?? { description: "Personalize esta área do sistema", icon: "text-slate-600", iconBg: "bg-slate-50", border: "hover:border-slate-300" };
+                  return (
+                    <button
+                      key={item.id}
+                      onClick={() => setActive(item.id)}
+                      className={cn("group relative flex min-h-[112px] cursor-pointer items-center gap-4 rounded-2xl border border-slate-200/80 bg-white p-4 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md sm:min-h-[124px] sm:p-5", meta.border)}
+                    >
+                      <div className={cn("flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl transition-transform group-hover:scale-105", meta.iconBg)}>
+                        <item.icon size={22} strokeWidth={2.15} className={meta.icon} />
+                      </div>
+                      <div className="min-w-0 pr-5">
+                        <span className="block text-[13px] font-black leading-tight text-slate-800 sm:text-sm">{item.label}</span>
+                        <span className="mt-1.5 block text-[10px] font-medium leading-relaxed text-slate-400">{meta.description}</span>
+                      </div>
+                      <ChevronRight size={16} className="absolute right-4 text-slate-300 transition-all group-hover:translate-x-0.5 group-hover:text-[#297ed1]" />
+                    </button>
+                  );
+                })}
               </div>
             </div>
           ))}
@@ -1329,16 +1356,16 @@ export default function Settings() {
       )}
 
       {active && (
-      <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+      <div className="overflow-hidden rounded-2xl border border-slate-100 bg-white shadow-sm">
           {/* breadcrumb strip */}
-          <div className="px-6 py-3 border-b border-slate-50 flex items-center gap-2 text-[9px] font-black uppercase tracking-widest text-slate-300">
+          <div className="flex items-center gap-2 overflow-x-auto border-b border-slate-50 px-4 py-3 text-[9px] font-black uppercase tracking-widest text-slate-300 sm:px-6">
             <Settings2 size={10} />
             <span>Configurações</span>
             <ChevronRight size={9} />
             <span className="text-slate-600">{activeItem?.label}</span>
           </div>
 
-          <div className="p-6 sm:p-8">
+          <div className="p-4 sm:p-6 lg:p-8">
             {/* ── Identidade & Dados ──────────────────────────────────── */}
             {active === "identity" && (
               <div className="space-y-8">
@@ -3288,10 +3315,18 @@ export default function Settings() {
                   <p className="text-[10px] font-black uppercase tracking-widest text-slate-700 border-l-4 border-blue-500 pl-3">
                     Notificações Push
                   </p>
-                  <div className="bg-slate-50 border border-slate-100 rounded-2xl p-5 flex items-center gap-4 max-w-sm">
-                    <Bell size={16} className="text-blue-500 shrink-0" />
+                  <div className="max-w-xl rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
+                    <div className="flex items-center gap-3">
+                      <div className="flex shrink-0 -space-x-2">
+                        <div className="flex h-10 w-10 items-center justify-center rounded-xl border-2 border-white bg-blue-50 text-[#297ed1] shadow-sm">
+                          <Smartphone size={18} />
+                        </div>
+                        <div className="flex h-10 w-10 items-center justify-center rounded-xl border-2 border-white bg-orange-50 text-[#e88905] shadow-sm">
+                          <Monitor size={18} />
+                        </div>
+                      </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-[11px] font-black text-slate-900 uppercase tracking-wide">Alertas no celular/desktop</p>
+                      <p className="text-[11px] font-black text-slate-900 uppercase tracking-wide">Alertas em todos os dispositivos</p>
                       <p className="text-[10px] text-slate-500 font-medium leading-relaxed mt-1">
                         Avisa sobre contas a pagar vencendo e estoque baixo, mesmo com o app fechado.
                       </p>
@@ -3319,6 +3354,10 @@ export default function Settings() {
                         )} />
                       )}
                     </button>
+                    </div>
+                    <div className="mt-4 flex items-center gap-2 border-t border-slate-100 pt-3 text-[10px] font-bold text-slate-400">
+                      <Bell size={13} className="text-[#297ed1]" /> Notificações sincronizadas no celular e no desktop
+                    </div>
                   </div>
                 </div>
 

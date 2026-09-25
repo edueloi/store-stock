@@ -11,6 +11,18 @@ body {
   color: #241815;
 }
 
+/* Impede que o preenchimento automático do navegador quebre os campos escuros de acesso. */
+.auth-input:-webkit-autofill,
+.auth-input:-webkit-autofill:hover,
+.auth-input:-webkit-autofill:focus,
+.auth-input:-webkit-autofill:active {
+  -webkit-text-fill-color: #f8fafc;
+  caret-color: #f8fafc;
+  -webkit-box-shadow: 0 0 0 1000px #142535 inset;
+  box-shadow: 0 0 0 1000px #142535 inset;
+  transition: background-color 5000s ease-in-out 0s;
+}
+
 /* scrollbar padrão do painel admin */
 .admin-scroll {
   scrollbar-width: thin;

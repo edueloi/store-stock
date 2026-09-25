@@ -11,6 +11,37 @@ const STEPS = [
   "Preparando o painel...",
 ];
 
+const BOX_PIECES = [
+  { points: "367,77 328,57 236,104 234,109 269,127 273,127 366,80", color: "#297ed1", x: -24, y: -34, rotate: -8 },
+  { points: "348,105 350,108 385,126 389,126 422,108 420,104 387,87", color: "#297ed1", x: 24, y: -30, rotate: 8 },
+  { points: "196,149 198,155 282,198 287,198 319,167 319,163 233,119 228,119", color: "#ed670e", x: -42, y: 3, rotate: -6 },
+  { points: "458,149 427,119 422,119 338,162 337,167 369,198 373,198 455,156", color: "#eb5e10", x: 42, y: 3, rotate: 6 },
+  { points: "224,183 225,238 308,284 321,289 322,186 292,214 287,215", color: "#e53b2c", x: -18, y: 28, rotate: -3 },
+  { points: "430,184 369,216 365,216 334,186 335,288 430,238", color: "#f7920c", x: 18, y: 28, rotate: 3 },
+];
+
+function AnimatedStoreBoxMark() {
+  return (
+    <motion.svg viewBox="180 42 300 260" role="img" aria-label="Store BoxSys" className="h-24 w-24 overflow-visible" initial="hidden" animate="visible">
+      {BOX_PIECES.map((piece, index) => (
+        <motion.polygon
+          key={piece.points}
+          points={piece.points}
+          fill={piece.color}
+          stroke={piece.color}
+          strokeWidth="1.2"
+          strokeLinejoin="round"
+          variants={{
+            hidden: { opacity: 0, x: piece.x, y: piece.y, rotate: piece.rotate, scale: 0.82 },
+            visible: { opacity: 1, x: 0, y: 0, rotate: 0, scale: 1 },
+          }}
+          transition={{ duration: 0.62, delay: 0.12 + index * 0.075, ease: [0.22, 0.9, 0.34, 1] }}
+        />
+      ))}
+    </motion.svg>
+  );
+}
+
 export default function LoginLoading({ onDone }: LoginLoadingProps) {
   const [step, setStep] = useState(0);
   const [progress, setProgress] = useState(0);
@@ -83,24 +114,20 @@ export default function LoginLoading({ onDone }: LoginLoadingProps) {
           initial={{ scale: 0.7, opacity: 0 }}
           animate={{ scale: 1, opacity: 1 }}
           transition={{ delay: 0.15, type: "spring", stiffness: 260, damping: 20 }}
-          className="flex h-28 w-28 items-center justify-center rounded-[2rem] bg-white shadow-[0_8px_40px_rgba(0,0,0,0.10)]"
+          className="flex h-32 w-32 items-center justify-center rounded-[2rem] bg-white shadow-[0_8px_40px_rgba(0,0,0,0.10)]"
         >
-          <img
-            src="/system/logo-any-512.png"
-            alt="BoxSys"
-            className="h-16 w-16 object-contain"
-          />
+          <AnimatedStoreBoxMark />
         </motion.div>
 
         {/* Nome */}
         <motion.div
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.25 }}
+          transition={{ delay: 0.72 }}
           className="text-center"
         >
           <p className="text-4xl font-black tracking-[-0.04em] text-slate-900">
-            Box<span className="text-amber-400">Sys</span>
+            <span className="text-[#f58d0a]">Store</span><span className="text-[#297ed1]"> BoxSys</span>
           </p>
           <div className="mt-1.5 flex items-center justify-center gap-3">
             <span className="text-[11px] font-bold uppercase tracking-[0.22em] text-amber-400">
@@ -126,7 +153,7 @@ export default function LoginLoading({ onDone }: LoginLoadingProps) {
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
-          transition={{ delay: 0.35 }}
+          transition={{ delay: 0.82 }}
           className="text-center"
         >
           <AnimatePresence mode="wait">
@@ -147,7 +174,7 @@ export default function LoginLoading({ onDone }: LoginLoadingProps) {
         <motion.div
           initial={{ opacity: 0, scaleX: 0.8 }}
           animate={{ opacity: 1, scaleX: 1 }}
-          transition={{ delay: 0.4 }}
+          transition={{ delay: 0.9 }}
           className="w-60"
         >
           <div className="h-1.5 overflow-hidden rounded-full bg-slate-200">

@@ -419,8 +419,8 @@ function NfceTabContent() {
           ))}
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-[minmax(220px,1fr)_auto_auto_auto] items-center gap-2 px-4 py-3">
-          <div className="relative min-w-0">
+        <div className="flex flex-wrap items-center gap-2 px-3 py-3 sm:px-4">
+          <div className="relative min-w-[220px] flex-[1_1_280px]">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={13} />
             <input
               type="text"
@@ -433,7 +433,7 @@ function NfceTabContent() {
           <select
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value as NfceStatus | "all")}
-            className="h-9 px-3 bg-slate-50 border border-slate-200 rounded-xl text-[11px] font-bold outline-none focus:border-blue-400 transition-all"
+            className="h-10 min-w-[180px] flex-1 rounded-xl border border-slate-200 bg-slate-50 px-3 text-[11px] font-bold outline-none transition-all focus:border-blue-400 min-[480px]:h-9 min-[480px]:flex-none"
           >
             <option value="all">Todos os status</option>
             {Object.entries(STATUS_META).map(([key, meta]) => (
@@ -442,7 +442,7 @@ function NfceTabContent() {
           </select>
 
           {/* Date range */}
-          <div className="grid grid-cols-[auto_minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-1.5 bg-slate-50 border border-slate-200 rounded-xl px-3 h-9 min-w-0">
+          <div className="grid h-10 min-w-[280px] flex-1 grid-cols-[auto_minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50 px-3 min-[480px]:h-9">
             <Calendar size={12} className="text-slate-400 shrink-0" />
             <input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)}
               className="min-w-0 w-full text-[11px] font-medium text-slate-700 outline-none bg-transparent cursor-pointer" />
@@ -452,7 +452,7 @@ function NfceTabContent() {
           </div>
 
           {/* Quick presets */}
-          <div className="grid grid-cols-4 items-center gap-1 bg-slate-50 border border-slate-200 rounded-xl p-1">
+          <div className="grid min-w-[250px] flex-1 grid-cols-4 items-center gap-1 rounded-xl border border-slate-200 bg-slate-50 p-1">
             {[
               { label: "Hoje", from: todayStr(),        to: todayStr() },
               { label: "7d",   from: (() => { const d = new Date(); d.setDate(d.getDate() - 6); return d.toISOString().slice(0, 10); })(), to: todayStr() },
@@ -1315,8 +1315,8 @@ function NfseTabContent() {
           ))}
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-[minmax(0,1fr)_auto] items-center gap-2 px-4 py-3">
-          <div className="relative min-w-0">
+        <div className="flex flex-wrap items-center gap-2 px-3 py-3 sm:px-4">
+          <div className="relative min-w-[220px] flex-[1_1_280px]">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={13} />
             <input
               type="text"
@@ -1329,7 +1329,7 @@ function NfseTabContent() {
           <select
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value as NfseStatus | "all")}
-            className="h-9 px-3 bg-slate-50 border border-slate-200 rounded-xl text-[11px] font-bold outline-none focus:border-blue-400 transition-all"
+            className="h-10 min-w-[180px] flex-1 rounded-xl border border-slate-200 bg-slate-50 px-3 text-[11px] font-bold outline-none transition-all focus:border-violet-400 min-[480px]:h-9 min-[480px]:flex-none"
           >
             <option value="all">Todos os status</option>
             {Object.entries(NFSE_STATUS_META).map(([key, meta]) => (
@@ -1843,30 +1843,33 @@ export default function NfceInvoices() {
   };
 
   return (
-    <div className="space-y-4">
+    <div className="mx-auto w-full max-w-[1600px] space-y-4 sm:space-y-6">
       <PageHeader
         title="Notas Fiscais"
+        className="[&>div>h2]:text-lg [&>div>h2]:tracking-normal sm:[&>div>h2]:text-xl [&>div>p]:tracking-[0.12em]"
         subtitle="NFC-e e NFS-e emitidas junto à SEFAZ/prefeitura · exporte o relatório para o contador"
       />
 
-      <div className="flex items-center gap-1 bg-slate-100 rounded-xl p-1 w-full sm:w-fit">
+      <div className="grid w-full grid-cols-2 gap-1 rounded-2xl border border-slate-200 bg-white p-1.5 shadow-sm sm:max-w-md">
         <button
           onClick={() => setTab("nfce")}
           className={cn(
-            "flex-1 sm:flex-none h-9 px-2.5 sm:px-4 rounded-lg text-[10px] sm:text-[11px] font-black uppercase tracking-wide sm:tracking-widest transition-all whitespace-nowrap",
-            tab === "nfce" ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700",
+            "flex h-12 min-w-0 items-center justify-center gap-2 rounded-xl px-2 text-left transition-all sm:px-4",
+            tab === "nfce" ? "bg-blue-50 text-[#176fc4] ring-1 ring-blue-100" : "text-slate-500 hover:bg-slate-50 hover:text-slate-700",
           )}
         >
-          NFC-e (produtos)
+          <FileText size={17} className="shrink-0" />
+          <span className="min-w-0 text-left"><span className="block text-[11px] font-black uppercase tracking-wide">NFC-e</span><span className="block text-[9px] font-semibold text-slate-400">Produtos</span></span>
         </button>
         <button
           onClick={() => setTab("nfse")}
           className={cn(
-            "flex-1 sm:flex-none h-9 px-2.5 sm:px-4 rounded-lg text-[10px] sm:text-[11px] font-black uppercase tracking-wide sm:tracking-widest transition-all whitespace-nowrap",
-            tab === "nfse" ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700",
+            "flex h-12 min-w-0 items-center justify-center gap-2 rounded-xl px-2 text-left transition-all sm:px-4",
+            tab === "nfse" ? "bg-violet-50 text-violet-700 ring-1 ring-violet-100" : "text-slate-500 hover:bg-slate-50 hover:text-slate-700",
           )}
         >
-          NFS-e (serviços)
+          <FileCheck size={17} className="shrink-0" />
+          <span className="min-w-0 text-left"><span className="block text-[11px] font-black uppercase tracking-wide">NFS-e</span><span className="block text-[9px] font-semibold text-slate-400">Serviços</span></span>
         </button>
       </div>
 

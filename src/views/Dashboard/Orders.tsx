@@ -1236,9 +1236,10 @@ ${
     );
 
   return (
-    <div className="min-w-0 space-y-5 sm:space-y-6">
+    <div className="mx-auto min-w-0 w-full max-w-[1600px] space-y-4 sm:space-y-6">
       <PageHeader
         title="Pedidos"
+        className="[&>div>h2]:text-lg [&>div>h2]:tracking-normal sm:[&>div>h2]:text-xl [&>div>p]:tracking-[0.12em]"
         subtitle="Gestão e acompanhamento de vendas"
         action={
           <button
@@ -1255,26 +1256,29 @@ ${
       />
 
       {/* ── Toolbar: KPIs compactos + filtros numa linha ───────────── */}
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm">
+      <div className="relative overflow-visible rounded-2xl border border-slate-200 bg-white shadow-sm">
         {/* KPI strip */}
         <div className="grid grid-cols-2 border-b border-slate-100 divide-x divide-y divide-slate-100 sm:grid-cols-4 sm:divide-y-0">
           {[
-            { label: "Total",      value: filteredOrders.length,                                              color: "text-slate-900" },
-            { label: "Pendentes",  value: filteredOrders.filter(o => o.status === "pending").length,          color: "text-amber-500" },
-            { label: "Efetivados", value: filteredOrders.filter(o => o.status === "completed").length,        color: "text-emerald-500" },
-            { label: "Cancelados", value: filteredOrders.filter(o => o.status === "cancelled").length,        color: "text-rose-500"   },
+            { label: "Total",      value: filteredOrders.length,                                       color: "text-slate-900",    icon: <Receipt size={17} />,      iconClass: "bg-slate-100 text-slate-600" },
+            { label: "Pendentes",  value: filteredOrders.filter(o => o.status === "pending").length,   color: "text-amber-600",    icon: <Clock size={17} />,        iconClass: "bg-amber-50 text-amber-600" },
+            { label: "Efetivados", value: filteredOrders.filter(o => o.status === "completed").length, color: "text-emerald-600",  icon: <CheckCircle2 size={17} />, iconClass: "bg-emerald-50 text-emerald-600" },
+            { label: "Cancelados", value: filteredOrders.filter(o => o.status === "cancelled").length, color: "text-rose-600",     icon: <XCircle size={17} />,      iconClass: "bg-rose-50 text-rose-600" },
           ].map(k => (
-            <div key={k.label} className="min-w-0 px-4 py-3 flex flex-col gap-0.5 sm:px-5 sm:py-4">
-              <span className={cn("text-xl font-black tracking-tight font-mono leading-none sm:text-2xl", k.color)}>{k.value}</span>
-              <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">{k.label}</span>
+            <div key={k.label} className="min-w-0 px-4 py-3 sm:px-5 sm:py-4">
+              <div className="mb-3 flex items-center justify-between gap-2">
+                <span className="text-[9px] font-black uppercase tracking-widest text-slate-400">{k.label}</span>
+                <span className={cn("flex h-8 w-8 items-center justify-center rounded-xl", k.iconClass)}>{k.icon}</span>
+              </div>
+              <span className={cn("block text-xl font-black leading-none tracking-tight sm:text-2xl", k.color)}>{k.value}</span>
             </div>
           ))}
         </div>
 
         {/* Filter bar */}
-        <div className="grid grid-cols-1 items-center gap-2 px-3 py-3 min-[480px]:grid-cols-2 sm:px-4 xl:grid-cols-[minmax(220px,1fr)_auto_auto_auto_auto]">
+        <div className="flex flex-wrap items-center gap-2 px-3 py-3 sm:px-4">
           {/* Search */}
-          <div className="relative min-w-0 min-[480px]:col-span-2 xl:col-span-1">
+          <div className="relative min-w-[220px] flex-[1_1_280px]">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={13} />
             <input
               type="text"
@@ -1296,7 +1300,7 @@ ${
             const cur = STATUS_OPTS.find(o => o.value === selectedStatus) ?? STATUS_OPTS[0];
             const active = selectedStatus !== "all";
             return (
-              <div className="relative min-w-0" ref={statusDropRef}>
+              <div className="relative min-w-[180px] flex-1 min-[480px]:flex-none" ref={statusDropRef}>
                 <button
                   onClick={() => { setShowStatusDrop(v => !v); setShowTypeDrop(false); }}
                   className={cn(
@@ -1353,7 +1357,7 @@ ${
             const cur = TYPE_OPTS.find(o => o.value === selectedType) ?? TYPE_OPTS[0];
             const active = selectedType !== "all";
             return (
-              <div className="relative min-w-0" ref={typeDropRef}>
+              <div className="relative min-w-[180px] flex-1 min-[480px]:flex-none" ref={typeDropRef}>
                 <button
                   onClick={() => { setShowTypeDrop(v => !v); setShowStatusDrop(false); }}
                   className={cn(
@@ -1399,7 +1403,7 @@ ${
           })()}
 
           {/* Date range */}
-          <div className="flex min-w-0 items-center gap-1.5 bg-slate-50 border border-slate-200 rounded-xl px-3 h-10 sm:h-9">
+          <div className="flex min-w-[280px] flex-1 items-center gap-1.5 bg-slate-50 border border-slate-200 rounded-xl px-3 h-10 sm:h-9">
             <Calendar size={12} className="text-slate-400 shrink-0" />
             <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)}
               className="min-w-0 flex-1 text-[11px] font-medium text-slate-700 outline-none bg-transparent cursor-pointer" />
@@ -1409,7 +1413,7 @@ ${
           </div>
 
           {/* Quick presets */}
-          <div className="grid grid-cols-4 items-center gap-1 bg-slate-50 border border-slate-200 rounded-xl p-1">
+          <div className="grid min-w-[250px] flex-1 grid-cols-4 items-center gap-1 rounded-xl border border-slate-200 bg-slate-50 p-1">
             {[
               { label: "Hoje", from: todayStr(),        to: todayStr() },
               { label: "7d",   from: (() => { const d = new Date(); d.setDate(d.getDate() - 6); return d.toISOString().slice(0,10); })(), to: todayStr() },
@@ -1467,7 +1471,7 @@ ${
       </AnimatePresence>
 
       {/* Desktop Table */}
-      <div className="hidden lg:block bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+      <div className="hidden xl:block bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse">
             <thead>
@@ -1739,7 +1743,7 @@ ${
       </div>
 
       {/* Mobile Card-Based List */}
-      <div className="lg:hidden space-y-3 pb-8">
+      <div className="xl:hidden space-y-3 pb-8">
         {pagedOrders.map((order) => {
           const isChecked = selectedIds.has(order.id);
           return (
