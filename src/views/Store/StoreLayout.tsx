@@ -1,6 +1,6 @@
 import React, { useState, useEffect, createContext, useContext, useMemo, useRef } from "react";
 import { Routes, Route, Link, useParams, useNavigate, useLocation } from "react-router-dom";
-import { ShoppingCart, Menu, X, Search, Home, Grid3X3, Info, Phone } from "lucide-react";
+import { ShoppingCart, Menu, X, Search, Home, Grid3X3, Info, Phone, ChevronRight } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { cn } from "../../lib/utils";
 import { Tenant, Product, Category } from "../../types";
@@ -41,6 +41,12 @@ function themePages(templateId: string | undefined) {
     Catalog: lazy(() => import("./themes/tech/StoreCatalog")),
     Product: lazy(() => import("./themes/tech/StoreProduct")),
     About: lazy(() => import("./themes/tech/StoreAbout")),
+  };
+  if (t === "electric") return {
+    Front: lazy(() => import("./themes/electric/StoreFront")),
+    Catalog: lazy(() => import("./themes/electric/StoreCatalog")),
+    Product: lazy(() => import("./themes/electric/StoreProduct")),
+    About: lazy(() => import("./themes/electric/StoreAbout")),
   };
   return {
     Front: lazy(() => import("./themes/default/StoreFront")),
@@ -107,6 +113,7 @@ const templates: Record<string, StoreStyle> = {
   nexus_tech: { bg: "tech-shell bg-[#f4f8ff]", card: "bg-white/90 border-[#d7e4ff]", accent: "#2563eb", text: "text-[#071426]", font: "font-tech", radius: "rounded-[2rem]" },
   atelier:  { bg: "fashion-shell bg-[#fffaf5]", card: "bg-white/90 border-[#eadbd0]", accent: "#a26157", text: "text-[#2d221f]", font: "font-editorial", radius: "rounded-[2rem]" },
   electronics: { bg: "bg-[#080c14]", card: "bg-[#0e1525]/90 border-[#1e2d4a]", accent: "#3b82f6", text: "text-white", font: "font-sans", radius: "rounded-2xl" },
+  electric: { bg: "bg-[#f8fafc]", card: "bg-white border-slate-200", accent: "#f97316", text: "text-slate-900", font: "font-sans", radius: "rounded-xl" },
 };
 
 // ── Main Layout ────────────────────────────────────────────────────────────
@@ -125,9 +132,29 @@ function StoreLayoutInner() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const [megaMenuOpen, setMegaMenuOpen] = useState(false);
+  const megaMenuCloseTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const navigate = useNavigate();
   const storeSlug = resolveStoreSlug(routeSlug);
   const storePath = (suffix = "") => buildStorePath(storeSlug, suffix);
+
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [location.pathname]);
+
+  useEffect(() => setMegaMenuOpen(false), [location.pathname]);
+
+  const openMegaMenu = () => {
+    if (megaMenuCloseTimer.current) clearTimeout(megaMenuCloseTimer.current);
+    setMegaMenuOpen(true);
+  };
+  const scheduleCloseMegaMenu = () => {
+    if (megaMenuCloseTimer.current) clearTimeout(megaMenuCloseTimer.current);
+    megaMenuCloseTimer.current = setTimeout(() => setMegaMenuOpen(false), 180);
+  };
+  useEffect(() => () => {
+    if (megaMenuCloseTimer.current) clearTimeout(megaMenuCloseTimer.current);
+  }, []);
 
   const pagesRef = useRef<ReturnType<typeof themePages> | null>(null);
   const lastTemplateRef = useRef<string | undefined>(undefined);
@@ -250,6 +277,13 @@ function StoreLayoutInner() {
     return location.pathname.startsWith(path);
   };
 
+  const categoryImage = (cat: Category) => {
+    if (cat.cover_url) return cat.cover_url;
+    const firstProduct = storeData.products.find(p => p.category_id === cat.id && (p.image_url || (Array.isArray(p.images) && p.images.length > 0)));
+    if (!firstProduct) return null;
+    return (Array.isArray(firstProduct.images) && (firstProduct.images as string[])[0]) || firstProduct.image_url || null;
+  };
+
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
     if (searchQuery.trim()) {
@@ -323,34 +357,124 @@ function StoreLayoutInner() {
 
             {/* Desktop nav */}
             <nav className="hidden md:flex items-center gap-1">
-              {navLinks.map(l => (
-                <Link
-                  key={l.path}
-                  to={l.path}
-                  className={cn(
-                    "flex items-center gap-2 transition-all",
-                    isElectronics
-                      ? "px-4 py-2 rounded-xl text-[11px] font-bold uppercase tracking-wider border"
+              {navLinks.map(l => {
+                const linkClassName = cn(
+                  "flex items-center gap-2 transition-all",
+                  isElectronics
+                    ? "px-4 py-2 rounded-xl text-[11px] font-bold uppercase tracking-wider border"
+                    : isFashion
+                      ? "px-4 py-2 rounded-full text-[12px] font-semibold tracking-[0.02em]"
+                      : isTechNova
+                        ? "px-4 py-2 rounded-full border text-[11px] font-semibold tracking-[0.14em] uppercase"
+                        : "px-4 py-2 rounded-xl text-[11px] font-black uppercase tracking-wider",
+                  isActive(l.path)
+                    ? "text-white shadow-sm"
+                    : isElectronics
+                      ? "border-[#1e2d4a] text-slate-400 hover:text-white hover:border-blue-500/50 hover:bg-blue-500/10"
                       : isFashion
-                        ? "px-4 py-2 rounded-full text-[12px] font-semibold tracking-[0.02em]"
+                        ? "text-[#6f4b43] hover:text-[#2d221f] hover:bg-white"
                         : isTechNova
-                          ? "px-4 py-2 rounded-full border text-[11px] font-semibold tracking-[0.14em] uppercase"
-                          : "px-4 py-2 rounded-xl text-[11px] font-black uppercase tracking-wider",
-                    isActive(l.path)
-                      ? "text-white shadow-sm"
-                      : isElectronics
-                        ? "border-[#1e2d4a] text-slate-400 hover:text-white hover:border-blue-500/50 hover:bg-blue-500/10"
-                        : isFashion
-                          ? "text-[#6f4b43] hover:text-[#2d221f] hover:bg-white"
-                          : isTechNova
-                            ? "border-[#dbe6ff] bg-white/72 text-[#456186] hover:text-[#071426] hover:border-[#b9cdfd] hover:bg-white"
-                            : "text-slate-500 hover:text-slate-900 hover:bg-slate-50"
-                  )}
-                  style={isActive(l.path) ? { backgroundColor: style.accent } : {}}
-                >
-                  {l.icon} {l.label}
-                </Link>
-              ))}
+                          ? "border-[#dbe6ff] bg-white/72 text-[#456186] hover:text-[#071426] hover:border-[#b9cdfd] hover:bg-white"
+                          : "text-slate-500 hover:text-slate-900 hover:bg-slate-50"
+                );
+                const isCatalogLink = l.label === "Catálogo";
+
+                if (isCatalogLink && storeData.categories.length > 0) {
+                  return (
+                    <div
+                      key={l.path}
+                      className="relative"
+                      onMouseEnter={openMegaMenu}
+                      onMouseLeave={scheduleCloseMegaMenu}
+                    >
+                      <Link
+                        to={l.path}
+                        className={linkClassName}
+                        style={isActive(l.path) ? { backgroundColor: style.accent } : {}}
+                      >
+                        {l.icon} {l.label}
+                      </Link>
+
+                      <AnimatePresence>
+                        {megaMenuOpen && (
+                          <motion.div
+                            initial={{ opacity: 0, y: 8 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            exit={{ opacity: 0, y: 8 }}
+                            transition={{ duration: 0.15 }}
+                            className={cn(
+                              "absolute left-1/2 -translate-x-1/2 top-full mt-2 w-[min(90vw,640px)] rounded-2xl border shadow-xl overflow-hidden z-50",
+                              isElectronics
+                                ? "bg-[#0b1220] border-[#1e2d4a]"
+                                : isFashion
+                                  ? "bg-white border-[#ead7cc]"
+                                  : isTechNova
+                                    ? "bg-white border-[#d7e4ff]"
+                                    : "bg-white border-slate-200"
+                            )}
+                          >
+                            <div className="grid grid-cols-2 sm:grid-cols-3 gap-1 p-3 max-h-[70vh] overflow-y-auto">
+                              {storeData.categories.map(cat => {
+                                const img = categoryImage(cat);
+                                return (
+                                  <Link
+                                    key={cat.id}
+                                    to={storePath(`/catalogo?cat=${cat.id}`)}
+                                    className={cn(
+                                      "flex items-center gap-3 p-2 rounded-xl transition-colors",
+                                      isElectronics
+                                        ? "hover:bg-[#131c30]"
+                                        : "hover:bg-slate-50"
+                                    )}
+                                  >
+                                    <div className={cn(
+                                      "w-12 h-12 rounded-lg overflow-hidden shrink-0 flex items-center justify-center border",
+                                      isElectronics ? "bg-[#070b12] border-[#1e2d4a]" : "bg-slate-50 border-slate-100"
+                                    )}>
+                                      {img
+                                        ? <img src={img} alt="" className="w-full h-full object-cover" />
+                                        : <Grid3X3 size={16} className={isElectronics ? "text-slate-600" : "text-slate-300"} />}
+                                    </div>
+                                    <span className={cn(
+                                      "text-[12px] font-semibold leading-snug line-clamp-2",
+                                      isElectronics ? "text-slate-200" : isFashion ? "text-[#2d221f]" : isTechNova ? "text-[#071426]" : "text-slate-700"
+                                    )}>
+                                      {cat.name}
+                                    </span>
+                                  </Link>
+                                );
+                              })}
+                            </div>
+                            <Link
+                              to={l.path}
+                              className={cn(
+                                "flex items-center justify-center gap-2 py-3 text-[10px] font-black uppercase tracking-widest border-t transition-colors",
+                                isElectronics
+                                  ? "border-[#1e2d4a] text-blue-400 hover:bg-[#131c30]"
+                                  : "border-slate-100 hover:bg-slate-50"
+                              )}
+                              style={!isElectronics ? { color: style.accent } : {}}
+                            >
+                              Ver catálogo completo <ChevronRight size={12} />
+                            </Link>
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
+                    </div>
+                  );
+                }
+
+                return (
+                  <Link
+                    key={l.path}
+                    to={l.path}
+                    className={linkClassName}
+                    style={isActive(l.path) ? { backgroundColor: style.accent } : {}}
+                  >
+                    {l.icon} {l.label}
+                  </Link>
+                );
+              })}
             </nav>
 
             {/* Right actions */}
@@ -554,13 +678,6 @@ function StoreLayoutInner() {
                   <li key={l.path}>
                     <Link to={l.path} className={cn("text-xs transition-colors font-medium", isElectronics ? "text-slate-500 hover:text-blue-400" : isFashion ? "text-[#6b5149] hover:text-[#2d221f]" : isTechNova ? "text-[#5d7698] hover:text-[#071426]" : "text-slate-500 hover:text-white")}>
                       {l.label}
-                    </Link>
-                  </li>
-                ))}
-                {storeData.categories.map(cat => (
-                  <li key={cat.id}>
-                    <Link to={storePath(`/catalogo?cat=${cat.id}`)} className={cn("text-xs transition-colors font-medium", isElectronics ? "text-slate-500 hover:text-blue-400" : isFashion ? "text-[#6b5149] hover:text-[#2d221f]" : isTechNova ? "text-[#5d7698] hover:text-[#071426]" : "text-slate-500 hover:text-white")}>
-                      {cat.name}
                     </Link>
                   </li>
                 ))}

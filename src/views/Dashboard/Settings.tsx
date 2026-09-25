@@ -1990,6 +1990,12 @@ export default function Settings() {
                         color: "#a26157", bg: "#fff6ef", cardBg: "#fff", textColor: "#44201a",
                         badge: { bg: "#fde8e0", text: "#9f4132" },
                       },
+                      {
+                        id: "electric", name: "Elétrica Pro", tag: "Claro & Robusto",
+                        desc: "Visual limpo e profissional para material elétrico, ferragens e eletrônicos.",
+                        color: "#f97316", bg: "#f8fafc", cardBg: "#fff", textColor: "#0f172a",
+                        badge: { bg: "#ffedd5", text: "#c2410c" },
+                      },
                     ] as const).map((t) => {
                       const isActive = tenant?.template_id === t.id;
                       return (
