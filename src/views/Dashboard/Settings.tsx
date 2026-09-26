@@ -740,8 +740,9 @@ export default function Settings() {
       { key: "clientSecret", label: "Client Secret (Token)", placeholder: "Cole o token gerado no portal do desenvolvedor", secret: true },
     ],
     stone: [
-      { key: "clientId", label: "Client ID", placeholder: "Client ID Stone", secret: false },
-      { key: "clientSecret", label: "Client Secret", placeholder: "Client Secret Stone", secret: true },
+      { key: "secretKey", label: "Chave Secreta (SK)", placeholder: "sk_...", secret: true },
+      { key: "serviceRefererName", label: "ID do Parceiro (ServiceRefererName)", placeholder: "Fornecido pela Stone no credenciamento", secret: false },
+      { key: "deviceSerialNumber", label: "Número de Série da Maquininha", placeholder: "Ex: 6C568971", secret: false },
     ],
     mercadopago: [
       { key: "accessToken", label: "Access Token", placeholder: "APP_USR-... (gerado no painel de desenvolvedores)", secret: true },

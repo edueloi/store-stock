@@ -11,7 +11,7 @@ function getTenantId(req: Request) {
 
 // Chaves de credenciais sensíveis que devem ser mascaradas ao expor a config —
 // cada provider usa um nome de campo diferente para seu segredo principal.
-const SECRET_KEYS = ["clientSecret", "accessToken", "merchantKey", "token"];
+const SECRET_KEYS = ["clientSecret", "accessToken", "merchantKey", "token", "secretKey"];
 
 function maskSecrets(credentials: Record<string, string>): Record<string, string> {
   const masked = { ...credentials };

@@ -9,6 +9,7 @@ import { RedeProvider } from "./rede.provider";
 import { MercadoPagoProvider } from "./mercadopago.provider";
 import { PagBankProvider } from "./pagbank.provider";
 import { CieloProvider } from "./cielo.provider";
+import { StoneProvider } from "./stone.provider";
 
 function buildProvider(config: TerminalProviderConfig): ITerminalProvider {
   switch (config.provider) {
@@ -20,7 +21,8 @@ function buildProvider(config: TerminalProviderConfig): ITerminalProvider {
       return new CieloProvider(config);
     case "pagseguro":
       return new PagBankProvider(config);
-    // Futuro: case "stone" — depende de homologação/parceria comercial externa.
+    case "stone":
+      return new StoneProvider(config);
     default:
       throw new Error(`Maquininha "${(config as TerminalProviderConfig).provider}" ainda não integrada.`);
   }
