@@ -26,6 +26,11 @@ interface EntradasBucket {
   total: number;
 }
 
+// Origem da venda que gerou a entrada — espelha Order.order_type ("products" |
+// "services" | "mixed"), permitindo o relatório separar Catálogo de Serviço ou
+// somar os dois juntos (bucket "todas").
+type OrigemKey = "produtos" | "servicos" | "mista";
+
 interface MonthReport {
   year: number;
   month: number; // 0-based
@@ -33,6 +38,10 @@ interface MonthReport {
   // Mesma estrutura de `entradas`, só que uma por dia do mês (chave = dia 1-31) —
   // permite a visão "Dia" sem precisar de outra ida ao banco.
   entradasByDay: Record<number, EntradasBucket>;
+  // Entradas separadas por origem da venda (produto/serviço/mista) — mesma
+  // estrutura de `entradas`/`entradasByDay`, para o filtro Tudo/Catálogo/Serviço.
+  entradasByOrigem: Record<OrigemKey, EntradasBucket>;
+  entradasByDayByOrigem: Record<number, Record<OrigemKey, EntradasBucket>>;
   custoFixo: { total: number; items: CostItem[] };
   custoVariavel: { total: number; items: CostItem[] };
 }
@@ -45,15 +54,27 @@ function emptyEntradasBucket(): EntradasBucket {
   return { byOperator: {}, totalByMethod: emptyPmTotals(), total: 0 };
 }
 
+function emptyEntradasByOrigem(): Record<OrigemKey, EntradasBucket> {
+  return { produtos: emptyEntradasBucket(), servicos: emptyEntradasBucket(), mista: emptyEntradasBucket() };
+}
+
 function emptyMonth(year: number, month: number): MonthReport {
   return {
     year,
     month,
     entradas: emptyEntradasBucket(),
     entradasByDay: {},
+    entradasByOrigem: emptyEntradasByOrigem(),
+    entradasByDayByOrigem: {},
     custoFixo: { total: 0, items: [] },
     custoVariavel: { total: 0, items: [] },
   };
+}
+
+function origemKey(orderType: string | null | undefined): OrigemKey {
+  if (orderType === "services" || orderType === "service") return "servicos";
+  if (orderType === "mixed") return "mista";
+  return "produtos";
 }
 
 function addEntry(bucket: EntradasBucket, operator: string, key: PmKey, amt: number) {
@@ -98,23 +119,28 @@ export async function getYearlyFinancialReport(req: Request, res: Response) {
     const orders = orderIds.length
       ? await prisma.order.findMany({
           where: { id: { in: orderIds }, tenant_id: tenantId },
-          select: { id: true, seller_name: true, cash_session: { select: { opened_by_name: true } } },
+          select: { id: true, seller_name: true, order_type: true, cash_session: { select: { opened_by_name: true } } },
         })
       : [];
     const sellerByOrder = new Map(orders.map(o => [o.id, o.seller_name || o.cash_session?.opened_by_name || "Geral"]));
+    const origemByOrder = new Map(orders.map(o => [o.id, origemKey(o.order_type)]));
 
     for (const entry of incomeEntries) {
       const entryDate = new Date(entry.date);
       const m = entryDate.getUTCMonth();
       const day = entryDate.getUTCDate();
       const operator = entry.order_id != null ? (sellerByOrder.get(entry.order_id) ?? "Geral") : "Geral";
+      const origem = entry.order_id != null ? (origemByOrder.get(entry.order_id) ?? "produtos") : "produtos";
       const segs = parsePaymentMethod(entry.payment_method || "money");
       if (!months[m].entradasByDay[day]) months[m].entradasByDay[day] = emptyEntradasBucket();
+      if (!months[m].entradasByDayByOrigem[day]) months[m].entradasByDayByOrigem[day] = emptyEntradasByOrigem();
       for (const seg of segs) {
         const key = pmKey(seg.method);
         const amt = seg.amount > 0 ? seg.amount : Number(entry.amount);
         addEntry(months[m].entradas, operator, key, amt);
         addEntry(months[m].entradasByDay[day], operator, key, amt);
+        addEntry(months[m].entradasByOrigem[origem], operator, key, amt);
+        addEntry(months[m].entradasByDayByOrigem[day][origem], operator, key, amt);
       }
     }
 

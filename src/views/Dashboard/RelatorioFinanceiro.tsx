@@ -4,12 +4,14 @@ import PageHeader from "../../components/layout/PageHeader";
 import {
   ChevronLeft, ChevronRight, Loader2, Download, FileSpreadsheet, FileText,
   ChevronDown, TrendingUp, TrendingDown, Wallet, Calendar, LayoutGrid, Printer,
+  Package, Wrench, Layers,
 } from "lucide-react";
 import { cn } from "../../lib/utils";
 import { Tenant } from "../../types";
 
 // ── types (espelham backend/controllers/financial-reports.controller.ts) ─────
 type PmKey = "money" | "pix" | "debit" | "credit";
+type OrigemKey = "produtos" | "servicos" | "mista";
 interface CostItem { description: string; amount: number; date: string; source: "financeiro" | "contas_pagar" }
 interface EntradasBucket { byOperator: Record<string, Record<PmKey, number>>; totalByMethod: Record<PmKey, number>; total: number }
 interface MonthReport {
@@ -17,10 +19,46 @@ interface MonthReport {
   month: number; // 0-based
   entradas: EntradasBucket;
   entradasByDay: Record<number, EntradasBucket>;
+  entradasByOrigem: Record<OrigemKey, EntradasBucket>;
+  entradasByDayByOrigem: Record<number, Record<OrigemKey, EntradasBucket>>;
   custoFixo: { total: number; items: CostItem[] };
   custoVariavel: { total: number; items: CostItem[] };
 }
 interface YearlyReport { year: number; months: MonthReport[] }
+
+// Filtro de origem da tela: "todas" soma produto+serviço+misto (comportamento
+// de antes), "produtos"/"servicos" mostram só a origem escolhida (venda mista
+// entra nos dois quando filtrado, já que tem os dois tipos de item).
+type OrigemFiltro = "todas" | OrigemKey;
+const ORIGEM_FILTROS: { key: OrigemFiltro; label: string; icon: typeof Package }[] = [
+  { key: "todas", label: "Tudo", icon: Layers },
+  { key: "produtos", label: "Catálogo", icon: Package },
+  { key: "servicos", label: "Serviço", icon: Wrench },
+];
+
+function pickBucket(entradas: EntradasBucket, byOrigem: Record<OrigemKey, EntradasBucket>, filtro: OrigemFiltro): EntradasBucket {
+  if (filtro === "todas") return entradas;
+  if (filtro === "produtos") return sumBuckets([byOrigem.produtos, byOrigem.mista]);
+  return sumBuckets([byOrigem.servicos, byOrigem.mista]);
+}
+
+function emptyEntradasByOrigemLocal(): Record<OrigemKey, EntradasBucket> {
+  const empty = (): EntradasBucket => ({ byOperator: {}, totalByMethod: { money: 0, pix: 0, debit: 0, credit: 0 }, total: 0 });
+  return { produtos: empty(), servicos: empty(), mista: empty() };
+}
+
+function sumBuckets(buckets: EntradasBucket[]): EntradasBucket {
+  const out: EntradasBucket = { byOperator: {}, totalByMethod: { money: 0, pix: 0, debit: 0, credit: 0 }, total: 0 };
+  for (const b of buckets) {
+    for (const [op, pm] of Object.entries(b.byOperator)) {
+      if (!out.byOperator[op]) out.byOperator[op] = { money: 0, pix: 0, debit: 0, credit: 0 };
+      for (const k of PM_KEYS) out.byOperator[op][k] += pm[k];
+    }
+    for (const k of PM_KEYS) out.totalByMethod[k] += b.totalByMethod[k];
+    out.total += b.total;
+  }
+  return out;
+}
 
 const PM_KEYS: PmKey[] = ["money", "pix", "debit", "credit"];
 const PM_LABELS: Record<PmKey, string> = { money: "Dinheiro", pix: "PIX", debit: "Débito", credit: "Crédito" };
@@ -42,8 +80,8 @@ interface DayExportData {
 }
 type ExportScope =
   | { view: "day"; data: DayExportData }
-  | { view: "month"; month: number }
-  | { view: "year" };
+  | { view: "month"; month: number; entradas: EntradasBucket }
+  | { view: "year"; entradasByMonth: EntradasBucket[] };
 
 // ── Excel export ──────────────────────────────────────────────────────────────
 async function exportToExcel(report: YearlyReport, tenant: Partial<Tenant> | null, scope: ExportScope) {
@@ -123,17 +161,17 @@ async function exportToExcel(report: YearlyReport, tenant: Partial<Tenant> | nul
     costSection("Custo Fixo", custoFixo.items, custoFixo.total, "7C3AED", "EDE9FE");
   }
 
-  function yearSheet() {
+  function yearSheet(entradasByMonth: EntradasBucket[]) {
     const ws2 = wb.addWorksheet("Anual", { pageSetup: { paperSize: 9, orientation: "landscape", fitToPage: true } });
     ws2.columns = [{ width: 20 }, ...MONTHS_SHORT.map(() => ({ width: 12 })), { width: 14 }];
     header(ws2, 14, `Ano ${report.year}`);
 
-    const rows: [string, (mo: MonthReport) => number][] = [
-      ["Dinheiro", (mo) => mo.entradas.totalByMethod.money],
-      ["PIX", (mo) => mo.entradas.totalByMethod.pix],
-      ["Débito", (mo) => mo.entradas.totalByMethod.debit],
-      ["Crédito", (mo) => mo.entradas.totalByMethod.credit],
-      ["Total Entradas", (mo) => mo.entradas.total],
+    const rows: [string, (mo: MonthReport, i: number) => number][] = [
+      ["Dinheiro", (_mo, i) => entradasByMonth[i].totalByMethod.money],
+      ["PIX", (_mo, i) => entradasByMonth[i].totalByMethod.pix],
+      ["Débito", (_mo, i) => entradasByMonth[i].totalByMethod.debit],
+      ["Crédito", (_mo, i) => entradasByMonth[i].totalByMethod.credit],
+      ["Total Entradas", (_mo, i) => entradasByMonth[i].total],
       ["Custo Fixo", (mo) => mo.custoFixo.total],
       ["Custo Variável", (mo) => mo.custoVariavel.total],
     ];
@@ -160,10 +198,10 @@ async function exportToExcel(report: YearlyReport, tenant: Partial<Tenant> | nul
     filenameSuffix = scope.data.dayKey;
   } else if (scope.view === "month") {
     const m = report.months[scope.month];
-    entradasCostSheet("Mensal", `${MONTHS[scope.month]}/${report.year}`, m.entradas, m.custoVariavel, m.custoFixo);
+    entradasCostSheet("Mensal", `${MONTHS[scope.month]}/${report.year}`, scope.entradas, m.custoVariavel, m.custoFixo);
     filenameSuffix = `${MONTHS[scope.month]}_${report.year}`;
   } else {
-    yearSheet();
+    yearSheet(scope.entradasByMonth);
     filenameSuffix = String(report.year);
   }
 
@@ -196,13 +234,13 @@ function exportToPDF(report: YearlyReport, tenant: Partial<Tenant> | null, scope
   <table><thead><tr><th>Descrição</th><th style="text-align:center">Data</th><th>Valor</th></tr></thead>
   <tbody>${costRows(items)}<tr><td class="tot">TOTAL</td><td></td><td class="tot">R$ ${fmt(total)}</td></tr></tbody></table>`;
 
-  const yearSection = () => {
+  const yearSection = (entradasByMonth: EntradasBucket[]) => {
     const yearRows = ([
-      ["Dinheiro", (mo: MonthReport) => mo.entradas.totalByMethod.money],
-      ["PIX", (mo: MonthReport) => mo.entradas.totalByMethod.pix],
-      ["Débito", (mo: MonthReport) => mo.entradas.totalByMethod.debit],
-      ["Crédito", (mo: MonthReport) => mo.entradas.totalByMethod.credit],
-      ["Total Entradas", (mo: MonthReport) => mo.entradas.total],
+      ["Dinheiro", (_mo: MonthReport, i: number) => entradasByMonth[i].totalByMethod.money],
+      ["PIX", (_mo: MonthReport, i: number) => entradasByMonth[i].totalByMethod.pix],
+      ["Débito", (_mo: MonthReport, i: number) => entradasByMonth[i].totalByMethod.debit],
+      ["Crédito", (_mo: MonthReport, i: number) => entradasByMonth[i].totalByMethod.credit],
+      ["Total Entradas", (_mo: MonthReport, i: number) => entradasByMonth[i].total],
       ["Custo Fixo", (mo: MonthReport) => mo.custoFixo.total],
       ["Custo Variável", (mo: MonthReport) => mo.custoVariavel.total],
     ] as const).map(([label, getter]) => {
@@ -223,11 +261,11 @@ function exportToPDF(report: YearlyReport, tenant: Partial<Tenant> | null, scope
       + custoSection("Custo Fixo", scope.data.custoFixo.items, scope.data.custoFixo.total);
   } else if (scope.view === "month") {
     const m = report.months[scope.month];
-    body = entradasSection(`${MONTHS[scope.month]}/${report.year}`, m.entradas)
+    body = entradasSection(`${MONTHS[scope.month]}/${report.year}`, scope.entradas)
       + custoSection("Custo Variável", m.custoVariavel.items, m.custoVariavel.total)
       + custoSection("Custo Fixo", m.custoFixo.items, m.custoFixo.total);
   } else {
-    body = yearSection();
+    body = yearSection(scope.entradasByMonth);
   }
 
   const html = `<!DOCTYPE html>
@@ -267,23 +305,23 @@ function exportToPDF(report: YearlyReport, tenant: Partial<Tenant> | null, scope
 function EntradasTable({ data, onPrint }: { data: EntradasBucket; onPrint?: () => void }) {
   return (
     <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-      <div className="px-5 py-3 border-b border-slate-100 flex items-center justify-between">
+      <div className="px-4 sm:px-5 py-3 border-b border-slate-100 flex items-center justify-between gap-2">
         <h3 className="text-[11px] font-black text-slate-700 uppercase tracking-widest">Entradas por Operador</h3>
         {onPrint && (
           <button onClick={onPrint}
-            className="flex items-center gap-1.5 h-7 px-2.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-[9px] font-black text-slate-600 uppercase tracking-widest transition-colors">
+            className="flex items-center gap-1.5 h-7 px-2.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-[9px] font-black text-slate-600 uppercase tracking-widest transition-colors shrink-0">
             <Printer size={11} /> Imprimir
           </button>
         )}
       </div>
       <div className="overflow-x-auto">
-        <div className="min-w-[680px]">
+        <div className="min-w-[560px]">
           <table className="w-full text-left border-collapse">
             <thead>
               <tr className="bg-slate-50/80 border-b border-slate-100">
-                <th className="px-5 py-2.5 text-[9px] font-black text-slate-400 uppercase tracking-widest whitespace-nowrap">Operador</th>
-                {PM_KEYS.map(k => <th key={k} className="px-5 py-2.5 text-[9px] font-black text-slate-400 uppercase tracking-widest text-right whitespace-nowrap">{PM_LABELS[k]}</th>)}
-                <th className="px-5 py-2.5 text-[9px] font-black text-slate-400 uppercase tracking-widest text-right whitespace-nowrap">Total</th>
+                <th className="px-3 sm:px-5 py-2.5 text-[9px] font-black text-slate-400 uppercase tracking-widest whitespace-nowrap">Operador</th>
+                {PM_KEYS.map(k => <th key={k} className="px-3 sm:px-5 py-2.5 text-[9px] font-black text-slate-400 uppercase tracking-widest text-right whitespace-nowrap">{PM_LABELS[k]}</th>)}
+                <th className="px-3 sm:px-5 py-2.5 text-[9px] font-black text-slate-400 uppercase tracking-widest text-right whitespace-nowrap">Total</th>
               </tr>
             </thead>
             <tbody>
@@ -291,9 +329,9 @@ function EntradasTable({ data, onPrint }: { data: EntradasBucket; onPrint?: () =
                 const total = PM_KEYS.reduce((s, k) => s + pm[k], 0);
                 return (
                   <tr key={op} className="border-b border-slate-50">
-                    <td className="px-5 py-2.5 text-xs font-bold text-slate-700 whitespace-nowrap">{op}</td>
-                    {PM_KEYS.map(k => <td key={k} className="px-5 py-2.5 text-xs font-mono text-slate-600 text-right whitespace-nowrap">R$ {fmt(pm[k])}</td>)}
-                    <td className="px-5 py-2.5 text-xs font-mono font-black text-slate-800 text-right whitespace-nowrap">R$ {fmt(total)}</td>
+                    <td className="px-3 sm:px-5 py-2.5 text-xs font-bold text-slate-700 whitespace-nowrap">{op}</td>
+                    {PM_KEYS.map(k => <td key={k} className="px-3 sm:px-5 py-2.5 text-xs font-mono text-slate-600 text-right whitespace-nowrap">R$ {fmt(pm[k])}</td>)}
+                    <td className="px-3 sm:px-5 py-2.5 text-xs font-mono font-black text-slate-800 text-right whitespace-nowrap">R$ {fmt(total)}</td>
                   </tr>
                 );
               })}
@@ -303,9 +341,9 @@ function EntradasTable({ data, onPrint }: { data: EntradasBucket; onPrint?: () =
             </tbody>
             <tfoot>
               <tr className="bg-emerald-50/60">
-                <td className="px-5 py-2.5 text-xs font-black text-emerald-700 uppercase whitespace-nowrap">Total</td>
-                {PM_KEYS.map(k => <td key={k} className="px-5 py-2.5 text-xs font-mono font-black text-emerald-700 text-right whitespace-nowrap">R$ {fmt(data.totalByMethod[k])}</td>)}
-                <td className="px-5 py-2.5 text-xs font-mono font-black text-emerald-700 text-right whitespace-nowrap">R$ {fmt(data.total)}</td>
+                <td className="px-3 sm:px-5 py-2.5 text-xs font-black text-emerald-700 uppercase whitespace-nowrap">Total</td>
+                {PM_KEYS.map(k => <td key={k} className="px-3 sm:px-5 py-2.5 text-xs font-mono font-black text-emerald-700 text-right whitespace-nowrap">R$ {fmt(data.totalByMethod[k])}</td>)}
+                <td className="px-3 sm:px-5 py-2.5 text-xs font-mono font-black text-emerald-700 text-right whitespace-nowrap">R$ {fmt(data.total)}</td>
               </tr>
             </tfoot>
           </table>
@@ -354,6 +392,7 @@ export default function RelatorioFinanceiro() {
   const [month, setMonth] = useState(new Date().getMonth());
   const [day, setDay] = useState(new Date().getDate());
   const [view, setView] = useState<"day" | "month" | "year">("month");
+  const [origemFiltro, setOrigemFiltro] = useState<OrigemFiltro>("todas");
   const [report, setReport] = useState<YearlyReport | null>(null);
   const [loading, setLoading] = useState(true);
   const [showExport, setShowExport] = useState(false);
@@ -370,21 +409,24 @@ export default function RelatorioFinanceiro() {
   }, [year]);
 
   const m = report?.months[month];
+  const mEntradas = m ? pickBucket(m.entradas, m.entradasByOrigem, origemFiltro) : null;
+
+  const monthEntradasTotal = (mo: MonthReport) => pickBucket(mo.entradas, mo.entradasByOrigem, origemFiltro).total;
 
   const yearTotals = useMemo(() => {
     if (!report) return null;
-    const entradas = report.months.reduce((s, mo) => s + mo.entradas.total, 0);
+    const entradas = report.months.reduce((s, mo) => s + monthEntradasTotal(mo), 0);
     const fixo = report.months.reduce((s, mo) => s + mo.custoFixo.total, 0);
     const variavel = report.months.reduce((s, mo) => s + mo.custoVariavel.total, 0);
     return { entradas, fixo, variavel };
-  }, [report]);
+  }, [report, origemFiltro]);
 
-  const resultado = m ? m.entradas.total - m.custoFixo.total - m.custoVariavel.total : 0;
+  const resultado = m && mEntradas ? mEntradas.total - m.custoFixo.total - m.custoVariavel.total : 0;
 
   const daysInMonth = new Date(year, month + 1, 0).getDate();
   const dayKey = `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
   const emptyEntradas: EntradasBucket = { byOperator: {}, totalByMethod: { money: 0, pix: 0, debit: 0, credit: 0 }, total: 0 };
-  const dEntradas = m?.entradasByDay[day] ?? emptyEntradas;
+  const dEntradas = m ? pickBucket(m.entradasByDay[day] ?? emptyEntradas, m.entradasByDayByOrigem[day] ?? emptyEntradasByOrigemLocal(), origemFiltro) : emptyEntradas;
   const dCustoFixo = m ? m.custoFixo.items.filter(it => it.date === dayKey) : [];
   const dCustoVariavel = m ? m.custoVariavel.items.filter(it => it.date === dayKey) : [];
   const dCustoFixoTotal = dCustoFixo.reduce((s, it) => s + it.amount, 0);
@@ -406,8 +448,13 @@ export default function RelatorioFinanceiro() {
         },
       };
     }
-    if (view === "year") return { view: "year" };
-    return { view: "month", month };
+    if (view === "year") {
+      return {
+        view: "year",
+        entradasByMonth: report!.months.map(mo => pickBucket(mo.entradas, mo.entradasByOrigem, origemFiltro)),
+      };
+    }
+    return { view: "month", month, entradas: mEntradas! };
   };
 
   const printDayReport = () => {
@@ -470,8 +517,8 @@ export default function RelatorioFinanceiro() {
         title="Relatório Financeiro"
         subtitle="Entradas, custo fixo e custo variável — mensal e anual"
         action={
-          <div className="flex items-center gap-2 flex-wrap">
-            <div className="flex items-center gap-1 bg-white border border-slate-200 rounded-xl px-1 h-9">
+          <div className="flex items-center gap-2 flex-wrap w-full sm:w-auto">
+            <div className="flex items-center gap-1 bg-white border border-slate-200 rounded-xl px-1 h-9 shrink-0">
               <button onClick={() => setYear(y => y - 1)} className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-slate-100 text-slate-500">
                 <ChevronLeft size={14} />
               </button>
@@ -480,7 +527,7 @@ export default function RelatorioFinanceiro() {
                 <ChevronRight size={14} />
               </button>
             </div>
-            <div className="relative">
+            <div className="relative shrink-0">
               <button
                 onClick={() => setShowExport(v => !v)}
                 disabled={!report}
@@ -489,7 +536,7 @@ export default function RelatorioFinanceiro() {
                 <Download size={12} /> Exportar <ChevronDown size={10} />
               </button>
               {showExport && report && (
-                <div className="absolute right-0 top-10 w-52 bg-white border border-slate-200 rounded-xl shadow-xl z-50 overflow-hidden">
+                <div className="absolute right-0 top-10 w-52 max-w-[calc(100vw-2rem)] bg-white border border-slate-200 rounded-xl shadow-xl z-50 overflow-hidden">
                   <button
                     onClick={() => { exportToExcel(report, tenant, buildExportScope()); setShowExport(false); }}
                     className="w-full flex items-center gap-3 px-4 py-3 text-[10px] font-bold uppercase tracking-widest text-slate-700 hover:bg-slate-50 transition-colors"
@@ -510,23 +557,35 @@ export default function RelatorioFinanceiro() {
         }
       />
 
-      {/* view toggle */}
-      <div className="flex gap-1.5 flex-wrap">
-        <button onClick={() => setView("day")}
-          className={cn("h-9 px-4 rounded-xl text-[10px] font-black uppercase tracking-widest border flex items-center gap-1.5 transition-all",
-            view === "day" ? "bg-slate-900 text-white border-slate-900" : "bg-white text-slate-400 border-slate-200")}>
-          <Calendar size={12} /> Dia
-        </button>
-        <button onClick={() => setView("month")}
-          className={cn("h-9 px-4 rounded-xl text-[10px] font-black uppercase tracking-widest border flex items-center gap-1.5 transition-all",
-            view === "month" ? "bg-slate-900 text-white border-slate-900" : "bg-white text-slate-400 border-slate-200")}>
-          <Calendar size={12} /> Mês
-        </button>
-        <button onClick={() => setView("year")}
-          className={cn("h-9 px-4 rounded-xl text-[10px] font-black uppercase tracking-widest border flex items-center gap-1.5 transition-all",
-            view === "year" ? "bg-slate-900 text-white border-slate-900" : "bg-white text-slate-400 border-slate-200")}>
-          <LayoutGrid size={12} /> Resumo Anual
-        </button>
+      {/* view toggle + filtro de origem (Tudo/Catálogo/Serviço) */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2.5">
+        <div className="flex gap-1.5 flex-wrap">
+          <button onClick={() => setView("day")}
+            className={cn("h-9 px-4 rounded-xl text-[10px] font-black uppercase tracking-widest border flex items-center gap-1.5 transition-all shrink-0",
+              view === "day" ? "bg-slate-900 text-white border-slate-900" : "bg-white text-slate-400 border-slate-200")}>
+            <Calendar size={12} /> Dia
+          </button>
+          <button onClick={() => setView("month")}
+            className={cn("h-9 px-4 rounded-xl text-[10px] font-black uppercase tracking-widest border flex items-center gap-1.5 transition-all shrink-0",
+              view === "month" ? "bg-slate-900 text-white border-slate-900" : "bg-white text-slate-400 border-slate-200")}>
+            <Calendar size={12} /> Mês
+          </button>
+          <button onClick={() => setView("year")}
+            className={cn("h-9 px-4 rounded-xl text-[10px] font-black uppercase tracking-widest border flex items-center gap-1.5 transition-all shrink-0",
+              view === "year" ? "bg-slate-900 text-white border-slate-900" : "bg-white text-slate-400 border-slate-200")}>
+            <LayoutGrid size={12} /> Resumo Anual
+          </button>
+        </div>
+
+        <div className="flex gap-1 bg-slate-100 rounded-xl p-1 w-full sm:w-auto overflow-x-auto">
+          {ORIGEM_FILTROS.map(({ key, label, icon: Icon }) => (
+            <button key={key} onClick={() => setOrigemFiltro(key)}
+              className={cn("h-8 px-3 rounded-lg text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-1.5 transition-all flex-1 sm:flex-none whitespace-nowrap",
+                origemFiltro === key ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700")}>
+              <Icon size={12} /> {label}
+            </button>
+          ))}
+        </div>
       </div>
 
       {loading || !report ? (
@@ -547,25 +606,25 @@ export default function RelatorioFinanceiro() {
           </div>
 
           {/* summary cards */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm relative overflow-hidden">
+          <div className="grid grid-cols-1 xs:grid-cols-2 sm:grid-cols-3 gap-3">
+            <div className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200 shadow-sm relative overflow-hidden min-w-0">
               <div className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2">Entradas</div>
-              <div className="text-2xl font-mono font-black text-emerald-600">R$ {fmt(m!.entradas.total)}</div>
-              <div className="absolute right-4 top-4 w-10 h-10 rounded-xl bg-emerald-50 flex items-center justify-center text-emerald-500"><TrendingUp size={20} /></div>
+              <div className="text-xl sm:text-2xl font-mono font-black text-emerald-600 truncate pr-10">R$ {fmt(mEntradas!.total)}</div>
+              <div className="absolute right-4 top-4 w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-emerald-50 flex items-center justify-center text-emerald-500"><TrendingUp size={18} /></div>
             </div>
-            <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm relative overflow-hidden">
+            <div className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200 shadow-sm relative overflow-hidden min-w-0">
               <div className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2">Custos (Fixo + Variável)</div>
-              <div className="text-2xl font-mono font-black text-rose-600">R$ {fmt(m!.custoFixo.total + m!.custoVariavel.total)}</div>
-              <div className="absolute right-4 top-4 w-10 h-10 rounded-xl bg-rose-50 flex items-center justify-center text-rose-500"><TrendingDown size={20} /></div>
+              <div className="text-xl sm:text-2xl font-mono font-black text-rose-600 truncate pr-10">R$ {fmt(m!.custoFixo.total + m!.custoVariavel.total)}</div>
+              <div className="absolute right-4 top-4 w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-rose-50 flex items-center justify-center text-rose-500"><TrendingDown size={18} /></div>
             </div>
-            <div className={cn("p-5 rounded-2xl shadow-xl relative overflow-hidden", resultado >= 0 ? "bg-slate-900" : "bg-rose-950")}>
+            <div className={cn("p-4 sm:p-5 rounded-2xl shadow-xl relative overflow-hidden min-w-0 xs:col-span-2 sm:col-span-1", resultado >= 0 ? "bg-slate-900" : "bg-rose-950")}>
               <div className="text-[9px] font-black text-slate-500 uppercase tracking-[0.2em] mb-2">Resultado do Mês</div>
-              <div className={cn("text-2xl font-mono font-black", resultado >= 0 ? "text-emerald-400" : "text-rose-400")}>R$ {fmt(resultado)}</div>
-              <div className="absolute right-4 top-4 w-10 h-10 rounded-xl bg-white/5 flex items-center justify-center text-white/70"><Wallet size={20} /></div>
+              <div className={cn("text-xl sm:text-2xl font-mono font-black truncate pr-10", resultado >= 0 ? "text-emerald-400" : "text-rose-400")}>R$ {fmt(resultado)}</div>
+              <div className="absolute right-4 top-4 w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-white/5 flex items-center justify-center text-white/70"><Wallet size={18} /></div>
             </div>
           </div>
 
-          <EntradasTable data={m!.entradas} />
+          <EntradasTable data={mEntradas!} />
           <CustoCards custoVariavel={m!.custoVariavel} custoFixo={m!.custoFixo} />
         </>
       ) : view === "day" ? (
@@ -589,21 +648,21 @@ export default function RelatorioFinanceiro() {
           </div>
 
           {/* summary cards */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm relative overflow-hidden">
+          <div className="grid grid-cols-1 xs:grid-cols-2 sm:grid-cols-3 gap-3">
+            <div className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200 shadow-sm relative overflow-hidden min-w-0">
               <div className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2">Entradas</div>
-              <div className="text-2xl font-mono font-black text-emerald-600">R$ {fmt(dEntradas.total)}</div>
-              <div className="absolute right-4 top-4 w-10 h-10 rounded-xl bg-emerald-50 flex items-center justify-center text-emerald-500"><TrendingUp size={20} /></div>
+              <div className="text-xl sm:text-2xl font-mono font-black text-emerald-600 truncate pr-10">R$ {fmt(dEntradas.total)}</div>
+              <div className="absolute right-4 top-4 w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-emerald-50 flex items-center justify-center text-emerald-500"><TrendingUp size={18} /></div>
             </div>
-            <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm relative overflow-hidden">
+            <div className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200 shadow-sm relative overflow-hidden min-w-0">
               <div className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2">Custos (Fixo + Variável)</div>
-              <div className="text-2xl font-mono font-black text-rose-600">R$ {fmt(dCustoFixoTotal + dCustoVariavelTotal)}</div>
-              <div className="absolute right-4 top-4 w-10 h-10 rounded-xl bg-rose-50 flex items-center justify-center text-rose-500"><TrendingDown size={20} /></div>
+              <div className="text-xl sm:text-2xl font-mono font-black text-rose-600 truncate pr-10">R$ {fmt(dCustoFixoTotal + dCustoVariavelTotal)}</div>
+              <div className="absolute right-4 top-4 w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-rose-50 flex items-center justify-center text-rose-500"><TrendingDown size={18} /></div>
             </div>
-            <div className={cn("p-5 rounded-2xl shadow-xl relative overflow-hidden", dResultado >= 0 ? "bg-slate-900" : "bg-rose-950")}>
+            <div className={cn("p-4 sm:p-5 rounded-2xl shadow-xl relative overflow-hidden min-w-0 xs:col-span-2 sm:col-span-1", dResultado >= 0 ? "bg-slate-900" : "bg-rose-950")}>
               <div className="text-[9px] font-black text-slate-500 uppercase tracking-[0.2em] mb-2">Resultado do Dia</div>
-              <div className={cn("text-2xl font-mono font-black", dResultado >= 0 ? "text-emerald-400" : "text-rose-400")}>R$ {fmt(dResultado)}</div>
-              <div className="absolute right-4 top-4 w-10 h-10 rounded-xl bg-white/5 flex items-center justify-center text-white/70"><Wallet size={20} /></div>
+              <div className={cn("text-xl sm:text-2xl font-mono font-black truncate pr-10", dResultado >= 0 ? "text-emerald-400" : "text-rose-400")}>R$ {fmt(dResultado)}</div>
+              <div className="absolute right-4 top-4 w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-white/5 flex items-center justify-center text-white/70"><Wallet size={18} /></div>
             </div>
           </div>
 
@@ -633,11 +692,11 @@ export default function RelatorioFinanceiro() {
                 </thead>
                 <tbody>
                   {([
-                    ["Dinheiro", (mo: MonthReport) => mo.entradas.totalByMethod.money, ""],
-                    ["PIX", (mo: MonthReport) => mo.entradas.totalByMethod.pix, ""],
-                    ["Débito", (mo: MonthReport) => mo.entradas.totalByMethod.debit, ""],
-                    ["Crédito", (mo: MonthReport) => mo.entradas.totalByMethod.credit, ""],
-                    ["Total Entradas", (mo: MonthReport) => mo.entradas.total, "bg-emerald-50/60 text-emerald-700 font-black"],
+                    ["Dinheiro", (mo: MonthReport) => pickBucket(mo.entradas, mo.entradasByOrigem, origemFiltro).totalByMethod.money, ""],
+                    ["PIX", (mo: MonthReport) => pickBucket(mo.entradas, mo.entradasByOrigem, origemFiltro).totalByMethod.pix, ""],
+                    ["Débito", (mo: MonthReport) => pickBucket(mo.entradas, mo.entradasByOrigem, origemFiltro).totalByMethod.debit, ""],
+                    ["Crédito", (mo: MonthReport) => pickBucket(mo.entradas, mo.entradasByOrigem, origemFiltro).totalByMethod.credit, ""],
+                    ["Total Entradas", (mo: MonthReport) => pickBucket(mo.entradas, mo.entradasByOrigem, origemFiltro).total, "bg-emerald-50/60 text-emerald-700 font-black"],
                     ["Custo Fixo", (mo: MonthReport) => mo.custoFixo.total, "text-violet-700"],
                     ["Custo Variável", (mo: MonthReport) => mo.custoVariavel.total, "text-amber-700"],
                   ] as const).map(([label, getter, rowClass]) => {
