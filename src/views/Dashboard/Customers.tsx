@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   Users, UserPlus, Phone, Search,
@@ -6,6 +6,7 @@ import {
   DollarSign, CheckCircle2,
   TrendingDown, AlertCircle,
   Loader2, LayoutGrid, List, MapPin, Mail, StickyNote, WalletCards,
+  HelpCircle,
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { cn } from "../../lib/utils";
@@ -13,6 +14,7 @@ import PageHeader from "../../components/layout/PageHeader";
 import Modal from "../../components/ui/Modal";
 import Button from "../../components/ui/Button";
 import StatsGrid from "../../components/ui/StatsGrid";
+import CustomersPageTour, { CUSTOMERS_PAGE_TOUR_EVENTS, type CustomersPageTourHandle } from "../../components/onboarding/CustomersPageTour";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -205,6 +207,8 @@ export default function Customers() {
   } | null>(null);
   const [confirming, setConfirming] = useState(false);
 
+  const customersPageTourRef = useRef<CustomersPageTourHandle>(null);
+
   // ── fetch
 
   const fetchAll = useCallback(async () => {
@@ -288,6 +292,35 @@ export default function Customers() {
   }
 
   function closeForm() { setShowForm(false); setEditCust(null); }
+
+  // ── Canal de comunicação do TOUR DE PÁGINA (CustomersPageTour) ────────────
+  // Abre o drawer "Novo Cliente" de verdade via openCreate e preenche nome/
+  // telefone de exemplo chamando os setters individuais (não há um objeto
+  // form único nesta tela) — nunca chama handleSave (POST/PUT real) nem
+  // handleDelete (abre confirmDialog → DELETE real). Fechar sempre via
+  // closeForm (equivalente a clicar fora ou no X, que já fazem isso na tela
+  // real).
+  useEffect(() => {
+    const onOpenNewCustomer = () => openCreate();
+    const onFillCustomer = (e: Event) => {
+      const detail = (e as CustomEvent<{ name?: string; phone?: string; email?: string }>).detail;
+      if (!detail) return;
+      if (detail.name !== undefined) setFName(detail.name);
+      if (detail.phone !== undefined) setFPhone(detail.phone);
+      if (detail.email !== undefined) setFEmail(detail.email);
+    };
+    const onCloseForm = () => closeForm();
+
+    window.addEventListener(CUSTOMERS_PAGE_TOUR_EVENTS.openNewCustomer, onOpenNewCustomer);
+    window.addEventListener(CUSTOMERS_PAGE_TOUR_EVENTS.fillCustomer, onFillCustomer);
+    window.addEventListener(CUSTOMERS_PAGE_TOUR_EVENTS.closeForm, onCloseForm);
+    return () => {
+      window.removeEventListener(CUSTOMERS_PAGE_TOUR_EVENTS.openNewCustomer, onOpenNewCustomer);
+      window.removeEventListener(CUSTOMERS_PAGE_TOUR_EVENTS.fillCustomer, onFillCustomer);
+      window.removeEventListener(CUSTOMERS_PAGE_TOUR_EVENTS.closeForm, onCloseForm);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   async function handleLookupCEP() {
     const raw = fZip.replace(/\D/g, "");
@@ -432,16 +465,29 @@ export default function Customers() {
   // ─────────────────────────────────────────────────────────────────────────────
 
   return (
-    <div className="min-w-0 space-y-4 sm:space-y-5">
+    <div data-tour="customers-page" className="min-w-0 space-y-4 sm:space-y-5">
       <PageHeader
         title="Clientes"
         subtitle="Clientes, crédito, histórico de compras e notas internas"
         action={
-          <Button icon={<UserPlus size={14} />} onClick={openCreate}>
-            Novo Cliente
-          </Button>
+          <div className="flex gap-2 items-center flex-wrap">
+            <Button data-tour="customers-new-btn" icon={<UserPlus size={14} />} onClick={openCreate}>
+              Novo Cliente
+            </Button>
+            <Button
+              variant="secondary"
+              className="text-slate-400 hover:text-blue-600 hover:bg-blue-50 border-slate-200 hover:border-blue-300"
+              icon={<HelpCircle size={14} />}
+              onClick={() => customersPageTourRef.current?.start()}
+              title="Tour guiado desta página"
+            >
+              <span className="sr-only sm:not-sr-only">Ajuda</span>
+            </Button>
+          </div>
         }
       />
+
+      <CustomersPageTour ref={customersPageTourRef} />
 
       {/* Stats */}
       <StatsGrid
@@ -781,7 +827,7 @@ export default function Customers() {
               </div>
 
               <div className="flex-1 overflow-y-auto p-5 space-y-3">
-                <div>
+                <div data-tour="customer-form-name">
                   <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block mb-1">Nome *</label>
                   <input value={fName} onChange={(e) => setFName(e.target.value)} placeholder="Nome completo" className="w-full h-9 px-3 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
                 </div>
@@ -940,7 +986,7 @@ export default function Customers() {
                     className="w-full h-9 px-3 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
                 </div>
-                <div>
+                <div data-tour="customer-form-credit">
                   <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block mb-1">Limite de Crédito (R$)</label>
                   <input type="number" min={0} value={fCredit} onChange={(e) => setFCredit(e.target.value)} placeholder="0,00" className="w-full h-9 px-3 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
                 </div>

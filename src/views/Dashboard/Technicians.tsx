@@ -1,11 +1,13 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import {
   Wrench, Plus, Search, Edit2, Trash2, X, Check,
-  ToggleLeft, ToggleRight, Phone, FileText,
+  ToggleLeft, ToggleRight, Phone, FileText, HelpCircle,
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { cn } from "../../lib/utils";
 import PageHeader from "../../components/layout/PageHeader";
+import Button from "../../components/ui/Button";
+import TechniciansPageTour, { TECHNICIANS_PAGE_TOUR_EVENTS, type TechniciansPageTourHandle } from "../../components/onboarding/TechniciansPageTour";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -52,6 +54,8 @@ export default function Technicians() {
   const [saved, setSaved]         = useState(false);
 
   const [teamUsers, setTeamUsers] = useState<TeamUser[]>([]);
+
+  const techniciansPageTourRef = useRef<TechniciansPageTourHandle>(null);
 
   const fetchTechnicians = useCallback(async () => {
     setLoading(true);
@@ -116,18 +120,63 @@ export default function Technicians() {
     !search || t.name.toLowerCase().includes(search.toLowerCase())
   );
 
+  // ── Canal de comunicação do TOUR DE PÁGINA (TechniciansPageTour) ──────────
+  // Abre o modal "Novo Técnico" de verdade via openNew (ou openEdit com o
+  // primeiro técnico da lista, se houver) e preenche campos de exemplo via
+  // setForm — nunca chama handleSave (POST/PUT real), handleDelete
+  // (window.confirm) nem handleToggleActive (PUT real fora do modal). Fechar
+  // sempre via setShowModal(false) (equivalente a clicar fora ou no X, que já
+  // fazem isso na tela real).
+  useEffect(() => {
+    const onOpenNewTechnician = () => openNew();
+    const onFillTechnician = (e: Event) => {
+      const detail = (e as CustomEvent<Partial<typeof form>>).detail;
+      if (detail) setForm((prev) => ({ ...prev, ...detail }));
+    };
+    const onCloseTechnicianModal = () => setShowModal(false);
+    const onOpenEditTechnician = () => {
+      const list = Array.isArray(technicians) ? technicians : [];
+      if (list.length > 0) openEdit(list[0]);
+    };
+
+    window.addEventListener(TECHNICIANS_PAGE_TOUR_EVENTS.openNewTechnician, onOpenNewTechnician);
+    window.addEventListener(TECHNICIANS_PAGE_TOUR_EVENTS.fillTechnician, onFillTechnician);
+    window.addEventListener(TECHNICIANS_PAGE_TOUR_EVENTS.closeTechnicianModal, onCloseTechnicianModal);
+    window.addEventListener(TECHNICIANS_PAGE_TOUR_EVENTS.openEditTechnician, onOpenEditTechnician);
+    return () => {
+      window.removeEventListener(TECHNICIANS_PAGE_TOUR_EVENTS.openNewTechnician, onOpenNewTechnician);
+      window.removeEventListener(TECHNICIANS_PAGE_TOUR_EVENTS.fillTechnician, onFillTechnician);
+      window.removeEventListener(TECHNICIANS_PAGE_TOUR_EVENTS.closeTechnicianModal, onCloseTechnicianModal);
+      window.removeEventListener(TECHNICIANS_PAGE_TOUR_EVENTS.openEditTechnician, onOpenEditTechnician);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [technicians]);
+
   return (
-    <div className="space-y-5">
+    <div data-tour="technicians-page" className="space-y-5">
       <PageHeader
         title="Técnicos"
         subtitle="Cadastro de técnicos e prestadores de serviço para atribuir em Ordens de Serviço"
         action={
-          <button onClick={openNew}
-            className="h-9 px-4 bg-blue-600 text-white rounded-lg flex items-center gap-2 text-[12px] font-bold hover:bg-blue-700 transition-all shadow-md shadow-blue-500/20">
-            <Plus size={15} /> Novo Técnico
-          </button>
+          <div className="flex gap-2 items-center flex-wrap">
+            <button data-tour="technicians-new-btn" onClick={openNew}
+              className="h-9 px-4 bg-blue-600 text-white rounded-lg flex items-center gap-2 text-[12px] font-bold hover:bg-blue-700 transition-all shadow-md shadow-blue-500/20">
+              <Plus size={15} /> Novo Técnico
+            </button>
+            <Button
+              variant="secondary"
+              className="text-slate-400 hover:text-blue-600 hover:bg-blue-50 border-slate-200 hover:border-blue-300"
+              icon={<HelpCircle size={14} />}
+              onClick={() => techniciansPageTourRef.current?.start()}
+              title="Tour guiado desta página"
+            >
+              <span className="sr-only sm:not-sr-only">Ajuda</span>
+            </Button>
+          </div>
         }
       />
+
+      <TechniciansPageTour ref={techniciansPageTourRef} />
 
       {/* Search */}
       <div className="relative max-w-sm">
@@ -203,7 +252,7 @@ export default function Technicians() {
                 <p className="text-[11px] text-slate-400 bg-slate-50 rounded-lg px-2.5 py-2 line-clamp-2">{t.notes}</p>
               )}
 
-              <button onClick={() => handleToggleActive(t)}
+              <button data-tour="technician-toggle-active-btn" onClick={() => handleToggleActive(t)}
                 className={cn(
                   "w-full flex items-center justify-center gap-2 h-8 rounded-lg text-[11px] font-bold border transition-all",
                   t.is_active
@@ -244,7 +293,7 @@ export default function Technicians() {
                 </div>
 
                 <div className="p-6 space-y-4">
-                  <div>
+                  <div data-tour="technician-form-name">
                     <label className="text-[10px] font-black uppercase tracking-wider text-slate-500 block mb-1">
                       Nome *
                     </label>

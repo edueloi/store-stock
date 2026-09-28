@@ -1,14 +1,16 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import {
   Star, Gift, Users, TrendingUp, Award, Settings, Plus, Trash2,
   Edit2, X, Package, Percent, DollarSign, Calendar,
   AlertTriangle, ToggleLeft, ToggleRight, Clock, Search,
-  Cake, ChevronDown, ChevronUp, Check,
+  Cake, ChevronDown, ChevronUp, Check, HelpCircle,
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { cn } from "../../lib/utils";
 import PageHeader from "../../components/layout/PageHeader";
+import Button from "../../components/ui/Button";
 import { productHasStock } from "../../utils/productStock";
+import LoyaltyPageTour, { LOYALTY_PAGE_TOUR_EVENTS, type LoyaltyPageTourHandle } from "../../components/onboarding/LoyaltyPageTour";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -123,6 +125,8 @@ export default function Loyalty() {
   const [adjDelta, setAdjDelta] = useState("");
   const [adjDesc, setAdjDesc]   = useState("");
   const [savingAdj, setSavingAdj] = useState(false);
+
+  const loyaltyPageTourRef = useRef<LoyaltyPageTourHandle>(null);
 
   const fetchAll = useCallback(async () => {
     setLoading(true);
@@ -298,6 +302,52 @@ export default function Loyalty() {
     await fetchAll();
   }
 
+  // ── Canal de comunicação do TOUR DE PÁGINA (LoyaltyPageTour) ──────────────
+  // Troca de aba via setTab e, só na aba Recompensas, abre o drawer "Nova
+  // Recompensa" de verdade via openCreateReward, preenchendo nome/pontos de
+  // exemplo via setRName/setRPoints — nunca chama handleSaveSettings,
+  // handleSaveReward, deleteReward (window.confirm), toggleReward ou
+  // handleAdjustPoints. Fechar sempre via setShowRewardForm(false)
+  // (equivalente a clicar fora ou no X, que já fazem isso na tela real). O
+  // evento forceCloseAdjust é só defesa em profundidade: este tour nunca abre
+  // o formulário de ajuste manual de pontos, mas garante que ele não fica
+  // aberto por acaso ao sair do tour.
+  useEffect(() => {
+    const onGoOverview = () => setTab("overview");
+    const onGoPoints = () => { setTab("points"); fetchPointsTab(); };
+    const onGoRewards = () => setTab("rewards");
+    const onGoSettings = () => setTab("settings");
+    const onOpenNewReward = () => openCreateReward();
+    const onFillReward = (e: Event) => {
+      const detail = (e as CustomEvent<{ name?: string; points?: string }>).detail;
+      if (!detail) return;
+      if (detail.name !== undefined) setRName(detail.name);
+      if (detail.points !== undefined) setRPoints(detail.points);
+    };
+    const onCloseRewardForm = () => setShowRewardForm(false);
+    const onForceCloseAdjust = () => setAdjId(null);
+
+    window.addEventListener(LOYALTY_PAGE_TOUR_EVENTS.goOverviewTab, onGoOverview);
+    window.addEventListener(LOYALTY_PAGE_TOUR_EVENTS.goPointsTab, onGoPoints);
+    window.addEventListener(LOYALTY_PAGE_TOUR_EVENTS.goRewardsTab, onGoRewards);
+    window.addEventListener(LOYALTY_PAGE_TOUR_EVENTS.goSettingsTab, onGoSettings);
+    window.addEventListener(LOYALTY_PAGE_TOUR_EVENTS.openNewReward, onOpenNewReward);
+    window.addEventListener(LOYALTY_PAGE_TOUR_EVENTS.fillReward, onFillReward);
+    window.addEventListener(LOYALTY_PAGE_TOUR_EVENTS.closeRewardForm, onCloseRewardForm);
+    window.addEventListener(LOYALTY_PAGE_TOUR_EVENTS.forceCloseAdjust, onForceCloseAdjust);
+    return () => {
+      window.removeEventListener(LOYALTY_PAGE_TOUR_EVENTS.goOverviewTab, onGoOverview);
+      window.removeEventListener(LOYALTY_PAGE_TOUR_EVENTS.goPointsTab, onGoPoints);
+      window.removeEventListener(LOYALTY_PAGE_TOUR_EVENTS.goRewardsTab, onGoRewards);
+      window.removeEventListener(LOYALTY_PAGE_TOUR_EVENTS.goSettingsTab, onGoSettings);
+      window.removeEventListener(LOYALTY_PAGE_TOUR_EVENTS.openNewReward, onOpenNewReward);
+      window.removeEventListener(LOYALTY_PAGE_TOUR_EVENTS.fillReward, onFillReward);
+      window.removeEventListener(LOYALTY_PAGE_TOUR_EVENTS.closeRewardForm, onCloseRewardForm);
+      window.removeEventListener(LOYALTY_PAGE_TOUR_EVENTS.forceCloseAdjust, onForceCloseAdjust);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -309,20 +359,33 @@ export default function Loyalty() {
   const allRewards = program?.rewards ?? [];
 
   return (
-    <div className="space-y-6">
+    <div data-tour="loyalty-page" className="space-y-6">
       <PageHeader
         title="Fidelidade"
         subtitle="Programa de pontos e recompensas para seus clientes"
         action={
-          <span className={cn(
-            "flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-bold",
-            program?.is_active ? "bg-emerald-100 text-emerald-700" : "bg-slate-100 text-slate-500"
-          )}>
-            <span className={cn("w-1.5 h-1.5 rounded-full", program?.is_active ? "bg-emerald-500" : "bg-slate-400")} />
-            {program?.is_active ? "Ativo" : "Inativo"}
-          </span>
+          <div className="flex gap-2 items-center flex-wrap">
+            <span className={cn(
+              "flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-bold",
+              program?.is_active ? "bg-emerald-100 text-emerald-700" : "bg-slate-100 text-slate-500"
+            )}>
+              <span className={cn("w-1.5 h-1.5 rounded-full", program?.is_active ? "bg-emerald-500" : "bg-slate-400")} />
+              {program?.is_active ? "Ativo" : "Inativo"}
+            </span>
+            <Button
+              variant="secondary"
+              className="text-slate-400 hover:text-blue-600 hover:bg-blue-50 border-slate-200 hover:border-blue-300"
+              icon={<HelpCircle size={14} />}
+              onClick={() => loyaltyPageTourRef.current?.start()}
+              title="Tour guiado desta página"
+            >
+              <span className="sr-only sm:not-sr-only">Ajuda</span>
+            </Button>
+          </div>
         }
       />
+
+      <LoyaltyPageTour ref={loyaltyPageTourRef} />
 
       {/* Tabs */}
       <div className="flex gap-1 bg-slate-100 rounded-xl p-1 w-fit flex-wrap">
@@ -581,6 +644,7 @@ export default function Loyalty() {
                         {/* Actions */}
                         <div className="flex items-center gap-1 shrink-0">
                           <button
+                            data-tour="loyalty-adjust-points-btn"
                             onClick={() => { setAdjId(isAdjusting ? null : c.id); setAdjDelta(""); setAdjDesc(""); }}
                             title="Adicionar/remover pontos"
                             className={cn(
@@ -754,7 +818,7 @@ export default function Loyalty() {
       {/* ── SETTINGS ───────────────────────────────────────────────────────── */}
       {tab === "settings" && (
         <div className="max-w-lg space-y-5">
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 space-y-4">
+          <div data-tour="loyalty-settings-card" className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 space-y-4">
             <h3 className="font-black text-slate-900 text-[14px] flex items-center gap-2">
               <Settings size={15} /> Configurações do Programa
             </h3>
@@ -873,7 +937,7 @@ export default function Loyalty() {
 
               <div className="flex-1 overflow-y-auto p-5 space-y-4">
                 {/* Name */}
-                <div>
+                <div data-tour="loyalty-reward-form-name">
                   <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block mb-1">Nome *</label>
                   <input value={rName} onChange={(e) => setRName(e.target.value)} placeholder="Ex: 10% de desconto" className="w-full h-9 px-3 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400" />
                 </div>

@@ -4,7 +4,7 @@ import {
   AlertTriangle, CheckCircle, XCircle,
   Search, X, LayoutGrid, List, Clock,
   Scissors, Box, LayoutPanelTop, Hammer,
-  Ruler, Package, Tag, Upload, Percent, DollarSign,
+  Ruler, Package, Tag, Upload, Percent, DollarSign, HelpCircle,
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import Button from "../../components/ui/Button";
@@ -14,6 +14,7 @@ import PageHeader from "../../components/layout/PageHeader";
 import { EmptyState, LoadingState } from "../../components/layout/EmptyState";
 import { StatCard } from "../../components/ui/Card";
 import Combobox from "../../components/ui/Combobox";
+import ServicesPageTour, { SERVICES_PAGE_TOUR_EVENTS, type ServicesPageTourHandle } from "../../components/onboarding/ServicesPageTour";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -138,6 +139,8 @@ export default function Services() {
   const [imgToast, setImgToast]           = useState<string>("");
   const fileInputRef                      = useRef<HTMLInputElement>(null);
 
+  const servicesPageTourRef = useRef<ServicesPageTourHandle>(null);
+
   const fetchServices = useCallback(async () => {
     setLoading(true);
     try {
@@ -183,6 +186,39 @@ export default function Services() {
   };
 
   const closeModal = () => { setIsModalOpen(false); setEditing(null); setImagePreview(""); setImgToast(""); };
+
+  // ── Canal de comunicação do TOUR DE PÁGINA (ServicesPageTour) ─────────────
+  // Abre o modal "Novo Serviço" de verdade via openNew (ou openEdit com o
+  // primeiro serviço da lista, se houver) e preenche campos de exemplo via
+  // setForm — nunca simula o submit do form (handleSave faz POST/PUT real),
+  // nunca abre o modal de exclusão (deleteTarget → handleDelete, DELETE
+  // real), nunca chama handleToggle (PUT real fora do modal) nem
+  // handleImageFile (POST real de upload). Fechar sempre via closeModal
+  // (equivalente a clicar fora ou no X, que já fazem isso na tela real).
+  useEffect(() => {
+    const onOpenNewService = () => openNew();
+    const onFillService = (e: Event) => {
+      const detail = (e as CustomEvent<Partial<typeof form>>).detail;
+      if (detail) setForm((prev) => ({ ...prev, ...detail }));
+    };
+    const onCloseServiceModal = () => closeModal();
+    const onOpenEditService = () => {
+      const list = Array.isArray(services) ? services : [];
+      if (list.length > 0) openEdit(list[0]);
+    };
+
+    window.addEventListener(SERVICES_PAGE_TOUR_EVENTS.openNewService, onOpenNewService);
+    window.addEventListener(SERVICES_PAGE_TOUR_EVENTS.fillService, onFillService);
+    window.addEventListener(SERVICES_PAGE_TOUR_EVENTS.closeServiceModal, onCloseServiceModal);
+    window.addEventListener(SERVICES_PAGE_TOUR_EVENTS.openEditService, onOpenEditService);
+    return () => {
+      window.removeEventListener(SERVICES_PAGE_TOUR_EVENTS.openNewService, onOpenNewService);
+      window.removeEventListener(SERVICES_PAGE_TOUR_EVENTS.fillService, onFillService);
+      window.removeEventListener(SERVICES_PAGE_TOUR_EVENTS.closeServiceModal, onCloseServiceModal);
+      window.removeEventListener(SERVICES_PAGE_TOUR_EVENTS.openEditService, onOpenEditService);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [services]);
 
   const handleImageFile = async (file: File) => {
     if (!["image/jpeg", "image/png"].includes(file.type)) {
@@ -314,16 +350,29 @@ export default function Services() {
   }));
 
   return (
-    <div className="space-y-6">
+    <div data-tour="services-page" className="space-y-6">
       <PageHeader
         title="Serviços"
         subtitle="Gerencie os serviços oferecidos — impressão, cartão de visita, xerox e mais"
         action={
-          <Button icon={<Plus size={15} />} onClick={openNew}>
-            Novo Serviço
-          </Button>
+          <div className="flex gap-2 items-center flex-wrap">
+            <Button data-tour="services-new-btn" icon={<Plus size={15} />} onClick={openNew}>
+              Novo Serviço
+            </Button>
+            <Button
+              variant="secondary"
+              className="text-slate-400 hover:text-blue-600 hover:bg-blue-50 border-slate-200 hover:border-blue-300"
+              icon={<HelpCircle size={14} />}
+              onClick={() => servicesPageTourRef.current?.start()}
+              title="Tour guiado desta página"
+            >
+              <span className="sr-only sm:not-sr-only">Ajuda</span>
+            </Button>
+          </div>
         }
       />
+
+      <ServicesPageTour ref={servicesPageTourRef} />
 
       {/* Stats */}
       <div className="grid grid-cols-3 gap-3">
@@ -670,7 +719,7 @@ export default function Services() {
               onChange={(e) => { const f = e.target.files?.[0]; if (f) handleImageFile(f); e.target.value = ""; }}
             />
             {imagePreview ? (
-              <div className="relative w-20 h-20 rounded-2xl overflow-hidden border border-slate-200 bg-slate-50 shrink-0">
+              <div data-tour="service-form-image" className="relative w-20 h-20 rounded-2xl overflow-hidden border border-slate-200 bg-slate-50 shrink-0">
                 <img src={imagePreview} alt="preview" className="w-full h-full object-cover" />
                 <button
                   type="button"
@@ -682,6 +731,7 @@ export default function Services() {
               </div>
             ) : (
               <button
+                data-tour="service-form-image"
                 type="button"
                 disabled={uploadingImg}
                 onClick={() => fileInputRef.current?.click()}
@@ -694,6 +744,7 @@ export default function Services() {
 
             <div className="flex-1 min-w-0 space-y-3">
               <Input
+                data-tour="service-form-name"
                 label="Nome do Serviço *"
                 required
                 autoFocus
@@ -728,7 +779,7 @@ export default function Services() {
           )}
 
           {/* Precificação */}
-          <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-3">
+          <div data-tour="service-form-pricing" className="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-3">
             <div className="flex items-center justify-between">
               <label className="text-[10px] font-black text-slate-600 uppercase tracking-wider">Como este serviço é cobrado</label>
               <div className="flex bg-white rounded-lg border border-slate-200 p-0.5">

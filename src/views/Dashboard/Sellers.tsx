@@ -1,14 +1,15 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import {
   Users, Plus, Search, Edit2, Trash2, Trophy,
   TrendingUp, DollarSign, X, Check, ChevronLeft,
   ChevronRight, Star, Medal, Award, ToggleLeft, ToggleRight,
   Phone, Mail, FileText, Percent, Target, ChevronDown,
-  Clock, Flame, XCircle, CheckCircle2, AlertCircle,
+  Clock, Flame, XCircle, CheckCircle2, AlertCircle, HelpCircle,
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { cn } from "../../lib/utils";
 import PageHeader from "../../components/layout/PageHeader";
+import Button from "../../components/ui/Button";
 import {
   SELLER_GOAL_TYPES,
   PERIODS,
@@ -19,6 +20,7 @@ import {
   daysLeft,
   defaultDates,
 } from "../../lib/goals";
+import SellersPageTour, { SELLERS_PAGE_TOUR_EVENTS, type SellersPageTourHandle } from "../../components/onboarding/SellersPageTour";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -145,6 +147,8 @@ export default function Sellers() {
   const [savingGoal, setSavingGoal]         = useState(false);
 
   const [teamUsers, setTeamUsers] = useState<TeamUser[]>([]);
+
+  const sellersPageTourRef = useRef<SellersPageTourHandle>(null);
 
   // ── Fetch ──────────────────────────────────────────────────────────────────
 
@@ -306,6 +310,52 @@ export default function Sellers() {
     fetchSellerGoals(); fetchGoalsRanking();
   };
 
+  // ── Canal de comunicação do TOUR DE PÁGINA (SellersPageTour) ──────────────
+  // Troca de aba via setTab e abre o modal "Novo Vendedor"/drawer "Nova Meta"
+  // de verdade via openNew/openNewGoal, preenchendo campos de exemplo via
+  // setForm/setGoalForm — nunca chama handleSave, handleDelete
+  // (window.confirm), handleToggleActive, handleSaveGoal ou handleDeleteGoal
+  // (window.confirm). Fechar sempre via setShowModal(false)/closeGoalForm.
+  useEffect(() => {
+    const onGoRanking = () => setTab("ranking");
+    const onGoCadastro = () => setTab("cadastro");
+    const onGoMetas = () => setTab("metas");
+    const onOpenNewSeller = () => openNew();
+    const onFillSeller = (e: Event) => {
+      const detail = (e as CustomEvent<Partial<typeof form>>).detail;
+      if (detail) setForm((prev) => ({ ...prev, ...detail }));
+    };
+    const onCloseSellerModal = () => setShowModal(false);
+    const onOpenNewGoal = () => openNewGoal();
+    const onFillGoal = (e: Event) => {
+      const detail = (e as CustomEvent<Partial<typeof goalForm>>).detail;
+      if (detail) setGoalForm((prev) => ({ ...prev, ...detail }));
+    };
+    const onCloseGoalForm = () => closeGoalForm();
+
+    window.addEventListener(SELLERS_PAGE_TOUR_EVENTS.goRankingTab, onGoRanking);
+    window.addEventListener(SELLERS_PAGE_TOUR_EVENTS.goCadastroTab, onGoCadastro);
+    window.addEventListener(SELLERS_PAGE_TOUR_EVENTS.goMetasTab, onGoMetas);
+    window.addEventListener(SELLERS_PAGE_TOUR_EVENTS.openNewSeller, onOpenNewSeller);
+    window.addEventListener(SELLERS_PAGE_TOUR_EVENTS.fillSeller, onFillSeller);
+    window.addEventListener(SELLERS_PAGE_TOUR_EVENTS.closeSellerModal, onCloseSellerModal);
+    window.addEventListener(SELLERS_PAGE_TOUR_EVENTS.openNewGoal, onOpenNewGoal);
+    window.addEventListener(SELLERS_PAGE_TOUR_EVENTS.fillGoal, onFillGoal);
+    window.addEventListener(SELLERS_PAGE_TOUR_EVENTS.closeGoalForm, onCloseGoalForm);
+    return () => {
+      window.removeEventListener(SELLERS_PAGE_TOUR_EVENTS.goRankingTab, onGoRanking);
+      window.removeEventListener(SELLERS_PAGE_TOUR_EVENTS.goCadastroTab, onGoCadastro);
+      window.removeEventListener(SELLERS_PAGE_TOUR_EVENTS.goMetasTab, onGoMetas);
+      window.removeEventListener(SELLERS_PAGE_TOUR_EVENTS.openNewSeller, onOpenNewSeller);
+      window.removeEventListener(SELLERS_PAGE_TOUR_EVENTS.fillSeller, onFillSeller);
+      window.removeEventListener(SELLERS_PAGE_TOUR_EVENTS.closeSellerModal, onCloseSellerModal);
+      window.removeEventListener(SELLERS_PAGE_TOUR_EVENTS.openNewGoal, onOpenNewGoal);
+      window.removeEventListener(SELLERS_PAGE_TOUR_EVENTS.fillGoal, onFillGoal);
+      window.removeEventListener(SELLERS_PAGE_TOUR_EVENTS.closeGoalForm, onCloseGoalForm);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // Auto-fill de datas ao trocar período no form de metas
   useEffect(() => {
     if (goalForm.period !== "custom") {
@@ -349,24 +399,37 @@ export default function Sellers() {
   // ─────────────────────────────────────────────────────────────────────────
 
   return (
-    <div className="space-y-5">
+    <div data-tour="sellers-page" className="space-y-5">
       <PageHeader
         title="Vendedores"
         subtitle="Ranking, comissões, metas e cadastro da equipe de vendas"
         action={
-          tab === "metas" ? (
-            <button onClick={openNewGoal}
-              className="h-9 px-4 bg-blue-600 text-white rounded-lg flex items-center gap-2 text-[12px] font-bold hover:bg-blue-700 transition-all shadow-md shadow-blue-500/20">
-              <Plus size={15} /> Nova Meta
-            </button>
-          ) : (
-            <button onClick={openNew}
-              className="h-9 px-4 bg-blue-600 text-white rounded-lg flex items-center gap-2 text-[12px] font-bold hover:bg-blue-700 transition-all shadow-md shadow-blue-500/20">
-              <Plus size={15} /> Novo Vendedor
-            </button>
-          )
+          <div className="flex gap-2 items-center flex-wrap">
+            {tab === "metas" ? (
+              <button onClick={openNewGoal}
+                className="h-9 px-4 bg-blue-600 text-white rounded-lg flex items-center gap-2 text-[12px] font-bold hover:bg-blue-700 transition-all shadow-md shadow-blue-500/20">
+                <Plus size={15} /> Nova Meta
+              </button>
+            ) : (
+              <button onClick={openNew}
+                className="h-9 px-4 bg-blue-600 text-white rounded-lg flex items-center gap-2 text-[12px] font-bold hover:bg-blue-700 transition-all shadow-md shadow-blue-500/20">
+                <Plus size={15} /> Novo Vendedor
+              </button>
+            )}
+            <Button
+              variant="secondary"
+              className="text-slate-400 hover:text-blue-600 hover:bg-blue-50 border-slate-200 hover:border-blue-300"
+              icon={<HelpCircle size={14} />}
+              onClick={() => sellersPageTourRef.current?.start()}
+              title="Tour guiado desta página"
+            >
+              <span className="sr-only sm:not-sr-only">Ajuda</span>
+            </Button>
+          </div>
         }
       />
+
+      <SellersPageTour ref={sellersPageTourRef} />
 
       {/* ── Tabs ─────────────────────────────────────────────────────────── */}
       <div className="flex gap-1 bg-slate-100 p-1 rounded-xl w-fit">
@@ -902,7 +965,7 @@ export default function Sellers() {
                 )}
 
                 {/* Título */}
-                <div>
+                <div data-tour="seller-goal-form-title">
                   <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block mb-1">
                     Título da Meta *
                   </label>
@@ -1068,7 +1131,7 @@ export default function Sellers() {
 
                 <div className="p-6 space-y-4">
                   {/* Nome */}
-                  <div>
+                  <div data-tour="seller-form-name">
                     <label className="text-[10px] font-black uppercase tracking-wider text-slate-500 block mb-1">
                       Nome *
                     </label>
