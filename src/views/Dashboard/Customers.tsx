@@ -6,7 +6,7 @@ import {
   DollarSign, CheckCircle2,
   TrendingDown, AlertCircle,
   Loader2, LayoutGrid, List, MapPin, Mail, StickyNote, WalletCards,
-  HelpCircle,
+  HelpCircle, Download, Upload,
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { cn } from "../../lib/utils";
@@ -49,6 +49,43 @@ interface Customer {
   legal_nature?: string;
   registration_status?: string;
   registration_status_date?: string;
+  // ── Campos expandidos (import/export planilha) ──
+  external_code?: string;
+  contact_name?: string;
+  fax?: string;
+  website?: string;
+  person_type?: "physical" | "legal";
+  state_registration?: string;
+  state_registration_exempt?: boolean;
+  status?: "active" | "inactive";
+  marital_status?: string;
+  profession?: string;
+  gender?: string;
+  birthplace?: string;
+  father_name?: string;
+  father_document?: string;
+  mother_name?: string;
+  mother_document?: string;
+  segment?: string;
+  seller_id?: number | null;
+  seller?: { id: number; name: string } | null;
+  contact_type?: string;
+  nfe_email?: string;
+  customer_since?: string;
+  next_visit_at?: string;
+  tax_regime?: string;
+}
+
+interface Seller {
+  id: number;
+  name: string;
+  is_active: boolean;
+}
+
+interface ImportSummary {
+  created: number;
+  updated: number;
+  errors: { row: number; message: string }[];
 }
 
 interface Debtor {
@@ -199,6 +236,37 @@ export default function Customers() {
   const [fRiskReason, setFRiskReason] = useState("");
   const [saving, setSaving]       = useState(false);
 
+  // ── Campos expandidos (planilha) ──
+  const [fExternalCode, setFExternalCode] = useState("");
+  const [fContactName, setFContactName]   = useState("");
+  const [fFax, setFFax]                   = useState("");
+  const [fWebsite, setFWebsite]           = useState("");
+  const [fPersonType, setFPersonType]     = useState<"physical" | "legal">("physical");
+  const [fStateRegistration, setFStateRegistration] = useState("");
+  const [fStateRegistrationExempt, setFStateRegistrationExempt] = useState(false);
+  const [fStatus, setFStatus]             = useState<"active" | "inactive">("active");
+  const [fMaritalStatus, setFMaritalStatus] = useState("");
+  const [fProfession, setFProfession]     = useState("");
+  const [fGender, setFGender]             = useState("");
+  const [fBirthplace, setFBirthplace]     = useState("");
+  const [fFatherName, setFFatherName]     = useState("");
+  const [fFatherDocument, setFFatherDocument] = useState("");
+  const [fMotherName, setFMotherName]     = useState("");
+  const [fMotherDocument, setFMotherDocument] = useState("");
+  const [fSegment, setFSegment]           = useState("");
+  const [fSellerId, setFSellerId]         = useState("");
+  const [fContactType, setFContactType]   = useState("");
+  const [fNfeEmail, setFNfeEmail]         = useState("");
+  const [fCustomerSince, setFCustomerSince] = useState("");
+  const [fNextVisitAt, setFNextVisitAt]   = useState("");
+  const [fTaxRegime, setFTaxRegime]       = useState("");
+
+  const [sellers, setSellers] = useState<Seller[]>([]);
+  const [importing, setImporting] = useState(false);
+  const [exporting, setExporting] = useState(false);
+  const [importSummary, setImportSummary] = useState<ImportSummary | null>(null);
+  const importFileInputRef = useRef<HTMLInputElement>(null);
+
   // Generic confirmation dialog (replaces window.confirm)
   const [confirmDialog, setConfirmDialog] = useState<{
     title: string;
@@ -228,6 +296,15 @@ export default function Customers() {
   }, []);
 
   useEffect(() => { fetchAll(); }, [fetchAll]);
+
+  // Vendedores ativos para o select "Vendedor" do formulário — carregado uma vez,
+  // igual ao padrão de outras telas que consomem /api/sellers.
+  useEffect(() => {
+    fetch("/api/sellers", { headers: { Authorization: `Bearer ${localStorage.getItem("token")}` } })
+      .then((r) => r.json())
+      .then((data) => setSellers(Array.isArray(data) ? data.filter((s: Seller) => s.is_active) : []))
+      .catch(() => setSellers([]));
+  }, []);
 
   // Mantém a escolha Grade/Tabela por usuário, inclusive ao abrir o sistema em outro dispositivo.
   useEffect(() => {
@@ -268,6 +345,12 @@ export default function Customers() {
     setFAddr(""); setFStreet(""); setFNumber(""); setFComplement(""); setFDistrict(""); setFCity(""); setFState(""); setFZip(""); setFCountry("Brasil");
     setFNotes(""); setFCredit(""); setFConsignmentLimit(""); setFBirth(""); setFRisk(false); setFRiskReason("");
     setFLegalName(""); setFTradeName(""); setFCnaeCode(""); setFCnaeDescription(""); setFLegalNature(""); setFRegistrationStatus(""); setFRegistrationStatusDate("");
+    setFExternalCode(""); setFContactName(""); setFFax(""); setFWebsite(""); setFPersonType("physical");
+    setFStateRegistration(""); setFStateRegistrationExempt(false); setFStatus("active");
+    setFMaritalStatus(""); setFProfession(""); setFGender(""); setFBirthplace("");
+    setFFatherName(""); setFFatherDocument(""); setFMotherName(""); setFMotherDocument("");
+    setFSegment(""); setFSellerId(""); setFContactType(""); setFNfeEmail("");
+    setFCustomerSince(""); setFNextVisitAt(""); setFTaxRegime("");
     setCnpjError(null);
     setShowForm(true);
   }
@@ -287,6 +370,20 @@ export default function Customers() {
     setFCnaeCode(c.cnae_code ?? ""); setFCnaeDescription(c.cnae_description ?? "");
     setFLegalNature(c.legal_nature ?? ""); setFRegistrationStatus(c.registration_status ?? "");
     setFRegistrationStatusDate(c.registration_status_date ? c.registration_status_date.slice(0, 10) : "");
+    setFExternalCode(c.external_code ?? ""); setFContactName(c.contact_name ?? "");
+    setFFax(c.fax ? maskPhone(c.fax) : ""); setFWebsite(c.website ?? "");
+    setFPersonType(c.person_type === "legal" ? "legal" : "physical");
+    setFStateRegistration(c.state_registration ?? ""); setFStateRegistrationExempt(c.state_registration_exempt ?? false);
+    setFStatus(c.status === "inactive" ? "inactive" : "active");
+    setFMaritalStatus(c.marital_status ?? ""); setFProfession(c.profession ?? ""); setFGender(c.gender ?? "");
+    setFBirthplace(c.birthplace ?? "");
+    setFFatherName(c.father_name ?? ""); setFFatherDocument(c.father_document ?? "");
+    setFMotherName(c.mother_name ?? ""); setFMotherDocument(c.mother_document ?? "");
+    setFSegment(c.segment ?? ""); setFSellerId(c.seller_id ? String(c.seller_id) : "");
+    setFContactType(c.contact_type ?? ""); setFNfeEmail(c.nfe_email ?? "");
+    setFCustomerSince(c.customer_since ? c.customer_since.slice(0, 10) : "");
+    setFNextVisitAt(c.next_visit_at ? c.next_visit_at.slice(0, 10) : "");
+    setFTaxRegime(c.tax_regime ?? "");
     setCnpjError(null);
     setShowForm(true);
   }
@@ -352,8 +449,9 @@ export default function Customers() {
       const res = await fetch(`https://brasilapi.com.br/api/cnpj/v1/${raw}`);
       if (!res.ok) { setCnpjError("CNPJ não encontrado."); return; }
       const d = await res.json();
-      const displayName = d.nome_fantasia?.trim() || d.razao_social?.trim();
-      if (displayName) setFName(displayName);
+      // Nunca sobrescreve o campo "Nome" — ele é o apelido/nome usado no dia a
+      // dia (cupom, listagens) e o usuário pode já tê-lo definido diferente da
+      // razão social/fantasia oficial. A busca só completa os demais dados.
       if (d.email) setFEmail(d.email);
       if (d.ddd_telefone_1) setFPhone(maskPhone(d.ddd_telefone_1));
       if (d.cep) setFZip(String(d.cep).replace(/\D/g, ""));
@@ -411,6 +509,29 @@ export default function Customers() {
         legal_nature: fLegalNature || null,
         registration_status: fRegistrationStatus || null,
         registration_status_date: fRegistrationStatusDate || null,
+        external_code: fExternalCode || null,
+        contact_name: fContactName || null,
+        fax: fFax.replace(/\D/g, "") || null,
+        website: fWebsite || null,
+        person_type: fPersonType,
+        state_registration: fStateRegistration || null,
+        state_registration_exempt: fStateRegistrationExempt,
+        status: fStatus,
+        marital_status: fMaritalStatus || null,
+        profession: fProfession || null,
+        gender: fGender || null,
+        birthplace: fBirthplace || null,
+        father_name: fFatherName || null,
+        father_document: fFatherDocument.replace(/\D/g, "") || null,
+        mother_name: fMotherName || null,
+        mother_document: fMotherDocument.replace(/\D/g, "") || null,
+        segment: fSegment || null,
+        seller_id: fSellerId ? Number(fSellerId) : null,
+        contact_type: fContactType || null,
+        nfe_email: fNfeEmail || null,
+        customer_since: fCustomerSince || null,
+        next_visit_at: fNextVisitAt || null,
+        tax_regime: fTaxRegime || null,
       };
       if (editCust) {
         await fetch(`/api/customers/${editCust.id}`, {
@@ -437,6 +558,59 @@ export default function Customers() {
         fetchAll();
       },
     });
+  }
+
+  // ── Export / Import planilha ──
+
+  async function handleExport() {
+    setExporting(true);
+    try {
+      const res = await fetch("/api/customers/export", {
+        headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
+      });
+      if (!res.ok) return;
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `clientes_${new Date().toISOString().split("T")[0]}.xlsx`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } finally {
+      setExporting(false);
+    }
+  }
+
+  function handleImportClick() {
+    importFileInputRef.current?.click();
+  }
+
+  async function handleImportFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = ""; // permite reimportar o mesmo arquivo depois
+    if (!file) return;
+    setImporting(true);
+    setImportSummary(null);
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      const res = await fetch("/api/customers/import", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
+        body: formData,
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setImportSummary(data);
+        await fetchAll();
+      } else {
+        setImportSummary({ created: 0, updated: 0, errors: [{ row: 0, message: data?.error ?? "Falha ao importar planilha" }] });
+      }
+    } catch {
+      setImportSummary({ created: 0, updated: 0, errors: [{ row: 0, message: "Falha de conexão ao importar planilha" }] });
+    } finally {
+      setImporting(false);
+    }
   }
 
   // ── filters
@@ -474,6 +648,31 @@ export default function Customers() {
             <Button data-tour="customers-new-btn" icon={<UserPlus size={14} />} onClick={openCreate}>
               Novo Cliente
             </Button>
+            <Button
+              variant="secondary"
+              icon={<Download size={14} />}
+              loading={exporting}
+              onClick={handleExport}
+              title="Exportar clientes para planilha Excel"
+            >
+              <span className="sr-only sm:not-sr-only">Exportar planilha</span>
+            </Button>
+            <Button
+              variant="secondary"
+              icon={<Upload size={14} />}
+              loading={importing}
+              onClick={handleImportClick}
+              title="Importar clientes de planilha Excel"
+            >
+              <span className="sr-only sm:not-sr-only">Importar planilha</span>
+            </Button>
+            <input
+              ref={importFileInputRef}
+              type="file"
+              accept=".xlsx"
+              className="hidden"
+              onChange={handleImportFileChange}
+            />
             <Button
               variant="secondary"
               className="text-slate-400 hover:text-blue-600 hover:bg-blue-50 border-slate-200 hover:border-blue-300"
@@ -1023,6 +1222,137 @@ export default function Customers() {
                     />
                   )}
                 </div>
+
+                {/* ── Dados Comerciais ───────────────────────────────────── */}
+                <div className="space-y-2 border-t border-slate-100 pt-3">
+                  <p className="text-[9px] font-black uppercase tracking-widest text-slate-400">Dados Comerciais</p>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block mb-1">Código (planilha)</label>
+                      <input value={fExternalCode} onChange={(e) => setFExternalCode(e.target.value)} placeholder="Código legado" className="w-full h-9 px-3 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                    </div>
+                    <div>
+                      <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block mb-1">Situação</label>
+                      <select value={fStatus} onChange={(e) => setFStatus(e.target.value as "active" | "inactive")} className="w-full h-9 px-3 rounded-lg border border-slate-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        <option value="active">Ativo</option>
+                        <option value="inactive">Inativo</option>
+                      </select>
+                    </div>
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block mb-1">Nome do Contato</label>
+                    <input value={fContactName} onChange={(e) => setFContactName(e.target.value)} placeholder="Pessoa de contato" className="w-full h-9 px-3 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block mb-1">Fax</label>
+                      <input value={fFax} onChange={(e) => setFFax(maskPhone(e.target.value))} placeholder="(11) 99999-9999" inputMode="numeric" className="w-full h-9 px-3 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                    </div>
+                    <div>
+                      <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block mb-1">Tipo de Contato</label>
+                      <input value={fContactType} onChange={(e) => setFContactType(e.target.value)} placeholder="Ex: Comprador" className="w-full h-9 px-3 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block mb-1">Web Site</label>
+                    <input value={fWebsite} onChange={(e) => setFWebsite(e.target.value)} placeholder="https://…" className="w-full h-9 px-3 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block mb-1">Segmento</label>
+                    <input value={fSegment} onChange={(e) => setFSegment(e.target.value)} placeholder="Segmento de mercado" className="w-full h-9 px-3 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block mb-1">Vendedor Responsável</label>
+                    <select value={fSellerId} onChange={(e) => setFSellerId(e.target.value)} className="w-full h-9 px-3 rounded-lg border border-slate-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500">
+                      <option value="">Nenhum</option>
+                      {sellers.map((s) => (
+                        <option key={s.id} value={s.id}>{s.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block mb-1">Cliente desde</label>
+                      <input type="date" value={fCustomerSince} onChange={(e) => setFCustomerSince(e.target.value)} className="w-full h-9 px-3 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                    </div>
+                    <div>
+                      <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block mb-1">Próxima visita</label>
+                      <input type="date" value={fNextVisitAt} onChange={(e) => setFNextVisitAt(e.target.value)} className="w-full h-9 px-3 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                    </div>
+                  </div>
+                </div>
+
+                {/* ── Fiscal ─────────────────────────────────────────────── */}
+                <div className="space-y-2 border-t border-slate-100 pt-3">
+                  <p className="text-[9px] font-black uppercase tracking-widest text-slate-400">Fiscal</p>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block mb-1">Tipo de Pessoa</label>
+                      <select value={fPersonType} onChange={(e) => setFPersonType(e.target.value as "physical" | "legal")} className="w-full h-9 px-3 rounded-lg border border-slate-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        <option value="physical">Pessoa Física</option>
+                        <option value="legal">Pessoa Jurídica</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block mb-1">{fPersonType === "legal" ? "IE" : "RG"}</label>
+                      <input value={fStateRegistration} onChange={(e) => setFStateRegistration(e.target.value)} disabled={fStateRegistrationExempt} placeholder={fPersonType === "legal" ? "Inscrição Estadual" : "RG"} className="w-full h-9 px-3 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-slate-50 disabled:text-slate-400" />
+                    </div>
+                  </div>
+                  {fPersonType === "legal" && (
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input type="checkbox" checked={fStateRegistrationExempt} onChange={(e) => setFStateRegistrationExempt(e.target.checked)} className="w-4 h-4 accent-blue-500" />
+                      <span className="text-[11px] font-semibold text-slate-600">IE isento</span>
+                    </label>
+                  )}
+                  <div>
+                    <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block mb-1">E-mail para envio de NFe</label>
+                    <input type="email" value={fNfeEmail} onChange={(e) => setFNfeEmail(e.target.value)} placeholder="nfe@exemplo.com" className="w-full h-9 px-3 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block mb-1">Regime Tributário</label>
+                    <input value={fTaxRegime} onChange={(e) => setFTaxRegime(e.target.value)} placeholder="Ex: Simples Nacional" className="w-full h-9 px-3 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                  </div>
+                </div>
+
+                {/* ── Dados Pessoais (só Pessoa Física) ─────────────────── */}
+                {fPersonType === "physical" && (
+                  <div className="space-y-2 border-t border-slate-100 pt-3">
+                    <p className="text-[9px] font-black uppercase tracking-widest text-slate-400">Dados Pessoais</p>
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block mb-1">Estado Civil</label>
+                        <input value={fMaritalStatus} onChange={(e) => setFMaritalStatus(e.target.value)} placeholder="Ex: Casado(a)" className="w-full h-9 px-3 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                      </div>
+                      <div>
+                        <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block mb-1">Profissão</label>
+                        <input value={fProfession} onChange={(e) => setFProfession(e.target.value)} className="w-full h-9 px-3 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block mb-1">Sexo</label>
+                        <select value={fGender} onChange={(e) => setFGender(e.target.value)} className="w-full h-9 px-3 rounded-lg border border-slate-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500">
+                          <option value="">–</option>
+                          <option value="M">Masculino</option>
+                          <option value="F">Feminino</option>
+                          <option value="other">Outro</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block mb-1">Naturalidade</label>
+                        <input value={fBirthplace} onChange={(e) => setFBirthplace(e.target.value)} placeholder="Cidade - UF" className="w-full h-9 px-3 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                      <input value={fFatherName} onChange={(e) => setFFatherName(e.target.value)} placeholder="Nome do pai" className="h-9 px-3 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                      <input value={fFatherDocument} onChange={(e) => setFFatherDocument(maskDoc(e.target.value))} placeholder="CPF do pai" inputMode="numeric" className="h-9 px-3 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                      <input value={fMotherName} onChange={(e) => setFMotherName(e.target.value)} placeholder="Nome da mãe" className="h-9 px-3 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                      <input value={fMotherDocument} onChange={(e) => setFMotherDocument(maskDoc(e.target.value))} placeholder="CPF da mãe" inputMode="numeric" className="h-9 px-3 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                    </div>
+                  </div>
+                )}
               </div>
 
               <div className="border-t border-slate-200 px-5 py-4 shrink-0 bg-slate-50 flex gap-2">
@@ -1068,6 +1398,54 @@ export default function Customers() {
         }
       >
         <p className="text-sm text-slate-600">{confirmDialog?.message}</p>
+      </Modal>
+
+      {/* Resumo da importação de planilha */}
+      <Modal
+        open={!!importSummary}
+        onClose={() => setImportSummary(null)}
+        title="Resultado da Importação"
+        size="md"
+        footer={<Button onClick={() => setImportSummary(null)}>Fechar</Button>}
+      >
+        {importSummary && (
+          <div className="space-y-3">
+            <div className="grid grid-cols-3 gap-2">
+              <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-center">
+                <p className="text-lg font-black text-emerald-700">{importSummary.created}</p>
+                <p className="text-[10px] font-bold uppercase tracking-wider text-emerald-600">Criados</p>
+              </div>
+              <div className="rounded-xl border border-blue-200 bg-blue-50 p-3 text-center">
+                <p className="text-lg font-black text-blue-700">{importSummary.updated}</p>
+                <p className="text-[10px] font-bold uppercase tracking-wider text-blue-600">Atualizados</p>
+              </div>
+              <div className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-center">
+                <p className="text-lg font-black text-rose-700">{importSummary.errors.length}</p>
+                <p className="text-[10px] font-bold uppercase tracking-wider text-rose-600">Erros</p>
+              </div>
+            </div>
+            {importSummary.errors.length > 0 && (
+              <div className="max-h-56 overflow-y-auto rounded-xl border border-slate-200">
+                <table className="w-full text-xs">
+                  <thead className="bg-slate-50">
+                    <tr>
+                      <th className="px-3 py-2 text-left font-bold text-slate-500">Linha</th>
+                      <th className="px-3 py-2 text-left font-bold text-slate-500">Erro</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {importSummary.errors.map((e, i) => (
+                      <tr key={i}>
+                        <td className="px-3 py-2 text-slate-600">{e.row || "–"}</td>
+                        <td className="px-3 py-2 text-slate-600">{e.message}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        )}
       </Modal>
     </div>
   );

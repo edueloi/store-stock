@@ -8,6 +8,8 @@ import {
   recordQuoteDeposit,
   deleteQuote,
   convertToOrder,
+  attachQuoteFile,
+  deleteQuoteFileHandler,
 } from "../controllers/quotes.controller";
 import { createQuoteApprovalLink } from "../controllers/quote-approval.controller";
 import { authenticateToken } from "../middlewares/auth.middleware";
@@ -26,6 +28,8 @@ router.put("/:id/status", updateQuoteStatus);
 router.post("/:id/deposit", recordQuoteDeposit);
 router.post("/:id/convert", convertToOrder);
 router.post("/:id/approval-link", createQuoteApprovalLink);
+router.post("/:id/files", attachQuoteFile);
+router.delete("/:id/files/:fileId", deleteQuoteFileHandler);
 router.delete("/:id", deleteQuote);
 
 export default router;

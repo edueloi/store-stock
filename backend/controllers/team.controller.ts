@@ -3,7 +3,7 @@ import bcrypt from "bcryptjs";
 import { prisma } from "../config/prisma";
 import type { AuthenticatedRequest } from "../types/auth";
 import { isMenuKey, MENU_KEYS, MENU_LABELS } from "../utils/menu-permissions";
-import { isWorkflowStage, STAGE_LABELS, WORKFLOW_STAGES } from "../utils/workflow-stages";
+import { isWorkflowStage, STAGE_LABELS, WORKFLOW_STAGES, getWorkflowStagesForTenant } from "../utils/workflow-stages";
 
 export async function listTeam(req: Request, res: Response) {
   const authReq = req as AuthenticatedRequest;
@@ -179,10 +179,19 @@ export async function deleteTeamMember(req: Request, res: Response) {
 }
 
 // Catálogo estático de menus/etapas disponíveis, para a tela de permissões montar os checkboxes.
-export function getPermissionOptions(_req: Request, res: Response) {
+export async function getPermissionOptions(req: Request, res: Response) {
+  const tenantId = (req as AuthenticatedRequest).user?.tenantId;
+  const tenant = tenantId
+    ? await prisma.tenant.findUnique({ where: { id: tenantId }, select: { grafica_enabled: true } })
+    : null;
+  // Etapas de arte (aguardando_arte/arte_finalizada) só aparecem pra tenant com o
+  // módulo Gráfica ligado — senão a tela de permissões mostraria checkbox de etapa
+  // que nem existe no fluxo dessa loja (ver Tenant.grafica_enabled).
+  const stages = getWorkflowStagesForTenant(!!tenant?.grafica_enabled);
+
   res.json({
     menus: MENU_KEYS.map((key) => ({ key, label: MENU_LABELS[key] })),
-    stages: WORKFLOW_STAGES.map((key) => ({ key, label: STAGE_LABELS[key] })),
+    stages: stages.map((key) => ({ key, label: STAGE_LABELS[key] })),
   });
 }
 

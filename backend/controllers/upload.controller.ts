@@ -8,7 +8,7 @@ import type { AuthenticatedRequest } from "../types/auth";
 
 const UPLOADS_BASE = path.join(process.cwd(), "public", "uploads");
 
-function tenantDir(req: Request, sub: "products" | "logos" | "banners" | "services" | "service-orders" | "categories"): string {
+function tenantDir(req: Request, sub: "products" | "logos" | "banners" | "services" | "service-orders" | "categories" | "quotes"): string {
   const tenantId = (req as AuthenticatedRequest).user?.tenantId ?? "shared";
   const dir = path.join(UPLOADS_BASE, sub, String(tenantId));
   fs.mkdirSync(dir, { recursive: true });
@@ -27,7 +27,15 @@ const serviceFileFilter = (_req: Request, file: Express.Multer.File, cb: multer.
   else cb(new Error("Apenas JPG e PNG são permitidos para imagens de serviços"));
 };
 
-const makeStorage = (sub: "products" | "logos" | "banners" | "services" | "service-orders" | "categories") =>
+// Arte final / prova de aprovação de gráfica costumam vir em PDF, não só imagem —
+// filtro usado nos anexos de produção de OS e Orçamento (fotos, arte, prova).
+const productionFileFilter = (_req: Request, file: Express.Multer.File, cb: multer.FileFilterCallback) => {
+  const allowed = ["image/jpeg", "image/png", "image/webp", "image/gif", "application/pdf"];
+  if (allowed.includes(file.mimetype)) cb(null, true);
+  else cb(new Error("Apenas imagens ou PDF são permitidos"));
+};
+
+const makeStorage = (sub: "products" | "logos" | "banners" | "services" | "service-orders" | "categories" | "quotes") =>
   multer.diskStorage({
     destination: (req, _file, cb) => cb(null, tenantDir(req, sub)),
     filename: (_req, file, cb) => {
@@ -41,8 +49,9 @@ export const upload        = multer({ storage: makeStorage("products"), fileFilt
 export const uploadLogo    = multer({ storage: makeStorage("logos"),    fileFilter,        limits: { fileSize: 2 * 1024 * 1024 } });
 export const uploadBanner  = multer({ storage: makeStorage("banners"),  fileFilter,        limits: { fileSize: 5 * 1024 * 1024 } });
 export const uploadService = multer({ storage: makeStorage("services"), fileFilter: serviceFileFilter, limits: { fileSize: 2 * 1024 * 1024 } });
-export const uploadServiceOrderPhoto = multer({ storage: makeStorage("service-orders"), fileFilter, limits: { fileSize: 5 * 1024 * 1024 } });
+export const uploadServiceOrderPhoto = multer({ storage: makeStorage("service-orders"), fileFilter: productionFileFilter, limits: { fileSize: 15 * 1024 * 1024 } });
 export const uploadCategory = multer({ storage: makeStorage("categories"), fileFilter, limits: { fileSize: 3 * 1024 * 1024 } });
+export const uploadQuoteFile = multer({ storage: makeStorage("quotes"), fileFilter: productionFileFilter, limits: { fileSize: 15 * 1024 * 1024 } });
 
 export async function uploadProductImage(req: Request, res: Response) {
   try {
@@ -115,6 +124,16 @@ export async function uploadCategoryImage(req: Request, res: Response) {
   }
 }
 
+export async function uploadQuoteFileHandler(req: Request, res: Response) {
+  try {
+    if (!req.file) { res.status(400).json({ error: "Nenhum arquivo enviado" }); return; }
+    const tenantId = (req as AuthenticatedRequest).user.tenantId;
+    res.json({ url: `/uploads/quotes/${tenantId}/${req.file.filename}` });
+  } catch {
+    res.status(500).json({ error: "Upload falhou" });
+  }
+}
+
 export function deleteProductImage(imageUrl: string) {
   if (!imageUrl || !imageUrl.startsWith("/uploads/products/")) return;
   fs.unlink(path.join(process.cwd(), "public", imageUrl), () => {});
@@ -128,4 +147,9 @@ export function deleteServiceImage(imageUrl: string) {
 export function deleteServiceOrderPhoto(imageUrl: string) {
   if (!imageUrl || !imageUrl.startsWith("/uploads/service-orders/")) return;
   fs.unlink(path.join(process.cwd(), "public", imageUrl), () => {});
+}
+
+export function deleteQuoteFile(fileUrl: string) {
+  if (!fileUrl || !fileUrl.startsWith("/uploads/quotes/")) return;
+  fs.unlink(path.join(process.cwd(), "public", fileUrl), () => {});
 }

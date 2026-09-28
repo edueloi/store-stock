@@ -25,6 +25,10 @@ import {
   Receipt,
   Percent,
   DollarSign,
+  Palette,
+  FileCheck2,
+  FileText,
+  ExternalLink,
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { cn } from "../../lib/utils";
@@ -107,6 +111,11 @@ export default function ServiceOrderDetail() {
   const [warrantyDays, setWarrantyDays] = useState("");
   const [warrantyTerms, setWarrantyTerms] = useState("");
   const [observations, setObservations] = useState("");
+  const [linkedQuote, setLinkedQuote] = useState<{
+    id: number; number: number; total_amount: number; discount_type: string; discount_value: number;
+    items: { id: number; name: string; quantity: number; unit_price: number; total: number; dimensions_label: string | null }[];
+    services: { id: number; name: string; unit_price: number; quantity: number; total: number; dimensions_label: string | null }[];
+  } | null>(null);
 
   const [showNewCustomer, setShowNewCustomer] = useState(false);
   const [ncName, setNcName] = useState("");
@@ -145,6 +154,8 @@ export default function ServiceOrderDetail() {
   const [photoUploading, setPhotoUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
+  const arteInputRef = useRef<HTMLInputElement>(null);
+  const provaInputRef = useRef<HTMLInputElement>(null);
 
   const [showInvoiceModal, setShowInvoiceModal] = useState(false);
   const [invoicePayments, setInvoicePayments] = useState<InvoicePayment[]>([newPayment()]);
@@ -216,6 +227,16 @@ export default function ServiceOrderDetail() {
       if (!silent) setLoading(false);
     }
   }, [orderId, applyFormFields]);
+
+  // OS nascida de um Orçamento de gráfica (ver Tenant.grafica_enabled): busca o
+  // orçamento vinculado sob demanda só pra exibir a proposta/preço, somente leitura.
+  useEffect(() => {
+    if (!selected?.quote_id) { setLinkedQuote(null); return; }
+    (async () => {
+      const res = await fetch(`/api/quotes/${selected.quote_id}`, { headers: authHeaderNoJson() });
+      setLinkedQuote(res.ok ? await res.json() : null);
+    })();
+  }, [selected?.quote_id]);
 
   useEffect(() => {
     (async () => {
@@ -493,7 +514,7 @@ export default function ServiceOrderDetail() {
   };
 
   // ── Photos ──────────────────────────────────────────────────────────────
-  const handlePhotoFile = async (file: File, kind: "intake" | "damage") => {
+  const handlePhotoFile = async (file: File, kind: "intake" | "damage" | "arte" | "prova") => {
     if (!selected) return;
     setPhotoUploading(true);
     try {
@@ -718,7 +739,7 @@ export default function ServiceOrderDetail() {
                 </button>
               </div>
             ) : isDraft ? (
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
                 <button
                   onClick={() => changeStatus("orcamento_enviado")}
                   disabled={!canStartService}
@@ -763,7 +784,7 @@ export default function ServiceOrderDetail() {
                     );
                   })}
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 flex-wrap">
                   {(() => {
                     const currentIdx = statusOrderForTenant.indexOf(selected.status);
                     const next = statusOrderForTenant[currentIdx + 1];
@@ -781,7 +802,7 @@ export default function ServiceOrderDetail() {
                     return next && next !== "cancelada" ? (
                       <>
                         <button onClick={() => changeStatus(next)}
-                          className="h-9 px-4 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-[10px] font-black uppercase tracking-wider flex items-center gap-1.5 transition-all">
+                          className="h-9 px-4 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-[10px] font-black uppercase tracking-wider flex items-center gap-1.5 transition-all shrink-0">
                           Avançar para: {STATUS_META[next].label} <ArrowRight size={13} />
                         </button>
                         <button onClick={() => setShowCancelModal(true)}
@@ -910,7 +931,7 @@ export default function ServiceOrderDetail() {
                     <PlusCircle size={15} />
                   </button>
                 </div>
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                   <input value={equipmentType} onChange={(e) => setEquipmentType(e.target.value)} onBlur={() => autosaveField({ equipment_type: equipmentType || null }, "equipment_type")} placeholder="Tipo (ex: Notebook Gamer)" className="h-10 px-3 rounded-xl border border-slate-200 text-[12px] font-medium focus:outline-none focus:border-blue-400" />
                   <input value={equipmentBrand} onChange={(e) => setEquipmentBrand(e.target.value)} onBlur={() => autosaveField({ equipment_brand: equipmentBrand || null }, "equipment_brand")} placeholder="Marca" className="h-10 px-3 rounded-xl border border-slate-200 text-[12px] font-medium focus:outline-none focus:border-blue-400" />
                   <input value={equipmentModel} onChange={(e) => setEquipmentModel(e.target.value)} onBlur={() => autosaveField({ equipment_model: equipmentModel || null }, "equipment_model")} placeholder="Modelo" className="h-10 px-3 rounded-xl border border-slate-200 text-[12px] font-medium focus:outline-none focus:border-blue-400" />
@@ -976,11 +997,46 @@ export default function ServiceOrderDetail() {
             </div>
           )}
 
-          {/* Fotos */}
+          {/* Orçamento vinculado */}
+          {linkedQuote && (
+            <div className="bg-white rounded-2xl border border-slate-200 p-5">
+              <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
+                <p className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400">
+                  Orçamento vinculado #{String(linkedQuote.number).padStart(4, "0")}
+                </p>
+                <button onClick={() => navigate(`/admin/orcamentos/${linkedQuote.id}`)}
+                  className="h-7 px-2.5 rounded-lg bg-slate-100 text-slate-600 text-[9px] font-black uppercase tracking-wider flex items-center gap-1 hover:bg-slate-200 transition-all">
+                  Ver orçamento completo <ExternalLink size={11} />
+                </button>
+              </div>
+              <div className="flex flex-col gap-1.5">
+                {linkedQuote.items.map((item) => (
+                  <div key={`item-${item.id}`} className="flex items-center justify-between text-[11px]">
+                    <span className="text-slate-600 truncate">{item.name} {item.dimensions_label && <span className="text-blue-400 font-mono">{item.dimensions_label}</span>} × {item.quantity}</span>
+                    <span className="font-mono font-bold text-slate-700 shrink-0 ml-2">{fmt(item.total)}</span>
+                  </div>
+                ))}
+                {linkedQuote.services.map((svc) => (
+                  <div key={`svc-${svc.id}`} className="flex items-center justify-between text-[11px]">
+                    <span className="text-slate-600 truncate">{svc.name} {svc.dimensions_label && <span className="text-blue-400 font-mono">{svc.dimensions_label}</span>} × {svc.quantity}</span>
+                    <span className="font-mono font-bold text-slate-700 shrink-0 ml-2">{fmt(svc.total)}</span>
+                  </div>
+                ))}
+              </div>
+              <div className="flex items-center justify-between mt-3 pt-3 border-t border-slate-100">
+                <span className="text-[10px] font-black uppercase text-slate-400">Total do orçamento</span>
+                <span className="font-mono font-black text-slate-900">{fmt(linkedQuote.total_amount)}</span>
+              </div>
+            </div>
+          )}
+
+          {/* Fotos / Anexos */}
           <div className="bg-white rounded-2xl border border-slate-200 p-5">
-            <div className="flex items-center justify-between mb-2">
-              <p className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400">Fotos</p>
-              <div className="flex gap-1.5">
+            <div className="flex items-center justify-between mb-2 flex-wrap gap-2">
+              <p className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400">
+                {tenant?.grafica_enabled ? "Fotos e Arquivos" : "Fotos"}
+              </p>
+              <div className="flex gap-1.5 flex-wrap">
                 <button onClick={() => fileInputRef.current?.click()} disabled={photoUploading}
                   className="h-7 px-2.5 rounded-lg bg-slate-100 text-slate-600 text-[9px] font-black uppercase tracking-wider flex items-center gap-1 hover:bg-slate-200 transition-all disabled:opacity-50">
                   <ImagePlus size={11} /> Galeria
@@ -989,30 +1045,63 @@ export default function ServiceOrderDetail() {
                   className="h-7 px-2.5 rounded-lg bg-blue-50 text-blue-600 text-[9px] font-black uppercase tracking-wider flex items-center gap-1 hover:bg-blue-100 transition-all disabled:opacity-50">
                   <Camera size={11} /> Câmera
                 </button>
+                {tenant?.grafica_enabled && (
+                  <>
+                    <button onClick={() => arteInputRef.current?.click()} disabled={photoUploading}
+                      className="h-7 px-2.5 rounded-lg bg-violet-50 text-violet-600 text-[9px] font-black uppercase tracking-wider flex items-center gap-1 hover:bg-violet-100 transition-all disabled:opacity-50">
+                      <Palette size={11} /> Arte final
+                    </button>
+                    <button onClick={() => provaInputRef.current?.click()} disabled={photoUploading}
+                      className="h-7 px-2.5 rounded-lg bg-emerald-50 text-emerald-600 text-[9px] font-black uppercase tracking-wider flex items-center gap-1 hover:bg-emerald-100 transition-all disabled:opacity-50">
+                      <FileCheck2 size={11} /> Prova
+                    </button>
+                  </>
+                )}
               </div>
               <input ref={fileInputRef} type="file" accept="image/*" multiple className="hidden"
                 onChange={(e) => { const files = e.target.files; if (files) Array.from(files).forEach((f) => handlePhotoFile(f, "intake")); e.target.value = ""; }} />
               <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" className="hidden"
                 onChange={(e) => { const f = e.target.files?.[0]; if (f) handlePhotoFile(f, "intake"); e.target.value = ""; }} />
+              <input ref={arteInputRef} type="file" accept="image/*,application/pdf" multiple className="hidden"
+                onChange={(e) => { const files = e.target.files; if (files) Array.from(files).forEach((f) => handlePhotoFile(f, "arte")); e.target.value = ""; }} />
+              <input ref={provaInputRef} type="file" accept="image/*,application/pdf" multiple className="hidden"
+                onChange={(e) => { const files = e.target.files; if (files) Array.from(files).forEach((f) => handlePhotoFile(f, "prova")); e.target.value = ""; }} />
             </div>
-            {photoUploading && <p className="text-[10px] text-slate-400 mb-2">Enviando foto...</p>}
+            {photoUploading && <p className="text-[10px] text-slate-400 mb-2">Enviando arquivo...</p>}
             {selected.photos.length === 0 ? (
-              <p className="text-[11px] text-slate-400">Nenhuma foto anexada</p>
+              <p className="text-[11px] text-slate-400">Nenhum arquivo anexado</p>
             ) : (
               <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
-                {selected.photos.map((photo) => (
-                  <div key={photo.id} className="relative group rounded-xl overflow-hidden border border-slate-200 aspect-square">
-                    <img src={photo.url} alt={photo.caption ?? ""} className="w-full h-full object-cover" />
-                    <span className={cn("absolute top-1 left-1 px-1.5 py-0.5 rounded text-[8px] font-black uppercase",
-                      photo.kind === "damage" ? "bg-red-500 text-white" : "bg-blue-500 text-white")}>
-                      {photo.kind === "damage" ? "Avaria" : "Entrada"}
-                    </span>
-                    <button onClick={() => handleRemovePhoto(photo.id)}
-                      className="absolute top-1 right-1 w-5 h-5 rounded-full bg-black/60 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                      <X size={10} />
-                    </button>
-                  </div>
-                ))}
+                {selected.photos.map((photo) => {
+                  const isPdf = photo.url.toLowerCase().endsWith(".pdf");
+                  const kindMeta: Record<string, { label: string; className: string }> = {
+                    intake: { label: "Entrada", className: "bg-blue-500 text-white" },
+                    damage: { label: "Avaria", className: "bg-red-500 text-white" },
+                    arte: { label: "Arte", className: "bg-violet-500 text-white" },
+                    prova: { label: "Prova", className: "bg-emerald-500 text-white" },
+                  };
+                  const meta = kindMeta[photo.kind] ?? kindMeta.intake;
+                  return (
+                    <a key={photo.id} href={photo.url} target="_blank" rel="noreferrer"
+                      className="relative group rounded-xl overflow-hidden border border-slate-200 aspect-square block">
+                      {isPdf ? (
+                        <div className="w-full h-full flex flex-col items-center justify-center gap-1 bg-slate-50 text-slate-400">
+                          <FileText size={22} />
+                          <span className="text-[8px] font-bold uppercase">PDF</span>
+                        </div>
+                      ) : (
+                        <img src={photo.url} alt={photo.caption ?? ""} className="w-full h-full object-cover" />
+                      )}
+                      <span className={cn("absolute top-1 left-1 px-1.5 py-0.5 rounded text-[8px] font-black uppercase", meta.className)}>
+                        {meta.label}
+                      </span>
+                      <button onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleRemovePhoto(photo.id); }}
+                        className="absolute top-1 right-1 w-5 h-5 rounded-full bg-black/60 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                        <X size={10} />
+                      </button>
+                    </a>
+                  );
+                })}
               </div>
             )}
           </div>
@@ -1282,7 +1371,7 @@ export default function ServiceOrderDetail() {
                   {nfseInvoice?.status === "rejected" || nfseInvoice?.status === "error" ? (
                     <p className="text-[10px] font-bold text-red-600">{nfseInvoice.rejection_reason || "Falha na emissão"}</p>
                   ) : null}
-                  <div className="grid grid-cols-2 gap-2">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                     <div>
                       <label className="text-[9px] font-black text-slate-400 uppercase tracking-wide block mb-1">Cód. Serviço</label>
                       <input value={nfseCodigoServico} onChange={(e) => setNfseCodigoServico(e.target.value.replace(/\D/g, "").slice(0, 6))}
@@ -1346,7 +1435,7 @@ export default function ServiceOrderDetail() {
           </div>
 
           {/* Ações */}
-          <div className="grid grid-cols-2 gap-2">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
             <button onClick={handleGeneratePdf} disabled={generatingPdf}
               className="h-11 bg-slate-100 hover:bg-slate-200 rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 text-slate-700 transition-all disabled:opacity-60">
               {generatingPdf ? <Loader2 size={14} className="animate-spin" /> : <FileDown size={14} />} Gerar PDF

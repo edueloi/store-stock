@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import {
   ChevronLeft,
@@ -30,6 +30,7 @@ import {
 } from "lucide-react";
 import PageHeader from "../../components/layout/PageHeader";
 import Combobox from "../../components/ui/Combobox";
+import ConfirmDialog from "../../components/ui/ConfirmDialog";
 import { cn } from "../../lib/utils";
 import { computeMeasuredPrice } from "../../utils/measurePricing";
 import { generateQuotePDF } from "../../lib/quotePdf";
@@ -66,6 +67,14 @@ interface QuoteActionLog {
   created_at: string;
 }
 
+interface QuoteFileRow {
+  id: number;
+  url: string;
+  caption: string | null;
+  kind: "referencia" | "arte" | "prova";
+  created_at: string;
+}
+
 interface Quote {
   id: number;
   number: number;
@@ -88,6 +97,7 @@ interface Quote {
   items: QuoteItem[];
   services: QuoteServiceRow[];
   actions?: QuoteActionLog[];
+  files?: QuoteFileRow[];
 }
 
 interface Product {
@@ -147,6 +157,7 @@ interface Tenant {
   inscricao_estadual?: string;
   inscricao_municipal?: string;
   card_fees?: Record<string, number[]>;
+  grafica_enabled?: boolean;
 }
 
 // ─── Payment types (same engine as PDV) ──────────────────────────────────────
@@ -247,6 +258,9 @@ export default function QuoteDetail() {
   const quoteId = Number(id);
 
   const [quote, setQuote] = useState<Quote | null>(null);
+  const referenciaInputRef = useRef<HTMLInputElement>(null);
+  const arteInputRef = useRef<HTMLInputElement>(null);
+  const provaInputRef = useRef<HTMLInputElement>(null);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
 
@@ -277,6 +291,7 @@ export default function QuoteDetail() {
   const [notes, setNotes] = useState("");
   const [starting, setStarting] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [showDiscardConfirm, setShowDiscardConfirm] = useState(false);
 
   const [showNewCustomer, setShowNewCustomer] = useState(false);
   const [ncName, setNcName] = useState("");
@@ -358,6 +373,34 @@ export default function QuoteDetail() {
       if (!silent) setLoading(false);
     }
   }, [quoteId, applyFormFields]);
+
+  // ── Arquivos (referência do cliente, arte final, prova de aprovação) ────────
+  const [fileUploading, setFileUploading] = useState(false);
+  const handleQuoteFile = async (file: File, kind: "referencia" | "arte" | "prova") => {
+    if (!quote) return;
+    setFileUploading(true);
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      const upRes = await fetch("/api/upload/quote-file", { method: "POST", headers: authHeaderNoJson(), body: fd });
+      if (!upRes.ok) return;
+      const { url } = await upRes.json();
+      await fetch(`/api/quotes/${quote.id}/files`, {
+        method: "POST",
+        headers: authHeader(),
+        body: JSON.stringify({ url, kind }),
+      });
+      await fetchQuote(true);
+    } finally {
+      setFileUploading(false);
+    }
+  };
+
+  const handleRemoveQuoteFile = async (fileId: number) => {
+    if (!quote) return;
+    await fetch(`/api/quotes/${quote.id}/files/${fileId}`, { method: "DELETE", headers: authHeaderNoJson() });
+    await fetchQuote(true);
+  };
 
   useEffect(() => {
     (async () => {
@@ -583,13 +626,13 @@ export default function QuoteDetail() {
 
   const handleDiscard = async () => {
     if (!quote) return;
-    if (!confirm("Descartar este rascunho de orçamento?")) return;
     setDeleting(true);
     try {
       await fetch(`/api/quotes/${quote.id}`, { method: "DELETE", headers: authHeader() });
       navigate("/admin/orcamentos", { replace: true });
     } finally {
       setDeleting(false);
+      setShowDiscardConfirm(false);
     }
   };
 
@@ -718,7 +761,7 @@ export default function QuoteDetail() {
               )}
             </div>
             {isDraft && (
-              <div className="flex items-center gap-3 mt-3">
+              <div className="flex items-center gap-3 mt-3 flex-wrap">
                 <button
                   onClick={handleStart}
                   disabled={starting || !(selectedCustomer?.name ?? manualCustomer.name).trim() || (formItems.length === 0 && formServices.length === 0)}
@@ -726,7 +769,7 @@ export default function QuoteDetail() {
                 >
                   {starting ? <Loader2 size={13} className="animate-spin" /> : null} Ativar Orçamento <ArrowRight size={13} />
                 </button>
-                <button onClick={handleDiscard} disabled={deleting} className="text-[10px] font-bold text-slate-400 hover:text-red-500 transition-colors">
+                <button onClick={() => setShowDiscardConfirm(true)} disabled={deleting} className="text-[10px] font-bold text-slate-400 hover:text-red-500 transition-colors">
                   Descartar rascunho
                 </button>
                 {!(selectedCustomer?.name ?? manualCustomer.name).trim() && (
@@ -770,7 +813,7 @@ export default function QuoteDetail() {
               </button>
             </div>
             {!selectedCustomer && (
-              <div className="grid grid-cols-2 gap-2 mt-2">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-2">
                 <input
                   value={manualCustomer.phone}
                   disabled={!isEditable}
@@ -947,7 +990,7 @@ export default function QuoteDetail() {
 
           {/* Discount + Validity + Notes */}
           <div className="bg-white rounded-2xl border border-slate-200 p-5 space-y-4">
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block mb-1">Desconto</label>
                 <div className="flex gap-1">
@@ -985,6 +1028,73 @@ export default function QuoteDetail() {
             </div>
           </div>
 
+          {/* Arquivos (referência, arte final, prova de aprovação) */}
+          <div className="bg-white rounded-2xl border border-slate-200 p-5">
+            <div className="flex items-center justify-between mb-2 flex-wrap gap-2">
+              <p className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400">Arquivos</p>
+              <div className="flex gap-1.5 flex-wrap">
+                <button onClick={() => referenciaInputRef.current?.click()} disabled={fileUploading}
+                  className="h-7 px-2.5 rounded-lg bg-slate-100 text-slate-600 text-[9px] font-black uppercase tracking-wider flex items-center gap-1 hover:bg-slate-200 transition-all disabled:opacity-50">
+                  <Package size={11} /> Referência
+                </button>
+                {tenant?.grafica_enabled && (
+                  <>
+                    <button onClick={() => arteInputRef.current?.click()} disabled={fileUploading}
+                      className="h-7 px-2.5 rounded-lg bg-violet-50 text-violet-600 text-[9px] font-black uppercase tracking-wider flex items-center gap-1 hover:bg-violet-100 transition-all disabled:opacity-50">
+                      <Palette size={11} /> Arte final
+                    </button>
+                    <button onClick={() => provaInputRef.current?.click()} disabled={fileUploading}
+                      className="h-7 px-2.5 rounded-lg bg-emerald-50 text-emerald-600 text-[9px] font-black uppercase tracking-wider flex items-center gap-1 hover:bg-emerald-100 transition-all disabled:opacity-50">
+                      <CheckCircle2 size={11} /> Prova
+                    </button>
+                  </>
+                )}
+              </div>
+              <input ref={referenciaInputRef} type="file" accept="image/*,application/pdf" multiple className="hidden"
+                onChange={(e) => { const files = e.target.files; if (files) Array.from(files).forEach((f) => handleQuoteFile(f, "referencia")); e.target.value = ""; }} />
+              <input ref={arteInputRef} type="file" accept="image/*,application/pdf" multiple className="hidden"
+                onChange={(e) => { const files = e.target.files; if (files) Array.from(files).forEach((f) => handleQuoteFile(f, "arte")); e.target.value = ""; }} />
+              <input ref={provaInputRef} type="file" accept="image/*,application/pdf" multiple className="hidden"
+                onChange={(e) => { const files = e.target.files; if (files) Array.from(files).forEach((f) => handleQuoteFile(f, "prova")); e.target.value = ""; }} />
+            </div>
+            {fileUploading && <p className="text-[10px] text-slate-400 mb-2">Enviando arquivo...</p>}
+            {(!quote.files || quote.files.length === 0) ? (
+              <p className="text-[11px] text-slate-400">Nenhum arquivo anexado</p>
+            ) : (
+              <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
+                {quote.files.map((file) => {
+                  const isPdf = file.url.toLowerCase().endsWith(".pdf");
+                  const kindMeta: Record<string, { label: string; className: string }> = {
+                    referencia: { label: "Referência", className: "bg-slate-500 text-white" },
+                    arte: { label: "Arte", className: "bg-violet-500 text-white" },
+                    prova: { label: "Prova", className: "bg-emerald-500 text-white" },
+                  };
+                  const meta = kindMeta[file.kind] ?? kindMeta.referencia;
+                  return (
+                    <a key={file.id} href={file.url} target="_blank" rel="noreferrer"
+                      className="relative group rounded-xl overflow-hidden border border-slate-200 aspect-square block">
+                      {isPdf ? (
+                        <div className="w-full h-full flex flex-col items-center justify-center gap-1 bg-slate-50 text-slate-400">
+                          <Download size={22} />
+                          <span className="text-[8px] font-bold uppercase">PDF</span>
+                        </div>
+                      ) : (
+                        <img src={file.url} alt={file.caption ?? ""} className="w-full h-full object-cover" />
+                      )}
+                      <span className={cn("absolute top-1 left-1 px-1.5 py-0.5 rounded text-[8px] font-black uppercase", meta.className)}>
+                        {meta.label}
+                      </span>
+                      <button onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleRemoveQuoteFile(file.id); }}
+                        className="absolute top-1 right-1 w-5 h-5 rounded-full bg-black/60 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                        <X size={10} />
+                      </button>
+                    </a>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
           {/* History */}
           {quote.actions && quote.actions.length > 0 && (
             <div className="bg-white rounded-2xl border border-slate-200 p-5">
@@ -996,6 +1106,7 @@ export default function QuoteDetail() {
                     <div className="min-w-0">
                       <p className="text-slate-600">
                         {a.action === "status_changed" && a.to_status ? `Status alterado para ${statusLabel(a.to_status).label}` :
+                         a.action === "status_synced" && a.to_status ? `Status sincronizado com a OS vinculada: ${statusLabel(a.to_status).label}` :
                          a.action === "created" ? "Orçamento criado" :
                          a.action === "edited" ? "Orçamento editado" :
                          a.action === "converted" ? "Convertido em venda" :
@@ -1013,7 +1124,7 @@ export default function QuoteDetail() {
 
         {/* Sidebar: totals + actions */}
         <div className="space-y-5">
-          <div className="bg-slate-900 rounded-2xl p-5 space-y-1.5 sticky top-5">
+          <div className="bg-slate-900 rounded-2xl p-5 space-y-1.5 lg:sticky lg:top-5">
             {itemsSubtotal > 0 && servicesSubtotal > 0 && (
               <>
                 <div className="flex justify-between text-[10px] font-bold uppercase text-slate-400">
@@ -1527,6 +1638,17 @@ export default function QuoteDetail() {
           </div>
         </>
       )}
+
+      <ConfirmDialog
+        open={showDiscardConfirm}
+        onClose={() => setShowDiscardConfirm(false)}
+        onConfirm={handleDiscard}
+        title="Descartar este rascunho?"
+        description="O orçamento e a eventual OS vinculada serão excluídos. Esta ação não pode ser desfeita."
+        confirmLabel="Descartar"
+        variant="danger"
+        loading={deleting}
+      />
     </div>
   );
 }

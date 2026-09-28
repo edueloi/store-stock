@@ -1,4 +1,6 @@
 import type { Request, Response } from "express";
+import ExcelJS from "exceljs";
+import * as XLSX from "xlsx";
 import { prisma } from "../config/prisma";
 import type { AuthenticatedRequest } from "../types/auth";
 import { localDateString } from "../utils/date";
@@ -23,6 +25,7 @@ export async function listCustomers(req: Request, res: Response) {
       include: {
         debts: { where: { status: "open" }, select: { amount: true, amount_paid: true } },
         _count: { select: { debts: true, customer_notes: true } },
+        seller: { select: { id: true, name: true } },
       },
       orderBy: { name: "asc" },
     });
@@ -57,6 +60,7 @@ export async function getCustomer(req: Request, res: Response) {
           },
         },
         customer_notes: { orderBy: { created_at: "desc" } },
+        seller: { select: { id: true, name: true } },
       },
     });
 
@@ -106,6 +110,9 @@ export async function createCustomer(req: Request, res: Response) {
       name, email, phone, document, address, notes, credit_limit, consignment_limit, risk_flag, risk_reason, birth_date,
       address_street, address_number, address_complement, address_district, address_city, address_state, address_zip, address_country,
       legal_name, trade_name, cnae_code, cnae_description, legal_nature, registration_status, registration_status_date,
+      external_code, contact_name, fax, website, person_type, state_registration, state_registration_exempt, status,
+      marital_status, profession, gender, birthplace, father_name, father_document, mother_name, mother_document,
+      segment, seller_id, contact_type, nfe_email, customer_since, next_visit_at, tax_regime,
     } = req.body;
     const customer = await prisma.customer.create({
       data: {
@@ -136,6 +143,29 @@ export async function createCustomer(req: Request, res: Response) {
         legal_nature: legal_nature || null,
         registration_status: registration_status || null,
         registration_status_date: registration_status_date ? new Date(registration_status_date) : null,
+        external_code: external_code || null,
+        contact_name: contact_name || null,
+        fax: fax || null,
+        website: website || null,
+        person_type: person_type || "physical",
+        state_registration: state_registration || null,
+        state_registration_exempt: state_registration_exempt ?? false,
+        status: status || "active",
+        marital_status: marital_status || null,
+        profession: profession || null,
+        gender: gender || null,
+        birthplace: birthplace || null,
+        father_name: father_name || null,
+        father_document: father_document || null,
+        mother_name: mother_name || null,
+        mother_document: mother_document || null,
+        segment: segment || null,
+        seller_id: seller_id ? Number(seller_id) : null,
+        contact_type: contact_type || null,
+        nfe_email: nfe_email || null,
+        customer_since: customer_since ? new Date(customer_since) : null,
+        next_visit_at: next_visit_at ? new Date(next_visit_at) : null,
+        tax_regime: tax_regime || null,
       },
     });
     res.json(customer);
@@ -153,6 +183,9 @@ export async function updateCustomer(req: Request, res: Response) {
       name, email, phone, document, address, notes, credit_limit, consignment_limit, risk_flag, risk_reason, birth_date,
       address_street, address_number, address_complement, address_district, address_city, address_state, address_zip, address_country,
       legal_name, trade_name, cnae_code, cnae_description, legal_nature, registration_status, registration_status_date,
+      external_code, contact_name, fax, website, person_type, state_registration, state_registration_exempt, status,
+      marital_status, profession, gender, birthplace, father_name, father_document, mother_name, mother_document,
+      segment, seller_id, contact_type, nfe_email, customer_since, next_visit_at, tax_regime,
     } = req.body;
 
     await prisma.customer.updateMany({
@@ -184,6 +217,29 @@ export async function updateCustomer(req: Request, res: Response) {
         ...(legal_nature !== undefined && { legal_nature: legal_nature || null }),
         ...(registration_status !== undefined && { registration_status: registration_status || null }),
         ...(registration_status_date !== undefined && { registration_status_date: registration_status_date ? new Date(registration_status_date) : null }),
+        ...(external_code !== undefined && { external_code: external_code || null }),
+        ...(contact_name !== undefined && { contact_name: contact_name || null }),
+        ...(fax !== undefined && { fax: fax || null }),
+        ...(website !== undefined && { website: website || null }),
+        ...(person_type !== undefined && { person_type: person_type || "physical" }),
+        ...(state_registration !== undefined && { state_registration: state_registration || null }),
+        ...(state_registration_exempt !== undefined && { state_registration_exempt: state_registration_exempt ?? false }),
+        ...(status !== undefined && { status: status || "active" }),
+        ...(marital_status !== undefined && { marital_status: marital_status || null }),
+        ...(profession !== undefined && { profession: profession || null }),
+        ...(gender !== undefined && { gender: gender || null }),
+        ...(birthplace !== undefined && { birthplace: birthplace || null }),
+        ...(father_name !== undefined && { father_name: father_name || null }),
+        ...(father_document !== undefined && { father_document: father_document || null }),
+        ...(mother_name !== undefined && { mother_name: mother_name || null }),
+        ...(mother_document !== undefined && { mother_document: mother_document || null }),
+        ...(segment !== undefined && { segment: segment || null }),
+        ...(seller_id !== undefined && { seller_id: seller_id ? Number(seller_id) : null }),
+        ...(contact_type !== undefined && { contact_type: contact_type || null }),
+        ...(nfe_email !== undefined && { nfe_email: nfe_email || null }),
+        ...(customer_since !== undefined && { customer_since: customer_since ? new Date(customer_since) : null }),
+        ...(next_visit_at !== undefined && { next_visit_at: next_visit_at ? new Date(next_visit_at) : null }),
+        ...(tax_regime !== undefined && { tax_regime: tax_regime || null }),
       },
     });
 
@@ -986,5 +1042,323 @@ export async function listOpenInstallments(req: Request, res: Response) {
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Falha ao listar parcelas em aberto" });
+  }
+}
+
+// ─── Import / Export (planilha Excel) ────────────────────────────────────────
+//
+// Colunas exatas, nesta ordem, espelhando a planilha legada do sistema anterior:
+// Código | Nome | Fantasia | Endereço | Número | Complemento | Bairro | CEP | Cidade | UF |
+// Contatos | Fone | Fax | Celular | E-mail | Web Site | Tipo pessoa | CNPJ/CPF | IE/RG |
+// IE isento | Situação | Observações | Estado civil | Profissão | Sexo | Data nasc. |
+// Naturalidade | Nome pai | CPF pai | Nome mãe | CPF mãe | Segmento | Vendedor |
+// Tipo contato | E-mail para envio NFe | Limite de crédito | Cliente desde | Próxima visita |
+// Regime tributário
+//
+// Convenção adotada (o sistema não distingue "Fone" de "Celular" hoje): a coluna
+// "Fone" recebe o `phone` existente; "Celular" fica sempre vazia na exportação e é
+// ignorada na importação. Ver relatório final para detalhes.
+const EXPORT_COLUMNS = [
+  "Código", "Nome", "Fantasia", "Endereço", "Número", "Complemento", "Bairro", "CEP", "Cidade", "UF",
+  "Contatos", "Fone", "Fax", "Celular", "E-mail", "Web Site", "Tipo pessoa", "CNPJ/CPF", "IE/RG",
+  "IE isento", "Situação", "Observações", "Estado civil", "Profissão", "Sexo", "Data nasc.",
+  "Naturalidade", "Nome pai", "CPF pai", "Nome mãe", "CPF mãe", "Segmento", "Vendedor",
+  "Tipo contato", "E-mail para envio NFe", "Limite de crédito", "Cliente desde", "Próxima visita",
+  "Regime tributário",
+] as const;
+
+function formatDateBR(d: Date | null | undefined): string {
+  if (!d) return "";
+  const date = new Date(d);
+  if (Number.isNaN(date.getTime())) return "";
+  const dd = String(date.getDate()).padStart(2, "0");
+  const mm = String(date.getMonth() + 1).padStart(2, "0");
+  const yyyy = date.getFullYear();
+  return `${dd}/${mm}/${yyyy}`;
+}
+
+function personTypeLabel(personType: string | null | undefined): string {
+  return personType === "legal" ? "Pessoa Jurídica" : "Pessoa Física";
+}
+
+export async function exportCustomers(req: Request, res: Response) {
+  try {
+    const tenantId = getTenantId(req);
+    const customers = await prisma.customer.findMany({
+      where: { tenant_id: tenantId },
+      include: { seller: { select: { name: true } } },
+      orderBy: { name: "asc" },
+    });
+
+    const wb = new ExcelJS.Workbook();
+    wb.creator = "BoxSys Store";
+    wb.created = new Date();
+
+    const ws = wb.addWorksheet("Clientes");
+    ws.columns = EXPORT_COLUMNS.map((header) => ({ header, key: header, width: 18 }));
+
+    const headerRow = ws.getRow(1);
+    headerRow.eachCell((cell) => {
+      cell.font = { bold: true, color: { argb: "FFFFFFFF" }, size: 10 };
+      cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF1E3A5F" } };
+      cell.alignment = { horizontal: "center", vertical: "middle" };
+    });
+    headerRow.height = 20;
+
+    for (const c of customers) {
+      ws.addRow({
+        "Código": c.external_code ?? "",
+        "Nome": c.name ?? "",
+        "Fantasia": c.trade_name ?? "",
+        "Endereço": c.address_street ?? "",
+        "Número": c.address_number ?? "",
+        "Complemento": c.address_complement ?? "",
+        "Bairro": c.address_district ?? "",
+        "CEP": c.address_zip ?? "",
+        "Cidade": c.address_city ?? "",
+        "UF": c.address_state ?? "",
+        "Contatos": c.contact_name ?? "",
+        "Fone": c.phone ?? "",
+        "Fax": c.fax ?? "",
+        "Celular": "", // não há campo separado de celular no sistema hoje — ver comentário acima
+        "E-mail": c.email ?? "",
+        "Web Site": c.website ?? "",
+        "Tipo pessoa": personTypeLabel(c.person_type),
+        "CNPJ/CPF": c.document ?? "",
+        "IE/RG": c.state_registration ?? "",
+        "IE isento": c.state_registration_exempt ? "Sim" : "Não",
+        "Situação": c.status === "inactive" ? "Inativo" : "Ativo",
+        "Observações": c.notes ?? "",
+        "Estado civil": c.marital_status ?? "",
+        "Profissão": c.profession ?? "",
+        "Sexo": c.gender ?? "",
+        "Data nasc.": formatDateBR(c.birth_date),
+        "Naturalidade": c.birthplace ?? "",
+        "Nome pai": c.father_name ?? "",
+        "CPF pai": c.father_document ?? "",
+        "Nome mãe": c.mother_name ?? "",
+        "CPF mãe": c.mother_document ?? "",
+        "Segmento": c.segment ?? "",
+        "Vendedor": c.seller?.name ?? "",
+        "Tipo contato": c.contact_type ?? "",
+        "E-mail para envio NFe": c.nfe_email ?? "",
+        "Limite de crédito": c.credit_limit != null ? Number(c.credit_limit) : "",
+        "Cliente desde": formatDateBR(c.customer_since),
+        "Próxima visita": formatDateBR(c.next_visit_at),
+        "Regime tributário": c.tax_regime ?? "",
+      });
+    }
+
+    const buf = await wb.xlsx.writeBuffer();
+    const today = new Date().toISOString().split("T")[0];
+    res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+    res.setHeader("Content-Disposition", `attachment; filename="clientes_${today}.xlsx"`);
+    res.send(Buffer.from(buf));
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Falha ao exportar clientes" });
+  }
+}
+
+// Aceita "01/02/2030" (dd/mm/yyyy) ou serial number do Excel (dias desde
+// 1899-12-30, incluindo o bug histórico do ano bissexto de 1900 que o próprio
+// Excel usa como referência).
+function parseExcelDate(value: unknown): Date | null {
+  if (value == null || value === "") return null;
+  if (value instanceof Date) return Number.isNaN(value.getTime()) ? null : value;
+  if (typeof value === "number") {
+    const parsed = XLSX.SSF.parse_date_code(value);
+    if (!parsed) return null;
+    return new Date(parsed.y, parsed.m - 1, parsed.d);
+  }
+  const str = String(value).trim();
+  const brMatch = str.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if (brMatch) {
+    const [, dd, mm, yyyy] = brMatch;
+    const date = new Date(Number(yyyy), Number(mm) - 1, Number(dd));
+    return Number.isNaN(date.getTime()) ? null : date;
+  }
+  const isoMatch = str.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (isoMatch) {
+    const date = new Date(str);
+    return Number.isNaN(date.getTime()) ? null : date;
+  }
+  return null;
+}
+
+function normalizeDoc(value: unknown): string {
+  return String(value ?? "").replace(/\D/g, "");
+}
+
+function cellStr(value: unknown): string {
+  if (value == null) return "";
+  return String(value).trim();
+}
+
+function parsePersonType(value: unknown): string | undefined {
+  const s = cellStr(value).toLowerCase();
+  if (!s) return undefined;
+  if (s.includes("jur")) return "legal"; // "Pessoa Jurídica", "Jurídica", "PJ"
+  if (s.includes("fis") || s.includes("fís")) return "physical"; // "Pessoa Física", "Física", "PF"
+  if (s === "pj") return "legal";
+  if (s === "pf") return "physical";
+  return undefined;
+}
+
+function parseBoolYesNo(value: unknown): boolean {
+  const s = cellStr(value).toLowerCase();
+  return s === "sim" || s === "yes" || s === "true" || s === "1";
+}
+
+interface ImportRowResult {
+  row: number;
+  message: string;
+}
+
+// Recebe um arquivo .xlsx (multer memoryStorage), parseia com o mesmo mapeamento
+// de colunas do export e faz upsert por tenant — casando por document (CNPJ/CPF
+// normalizado) e, na ausência dele, por external_code (coluna "Código"). Nunca
+// aborta a importação inteira por causa de uma linha ruim: cada erro de linha é
+// coletado em `errors` e a linha é pulada.
+export async function importCustomers(req: Request, res: Response) {
+  try {
+    const tenantId = getTenantId(req);
+    if (!req.file) {
+      res.status(400).json({ error: "Nenhum arquivo enviado" });
+      return;
+    }
+
+    const workbook = XLSX.read(req.file.buffer, { type: "buffer", cellDates: false });
+    const sheetName = workbook.SheetNames[0];
+    if (!sheetName) {
+      res.status(422).json({ error: "Planilha vazia ou sem abas" });
+      return;
+    }
+    const sheet = workbook.Sheets[sheetName];
+    const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, { defval: "" });
+
+    const sellers = await prisma.seller.findMany({
+      where: { tenant_id: tenantId },
+      select: { id: true, name: true },
+    });
+    const sellerByName = new Map(sellers.map((s) => [s.name.trim().toLowerCase(), s.id]));
+
+    let created = 0;
+    let updated = 0;
+    const errors: ImportRowResult[] = [];
+
+    for (let i = 0; i < rows.length; i++) {
+      const row = rows[i];
+      const excelRowNumber = i + 2; // linha 1 é o cabeçalho
+
+      try {
+        const name = cellStr(row["Nome"]);
+        if (!name) {
+          errors.push({ row: excelRowNumber, message: "Nome não informado — linha ignorada" });
+          continue;
+        }
+
+        const document = normalizeDoc(row["CNPJ/CPF"]);
+        const externalCode = cellStr(row["Código"]);
+
+        // Casa por document (normalizado) OU, se document vier vazio, por external_code.
+        let existing = null;
+        if (document) {
+          existing = await prisma.customer.findFirst({
+            where: { tenant_id: tenantId, document },
+          });
+        }
+        if (!existing && externalCode) {
+          existing = await prisma.customer.findFirst({
+            where: { tenant_id: tenantId, external_code: externalCode },
+          });
+        }
+
+        const sellerName = cellStr(row["Vendedor"]);
+        const sellerId = sellerName ? sellerByName.get(sellerName.toLowerCase()) ?? null : undefined;
+
+        const personType = parsePersonType(row["Tipo pessoa"]);
+
+        const creditLimitRaw = row["Limite de crédito"];
+        const creditLimit = creditLimitRaw !== "" && creditLimitRaw != null && !Number.isNaN(Number(creditLimitRaw))
+          ? Number(creditLimitRaw)
+          : undefined;
+
+        // Monta o objeto só com os campos que vieram preenchidos na linha — no
+        // update isso preserva dados existentes que a planilha não trouxe (nunca
+        // sobrescreve com string vazia).
+        const fields: Record<string, unknown> = {};
+        const setIfPresent = (key: string, value: unknown) => {
+          if (value !== undefined && value !== "" && value !== null) fields[key] = value;
+        };
+
+        setIfPresent("name", name);
+        setIfPresent("trade_name", cellStr(row["Fantasia"]) || undefined);
+        setIfPresent("address_street", cellStr(row["Endereço"]) || undefined);
+        setIfPresent("address_number", cellStr(row["Número"]) || undefined);
+        setIfPresent("address_complement", cellStr(row["Complemento"]) || undefined);
+        setIfPresent("address_district", cellStr(row["Bairro"]) || undefined);
+        setIfPresent("address_zip", cellStr(row["CEP"]).replace(/\D/g, "") || undefined);
+        setIfPresent("address_city", cellStr(row["Cidade"]) || undefined);
+        setIfPresent("address_state", cellStr(row["UF"]) || undefined);
+        setIfPresent("contact_name", cellStr(row["Contatos"]) || undefined);
+        setIfPresent("phone", cellStr(row["Fone"]).replace(/\D/g, "") || undefined);
+        setIfPresent("fax", cellStr(row["Fax"]).replace(/\D/g, "") || undefined);
+        setIfPresent("email", cellStr(row["E-mail"]) || undefined);
+        setIfPresent("website", cellStr(row["Web Site"]) || undefined);
+        if (personType) fields.person_type = personType;
+        setIfPresent("document", document || undefined);
+        setIfPresent("state_registration", cellStr(row["IE/RG"]) || undefined);
+        fields.state_registration_exempt = parseBoolYesNo(row["IE isento"]);
+        setIfPresent("status", cellStr(row["Situação"]).toLowerCase().includes("inativ") ? "inactive" : cellStr(row["Situação"]) ? "active" : undefined);
+        setIfPresent("notes", cellStr(row["Observações"]) || undefined);
+        setIfPresent("marital_status", cellStr(row["Estado civil"]) || undefined);
+        setIfPresent("profession", cellStr(row["Profissão"]) || undefined);
+        setIfPresent("gender", cellStr(row["Sexo"]) || undefined);
+        const birthDate = parseExcelDate(row["Data nasc."]);
+        if (birthDate) fields.birth_date = birthDate;
+        setIfPresent("birthplace", cellStr(row["Naturalidade"]) || undefined);
+        setIfPresent("father_name", cellStr(row["Nome pai"]) || undefined);
+        setIfPresent("father_document", normalizeDoc(row["CPF pai"]) || undefined);
+        setIfPresent("mother_name", cellStr(row["Nome mãe"]) || undefined);
+        setIfPresent("mother_document", normalizeDoc(row["CPF mãe"]) || undefined);
+        setIfPresent("segment", cellStr(row["Segmento"]) || undefined);
+        if (sellerId !== undefined) fields.seller_id = sellerId;
+        setIfPresent("contact_type", cellStr(row["Tipo contato"]) || undefined);
+        setIfPresent("nfe_email", cellStr(row["E-mail para envio NFe"]) || undefined);
+        if (creditLimit !== undefined) fields.credit_limit = creditLimit;
+        const customerSince = parseExcelDate(row["Cliente desde"]);
+        if (customerSince) fields.customer_since = customerSince;
+        const nextVisit = parseExcelDate(row["Próxima visita"]);
+        if (nextVisit) fields.next_visit_at = nextVisit;
+        setIfPresent("tax_regime", cellStr(row["Regime tributário"]) || undefined);
+        if (externalCode) fields.external_code = externalCode;
+
+        if (existing) {
+          await prisma.customer.updateMany({
+            where: { id: existing.id, tenant_id: tenantId },
+            data: fields,
+          });
+          updated++;
+        } else {
+          await prisma.customer.create({
+            data: {
+              tenant_id: tenantId,
+              name,
+              ...fields,
+            } as Parameters<typeof prisma.customer.create>[0]["data"],
+          });
+          created++;
+        }
+      } catch (rowErr) {
+        const message = rowErr instanceof Error ? rowErr.message : "Erro desconhecido ao processar linha";
+        errors.push({ row: excelRowNumber, message });
+      }
+    }
+
+    res.json({ created, updated, errors });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Falha ao importar planilha de clientes" });
   }
 }

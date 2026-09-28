@@ -843,6 +843,7 @@ model Seller {
   goals          Goal[]
   consignments   Consignment[]
   held_sales     HeldSale[]
+  customers      Customer[]
 
   @@map("sellers")
 }
@@ -1072,10 +1073,36 @@ model Customer {
   risk_flag               Boolean   @default(false)
   risk_reason             String?   @db.Text
   last_points_reminder_at DateTime?
+  // Campos adicionados para espelhar a planilha legada de clientes (import/export
+  // via Excel) — ver customers.controller.ts exportCustomers/importCustomers.
+  external_code           String?   // "Código" da planilha antiga — casa registros no import quando não há document
+  contact_name            String?   // nome do contato responsável ("Contatos" na planilha)
+  fax                     String?
+  website                 String?
+  person_type             String?   @default("physical") // "physical" | "legal"
+  state_registration      String?   // IE (jurídica) ou RG (física), conforme person_type
+  state_registration_exempt Boolean @default(false)
+  status                  String    @default("active") // "active" | "inactive" — situação comercial (não é registration_status da Receita)
+  marital_status          String?
+  profession              String?
+  gender                  String?
+  birthplace              String?
+  father_name             String?
+  father_document         String?
+  mother_name             String?
+  mother_document         String?
+  segment                 String?
+  seller_id               Int?      // vendedor responsável — informativo
+  contact_type            String?
+  nfe_email               String?
+  customer_since          DateTime? @db.Date
+  next_visit_at           DateTime? @db.Date
+  tax_regime              String?
   created_at              DateTime  @default(now())
   updated_at              DateTime  @updatedAt
 
   tenant         Tenant            @relation(fields: [tenant_id], references: [id])
+  seller         Seller?           @relation(fields: [seller_id], references: [id], onDelete: SetNull)
   debts          CustomerDebt[]
   customer_notes CustomerNote[]
   point_entries  CustomerPoint[]
@@ -1234,13 +1261,31 @@ model Quote {
   created_at DateTime @default(now())
   updated_at DateTime @updatedAt
 
-  tenant   Tenant         @relation(fields: [tenant_id], references: [id])
-  items    QuoteItem[]
-  services QuoteService[]
-  actions  QuoteAction[]
+  tenant        Tenant         @relation(fields: [tenant_id], references: [id])
+  items         QuoteItem[]
+  services      QuoteService[]
+  actions       QuoteAction[]
+  files         QuoteFile[]
+  service_order ServiceOrder?
 
   @@unique([tenant_id, number])
   @@map("quotes")
+}
+
+model QuoteFile {
+  id         Int      @id @default(autoincrement())
+  tenant_id  Int
+  quote_id   Int
+  url        String
+  caption    String?
+  kind       String   @default("referencia") // referencia | arte | prova
+  created_at DateTime @default(now())
+
+  quote Quote @relation(fields: [quote_id], references: [id], onDelete: Cascade)
+
+  @@index([quote_id])
+  @@index([tenant_id])
+  @@map("quote_files")
 }
 
 model QuoteAction {
@@ -1323,6 +1368,12 @@ model ServiceOrder {
   invoiced_order_id Int?
   invoiced_at       DateTime?
 
+  // Orçamento que originou esta OS (só lojas de gráfica — ver Tenant.grafica_enabled
+  // e createLinkedServiceOrder em quotes.controller.ts). SetNull pra não arrastar a OS
+  // junto se o orçamento for excluído — ela pode ter peças/checklist/fotos próprias.
+  quote_id Int? @unique
+  quote    Quote? @relation(fields: [quote_id], references: [id], onDelete: SetNull)
+
   cancelled_by  String?
   cancel_reason String?
   cancelled_at  DateTime?
@@ -1393,7 +1444,7 @@ model ServiceOrderPhoto {
   service_order_id Int
   url              String
   caption          String?
-  kind             String   @default("intake")
+  kind             String   @default("intake") // intake | damage | arte | prova
   created_at       DateTime @default(now())
 
   service_order ServiceOrder @relation(fields: [service_order_id], references: [id], onDelete: Cascade)

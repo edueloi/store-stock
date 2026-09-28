@@ -46,7 +46,7 @@ export interface ServiceOrderPhoto {
   id: number;
   url: string;
   caption: string | null;
-  kind: "intake" | "damage";
+  kind: "intake" | "damage" | "arte" | "prova";
   created_at: string;
 }
 
@@ -105,6 +105,7 @@ export interface ServiceOrder {
   observations: string | null;
   invoiced_order_id: number | null;
   invoiced_at: string | null;
+  quote_id: number | null;
   accounts_receivable?: { id: number; status: string; due_date: string }[];
   cancel_reason: string | null;
   created_at: string;

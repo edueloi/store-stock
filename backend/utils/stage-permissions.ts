@@ -42,3 +42,100 @@ export async function canMoveToStage(userId: number, role: string, stage: string
   });
   return !!permission;
 }
+
+// Orçamento usa cancelled|expired|converted como estados terminais; OS usa cancelada.
+// Ao sincronizar Orçamento -> OS, "cancelled"/"expired" viram "cancelada" do lado da OS;
+// "converted" não sincroniza (a OS de produção continua seu próprio fluxo independente
+// da venda gerada pelo orçamento).
+function mapQuoteStatusToServiceOrder(status: string): string | null {
+  if (status === "cancelled" || status === "expired") return "cancelada";
+  if (status === "converted") return null;
+  return status;
+}
+
+// Mapeamento inverso: só existe "cancelada" do lado da OS que precise virar algo do
+// lado do Orçamento — os demais estágios (rascunho..entregue) têm o mesmo nome dos dois lados.
+function mapServiceOrderStatusToQuote(status: string): string {
+  return status === "cancelada" ? "cancelled" : status;
+}
+
+// Espelha a mudança de status já validada (permissão + sequência já checadas por quem
+// chamou) no registro irmão ligado por ServiceOrder.quote_id — só chamado quando o
+// tenant tem grafica_enabled (único caso em que o vínculo existe, ver
+// createLinkedServiceOrder em quotes.controller.ts). Roda DEPOIS da atualização
+// principal já commitada, nunca re-chama updateQuoteStatus/updateServiceOrderStatus
+// (evita recursão e evita barrar a sincronização por permissão que o usuário só tem
+// de um dos dois lados).
+export async function syncLinkedStatus(
+  tenantId: number,
+  source: "quote" | "service_order",
+  sourceId: number,
+  toStatus: string,
+  opts: { actor: string; cancelReason?: string | null },
+) {
+  try {
+    if (source === "quote") {
+      const serviceOrder = await prisma.serviceOrder.findFirst({
+        where: { quote_id: sourceId, tenant_id: tenantId },
+        include: { parts: true },
+      });
+      if (!serviceOrder) return;
+      // Já entregue ou faturada: o orçamento não deve mais mexer na OS, que seguiu
+      // seu próprio caminho depois de concluída/vendida.
+      if (serviceOrder.status === "entregue" || serviceOrder.invoiced_order_id) return;
+
+      const mapped = mapQuoteStatusToServiceOrder(toStatus);
+      if (!mapped || mapped === serviceOrder.status) return;
+
+      if (mapped === "cancelada") {
+        const { applyServiceOrderCancellation } = await import("../controllers/service-orders.controller");
+        const { data } = await applyServiceOrderCancellation(tenantId, serviceOrder, opts.actor, opts.cancelReason);
+        await prisma.serviceOrder.update({ where: { id: serviceOrder.id }, data });
+      } else {
+        await prisma.serviceOrder.update({ where: { id: serviceOrder.id }, data: { status: mapped } });
+      }
+
+      await prisma.serviceOrderAction.create({
+        data: {
+          tenant_id: tenantId,
+          service_order_id: serviceOrder.id,
+          action: "status_synced",
+          from_status: serviceOrder.status,
+          to_status: mapped,
+          actor: opts.actor,
+          meta: { synced_from: "quote" },
+        },
+      });
+      return;
+    }
+
+    // source === "service_order"
+    const order = await prisma.serviceOrder.findFirst({ where: { id: sourceId, tenant_id: tenantId }, select: { quote_id: true } });
+    if (!order?.quote_id) return;
+
+    const quote = await prisma.quote.findFirst({ where: { id: order.quote_id, tenant_id: tenantId } });
+    if (!quote) return;
+    // Orçamento já convertido em venda: segue seu próprio caminho, não sincroniza mais.
+    if (quote.status === "converted") return;
+
+    const mapped = mapServiceOrderStatusToQuote(toStatus);
+    if (mapped === quote.status) return;
+
+    await prisma.quote.update({ where: { id: quote.id }, data: { status: mapped } });
+    await prisma.quoteAction.create({
+      data: {
+        tenant_id: tenantId,
+        quote_id: quote.id,
+        action: "status_synced",
+        from_status: quote.status,
+        to_status: mapped,
+        actor: opts.actor,
+        meta: { synced_from: "service_order" },
+      },
+    });
+  } catch (err) {
+    // Sincronização é um efeito colateral de segundo plano — um erro aqui não pode
+    // derrubar a resposta da transição principal, que já foi commitada com sucesso.
+    console.error("[syncLinkedStatus] error:", err);
+  }
+}

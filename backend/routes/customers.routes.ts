@@ -1,4 +1,5 @@
 import { Router } from "express";
+import multer from "multer";
 import {
   listCustomers,
   getCustomer,
@@ -20,6 +21,8 @@ import {
   deleteNote,
   listDebtors,
   listOpenInstallments,
+  exportCustomers,
+  importCustomers,
 } from "../controllers/customers.controller";
 import { authenticateToken } from "../middlewares/auth.middleware";
 
@@ -27,9 +30,20 @@ const router = Router();
 
 router.use(authenticateToken);
 
+// Memory storage — o arquivo é parseado direto do buffer (XLSX.read), nunca
+// gravado em disco (diferente dos uploads de imagem em upload.controller.ts).
+const uploadCustomersSheet = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 10 * 1024 * 1024 },
+});
+
 router.get("/",                     listCustomers);
 router.get("/debtors",              listDebtors);
 router.get("/debts/installments",   listOpenInstallments);
+// Precisam vir ANTES de "/:id" — senão "export"/"import" seriam capturados
+// como se fossem um :id.
+router.get("/export",               exportCustomers);
+router.post("/import",              uploadCustomersSheet.single("file"), importCustomers);
 router.get("/:id",                  getCustomer);
 router.post("/",                    createCustomer);
 router.put("/:id",                  updateCustomer);

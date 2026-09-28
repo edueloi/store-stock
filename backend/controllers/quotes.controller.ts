@@ -3,8 +3,8 @@ import type { Request, Response } from "express";
 import { prisma } from "../config/prisma";
 import type { AuthenticatedRequest } from "../types/auth";
 import { localDateString } from "../utils/date";
-import { canMoveToStage } from "../utils/stage-permissions";
-import { isWorkflowStage, WORKFLOW_STAGES } from "../utils/workflow-stages";
+import { canMoveToStage, syncLinkedStatus } from "../utils/stage-permissions";
+import { isWorkflowStage, WORKFLOW_STAGES, GRAFICA_ONLY_STAGES } from "../utils/workflow-stages";
 import { emitToTenant } from "../services/realtime.service";
 
 function getTenantId(req: Request) {
@@ -28,6 +28,7 @@ const QUOTE_INCLUDE = {
   items: true,
   services: true,
   actions: { orderBy: { created_at: "desc" as const } },
+  files: { orderBy: { created_at: "desc" as const } },
 };
 
 async function logQuoteAction(
@@ -188,11 +189,68 @@ export async function createQuote(req: Request, res: Response) {
 
     await logQuoteAction(tenantId, quote.id, "created", { toStatus: quote.status, actor: getActor(req) });
 
+    const tenantRow = await prisma.tenant.findUnique({ where: { id: tenantId }, select: { grafica_enabled: true } });
+    if (tenantRow?.grafica_enabled) {
+      await createLinkedServiceOrder(tenantId, quote, getActor(req));
+    }
+
     res.json(quote);
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Falha ao criar orçamento" });
   }
+}
+
+// Só lojas do ramo gráfico (Tenant.grafica_enabled): todo Orçamento já nasce com uma OS
+// de produção vinculada (ServiceOrder.quote_id), pra não depender de um passo manual
+// de "converter em OS" — o Orçamento vira a proposta/preço, a OS vira o card de produção
+// no quadro (ver WorkflowBoard.tsx, modo unificado). has_equipment: false dispensa os
+// campos de equipamento (categoria/marca/série) que não fazem sentido pra um trabalho
+// gráfico; reported_issue é preenchido a partir do orçamento porque updateServiceOrderStatus
+// exige esse campo pra sair de "rascunho" mesmo com has_equipment: false.
+async function createLinkedServiceOrder(
+  tenantId: number,
+  quote: { id: number; number: number; status: string; customer_id: number | null; customer_name: string; customer_phone: string | null; notes: string | null; subtotal: any; total_amount: any },
+  actor: string,
+) {
+  const last = await prisma.serviceOrder.findFirst({
+    where: { tenant_id: tenantId },
+    orderBy: { number: "desc" },
+    select: { number: true },
+  });
+  const nextNumber = (last?.number ?? 0) + 1;
+
+  const reportedIssue = quote.notes?.trim() || `Orçamento #${quote.number}`;
+
+  const order = await prisma.serviceOrder.create({
+    data: {
+      tenant_id: tenantId,
+      number: nextNumber,
+      quote_id: quote.id,
+      status: quote.status,
+      customer_id: quote.customer_id,
+      customer_name: quote.customer_name,
+      customer_phone: quote.customer_phone,
+      has_equipment: false,
+      equipment_category: "",
+      reported_issue: reportedIssue,
+      subtotal: quote.subtotal,
+      total_amount: quote.total_amount,
+    },
+  });
+
+  await prisma.serviceOrderAction.create({
+    data: {
+      tenant_id: tenantId,
+      service_order_id: order.id,
+      action: "created_from_quote",
+      to_status: order.status,
+      actor,
+      meta: { quote_id: quote.id },
+    },
+  });
+
+  return order;
 }
 
 export async function updateQuoteStatus(req: Request, res: Response) {
@@ -203,6 +261,14 @@ export async function updateQuoteStatus(req: Request, res: Response) {
 
     const existing = await prisma.quote.findFirst({ where: { id, tenant_id: tenantId } });
     if (!existing) return res.status(404).json({ error: "Orçamento não encontrado" });
+
+    const tenantRow = await prisma.tenant.findUnique({ where: { id: tenantId }, select: { grafica_enabled: true } });
+
+    // Etapas de arte só existem pra lojas do ramo gráfico (mesma regra da Ordem de
+    // Serviço, ver Tenant.grafica_enabled) — nem admin passa por elas se desligado.
+    if (GRAFICA_ONLY_STAGES.includes(status as any) && !tenantRow?.grafica_enabled) {
+      return res.status(400).json({ error: "Status inválido" });
+    }
 
     // Fluxo guiado: só avança uma etapa por vez dentro das 8 etapas do workflow,
     // igual à Ordem de Serviço. Estados terminais (cancelled/expired/converted) seguem
@@ -224,6 +290,10 @@ export async function updateQuoteStatus(req: Request, res: Response) {
     await logQuoteAction(tenantId, id, "status_changed", {
       fromStatus: existing.status, toStatus: status, actor: getActor(req),
     });
+
+    if (tenantRow?.grafica_enabled) {
+      await syncLinkedStatus(tenantId, "quote", id, status, { actor: getActor(req) });
+    }
 
     res.json({ success: true });
   } catch {
@@ -390,6 +460,56 @@ export async function deleteQuote(req: Request, res: Response) {
     res.json({ success: true });
   } catch {
     res.status(500).json({ error: "Falha ao deletar orçamento" });
+  }
+}
+
+// Anexos do Orçamento (referência do cliente, arte final, prova de aprovação) —
+// mesmo padrão de attachServiceOrderPhoto/deleteServiceOrderPhoto em service-orders.controller.ts.
+export async function attachQuoteFile(req: Request, res: Response) {
+  try {
+    const tenantId = getTenantId(req);
+    const id = Number(req.params.id);
+    const { url, caption, kind } = req.body as { url: string; caption?: string; kind?: string };
+
+    const quote = await prisma.quote.findFirst({ where: { id, tenant_id: tenantId } });
+    if (!quote) return res.status(404).json({ error: "Orçamento não encontrado" });
+    if (!url) return res.status(400).json({ error: "URL do arquivo é obrigatória" });
+
+    const validKinds = ["referencia", "arte", "prova"];
+    const file = await prisma.quoteFile.create({
+      data: {
+        tenant_id: tenantId,
+        quote_id: id,
+        url,
+        caption: caption || null,
+        kind: validKinds.includes(kind ?? "") ? (kind as string) : "referencia",
+      },
+    });
+    res.json(file);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Falha ao anexar arquivo" });
+  }
+}
+
+export async function deleteQuoteFileHandler(req: Request, res: Response) {
+  try {
+    const tenantId = getTenantId(req);
+    const id = Number(req.params.id);
+    const fileId = Number(req.params.fileId);
+
+    const file = await prisma.quoteFile.findFirst({ where: { id: fileId, quote_id: id, tenant_id: tenantId } });
+    if (!file) return res.status(404).json({ error: "Arquivo não encontrado" });
+
+    await prisma.quoteFile.delete({ where: { id: fileId } });
+
+    const { deleteQuoteFile } = await import("./upload.controller");
+    deleteQuoteFile(file.url);
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Falha ao remover arquivo" });
   }
 }
 
@@ -568,6 +688,13 @@ export async function runQuoteExpirationJob() {
 
       await prisma.quote.update({ where: { id: q.id }, data: { status: "expired" } });
       await logQuoteAction(q.tenant_id, q.id, "expired", { fromStatus: "orcamento_enviado", toStatus: "expired" });
+
+      // Job em background não passa pelo updateQuoteStatus (rota HTTP) — sincroniza a OS
+      // vinculada aqui também, senão a expiração automática nunca cancela a produção.
+      const tenantRow = await prisma.tenant.findUnique({ where: { id: q.tenant_id }, select: { grafica_enabled: true } });
+      if (tenantRow?.grafica_enabled) {
+        await syncLinkedStatus(q.tenant_id, "quote", q.id, "expired", { actor: "Sistema (expiração automática)" });
+      }
     }
   } catch (err) {
     console.error("Quote expiration job failed:", err);
