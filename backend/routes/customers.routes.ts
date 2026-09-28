@@ -1,4 +1,4 @@
-import { Router } from "express";
+import { Router, type Request, type Response, type NextFunction } from "express";
 import multer from "multer";
 import {
   listCustomers,
@@ -30,11 +30,24 @@ const router = Router();
 
 router.use(authenticateToken);
 
-// Memory storage — o arquivo é parseado direto do buffer (XLSX.read), nunca
-// gravado em disco (diferente dos uploads de imagem em upload.controller.ts).
+// Memory storage — o arquivo é parseado direto do buffer (XLSX.read, que lê
+// tanto .xlsx quanto .csv), nunca gravado em disco (diferente dos uploads de
+// imagem em upload.controller.ts).
 const uploadCustomersSheet = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 10 * 1024 * 1024 },
+  fileFilter: (_req, file, cb) => {
+    const okExt = /\.(xlsx|xls|csv)$/i.test(file.originalname);
+    const okMime = [
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      "application/vnd.ms-excel",
+      "text/csv",
+      "application/csv",
+      "text/plain", // alguns navegadores mandam CSV como text/plain
+    ].includes(file.mimetype);
+    if (okExt || okMime) return cb(null, true);
+    cb(new Error("Formato não suportado — envie um arquivo .xlsx ou .csv"));
+  },
 });
 
 router.get("/",                     listCustomers);
@@ -43,7 +56,18 @@ router.get("/debts/installments",   listOpenInstallments);
 // Precisam vir ANTES de "/:id" — senão "export"/"import" seriam capturados
 // como se fossem um :id.
 router.get("/export",               exportCustomers);
-router.post("/import",              uploadCustomersSheet.single("file"), importCustomers);
+router.post("/import", (req: Request, res: Response, next: NextFunction) => {
+  uploadCustomersSheet.single("file")(req, res, (err: unknown) => {
+    if (err) {
+      const message = err instanceof multer.MulterError
+        ? (err.code === "LIMIT_FILE_SIZE" ? "Arquivo maior que 10MB" : err.message)
+        : err instanceof Error ? err.message : "Falha ao processar o arquivo enviado";
+      res.status(400).json({ error: message });
+      return;
+    }
+    next();
+  });
+}, importCustomers);
 router.get("/:id",                  getCustomer);
 router.post("/",                    createCustomer);
 router.put("/:id",                  updateCustomer);

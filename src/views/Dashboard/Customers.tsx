@@ -2,11 +2,11 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   Users, UserPlus, Phone, Search,
-  AlertTriangle, X, ChevronRight, ChevronLeft,
+  AlertTriangle, X, ChevronRight, ChevronLeft, ChevronDown,
   DollarSign, CheckCircle2,
   TrendingDown, AlertCircle,
   Loader2, LayoutGrid, List, MapPin, Mail, StickyNote, WalletCards,
-  HelpCircle, Download, Upload,
+  HelpCircle, Download, Upload, FileSpreadsheet, FileText,
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { cn } from "../../lib/utils";
@@ -264,6 +264,7 @@ export default function Customers() {
   const [sellers, setSellers] = useState<Seller[]>([]);
   const [importing, setImporting] = useState(false);
   const [exporting, setExporting] = useState(false);
+  const [exportMenuOpen, setExportMenuOpen] = useState(false);
   const [importSummary, setImportSummary] = useState<ImportSummary | null>(null);
   const importFileInputRef = useRef<HTMLInputElement>(null);
 
@@ -562,10 +563,11 @@ export default function Customers() {
 
   // ── Export / Import planilha ──
 
-  async function handleExport() {
+  async function handleExport(format: "xlsx" | "csv") {
     setExporting(true);
+    setExportMenuOpen(false);
     try {
-      const res = await fetch("/api/customers/export", {
+      const res = await fetch(`/api/customers/export?format=${format}`, {
         headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
       });
       if (!res.ok) return;
@@ -573,7 +575,7 @@ export default function Customers() {
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `clientes_${new Date().toISOString().split("T")[0]}.xlsx`;
+      a.download = `clientes_${new Date().toISOString().split("T")[0]}.${format}`;
       a.click();
       URL.revokeObjectURL(url);
     } finally {
@@ -648,28 +650,52 @@ export default function Customers() {
             <Button data-tour="customers-new-btn" icon={<UserPlus size={14} />} onClick={openCreate}>
               Novo Cliente
             </Button>
-            <Button
-              variant="secondary"
-              icon={<Download size={14} />}
-              loading={exporting}
-              onClick={handleExport}
-              title="Exportar clientes para planilha Excel"
-            >
-              <span className="sr-only sm:not-sr-only">Exportar planilha</span>
-            </Button>
+            <div className="relative">
+              <Button
+                variant="secondary"
+                icon={<Download size={14} />}
+                loading={exporting}
+                onClick={() => setExportMenuOpen((v) => !v)}
+                title="Exportar clientes para planilha"
+              >
+                <span className="sr-only sm:not-sr-only flex items-center gap-1">
+                  Exportar planilha <ChevronDown size={10} className={cn("transition-transform", exportMenuOpen && "rotate-180")} />
+                </span>
+              </Button>
+              {exportMenuOpen && (
+                <>
+                  <div className="fixed inset-0 z-40" onClick={() => setExportMenuOpen(false)} />
+                  <div className="absolute right-0 top-10 w-56 bg-white border border-slate-200 rounded-xl shadow-xl z-50 overflow-hidden">
+                    <button
+                      onClick={() => handleExport("xlsx")}
+                      className="w-full flex items-center gap-3 px-4 py-3 text-[10px] font-bold uppercase tracking-widest text-slate-700 hover:bg-slate-50 transition-colors"
+                    >
+                      <FileSpreadsheet size={14} className="text-emerald-600 shrink-0" /> Excel (.xlsx)
+                    </button>
+                    <div className="h-px bg-slate-100 mx-3" />
+                    <button
+                      onClick={() => handleExport("csv")}
+                      className="w-full flex items-center gap-3 px-4 py-3 text-[10px] font-bold uppercase tracking-widest text-slate-700 hover:bg-slate-50 transition-colors"
+                    >
+                      <FileText size={14} className="text-blue-600 shrink-0" /> CSV (.csv)
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
             <Button
               variant="secondary"
               icon={<Upload size={14} />}
               loading={importing}
               onClick={handleImportClick}
-              title="Importar clientes de planilha Excel"
+              title="Importar clientes de planilha Excel ou CSV"
             >
               <span className="sr-only sm:not-sr-only">Importar planilha</span>
             </Button>
             <input
               ref={importFileInputRef}
               type="file"
-              accept=".xlsx"
+              accept=".xlsx,.xls,.csv"
               className="hidden"
               onChange={handleImportFileChange}
             />

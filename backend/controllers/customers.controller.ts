@@ -1081,9 +1081,58 @@ function personTypeLabel(personType: string | null | undefined): string {
   return personType === "legal" ? "Pessoa Jurídica" : "Pessoa Física";
 }
 
+type CustomerForExport = Awaited<ReturnType<typeof prisma.customer.findMany>>[number] & {
+  seller?: { name: string } | null;
+};
+
+function buildExportRow(c: CustomerForExport) {
+  return {
+    "Código": c.external_code ?? "",
+    "Nome": c.name ?? "",
+    "Fantasia": c.trade_name ?? "",
+    "Endereço": c.address_street ?? "",
+    "Número": c.address_number ?? "",
+    "Complemento": c.address_complement ?? "",
+    "Bairro": c.address_district ?? "",
+    "CEP": c.address_zip ?? "",
+    "Cidade": c.address_city ?? "",
+    "UF": c.address_state ?? "",
+    "Contatos": c.contact_name ?? "",
+    "Fone": c.phone ?? "",
+    "Fax": c.fax ?? "",
+    "Celular": "", // não há campo separado de celular no sistema hoje — ver comentário acima
+    "E-mail": c.email ?? "",
+    "Web Site": c.website ?? "",
+    "Tipo pessoa": personTypeLabel(c.person_type),
+    "CNPJ/CPF": c.document ?? "",
+    "IE/RG": c.state_registration ?? "",
+    "IE isento": c.state_registration_exempt ? "Sim" : "Não",
+    "Situação": c.status === "inactive" ? "Inativo" : "Ativo",
+    "Observações": c.notes ?? "",
+    "Estado civil": c.marital_status ?? "",
+    "Profissão": c.profession ?? "",
+    "Sexo": c.gender ?? "",
+    "Data nasc.": formatDateBR(c.birth_date),
+    "Naturalidade": c.birthplace ?? "",
+    "Nome pai": c.father_name ?? "",
+    "CPF pai": c.father_document ?? "",
+    "Nome mãe": c.mother_name ?? "",
+    "CPF mãe": c.mother_document ?? "",
+    "Segmento": c.segment ?? "",
+    "Vendedor": c.seller?.name ?? "",
+    "Tipo contato": c.contact_type ?? "",
+    "E-mail para envio NFe": c.nfe_email ?? "",
+    "Limite de crédito": c.credit_limit != null ? Number(c.credit_limit) : "",
+    "Cliente desde": formatDateBR(c.customer_since),
+    "Próxima visita": formatDateBR(c.next_visit_at),
+    "Regime tributário": c.tax_regime ?? "",
+  };
+}
+
 export async function exportCustomers(req: Request, res: Response) {
   try {
     const tenantId = getTenantId(req);
+    const format = String(req.query.format ?? "xlsx").toLowerCase() === "csv" ? "csv" : "xlsx";
     const customers = await prisma.customer.findMany({
       where: { tenant_id: tenantId },
       include: { seller: { select: { name: true } } },
@@ -1097,63 +1146,36 @@ export async function exportCustomers(req: Request, res: Response) {
     const ws = wb.addWorksheet("Clientes");
     ws.columns = EXPORT_COLUMNS.map((header) => ({ header, key: header, width: 18 }));
 
-    const headerRow = ws.getRow(1);
-    headerRow.eachCell((cell) => {
-      cell.font = { bold: true, color: { argb: "FFFFFFFF" }, size: 10 };
-      cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF1E3A5F" } };
-      cell.alignment = { horizontal: "center", vertical: "middle" };
-    });
-    headerRow.height = 20;
-
-    for (const c of customers) {
-      ws.addRow({
-        "Código": c.external_code ?? "",
-        "Nome": c.name ?? "",
-        "Fantasia": c.trade_name ?? "",
-        "Endereço": c.address_street ?? "",
-        "Número": c.address_number ?? "",
-        "Complemento": c.address_complement ?? "",
-        "Bairro": c.address_district ?? "",
-        "CEP": c.address_zip ?? "",
-        "Cidade": c.address_city ?? "",
-        "UF": c.address_state ?? "",
-        "Contatos": c.contact_name ?? "",
-        "Fone": c.phone ?? "",
-        "Fax": c.fax ?? "",
-        "Celular": "", // não há campo separado de celular no sistema hoje — ver comentário acima
-        "E-mail": c.email ?? "",
-        "Web Site": c.website ?? "",
-        "Tipo pessoa": personTypeLabel(c.person_type),
-        "CNPJ/CPF": c.document ?? "",
-        "IE/RG": c.state_registration ?? "",
-        "IE isento": c.state_registration_exempt ? "Sim" : "Não",
-        "Situação": c.status === "inactive" ? "Inativo" : "Ativo",
-        "Observações": c.notes ?? "",
-        "Estado civil": c.marital_status ?? "",
-        "Profissão": c.profession ?? "",
-        "Sexo": c.gender ?? "",
-        "Data nasc.": formatDateBR(c.birth_date),
-        "Naturalidade": c.birthplace ?? "",
-        "Nome pai": c.father_name ?? "",
-        "CPF pai": c.father_document ?? "",
-        "Nome mãe": c.mother_name ?? "",
-        "CPF mãe": c.mother_document ?? "",
-        "Segmento": c.segment ?? "",
-        "Vendedor": c.seller?.name ?? "",
-        "Tipo contato": c.contact_type ?? "",
-        "E-mail para envio NFe": c.nfe_email ?? "",
-        "Limite de crédito": c.credit_limit != null ? Number(c.credit_limit) : "",
-        "Cliente desde": formatDateBR(c.customer_since),
-        "Próxima visita": formatDateBR(c.next_visit_at),
-        "Regime tributário": c.tax_regime ?? "",
+    if (format === "xlsx") {
+      const headerRow = ws.getRow(1);
+      headerRow.eachCell((cell) => {
+        cell.font = { bold: true, color: { argb: "FFFFFFFF" }, size: 10 };
+        cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF1E3A5F" } };
+        cell.alignment = { horizontal: "center", vertical: "middle" };
       });
+      headerRow.height = 20;
     }
 
-    const buf = await wb.xlsx.writeBuffer();
+    for (const c of customers) {
+      ws.addRow(buildExportRow(c as CustomerForExport));
+    }
+
     const today = new Date().toISOString().split("T")[0];
-    res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
-    res.setHeader("Content-Disposition", `attachment; filename="clientes_${today}.xlsx"`);
-    res.send(Buffer.from(buf));
+    if (format === "csv") {
+      // writeBuffer do ExcelJS para CSV retorna Uint8Array puro (sem BOM) — o Excel
+      // no Windows só reconhece UTF-8 sem BOM como ASCII e corrompe acentuação,
+      // então prefixamos o BOM manualmente antes de enviar.
+      const buf = await wb.csv.writeBuffer({ formatterOptions: { delimiter: ";" } });
+      const bom = Buffer.from([0xef, 0xbb, 0xbf]);
+      res.setHeader("Content-Type", "text/csv; charset=utf-8");
+      res.setHeader("Content-Disposition", `attachment; filename="clientes_${today}.csv"`);
+      res.send(Buffer.concat([bom, Buffer.from(buf)]));
+    } else {
+      const buf = await wb.xlsx.writeBuffer();
+      res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+      res.setHeader("Content-Disposition", `attachment; filename="clientes_${today}.xlsx"`);
+      res.send(Buffer.from(buf));
+    }
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Falha ao exportar clientes" });
@@ -1215,11 +1237,55 @@ interface ImportRowResult {
   message: string;
 }
 
-// Recebe um arquivo .xlsx (multer memoryStorage), parseia com o mesmo mapeamento
-// de colunas do export e faz upsert por tenant — casando por document (CNPJ/CPF
-// normalizado) e, na ausência dele, por external_code (coluna "Código"). Nunca
-// aborta a importação inteira por causa de uma linha ruim: cada erro de linha é
-// coletado em `errors` e a linha é pulada.
+// CSV não tem um jeito confiável de declarar o próprio encoding — precisamos
+// adivinhar antes de entregar pro XLSX.read. BOM (﻿) é um sinal explícito
+// de UTF-8 e é removido do buffer (senão contamina o cabeçalho da 1ª coluna).
+// Sem BOM, testamos se o conteúdo é UTF-8 válido com ao menos um caractere
+// acentuado (sequência multi-byte bem formada) — nesse caso é UTF-8 "sem BOM"
+// (comum quando o arquivo é editado/salvo por ferramentas que não adicionam
+// BOM). Caso contrário, deixamos o XLSX tratar como Latin-1/CP1252, que é o
+// padrão do "Salvar como CSV" do Excel em português — e também o fallback mais
+// seguro para ASCII puro.
+function stripBom(buf: Buffer): { buf: Buffer; hadBom: boolean } {
+  if (buf.length >= 3 && buf[0] === 0xef && buf[1] === 0xbb && buf[2] === 0xbf) {
+    return { buf: buf.subarray(3), hadBom: true };
+  }
+  return { buf, hadBom: false };
+}
+
+function looksLikeValidUtf8WithAccents(buf: Buffer): boolean {
+  let i = 0;
+  let sawMultiByte = false;
+  while (i < buf.length) {
+    const b = buf[i];
+    if (b < 0x80) { i++; continue; }
+    let len = 0;
+    if ((b & 0xe0) === 0xc0) len = 2;
+    else if ((b & 0xf0) === 0xe0) len = 3;
+    else if ((b & 0xf8) === 0xf0) len = 4;
+    else return false;
+    if (i + len > buf.length) return false;
+    for (let k = 1; k < len; k++) {
+      if ((buf[i + k] & 0xc0) !== 0x80) return false;
+    }
+    sawMultiByte = true;
+    i += len;
+  }
+  return sawMultiByte;
+}
+
+function readSpreadsheet(rawBuf: Buffer, isCsv: boolean): XLSX.WorkBook {
+  if (!isCsv) return XLSX.read(rawBuf, { type: "buffer", cellDates: false });
+  const { buf, hadBom } = stripBom(rawBuf);
+  const isUtf8 = hadBom || looksLikeValidUtf8WithAccents(buf);
+  return XLSX.read(buf, { type: "buffer", cellDates: false, codepage: isUtf8 ? 65001 : undefined });
+}
+
+// Recebe um arquivo .xlsx ou .csv (multer memoryStorage), parseia com o mesmo
+// mapeamento de colunas do export e faz upsert por tenant — casando por
+// document (CNPJ/CPF normalizado) e, na ausência dele, por external_code
+// (coluna "Código"). Nunca aborta a importação inteira por causa de uma linha
+// ruim: cada erro de linha é coletado em `errors` e a linha é pulada.
 export async function importCustomers(req: Request, res: Response) {
   try {
     const tenantId = getTenantId(req);
@@ -1228,7 +1294,8 @@ export async function importCustomers(req: Request, res: Response) {
       return;
     }
 
-    const workbook = XLSX.read(req.file.buffer, { type: "buffer", cellDates: false });
+    const isCsv = /\.csv$/i.test(req.file.originalname) || req.file.mimetype.includes("csv");
+    const workbook = readSpreadsheet(req.file.buffer, isCsv);
     const sheetName = workbook.SheetNames[0];
     if (!sheetName) {
       res.status(422).json({ error: "Planilha vazia ou sem abas" });
