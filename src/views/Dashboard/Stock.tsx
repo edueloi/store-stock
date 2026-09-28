@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   Plus,
   Minus,
@@ -13,13 +13,16 @@ import {
   Layers,
   ClipboardList,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  HelpCircle
 } from "lucide-react";
 import PageHeader from "../../components/layout/PageHeader";
+import Button from "../../components/ui/Button";
 import { Product } from "../../types";
 import { cn } from "../../lib/utils";
 import Modal from "../../components/ui/Modal";
 import { onRealtimeAny } from "../../lib/realtime";
+import StockPageTour, { STOCK_PAGE_TOUR_EVENTS, type StockPageTourHandle } from "../../components/onboarding/StockPageTour";
 
 interface StockMovement {
   id: number;
@@ -96,6 +99,8 @@ export default function Stock() {
   const [historyPage, setHistoryPage] = useState(1);
   const PAGE_SIZE = 20;
 
+  const stockPageTourRef = useRef<StockPageTourHandle>(null);
+
   const fetchData = async () => {
     try {
       const pRes = await fetch("/api/products", {
@@ -160,6 +165,28 @@ export default function Stock() {
     }
   };
 
+  // ── Canal de comunicação do TOUR DE PÁGINA (StockPageTour) ────────────────
+  // Stock.tsx não tinha nenhum canal de tour antes; este é o primeiro. Abre o
+  // modal de ajuste de verdade via openAdjust (com o primeiro produto da
+  // lista, se houver) e fecha com setIsAdjustmentModalOpen(false) — o mesmo
+  // que o botão "Cancelar" faz. Nunca chama handleAdjustment (que faz o POST
+  // real em /api/products/stock-adjustment).
+  useEffect(() => {
+    const onOpenAdjustmentPage = () => {
+      const list = Array.isArray(products) ? products : [];
+      if (list.length > 0) openAdjust(list[0]);
+    };
+    const onCloseAdjustmentPage = () => setIsAdjustmentModalOpen(false);
+
+    window.addEventListener(STOCK_PAGE_TOUR_EVENTS.openAdjustment, onOpenAdjustmentPage);
+    window.addEventListener(STOCK_PAGE_TOUR_EVENTS.closeAdjustment, onCloseAdjustmentPage);
+    return () => {
+      window.removeEventListener(STOCK_PAGE_TOUR_EVENTS.openAdjustment, onOpenAdjustmentPage);
+      window.removeEventListener(STOCK_PAGE_TOUR_EVENTS.closeAdjustment, onCloseAdjustmentPage);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [products]);
+
   const searchedProducts = (Array.isArray(products) ? products : []).filter(p =>
     p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     (p.sku && p.sku.toLowerCase().includes(searchTerm.toLowerCase()))
@@ -206,13 +233,14 @@ export default function Stock() {
   if (loading) return <div className="p-8 text-center text-xs font-bold uppercase tracking-widest text-slate-400">Processando Inventário...</div>;
 
   return (
-    <div className="space-y-6 ">
+    <div data-tour="stock-page" className="space-y-6 ">
       <PageHeader
         title="Estoque"
         subtitle="Gestão de ativos, insumos e movimentações"
         action={
-          <div className="flex gap-2">
+          <div className="flex gap-2 items-center flex-wrap">
             <button
+              data-tour="stock-view-inventory-btn"
               onClick={() => setActiveView('inventory')}
               className={cn(
                 "h-9 px-4 rounded-xl text-[10px] font-bold uppercase tracking-widest transition-all flex items-center gap-2",
@@ -222,6 +250,7 @@ export default function Stock() {
               <Package size={13} /> Posição
             </button>
             <button
+              data-tour="stock-view-history-btn"
               onClick={() => setActiveView('history')}
               className={cn(
                 "h-9 px-4 rounded-xl text-[10px] font-bold uppercase tracking-widest transition-all flex items-center gap-2",
@@ -230,9 +259,20 @@ export default function Stock() {
             >
               <History size={13} /> Auditoria
             </button>
+            <Button
+              variant="secondary"
+              className="text-slate-400 hover:text-blue-600 hover:bg-blue-50 border-slate-200 hover:border-blue-300"
+              icon={<HelpCircle size={14} />}
+              onClick={() => stockPageTourRef.current?.start()}
+              title="Tour guiado desta página"
+            >
+              <span className="sr-only sm:not-sr-only">Ajuda</span>
+            </Button>
           </div>
         }
       />
+
+      <StockPageTour ref={stockPageTourRef} />
 
       {/* KPI Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
@@ -355,6 +395,7 @@ export default function Stock() {
                     <td className="px-6 py-4 text-[11px] font-mono font-bold text-slate-900">R$ {(Number(p.cost_price || 0) * p.stock_quantity).toFixed(2)}</td>
                     <td className="px-6 py-4 text-right">
                       <button
+                        data-tour="stock-adjust-btn"
                         onClick={() => openAdjust(p)}
                         className="w-8 h-8 rounded-lg bg-slate-100 text-slate-400 hover:bg-slate-900 hover:text-white transition-all flex items-center justify-center ml-auto"
                       >
@@ -380,6 +421,7 @@ export default function Stock() {
                     <p className="text-[9px] font-mono text-slate-400 uppercase">SKU: {p.sku || String(p.id).padStart(6, '0')}</p>
                   </div>
                   <button
+                    data-tour="stock-adjust-btn"
                     onClick={() => openAdjust(p)}
                     className="shrink-0 w-9 h-9 rounded-xl bg-slate-100 text-slate-500 hover:bg-slate-900 hover:text-white transition-all flex items-center justify-center"
                   >
@@ -518,7 +560,7 @@ export default function Stock() {
           </div>
 
           {/* Type selector */}
-          <div className="space-y-2">
+          <div data-tour="stock-adjustment-type" className="space-y-2">
             <label className="text-[9px] font-bold uppercase text-slate-400 tracking-widest px-1">Tipo de Operação</label>
             <div className="grid grid-cols-2 gap-2">
               {['purchase', 'adjustment', 'loss', 'return'].map(type => (
@@ -537,7 +579,7 @@ export default function Stock() {
           </div>
 
           {/* Quantity stepper */}
-          <div className="space-y-2">
+          <div data-tour="stock-adjustment-quantity" className="space-y-2">
             <label className="text-[9px] font-bold uppercase text-slate-400 tracking-widest px-1">Quantidade</label>
             <div className="flex items-center gap-4">
               <button

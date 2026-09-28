@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from "react";
-import { Tag, Plus, FolderOpen, Edit2, Trash2, Save, AlertTriangle, Shirt, Footprints, Lightbulb, Wrench, Smartphone, Package, ImageUp, PackagePlus } from "lucide-react";
+import React, { useState, useEffect, useRef } from "react";
+import { Tag, Plus, FolderOpen, Edit2, Trash2, Save, AlertTriangle, Shirt, Footprints, Lightbulb, Wrench, Smartphone, Package, ImageUp, PackagePlus, HelpCircle } from "lucide-react";
 import { motion } from "motion/react";
 import Button from "../../components/ui/Button";
 import { Input } from "../../components/ui/Input";
@@ -10,6 +10,7 @@ import { EmptyState, LoadingState } from "../../components/layout/EmptyState";
 import { StatCard } from "../../components/ui/Card";
 import { Category, Product } from "../../types";
 import { onRealtime } from "../../lib/realtime";
+import CategoriesPageTour, { CATEGORIES_PAGE_TOUR_EVENTS, type CategoriesPageTourHandle } from "../../components/onboarding/CategoriesPageTour";
 
 const CATEGORY_ICONS = { package: Package, fashion: Shirt, footwear: Footprints, light: Lightbulb, tools: Wrench, tech: Smartphone };
 const ICON_OPTIONS = [
@@ -36,6 +37,8 @@ export default function Categories() {
   const [selectedProductIds, setSelectedProductIds] = useState<Set<number>>(new Set());
   const [assigning, setAssigning] = useState(false);
   const [uploadingCover, setUploadingCover] = useState(false);
+
+  const categoriesPageTourRef = useRef<CategoriesPageTourHandle>(null);
 
   const headers = () => ({
     "Content-Type": "application/json",
@@ -82,6 +85,37 @@ export default function Categories() {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // ── Canal de comunicação do TOUR DE PÁGINA (CategoriesPageTour) ────────────
+  // Namespace separado (page-tour:categories:*) do tour geral acima — nomes
+  // de evento distintos, nunca colidem. Mesmas garantias de segurança: só
+  // abre/preenche/fecha via openNew/openEdit/setEditing/closeModal, nunca
+  // chama handleSave, uploadCover, handleDelete ou assignSelectedProducts.
+  useEffect(() => {
+    const onOpenNewCategoryPage = () => openNew();
+    const onFillCategoryPage = (e: Event) => {
+      const detail = (e as CustomEvent<Partial<Category>>).detail;
+      if (detail) setEditing((prev) => ({ ...(prev ?? {}), ...detail }));
+    };
+    const onCloseModalPage = () => closeModal();
+    const onOpenEditCategoryPage = () => {
+      // Edita a primeira categoria da lista, se houver — senão não abre nada
+      // e o passo do tour é pulado (skipMissingElement cuida disso).
+      if (categories.length > 0) openEdit(categories[0]);
+    };
+
+    window.addEventListener(CATEGORIES_PAGE_TOUR_EVENTS.openNewCategory, onOpenNewCategoryPage);
+    window.addEventListener(CATEGORIES_PAGE_TOUR_EVENTS.fillCategory, onFillCategoryPage);
+    window.addEventListener(CATEGORIES_PAGE_TOUR_EVENTS.closeCategoryModal, onCloseModalPage);
+    window.addEventListener(CATEGORIES_PAGE_TOUR_EVENTS.openEditCategory, onOpenEditCategoryPage);
+    return () => {
+      window.removeEventListener(CATEGORIES_PAGE_TOUR_EVENTS.openNewCategory, onOpenNewCategoryPage);
+      window.removeEventListener(CATEGORIES_PAGE_TOUR_EVENTS.fillCategory, onFillCategoryPage);
+      window.removeEventListener(CATEGORIES_PAGE_TOUR_EVENTS.closeCategoryModal, onCloseModalPage);
+      window.removeEventListener(CATEGORIES_PAGE_TOUR_EVENTS.openEditCategory, onOpenEditCategoryPage);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [categories]);
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -145,11 +179,24 @@ export default function Categories() {
         title="Categorias"
         subtitle="Organização do catálogo de produtos"
         action={
-          <Button data-tour="categories-new-btn" icon={<Plus size={15} />} onClick={openNew}>
-            Nova Categoria
-          </Button>
+          <div className="flex items-center gap-2 flex-wrap">
+            <Button data-tour="categories-new-btn" icon={<Plus size={15} />} onClick={openNew}>
+              Nova Categoria
+            </Button>
+            <Button
+              variant="secondary"
+              className="text-slate-400 hover:text-blue-600 hover:bg-blue-50 border-slate-200 hover:border-blue-300"
+              icon={<HelpCircle size={14} />}
+              onClick={() => categoriesPageTourRef.current?.start()}
+              title="Tour guiado desta página"
+            >
+              <span className="sr-only sm:not-sr-only">Ajuda</span>
+            </Button>
+          </div>
         }
       />
+
+      <CategoriesPageTour ref={categoriesPageTourRef} />
 
       <div className="grid grid-cols-2 gap-4">
         <StatCard label="Total de Categorias" value={categories.length} icon={<FolderOpen />} accent="blue" />

@@ -2,6 +2,7 @@ import { useEffect, useImperativeHandle, useRef, forwardRef } from "react";
 import { driver, type Driver, type DriveStep } from "driver.js";
 import "driver.js/dist/driver.css";
 import "./onboarding-tour.css";
+import { dispatchTourEvent, tourElement, waitForElement, waitForPath } from "./tour-utils";
 
 // ── API helpers (mesmo padrão de src/views/Dashboard/Home.tsx) ─────────────
 
@@ -53,65 +54,9 @@ const TOUR_EVENTS = {
   closeCategoryModal: "onboarding-tour:close-category-modal",
 } as const;
 
-function dispatchTourEvent<T>(name: string, detail?: T) {
-  window.dispatchEvent(new CustomEvent(name, detail === undefined ? undefined : { detail }));
-}
-
-// ── Resolução de elemento ───────────────────────────────────────────────
-//
-// A sidebar existe DUAS vezes no DOM ao mesmo tempo: a <aside> desktop (que
-// fica com "display:none" em telas <lg via classe Tailwind, mas continua
-// montada) e o drawer mobile (montado só quando aberto). Como os itens de
-// menu têm o mesmo data-tour nos dois, document.querySelector pegaria sempre
-// a primeira ocorrência (a desktop), que fica invisível no mobile. Por isso
-// resolvemos manualmente pegando o primeiro elemento que está de fato visível
-// (offsetParent !== null cobre display:none e ancestrais escondidos).
-function visibleTourElement(selector: string): Element | undefined {
-  const candidates = document.querySelectorAll<HTMLElement>(selector);
-  for (const el of candidates) {
-    if (el.offsetParent !== null) return el;
-  }
-  return candidates[0] ?? undefined;
-}
-
-const tourElement = (dataTourValue: string) => () => visibleTourElement(`[data-tour="${dataTourValue}"]`);
-
-// ── Espera ativa por elementos/navegação (sem timeout fixo cego) ───────────
-//
-// Navegar para outra rota (navigate()) e abrir um modal são operações
-// assíncronas — a tela alvo só termina de carregar depois de fetches em
-// paralelo (ver Inventory.tsx: fetchInventory busca /api/products,
-// /api/categories e /api/tenant antes de tirar o LoadingState do ar). Em vez
-// de um timeout fixo (frágil: rápido demais falha, devagar demais irrita),
-// fazemos polling curto até o elemento aparecer visível, com um teto de
-// segurança para não travar o tour indefinidamente se algo não aparecer.
-function waitForElement(selector: string, timeoutMs = 6000): Promise<Element> {
-  return new Promise((resolve, reject) => {
-    const start = Date.now();
-    const tick = () => {
-      const el = visibleTourElement(selector);
-      if (el) { resolve(el); return; }
-      if (Date.now() - start >= timeoutMs) { reject(new Error(`onboarding-tour: elemento "${selector}" não apareceu a tempo`)); return; }
-      window.setTimeout(tick, 100);
-    };
-    tick();
-  });
-}
-
-// Mesma ideia, para telas (PDV/Configurações) onde optamos por não depender
-// de um seletor específico no DOM (áreas não mapeadas a fundo para este
-// tour) — esperamos apenas a rota trocar de fato antes de seguir.
-function waitForPath(path: string, timeoutMs = 6000): Promise<void> {
-  return new Promise((resolve, reject) => {
-    const start = Date.now();
-    const tick = () => {
-      if (window.location.pathname === path) { resolve(); return; }
-      if (Date.now() - start >= timeoutMs) { reject(new Error(`onboarding-tour: rota "${path}" não foi alcançada a tempo`)); return; }
-      window.setTimeout(tick, 100);
-    };
-    tick();
-  });
-}
+// dispatchTourEvent / visibleTourElement / tourElement / waitForElement /
+// waitForPath agora vivem em ./tour-utils (compartilhados com os tours de
+// página) — comportamento idêntico ao que havia aqui antes, só movido.
 
 // ── Steps ────────────────────────────────────────────────────────────────
 //

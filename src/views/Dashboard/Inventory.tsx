@@ -4,6 +4,7 @@ import {
   TrendingUp, Upload, LayoutGrid, List, Tag, Search, AlertTriangle,
   Star, ChevronLeft, ChevronRight, GripVertical, Zap, ArrowUpDown, FileUp, CheckSquare,
   History, ArrowRight, Loader2, ArrowUp, ArrowDown, SlidersHorizontal, Camera, FileCode,
+  HelpCircle,
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { cn } from "../../lib/utils";
@@ -19,6 +20,7 @@ import { DropdownMenu } from "../../components/ui/Dropdown";
 import PdfImportModal from "../../components/ui/PdfImportModal";
 import XmlImportModal from "../../components/ui/XmlImportModal";
 import { useToast } from "../../components/ui/Toast";
+import InventoryPageTour, { INVENTORY_PAGE_TOUR_EVENTS, type InventoryPageTourHandle } from "../../components/onboarding/InventoryPageTour";
 
 // ── helpers ────────────────────────────────────────────────────────────────
 function toSlug(name: string) {
@@ -357,6 +359,8 @@ export default function Inventory() {
   const [isPdfModalOpen, setIsPdfModalOpen] = useState(false);
   const [isXmlModalOpen, setIsXmlModalOpen] = useState(false);
 
+  const inventoryPageTourRef = useRef<InventoryPageTourHandle>(null);
+
   // ── bulk selection ──────────────────────────────────────────────────
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [bulkDeleting, setBulkDeleting] = useState(false);
@@ -530,6 +534,58 @@ export default function Inventory() {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // ── Canal de comunicação do TOUR DE PÁGINA (InventoryPageTour) ─────────────
+  // Namespace separado (page-tour:inventory:*) do tour geral acima — nunca
+  // colidem porque os nomes de evento são distintos. Mesmas garantias de
+  // segurança: só abre/preenche/fecha via openNew/openEdit/setEditingProduct/
+  // setIsModalOpen, nunca chama handleSave. Os eventos de abrir/fechar os
+  // modais de importação (PDF/XML) só setam os estados isPdfModalOpen/
+  // isXmlModalOpen — o tour nunca interage com o conteúdo interno desses
+  // modais (nunca seleciona arquivo nem chama handleImport).
+  useEffect(() => {
+    const onOpenNewProductPage = (e: Event) => {
+      openNew();
+      const detail = (e as CustomEvent<Partial<Product>>).detail;
+      if (detail) {
+        setEditingProduct((prev) => ({ ...prev!, ...detail }));
+      }
+    };
+    const onFillProductPage = (e: Event) => {
+      const detail = (e as CustomEvent<Partial<Product>>).detail;
+      if (detail) setEditingProduct((prev) => ({ ...(prev ?? {}), ...detail }));
+    };
+    const onOpenEditProductPage = () => {
+      // Edita o primeiro produto da lista, se houver — senão simplesmente não
+      // abre nada e o passo do tour é pulado (skipMissingElement cuida disso).
+      if (products.length > 0) openEdit(products[0]);
+    };
+    const onCloseProductModalPage = () => setIsModalOpen(false);
+    const onOpenPdfModalPage = () => setIsPdfModalOpen(true);
+    const onClosePdfModalPage = () => setIsPdfModalOpen(false);
+    const onOpenXmlModalPage = () => setIsXmlModalOpen(true);
+    const onCloseXmlModalPage = () => setIsXmlModalOpen(false);
+
+    window.addEventListener(INVENTORY_PAGE_TOUR_EVENTS.openNewProduct, onOpenNewProductPage);
+    window.addEventListener(INVENTORY_PAGE_TOUR_EVENTS.fillProduct, onFillProductPage);
+    window.addEventListener(INVENTORY_PAGE_TOUR_EVENTS.openEditProduct, onOpenEditProductPage);
+    window.addEventListener(INVENTORY_PAGE_TOUR_EVENTS.closeProductModal, onCloseProductModalPage);
+    window.addEventListener("page-tour:inventory:open-pdf-modal", onOpenPdfModalPage);
+    window.addEventListener("page-tour:inventory:close-pdf-modal", onClosePdfModalPage);
+    window.addEventListener("page-tour:inventory:open-xml-modal", onOpenXmlModalPage);
+    window.addEventListener("page-tour:inventory:close-xml-modal", onCloseXmlModalPage);
+    return () => {
+      window.removeEventListener(INVENTORY_PAGE_TOUR_EVENTS.openNewProduct, onOpenNewProductPage);
+      window.removeEventListener(INVENTORY_PAGE_TOUR_EVENTS.fillProduct, onFillProductPage);
+      window.removeEventListener(INVENTORY_PAGE_TOUR_EVENTS.openEditProduct, onOpenEditProductPage);
+      window.removeEventListener(INVENTORY_PAGE_TOUR_EVENTS.closeProductModal, onCloseProductModalPage);
+      window.removeEventListener("page-tour:inventory:open-pdf-modal", onOpenPdfModalPage);
+      window.removeEventListener("page-tour:inventory:close-pdf-modal", onClosePdfModalPage);
+      window.removeEventListener("page-tour:inventory:open-xml-modal", onOpenXmlModalPage);
+      window.removeEventListener("page-tour:inventory:close-xml-modal", onCloseXmlModalPage);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [products]);
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -782,18 +838,29 @@ export default function Inventory() {
             >
               {viewMode === "table" ? "Grade" : "Tabela"}
             </Button>
-            <Button variant="secondary" icon={<FileUp size={14} />} onClick={() => setIsPdfModalOpen(true)}>
+            <Button data-tour="inventory-import-pdf-btn" variant="secondary" icon={<FileUp size={14} />} onClick={() => setIsPdfModalOpen(true)}>
               Importar PDF
             </Button>
-            <Button variant="secondary" icon={<FileCode size={14} />} onClick={() => setIsXmlModalOpen(true)}>
+            <Button data-tour="inventory-import-xml-btn" variant="secondary" icon={<FileCode size={14} />} onClick={() => setIsXmlModalOpen(true)}>
               Importar XML
             </Button>
             <Button data-tour="inventory-new-product-btn" icon={<Plus size={14} />} onClick={openNew}>
               Novo Produto
             </Button>
+            <Button
+              variant="secondary"
+              className="text-slate-400 hover:text-blue-600 hover:bg-blue-50 border-slate-200 hover:border-blue-300"
+              icon={<HelpCircle size={14} />}
+              onClick={() => inventoryPageTourRef.current?.start()}
+              title="Tour guiado desta página"
+            >
+              <span className="sr-only sm:not-sr-only">Ajuda</span>
+            </Button>
           </div>
         }
       />
+
+      <InventoryPageTour ref={inventoryPageTourRef} />
 
       <StatsGrid columns={4} stats={[
         { label: "Capital Imobilizado", value: `R$ ${totalCost.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`, icon: <Package size={18} />, accent: "blue" },

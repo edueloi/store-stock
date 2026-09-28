@@ -292,6 +292,7 @@ export default function XmlImportModal({ open, onClose, onImported }: XmlImportM
             {step === "upload" && (
               <div className="p-6">
                 <div
+                  data-tour="xml-import-dropzone"
                   onDragOver={e => { e.preventDefault(); setDragging(true); }}
                   onDragLeave={() => setDragging(false)}
                   onDrop={onDrop}

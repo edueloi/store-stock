@@ -320,6 +320,7 @@ export default function PdfImportModal({ open, onClose, onImported }: PdfImportM
             {step === "upload" && (
               <div className="p-6">
                 <div
+                  data-tour="pdf-import-dropzone"
                   onDragOver={e => { e.preventDefault(); setDragging(true); }}
                   onDragLeave={() => setDragging(false)}
                   onDrop={onDrop}
