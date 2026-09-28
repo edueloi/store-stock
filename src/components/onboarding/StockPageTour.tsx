@@ -14,11 +14,19 @@ export const STOCK_PAGE_TOUR_EVENTS = {
   closeAdjustment: "page-tour:stock:close-adjustment",
 } as const;
 
+// Cada passo que muda o "estado da tela" (abrir/fechar o modal de ajuste)
+// sabe como desfazer isso ao voltar, via onPrevClick — "Voltar" sempre
+// funciona de verdade, sem precisar desabilitá-lo nesses pontos.
 function buildSteps(): DriveStep[] {
-  const goAfter = (driverObj: Driver, work: () => Promise<unknown>) => {
+  const goForward = (driverObj: Driver, work: () => Promise<unknown>) => {
     work()
       .catch(() => { /* elemento não apareceu a tempo — segue o tour mesmo assim */ })
       .finally(() => driverObj.moveNext());
+  };
+  const goBack = (driverObj: Driver, work: () => Promise<unknown>) => {
+    work()
+      .catch(() => { /* idem, ao voltar */ })
+      .finally(() => driverObj.movePrevious());
   };
 
   return [
@@ -59,10 +67,9 @@ function buildSteps(): DriveStep[] {
         description: "Vamos abrir o ajuste de estoque de um produto para você ver como funciona (nada será aplicado de verdade).",
         side: "left",
         align: "start",
-        disableButtons: ["previous"],
         onNextClick: (_el, _step, opts) => {
           dispatchTourEvent(STOCK_PAGE_TOUR_EVENTS.openAdjustment);
-          goAfter(opts.driver, () => waitForElement('[data-tour="stock-adjustment-type"]', 2500));
+          goForward(opts.driver, () => waitForElement('[data-tour="stock-adjustment-type"]', 2500));
         },
       },
     },
@@ -73,7 +80,10 @@ function buildSteps(): DriveStep[] {
         description: "Escolha se o ajuste é uma Compra, Ajuste, Perda ou Devolução — isso fica registrado no histórico de auditoria.",
         side: "top",
         align: "start",
-        disableButtons: ["previous"],
+        onPrevClick: (_el, _step, opts) => {
+          dispatchTourEvent(STOCK_PAGE_TOUR_EVENTS.closeAdjustment);
+          goBack(opts.driver, () => Promise.resolve());
+        },
       },
     },
     {
@@ -83,10 +93,12 @@ function buildSteps(): DriveStep[] {
         description: "Use os botões + e − para definir a variação de estoque. Serve para corrigir divergências de inventário — nada é aplicado até clicar em \"Aplicar\". Vamos fechar sem aplicar.",
         side: "top",
         align: "start",
-        disableButtons: ["previous"],
         onNextClick: (_el, _step, opts) => {
           dispatchTourEvent(STOCK_PAGE_TOUR_EVENTS.closeAdjustment);
           opts.driver.moveNext();
+        },
+        onPrevClick: (_el, _step, opts) => {
+          goBack(opts.driver, () => Promise.resolve());
         },
       },
     },

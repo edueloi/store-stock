@@ -73,6 +73,23 @@ function buildSteps(navigate: (path: string) => void): DriveStep[] {
       .catch(() => { /* elemento/rota não apareceu a tempo — segue o tour mesmo assim */ })
       .finally(() => driverObj.moveNext());
   };
+  const goBack = (driverObj: Driver, work: () => Promise<unknown>) => {
+    work()
+      .catch(() => { /* idem, ao voltar */ })
+      .finally(() => driverObj.movePrevious());
+  };
+  const openExampleProduct = () => {
+    dispatchTourEvent(TOUR_EVENTS.openNewProduct, { name: "Produto Exemplo" });
+    return waitForElement('[data-tour="product-name-field"]').then(() => {
+      dispatchTourEvent(TOUR_EVENTS.fillProduct, { price: 29.9, stock_quantity: 10 });
+    });
+  };
+  const openExampleCategory = () => {
+    dispatchTourEvent(TOUR_EVENTS.openNewCategory);
+    return waitForElement('[data-tour="category-name-field"]').then(() => {
+      dispatchTourEvent(TOUR_EVENTS.fillCategory, { name: "Categoria Exemplo" });
+    });
+  };
 
   return [
     {
@@ -101,14 +118,10 @@ function buildSteps(navigate: (path: string) => void): DriveStep[] {
         description: "É aqui que você cadastra e organiza seus produtos — nome, preço, fotos e estoque. Vamos abrir o cadastro de um produto novo para você ver como funciona (nada será salvo).",
         side: "top",
         align: "start",
-        // "Voltar" aqui exigiria desnavegar para a tela anterior, que este
-        // tour não faz — desabilitado para não deixar o spotlight apontando
-        // para um elemento de uma tela que não está mais em tela.
-        disableButtons: ["previous"],
-        onNextClick: (_el, _step, opts) => {
-          dispatchTourEvent(TOUR_EVENTS.openNewProduct, { name: "Produto Exemplo" });
-          goAfter(opts.driver, () => waitForElement('[data-tour="product-name-field"]'));
-        },
+        onNextClick: (_el, _step, opts) => goAfter(opts.driver, openExampleProduct),
+        // "Voltar" aqui volta o próprio menu (passo anterior não navega para
+        // nenhuma outra tela), então basta retroceder o driver normalmente.
+        onPrevClick: (_el, _step, opts) => opts.driver.movePrevious(),
       },
     },
     {
@@ -165,15 +178,18 @@ function buildSteps(navigate: (path: string) => void): DriveStep[] {
         description: "Organizar os produtos em categorias antes ajuda a deixar o catálogo online mais fácil de navegar. Vamos ver o cadastro de uma categoria também (sem salvar nada).",
         side: "bottom",
         align: "start",
-        // Mesmo motivo do passo de Catálogo: "Voltar" desnavegaria para o
-        // Catálogo, que este tour não desfaz.
-        disableButtons: ["previous"],
         onNextClick: (_el, _step, opts) => {
           dispatchTourEvent(TOUR_EVENTS.openNewCategory);
           goAfter(opts.driver, async () => {
             await waitForElement('[data-tour="category-name-field"]');
             dispatchTourEvent(TOUR_EVENTS.fillCategory, { name: "Categoria Exemplo" });
           });
+        },
+        // Volta de Categorias para o Catálogo, reabrindo o produto de exemplo
+        // no mesmo estado em que estava (nome/preço/estoque preenchidos).
+        onPrevClick: (_el, _step, opts) => {
+          navigate("/admin/catalog");
+          goBack(opts.driver, () => waitForElement('[data-tour="inventory-page"]').then(openExampleProduct));
         },
       },
     },
@@ -189,18 +205,21 @@ function buildSteps(navigate: (path: string) => void): DriveStep[] {
           navigate("/admin/pdv");
           goAfter(opts.driver, () => waitForPath("/admin/pdv"));
         },
+        onPrevClick: (_el, _step, opts) => opts.driver.movePrevious(),
       },
     },
     {
       popover: {
         title: "PDV — Caixa",
         description: "É aqui que você realiza as vendas no balcão, com atalhos pra agilizar o atendimento.",
-        // Mesmo motivo dos passos anteriores: sem elemento nesta etapa, mas
-        // "Voltar" ainda assim desnavegaria para Categorias sem necessidade.
-        disableButtons: ["previous"],
         onNextClick: (_el, _step, opts) => {
           navigate("/admin/settings");
           goAfter(opts.driver, () => waitForPath("/admin/settings"));
+        },
+        // Volta do PDV para Categorias, reabrindo a categoria de exemplo.
+        onPrevClick: (_el, _step, opts) => {
+          navigate("/admin/categories");
+          goBack(opts.driver, () => waitForElement('[data-tour="categories-page"]').then(openExampleCategory));
         },
       },
     },
@@ -208,7 +227,12 @@ function buildSteps(navigate: (path: string) => void): DriveStep[] {
       popover: {
         title: "Configurações",
         description: "Personalize sua loja online: tema, cores e integração com WhatsApp.",
-        disableButtons: ["previous"],
+        onNextClick: (_el, _step, opts) => opts.driver.moveNext(),
+        // Volta de Configurações para o PDV.
+        onPrevClick: (_el, _step, opts) => {
+          navigate("/admin/pdv");
+          goBack(opts.driver, () => waitForPath("/admin/pdv"));
+        },
       },
     },
     {

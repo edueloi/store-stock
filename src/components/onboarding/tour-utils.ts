@@ -64,3 +64,100 @@ export function waitForPath(path: string, timeoutMs = 6000): Promise<void> {
     tick();
   });
 }
+
+// ── Animação de "arrastar arquivo" (cursor fantasma) ────────────────────────
+//
+// Para ilustrar Importar PDF/XML sem soltar um arquivo de verdade no input,
+// desenhamos um cursor de mouse + chip de arquivo que se move do canto da
+// tela até a dropzone alvo, com a dropzone reagindo visualmente (mesma
+// classe de destaque que ela já usa no hover real, se existir — senão um
+// anel azul genérico). Puramente decorativo: nenhum File/DataTransfer real é
+// criado, então não há como isso disparar o parser real do modal.
+let dragCursorEl: HTMLDivElement | null = null;
+
+function ensureDragCursorStyles() {
+  if (document.getElementById("bx-tour-drag-style")) return;
+  const style = document.createElement("style");
+  style.id = "bx-tour-drag-style";
+  style.textContent = `
+    .bx-tour-drag-cursor {
+      /* Acima do popover do driver.js (z-index: 1000000000) para nunca ficar
+         escondido atrás dele, qualquer que seja a posição do popover. */
+      position: fixed; z-index: 1000000001; pointer-events: none;
+      display: flex; align-items: center; gap: 6px;
+      transition: left 900ms cubic-bezier(0.65, 0, 0.35, 1), top 900ms cubic-bezier(0.65, 0, 0.35, 1), opacity 250ms ease;
+      opacity: 0;
+    }
+    .bx-tour-drag-cursor .bx-tour-drag-chip {
+      background: #0b1327; color: #fff; font: 700 11px/1 system-ui, sans-serif;
+      padding: 6px 10px; border-radius: 8px; box-shadow: 0 6px 18px rgba(11,19,39,0.35);
+      white-space: nowrap;
+    }
+    .bx-tour-drag-cursor svg { filter: drop-shadow(0 3px 6px rgba(0,0,0,0.35)); }
+    .bx-tour-drop-target-active {
+      outline: 2px dashed #297ed1 !important;
+      outline-offset: 2px;
+      background-color: rgba(41, 126, 209, 0.06) !important;
+      transition: background-color 200ms ease;
+    }
+  `;
+  document.head.appendChild(style);
+}
+
+const CURSOR_SVG = `<svg width="22" height="22" viewBox="0 0 24 24" fill="#0b1327" stroke="#fff" stroke-width="1"><path d="M4 2l14 8-6 1.5L9 18z"/></svg>`;
+
+/**
+ * Anima um cursor fantasma "arrastando" um chip com o nome do arquivo desde
+ * o canto inferior direito da tela até o centro do elemento alvo (a
+ * dropzone), marca o alvo como "ativo" (mesmo efeito visual de um dragover
+ * real) e depois desfaz tudo. Resolve depois que a animação termina.
+ */
+export function simulateFileDrag(targetSelector: string, fileName: string): Promise<void> {
+  return new Promise((resolve) => {
+    ensureDragCursorStyles();
+    const target = visibleTourElement(targetSelector) as HTMLElement | undefined;
+    if (!target) { resolve(); return; }
+
+    const rect = target.getBoundingClientRect();
+    const endX = rect.left + rect.width / 2;
+    const endY = rect.top + rect.height / 2;
+    const startX = window.innerWidth - 60;
+    const startY = window.innerHeight - 60;
+
+    const cursor = document.createElement("div");
+    cursor.className = "bx-tour-drag-cursor";
+    cursor.style.left = `${startX}px`;
+    cursor.style.top = `${startY}px`;
+    cursor.innerHTML = `${CURSOR_SVG}<span class="bx-tour-drag-chip">${fileName}</span>`;
+    document.body.appendChild(cursor);
+    dragCursorEl = cursor;
+
+    // Força um reflow antes de mudar left/top+opacity para a transição CSS animar.
+    void cursor.offsetWidth;
+    cursor.style.opacity = "1";
+
+    window.setTimeout(() => {
+      cursor.style.left = `${endX}px`;
+      cursor.style.top = `${endY}px`;
+      target.classList.add("bx-tour-drop-target-active");
+    }, 60);
+
+    window.setTimeout(() => {
+      target.classList.remove("bx-tour-drop-target-active");
+      cursor.style.opacity = "0";
+      window.setTimeout(() => {
+        cursor.remove();
+        if (dragCursorEl === cursor) dragCursorEl = null;
+        resolve();
+      }, 260);
+    }, 1100);
+  });
+}
+
+/** Remove qualquer cursor fantasma que tenha ficado preso na tela (ex: usuário
+ * fechou o tour no meio da animação). Chame ao destruir/sair do tour. */
+export function cleanupDragCursor() {
+  dragCursorEl?.remove();
+  dragCursorEl = null;
+  document.querySelectorAll(".bx-tour-drop-target-active").forEach((el) => el.classList.remove("bx-tour-drop-target-active"));
+}

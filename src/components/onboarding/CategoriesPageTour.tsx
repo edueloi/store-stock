@@ -16,11 +16,25 @@ export const CATEGORIES_PAGE_TOUR_EVENTS = {
   openEditCategory: "page-tour:categories:open-edit-category",
 } as const;
 
+// Cada passo que muda o "estado da tela" (abrir/fechar o modal) sabe como
+// desfazer isso ao voltar, via onPrevClick — "Voltar" sempre funciona de
+// verdade, sem precisar desabilitá-lo nesses pontos.
 function buildSteps(): DriveStep[] {
-  const goAfter = (driverObj: Driver, work: () => Promise<unknown>) => {
+  const goForward = (driverObj: Driver, work: () => Promise<unknown>) => {
     work()
       .catch(() => { /* elemento não apareceu a tempo — segue o tour mesmo assim */ })
       .finally(() => driverObj.moveNext());
+  };
+  const goBack = (driverObj: Driver, work: () => Promise<unknown>) => {
+    work()
+      .catch(() => { /* idem, ao voltar */ })
+      .finally(() => driverObj.movePrevious());
+  };
+  const openExampleCategory = () => {
+    dispatchTourEvent(CATEGORIES_PAGE_TOUR_EVENTS.openNewCategory);
+    return waitForElement('[data-tour="category-name-field"]').then(() => {
+      dispatchTourEvent(CATEGORIES_PAGE_TOUR_EVENTS.fillCategory, { name: "Categoria Exemplo" });
+    });
   };
 
   return [
@@ -46,14 +60,7 @@ function buildSteps(): DriveStep[] {
         description: "Vamos abrir o cadastro de uma categoria nova para você ver os campos disponíveis (nada será salvo).",
         side: "bottom",
         align: "start",
-        disableButtons: ["previous"],
-        onNextClick: (_el, _step, opts) => {
-          dispatchTourEvent(CATEGORIES_PAGE_TOUR_EVENTS.openNewCategory);
-          goAfter(opts.driver, async () => {
-            await waitForElement('[data-tour="category-name-field"]');
-            dispatchTourEvent(CATEGORIES_PAGE_TOUR_EVENTS.fillCategory, { name: "Categoria Exemplo" });
-          });
-        },
+        onNextClick: (_el, _step, opts) => goForward(opts.driver, openExampleCategory),
       },
     },
     {
@@ -63,7 +70,10 @@ function buildSteps(): DriveStep[] {
         description: "Preenchemos com \"Categoria Exemplo\" só para ilustrar. Logo abaixo você escolhe um ícone e uma cor para identificar a categoria.",
         side: "bottom",
         align: "start",
-        disableButtons: ["previous"],
+        onPrevClick: (_el, _step, opts) => {
+          dispatchTourEvent(CATEGORIES_PAGE_TOUR_EVENTS.closeCategoryModal);
+          goBack(opts.driver, () => Promise.resolve());
+        },
       },
     },
     {
@@ -79,7 +89,10 @@ function buildSteps(): DriveStep[] {
         onNextClick: (_el, _step, opts) => {
           dispatchTourEvent(CATEGORIES_PAGE_TOUR_EVENTS.closeCategoryModal);
           dispatchTourEvent(CATEGORIES_PAGE_TOUR_EVENTS.openEditCategory);
-          goAfter(opts.driver, () => waitForElement('[data-tour="category-name-field"]', 2500));
+          goForward(opts.driver, () => waitForElement('[data-tour="category-name-field"]', 2500));
+        },
+        onPrevClick: (_el, _step, opts) => {
+          goBack(opts.driver, openExampleCategory);
         },
       },
     },
@@ -93,10 +106,13 @@ function buildSteps(): DriveStep[] {
         description: "O botão \"Editar\" em cada card abre o mesmo formulário, já preenchido, para atualizar nome, ícone, cor ou capa.",
         side: "bottom",
         align: "start",
-        disableButtons: ["previous"],
         onNextClick: (_el, _step, opts) => {
           dispatchTourEvent(CATEGORIES_PAGE_TOUR_EVENTS.closeCategoryModal);
           opts.driver.moveNext();
+        },
+        onPrevClick: (_el, _step, opts) => {
+          dispatchTourEvent(CATEGORIES_PAGE_TOUR_EVENTS.closeCategoryModal);
+          goBack(opts.driver, () => Promise.resolve());
         },
       },
     },

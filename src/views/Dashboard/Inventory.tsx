@@ -560,6 +560,11 @@ export default function Inventory() {
       // abre nada e o passo do tour é pulado (skipMissingElement cuida disso).
       if (products.length > 0) openEdit(products[0]);
     };
+    // Injeta a foto de exemplo (asset estático em /public/tour-assets, nunca
+    // passa por upload real) só para ilustrar visualmente como fica um
+    // produto com foto — editingImages só é persistido de verdade se o
+    // usuário clicar em "Cadastrar Produto", o que o tour nunca faz.
+    const onFillProductImagePage = () => setEditingImages(["/tour-assets/mouse_exemplo.png"]);
     const onCloseProductModalPage = () => setIsModalOpen(false);
     const onOpenPdfModalPage = () => setIsPdfModalOpen(true);
     const onClosePdfModalPage = () => setIsPdfModalOpen(false);
@@ -568,6 +573,7 @@ export default function Inventory() {
 
     window.addEventListener(INVENTORY_PAGE_TOUR_EVENTS.openNewProduct, onOpenNewProductPage);
     window.addEventListener(INVENTORY_PAGE_TOUR_EVENTS.fillProduct, onFillProductPage);
+    window.addEventListener("page-tour:inventory:fill-product-image", onFillProductImagePage);
     window.addEventListener(INVENTORY_PAGE_TOUR_EVENTS.openEditProduct, onOpenEditProductPage);
     window.addEventListener(INVENTORY_PAGE_TOUR_EVENTS.closeProductModal, onCloseProductModalPage);
     window.addEventListener("page-tour:inventory:open-pdf-modal", onOpenPdfModalPage);
@@ -577,6 +583,7 @@ export default function Inventory() {
     return () => {
       window.removeEventListener(INVENTORY_PAGE_TOUR_EVENTS.openNewProduct, onOpenNewProductPage);
       window.removeEventListener(INVENTORY_PAGE_TOUR_EVENTS.fillProduct, onFillProductPage);
+      window.removeEventListener("page-tour:inventory:fill-product-image", onFillProductImagePage);
       window.removeEventListener(INVENTORY_PAGE_TOUR_EVENTS.openEditProduct, onOpenEditProductPage);
       window.removeEventListener(INVENTORY_PAGE_TOUR_EVENTS.closeProductModal, onCloseProductModalPage);
       window.removeEventListener("page-tour:inventory:open-pdf-modal", onOpenPdfModalPage);
