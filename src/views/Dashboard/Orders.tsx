@@ -26,8 +26,10 @@ import {
   RotateCcw,
   Gift,
   Plus,
+  HelpCircle,
 } from "lucide-react";
 import PageHeader from "../../components/layout/PageHeader";
+import Button from "../../components/ui/Button";
 import { Order, Product } from "../../types";
 import { cn } from "../../lib/utils";
 import { motion, AnimatePresence } from "motion/react";
@@ -38,6 +40,7 @@ import { fetchRemotePrintTerminals, requestRemotePrint, type RemotePrintTerminal
 import { printThermalText, buildOrderReceiptText } from "../../lib/thermalReceipt";
 import { Printer } from "lucide-react";
 import OrderReturnModal from "./OrderReturnModal";
+import OrdersPageTour, { type OrdersPageTourHandle } from "../../components/onboarding/OrdersPageTour";
 
 // Baixa um arquivo autenticado (Bearer token) via fetch+blob — um <a href> direto
 // não envia o header Authorization e o backend responde 401.
@@ -466,6 +469,8 @@ export default function Orders() {
   const [documentTarget, setDocumentTarget] = useState<Order | OrderDetail | null>(null);
   const [documentInput, setDocumentInput] = useState("");
   const [savingDocument, setSavingDocument] = useState(false);
+
+  const ordersPageTourRef = useRef<OrdersPageTourHandle>(null);
 
   const handleSaveDocument = async (emitAfter: boolean) => {
     if (!documentTarget) return;
@@ -1236,24 +1241,38 @@ ${
     );
 
   return (
-    <div className="mx-auto min-w-0 w-full max-w-[1600px] space-y-4 sm:space-y-6">
+    <div data-tour="orders-page" className="mx-auto min-w-0 w-full max-w-[1600px] space-y-4 sm:space-y-6">
       <PageHeader
         title="Pedidos"
         className="[&>div>h2]:text-lg [&>div>h2]:tracking-normal sm:[&>div>h2]:text-xl [&>div>p]:tracking-[0.12em]"
         subtitle="Gestão e acompanhamento de vendas"
         action={
-          <button
-            onClick={async () => {
-              setExporting(true);
-              try { await exportOrdersToExcel(filteredOrders, tenant?.name ?? "BoxSys Store"); }
-              finally { setExporting(false); }
-            }}
-            disabled={exporting || sortedOrders.length === 0}
-            className="h-10 w-full justify-center bg-white border border-slate-200 px-4 rounded-xl flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest hover:bg-slate-50 transition-all text-slate-600 shadow-sm disabled:opacity-40 sm:h-9 sm:w-auto">
-            {exporting ? <Loader2 size={13} className="animate-spin" /> : <Download size={13} />} Exportar
-          </button>
+          <div className="flex gap-2 items-center flex-wrap justify-end">
+            <button
+              data-tour="orders-export-btn"
+              onClick={async () => {
+                setExporting(true);
+                try { await exportOrdersToExcel(filteredOrders, tenant?.name ?? "BoxSys Store"); }
+                finally { setExporting(false); }
+              }}
+              disabled={exporting || sortedOrders.length === 0}
+              className="h-10 w-full justify-center bg-white border border-slate-200 px-4 rounded-xl flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest hover:bg-slate-50 transition-all text-slate-600 shadow-sm disabled:opacity-40 sm:h-9 sm:w-auto">
+              {exporting ? <Loader2 size={13} className="animate-spin" /> : <Download size={13} />} Exportar
+            </button>
+            <Button
+              variant="secondary"
+              className="text-slate-400 hover:text-blue-600 hover:bg-blue-50 border-slate-200 hover:border-blue-300"
+              icon={<HelpCircle size={14} />}
+              onClick={() => ordersPageTourRef.current?.start()}
+              title="Tour guiado desta página"
+            >
+              <span className="sr-only sm:not-sr-only">Ajuda</span>
+            </Button>
+          </div>
         }
       />
+
+      <OrdersPageTour ref={ordersPageTourRef} />
 
       {/* ── Toolbar: KPIs compactos + filtros numa linha ───────────── */}
       <div className="relative overflow-visible rounded-2xl border border-slate-200 bg-white shadow-sm">

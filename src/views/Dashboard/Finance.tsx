@@ -28,12 +28,15 @@ import {
   ExternalLink,
   Printer,
   Banknote,
+  HelpCircle,
 } from "lucide-react";
 import { FinanceEntry, Tenant } from "../../types";
 import { cn } from "../../lib/utils";
 import Modal from "../../components/ui/Modal";
+import Button from "../../components/ui/Button";
 import { onRealtimeAny } from "../../lib/realtime";
 import { printThermalText, buildOrderReceiptText } from "../../lib/thermalReceipt";
+import FinancePageTour, { FINANCE_PAGE_TOUR_EVENTS, type FinancePageTourHandle } from "../../components/onboarding/FinancePageTour";
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
 
@@ -756,6 +759,8 @@ export default function Finance() {
   const [editSaving, setEditSaving] = useState(false);
   const [pmError, setPmError] = useState<string | null>(null);
 
+  const financePageTourRef = useRef<FinancePageTourHandle>(null);
+
   const navigate = useNavigate();
   const token = () => localStorage.getItem("token");
 
@@ -898,6 +903,31 @@ export default function Finance() {
     setPmError(null);
     setIsModalOpen(true);
   };
+
+  // ── Canal de comunicação do TOUR DE PÁGINA (FinancePageTour) ──────────────
+  // Abre o modal "Novo Lançamento" de verdade via openModal("income") e
+  // preenche campos de exemplo via setNewEntry — nunca chama handleSave (POST
+  // real), handleEditSave (PUT real), handleDeleteOne, handleDeleteBulk ou
+  // executeDelete (DELETE reais). Fechar sempre via setIsModalOpen(false)
+  // (equivalente a clicar em Cancelar, que já faz isso na tela real).
+  useEffect(() => {
+    const onOpenNewEntry = () => openModal("income");
+    const onFillEntry = (e: Event) => {
+      const detail = (e as CustomEvent<Partial<FinanceEntry>>).detail;
+      if (detail) setNewEntry((prev) => ({ ...prev, ...detail }));
+    };
+    const onCloseModal = () => setIsModalOpen(false);
+
+    window.addEventListener(FINANCE_PAGE_TOUR_EVENTS.openNewEntry, onOpenNewEntry);
+    window.addEventListener(FINANCE_PAGE_TOUR_EVENTS.fillEntry, onFillEntry);
+    window.addEventListener(FINANCE_PAGE_TOUR_EVENTS.closeModal, onCloseModal);
+    return () => {
+      window.removeEventListener(FINANCE_PAGE_TOUR_EVENTS.openNewEntry, onOpenNewEntry);
+      window.removeEventListener(FINANCE_PAGE_TOUR_EVENTS.fillEntry, onFillEntry);
+      window.removeEventListener(FINANCE_PAGE_TOUR_EVENTS.closeModal, onCloseModal);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -1061,36 +1091,49 @@ export default function Finance() {
     : `${formatDateBR(dateFrom)} a ${formatDateBR(dateTo)}`;
 
   return (
-    <div className="space-y-6">
+    <div data-tour="finance-page" className="space-y-6">
       <PageHeader
         title="Fluxo de Caixa"
         subtitle="Controle de tesouraria & lançamentos"
         action={
-          <div className="flex gap-2">
-            <button
-              onClick={() => openModal("income")}
-              className="h-9 px-4 bg-emerald-600 text-white rounded-xl flex items-center gap-2 text-[10px] font-black uppercase tracking-widest hover:bg-emerald-500 transition-all active:scale-95"
+          <div className="flex gap-2 items-center flex-wrap">
+            <div data-tour="finance-new-entry-actions" className="flex gap-2">
+              <button
+                onClick={() => openModal("income")}
+                className="h-9 px-4 bg-emerald-600 text-white rounded-xl flex items-center gap-2 text-[10px] font-black uppercase tracking-widest hover:bg-emerald-500 transition-all active:scale-95"
+              >
+                <Plus size={13} strokeWidth={3} /> Receita
+              </button>
+              <button
+                onClick={() => openModal("expense")}
+                className="h-9 px-4 bg-rose-600 text-white rounded-xl flex items-center gap-2 text-[10px] font-black uppercase tracking-widest hover:bg-rose-500 transition-all active:scale-95"
+              >
+                <Minus size={13} strokeWidth={3} /> Despesa
+              </button>
+              <button
+                onClick={() => openModal("withdrawal")}
+                className="h-9 px-4 bg-amber-600 text-white rounded-xl flex items-center gap-2 text-[10px] font-black uppercase tracking-widest hover:bg-amber-500 transition-all active:scale-95"
+              >
+                <Banknote size={13} strokeWidth={3} /> Retirada
+              </button>
+            </div>
+            <Button
+              variant="secondary"
+              className="text-slate-400 hover:text-blue-600 hover:bg-blue-50 border-slate-200 hover:border-blue-300"
+              icon={<HelpCircle size={14} />}
+              onClick={() => financePageTourRef.current?.start()}
+              title="Tour guiado desta página"
             >
-              <Plus size={13} strokeWidth={3} /> Receita
-            </button>
-            <button
-              onClick={() => openModal("expense")}
-              className="h-9 px-4 bg-rose-600 text-white rounded-xl flex items-center gap-2 text-[10px] font-black uppercase tracking-widest hover:bg-rose-500 transition-all active:scale-95"
-            >
-              <Minus size={13} strokeWidth={3} /> Despesa
-            </button>
-            <button
-              onClick={() => openModal("withdrawal")}
-              className="h-9 px-4 bg-amber-600 text-white rounded-xl flex items-center gap-2 text-[10px] font-black uppercase tracking-widest hover:bg-amber-500 transition-all active:scale-95"
-            >
-              <Banknote size={13} strokeWidth={3} /> Retirada
-            </button>
+              <span className="sr-only sm:not-sr-only">Ajuda</span>
+            </Button>
           </div>
         }
       />
 
+      <FinancePageTour ref={financePageTourRef} />
+
       {/* ── SUMMARY CARDS ──────────────────────────────────────────────── */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+      <div data-tour="finance-summary-cards" className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
         {/* Entradas card — shows gross + fee breakdown */}
         <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm relative overflow-hidden">
           <div className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2">
@@ -1205,6 +1248,7 @@ export default function Finance() {
                 const activeCount = (sourceFilter.size > 0 ? 1 : 0) + (paymentFilter.size > 0 ? 1 : 0) + (searchQ ? 1 : 0);
                 return (
                   <button
+                    data-tour="finance-filters-toggle"
                     onClick={() => setShowFilters(!showFilters)}
                     className={cn(
                       "h-8 px-3 rounded-lg flex items-center gap-1.5 text-[9px] font-black uppercase tracking-widest border transition-all relative",
@@ -1227,6 +1271,7 @@ export default function Finance() {
               {/* Export dropdown */}
               <div className="relative" ref={exportRef}>
                 <button
+                  data-tour="finance-export-btn"
                   onClick={() => setShowExport(!showExport)}
                   className="h-8 px-3 rounded-lg flex items-center gap-1.5 text-[9px] font-black uppercase tracking-widest border border-slate-200 bg-white text-slate-500 hover:border-slate-400 transition-all"
                 >
@@ -1264,7 +1309,7 @@ export default function Finance() {
           </div>
 
           {/* Row 2: month/year navigator + type toggles */}
-          <div className="flex items-center gap-2 flex-wrap">
+          <div data-tour="finance-period-nav" className="flex items-center gap-2 flex-wrap">
             {/* ← Mês/Ano → navigator */}
             <div className="flex items-center gap-1 bg-slate-50 border border-slate-200 rounded-xl p-1">
               <button
@@ -1556,7 +1601,7 @@ export default function Finance() {
         )}
 
         {/* Desktop Table */}
-        <div className="hidden sm:block overflow-x-auto">
+        <div data-tour="finance-table" className="hidden sm:block overflow-x-auto">
           {loading ? (
             <div className="flex items-center justify-center py-16">
               <Loader2 size={22} className="animate-spin text-slate-300" />
@@ -2424,7 +2469,7 @@ export default function Finance() {
         }
       >
         <form id="finance-form" onSubmit={handleSave} className="space-y-4">
-          <div className="space-y-1.5">
+          <div data-tour="finance-form-description" className="space-y-1.5">
             <label className="text-[9px] font-black text-slate-400 uppercase tracking-[0.18em] px-1 block">
               {newEntry.type === "withdrawal" ? "Motivo da Retirada" : "Descrição"}
             </label>
@@ -2479,7 +2524,7 @@ export default function Finance() {
             </div>
           </div>
           {/* Type toggle inside modal */}
-          <div className="space-y-1.5">
+          <div data-tour="finance-form-type-toggle" className="space-y-1.5">
             <label className="text-[9px] font-black text-slate-400 uppercase tracking-[0.18em] px-1 block">
               Tipo
             </label>

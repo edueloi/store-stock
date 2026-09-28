@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import {
   ShoppingBag,
   Plus,
@@ -22,14 +22,17 @@ import {
   History,
   RotateCcw,
   ShieldAlert,
+  HelpCircle,
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { cn } from "../../lib/utils";
 import PageHeader from "../../components/layout/PageHeader";
+import Button from "../../components/ui/Button";
 import Combobox from "../../components/ui/Combobox";
 import { useToast } from "../../components/ui/Toast";
 import { onRealtime } from "../../lib/realtime";
 import { getStoredUser } from "../../lib/session";
+import ConsignmentsPageTour, { CONSIGNMENTS_PAGE_TOUR_EVENTS, type ConsignmentsPageTourHandle } from "../../components/onboarding/ConsignmentsPageTour";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -247,6 +250,8 @@ export default function Consignments() {
 
   const [reopening, setReopening] = useState(false);
 
+  const consignmentsPageTourRef = useRef<ConsignmentsPageTourHandle>(null);
+
   const fetchAll = useCallback(async () => {
     const h = authHeaderNoJson();
     try {
@@ -344,6 +349,31 @@ export default function Consignments() {
   const draftTotal = draftItems.reduce((sum, d) => sum + Number(d.product.discount_price ?? d.product.price) * d.quantity, 0);
   const consignmentLimit = selectedCustomer?.consignment_limit ? Number(selectedCustomer.consignment_limit) : 0;
   const overLimit = consignmentLimit > 0 && selectedCustomerOpenAmount + draftTotal > consignmentLimit + 0.005;
+
+  // ── Canal de comunicação do TOUR DE PÁGINA (ConsignmentsPageTour) ──────────
+  // Abre o modal "Nova Sacola" de verdade via setShowForm(true) e preenche
+  // campos de exemplo via setForm — nunca chama handleCreate (POST real, que
+  // pode inclusive disparar um window.confirm nativo se o cliente já tiver
+  // sacola aberta). Fechar sempre via setShowForm(false) (equivalente a
+  // clicar no X ou fora do modal, que já fazem isso na tela real).
+  useEffect(() => {
+    const onOpenNewBag = () => setShowForm(true);
+    const onFillBag = (e: Event) => {
+      const detail = (e as CustomEvent<Partial<ReturnType<typeof emptyForm>>>).detail;
+      if (detail) setForm((f) => ({ ...f, ...detail }));
+    };
+    const onCloseForm = () => setShowForm(false);
+
+    window.addEventListener(CONSIGNMENTS_PAGE_TOUR_EVENTS.openNewBag, onOpenNewBag);
+    window.addEventListener(CONSIGNMENTS_PAGE_TOUR_EVENTS.fillBag, onFillBag);
+    window.addEventListener(CONSIGNMENTS_PAGE_TOUR_EVENTS.closeForm, onCloseForm);
+    return () => {
+      window.removeEventListener(CONSIGNMENTS_PAGE_TOUR_EVENTS.openNewBag, onOpenNewBag);
+      window.removeEventListener(CONSIGNMENTS_PAGE_TOUR_EVENTS.fillBag, onFillBag);
+      window.removeEventListener(CONSIGNMENTS_PAGE_TOUR_EVENTS.closeForm, onCloseForm);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // ── Create ──────────────────────────────────────────────────────────────
   const handleCreate = async () => {
@@ -550,22 +580,36 @@ export default function Consignments() {
   const partialCount = consignments.filter((c) => displayStatus(c) === "parcial").length;
 
   return (
-    <div className="space-y-5">
+    <div data-tour="consignments-page" className="space-y-5">
       <PageHeader
         title="Consignação"
         subtitle="Envie produtos para o cliente avaliar e fature o que ficou"
         action={
-          <button
-            onClick={() => setShowForm(true)}
-            className="h-9 px-4 bg-blue-600 text-white rounded-lg flex items-center gap-2 text-[12px] font-bold hover:bg-blue-700 transition-all shadow-md shadow-blue-500/20"
-          >
-            <Plus size={15} /> Nova Sacola
-          </button>
+          <div className="flex gap-2 items-center flex-wrap">
+            <button
+              data-tour="consignments-new-btn"
+              onClick={() => setShowForm(true)}
+              className="h-9 px-4 bg-blue-600 text-white rounded-lg flex items-center gap-2 text-[12px] font-bold hover:bg-blue-700 transition-all shadow-md shadow-blue-500/20"
+            >
+              <Plus size={15} /> Nova Sacola
+            </button>
+            <Button
+              variant="secondary"
+              className="text-slate-400 hover:text-blue-600 hover:bg-blue-50 border-slate-200 hover:border-blue-300"
+              icon={<HelpCircle size={14} />}
+              onClick={() => consignmentsPageTourRef.current?.start()}
+              title="Tour guiado desta página"
+            >
+              <span className="sr-only sm:not-sr-only">Ajuda</span>
+            </Button>
+          </div>
         }
       />
 
+      <ConsignmentsPageTour ref={consignmentsPageTourRef} />
+
       {/* Stat cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
+      <div data-tour="consignments-stat-cards" className="grid grid-cols-2 lg:grid-cols-5 gap-3">
         <div className="rounded-xl p-4 border border-blue-100 bg-blue-50/50 shadow-sm">
           <p className="text-[9px] font-black uppercase tracking-widest text-blue-500 mb-1">Abertas</p>
           <p className="text-[22px] font-black text-slate-800">{statusCounts.aberta ?? 0}</p>
@@ -602,7 +646,7 @@ export default function Consignments() {
       </div>
 
       {/* Status tabs */}
-      <div className="flex gap-1.5 overflow-x-auto pb-1">
+      <div data-tour="consignments-status-tabs" className="flex gap-1.5 overflow-x-auto pb-1">
         <button
           onClick={() => setStatusFilter("all")}
           className={cn(
@@ -654,7 +698,7 @@ export default function Consignments() {
       </div>
 
       {/* List */}
-      <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
+      <div data-tour="consignments-table" className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
         {loading ? (
           <div className="p-10 text-center text-slate-400 text-[12px] font-bold">Carregando...</div>
         ) : filtered.length === 0 ? (
@@ -739,7 +783,7 @@ export default function Consignments() {
 
               <div className="flex-1 overflow-y-auto p-6 space-y-5">
                 {/* Cliente */}
-                <div>
+                <div data-tour="consignments-form-customer">
                   <label className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400 mb-1.5 block">Cliente</label>
                   <div className="flex gap-2">
                     <div className="flex-1 min-w-0">
@@ -826,7 +870,7 @@ export default function Consignments() {
                 </div>
 
                 <div className="grid grid-cols-2 gap-2">
-                  <div>
+                  <div data-tour="consignments-form-due-days">
                     <label className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400 mb-1.5 block">Prazo (dias)</label>
                     <input
                       type="number" min="1"

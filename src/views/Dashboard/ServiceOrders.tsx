@@ -1,11 +1,13 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { Plus, Search, Trash2, Loader2, Download, X } from "lucide-react";
+import { Plus, Search, Trash2, Loader2, Download, X, HelpCircle } from "lucide-react";
 import { cn } from "../../lib/utils";
 import PageHeader from "../../components/layout/PageHeader";
+import Button from "../../components/ui/Button";
 import Modal from "../../components/ui/Modal";
 import Combobox, { type ComboboxOption } from "../../components/ui/Combobox";
 import { onRealtime } from "../../lib/realtime";
+import ServiceOrdersPageTour, { type ServiceOrdersPageTourHandle } from "../../components/onboarding/ServiceOrdersPageTour";
 import {
   ServiceOrder,
   Seller,
@@ -36,6 +38,8 @@ export default function ServiceOrders() {
   const [bulkDeleting, setBulkDeleting] = useState(false);
   const [zipping, setZipping] = useState(false);
   const [showBulkDeleteModal, setShowBulkDeleteModal] = useState(false);
+
+  const serviceOrdersPageTourRef = useRef<ServiceOrdersPageTourHandle>(null);
 
   const fetchAll = useCallback(async () => {
     const h = authHeaderNoJson();
@@ -180,19 +184,33 @@ export default function ServiceOrders() {
   ];
 
   return (
-    <div className="space-y-5">
+    <div data-tour="service-orders-page" className="space-y-5">
       <PageHeader
         title="Ordens de Serviço"
         subtitle="Receba equipamentos para conserto, controle o checklist e fature"
         action={
-          <button
-            onClick={() => navigate("/admin/ordens-servico/novo")}
-            className="h-9 px-4 bg-blue-600 text-white rounded-lg flex items-center gap-2 text-[12px] font-bold hover:bg-blue-700 transition-all shadow-md shadow-blue-500/20"
-          >
-            <Plus size={15} /> Nova Ordem de Serviço
-          </button>
+          <div className="flex gap-2 items-center flex-wrap">
+            <button
+              data-tour="service-orders-new-btn"
+              onClick={() => navigate("/admin/ordens-servico/novo")}
+              className="h-9 px-4 bg-blue-600 text-white rounded-lg flex items-center gap-2 text-[12px] font-bold hover:bg-blue-700 transition-all shadow-md shadow-blue-500/20"
+            >
+              <Plus size={15} /> Nova Ordem de Serviço
+            </button>
+            <Button
+              variant="secondary"
+              className="text-slate-400 hover:text-blue-600 hover:bg-blue-50 border-slate-200 hover:border-blue-300"
+              icon={<HelpCircle size={14} />}
+              onClick={() => serviceOrdersPageTourRef.current?.start()}
+              title="Tour guiado desta página"
+            >
+              <span className="sr-only sm:not-sr-only">Ajuda</span>
+            </Button>
+          </div>
         }
       />
+
+      <ServiceOrdersPageTour ref={serviceOrdersPageTourRef} />
 
       {/* Search */}
       <div className="relative max-w-md">
@@ -243,7 +261,7 @@ export default function ServiceOrders() {
       )}
 
       {/* List */}
-      <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
+      <div data-tour="service-orders-table" className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
         {loading ? (
           <div className="p-10 text-center text-slate-400 text-[12px] font-bold">Carregando...</div>
         ) : filtered.length === 0 ? (

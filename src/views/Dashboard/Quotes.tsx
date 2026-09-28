@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   FileText,
@@ -11,11 +11,14 @@ import {
   XCircle,
   Palette,
   PenTool,
+  HelpCircle,
 } from "lucide-react";
 import { cn } from "../../lib/utils";
 import PageHeader from "../../components/layout/PageHeader";
+import Button from "../../components/ui/Button";
 import { generateQuotePDF } from "../../lib/quotePdf";
 import type { DocumentTenant } from "../../lib/documentPdf";
+import QuotesPageTour, { type QuotesPageTourHandle } from "../../components/onboarding/QuotesPageTour";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -94,6 +97,8 @@ export default function Quotes() {
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
 
+  const quotesPageTourRef = useRef<QuotesPageTourHandle>(null);
+
   const fetchAll = useCallback(async () => {
     const h = { Authorization: `Bearer ${localStorage.getItem("token")}` };
     try {
@@ -142,19 +147,33 @@ export default function Quotes() {
   };
 
   return (
-    <div className="space-y-5">
+    <div data-tour="quotes-page" className="space-y-5">
       <PageHeader
         title="Orçamentos"
         subtitle="Crie orçamentos profissionais e converta em vendas"
         action={
-          <button
-            onClick={() => navigate("/admin/orcamentos/novo")}
-            className="h-9 px-4 bg-blue-600 text-white rounded-lg flex items-center gap-2 text-[12px] font-bold hover:bg-blue-700 transition-all shadow-md shadow-blue-500/20"
-          >
-            <Plus size={15} /> Novo Orçamento
-          </button>
+          <div className="flex gap-2 items-center flex-wrap">
+            <button
+              data-tour="quotes-new-btn"
+              onClick={() => navigate("/admin/orcamentos/novo")}
+              className="h-9 px-4 bg-blue-600 text-white rounded-lg flex items-center gap-2 text-[12px] font-bold hover:bg-blue-700 transition-all shadow-md shadow-blue-500/20"
+            >
+              <Plus size={15} /> Novo Orçamento
+            </button>
+            <Button
+              variant="secondary"
+              className="text-slate-400 hover:text-blue-600 hover:bg-blue-50 border-slate-200 hover:border-blue-300"
+              icon={<HelpCircle size={14} />}
+              onClick={() => quotesPageTourRef.current?.start()}
+              title="Tour guiado desta página"
+            >
+              <span className="sr-only sm:not-sr-only">Ajuda</span>
+            </Button>
+          </div>
         }
       />
+
+      <QuotesPageTour ref={quotesPageTourRef} />
 
       {/* Stats */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
@@ -213,7 +232,7 @@ export default function Quotes() {
           </button>
         </div>
       ) : (
-        <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+        <div data-tour="quotes-table" className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
           <table className="w-full text-sm">
             <thead>
               <tr className="bg-slate-50 border-b border-slate-200">
