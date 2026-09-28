@@ -103,12 +103,12 @@ export default function SetupInvite() {
 
       saveSession(data.token, data.user);
 
-      const url =
-        data.tenant?.public_url && !String(data.tenant.public_url).includes("/s/")
-          ? `${String(data.tenant.public_url).replace(/\/+$/, "")}/admin`
-          : "/admin";
-
-      setRedirectUrl(url);
+      // A tela de setup sempre roda no domínio principal (store.boxsys.com.br),
+      // nunca no subdomínio da loja — então o painel admin é sempre "/admin"
+      // relativo, nunca a public_url do tenant (essa é a loja pública, sem
+      // rota de admin válida; colar "/admin" nela deixava o cliente preso no
+      // catálogo depois de criar a conta).
+      setRedirectUrl("/admin");
       setShowWelcome(true);
     } catch {
       setError("Erro ao ativar a conta.");
