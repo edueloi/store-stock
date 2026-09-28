@@ -110,11 +110,19 @@ function monthRange(): { from: string; to: string } {
   return { from: fmtDate(first), to: fmtDate(last) };
 }
 
+// Mesma janela usada no badge da sidebar (AdminDashboard.tsx) para parcelas
+// de crediário "vencendo em breve" — mantido em sincronia manualmente.
+const CREDIARIO_DUE_SOON_DAYS = 3;
+
+interface DebtInstallment { id: number; customer_name: string; due_date: string; remaining: number }
+
 export default function Home() {
   const navigate = useNavigate();
   const [stats, setStats] = useState<any>(null);
   const [topProducts, setTopProducts] = useState<any[]>([]);
   const [loadingStats, setLoadingStats] = useState(true);
+  const [overdueDebts, setOverdueDebts] = useState<DebtInstallment[]>([]);
+  const [dueSoonDebts, setDueSoonDebts] = useState<DebtInstallment[]>([]);
 
   // Filtro de período (default: mês atual)
   const [period, setPeriod] = useState<{ from: string; to: string }>(monthRange);
@@ -155,6 +163,27 @@ export default function Home() {
       setLoadingStats(false);
     }).catch(() => setLoadingStats(false));
   }, [period.from, period.to]);
+
+  // Crediário vencido / vencendo em breve — carrega uma vez (mesmo endpoint
+  // usado no badge da sidebar em AdminDashboard.tsx, dividido client-side
+  // nas duas janelas, mesmo padrão).
+  useEffect(() => {
+    fetch("/api/customers/debts/installments", { headers: headers() })
+      .then(async (r) => {
+        if (r.status === 401 || r.status === 403) { handle403(); return []; }
+        const d = await r.json();
+        return Array.isArray(d) ? d : [];
+      })
+      .then((data: DebtInstallment[]) => {
+        const now = Date.now();
+        setOverdueDebts(data.filter((i) => new Date(i.due_date).getTime() < now));
+        setDueSoonDebts(data.filter((i) => {
+          const daysUntil = (new Date(i.due_date).getTime() - now) / 86_400_000;
+          return daysUntil >= 0 && daysUntil <= CREDIARIO_DUE_SOON_DAYS;
+        }));
+      })
+      .catch(() => {});
+  }, []);
 
   // preferências (links/tarefas/salesView): carregam uma vez
   useEffect(() => {
@@ -418,6 +447,80 @@ export default function Home() {
           {stats.summary.outOfStockProducts.length > 8 && (
             <div className="px-5 py-2 text-center text-[10px] font-bold text-slate-400 uppercase tracking-wide bg-slate-50">
               +{stats.summary.outOfStockProducts.length - 8} outros produtos esgotados
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Crediário vencido */}
+      {overdueDebts.length > 0 && (
+        <div className="bg-white rounded-2xl border border-red-100 shadow-sm overflow-hidden">
+          <div className="flex flex-col gap-3 border-b border-red-100 bg-red-50 px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-5">
+            <div className="flex items-center gap-2.5">
+              <AlertTriangle size={16} className="text-red-500 shrink-0" />
+              <div>
+                <p className="text-sm font-black text-slate-900">Crediário Vencido</p>
+                <p className="text-[10px] text-red-500 font-bold uppercase tracking-wide">
+                  {overdueDebts.length} parcela{overdueDebts.length !== 1 ? "s" : ""} · R$ {overdueDebts.reduce((s, i) => s + i.remaining, 0).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
+                </p>
+              </div>
+            </div>
+            <button onClick={() => navigate("/admin/contas-receber")}
+              className="shrink-0 cursor-pointer text-[10px] font-black uppercase tracking-wider text-red-600 hover:underline">
+              Ver crediário
+            </button>
+          </div>
+          <div className="divide-y divide-slate-50 max-h-64 overflow-y-auto">
+            {overdueDebts.slice(0, 8).map((i) => (
+              <div key={i.id} className="flex items-center justify-between gap-3 px-4 py-3 sm:px-5">
+                <div className="min-w-0">
+                  <p className="text-xs font-bold text-slate-900 truncate">{i.customer_name}</p>
+                  <p className="text-[9px] font-mono text-slate-400 uppercase">Venceu em {new Date(i.due_date).toLocaleDateString("pt-BR")}</p>
+                </div>
+                <span className="text-[10px] font-mono font-black text-red-500 shrink-0">R$ {i.remaining.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</span>
+              </div>
+            ))}
+          </div>
+          {overdueDebts.length > 8 && (
+            <div className="px-5 py-2 text-center text-[10px] font-bold text-slate-400 uppercase tracking-wide bg-slate-50">
+              +{overdueDebts.length - 8} outras parcelas vencidas
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Crediário a vencer em breve */}
+      {dueSoonDebts.length > 0 && (
+        <div className="bg-white rounded-2xl border border-amber-100 shadow-sm overflow-hidden">
+          <div className="flex flex-col gap-3 border-b border-amber-100 bg-amber-50 px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-5">
+            <div className="flex items-center gap-2.5">
+              <AlertTriangle size={16} className="text-amber-500 shrink-0" />
+              <div>
+                <p className="text-sm font-black text-slate-900">Crediário a Vencer</p>
+                <p className="text-[10px] text-amber-600 font-bold uppercase tracking-wide">
+                  {dueSoonDebts.length} parcela{dueSoonDebts.length !== 1 ? "s" : ""} nos próximos {CREDIARIO_DUE_SOON_DAYS} dias · R$ {dueSoonDebts.reduce((s, i) => s + i.remaining, 0).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
+                </p>
+              </div>
+            </div>
+            <button onClick={() => navigate("/admin/contas-receber")}
+              className="shrink-0 cursor-pointer text-[10px] font-black uppercase tracking-wider text-amber-600 hover:underline">
+              Ver crediário
+            </button>
+          </div>
+          <div className="divide-y divide-slate-50 max-h-64 overflow-y-auto">
+            {dueSoonDebts.slice(0, 8).map((i) => (
+              <div key={i.id} className="flex items-center justify-between gap-3 px-4 py-3 sm:px-5">
+                <div className="min-w-0">
+                  <p className="text-xs font-bold text-slate-900 truncate">{i.customer_name}</p>
+                  <p className="text-[9px] font-mono text-slate-400 uppercase">Vence em {new Date(i.due_date).toLocaleDateString("pt-BR")}</p>
+                </div>
+                <span className="text-[10px] font-mono font-black text-amber-600 shrink-0">R$ {i.remaining.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</span>
+              </div>
+            ))}
+          </div>
+          {dueSoonDebts.length > 8 && (
+            <div className="px-5 py-2 text-center text-[10px] font-bold text-slate-400 uppercase tracking-wide bg-slate-50">
+              +{dueSoonDebts.length - 8} outras parcelas a vencer
             </div>
           )}
         </div>
