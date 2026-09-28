@@ -35,6 +35,7 @@ const ORIGEM_FILTROS: { key: OrigemFiltro; label: string; icon: typeof Package }
   { key: "produtos", label: "Catálogo", icon: Package },
   { key: "servicos", label: "Serviço", icon: Wrench },
 ];
+const ORIGEM_LABELS: Record<OrigemFiltro, string> = { todas: "Tudo", produtos: "Catálogo", servicos: "Serviço", mista: "Mista" };
 
 function pickBucket(entradas: EntradasBucket, byOrigem: Record<OrigemKey, EntradasBucket>, filtro: OrigemFiltro): EntradasBucket {
   if (filtro === "todas") return entradas;
@@ -84,7 +85,7 @@ type ExportScope =
   | { view: "year"; entradasByMonth: EntradasBucket[] };
 
 // ── Excel export ──────────────────────────────────────────────────────────────
-async function exportToExcel(report: YearlyReport, tenant: Partial<Tenant> | null, scope: ExportScope) {
+async function exportToExcel(report: YearlyReport, tenant: Partial<Tenant> | null, scope: ExportScope, origemFiltro: OrigemFiltro) {
   const wb = new ExcelJS.Workbook();
   wb.creator = "BoxSys Store";
   wb.created = new Date();
@@ -159,12 +160,23 @@ async function exportToExcel(report: YearlyReport, tenant: Partial<Tenant> | nul
     }
     costSection("Custo Variável", custoVariavel.items, custoVariavel.total, "D97706", "FEF3C7");
     costSection("Custo Fixo", custoFixo.items, custoFixo.total, "7C3AED", "EDE9FE");
+
+    const resultado = entradas.total - custoVariavel.total - custoFixo.total;
+    ws1.getRow(r).values = ["RESULTADO DO PERÍODO", "", "", "", "", resultado];
+    ws1.mergeCells(r, 1, r, 4);
+    ws1.getRow(r).eachCell((cell) => {
+      cell.font = font({ bold: true, size: 12, color: resultado >= 0 ? "065F46" : "9F1239" });
+      cell.fill = fill(resultado >= 0 ? "D1FAE5" : "FFE4E6");
+      cell.border = border();
+    });
+    ws1.getRow(r).getCell(6).numFmt = '"R$" #,##0.00';
+    ws1.getRow(r).getCell(6).alignment = { horizontal: "right" };
   }
 
-  function yearSheet(entradasByMonth: EntradasBucket[]) {
+  function yearSheet(entradasByMonth: EntradasBucket[], subtitle: string) {
     const ws2 = wb.addWorksheet("Anual", { pageSetup: { paperSize: 9, orientation: "landscape", fitToPage: true } });
     ws2.columns = [{ width: 20 }, ...MONTHS_SHORT.map(() => ({ width: 12 })), { width: 14 }];
-    header(ws2, 14, `Ano ${report.year}`);
+    header(ws2, 14, subtitle);
 
     const rows: [string, (mo: MonthReport, i: number) => number][] = [
       ["Dinheiro", (_mo, i) => entradasByMonth[i].totalByMethod.money],
@@ -174,6 +186,7 @@ async function exportToExcel(report: YearlyReport, tenant: Partial<Tenant> | nul
       ["Total Entradas", (_mo, i) => entradasByMonth[i].total],
       ["Custo Fixo", (mo) => mo.custoFixo.total],
       ["Custo Variável", (mo) => mo.custoVariavel.total],
+      ["Resultado", (mo, i) => entradasByMonth[i].total - mo.custoFixo.total - mo.custoVariavel.total],
     ];
     ws2.getRow(5).values = ["", ...MONTHS_SHORT, "Total Ano"];
     ws2.getRow(5).eachCell((cell) => { cell.font = font({ bold: true, color: "FFFFFF" }); cell.fill = fill("1E3A5F"); cell.border = border(); cell.alignment = { horizontal: "center" }; });
@@ -186,22 +199,26 @@ async function exportToExcel(report: YearlyReport, tenant: Partial<Tenant> | nul
         cell.border = border();
         if (col > 1) { cell.numFmt = '"R$" #,##0.00'; cell.alignment = { horizontal: "right" }; }
         if (label === "Total Entradas") { cell.font = font({ bold: true, color: "065F46" }); cell.fill = fill("D1FAE5"); }
+        if (label === "Resultado") { cell.font = font({ bold: true, color: yearTotal >= 0 ? "065F46" : "9F1239" }); cell.fill = fill(yearTotal >= 0 ? "D1FAE5" : "FFE4E6"); }
         if (col === 15) cell.font = font({ bold: true });
       });
       rr++;
     }
   }
 
+  const origemSuffix = origemFiltro === "todas" ? "" : `_${ORIGEM_LABELS[origemFiltro]}`;
+  const origemSubtitle = origemFiltro === "todas" ? "" : ` · Origem: ${ORIGEM_LABELS[origemFiltro]}`;
+
   let filenameSuffix = "";
   if (scope.view === "day") {
-    entradasCostSheet("Diário", fmtDateBR(scope.data.dayKey), scope.data.entradas, scope.data.custoVariavel, scope.data.custoFixo);
+    entradasCostSheet("Diário", `${fmtDateBR(scope.data.dayKey)}${origemSubtitle}`, scope.data.entradas, scope.data.custoVariavel, scope.data.custoFixo);
     filenameSuffix = scope.data.dayKey;
   } else if (scope.view === "month") {
     const m = report.months[scope.month];
-    entradasCostSheet("Mensal", `${MONTHS[scope.month]}/${report.year}`, scope.entradas, m.custoVariavel, m.custoFixo);
+    entradasCostSheet("Mensal", `${MONTHS[scope.month]}/${report.year}${origemSubtitle}`, scope.entradas, m.custoVariavel, m.custoFixo);
     filenameSuffix = `${MONTHS[scope.month]}_${report.year}`;
   } else {
-    yearSheet(scope.entradasByMonth);
+    yearSheet(scope.entradasByMonth, `Ano ${report.year}${origemSubtitle}`);
     filenameSuffix = String(report.year);
   }
 
@@ -209,12 +226,12 @@ async function exportToExcel(report: YearlyReport, tenant: Partial<Tenant> | nul
   const blob = new Blob([buf], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
-  a.href = url; a.download = `Relatorio_Financeiro_${filenameSuffix}.xlsx`; a.click();
+  a.href = url; a.download = `Relatorio_Financeiro_${filenameSuffix}${origemSuffix}.xlsx`; a.click();
   URL.revokeObjectURL(url);
 }
 
 // ── PDF export (mesmo padrão de Finance.tsx — HTML + print) ─────────────────
-function exportToPDF(report: YearlyReport, tenant: Partial<Tenant> | null, scope: ExportScope) {
+function exportToPDF(report: YearlyReport, tenant: Partial<Tenant> | null, scope: ExportScope, origemFiltro: OrigemFiltro) {
   const operatorRowsOf = (entradas: EntradasBucket) => Object.entries(entradas.byOperator).map(([op, pm]) => {
     const total = PM_KEYS.reduce((s, k) => s + pm[k], 0);
     return `<tr><td>${op}</td><td>R$ ${fmt(pm.money)}</td><td>R$ ${fmt(pm.pix)}</td><td>R$ ${fmt(pm.debit)}</td><td>R$ ${fmt(pm.credit)}</td><td class="tot">R$ ${fmt(total)}</td></tr>`;
@@ -234,6 +251,9 @@ function exportToPDF(report: YearlyReport, tenant: Partial<Tenant> | null, scope
   <table><thead><tr><th>Descrição</th><th style="text-align:center">Data</th><th>Valor</th></tr></thead>
   <tbody>${costRows(items)}<tr><td class="tot">TOTAL</td><td></td><td class="tot">R$ ${fmt(total)}</td></tr></tbody></table>`;
 
+  const resultadoSection = (resultado: number) => `
+  <div class="resultado ${resultado >= 0 ? "pos" : "neg"}">RESULTADO DO PERÍODO: R$ ${fmt(resultado)}</div>`;
+
   const yearSection = (entradasByMonth: EntradasBucket[]) => {
     const yearRows = ([
       ["Dinheiro", (_mo: MonthReport, i: number) => entradasByMonth[i].totalByMethod.money],
@@ -243,10 +263,12 @@ function exportToPDF(report: YearlyReport, tenant: Partial<Tenant> | null, scope
       ["Total Entradas", (_mo: MonthReport, i: number) => entradasByMonth[i].total],
       ["Custo Fixo", (mo: MonthReport) => mo.custoFixo.total],
       ["Custo Variável", (mo: MonthReport) => mo.custoVariavel.total],
+      ["Resultado", (mo: MonthReport, i: number) => entradasByMonth[i].total - mo.custoFixo.total - mo.custoVariavel.total],
     ] as const).map(([label, getter]) => {
       const values = report.months.map(getter);
       const total = values.reduce((a, b) => a + b, 0);
-      return `<tr><td class="${label === "Total Entradas" ? "tot" : ""}">${label}</td>${values.map(v => `<td>R$ ${fmt(v)}</td>`).join("")}<td class="tot">R$ ${fmt(total)}</td></tr>`;
+      const isHighlight = label === "Total Entradas" || label === "Resultado";
+      return `<tr><td class="${isHighlight ? "tot" : ""}">${label}</td>${values.map(v => `<td>R$ ${fmt(v)}</td>`).join("")}<td class="tot">R$ ${fmt(total)}</td></tr>`;
     }).join("");
     return `
   <h2>Resumo Anual — ${report.year}</h2>
@@ -254,22 +276,28 @@ function exportToPDF(report: YearlyReport, tenant: Partial<Tenant> | null, scope
   <tbody>${yearRows}</tbody></table>`;
   };
 
+  const origemMeta = origemFiltro === "todas" ? "" : ` · Origem: ${ORIGEM_LABELS[origemFiltro]}`;
+
   let body = "";
   if (scope.view === "day") {
+    const resultado = scope.data.entradas.total - scope.data.custoVariavel.total - scope.data.custoFixo.total;
     body = entradasSection(fmtDateBR(scope.data.dayKey), scope.data.entradas)
       + custoSection("Custo Variável", scope.data.custoVariavel.items, scope.data.custoVariavel.total)
-      + custoSection("Custo Fixo", scope.data.custoFixo.items, scope.data.custoFixo.total);
+      + custoSection("Custo Fixo", scope.data.custoFixo.items, scope.data.custoFixo.total)
+      + resultadoSection(resultado);
   } else if (scope.view === "month") {
     const m = report.months[scope.month];
+    const resultado = scope.entradas.total - m.custoVariavel.total - m.custoFixo.total;
     body = entradasSection(`${MONTHS[scope.month]}/${report.year}`, scope.entradas)
       + custoSection("Custo Variável", m.custoVariavel.items, m.custoVariavel.total)
-      + custoSection("Custo Fixo", m.custoFixo.items, m.custoFixo.total);
+      + custoSection("Custo Fixo", m.custoFixo.items, m.custoFixo.total)
+      + resultadoSection(resultado);
   } else {
     body = yearSection(scope.entradasByMonth);
   }
 
   const html = `<!DOCTYPE html>
-<html lang="pt-BR"><head><meta charset="UTF-8"/><title>Relatório Financeiro</title>
+<html lang="pt-BR"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1"/><title>Relatório Financeiro</title>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: 'Segoe UI', Arial, sans-serif; color: #1e293b; padding: 32px; font-size: 11px; }
@@ -283,18 +311,29 @@ function exportToPDF(report: YearlyReport, tenant: Partial<Tenant> | null, scope
   td { padding: 6px 10px; border-bottom: 1px solid #f1f5f9; text-align: right; }
   td.tot { font-weight: 700; }
   tr:last-child td { border-top: 2px solid #1e293b; font-weight: 700; }
+  .resultado { margin-top: 16px; padding: 12px 16px; border-radius: 6px; font-size: 13px; font-weight: 900; text-transform: uppercase; letter-spacing: 0.06em; text-align: right; }
+  .resultado.pos { background: #d1fae5; color: #065f46; }
+  .resultado.neg { background: #ffe4e6; color: #9f1239; }
   @media print { body { padding: 16px; } }
+  @media screen and (max-width: 640px) {
+    body { padding: 16px; font-size: 12px; }
+    h1 { font-size: 16px; }
+    table { display: block; overflow-x: auto; white-space: nowrap; }
+  }
 </style></head>
 <body>
   <div class="header">
     <h1>${tenant?.name || "BoxSys Store"}</h1>
-    <p class="meta">${(tenant as any)?.cnpj ? `CNPJ: ${(tenant as any).cnpj} · ` : ""}Relatório Financeiro · Gerado em ${new Date().toLocaleString("pt-BR")}</p>
+    <p class="meta">${(tenant as any)?.cnpj ? `CNPJ: ${(tenant as any).cnpj} · ` : ""}Relatório Financeiro${origemMeta} · Gerado em ${new Date().toLocaleString("pt-BR")}</p>
   </div>
   ${body}
 </body></html>`;
 
   const win = window.open("", "_blank");
-  if (!win) return;
+  if (!win) {
+    alert("Não foi possível abrir a janela de impressão. Verifique se o bloqueador de pop-ups está desativado para este site.");
+    return;
+  }
   win.document.write(html);
   win.document.close();
   win.focus();
@@ -457,6 +496,12 @@ export default function RelatorioFinanceiro() {
     return { view: "month", month, entradas: mEntradas! };
   };
 
+  const origemSuffixLabel = origemFiltro === "todas" ? "" : ` · ${ORIGEM_LABELS[origemFiltro]}`;
+  const exportScopeLabel =
+    view === "day" ? `Dia ${fmtDateBR(dayKey)}${origemSuffixLabel}`
+    : view === "month" ? `${MONTHS[month]}/${year}${origemSuffixLabel}`
+    : `Resumo Anual ${year}${origemSuffixLabel}`;
+
   const printDayReport = () => {
     const W = 42;
     const rule = "=".repeat(W);
@@ -517,7 +562,7 @@ export default function RelatorioFinanceiro() {
         title="Relatório Financeiro"
         subtitle="Entradas, custo fixo e custo variável — mensal e anual"
         action={
-          <div className="flex items-center gap-2 flex-wrap w-full sm:w-auto">
+          <div className="flex items-center gap-2 w-full sm:w-auto">
             <div className="flex items-center gap-1 bg-white border border-slate-200 rounded-xl px-1 h-9 shrink-0">
               <button onClick={() => setYear(y => y - 1)} className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-slate-100 text-slate-500">
                 <ChevronLeft size={14} />
@@ -527,28 +572,32 @@ export default function RelatorioFinanceiro() {
                 <ChevronRight size={14} />
               </button>
             </div>
-            <div className="relative shrink-0">
+            <div className="relative flex-1 sm:flex-none min-w-0">
               <button
                 onClick={() => setShowExport(v => !v)}
                 disabled={!report}
-                className="h-9 px-3 rounded-xl flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest border border-slate-200 bg-white text-slate-500 hover:border-slate-400 transition-all disabled:opacity-40"
+                className="h-9 px-3 rounded-xl flex items-center justify-center gap-1.5 text-[10px] font-black uppercase tracking-widest border border-slate-200 bg-white text-slate-500 hover:border-slate-400 transition-all disabled:opacity-40 w-full sm:w-auto"
               >
-                <Download size={12} /> Exportar <ChevronDown size={10} />
+                <Download size={12} /> Exportar <ChevronDown size={10} className={cn("transition-transform", showExport && "rotate-180")} />
               </button>
               {showExport && report && (
-                <div className="absolute right-0 top-10 w-52 max-w-[calc(100vw-2rem)] bg-white border border-slate-200 rounded-xl shadow-xl z-50 overflow-hidden">
+                <div className="absolute right-0 top-10 w-64 max-w-[calc(100vw-2rem)] bg-white border border-slate-200 rounded-xl shadow-xl z-50 overflow-hidden">
+                  <div className="px-4 py-2.5 bg-slate-50 border-b border-slate-100">
+                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Escopo do arquivo</p>
+                    <p className="text-[10px] font-bold text-slate-600 mt-0.5">{exportScopeLabel}</p>
+                  </div>
                   <button
-                    onClick={() => { exportToExcel(report, tenant, buildExportScope()); setShowExport(false); }}
+                    onClick={() => { exportToExcel(report, tenant, buildExportScope(), origemFiltro); setShowExport(false); }}
                     className="w-full flex items-center gap-3 px-4 py-3 text-[10px] font-bold uppercase tracking-widest text-slate-700 hover:bg-slate-50 transition-colors"
                   >
-                    <FileSpreadsheet size={14} className="text-emerald-600" /> Excel (.xlsx)
+                    <FileSpreadsheet size={14} className="text-emerald-600 shrink-0" /> Excel (.xlsx)
                   </button>
                   <div className="h-px bg-slate-100 mx-3" />
                   <button
-                    onClick={() => { exportToPDF(report, tenant, buildExportScope()); setShowExport(false); }}
+                    onClick={() => { exportToPDF(report, tenant, buildExportScope(), origemFiltro); setShowExport(false); }}
                     className="w-full flex items-center gap-3 px-4 py-3 text-[10px] font-bold uppercase tracking-widest text-slate-700 hover:bg-slate-50 transition-colors"
                   >
-                    <FileText size={14} className="text-rose-600" /> PDF / Imprimir
+                    <FileText size={14} className="text-rose-600 shrink-0" /> PDF / Imprimir
                   </button>
                 </div>
               )}
@@ -671,50 +720,120 @@ export default function RelatorioFinanceiro() {
         </>
       ) : (
         /* ── resumo anual ── */
-        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-          <div className="px-5 py-3 border-b border-slate-100 flex items-center justify-between flex-wrap gap-2">
-            <h3 className="text-[11px] font-black text-slate-700 uppercase tracking-widest">Controle Mensal — {year}</h3>
-            {yearTotals && (
-              <span className="text-[10px] font-bold text-slate-400 uppercase">
-                Total ano: <span className="text-emerald-600">R$ {fmt(yearTotals.entradas)}</span> entradas · <span className="text-rose-600">R$ {fmt(yearTotals.fixo + yearTotals.variavel)}</span> custos
-              </span>
-            )}
+        <>
+          {/* summary cards — mesmo padrão das visões Dia/Mês */}
+          {yearTotals && (
+            <div className="grid grid-cols-1 xs:grid-cols-2 sm:grid-cols-3 gap-3">
+              <div className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200 shadow-sm relative overflow-hidden min-w-0">
+                <div className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2">Entradas do Ano</div>
+                <div className="text-xl sm:text-2xl font-mono font-black text-emerald-600 truncate pr-10">R$ {fmt(yearTotals.entradas)}</div>
+                <div className="absolute right-4 top-4 w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-emerald-50 flex items-center justify-center text-emerald-500"><TrendingUp size={18} /></div>
+              </div>
+              <div className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200 shadow-sm relative overflow-hidden min-w-0">
+                <div className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2">Custos do Ano (Fixo + Variável)</div>
+                <div className="text-xl sm:text-2xl font-mono font-black text-rose-600 truncate pr-10">R$ {fmt(yearTotals.fixo + yearTotals.variavel)}</div>
+                <div className="absolute right-4 top-4 w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-rose-50 flex items-center justify-center text-rose-500"><TrendingDown size={18} /></div>
+              </div>
+              <div className={cn("p-4 sm:p-5 rounded-2xl shadow-xl relative overflow-hidden min-w-0 xs:col-span-2 sm:col-span-1", (yearTotals.entradas - yearTotals.fixo - yearTotals.variavel) >= 0 ? "bg-slate-900" : "bg-rose-950")}>
+                <div className="text-[9px] font-black text-slate-500 uppercase tracking-[0.2em] mb-2">Resultado do Ano</div>
+                <div className={cn("text-xl sm:text-2xl font-mono font-black truncate pr-10", (yearTotals.entradas - yearTotals.fixo - yearTotals.variavel) >= 0 ? "text-emerald-400" : "text-rose-400")}>
+                  R$ {fmt(yearTotals.entradas - yearTotals.fixo - yearTotals.variavel)}
+                </div>
+                <div className="absolute right-4 top-4 w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-white/5 flex items-center justify-center text-white/70"><Wallet size={18} /></div>
+              </div>
+            </div>
+          )}
+
+          {/* Mobile/tablet: cards por mês (a tabela de 14 colunas não cabe em telas pequenas) */}
+          <div className="grid grid-cols-1 sm:hidden gap-3">
+            {report.months.map((mo, i) => {
+              const entradas = pickBucket(mo.entradas, mo.entradasByOrigem, origemFiltro);
+              const custos = mo.custoFixo.total + mo.custoVariavel.total;
+              const resultado = entradas.total - custos;
+              const isCurrent = i === month;
+              return (
+                <button
+                  key={i}
+                  onClick={() => { setMonth(i); setView("month"); }}
+                  className={cn(
+                    "bg-white rounded-2xl border shadow-sm p-4 text-left transition-all",
+                    isCurrent ? "border-slate-900 ring-1 ring-slate-900" : "border-slate-200"
+                  )}
+                >
+                  <div className="flex items-center justify-between mb-3">
+                    <span className="text-xs font-black text-slate-800 uppercase tracking-wide">{MONTHS[i]}</span>
+                    <span className={cn("text-xs font-mono font-black", resultado >= 0 ? "text-emerald-600" : "text-rose-600")}>
+                      R$ {fmt(resultado)}
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2 text-[11px]">
+                    <div>
+                      <p className="text-slate-400 font-bold uppercase tracking-wider text-[9px] mb-0.5">Entradas</p>
+                      <p className="font-mono font-bold text-emerald-600">R$ {fmt(entradas.total)}</p>
+                    </div>
+                    <div>
+                      <p className="text-slate-400 font-bold uppercase tracking-wider text-[9px] mb-0.5">Custos</p>
+                      <p className="font-mono font-bold text-rose-600">R$ {fmt(custos)}</p>
+                    </div>
+                  </div>
+                </button>
+              );
+            })}
           </div>
-          <div className="overflow-x-auto">
-            <div className="min-w-[1320px]">
-              <table className="w-full text-left border-collapse">
-                <thead>
-                  <tr className="bg-slate-50/80 border-b border-slate-100">
-                    <th className="px-4 py-2.5 text-[9px] font-black text-slate-400 uppercase tracking-widest sticky left-0 bg-slate-50 whitespace-nowrap">&nbsp;</th>
-                    {MONTHS_SHORT.map(lbl => <th key={lbl} className="px-4 py-2.5 text-[9px] font-black text-slate-400 uppercase tracking-widest text-right whitespace-nowrap">{lbl}</th>)}
-                    <th className="px-4 py-2.5 text-[9px] font-black text-slate-600 uppercase tracking-widest text-right whitespace-nowrap">Total Ano</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {([
-                    ["Dinheiro", (mo: MonthReport) => pickBucket(mo.entradas, mo.entradasByOrigem, origemFiltro).totalByMethod.money, ""],
-                    ["PIX", (mo: MonthReport) => pickBucket(mo.entradas, mo.entradasByOrigem, origemFiltro).totalByMethod.pix, ""],
-                    ["Débito", (mo: MonthReport) => pickBucket(mo.entradas, mo.entradasByOrigem, origemFiltro).totalByMethod.debit, ""],
-                    ["Crédito", (mo: MonthReport) => pickBucket(mo.entradas, mo.entradasByOrigem, origemFiltro).totalByMethod.credit, ""],
-                    ["Total Entradas", (mo: MonthReport) => pickBucket(mo.entradas, mo.entradasByOrigem, origemFiltro).total, "bg-emerald-50/60 text-emerald-700 font-black"],
-                    ["Custo Fixo", (mo: MonthReport) => mo.custoFixo.total, "text-violet-700"],
-                    ["Custo Variável", (mo: MonthReport) => mo.custoVariavel.total, "text-amber-700"],
-                  ] as const).map(([label, getter, rowClass]) => {
-                    const values = report.months.map(getter);
-                    const total = values.reduce((a, b) => a + b, 0);
-                    return (
-                      <tr key={label} className={cn("border-b border-slate-50", rowClass)}>
-                        <td className="px-4 py-2.5 text-xs font-bold sticky left-0 bg-white whitespace-nowrap">{label}</td>
-                        {values.map((v, i) => <td key={i} className="px-4 py-2.5 text-xs font-mono text-right whitespace-nowrap">R$ {fmt(v)}</td>)}
-                        <td className="px-4 py-2.5 text-xs font-mono font-black text-right whitespace-nowrap">R$ {fmt(total)}</td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
+
+          {/* Desktop/tablet largo: tabela completa */}
+          <div className="hidden sm:block bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+            <div className="px-5 py-3 border-b border-slate-100 flex items-center justify-between flex-wrap gap-2">
+              <h3 className="text-[11px] font-black text-slate-700 uppercase tracking-widest">Controle Mensal — {year}</h3>
+              {yearTotals && (
+                <span className="text-[10px] font-bold text-slate-400 uppercase">
+                  Total ano: <span className="text-emerald-600">R$ {fmt(yearTotals.entradas)}</span> entradas · <span className="text-rose-600">R$ {fmt(yearTotals.fixo + yearTotals.variavel)}</span> custos
+                </span>
+              )}
+            </div>
+            <div className="overflow-x-auto">
+              <div className="min-w-[1320px]">
+                <table className="w-full text-left border-collapse">
+                  <thead>
+                    <tr className="bg-slate-50/80 border-b border-slate-100">
+                      <th className="px-4 py-2.5 text-[9px] font-black text-slate-400 uppercase tracking-widest sticky left-0 bg-slate-50 whitespace-nowrap">&nbsp;</th>
+                      {MONTHS_SHORT.map(lbl => <th key={lbl} className="px-4 py-2.5 text-[9px] font-black text-slate-400 uppercase tracking-widest text-right whitespace-nowrap">{lbl}</th>)}
+                      <th className="px-4 py-2.5 text-[9px] font-black text-slate-600 uppercase tracking-widest text-right whitespace-nowrap">Total Ano</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {([
+                      ["Dinheiro", (mo: MonthReport) => pickBucket(mo.entradas, mo.entradasByOrigem, origemFiltro).totalByMethod.money, ""],
+                      ["PIX", (mo: MonthReport) => pickBucket(mo.entradas, mo.entradasByOrigem, origemFiltro).totalByMethod.pix, ""],
+                      ["Débito", (mo: MonthReport) => pickBucket(mo.entradas, mo.entradasByOrigem, origemFiltro).totalByMethod.debit, ""],
+                      ["Crédito", (mo: MonthReport) => pickBucket(mo.entradas, mo.entradasByOrigem, origemFiltro).totalByMethod.credit, ""],
+                      ["Total Entradas", (mo: MonthReport) => pickBucket(mo.entradas, mo.entradasByOrigem, origemFiltro).total, "bg-emerald-50/60 text-emerald-700 font-black"],
+                      ["Custo Fixo", (mo: MonthReport) => mo.custoFixo.total, "text-violet-700"],
+                      ["Custo Variável", (mo: MonthReport) => mo.custoVariavel.total, "text-amber-700"],
+                      ["Resultado", (mo: MonthReport) => pickBucket(mo.entradas, mo.entradasByOrigem, origemFiltro).total - mo.custoFixo.total - mo.custoVariavel.total, "bg-slate-50 font-black"],
+                    ] as const).map(([label, getter, rowClass]) => {
+                      const values = report.months.map(getter);
+                      const total = values.reduce((a, b) => a + b, 0);
+                      return (
+                        <tr key={label} className={cn("border-b border-slate-50", rowClass)}>
+                          <td className="px-4 py-2.5 text-xs font-bold sticky left-0 bg-white whitespace-nowrap">{label}</td>
+                          {values.map((v, i) => (
+                            <td key={i} className={cn("px-4 py-2.5 text-xs font-mono text-right whitespace-nowrap", label === "Resultado" && (v >= 0 ? "text-emerald-700" : "text-rose-700"))}>
+                              R$ {fmt(v)}
+                            </td>
+                          ))}
+                          <td className={cn("px-4 py-2.5 text-xs font-mono font-black text-right whitespace-nowrap", label === "Resultado" && (total >= 0 ? "text-emerald-700" : "text-rose-700"))}>
+                            R$ {fmt(total)}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
             </div>
           </div>
-        </div>
+        </>
       )}
     </div>
   );
