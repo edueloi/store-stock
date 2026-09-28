@@ -34,4 +34,7 @@ export const env = {
   asaasEnvironment: (process.env.ASAAS_ENVIRONMENT === "production" ? "production" : "sandbox") as "sandbox" | "production",
   asaasWebhookToken: process.env.ASAAS_WEBHOOK_TOKEN || "",
   platformBillingGraceDaysDefault: Number(process.env.PLATFORM_BILLING_GRACE_DAYS || 5),
+  // API externa server-to-server (criar/consultar/editar/bloquear/deletar tenants por
+  // outra aplicação, via header x-api-key) — ver middlewares/external-api.middleware.ts
+  externalApiKey: process.env.EXTERNAL_API_KEY || "",
 };
