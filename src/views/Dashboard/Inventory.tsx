@@ -497,6 +497,40 @@ export default function Inventory() {
     setIsModalOpen(true);
   };
 
+  // ── Canal de comunicação do tour guiado (onboarding) ──────────────────────
+  // O OnboardingTour (src/components/onboarding/OnboardingTour.tsx) precisa
+  // abrir/preencher/fechar o modal "Novo Produto" de verdade para ilustrar o
+  // fluxo, mas sem nunca chamar handleSave (que faz o POST real). Em vez de
+  // expor as funções internas do componente pra fora, o tour dispara
+  // CustomEvents no window e este componente escuta e chama as funções reais
+  // (openNew, setEditingProduct, setIsModalOpen) — nunca handleSave/submit.
+  useEffect(() => {
+    const onOpenNewProduct = (e: Event) => {
+      openNew();
+      const detail = (e as CustomEvent<Partial<Product>>).detail;
+      if (detail) {
+        // Aplica os valores de exemplo em cima do estado default do openNew (a
+        // função é assíncrona via setState, então agendamos depois do open).
+        setEditingProduct((prev) => ({ ...prev!, ...detail }));
+      }
+    };
+    const onFillProduct = (e: Event) => {
+      const detail = (e as CustomEvent<Partial<Product>>).detail;
+      if (detail) setEditingProduct((prev) => ({ ...(prev ?? {}), ...detail }));
+    };
+    const onCloseModal = () => setIsModalOpen(false);
+
+    window.addEventListener("onboarding-tour:open-new-product", onOpenNewProduct);
+    window.addEventListener("onboarding-tour:fill-product", onFillProduct);
+    window.addEventListener("onboarding-tour:close-product-modal", onCloseModal);
+    return () => {
+      window.removeEventListener("onboarding-tour:open-new-product", onOpenNewProduct);
+      window.removeEventListener("onboarding-tour:fill-product", onFillProduct);
+      window.removeEventListener("onboarding-tour:close-product-modal", onCloseModal);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     setSaving(true);
@@ -735,7 +769,7 @@ export default function Inventory() {
   if (loading) return <LoadingState text="Carregando inventário..." />;
 
   return (
-    <div className="space-y-6 ">
+    <div data-tour="inventory-page" className="space-y-6 ">
       <PageHeader
         title="Catálogo & Inventário"
         subtitle="Gestão de produtos e controle de estoque"
@@ -754,7 +788,7 @@ export default function Inventory() {
             <Button variant="secondary" icon={<FileCode size={14} />} onClick={() => setIsXmlModalOpen(true)}>
               Importar XML
             </Button>
-            <Button icon={<Plus size={14} />} onClick={openNew}>
+            <Button data-tour="inventory-new-product-btn" icon={<Plus size={14} />} onClick={openNew}>
               Novo Produto
             </Button>
           </div>
@@ -1145,7 +1179,7 @@ export default function Inventory() {
       >
         <form id="product-form" onSubmit={handleSave} className="grid grid-cols-1 xl:grid-cols-2 gap-5 items-start">
 
-          <section className="bg-white border border-slate-200 rounded-2xl p-4 space-y-3">
+          <section data-tour="product-gallery" className="bg-white border border-slate-200 rounded-2xl p-4 space-y-3">
             <p className="text-[10px] font-black uppercase tracking-widest text-slate-700 border-l-4 border-blue-500 pl-3">
               Galeria
             </p>
@@ -1220,7 +1254,7 @@ export default function Inventory() {
               Identificação
             </p>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div className="space-y-1">
+            <div data-tour="product-name-field" className="space-y-1">
               <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest px-1">Nome do Produto *</label>
               <input type="text" required placeholder="Ex: Camiseta Básica Preta"
                 className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs font-bold uppercase outline-none h-10 focus:border-blue-400 focus:ring-2 focus:ring-blue-500/10 transition-all"
@@ -1408,7 +1442,7 @@ export default function Inventory() {
                   }
                 }} />
             </div>
-            <div className="space-y-1">
+            <div data-tour="product-price-field" className="space-y-1">
               <label className="text-[10px] font-bold text-slate-700 uppercase tracking-widest px-1">Preço Venda (R$) *</label>
               <input type="number" step="0.01" min="0" required
                 className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs font-mono font-bold outline-none h-10 focus:border-blue-400 transition-all"
@@ -1460,7 +1494,7 @@ export default function Inventory() {
           {(editingProduct?.sale_unit ?? "unidade") === "unidade" ? (
             (editingProduct?.skus || []).length === 0 && (
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div className="space-y-1">
+                <div data-tour="product-stock-field" className="space-y-1">
                   <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest px-1">Estoque Atual</label>
                   <input type="number" min="0" required
                     className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs font-mono font-bold outline-none h-10 focus:border-blue-400 transition-all"

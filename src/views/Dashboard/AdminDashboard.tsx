@@ -862,6 +862,7 @@ export default function AdminDashboard() {
       isSidebarOpen={isSidebarOpen}
       setIsSidebarOpen={setIsSidebarOpen}
       isMobile={window.innerWidth <= 1024}
+      navigate={navigate}
     />
     <div className="flex h-screen bg-[#f8fafc] overflow-hidden font-sans text-slate-800 relative">
 

@@ -60,6 +60,29 @@ export default function Categories() {
   const openEdit = (c: Category) => { setEditing(c); setIsModalOpen(true); };
   const closeModal = () => { setIsModalOpen(false); setEditing(null); };
 
+  // ── Canal de comunicação do tour guiado (onboarding) ──────────────────────
+  // Mesmo padrão usado em Inventory.tsx: o OnboardingTour abre/preenche/fecha
+  // o modal "Nova Categoria" de verdade via CustomEvent no window, chamando só
+  // openNew/setEditing/closeModal — nunca handleSave (POST/PUT real).
+  useEffect(() => {
+    const onOpenNewCategory = () => openNew();
+    const onFillCategory = (e: Event) => {
+      const detail = (e as CustomEvent<Partial<Category>>).detail;
+      if (detail) setEditing((prev) => ({ ...(prev ?? {}), ...detail }));
+    };
+    const onCloseModal = () => closeModal();
+
+    window.addEventListener("onboarding-tour:open-new-category", onOpenNewCategory);
+    window.addEventListener("onboarding-tour:fill-category", onFillCategory);
+    window.addEventListener("onboarding-tour:close-category-modal", onCloseModal);
+    return () => {
+      window.removeEventListener("onboarding-tour:open-new-category", onOpenNewCategory);
+      window.removeEventListener("onboarding-tour:fill-category", onFillCategory);
+      window.removeEventListener("onboarding-tour:close-category-modal", onCloseModal);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editing?.name?.trim()) return;
@@ -117,12 +140,12 @@ export default function Categories() {
   };
 
   return (
-    <div className="space-y-6 ">
+    <div data-tour="categories-page" className="space-y-6 ">
       <PageHeader
         title="Categorias"
         subtitle="Organização do catálogo de produtos"
         action={
-          <Button icon={<Plus size={15} />} onClick={openNew}>
+          <Button data-tour="categories-new-btn" icon={<Plus size={15} />} onClick={openNew}>
             Nova Categoria
           </Button>
         }
@@ -212,6 +235,7 @@ export default function Categories() {
         }
       >
         <form id="cat-form" onSubmit={handleSave} className="space-y-4">
+          <div data-tour="category-name-field">
           <Input
             label="Nome da Categoria *"
             autoFocus
@@ -220,6 +244,7 @@ export default function Categories() {
             value={editing?.name || ""}
             onChange={(e) => setEditing((prev) => ({ ...prev!, name: e.target.value }))}
           />
+          </div>
           <div><p className="mb-2 text-[10px] font-black uppercase tracking-widest text-slate-500">Ícone</p><div className="grid grid-cols-3 gap-2">{ICON_OPTIONS.map(({ value, label, Icon }) => <button type="button" key={value} onClick={() => setEditing(prev => ({ ...prev!, icon: value }))} className={`h-12 rounded-xl border flex items-center justify-center gap-1.5 text-[9px] font-bold transition-all ${editing?.icon === value ? "border-blue-500 bg-blue-50 text-blue-600" : "border-slate-200 text-slate-500 hover:border-blue-200"}`}><Icon size={14} />{label}</button>)}</div></div>
           <div><p className="mb-2 text-[10px] font-black uppercase tracking-widest text-slate-500">Cor da categoria</p><div className="flex gap-2">{CATEGORY_COLORS.map(color => <button type="button" key={color} aria-label={`Usar a cor ${color}`} onClick={() => setEditing(prev => ({ ...prev!, color }))} className={`w-8 h-8 rounded-full border-2 ${editing?.color === color ? "border-slate-900 scale-110" : "border-white"}`} style={{ backgroundColor: color }} />)}<label className="w-8 h-8 rounded-full border border-slate-200 overflow-hidden cursor-pointer"><input type="color" value={editing?.color || "#2563eb"} onChange={e => setEditing(prev => ({ ...prev!, color: e.target.value }))} className="w-10 h-10 -m-1 cursor-pointer" /></label></div></div>
           <div><p className="mb-2 text-[10px] font-black uppercase tracking-widest text-slate-500">Capa da categoria</p><label className="h-20 rounded-xl border border-dashed border-slate-300 hover:border-blue-400 bg-slate-50 flex items-center justify-center gap-2 cursor-pointer overflow-hidden">{editing?.cover_url ? <img src={editing.cover_url} alt="Capa selecionada" className="w-full h-full object-cover" /> : <><ImageUp size={16} className="text-blue-500" /><span className="text-[10px] font-bold text-slate-500">{uploadingCover ? "Enviando capa..." : "Enviar imagem"}</span></>}<input type="file" accept="image/*" className="hidden" disabled={uploadingCover} onChange={e => { const file = e.target.files?.[0]; if (file) uploadCover(file); }} /></label></div>
