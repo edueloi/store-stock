@@ -4,7 +4,7 @@ import {
   Truck, Plus, Phone, MapPin, User, MessageCircle, Tag, Info,
   Edit3, Trash2, Globe, Mail, Building2, CreditCard, X,
   ExternalLink, ChevronDown, ChevronUp, Search, Package,
-  Wallet, Loader2, ArrowRight, AlertCircle,
+  Wallet, Loader2, ArrowRight, AlertCircle, HelpCircle,
 } from "lucide-react";
 import Button from "../../components/ui/Button";
 import { Input, Textarea } from "../../components/ui/Input";
@@ -13,6 +13,7 @@ import PageHeader from "../../components/layout/PageHeader";
 import { EmptyState, LoadingState } from "../../components/layout/EmptyState";
 import { StatCard } from "../../components/ui/Card";
 import { Supplier } from "../../types";
+import SuppliersPageTour, { SUPPLIERS_PAGE_TOUR_EVENTS, type SuppliersPageTourHandle } from "../../components/onboarding/SuppliersPageTour";
 
 const EMPTY: Partial<Supplier> = {
   name: "", category: "", contact_person: "", phone: "", whatsapp: "",
@@ -341,8 +342,8 @@ function SupplierDetailModal({ supplier, onClose, onEdit }: {
   );
 }
 
-function SupplierCard({ supplier, onEdit, onDelete, onView }: {
-  supplier: Supplier; onEdit: () => void; onDelete: () => void; onView: () => void;
+function SupplierCard({ supplier, onEdit, onDelete, onView, editTourTag }: {
+  supplier: Supplier; onEdit: () => void; onDelete: () => void; onView: () => void; editTourTag?: string;
 }) {
   return (
     <div className="bg-white rounded-2xl border border-slate-200 shadow-sm hover:shadow-md hover:border-slate-300 transition-all overflow-hidden">
@@ -366,7 +367,7 @@ function SupplierCard({ supplier, onEdit, onDelete, onView }: {
             </div>
           </button>
           <div className="flex items-center gap-1 shrink-0">
-            <button onClick={onEdit} className="w-7 h-7 flex items-center justify-center text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all">
+            <button {...(editTourTag ? { "data-tour": editTourTag } : {})} onClick={onEdit} className="w-7 h-7 flex items-center justify-center text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all">
               <Edit3 size={12} />
             </button>
             <button onClick={onDelete} className="w-7 h-7 flex items-center justify-center text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all">
@@ -414,6 +415,7 @@ export default function Suppliers() {
   const [viewing, setViewing] = useState<Supplier | null>(null);
   const [viewMode, setViewMode] = useState<ViewMode>("grid");
   const [expandedRows, setExpandedRows] = useState<Set<number>>(new Set());
+  const suppliersPageTourRef = React.useRef<SuppliersPageTourHandle>(null);
 
   const authHeaders = () => ({
     "Content-Type": "application/json",
@@ -473,17 +475,60 @@ export default function Suppliers() {
   const set = (field: keyof Supplier, value: string) =>
     setEditing((prev) => ({ ...prev, [field]: value }));
 
+  // ── Canal de comunicação do TOUR DE PÁGINA (SuppliersPageTour) ────────────
+  // Suppliers.tsx não tinha nenhum canal de tour antes; este é o primeiro.
+  // Abre/preenche/fecha o modal de verdade via openNew/openEdit/set/
+  // closeModal — nunca handleSave (POST/PUT real em /api/suppliers) nem
+  // handleDelete (DELETE real).
+  useEffect(() => {
+    const onOpenNewSupplier = () => openNew();
+    const onFillSupplier = (e: Event) => {
+      const detail = (e as CustomEvent<Partial<Supplier>>).detail;
+      if (detail) setEditing((prev) => ({ ...prev, ...detail }));
+    };
+    const onCloseSupplierModal = () => closeModal();
+    const onOpenEditSupplier = () => {
+      const list = Array.isArray(suppliers) ? suppliers : [];
+      if (list.length > 0) openEdit(list[0]);
+    };
+
+    window.addEventListener(SUPPLIERS_PAGE_TOUR_EVENTS.openNewSupplier, onOpenNewSupplier);
+    window.addEventListener(SUPPLIERS_PAGE_TOUR_EVENTS.fillSupplier, onFillSupplier);
+    window.addEventListener(SUPPLIERS_PAGE_TOUR_EVENTS.closeSupplierModal, onCloseSupplierModal);
+    window.addEventListener(SUPPLIERS_PAGE_TOUR_EVENTS.openEditSupplier, onOpenEditSupplier);
+    return () => {
+      window.removeEventListener(SUPPLIERS_PAGE_TOUR_EVENTS.openNewSupplier, onOpenNewSupplier);
+      window.removeEventListener(SUPPLIERS_PAGE_TOUR_EVENTS.fillSupplier, onFillSupplier);
+      window.removeEventListener(SUPPLIERS_PAGE_TOUR_EVENTS.closeSupplierModal, onCloseSupplierModal);
+      window.removeEventListener(SUPPLIERS_PAGE_TOUR_EVENTS.openEditSupplier, onOpenEditSupplier);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [suppliers]);
+
   return (
-    <div className="space-y-6">
+    <div data-tour="suppliers-page" className="space-y-6">
       <PageHeader
         title="Fornecedores"
         subtitle="Cadeia de suprimentos e parceiros"
         action={
-          <Button icon={<Plus size={15} />} onClick={openNew}>
-            Novo Fornecedor
-          </Button>
+          <div className="flex gap-2 items-center">
+            <Button data-tour="suppliers-new-btn" icon={<Plus size={15} />} onClick={openNew}>
+              Novo Fornecedor
+            </Button>
+            <Button
+              variant="secondary"
+              className="h-9 px-3 rounded-xl flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest border border-slate-200 bg-white text-slate-400 hover:text-blue-600 hover:bg-blue-50 hover:border-blue-300 transition-all"
+              icon={<HelpCircle size={14} />}
+              onClick={() => suppliersPageTourRef.current?.start()}
+              title="Tour guiado desta página"
+            >
+              <span className="sr-only sm:not-sr-only">Ajuda</span>
+            </Button>
+          </div>
         }
       />
+
+      <SuppliersPageTour ref={suppliersPageTourRef} />
 
       {/* Stats */}
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
@@ -511,7 +556,7 @@ export default function Suppliers() {
             </button>
           )}
         </div>
-        <div className="flex border border-slate-200 rounded-xl overflow-hidden bg-white shrink-0">
+        <div data-tour="suppliers-view-toggle" className="flex border border-slate-200 rounded-xl overflow-hidden bg-white shrink-0">
           <button
             onClick={() => setViewMode("grid")}
             className={`px-3 py-2.5 text-xs font-bold transition-all ${viewMode === "grid" ? "bg-slate-900 text-white" : "text-slate-400 hover:text-slate-600"}`}
@@ -539,13 +584,14 @@ export default function Suppliers() {
       ) : viewMode === "grid" ? (
         /* Grid view */
         <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
-          {filtered.map((s) => (
+          {filtered.map((s, idx) => (
             <SupplierCard
               key={s.id}
               supplier={s}
               onView={() => setViewing(s)}
               onEdit={() => openEdit(s)}
               onDelete={() => handleDelete(s.id)}
+              editTourTag={idx === 0 ? "suppliers-edit-btn" : undefined}
             />
           ))}
         </div>
@@ -560,7 +606,7 @@ export default function Suppliers() {
             <span />
           </div>
 
-          {filtered.map((s) => {
+          {filtered.map((s, idx) => {
             const expanded = expandedRows.has(s.id);
             return (
               <div key={s.id}>
@@ -620,7 +666,9 @@ export default function Suppliers() {
                       className="w-7 h-7 flex items-center justify-center text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-all">
                       {expanded ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
                     </button>
-                    <button onClick={() => openEdit(s)}
+                    <button
+                      {...(idx === 0 ? { "data-tour": "suppliers-edit-btn" } : {})}
+                      onClick={() => openEdit(s)}
                       className="w-7 h-7 flex items-center justify-center text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all">
                       <Edit3 size={12} />
                     </button>
@@ -701,6 +749,7 @@ export default function Suppliers() {
             <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2.5">Identificação</p>
             <div className="space-y-3">
               <Input
+                data-tour="supplier-name-field"
                 label="Nome / Razão Social *"
                 required
                 placeholder="Nome Fantasia ou Razão Social"
@@ -709,6 +758,7 @@ export default function Suppliers() {
               />
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <Input
+                  data-tour="supplier-category-field"
                   label="O que fornece? *"
                   required
                   placeholder="Ex: Embalagens, Tecidos, Calçados"

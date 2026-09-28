@@ -3,12 +3,15 @@ import {
   Calculator, Search, TrendingUp, TrendingDown, DollarSign,
   Download, RefreshCw, ChevronDown, Info, Package,
   BarChart2, AlertTriangle, CheckCircle2, X, ArrowRight, Save,
+  HelpCircle,
 } from "lucide-react";
 import ExcelJS from "exceljs";
 import { motion, AnimatePresence } from "motion/react";
 import { cn } from "../../lib/utils";
 import PageHeader from "../../components/layout/PageHeader";
+import Button from "../../components/ui/Button";
 import type { Product, Tenant } from "../../types";
+import MarkupPageTour, { MARKUP_PAGE_TOUR_EVENTS, type MarkupPageTourHandle } from "../../components/onboarding/MarkupPageTour";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -632,6 +635,7 @@ export default function Markup() {
   const [appliedMsg, setAppliedMsg] = useState(false);
   const [savedMsg, setSavedMsg] = useState(false);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const markupPageTourRef = useRef<MarkupPageTourHandle>(null);
 
   const fetchAll = useCallback(async () => {
     const h = { Authorization: `Bearer ${localStorage.getItem("token")}` };
@@ -672,6 +676,31 @@ export default function Markup() {
     setShowProductPicker(false);
     setAppliedMsg(false);
   }
+
+  // ── Canal de comunicação do TOUR DE PÁGINA (MarkupPageTour) ───────────────
+  // Markup.tsx não tinha nenhum canal de tour antes; este é o primeiro. Abre
+  // o seletor de produto de verdade via setShowProductPicker e seleciona o
+  // primeiro produto disponível via selectProduct — o mesmo que clicar num
+  // item da lista faria. Nunca chama applyPrice (que faz o PUT real em
+  // /api/products/:id, aplicando o preço sugerido ao catálogo).
+  useEffect(() => {
+    const onOpenProductPicker = () => setShowProductPicker(true);
+    const onSelectSampleProduct = () => {
+      const list = Array.isArray(products) ? products : [];
+      if (list.length > 0) selectProduct(list[0]);
+    };
+    const onCloseProductPicker = () => setShowProductPicker(false);
+
+    window.addEventListener(MARKUP_PAGE_TOUR_EVENTS.openProductPicker, onOpenProductPicker);
+    window.addEventListener(MARKUP_PAGE_TOUR_EVENTS.selectSampleProduct, onSelectSampleProduct);
+    window.addEventListener(MARKUP_PAGE_TOUR_EVENTS.closeProductPicker, onCloseProductPicker);
+    return () => {
+      window.removeEventListener(MARKUP_PAGE_TOUR_EVENTS.openProductPicker, onOpenProductPicker);
+      window.removeEventListener(MARKUP_PAGE_TOUR_EVENTS.selectSampleProduct, onSelectSampleProduct);
+      window.removeEventListener(MARKUP_PAGE_TOUR_EVENTS.closeProductPicker, onCloseProductPicker);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [products]);
 
   const result = useMemo(() => calcMarkup(inputs), [inputs]);
 
@@ -737,13 +766,14 @@ export default function Markup() {
   const noCost = products.filter((p) => !p.cost_price || Number(p.cost_price) === 0);
 
   return (
-    <div className="space-y-5">
+    <div data-tour="markup-page" className="space-y-5">
       <PageHeader
         title="Calculadora de Markup"
         subtitle="Precificação estratégica com DRE completo e análise de produtos"
         action={
-          <div className="flex gap-2">
+          <div className="flex gap-2 items-center">
             <button
+              data-tour="markup-save-btn"
               onClick={() => saveInputs(inputs)}
               className={cn(
                 "h-9 px-3 rounded-lg flex items-center gap-2 text-[12px] font-bold transition-all shadow-md",
@@ -769,9 +799,20 @@ export default function Markup() {
             >
               <Download size={14} /> {exporting ? "…" : "Excel"}
             </button>
+            <Button
+              variant="secondary"
+              className="h-9 px-3 rounded-xl flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest border border-slate-200 bg-white text-slate-400 hover:text-blue-600 hover:bg-blue-50 hover:border-blue-300 transition-all"
+              icon={<HelpCircle size={14} />}
+              onClick={() => markupPageTourRef.current?.start()}
+              title="Tour guiado desta página"
+            >
+              <span className="sr-only sm:not-sr-only">Ajuda</span>
+            </Button>
           </div>
         }
       />
+
+      <MarkupPageTour ref={markupPageTourRef} />
 
       {/* Alerts */}
       {!loading && (belowSuggested.length > 0 || noCost.length > 0) && (
@@ -825,6 +866,7 @@ export default function Markup() {
               </div>
             ) : (
               <button
+                data-tour="markup-select-product-btn"
                 onClick={() => setShowProductPicker(true)}
                 className="w-full h-9 border-2 border-dashed border-slate-200 rounded-xl text-[12px] font-bold text-slate-500 hover:border-blue-400 hover:text-blue-600 transition-all flex items-center justify-center gap-1.5"
               >
@@ -841,7 +883,9 @@ export default function Markup() {
             <InputRow label="(-) Custo do Produto" tooltip="Valor de compra/fabricação do produto" value={inputs.cost_price} onChange={set("cost_price")} isCurrency />
             <div className="mt-3 pt-3 border-t border-slate-100">
               <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-2">Despesas Variáveis (%)</p>
-              <InputRow label="% Imposto Sobre a Venda" tooltip="Simples, ISS, ICMS, etc." value={inputs.tax_pct} onChange={set("tax_pct")} />
+              <div data-tour="markup-tax-field">
+                <InputRow label="% Imposto Sobre a Venda" tooltip="Simples, ISS, ICMS, etc." value={inputs.tax_pct} onChange={set("tax_pct")} />
+              </div>
               <InputRow label="% Comissão" tooltip="Comissão paga ao vendedor" value={inputs.commission_pct} onChange={set("commission_pct")} />
               <InputRow label="% Taxa de Cartão" tooltip="Taxa da maquininha" value={inputs.card_fee_pct} onChange={set("card_fee_pct")} />
               <InputRow label="% Outras Despesas Variáveis" tooltip="Embalagem, perdas, etc." value={inputs.other_var_pct} onChange={set("other_var_pct")} />
@@ -862,7 +906,9 @@ export default function Markup() {
             <h3 className="font-black text-slate-800 text-[13px] mb-3 flex items-center gap-2">
               <TrendingUp size={14} className="text-emerald-500" /> Margem de Lucro Desejada
             </h3>
-            <InputRow label="% Margem de Lucro Bruta" tooltip="Percentual de lucro sobre o preço de venda" value={inputs.desired_margin} onChange={set("desired_margin")} />
+            <div data-tour="markup-margin-field">
+              <InputRow label="% Margem de Lucro Bruta" tooltip="Percentual de lucro sobre o preço de venda" value={inputs.desired_margin} onChange={set("desired_margin")} />
+            </div>
             <div className="mt-2">
               <ProfitBar pct={inputs.desired_margin} color="#22c55e" />
             </div>
@@ -948,7 +994,7 @@ export default function Markup() {
           </div>
 
           {/* Donut */}
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-4">
+          <div data-tour="markup-donut-chart" className="bg-white rounded-2xl border border-slate-200 shadow-sm p-4">
             <h3 className="font-black text-slate-800 text-[13px] mb-3 flex items-center gap-2">
               <BarChart2 size={14} className="text-blue-500" /> Distribuição do Preço
             </h3>
@@ -1015,7 +1061,7 @@ export default function Markup() {
 
       {/* ── Product Analysis Table ─────────────────────────────────────────── */}
       {!loading && productsWithCost.length > 0 && (
-        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+        <div data-tour="markup-analysis-table" className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
           <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between">
             <h3 className="font-black text-slate-800 text-[13px] flex items-center gap-2">
               <Package size={14} className="text-slate-500" /> Análise do Catálogo com Parâmetros Atuais
@@ -1097,7 +1143,7 @@ export default function Markup() {
               initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }}
               className="fixed inset-0 z-50 flex items-center justify-center p-4"
             >
-              <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-5 space-y-4">
+              <div data-tour="markup-product-picker" className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-5 space-y-4">
                 <div className="flex items-center justify-between">
                   <h3 className="font-black text-slate-900 text-[15px]">Selecionar Produto</h3>
                   <button onClick={() => setShowProductPicker(false)} className="p-1.5 hover:bg-slate-100 rounded-lg text-slate-500">

@@ -2,10 +2,13 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import {
   Barcode, Search, Printer, Download, RefreshCw,
   Package, ChevronDown, Tag, Plus, Minus, Check,
+  HelpCircle,
 } from "lucide-react";
 import PageHeader from "../../components/layout/PageHeader";
+import Button from "../../components/ui/Button";
 import { Product } from "../../types";
 import { cn } from "../../lib/utils";
+import BarcodesPageTour, { BARCODES_PAGE_TOUR_EVENTS, type BarcodesPageTourHandle } from "../../components/onboarding/BarcodesPageTour";
 
 const API_HEADERS = () => ({
   "Content-Type": "application/json",
@@ -179,6 +182,7 @@ export default function Barcodes() {
   const [fields, setFields]         = useState<LabelFields>(DEFAULT_LABEL_FIELDS);
   const [jsBarcodeReady, setJsBarcodeReady] = useState(false);
   const printRef = useRef<HTMLDivElement>(null);
+  const barcodesPageTourRef = useRef<BarcodesPageTourHandle>(null);
 
   useEffect(() => {
     fetch("/api/products", { headers: API_HEADERS() })
@@ -217,6 +221,27 @@ export default function Barcodes() {
     setSelected(filtered.filter((p) => p.barcode || p.sku).map((p) => ({ product: p, qty: 1 })));
 
   const clearAll = () => setSelected([]);
+
+  // ── Canal de comunicação do TOUR DE PÁGINA (BarcodesPageTour) ─────────────
+  // Barcodes.tsx não tinha nenhum canal de tour antes; este é o primeiro.
+  // Marca/limpa a seleção de verdade via toggleSelect/clearAll — o mesmo que
+  // clicar no checkbox de um produto faria. Nunca chama handlePrint (que
+  // abre uma janela nova e dispara window.print() real).
+  useEffect(() => {
+    const onSelectSample = () => {
+      const list = Array.isArray(filtered) ? filtered : [];
+      if (list.length > 0 && !isSelected(list[0].id)) toggleSelect(list[0]);
+    };
+    const onClearSelection = () => clearAll();
+
+    window.addEventListener(BARCODES_PAGE_TOUR_EVENTS.selectSample, onSelectSample);
+    window.addEventListener(BARCODES_PAGE_TOUR_EVENTS.clearSelection, onClearSelection);
+    return () => {
+      window.removeEventListener(BARCODES_PAGE_TOUR_EVENTS.selectSample, onSelectSample);
+      window.removeEventListener(BARCODES_PAGE_TOUR_EVENTS.clearSelection, onClearSelection);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filtered, selected]);
 
   // Gera lista expandida de etiquetas (produto repetido pela qty)
   const labelItems = selected.flatMap(({ product, qty }) =>
@@ -287,22 +312,35 @@ ${cardsHtml}
   const totalLabels = selected.reduce((s, x) => s + x.qty, 0);
 
   return (
-    <div className="space-y-5">
+    <div data-tour="barcodes-page" className="space-y-5">
       <PageHeader
         title="Etiquetas & Códigos de Barras"
         subtitle="Gere, visualize e imprima etiquetas com código de barras"
         action={
-          selected.length > 0 ? (
-            <button
-              onClick={handlePrint}
-              className="flex items-center gap-2 bg-slate-900 text-white px-5 h-10 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-slate-700 transition-all shadow-lg"
+          <div className="flex gap-2 items-center">
+            {selected.length > 0 && (
+              <button
+                onClick={handlePrint}
+                className="flex items-center gap-2 bg-slate-900 text-white px-5 h-10 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-slate-700 transition-all shadow-lg"
+              >
+                <Printer size={14} strokeWidth={2.5} />
+                Imprimir {totalLabels} etiqueta{totalLabels !== 1 ? "s" : ""}
+              </button>
+            )}
+            <Button
+              variant="secondary"
+              className="h-9 px-3 rounded-xl flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest border border-slate-200 bg-white text-slate-400 hover:text-blue-600 hover:bg-blue-50 hover:border-blue-300 transition-all"
+              icon={<HelpCircle size={14} />}
+              onClick={() => barcodesPageTourRef.current?.start()}
+              title="Tour guiado desta página"
             >
-              <Printer size={14} strokeWidth={2.5} />
-              Imprimir {totalLabels} etiqueta{totalLabels !== 1 ? "s" : ""}
-            </button>
-          ) : undefined
+              <span className="sr-only sm:not-sr-only">Ajuda</span>
+            </Button>
+          </div>
         }
       />
+
+      <BarcodesPageTour ref={barcodesPageTourRef} />
 
       <div className="flex flex-col lg:flex-row gap-4">
 
@@ -363,7 +401,7 @@ ${cardsHtml}
             </div>
           ) : (
             <div className="space-y-1.5 max-h-[calc(100vh-320px)] overflow-y-auto admin-scroll pr-1">
-              {filtered.map((p) => {
+              {filtered.map((p, idx) => {
                 const sel = isSelected(p.id);
                 const item = selected.find((s) => s.product.id === p.id);
                 return (
@@ -379,6 +417,7 @@ ${cardsHtml}
                     <div className="flex items-center gap-3 p-3">
                       {/* checkbox */}
                       <button
+                        {...(idx === 0 ? { "data-tour": "barcodes-select-sample-btn" } : {})}
                         onClick={() => toggleSelect(p)}
                         className={cn(
                           "w-6 h-6 rounded-lg border-2 flex items-center justify-center shrink-0 transition-all",
@@ -470,7 +509,7 @@ ${cardsHtml}
             </p>
 
             {/* Tamanho da etiqueta */}
-            <div className="space-y-2">
+            <div data-tour="barcodes-label-size" className="space-y-2">
               <p className="text-[9px] font-black uppercase tracking-widest text-slate-400">Tamanho da Etiqueta</p>
               <div className="grid grid-cols-3 gap-1.5">
                 {(["small", "medium", "large"] as LabelSize[]).map((s) => (
@@ -491,7 +530,7 @@ ${cardsHtml}
             </div>
 
             {/* Layout da folha */}
-            <div className="space-y-2">
+            <div data-tour="barcodes-layout" className="space-y-2">
               <p className="text-[9px] font-black uppercase tracking-widest text-slate-400">Colunas por Linha</p>
               <div className="grid grid-cols-4 gap-1.5">
                 {(["1x1", "2x2", "3x3", "4x4"] as LabelLayout[]).map((l) => (
@@ -512,7 +551,7 @@ ${cardsHtml}
             </div>
 
             {/* Campos da etiqueta */}
-            <div className="space-y-2">
+            <div data-tour="barcodes-fields" className="space-y-2">
               <p className="text-[9px] font-black uppercase tracking-widest text-slate-400">Campos da Etiqueta</p>
               <div className="grid grid-cols-2 gap-1.5">
                 {([
@@ -552,6 +591,7 @@ ${cardsHtml}
             </div>
 
             <button
+              data-tour="barcodes-print-btn"
               onClick={handlePrint}
               disabled={totalLabels === 0}
               className="w-full h-12 bg-slate-900 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-slate-700 transition-all disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2 shadow-lg"
@@ -563,7 +603,7 @@ ${cardsHtml}
 
           {/* Preview das etiquetas */}
           {selected.length > 0 && (
-            <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-4 space-y-3">
+            <div data-tour="barcodes-preview" className="bg-white rounded-2xl border border-slate-100 shadow-sm p-4 space-y-3">
               <div className="flex items-center justify-between">
                 <p className="text-[10px] font-black uppercase tracking-widest text-slate-700 border-l-4 border-emerald-500 pl-3">
                   Pré-visualização
