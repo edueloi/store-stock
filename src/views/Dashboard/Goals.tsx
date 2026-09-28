@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import {
   Target,
   Plus,
@@ -13,10 +13,13 @@ import {
   Flame,
   Trophy,
   AlertCircle,
+  HelpCircle,
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { cn } from "../../lib/utils";
 import PageHeader from "../../components/layout/PageHeader";
+import Button from "../../components/ui/Button";
+import GoalsPageTour, { type GoalsPageTourHandle } from "../../components/onboarding/GoalsPageTour";
 import {
   GOAL_TYPES,
   PERIODS,
@@ -173,6 +176,7 @@ export default function Goals() {
   const [showForm, setShowForm] = useState(false);
   const [editGoal, setEditGoal] = useState<Goal | null>(null);
   const [saving, setSaving] = useState(false);
+  const tourRef = useRef<GoalsPageTourHandle>(null);
 
   // Form fields
   const [fTitle, setFTitle]           = useState("");
@@ -229,6 +233,32 @@ export default function Goals() {
     setShowForm(false);
     setEditGoal(null);
   }
+
+  // ── Canal de comunicação do TOUR DE PÁGINA (GoalsPageTour) ────────────────
+  // Abre o drawer "Nova Meta" de verdade via openCreate e preenche campos de
+  // exemplo — nunca chama handleSave (POST/PUT real em /api/goals) nem
+  // handleDelete (DELETE real, atrás de um window.confirm). Fechar sempre
+  // via closeForm.
+  useEffect(() => {
+    const onOpenNewGoal = () => openCreate();
+    const onFillGoal = (e: Event) => {
+      const detail = (e as CustomEvent<{ title?: string; target?: string }>).detail;
+      if (!detail) return;
+      if (detail.title !== undefined) setFTitle(detail.title);
+      if (detail.target !== undefined) setFTarget(detail.target);
+    };
+    const onCloseForm = () => closeForm();
+
+    window.addEventListener("page-tour:goals:open-new-goal", onOpenNewGoal);
+    window.addEventListener("page-tour:goals:fill-goal", onFillGoal);
+    window.addEventListener("page-tour:goals:close-form", onCloseForm);
+    return () => {
+      window.removeEventListener("page-tour:goals:open-new-goal", onOpenNewGoal);
+      window.removeEventListener("page-tour:goals:fill-goal", onFillGoal);
+      window.removeEventListener("page-tour:goals:close-form", onCloseForm);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   async function handleSave() {
     if (!fTitle.trim() || !fTarget || !fStart || !fEnd) return;
@@ -289,22 +319,36 @@ export default function Goals() {
   const cfg = getTypeConfig(fType);
 
   return (
-    <div className="space-y-5">
+    <div data-tour="goals-page" className="space-y-5">
       <PageHeader
         title="Metas"
         subtitle="Acompanhe faturamento, vendas, despesas e muito mais"
         action={
-          <button
-            onClick={openCreate}
-            className="h-9 px-4 bg-blue-600 text-white rounded-lg flex items-center gap-2 text-[12px] font-bold hover:bg-blue-700 transition-all shadow-md shadow-blue-500/20"
-          >
-            <Plus size={15} /> Nova Meta
-          </button>
+          <div className="flex gap-2 items-center flex-wrap">
+            <button
+              data-tour="goals-new-btn"
+              onClick={openCreate}
+              className="h-9 px-4 bg-blue-600 text-white rounded-lg flex items-center gap-2 text-[12px] font-bold hover:bg-blue-700 transition-all shadow-md shadow-blue-500/20"
+            >
+              <Plus size={15} /> Nova Meta
+            </button>
+            <Button
+              variant="secondary"
+              className="text-slate-400 hover:text-blue-600 hover:bg-blue-50 border-slate-200 hover:border-blue-300"
+              icon={<HelpCircle size={14} />}
+              onClick={() => tourRef.current?.start()}
+              title="Tour guiado desta página"
+            >
+              <span className="sr-only sm:not-sr-only">Ajuda</span>
+            </Button>
+          </div>
         }
       />
 
+      <GoalsPageTour ref={tourRef} />
+
       {/* Summary cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+      <div data-tour="goals-summary-cards" className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         {[
           { label: "Total Ativas",   value: active.length,    icon: Target,       color: "text-slate-700",   bg: "bg-slate-50"   },
           { label: "Atingidas",      value: achieved.length,  icon: Trophy,       color: "text-emerald-600", bg: "bg-emerald-50" },
@@ -322,7 +366,7 @@ export default function Goals() {
       </div>
 
       {/* Period filter pills */}
-      <div className="flex gap-2 flex-wrap">
+      <div data-tour="goals-period-filter" className="flex gap-2 flex-wrap">
         {([
           { value: "all",       label: "Todas"       },
           { value: "daily",     label: "Diária"      },
@@ -362,7 +406,7 @@ export default function Goals() {
           </button>
         </div>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
+        <div data-tour="goals-grid" className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
           <AnimatePresence mode="popLayout">
             {filtered.map((g) => (
               <GoalCard key={g.id} goal={g} onDelete={handleDelete} onEdit={openEdit} />
@@ -403,7 +447,7 @@ export default function Goals() {
               <div className="flex-1 overflow-y-auto p-5 space-y-4">
 
                 {/* Título */}
-                <div>
+                <div data-tour="goals-form-title">
                   <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block mb-1">
                     Título da Meta *
                   </label>
@@ -505,7 +549,7 @@ export default function Goals() {
                 )}
 
                 {/* Valor alvo */}
-                <div>
+                <div data-tour="goals-form-target">
                   <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block mb-1">
                     Valor Alvo * {cfg.unit === "currency" ? "(R$)" : "(unidades)"}
                   </label>

@@ -1,13 +1,15 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import ExcelJS from "exceljs";
 import PageHeader from "../../components/layout/PageHeader";
+import Button from "../../components/ui/Button";
 import {
   ChevronLeft, ChevronRight, Loader2, Download, FileSpreadsheet, FileText,
   ChevronDown, TrendingUp, TrendingDown, Wallet, Calendar, LayoutGrid, Printer,
-  Package, Wrench, Layers,
+  Package, Wrench, Layers, HelpCircle,
 } from "lucide-react";
 import { cn } from "../../lib/utils";
 import { Tenant } from "../../types";
+import RelatorioFinanceiroPageTour, { RELATORIO_FINANCEIRO_PAGE_TOUR_EVENTS, type RelatorioFinanceiroPageTourHandle } from "../../components/onboarding/RelatorioFinanceiroPageTour";
 
 // ── types (espelham backend/controllers/financial-reports.controller.ts) ─────
 type PmKey = "money" | "pix" | "debit" | "credit";
@@ -435,6 +437,7 @@ export default function RelatorioFinanceiro() {
   const [report, setReport] = useState<YearlyReport | null>(null);
   const [loading, setLoading] = useState(true);
   const [showExport, setShowExport] = useState(false);
+  const tourRef = useRef<RelatorioFinanceiroPageTourHandle>(null);
 
   useEffect(() => {
     fetch("/api/tenant", { headers: { Authorization: `Bearer ${token()}` } })
@@ -556,14 +559,24 @@ export default function RelatorioFinanceiro() {
     }, 400);
   };
 
+  // ── Canal de comunicação do TOUR DE PÁGINA (RelatorioFinanceiroPageTour) ──
+  // Tela 100% leitura/relatório — o único estado real trocado é a visão ativa
+  // (view), o mesmo que clicar no botão "Mês" faria. Nunca chama
+  // exportToExcel/exportToPDF/printDayReport de verdade.
+  useEffect(() => {
+    const onGoToMonthView = () => setView("month");
+    window.addEventListener(RELATORIO_FINANCEIRO_PAGE_TOUR_EVENTS.goToMonthView, onGoToMonthView);
+    return () => window.removeEventListener(RELATORIO_FINANCEIRO_PAGE_TOUR_EVENTS.goToMonthView, onGoToMonthView);
+  }, []);
+
   return (
-    <div className="space-y-6">
+    <div data-tour="relatorio-financeiro-page" className="space-y-6">
       <PageHeader
         title="Relatório Financeiro"
         subtitle="Entradas, custo fixo e custo variável — mensal e anual"
         action={
-          <div className="flex items-center gap-2 w-full sm:w-auto">
-            <div className="flex items-center gap-1 bg-white border border-slate-200 rounded-xl px-1 h-9 shrink-0">
+          <div className="flex items-center gap-2 w-full sm:w-auto flex-wrap">
+            <div data-tour="relatorio-year-nav" className="flex items-center gap-1 bg-white border border-slate-200 rounded-xl px-1 h-9 shrink-0">
               <button onClick={() => setYear(y => y - 1)} className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-slate-100 text-slate-500">
                 <ChevronLeft size={14} />
               </button>
@@ -574,6 +587,7 @@ export default function RelatorioFinanceiro() {
             </div>
             <div className="relative flex-1 sm:flex-none min-w-0">
               <button
+                data-tour="relatorio-export-btn"
                 onClick={() => setShowExport(v => !v)}
                 disabled={!report}
                 className="h-9 px-3 rounded-xl flex items-center justify-center gap-1.5 text-[10px] font-black uppercase tracking-widest border border-slate-200 bg-white text-slate-500 hover:border-slate-400 transition-all disabled:opacity-40 w-full sm:w-auto"
@@ -602,19 +616,30 @@ export default function RelatorioFinanceiro() {
                 </div>
               )}
             </div>
+            <Button
+              variant="secondary"
+              className="text-slate-400 hover:text-blue-600 hover:bg-blue-50 border-slate-200 hover:border-blue-300"
+              icon={<HelpCircle size={14} />}
+              onClick={() => tourRef.current?.start()}
+              title="Tour guiado desta página"
+            >
+              <span className="sr-only sm:not-sr-only">Ajuda</span>
+            </Button>
           </div>
         }
       />
 
+      <RelatorioFinanceiroPageTour ref={tourRef} />
+
       {/* view toggle + filtro de origem (Tudo/Catálogo/Serviço) */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2.5">
-        <div className="flex gap-1.5 flex-wrap">
+        <div data-tour="relatorio-view-toggle" className="flex gap-1.5 flex-wrap">
           <button onClick={() => setView("day")}
             className={cn("h-9 px-4 rounded-xl text-[10px] font-black uppercase tracking-widest border flex items-center gap-1.5 transition-all shrink-0",
               view === "day" ? "bg-slate-900 text-white border-slate-900" : "bg-white text-slate-400 border-slate-200")}>
             <Calendar size={12} /> Dia
           </button>
-          <button onClick={() => setView("month")}
+          <button data-tour="relatorio-month-view-btn" onClick={() => setView("month")}
             className={cn("h-9 px-4 rounded-xl text-[10px] font-black uppercase tracking-widest border flex items-center gap-1.5 transition-all shrink-0",
               view === "month" ? "bg-slate-900 text-white border-slate-900" : "bg-white text-slate-400 border-slate-200")}>
             <Calendar size={12} /> Mês
@@ -626,7 +651,7 @@ export default function RelatorioFinanceiro() {
           </button>
         </div>
 
-        <div className="flex gap-1 bg-slate-100 rounded-xl p-1 w-full sm:w-auto overflow-x-auto">
+        <div data-tour="relatorio-origem-filtro" className="flex gap-1 bg-slate-100 rounded-xl p-1 w-full sm:w-auto overflow-x-auto">
           {ORIGEM_FILTROS.map(({ key, label, icon: Icon }) => (
             <button key={key} onClick={() => setOrigemFiltro(key)}
               className={cn("h-8 px-3 rounded-lg text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-1.5 transition-all flex-1 sm:flex-none whitespace-nowrap",
@@ -655,7 +680,7 @@ export default function RelatorioFinanceiro() {
           </div>
 
           {/* summary cards */}
-          <div className="grid grid-cols-1 xs:grid-cols-2 sm:grid-cols-3 gap-3">
+          <div data-tour="relatorio-summary-cards" className="grid grid-cols-1 xs:grid-cols-2 sm:grid-cols-3 gap-3">
             <div className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200 shadow-sm relative overflow-hidden min-w-0">
               <div className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2">Entradas</div>
               <div className="text-xl sm:text-2xl font-mono font-black text-emerald-600 truncate pr-10">R$ {fmt(mEntradas!.total)}</div>
@@ -673,8 +698,12 @@ export default function RelatorioFinanceiro() {
             </div>
           </div>
 
-          <EntradasTable data={mEntradas!} />
-          <CustoCards custoVariavel={m!.custoVariavel} custoFixo={m!.custoFixo} />
+          <div data-tour="relatorio-entradas-table">
+            <EntradasTable data={mEntradas!} />
+          </div>
+          <div data-tour="relatorio-custo-cards">
+            <CustoCards custoVariavel={m!.custoVariavel} custoFixo={m!.custoFixo} />
+          </div>
         </>
       ) : view === "day" ? (
         <>

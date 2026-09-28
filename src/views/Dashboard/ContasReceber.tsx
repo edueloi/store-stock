@@ -28,12 +28,15 @@ import {
   Download,
   FileSpreadsheet,
   Upload,
+  HelpCircle,
 } from "lucide-react";
 import { AccountReceivable, AccountStatus, Tenant } from "../../types";
 import { cn } from "../../lib/utils";
 import { useToast } from "../../components/ui/Toast";
 import { onRealtime } from "../../lib/realtime";
 import Combobox from "../../components/ui/Combobox";
+import Button from "../../components/ui/Button";
+import ContasReceberPageTour, { CONTAS_RECEBER_PAGE_TOUR_EVENTS, type ContasReceberPageTourHandle } from "../../components/onboarding/ContasReceberPageTour";
 
 const fmt = (v: number) =>
   v.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -369,7 +372,7 @@ function CrediarioTab() {
         </div>
       </div>
 
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+      <div data-tour="contas-receber-crediario-table" className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
         <div className="px-5 py-3 border-b border-slate-100 flex items-center gap-3 flex-wrap">
           <div className="relative flex-1 min-w-[200px]">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={12} />
@@ -530,6 +533,7 @@ export default function ContasReceber() {
   const [interestTarget, setInterestTarget] = useState<AccountReceivable | null>(null);
   const [interestValue, setInterestValue] = useState("0");
   const [applyingInterest, setApplyingInterest] = useState(false);
+  const tourRef = useRef<ContasReceberPageTourHandle>(null);
 
   // Cadastro de clientes — dropdown com busca pra evitar duplicar nomes digitados,
   // com criação rápida sem sair do modal.
@@ -973,6 +977,36 @@ export default function ContasReceber() {
     setApplyingInterest(false);
   };
 
+  // ── Canal de comunicação do TOUR DE PÁGINA (ContasReceberPageTour) ────────
+  // Além de trocar a aba ativa (mainTab), abre o modal "Nova Conta" de
+  // verdade via openCreate e preenche campos de exemplo via setForm — nunca
+  // chama handleSave/handleReceive/handleDelete. Fechar sempre via
+  // closeModal (equivalente a clicar fora do modal ou no X).
+  useEffect(() => {
+    const onGoAdmin = () => setMainTab("admin");
+    const onGoCrediario = () => setMainTab("crediario");
+    const onOpenNewAccount = () => openCreate();
+    const onFillAccount = (e: Event) => {
+      const detail = (e as CustomEvent<Partial<typeof form>>).detail;
+      if (detail) setForm((prev) => ({ ...prev, ...detail }));
+    };
+    const onCloseModal = () => closeModal();
+
+    window.addEventListener(CONTAS_RECEBER_PAGE_TOUR_EVENTS.goToAdminTab, onGoAdmin);
+    window.addEventListener(CONTAS_RECEBER_PAGE_TOUR_EVENTS.goToCrediarioTab, onGoCrediario);
+    window.addEventListener("page-tour:contas-receber:open-new-account", onOpenNewAccount);
+    window.addEventListener("page-tour:contas-receber:fill-account", onFillAccount);
+    window.addEventListener("page-tour:contas-receber:close-modal", onCloseModal);
+    return () => {
+      window.removeEventListener(CONTAS_RECEBER_PAGE_TOUR_EVENTS.goToAdminTab, onGoAdmin);
+      window.removeEventListener(CONTAS_RECEBER_PAGE_TOUR_EVENTS.goToCrediarioTab, onGoCrediario);
+      window.removeEventListener("page-tour:contas-receber:open-new-account", onOpenNewAccount);
+      window.removeEventListener("page-tour:contas-receber:fill-account", onFillAccount);
+      window.removeEventListener("page-tour:contas-receber:close-modal", onCloseModal);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const filtered = useMemo(() => {
     return items
       .map(item => ({
@@ -1000,26 +1034,41 @@ export default function ContasReceber() {
   const isFormModal = modalMode === "create" || modalMode === "edit";
 
   return (
-    <div className="space-y-6">
+    <div data-tour="contas-receber-page" className="space-y-6">
       <PageHeader
         title="Contas a Receber"
         subtitle="Controle de recebimentos e vencimentos"
         action={
-          mainTab === "admin" ? (
-            <button
-              onClick={openCreate}
-              className="h-9 px-4 bg-emerald-600 text-white rounded-xl flex items-center gap-2 text-[10px] font-black uppercase tracking-widest hover:bg-emerald-500 transition-all active:scale-95"
+          <div className="flex gap-2 items-center flex-wrap">
+            {mainTab === "admin" && (
+              <button
+                data-tour="contas-receber-new-btn"
+                onClick={openCreate}
+                className="h-9 px-4 bg-emerald-600 text-white rounded-xl flex items-center gap-2 text-[10px] font-black uppercase tracking-widest hover:bg-emerald-500 transition-all active:scale-95"
+              >
+                <Plus size={13} strokeWidth={3} /> Nova Conta
+              </button>
+            )}
+            <Button
+              variant="secondary"
+              className="text-slate-400 hover:text-blue-600 hover:bg-blue-50 border-slate-200 hover:border-blue-300"
+              icon={<HelpCircle size={14} />}
+              onClick={() => tourRef.current?.start()}
+              title="Tour guiado desta página"
             >
-              <Plus size={13} strokeWidth={3} /> Nova Conta
-            </button>
-          ) : undefined
+              <span className="sr-only sm:not-sr-only">Ajuda</span>
+            </Button>
+          </div>
         }
       />
 
-      <div className="flex items-center gap-1 bg-slate-100 border border-slate-200 rounded-xl p-1 w-fit">
+      <ContasReceberPageTour ref={tourRef} />
+
+      <div data-tour="contas-receber-tabs" className="flex items-center gap-1 bg-slate-100 border border-slate-200 rounded-xl p-1 w-fit">
         {([["admin", "Administrativo"], ["crediario", "Crediário"]] as const).map(([k, l]) => (
           <button
             key={k}
+            data-tour={k === "crediario" ? "contas-receber-crediario-tab-btn" : "contas-receber-admin-tab-btn"}
             onClick={() => setMainTab(k)}
             className={cn(
               "h-8 px-4 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all",
@@ -1034,7 +1083,7 @@ export default function ContasReceber() {
       {mainTab === "admin" && (
       <>
       {/* Summary cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+      <div data-tour="contas-receber-summary-cards" className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
         <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm relative overflow-hidden">
           <div className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2">A Receber</div>
           <div className="text-2xl font-mono font-black text-amber-600">R$ {fmt(totalPending)}</div>
@@ -1095,7 +1144,7 @@ export default function ContasReceber() {
                 className="w-full pl-8 pr-3 h-9 bg-slate-50 border border-slate-200 rounded-lg text-[10px] font-bold uppercase tracking-widest placeholder:text-slate-300 focus:outline-none focus:border-blue-400 transition-all"
               />
             </div>
-            <div className="flex gap-1.5 flex-wrap">
+            <div data-tour="contas-receber-status-filters" className="flex gap-1.5 flex-wrap">
               {([["all","Todos"], ["pending","Pendentes"], ["overdue","Vencidos"], ["received","Recebidos"], ["cancelled","Cancelados"]] as const).map(([k, l]) => (
                 <button
                   key={k}
@@ -1110,7 +1159,7 @@ export default function ContasReceber() {
               ))}
             </div>
           </div>
-          <div className="flex items-center gap-2 flex-wrap">
+          <div data-tour="contas-receber-period-nav" className="flex items-center gap-2 flex-wrap">
             {/* ← Mês/Ano → navigator — só faz sentido com Mês ou Ano selecionado */}
             {(periodPreset === "month" || periodPreset === "year") && (
               <div className="flex items-center gap-1 bg-slate-50 border border-slate-200 rounded-xl p-1">
@@ -1171,6 +1220,7 @@ export default function ContasReceber() {
             )}
             <div className="relative ml-auto" ref={exportRef}>
               <button
+                data-tour="contas-receber-export-btn"
                 onClick={() => setShowExport(!showExport)}
                 className="h-9 px-3 rounded-lg flex items-center gap-1.5 text-[9px] font-black uppercase tracking-widest border border-slate-200 bg-white text-slate-500 hover:border-slate-400 transition-all"
               >
@@ -1231,7 +1281,7 @@ export default function ContasReceber() {
         </div>
 
         {/* Desktop table */}
-        <div className="hidden lg:block overflow-x-auto">
+        <div data-tour="contas-receber-table" className="hidden lg:block overflow-x-auto">
           {loading ? (
             <div className="flex items-center justify-center py-16">
               <Loader2 size={22} className="animate-spin text-slate-300" />
@@ -1509,7 +1559,7 @@ export default function ContasReceber() {
             {/* Body */}
             <form id="ar-form" onSubmit={handleSave} className="px-6 py-5 space-y-4 overflow-y-auto flex-1">
               {/* Descrição */}
-              <div className="space-y-1.5">
+              <div data-tour="contas-receber-form-description" className="space-y-1.5">
                 <label className="flex items-center gap-1.5 text-[9px] font-black text-slate-400 uppercase tracking-[0.18em]">
                   <FileText size={10} /> Descrição *
                 </label>
@@ -1522,7 +1572,7 @@ export default function ContasReceber() {
               </div>
 
               {/* Valor + Vencimento */}
-              <div className="grid grid-cols-2 gap-3">
+              <div data-tour="contas-receber-form-amount-due" className="grid grid-cols-2 gap-3">
                 <div className="space-y-1.5">
                   <label className="flex items-center gap-1.5 text-[9px] font-black text-slate-400 uppercase tracking-[0.18em]">
                     <DollarSign size={10} /> Valor (R$) *

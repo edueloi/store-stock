@@ -27,12 +27,15 @@ import {
   ChevronDown,
   FileSpreadsheet,
   Upload,
+  HelpCircle,
 } from "lucide-react";
 import { AccountPayable, AccountStatus, Tenant } from "../../types";
 import { cn } from "../../lib/utils";
 import { useToast } from "../../components/ui/Toast";
 import { onRealtime } from "../../lib/realtime";
 import Combobox from "../../components/ui/Combobox";
+import Button from "../../components/ui/Button";
+import ContasPagarPageTour, { type ContasPagarPageTourHandle } from "../../components/onboarding/ContasPagarPageTour";
 
 const fmt = (v: number) =>
   v.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -449,6 +452,7 @@ export default function ContasPagar() {
   const [interestTarget, setInterestTarget] = useState<AccountPayable | null>(null);
   const [interestValue, setInterestValue] = useState("0");
   const [applyingInterest, setApplyingInterest] = useState(false);
+  const tourRef = useRef<ContasPagarPageTourHandle>(null);
 
   // Cadastro de fornecedores — dropdown com busca pra evitar duplicar nomes digitados
   // (ex.: "tambasa" x "Tambasa Ltda"), com criação rápida sem sair do modal.
@@ -600,6 +604,30 @@ export default function ContasPagar() {
   };
 
   const closeModal = () => { setModalMode(null); setSelected(null); };
+
+  // ── Canal de comunicação do TOUR DE PÁGINA (ContasPagarPageTour) ──────────
+  // Abre o modal "Nova Conta" de verdade via openCreate e preenche campos de
+  // exemplo via setForm — nunca chama handleSave (POST real em
+  // /api/accounts-payable). Fechar sempre via closeModal (equivalente a
+  // clicar fora ou no X, que já fazem isso na tela real).
+  useEffect(() => {
+    const onOpenNewAccount = () => openCreate();
+    const onFillAccount = (e: Event) => {
+      const detail = (e as CustomEvent<Partial<typeof form>>).detail;
+      if (detail) setForm((prev) => ({ ...prev, ...detail }));
+    };
+    const onCloseModal = () => closeModal();
+
+    window.addEventListener("page-tour:contas-pagar:open-new-account", onOpenNewAccount);
+    window.addEventListener("page-tour:contas-pagar:fill-account", onFillAccount);
+    window.addEventListener("page-tour:contas-pagar:close-modal", onCloseModal);
+    return () => {
+      window.removeEventListener("page-tour:contas-pagar:open-new-account", onOpenNewAccount);
+      window.removeEventListener("page-tour:contas-pagar:fill-account", onFillAccount);
+      window.removeEventListener("page-tour:contas-pagar:close-modal", onCloseModal);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -920,22 +948,36 @@ export default function ContasPagar() {
   const isFormModal = modalMode === "create" || modalMode === "edit";
 
   return (
-    <div className="space-y-6">
+    <div data-tour="contas-pagar-page" className="space-y-6">
       <PageHeader
         title="Contas a Pagar"
         subtitle="Controle de pagamentos e vencimentos"
         action={
-          <button
-            onClick={openCreate}
-            className="h-9 px-4 bg-rose-600 text-white rounded-xl flex items-center gap-2 text-[10px] font-black uppercase tracking-widest hover:bg-rose-500 transition-all active:scale-95"
-          >
-            <Plus size={13} strokeWidth={3} /> Nova Conta
-          </button>
+          <div className="flex gap-2 items-center flex-wrap">
+            <button
+              data-tour="contas-pagar-new-btn"
+              onClick={openCreate}
+              className="h-9 px-4 bg-rose-600 text-white rounded-xl flex items-center gap-2 text-[10px] font-black uppercase tracking-widest hover:bg-rose-500 transition-all active:scale-95"
+            >
+              <Plus size={13} strokeWidth={3} /> Nova Conta
+            </button>
+            <Button
+              variant="secondary"
+              className="text-slate-400 hover:text-blue-600 hover:bg-blue-50 border-slate-200 hover:border-blue-300"
+              icon={<HelpCircle size={14} />}
+              onClick={() => tourRef.current?.start()}
+              title="Tour guiado desta página"
+            >
+              <span className="sr-only sm:not-sr-only">Ajuda</span>
+            </Button>
+          </div>
         }
       />
 
+      <ContasPagarPageTour ref={tourRef} />
+
       {/* Summary cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+      <div data-tour="contas-pagar-summary-cards" className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
         <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm relative overflow-hidden">
           <div className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2">A Pagar</div>
           <div className="text-2xl font-mono font-black text-amber-600">R$ {fmt(totalPending)}</div>
@@ -995,7 +1037,7 @@ export default function ContasPagar() {
                 className="w-full pl-8 pr-3 h-9 bg-slate-50 border border-slate-200 rounded-lg text-[10px] font-bold uppercase tracking-widest placeholder:text-slate-300 focus:outline-none focus:border-blue-400 transition-all"
               />
             </div>
-            <div className="flex gap-1.5 flex-wrap">
+            <div data-tour="contas-pagar-status-filters" className="flex gap-1.5 flex-wrap">
               {([["all","Todos"], ["pending","Pendentes"], ["overdue","Vencidos"], ["paid","Pagos"], ["cancelled","Cancelados"]] as const).map(([k, l]) => (
                 <button
                   key={k}
@@ -1011,7 +1053,7 @@ export default function ContasPagar() {
             </div>
           </div>
           <div className="flex items-center gap-3 flex-wrap justify-between">
-            <div className="flex items-center gap-2 flex-wrap">
+            <div data-tour="contas-pagar-period-nav" className="flex items-center gap-2 flex-wrap">
               {/* ← Mês/Ano → navigator — só faz sentido com Mês ou Ano selecionado */}
               {(periodPreset === "month" || periodPreset === "year") && (
                 <div className="flex items-center gap-1 bg-slate-50 border border-slate-200 rounded-xl p-1">
@@ -1070,7 +1112,7 @@ export default function ContasPagar() {
                   />
                 </div>
               )}
-              <div className="flex gap-1.5">
+              <div data-tour="contas-pagar-cost-type-filter" className="flex gap-1.5">
                 {([["all", "Todos"], ["fixed", "Fixo"], ["variable", "Variável"]] as const).map(([k, l]) => (
                   <button
                     key={k}
@@ -1085,6 +1127,7 @@ export default function ContasPagar() {
             </div>
             <div className="relative" ref={exportRef}>
               <button
+                data-tour="contas-pagar-export-btn"
                 onClick={() => setShowExport(!showExport)}
                 className="h-9 px-3 rounded-lg flex items-center gap-1.5 text-[9px] font-black uppercase tracking-widest border border-slate-200 bg-white text-slate-500 hover:border-slate-400 transition-all"
               >
@@ -1145,7 +1188,7 @@ export default function ContasPagar() {
         </div>
 
         {/* Desktop table */}
-        <div className="hidden lg:block overflow-x-auto">
+        <div data-tour="contas-pagar-table" className="hidden lg:block overflow-x-auto">
           {loading ? (
             <div className="flex items-center justify-center py-16">
               <Loader2 size={22} className="animate-spin text-slate-300" />
@@ -1428,7 +1471,7 @@ export default function ContasPagar() {
             </div>
 
             <form id="ap-form" onSubmit={handleSave} className="px-6 py-5 space-y-4 overflow-y-auto flex-1">
-              <div className="space-y-1.5">
+              <div data-tour="contas-pagar-form-description" className="space-y-1.5">
                 <label className="flex items-center gap-1.5 text-[9px] font-black text-slate-400 uppercase tracking-[0.18em]">
                   <FileText size={10} /> Descrição *
                 </label>
@@ -1440,7 +1483,7 @@ export default function ContasPagar() {
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div data-tour="contas-pagar-form-amount-due" className="grid grid-cols-2 gap-3">
                 <div className="space-y-1.5">
                   <label className="flex items-center gap-1.5 text-[9px] font-black text-slate-400 uppercase tracking-[0.18em]">
                     <DollarSign size={10} /> Valor (R$) *

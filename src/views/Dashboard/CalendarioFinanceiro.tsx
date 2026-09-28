@@ -1,11 +1,13 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import PageHeader from "../../components/layout/PageHeader";
+import Button from "../../components/ui/Button";
 import {
-  ChevronLeft, ChevronRight, ArrowDownCircle, ArrowUpCircle, Loader2, X, Layers, Repeat,
+  ChevronLeft, ChevronRight, ArrowDownCircle, ArrowUpCircle, Loader2, X, Layers, Repeat, HelpCircle,
 } from "lucide-react";
 import { AccountPayable, AccountReceivable } from "../../types";
 import { cn } from "../../lib/utils";
 import { onRealtime } from "../../lib/realtime";
+import CalendarioFinanceiroPageTour, { type CalendarioFinanceiroPageTourHandle } from "../../components/onboarding/CalendarioFinanceiroPageTour";
 
 const fmt = (v: number) =>
   v.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -67,6 +69,8 @@ export default function CalendarioFinanceiro() {
   const [viewMonth, setViewMonth] = useState(now.getMonth());
   const [selectedDay, setSelectedDay] = useState<string | null>(null);
   const [entryFilter, setEntryFilter] = useState<"all" | "settled" | "pending" | "overdue">("all");
+
+  const tourRef = useRef<CalendarioFinanceiroPageTourHandle>(null);
 
   const token = () => localStorage.getItem("token");
 
@@ -156,22 +160,35 @@ export default function CalendarioFinanceiro() {
   const selectedEntries = selectedDay ? (byDay.get(selectedDay) ?? []).filter((e) => matchesEntryFilter(e.status)) : [];
 
   return (
-    <div className="space-y-6">
+    <div data-tour="calendario-financeiro-page" className="space-y-6">
       <PageHeader
         title="Calendário Financeiro"
         subtitle="Contas a pagar e a receber juntas, por dia"
         action={
-          <button
-            onClick={goToday}
-            className="h-9 px-4 bg-slate-900 text-white rounded-xl flex items-center gap-2 text-[10px] font-black uppercase tracking-widest hover:bg-slate-800 transition-all active:scale-95"
-          >
-            Hoje
-          </button>
+          <div className="flex gap-2 items-center flex-wrap">
+            <button
+              onClick={goToday}
+              className="h-9 px-4 bg-slate-900 text-white rounded-xl flex items-center gap-2 text-[10px] font-black uppercase tracking-widest hover:bg-slate-800 transition-all active:scale-95"
+            >
+              Hoje
+            </button>
+            <Button
+              variant="secondary"
+              className="text-slate-400 hover:text-blue-600 hover:bg-blue-50 border-slate-200 hover:border-blue-300"
+              icon={<HelpCircle size={14} />}
+              onClick={() => tourRef.current?.start()}
+              title="Tour guiado desta página"
+            >
+              <span className="sr-only sm:not-sr-only">Ajuda</span>
+            </Button>
+          </div>
         }
       />
 
+      <CalendarioFinanceiroPageTour ref={tourRef} />
+
       {/* Totais do mês visível */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+      <div data-tour="calendario-totais" className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm relative overflow-hidden">
           <div className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2">A Pagar no Mês</div>
           <div className="text-2xl font-mono font-black text-rose-600">R$ {fmt(monthTotals.pagar)}</div>
@@ -196,7 +213,7 @@ export default function CalendarioFinanceiro() {
 
       {/* Navegação mês/ano */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-4">
-        <div className="flex items-center justify-between mb-4">
+        <div data-tour="calendario-nav" className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-2">
             <button onClick={() => shiftMonth(-1)} className="h-9 w-9 rounded-xl border border-slate-200 flex items-center justify-center text-slate-500 hover:bg-slate-50 transition-all">
               <ChevronLeft size={16} />
@@ -219,7 +236,7 @@ export default function CalendarioFinanceiro() {
           </select>
         </div>
 
-        <div className="flex gap-1.5 flex-wrap mb-4">
+        <div data-tour="calendario-filtro" className="flex gap-1.5 flex-wrap mb-4">
           {([
             ["all", "Todos"],
             ["pending", "Pendentes"],
@@ -244,7 +261,7 @@ export default function CalendarioFinanceiro() {
             <Loader2 size={22} className="animate-spin text-slate-300" />
           </div>
         ) : (
-          <div className="grid grid-cols-7 gap-1.5">
+          <div data-tour="calendario-grid" className="grid grid-cols-7 gap-1.5">
             {WEEKDAYS.map((w) => (
               <div key={w} className="text-center text-[9px] font-black text-slate-400 uppercase tracking-widest py-1.5">{w}</div>
             ))}

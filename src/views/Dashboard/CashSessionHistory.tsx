@@ -1,8 +1,8 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import ExcelJS from "exceljs";
 import {
   Search, Wallet, CheckCircle2, Clock, X, Loader2, User, Calendar, ChevronRight, Printer,
-  Download, FileSpreadsheet, FileText, PieChart as PieChartIcon, ListOrdered, BarChart3, DollarSign,
+  Download, FileSpreadsheet, FileText, PieChart as PieChartIcon, ListOrdered, BarChart3, DollarSign, HelpCircle,
 } from "lucide-react";
 import {
   PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
@@ -14,6 +14,7 @@ import { cn } from "../../lib/utils";
 import {
   buildCashCloseReceiptText, printThermalText, thermalThin, thermalCenter, thermalRow,
 } from "../../lib/thermalReceipt";
+import CashHistoryPageTour, { CASH_HISTORY_PAGE_TOUR_EVENTS, type CashHistoryPageTourHandle } from "../../components/onboarding/CashHistoryPageTour";
 
 // Mesmo padrão de filtro de período já usado em Fluxo de Caixa/Contas a
 // Pagar/Contas a Receber — navegador de mês/ano com atalho pra período livre.
@@ -122,6 +123,7 @@ export default function CashSessionHistory() {
   const [mainTab, setMainTab] = useState<"sessions" | "report">("sessions");
   const [showExportModal, setShowExportModal] = useState(false);
   const [exporting, setExporting] = useState(false);
+  const tourRef = useRef<CashHistoryPageTourHandle>(null);
 
   // Filtro de período da aba Relatório — default "Mês" (o balanço só faz
   // sentido com um recorte de tempo, diferente da aba Sessões que lista tudo).
@@ -789,26 +791,55 @@ export default function CashSessionHistory() {
     }
   };
 
+  // ── Canal de comunicação do TOUR DE PÁGINA (CashHistoryPageTour) ──────────
+  // Tela 100% leitura — o único estado real trocado é a aba ativa (mainTab),
+  // o mesmo que clicar nas abas Sessões/Relatório faria. Nunca chama
+  // openDetail nem qualquer função de exportação/impressão real.
+  useEffect(() => {
+    const onGoSessions = () => setMainTab("sessions");
+    const onGoReport = () => setMainTab("report");
+    window.addEventListener(CASH_HISTORY_PAGE_TOUR_EVENTS.goToSessionsTab, onGoSessions);
+    window.addEventListener(CASH_HISTORY_PAGE_TOUR_EVENTS.goToReportTab, onGoReport);
+    return () => {
+      window.removeEventListener(CASH_HISTORY_PAGE_TOUR_EVENTS.goToSessionsTab, onGoSessions);
+      window.removeEventListener(CASH_HISTORY_PAGE_TOUR_EVENTS.goToReportTab, onGoReport);
+    };
+  }, []);
+
   return (
-    <div className="space-y-6">
+    <div data-tour="cash-history-page" className="space-y-6">
       <PageHeader
         title="Histórico de Caixa"
         subtitle="Todas as aberturas e fechamentos de caixa — quem abriu, quem fechou e a diferença apurada"
         action={
-          <Button variant="secondary" icon={<Download size={14} />} onClick={openExportModal}>
-            Exportar
-          </Button>
+          <div className="flex gap-2 items-center flex-wrap">
+            <Button data-tour="cash-history-export-btn" variant="secondary" icon={<Download size={14} />} onClick={openExportModal}>
+              Exportar
+            </Button>
+            <Button
+              variant="secondary"
+              className="text-slate-400 hover:text-blue-600 hover:bg-blue-50 border-slate-200 hover:border-blue-300"
+              icon={<HelpCircle size={14} />}
+              onClick={() => tourRef.current?.start()}
+              title="Tour guiado desta página"
+            >
+              <span className="sr-only sm:not-sr-only">Ajuda</span>
+            </Button>
+          </div>
         }
       />
 
+      <CashHistoryPageTour ref={tourRef} />
+
       {/* Abas principais */}
-      <div className="flex gap-1 bg-slate-100 p-1 rounded-xl w-fit">
+      <div data-tour="cash-history-tabs" className="flex gap-1 bg-slate-100 p-1 rounded-xl w-fit">
         {([
           { value: "sessions", label: "Sessões", icon: Wallet },
           { value: "report", label: "Relatório", icon: BarChart3 },
         ] as { value: "sessions" | "report"; label: string; icon: React.FC<{ size: number }> }[]).map((t) => (
           <button
             key={t.value}
+            data-tour={t.value === "report" ? "cash-history-report-tab-btn" : "cash-history-sessions-tab-btn"}
             onClick={() => setMainTab(t.value)}
             className={cn(
               "flex items-center gap-1.5 px-4 py-2 rounded-lg text-[12px] font-bold transition-all",
@@ -822,7 +853,7 @@ export default function CashSessionHistory() {
 
       {mainTab === "sessions" && (
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm">
-        <div className="flex items-center gap-0 border-b border-slate-100 divide-x divide-slate-100">
+        <div data-tour="cash-history-kpis" className="flex items-center gap-0 border-b border-slate-100 divide-x divide-slate-100">
           {[
             { label: "Total",              value: counts.total,          color: "text-slate-900" },
             { label: "Caixas Abertos",     value: counts.open,           color: "text-blue-500" },
@@ -858,7 +889,7 @@ export default function CashSessionHistory() {
           </select>
         </div>
 
-        <div className="overflow-x-auto">
+        <div data-tour="cash-history-table" className="overflow-x-auto">
           <table className="w-full text-left border-collapse">
             <thead>
               <tr className="border-t border-slate-100 bg-slate-50/60">
@@ -921,7 +952,7 @@ export default function CashSessionHistory() {
       {mainTab === "report" && (
         <div className="space-y-4">
           {/* Filtro de período */}
-          <div className="flex items-center gap-2 flex-wrap">
+          <div data-tour="cash-history-report-period" className="flex items-center gap-2 flex-wrap">
             {(periodPreset === "month" || periodPreset === "year") && (
               <div className="flex items-center gap-1 bg-slate-50 border border-slate-200 rounded-xl p-1">
                 <button onClick={() => navigatePeriod(-1)} className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-500 hover:bg-white hover:text-slate-900 transition-all">
@@ -975,7 +1006,7 @@ export default function CashSessionHistory() {
           ) : (
             <>
               {/* Cards por forma de pagamento/bandeira */}
-              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+              <div data-tour="cash-history-report-cards" className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
                 {paymentByMethodBrand.map((seg) => (
                   <div key={`${seg.method}-${seg.brand}`} className="bg-white rounded-2xl border border-slate-200 shadow-sm p-4">
                     <div className={cn("w-9 h-9 rounded-xl flex items-center justify-center mb-2.5", PM_ICON_BG[seg.method] ?? "bg-slate-100 text-slate-500")}>
@@ -996,7 +1027,7 @@ export default function CashSessionHistory() {
 
               {/* Gráficos: pizza por forma de pagamento + evolução diária */}
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
+                <div data-tour="cash-history-report-pie" className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
                   <div className="flex items-center gap-2 mb-4">
                     <PieChartIcon size={14} className="text-slate-400" />
                     <h3 className="text-[11px] font-black uppercase tracking-widest text-slate-700">Por Forma de Pagamento</h3>
