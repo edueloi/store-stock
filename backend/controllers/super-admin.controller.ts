@@ -350,7 +350,7 @@ export async function updateTenantUser(req: Request, res: Response) {
     if (name) data.name = String(name).trim();
     if (email) data.email = String(email).trim().toLowerCase();
     if (password && String(password).length >= 6) {
-      data.password_hash = await bcrypt.hash(String(password), 10);
+      data.password = await bcrypt.hash(String(password), 10);
     }
 
     const updated = await prisma.user.update({
