@@ -1,4 +1,4 @@
-import React, { useState, useRef, useCallback } from "react";
+import React, { useState, useRef, useCallback, useEffect } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { X, Upload, FileCode, AlertCircle, CheckCircle2, Loader2, Trash2, PackagePlus, RefreshCw } from "lucide-react";
 import Button from "./Button";
@@ -32,6 +32,12 @@ interface XmlImportModalProps {
   open: boolean;
   onClose: () => void;
   onImported: () => void;
+  /** Usado só pelo tour guiado: ao abrir, busca este XML estático (ex: um
+   * asset de exemplo em /public) e processa de verdade, como se o usuário
+   * tivesse arrastado o arquivo — chega até a tela de preview com produtos
+   * reais. O tour nunca clica em "Confirmar", só em "Cancelar", então nada
+   * é de fato importado. Fora do tour, esta prop nunca é usada. */
+  autoLoadUrl?: string;
 }
 
 // ── helpers ─────────────────────────────────────────────────────────────────
@@ -88,7 +94,7 @@ function parseNfeXml(xmlText: string, fileName: string): ParsedProduct[] {
 }
 
 // ── component ───────────────────────────────────────────────────────────────
-export default function XmlImportModal({ open, onClose, onImported }: XmlImportModalProps) {
+export default function XmlImportModal({ open, onClose, onImported, autoLoadUrl }: XmlImportModalProps) {
   const [step, setStep] = useState<"upload" | "preview" | "importing" | "done">("upload");
   const [dragging, setDragging] = useState(false);
   const [parsing, setParsing] = useState(false);
@@ -141,6 +147,26 @@ export default function XmlImportModal({ open, onClose, onImported }: XmlImportM
       setParsing(false);
     }
   }, []);
+
+  // Só para o tour guiado: quando aberto com autoLoadUrl, busca o XML de
+  // exemplo estático e processa de verdade (mesmo caminho de código que um
+  // arquivo arrastado pelo usuário), chegando ao preview com produtos reais.
+  // O tour nunca chama handleImport — só fecha via handleClose ("Cancelar").
+  useEffect(() => {
+    if (!open || !autoLoadUrl) return;
+    let cancelled = false;
+    fetch(autoLoadUrl)
+      .then(r => r.blob())
+      .then(blob => {
+        if (cancelled) return;
+        const fileName = autoLoadUrl.split("/").pop() || "exemplo.xml";
+        const file = new File([blob], fileName, { type: "text/xml" });
+        processFiles([file]);
+      })
+      .catch(() => { if (!cancelled) setParseError("Não foi possível carregar o exemplo."); });
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, autoLoadUrl]);
 
   const onFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files?.length) processFiles(e.target.files);
@@ -347,7 +373,7 @@ export default function XmlImportModal({ open, onClose, onImported }: XmlImportM
                   </div>
                 )}
 
-                <div className="rounded-xl border border-slate-100 overflow-x-auto">
+                <div data-tour="xml-import-preview" className="rounded-xl border border-slate-100 overflow-x-auto">
                   <div className="min-w-[560px]">
                   {/* table header */}
                   <div className="grid grid-cols-[auto_1fr_52px_52px_80px_80px_32px] gap-2 px-3 py-2 bg-slate-50 text-[10px] font-bold text-slate-500 uppercase tracking-wide">
@@ -457,7 +483,7 @@ export default function XmlImportModal({ open, onClose, onImported }: XmlImportM
                     Trocar arquivo
                   </button>
                   <div className="flex gap-2">
-                    <Button variant="secondary" onClick={handleClose} className="flex-1 sm:flex-none">Cancelar</Button>
+                    <Button data-tour="xml-import-cancel-btn" variant="secondary" onClick={handleClose} className="flex-1 sm:flex-none">Cancelar</Button>
                     <Button
                       icon={<PackagePlus size={14} />}
                       onClick={handleImport}

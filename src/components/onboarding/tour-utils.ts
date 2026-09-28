@@ -100,6 +100,18 @@ function ensureDragCursorStyles() {
       background-color: rgba(41, 126, 209, 0.06) !important;
       transition: background-color 200ms ease;
     }
+    .bx-tour-click-pulse {
+      position: fixed; z-index: 1000000001; pointer-events: none;
+      width: 34px; height: 34px; margin-left: -17px; margin-top: -17px;
+      border-radius: 50%; border: 2px solid #297ed1; opacity: 0;
+    }
+    .bx-tour-click-pulse.bx-tour-click-pulse-go {
+      animation: bx-tour-pulse 550ms ease-out;
+    }
+    @keyframes bx-tour-pulse {
+      0% { transform: scale(0.4); opacity: 0.9; }
+      100% { transform: scale(1.4); opacity: 0; }
+    }
   `;
   document.head.appendChild(style);
 }
@@ -160,4 +172,59 @@ export function cleanupDragCursor() {
   dragCursorEl?.remove();
   dragCursorEl = null;
   document.querySelectorAll(".bx-tour-drop-target-active").forEach((el) => el.classList.remove("bx-tour-drop-target-active"));
+  document.querySelectorAll(".bx-tour-click-pulse").forEach((el) => el.remove());
+}
+
+/**
+ * Variante mais simples de simulateFileDrag: move um cursor fantasma (sem
+ * chip de arquivo) do canto da tela até o centro do elemento alvo e faz um
+ * "pulso" de clique ali, para indicar visualmente onde o usuário clicaria.
+ * Puramente decorativo — não dispara nenhum evento de clique real no alvo.
+ */
+export function simulateClick(targetSelector: string): Promise<void> {
+  return new Promise((resolve) => {
+    ensureDragCursorStyles();
+    const target = visibleTourElement(targetSelector) as HTMLElement | undefined;
+    if (!target) { resolve(); return; }
+
+    const rect = target.getBoundingClientRect();
+    const endX = rect.left + rect.width / 2;
+    const endY = rect.top + rect.height / 2;
+    const startX = window.innerWidth - 60;
+    const startY = window.innerHeight - 60;
+
+    const cursor = document.createElement("div");
+    cursor.className = "bx-tour-drag-cursor";
+    cursor.style.left = `${startX}px`;
+    cursor.style.top = `${startY}px`;
+    cursor.innerHTML = CURSOR_SVG;
+    document.body.appendChild(cursor);
+    dragCursorEl = cursor;
+
+    void cursor.offsetWidth;
+    cursor.style.opacity = "1";
+
+    window.setTimeout(() => {
+      cursor.style.left = `${endX}px`;
+      cursor.style.top = `${endY}px`;
+    }, 60);
+
+    window.setTimeout(() => {
+      const pulse = document.createElement("div");
+      pulse.className = "bx-tour-click-pulse bx-tour-click-pulse-go";
+      pulse.style.left = `${endX}px`;
+      pulse.style.top = `${endY}px`;
+      document.body.appendChild(pulse);
+      window.setTimeout(() => pulse.remove(), 600);
+    }, 1000);
+
+    window.setTimeout(() => {
+      cursor.style.opacity = "0";
+      window.setTimeout(() => {
+        cursor.remove();
+        if (dragCursorEl === cursor) dragCursorEl = null;
+        resolve();
+      }, 260);
+    }, 1500);
+  });
 }

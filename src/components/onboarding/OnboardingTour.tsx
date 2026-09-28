@@ -95,14 +95,14 @@ function buildSteps(navigate: (path: string) => void): DriveStep[] {
     {
       popover: {
         title: "Bem-vindo ao Store BoxSys!",
-        description: "Vamos te mostrar o essencial em poucos passos — inclusive como cadastrar um produto e uma categoria, na prática.",
+        description: "Este é um passo a passo rápido para você entender como o sistema funciona. Vamos mostrar, na prática, como cadastrar um produto e uma categoria, sem salvar nada de verdade ainda.",
       },
     },
     {
       element: tourElement("sidebar"),
       popover: {
         title: "Menu principal",
-        description: "Aqui ficam todas as áreas do sistema: vendas, estoque, financeiro, clientes e configurações. Vamos entrar em algumas telas de verdade agora.",
+        description: "Este menu lateral é como você se move pelo sistema. Cada item leva a uma área diferente: vendas, estoque, financeiro, clientes e configurações da loja. Vamos entrar em algumas dessas telas agora, de verdade.",
         side: "right",
         align: "start",
         onNextClick: (_el, _step, opts) => {
@@ -114,8 +114,8 @@ function buildSteps(navigate: (path: string) => void): DriveStep[] {
     {
       element: tourElement("inventory-page"),
       popover: {
-        title: "Catálogo",
-        description: "É aqui que você cadastra e organiza seus produtos — nome, preço, fotos e estoque. Vamos abrir o cadastro de um produto novo para você ver como funciona (nada será salvo).",
+        title: "Tela de Catálogo",
+        description: "Aqui ficam todos os produtos que você vende: nome, preço, fotos e estoque de cada um. Vamos abrir o formulário de cadastro de um produto novo para você ver como ele funciona por dentro (nada será salvo).",
         side: "top",
         align: "start",
         onNextClick: (_el, _step, opts) => goAfter(opts.driver, openExampleProduct),
@@ -128,7 +128,7 @@ function buildSteps(navigate: (path: string) => void): DriveStep[] {
       element: tourElement("product-name-field"),
       popover: {
         title: "Nome do produto",
-        description: "Preenchemos com \"Produto Exemplo\" só para ilustrar. Nada é salvo até você clicar em \"Cadastrar Produto\".",
+        description: "É o nome que aparece para o cliente, tanto no PDV quanto na sua loja online. Preenchemos com \"Produto Exemplo\" só para ilustrar; nada é salvo de verdade até você clicar em \"Cadastrar Produto\".",
         side: "bottom",
         align: "start",
       },
@@ -139,8 +139,8 @@ function buildSteps(navigate: (path: string) => void): DriveStep[] {
         dispatchTourEvent(TOUR_EVENTS.fillProduct, { price: 29.9 });
       },
       popover: {
-        title: "Preço de Venda",
-        description: "O preço de venda ao consumidor. Aqui preenchemos R$ 29,90 como exemplo.",
+        title: "Preço de venda",
+        description: "É o valor que o cliente paga por esse produto. Preenchemos R$ 29,90 aqui só como exemplo, para você ver como o campo se comporta.",
         side: "top",
         align: "start",
       },
@@ -151,8 +151,8 @@ function buildSteps(navigate: (path: string) => void): DriveStep[] {
         dispatchTourEvent(TOUR_EVENTS.fillProduct, { stock_quantity: 10 });
       },
       popover: {
-        title: "Estoque Atual",
-        description: "A quantidade disponível para venda. Aqui preenchemos 10 unidades como exemplo.",
+        title: "Estoque atual",
+        description: "É quantas unidades desse produto você tem disponíveis para vender agora. Preenchemos 10 unidades como exemplo; cada venda no PDV desconta automaticamente daqui.",
         side: "top",
         align: "start",
       },
@@ -161,7 +161,7 @@ function buildSteps(navigate: (path: string) => void): DriveStep[] {
       element: tourElement("product-gallery"),
       popover: {
         title: "Fotos do produto",
-        description: "Aqui você adiciona as fotos do produto, arrastando arquivos ou tirando uma foto pelo celular. Vamos fechar este exemplo sem salvar e seguir para Categorias.",
+        description: "Aqui você adiciona fotos do produto, arrastando arquivos do computador ou tirando uma foto direto pelo celular. Boas fotos ajudam a vender mais na loja online. Vamos fechar este exemplo sem salvar e seguir para a tela de Categorias.",
         side: "right",
         align: "start",
         onNextClick: (_el, _step, opts) => {
@@ -174,8 +174,8 @@ function buildSteps(navigate: (path: string) => void): DriveStep[] {
     {
       element: tourElement("categories-new-btn"),
       popover: {
-        title: "Categorias",
-        description: "Organizar os produtos em categorias antes ajuda a deixar o catálogo online mais fácil de navegar. Vamos ver o cadastro de uma categoria também (sem salvar nada).",
+        title: "Tela de Categorias",
+        description: "Categorias servem para agrupar produtos parecidos, o que facilita o cliente encontrar o que procura na sua loja online. Vamos abrir o cadastro de uma categoria nova para você ver como funciona (sem salvar nada).",
         side: "bottom",
         align: "start",
         onNextClick: (_el, _step, opts) => {
@@ -197,7 +197,7 @@ function buildSteps(navigate: (path: string) => void): DriveStep[] {
       element: tourElement("category-name-field"),
       popover: {
         title: "Nome da categoria",
-        description: "Preenchemos com \"Categoria Exemplo\" só para ilustrar. Vamos fechar sem salvar e seguir para o PDV.",
+        description: "Preenchemos com \"Categoria Exemplo\" só para ilustrar. Vamos fechar sem salvar e seguir para o PDV, onde as vendas acontecem.",
         side: "bottom",
         align: "start",
         onNextClick: (_el, _step, opts) => {
@@ -210,8 +210,8 @@ function buildSteps(navigate: (path: string) => void): DriveStep[] {
     },
     {
       popover: {
-        title: "PDV — Caixa",
-        description: "É aqui que você realiza as vendas no balcão, com atalhos pra agilizar o atendimento.",
+        title: "PDV (Ponto de Venda)",
+        description: "É a tela de caixa: onde você registra as vendas do dia a dia, com atalhos para agilizar o atendimento do cliente no balcão.",
         onNextClick: (_el, _step, opts) => {
           navigate("/admin/settings");
           goAfter(opts.driver, () => waitForPath("/admin/settings"));
@@ -225,8 +225,8 @@ function buildSteps(navigate: (path: string) => void): DriveStep[] {
     },
     {
       popover: {
-        title: "Configurações",
-        description: "Personalize sua loja online: tema, cores e integração com WhatsApp.",
+        title: "Configurações da loja",
+        description: "Aqui você personaliza a aparência da sua loja online (tema e cores) e configura a integração com o WhatsApp para receber pedidos.",
         onNextClick: (_el, _step, opts) => opts.driver.moveNext(),
         // Volta de Configurações para o PDV.
         onPrevClick: (_el, _step, opts) => {
@@ -238,7 +238,7 @@ function buildSteps(navigate: (path: string) => void): DriveStep[] {
     {
       popover: {
         title: "Pronto!",
-        description: "Agora explore o sistema. Você pode rever este tour a qualquer momento clicando em \"Tour guiado\".",
+        description: "Agora você já conhece o essencial do sistema. Explore à vontade, e sempre que precisar rever este passo a passo, clique em \"Tour guiado\" no menu lateral.",
       },
     },
   ];

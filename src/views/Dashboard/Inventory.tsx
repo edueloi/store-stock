@@ -358,6 +358,9 @@ export default function Inventory() {
 
   const [isPdfModalOpen, setIsPdfModalOpen] = useState(false);
   const [isXmlModalOpen, setIsXmlModalOpen] = useState(false);
+  // Só usado pelo tour guiado: quando definido, o XmlImportModal carrega e
+  // processa este XML de exemplo automaticamente (ver prop autoLoadUrl).
+  const [xmlAutoLoadUrl, setXmlAutoLoadUrl] = useState<string | undefined>(undefined);
 
   const inventoryPageTourRef = useRef<InventoryPageTourHandle>(null);
 
@@ -568,8 +571,13 @@ export default function Inventory() {
     const onCloseProductModalPage = () => setIsModalOpen(false);
     const onOpenPdfModalPage = () => setIsPdfModalOpen(true);
     const onClosePdfModalPage = () => setIsPdfModalOpen(false);
-    const onOpenXmlModalPage = () => setIsXmlModalOpen(true);
-    const onCloseXmlModalPage = () => setIsXmlModalOpen(false);
+    // Abre o XML já com autoLoadUrl setado — o modal busca o arquivo de
+    // exemplo e processa de verdade (chega ao preview com produtos reais).
+    const onOpenXmlModalPage = () => {
+      setXmlAutoLoadUrl("/tour-assets/produtos_exemplo.xml");
+      setIsXmlModalOpen(true);
+    };
+    const onCloseXmlModalPage = () => { setIsXmlModalOpen(false); setXmlAutoLoadUrl(undefined); };
 
     window.addEventListener(INVENTORY_PAGE_TOUR_EVENTS.openNewProduct, onOpenNewProductPage);
     window.addEventListener(INVENTORY_PAGE_TOUR_EVENTS.fillProduct, onFillProductPage);
@@ -1896,8 +1904,9 @@ export default function Inventory() {
 
       <XmlImportModal
         open={isXmlModalOpen}
-        onClose={() => setIsXmlModalOpen(false)}
+        onClose={() => { setIsXmlModalOpen(false); setXmlAutoLoadUrl(undefined); }}
         onImported={() => { fetchInventory(); }}
+        autoLoadUrl={xmlAutoLoadUrl}
       />
     </div>
   );

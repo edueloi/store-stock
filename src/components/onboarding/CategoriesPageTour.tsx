@@ -41,14 +41,14 @@ function buildSteps(): DriveStep[] {
     {
       popover: {
         title: "Conhecendo Categorias",
-        description: "Vamos conhecer a tela de Categorias em detalhes.",
+        description: "Este tour mostra como criar uma categoria nova e como editar uma que já existe. Nada será salvo de verdade.",
       },
     },
     {
       element: tourElement("categories-page"),
       popover: {
-        title: "Organização do catálogo",
-        description: "Aqui você organiza seus produtos em categorias, o que ajuda os clientes a navegar pela loja online.",
+        title: "Para que servem as categorias",
+        description: "Categorias agrupam produtos parecidos (por exemplo: \"Bebidas\", \"Limpeza\", \"Eletrônicos\"). Isso ajuda o cliente a encontrar o que procura mais rápido quando navega pela sua loja online.",
         side: "top",
         align: "start",
       },
@@ -56,8 +56,8 @@ function buildSteps(): DriveStep[] {
     {
       element: tourElement("categories-new-btn"),
       popover: {
-        title: "Nova categoria",
-        description: "Vamos abrir o cadastro de uma categoria nova para você ver os campos disponíveis (nada será salvo).",
+        title: "Criar uma categoria nova",
+        description: "Vamos abrir o formulário de cadastro para você ver quais campos existem (sem salvar nada de verdade).",
         side: "bottom",
         align: "start",
         onNextClick: (_el, _step, opts) => goForward(opts.driver, openExampleCategory),
@@ -67,7 +67,7 @@ function buildSteps(): DriveStep[] {
       element: tourElement("category-name-field"),
       popover: {
         title: "Nome da categoria",
-        description: "Preenchemos com \"Categoria Exemplo\" só para ilustrar. Logo abaixo você escolhe um ícone e uma cor para identificar a categoria.",
+        description: "Preenchemos com \"Categoria Exemplo\" só para ilustrar. Logo abaixo você escolhe um ícone e uma cor para identificar essa categoria visualmente.",
         side: "bottom",
         align: "start",
         onPrevClick: (_el, _step, opts) => {
@@ -79,13 +79,13 @@ function buildSteps(): DriveStep[] {
     {
       popover: {
         title: "Ícone e cor",
-        description: "Escolha um ícone (roupas, calçados, tecnologia, etc.) e uma cor — eles aparecem nos cards da categoria e ajudam a identificá-la rapidamente.",
+        description: "Escolha um ícone (roupas, calçados, tecnologia, etc.) e uma cor. Eles aparecem nos cards da categoria e ajudam a reconhecê-la rapidamente na lista.",
       },
     },
     {
       popover: {
         title: "Capa da categoria",
-        description: "Você também pode enviar uma imagem de capa para a categoria, exibida no topo do card. Vamos fechar este exemplo sem salvar.",
+        description: "Você também pode enviar uma foto de capa, que aparece no topo do card da categoria e na loja online. Vamos fechar este exemplo sem salvar e mostrar como editar uma categoria que já existe.",
         onNextClick: (_el, _step, opts) => {
           dispatchTourEvent(CATEGORIES_PAGE_TOUR_EVENTS.closeCategoryModal);
           dispatchTourEvent(CATEGORIES_PAGE_TOUR_EVENTS.openEditCategory);
@@ -102,8 +102,8 @@ function buildSteps(): DriveStep[] {
       // lista estava vazia, o modal não abre e skipMissingElement pula o passo.
       element: tourElement("category-name-field"),
       popover: {
-        title: "Editar categoria existente",
-        description: "O botão \"Editar\" em cada card abre o mesmo formulário, já preenchido, para atualizar nome, ícone, cor ou capa.",
+        title: "Editar uma categoria existente",
+        description: "Clicando em \"Editar\" em qualquer card da lista, você abre este mesmo formulário já preenchido, pronto para atualizar nome, ícone, cor ou capa.",
         side: "bottom",
         align: "start",
         onNextClick: (_el, _step, opts) => {
@@ -118,14 +118,14 @@ function buildSteps(): DriveStep[] {
     },
     {
       popover: {
-        title: "Ver itens da categoria",
-        description: "O botão \"Ver itens\" de cada card mostra os produtos daquela categoria e permite adicionar produtos sem categoria a ela.",
+        title: "Ver os produtos de uma categoria",
+        description: "O botão \"Ver itens\", em cada card, mostra quais produtos já estão naquela categoria e permite adicionar produtos que ainda não têm categoria definida.",
       },
     },
     {
       popover: {
         title: "Pronto!",
-        description: "Agora você já conhece os principais recursos de Categorias. Você pode rever este tour a qualquer momento pelo botão de ajuda (?).",
+        description: "Agora você já sabe criar e editar categorias. Sempre que precisar rever este passo a passo, clique no botão de ajuda (?) no topo da página.",
       },
     },
   ];

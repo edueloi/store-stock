@@ -2,7 +2,7 @@ import { useEffect, useImperativeHandle, useRef, forwardRef } from "react";
 import { driver, type Driver, type DriveStep } from "driver.js";
 import "driver.js/dist/driver.css";
 import "./onboarding-tour.css";
-import { dispatchTourEvent, tourElement, waitForElement } from "./tour-utils";
+import { dispatchTourEvent, tourElement, waitForElement, simulateClick, cleanupDragCursor } from "./tour-utils";
 
 // ── Canal de comunicação tour de página → tela ──────────────────────────────
 //
@@ -33,14 +33,14 @@ function buildSteps(): DriveStep[] {
     {
       popover: {
         title: "Conhecendo o Estoque",
-        description: "Vamos conhecer a tela de Estoque em detalhes.",
+        description: "Este tour mostra como controlar o estoque dos seus produtos e como ajustar uma quantidade manualmente. Nada será aplicado de verdade.",
       },
     },
     {
       element: tourElement("stock-page"),
       popover: {
-        title: "Controle de estoque",
-        description: "Aqui você controla o estoque de todos os produtos: saldo atual, validade e histórico de movimentações.",
+        title: "Para que serve esta tela",
+        description: "Aqui você acompanha o estoque de todos os produtos: quantas unidades tem de cada um, quais estão perto de vencer e o histórico de tudo que já entrou ou saiu.",
         side: "top",
         align: "start",
       },
@@ -48,8 +48,8 @@ function buildSteps(): DriveStep[] {
     {
       element: tourElement("stock-view-inventory-btn"),
       popover: {
-        title: "Posição x Auditoria",
-        description: "\"Posição\" mostra o saldo atual de cada produto. \"Auditoria\" mostra o histórico de todas as movimentações (compras, ajustes, vendas, devoluções).",
+        title: "Posição e Auditoria",
+        description: "\"Posição\" mostra a quantidade que você tem agora de cada produto. \"Auditoria\" mostra o histórico completo: toda compra, venda, perda ou ajuste que já aconteceu.",
         side: "bottom",
         align: "start",
       },
@@ -57,14 +57,19 @@ function buildSteps(): DriveStep[] {
     {
       popover: {
         title: "Filtros rápidos",
-        description: "Use os chips \"Todos\", \"Esgotado\", \"Baixo estoque\" e \"Vencimento\" para focar rapidamente nos produtos que precisam de atenção.",
+        description: "Os botões \"Todos\", \"Esgotado\", \"Baixo estoque\" e \"Vencimento\" filtram a lista na hora, para você ver rapidamente só os produtos que precisam de atenção.",
       },
     },
     {
       element: tourElement("stock-adjust-btn"),
+      onHighlightStarted: () => {
+        // Indica visualmente onde clicar para abrir o ajuste — cursor
+        // fantasma, não dispara nenhum clique real no botão.
+        simulateClick('[data-tour="stock-adjust-btn"]');
+      },
       popover: {
-        title: "Ajustar estoque",
-        description: "Vamos abrir o ajuste de estoque de um produto para você ver como funciona (nada será aplicado de verdade).",
+        title: "Ajustar o estoque de um produto",
+        description: "Clicando neste botão, você corrige manualmente a quantidade de um produto (por exemplo, depois de uma contagem física). Vamos abrir para você ver como funciona, sem aplicar nada de verdade.",
         side: "left",
         align: "start",
         onNextClick: (_el, _step, opts) => {
@@ -77,7 +82,7 @@ function buildSteps(): DriveStep[] {
       element: tourElement("stock-adjustment-type"),
       popover: {
         title: "Tipo de operação",
-        description: "Escolha se o ajuste é uma Compra, Ajuste, Perda ou Devolução — isso fica registrado no histórico de auditoria.",
+        description: "Escolha o motivo do ajuste: Compra (entrada de mercadoria), Ajuste (correção de contagem), Perda ou Devolução. Isso fica registrado no histórico de auditoria, para você sempre saber o porquê de cada mudança.",
         side: "top",
         align: "start",
         onPrevClick: (_el, _step, opts) => {
@@ -90,7 +95,7 @@ function buildSteps(): DriveStep[] {
       element: tourElement("stock-adjustment-quantity"),
       popover: {
         title: "Quantidade",
-        description: "Use os botões + e − para definir a variação de estoque. Serve para corrigir divergências de inventário — nada é aplicado até clicar em \"Aplicar\". Vamos fechar sem aplicar.",
+        description: "Use os botões + e − para dizer quantas unidades entraram ou saíram. Nada é aplicado de verdade até você clicar em \"Aplicar\". Vamos fechar este exemplo sem aplicar.",
         side: "top",
         align: "start",
         onNextClick: (_el, _step, opts) => {
@@ -105,7 +110,7 @@ function buildSteps(): DriveStep[] {
     {
       popover: {
         title: "Pronto!",
-        description: "Agora você já conhece os principais recursos do Estoque. Você pode rever este tour a qualquer momento pelo botão de ajuda (?).",
+        description: "Agora você já sabe consultar e ajustar o estoque. Sempre que precisar rever este passo a passo, clique no botão de ajuda (?) no topo da página.",
       },
     },
   ];
@@ -147,6 +152,7 @@ const StockPageTour = forwardRef<StockPageTourHandle>(function StockPageTour(_pr
           // Segurança extra: garante que o modal de ajuste não fique aberto
           // se o usuário sair do tour no meio dos passos.
           dispatchTourEvent(STOCK_PAGE_TOUR_EVENTS.closeAdjustment);
+          cleanupDragCursor();
           d.destroy();
         },
       });
@@ -167,6 +173,7 @@ const StockPageTour = forwardRef<StockPageTourHandle>(function StockPageTour(_pr
   useEffect(() => {
     return () => {
       driverRef.current?.destroy();
+      cleanupDragCursor();
     };
   }, []);
 

@@ -2,7 +2,7 @@ import { useEffect, useImperativeHandle, useRef, forwardRef } from "react";
 import { driver, type Driver, type DriveStep } from "driver.js";
 import "driver.js/dist/driver.css";
 import "./onboarding-tour.css";
-import { dispatchTourEvent, tourElement, waitForElement, simulateFileDrag, cleanupDragCursor } from "./tour-utils";
+import { dispatchTourEvent, tourElement, waitForElement, simulateFileDrag, simulateClick, cleanupDragCursor } from "./tour-utils";
 
 // ── Canal de comunicação tour de página → tela ──────────────────────────────
 //
@@ -40,18 +40,26 @@ function buildSteps(): DriveStep[] {
       .finally(() => driverObj.movePrevious());
   };
 
+  // Reabre o modal de XML já processando o arquivo de exemplo (mesmo
+  // caminho do passo original), usado tanto ao avançar quanto ao voltar
+  // para esse ponto do tour.
+  const openXmlPreview = () => {
+    dispatchTourEvent(INVENTORY_PAGE_TOUR_EVENTS.openXmlModal);
+    return waitForElement('[data-tour="xml-import-preview"]');
+  };
+
   return [
     {
       popover: {
         title: "Conhecendo o Catálogo",
-        description: "Vamos conhecer o Catálogo em detalhes — cada recurso desta tela, na prática.",
+        description: "Este tour mostra, passo a passo, como usar a tela de Catálogo: importar produtos de um arquivo, cadastrar um produto novo e editar um já existente. Nada será salvo de verdade.",
       },
     },
     {
       element: tourElement("inventory-page"),
       popover: {
         title: "Seus produtos",
-        description: "Aqui ficam todos os produtos cadastrados na sua loja, com preço, estoque e organização por categoria.",
+        description: "Aqui ficam todos os produtos que você vende na loja: nome, preço, estoque e a categoria de cada um.",
         side: "top",
         align: "start",
       },
@@ -60,7 +68,7 @@ function buildSteps(): DriveStep[] {
       element: tourElement("inventory-import-pdf-btn"),
       popover: {
         title: "Importar PDF",
-        description: "Importa uma lista de produtos a partir de um PDF — nota fiscal ou catálogo de fornecedor. Vamos abrir para você ver (sem importar nada de verdade).",
+        description: "Se você tem uma lista de produtos em PDF (uma nota fiscal ou o catálogo de um fornecedor, por exemplo), este botão lê o arquivo e sugere os produtos para cadastro, sem precisar digitar um por um. Vamos abrir para você ver como é (sem importar nada de verdade).",
         side: "bottom",
         align: "start",
         onNextClick: (_el, _step, opts) => {
@@ -78,13 +86,12 @@ function buildSteps(): DriveStep[] {
       },
       popover: {
         title: "Área de upload do PDF",
-        description: "Arraste o PDF da nota fiscal ou catálogo do fornecedor aqui (ou clique para escolher o arquivo). O sistema lê os itens automaticamente. Vamos fechar este exemplo e ver o Importar XML.",
+        description: "É só arrastar o arquivo PDF até esta área (ou clicar para escolher no computador). Vamos fechar este exemplo e mostrar o Importar XML, que funciona de forma parecida.",
         side: "bottom",
         align: "start",
         onNextClick: (_el, _step, opts) => {
           dispatchTourEvent(INVENTORY_PAGE_TOUR_EVENTS.closePdfModal);
-          dispatchTourEvent(INVENTORY_PAGE_TOUR_EVENTS.openXmlModal);
-          goForward(opts.driver, () => waitForElement('[data-tour="xml-import-dropzone"]'));
+          goForward(opts.driver, openXmlPreview);
         },
         onPrevClick: (_el, _step, opts) => {
           dispatchTourEvent(INVENTORY_PAGE_TOUR_EVENTS.closePdfModal);
@@ -93,19 +100,17 @@ function buildSteps(): DriveStep[] {
       },
     },
     {
-      element: tourElement("xml-import-dropzone"),
-      onHighlightStarted: () => {
-        simulateFileDrag('[data-tour="xml-import-dropzone"]', "produtos_exemplo.xml");
-      },
+      // Abre o XML já processando o arquivo de exemplo de verdade (via
+      // autoLoadUrl em XmlImportModal) — chega direto na tela de preview
+      // com produtos reais extraídos do XML, não uma dropzone vazia.
+      element: tourElement("xml-import-preview"),
       popover: {
         title: "Importar XML",
-        description: "Importa produtos a partir do XML de uma nota fiscal de compra, preenchendo automaticamente nome, preço, NCM e outros dados fiscais.",
-        side: "bottom",
+        description: "O Importar XML lê o arquivo eletrônico de uma nota fiscal de compra e já preenche nome, quantidade, preço e dados fiscais dos produtos. Veja o resultado: cada linha marcada como \"NOVO\" vira um produto novo, e \"ATUALIZAR\" soma no estoque de um produto que você já tem.",
+        side: "top",
         align: "start",
         onNextClick: (_el, _step, opts) => {
-          dispatchTourEvent(INVENTORY_PAGE_TOUR_EVENTS.closeXmlModal);
-          dispatchTourEvent(INVENTORY_PAGE_TOUR_EVENTS.openNewProduct, { name: "Produto Exemplo" });
-          goForward(opts.driver, () => waitForElement('[data-tour="product-name-field"]'));
+          goForward(opts.driver, () => waitForElement('[data-tour="xml-import-cancel-btn"]'));
         },
         onPrevClick: (_el, _step, opts) => {
           dispatchTourEvent(INVENTORY_PAGE_TOUR_EVENTS.closeXmlModal);
@@ -115,19 +120,40 @@ function buildSteps(): DriveStep[] {
       },
     },
     {
+      // Clica de verdade no botão "Cancelar" (nunca em "Confirmar") — mesmo
+      // efeito de fechar sem importar, mas mostrando ao usuário exatamente
+      // onde clicar quando ele quiser desistir de uma importação real.
+      element: tourElement("xml-import-cancel-btn"),
+      onHighlightStarted: () => {
+        simulateClick('[data-tour="xml-import-cancel-btn"]');
+      },
+      popover: {
+        title: "Nada é importado sem você confirmar",
+        description: "Depois de revisar a lista, você clicaria em \"Confirmar\" para importar de verdade. Aqui no tour vamos clicar em \"Cancelar\", para deixar claro que nenhum produto foi criado.",
+        side: "top",
+        align: "end",
+        onNextClick: (_el, _step, opts) => {
+          const cancelBtn = tourElement("xml-import-cancel-btn")() as HTMLButtonElement | undefined;
+          cancelBtn?.click();
+          dispatchTourEvent(INVENTORY_PAGE_TOUR_EVENTS.openNewProduct, { name: "Produto Exemplo" });
+          goForward(opts.driver, () => waitForElement('[data-tour="product-name-field"]'));
+        },
+        onPrevClick: (_el, _step, opts) => goBack(opts.driver, () => Promise.resolve()),
+      },
+    },
+    {
       element: tourElement("product-name-field"),
       onHighlightStarted: () => {
         dispatchTourEvent(INVENTORY_PAGE_TOUR_EVENTS.fillProduct, { price: 29.9, stock_quantity: 10 });
       },
       popover: {
-        title: "Cadastro rápido",
-        description: "Nome, preço de venda e estoque são os campos essenciais. Preenchemos com valores de exemplo só para ilustrar — nada é salvo.",
+        title: "Cadastro manual de produto",
+        description: "Quando você não tem PDF nem XML, dá para cadastrar um produto preenchendo os campos manualmente. Nome, preço de venda e estoque são os campos mais importantes. Preenchemos valores de exemplo só para ilustrar; nada é salvo de verdade.",
         side: "bottom",
         align: "start",
         onPrevClick: (_el, _step, opts) => {
           dispatchTourEvent(INVENTORY_PAGE_TOUR_EVENTS.closeProductModal);
-          dispatchTourEvent(INVENTORY_PAGE_TOUR_EVENTS.openXmlModal);
-          goBack(opts.driver, () => waitForElement('[data-tour="xml-import-dropzone"]'));
+          goBack(opts.driver, openXmlPreview);
         },
       },
     },
@@ -140,7 +166,7 @@ function buildSteps(): DriveStep[] {
       },
       popover: {
         title: "Mais opções no mesmo cadastro",
-        description: "Além de fotos, o cadastro completo tem seção de categoria e dados fiscais (NCM, CFOP, CSOSN/CST) para a nota eletrônica. Vamos fechar sem salvar e ver a edição de um produto já existente.",
+        description: "Além das fotos (mostradas aqui como exemplo), o cadastro completo também tem uma seção de categoria e de dados fiscais (NCM, CFOP, CSOSN/CST), usados na hora de emitir a nota fiscal. Vamos fechar sem salvar e mostrar como editar um produto que já existe.",
         side: "right",
         align: "start",
         onNextClick: (_el, _step, opts) => {
@@ -156,8 +182,8 @@ function buildSteps(): DriveStep[] {
       // este passo com segurança em vez de travar o tour.
       element: tourElement("product-name-field"),
       popover: {
-        title: "Editar produto existente",
-        description: "O botão \"Editar\" (ícone de lápis) na lista abre o mesmo formulário, já preenchido, para você atualizar preço, estoque ou fotos. Vamos fechar sem salvar.",
+        title: "Editar um produto existente",
+        description: "Clicando no ícone de lápis \"Editar\", ao lado de qualquer produto na lista, você abre este mesmo formulário já preenchido com os dados atuais, pronto para atualizar preço, estoque ou fotos. Vamos fechar sem salvar.",
         side: "bottom",
         align: "start",
         onNextClick: (_el, _step, opts) => {
@@ -174,14 +200,14 @@ function buildSteps(): DriveStep[] {
     {
       popover: {
         title: "Busca e filtros",
-        description: "Use a busca por nome/SKU e os filtros de categoria, status e estoque crítico para localizar produtos rapidamente.",
+        description: "Use a barra de busca para achar um produto pelo nome ou código, e os filtros de categoria, status e estoque crítico para ver só o que interessa no momento.",
       },
     },
     {
       element: tourElement("inventory-new-product-btn"),
       popover: {
-        title: "Grade ou Tabela",
-        description: "O botão ao lado do \"Novo Produto\" alterna entre visualização em tabela (mais dados por linha) e em grade (foco visual nas fotos).",
+        title: "Visualização em Grade ou em Tabela",
+        description: "O botão ao lado do \"Novo Produto\" alterna como a lista aparece na tela: em Tabela você vê mais dados de cada produto lado a lado; em Grade o foco fica nas fotos, como uma vitrine.",
         side: "bottom",
         align: "end",
       },
@@ -189,7 +215,7 @@ function buildSteps(): DriveStep[] {
     {
       popover: {
         title: "Pronto!",
-        description: "Agora você já conhece os principais recursos do Catálogo. Você pode rever este tour a qualquer momento pelo botão de ajuda (?).",
+        description: "Agora você já conhece os principais recursos da tela de Catálogo. Se quiser rever este passo a passo em outro momento, é só clicar no botão de ajuda (?) no topo da página.",
       },
     },
   ];
