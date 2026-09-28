@@ -1,0 +1,88 @@
+/* Tema do driver.js com as cores da marca Store BoxSys (navy/azul/laranja),
+   substituindo o roxo padrão da lib. Escopado em .bx-onboarding-popover
+   (via popoverClass) para não afetar nenhum outro uso futuro do driver.js. */
+
+.bx-onboarding-popover.driver-popover {
+  border-radius: 14px;
+  padding: 18px;
+  max-width: 320px;
+  box-shadow: 0 20px 50px rgba(11, 19, 39, 0.35), 0 0 0 1px rgba(11, 19, 39, 0.06);
+}
+
+.bx-onboarding-popover .driver-popover-title {
+  color: #0b1327;
+  font-size: 16px;
+  font-weight: 800;
+}
+
+.bx-onboarding-popover .driver-popover-description {
+  color: #475569;
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.bx-onboarding-popover .driver-popover-progress-text {
+  color: #94a3b8;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.bx-onboarding-popover .driver-popover-close-btn {
+  color: #cbd5e1;
+}
+
+.bx-onboarding-popover .driver-popover-close-btn:hover,
+.bx-onboarding-popover .driver-popover-close-btn:focus {
+  color: #0b1327;
+}
+
+.bx-onboarding-popover .driver-popover-footer-btn {
+  border-radius: 8px;
+  border: 1px solid #cbd5e1;
+  color: #334155;
+  font-weight: 700;
+  font-size: 12px;
+  padding: 6px 12px;
+  text-shadow: none;
+  background-color: #fff;
+}
+
+.bx-onboarding-popover .driver-popover-footer-btn:hover,
+.bx-onboarding-popover .driver-popover-footer-btn:focus {
+  background-color: #f1f5f9;
+}
+
+.bx-onboarding-popover [data-button="next"],
+.bx-onboarding-popover [data-button="done"] {
+  background-color: #297ed1;
+  border-color: #297ed1;
+  color: #fff;
+}
+
+.bx-onboarding-popover [data-button="next"]:hover,
+.bx-onboarding-popover [data-button="done"]:hover {
+  background-color: #1f66ac;
+  border-color: #1f66ac;
+}
+
+.bx-onboarding-popover .driver-popover-arrow-side-left {
+  border-right-color: #fff;
+}
+.bx-onboarding-popover .driver-popover-arrow-side-right {
+  border-left-color: #fff;
+}
+.bx-onboarding-popover .driver-popover-arrow-side-top {
+  border-bottom-color: #fff;
+}
+.bx-onboarding-popover .driver-popover-arrow-side-bottom {
+  border-top-color: #fff;
+}
+
+/* Spotlight: o recorte no overlay é feito via SVG pelo driver.js (config
+   overlayColor/overlayOpacity, setadas no componente). Aqui só adicionamos um
+   contorno sutil na cor da marca ao redor do elemento destacado. */
+.driver-active-element {
+  border-radius: 8px !important;
+  outline: 3px solid rgba(41, 126, 209, 0.65);
+  outline-offset: 2px;
+}

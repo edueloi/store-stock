@@ -38,12 +38,14 @@ import {
   HardHat,
   History,
   Kanban,
+  HelpCircle,
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { cn } from "../../lib/utils";
 import { ToastProvider, useToast } from "../../components/ui/Toast";
 import { getStoredUser } from "../../lib/session";
 import { listHeldSales, type HeldSale } from "../../lib/heldSales";
+import OnboardingTour, { maybeAutoStartTour, type OnboardingTourHandle } from "../../components/onboarding/OnboardingTour";
 
 // Sub-views
 import Home from "./Home";
@@ -120,7 +122,7 @@ function SidebarTooltip({ anchorRef, label }: { anchorRef: RefObject<HTMLElement
 
 // ── Item de nav com tooltip quando a sidebar está recolhida ──────────────────
 function SidebarNavItem({
-  to, icon: Icon, label, isActive, isSidebarOpen, badge, badgeLabel,
+  to, icon: Icon, label, isActive, isSidebarOpen, badge, badgeLabel, dataTour,
 }: {
   to: string;
   icon: ComponentType<{ size?: number; className?: string }>;
@@ -129,6 +131,7 @@ function SidebarNavItem({
   isSidebarOpen: boolean;
   badge?: number;
   badgeLabel?: string;
+  dataTour?: string;
 }) {
   const ref = useRef<HTMLAnchorElement>(null);
   return (
@@ -136,6 +139,7 @@ function SidebarNavItem({
       <Link
         ref={ref}
         to={to}
+        data-tour={dataTour}
         className={cn(
           "flex items-center gap-3 rounded-xl px-3 py-2.5 text-[13px] font-semibold transition-all duration-200 relative",
           isActive
@@ -536,6 +540,7 @@ export default function AdminDashboard() {
   const [subscriptionOverdue, setSubscriptionOverdue] = useState(false);
   const location = useLocation();
   const navigate = useNavigate();
+  const onboardingTourRef = useRef<OnboardingTourHandle>(null);
 
   // Aviso visual (não bloqueante) de sacolas de consignação em atraso —
   // vem sempre do backend, então sobrevive a navegação/relogin sem precisar
@@ -697,6 +702,13 @@ export default function AdminDashboard() {
     return () => window.removeEventListener("resize", handleResize);
   }, []);
 
+  // Dispara o tour guiado automaticamente no primeiro acesso ao painel (ver
+  // OnboardingTour.tsx — checa a preferência has_seen_onboarding_tour no
+  // backend e só roda se o usuário ainda não viu).
+  useEffect(() => {
+    maybeAutoStartTour(() => onboardingTourRef.current?.start());
+  }, []);
+
   const allMenuGroups = [
     {
       label: "Operação",
@@ -781,6 +793,15 @@ export default function AdminDashboard() {
   // flat list for header label lookup and mobile nav
   const menuItems = menuGroups.flatMap((g) => g.items);
 
+  // Mapeia itens de menu específicos para os seletores que o OnboardingTour usa
+  // para destacá-los (ver src/components/onboarding/OnboardingTour.tsx).
+  const tourDataAttr: Record<string, string> = {
+    catalog: "menu-catalog",
+    categories: "menu-categories",
+    pdv: "menu-pdv",
+    settings: "menu-settings",
+  };
+
   const viewPublicStore = () => {
     const isLocal = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1";
     window.open(isLocal ? `/s/${tenantSlug}` : (tenantPublicUrl || `/s/${tenantSlug}`), "_blank");
@@ -836,10 +857,16 @@ export default function AdminDashboard() {
     <DueSoonBillsToastWatcher bills={dueSoonBills} />
     <OverdueInstallmentsToastWatcher installments={overdueInstallments} />
     <DueSoonInstallmentsToastWatcher installments={dueSoonInstallments} />
+    <OnboardingTour
+      ref={onboardingTourRef}
+      isSidebarOpen={isSidebarOpen}
+      setIsSidebarOpen={setIsSidebarOpen}
+      isMobile={window.innerWidth <= 1024}
+    />
     <div className="flex h-screen bg-[#f8fafc] overflow-hidden font-sans text-slate-800 relative">
 
       {/* ── SIDEBAR DESKTOP ─────────────────────────────────────────────── */}
-      <aside className={cn(
+      <aside data-tour="sidebar" className={cn(
         "bg-[#0b1327] text-slate-300 hidden lg:flex flex-col border-r border-white/10 transition-all duration-300 shrink-0",
         isSidebarOpen ? "w-64" : "w-[64px]"
       )}>
@@ -882,6 +909,7 @@ export default function AdminDashboard() {
                       label={item.label}
                       isActive={isActive}
                       isSidebarOpen={isSidebarOpen}
+                      dataTour={tourDataAttr[item.key]}
                       badge={
                         item.path === "/admin/consignacoes" ? overdueConsignments
                           : item.path === "/admin/stock" ? lowStockCount
@@ -907,6 +935,7 @@ export default function AdminDashboard() {
 
         {/* Footer */}
         <div className="border-t border-white/10 p-2.5 space-y-0.5">
+          <SidebarFooterButton onClick={() => onboardingTourRef.current?.start()} icon={HelpCircle} label="Tour guiado" isSidebarOpen={isSidebarOpen} />
           <SidebarFooterButton onClick={() => navigate("/admin/meu-perfil")} icon={UserCircle} label="Meu Perfil" isSidebarOpen={isSidebarOpen} />
           <SidebarFooterButton onClick={viewPublicStore} icon={Package} label="Ver Loja" isSidebarOpen={isSidebarOpen} />
           <SidebarFooterButton onClick={handleLogout} icon={LogOut} label="Sair" isSidebarOpen={isSidebarOpen} danger />
@@ -928,6 +957,7 @@ export default function AdminDashboard() {
       <AnimatePresence>
         {isSidebarOpen && (
           <motion.aside
+            data-tour="sidebar"
             initial={{ x: "-100%" }} animate={{ x: 0 }} exit={{ x: "-100%" }}
             transition={{ type: "spring", damping: 28, stiffness: 220 }}
             className="fixed inset-y-0 left-0 w-[280px] bg-[#0b1327] text-slate-300 flex flex-col z-[101] lg:hidden border-r border-white/10 shadow-2xl"
@@ -968,6 +998,7 @@ export default function AdminDashboard() {
                           : 0;
                       return (
                         <Link key={item.path} to={item.path} onClick={() => setIsSidebarOpen(false)}
+                          data-tour={tourDataAttr[item.key]}
                           className={cn(
                             "relative flex items-center gap-3 rounded-xl px-3 py-2.5 text-[13px] font-semibold transition-all duration-200",
                             isActive
@@ -990,6 +1021,10 @@ export default function AdminDashboard() {
             </nav>
 
             <div className="border-t border-white/10 p-2.5 space-y-0.5">
+              <button onClick={() => onboardingTourRef.current?.start()}
+                className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-[13px] font-semibold text-slate-400 transition-all hover:bg-white/5 hover:text-white">
+                <HelpCircle size={16} /><span>Tour guiado</span>
+              </button>
               <button onClick={() => { setIsSidebarOpen(false); navigate("/admin/meu-perfil"); }}
                 className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-[13px] font-semibold text-slate-400 transition-all hover:bg-white/5 hover:text-white">
                 <UserCircle size={16} /><span>Meu Perfil</span>
