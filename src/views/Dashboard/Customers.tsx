@@ -822,7 +822,7 @@ export default function Customers() {
                         </div>
                         <div className="min-w-0">
                           <p className="line-clamp-2 text-[13px] font-black leading-tight text-slate-900">{c.name}</p>
-                          <p className="mt-1 text-[10px] font-bold uppercase tracking-wider text-slate-400">Cliente desde {fmtDate(c.created_at)}</p>
+                          <p className="mt-1 text-[10px] font-bold uppercase tracking-wider text-slate-400">Cliente desde {fmtDate(c.customer_since ?? c.created_at)}</p>
                         </div>
                       </div>
                       <div className="flex shrink-0 items-center gap-1">
@@ -897,7 +897,7 @@ export default function Customers() {
                       <td className="px-4 py-3 text-center">
                         {c.risk_flag ? <AlertTriangle size={14} className="text-rose-500 mx-auto" /> : <span className="text-slate-300 text-xs">—</span>}
                       </td>
-                      <td className="px-4 py-3 text-slate-400 text-[12px]">{fmtDate(c.created_at)}</td>
+                      <td className="px-4 py-3 text-slate-400 text-[12px]">{fmtDate(c.customer_since ?? c.created_at)}</td>
                       <td className="px-4 py-3 text-right" onClick={(e) => e.stopPropagation()}>
                         <button onClick={() => navigate(`/admin/customers/${c.id}`)} className="text-[11px] font-bold text-blue-600 hover:underline">
                           Ver ficha

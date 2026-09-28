@@ -1208,13 +1208,65 @@ function parseExcelDate(value: unknown): Date | null {
   return null;
 }
 
+// CNPJ/CPF pode chegar em notação científica (ex: "6,87311E+11") quando a
+// planilha de origem guardou o documento como número em vez de texto — comum
+// em exports de sistemas legados. Number(...).toFixed(0) reconstrói os dígitos
+// originais antes de tirar a pontuação.
 function normalizeDoc(value: unknown): string {
-  return String(value ?? "").replace(/\D/g, "");
+  const str = String(value ?? "").trim();
+  if (/^-?\d+([.,]\d+)?e\+?\d+$/i.test(str)) {
+    const asNumber = Number(str.replace(",", "."));
+    if (!Number.isNaN(asNumber)) return String(Math.round(asNumber));
+  }
+  if (typeof value === "number") return String(Math.round(value));
+  return str.replace(/\D/g, "");
+}
+
+// Planilhas de sistemas legados raramente batem exatamente com nossos
+// cabeçalhos ("CNPJ / CPF" com espaços, "cnpj/cpf" minúsculo, "IE/RG" vs
+// "IE / RG" etc.) — normalizamos removendo espaços ao redor de "/", colapsando
+// espaços múltiplos e comparando sem acento/case, para casar mesmo com
+// variações razoáveis de formatação do cabeçalho.
+function normalizeHeaderKey(key: string): string {
+  return key
+    .normalize("NFD").replace(/[̀-ͯ]/g, "") // remove acentos
+    .trim()
+    .toLowerCase()
+    .replace(/\s*\/\s*/g, "/") // "CNPJ / CPF" -> "cnpj/cpf"
+    .replace(/\s+/g, " ")
+    .replace(/\.$/, ""); // "Data nasc." -> "data nasc"
+}
+
+// Reconstrói a linha usando as chaves canônicas de EXPORT_COLUMNS, casando
+// com o cabeçalho real do arquivo por comparação normalizada (tolerante a
+// espaços/acentos/case). Colunas do arquivo que não têm correspondência
+// conhecida são preservadas com a chave original (não usadas, mas não perdidas).
+function normalizeRowKeys(row: Record<string, unknown>): Record<string, unknown> {
+  const canonicalByNormalized = new Map(EXPORT_COLUMNS.map((c) => [normalizeHeaderKey(c), c]));
+  const result: Record<string, unknown> = {};
+  for (const [rawKey, value] of Object.entries(row)) {
+    const canonical = canonicalByNormalized.get(normalizeHeaderKey(rawKey));
+    result[canonical ?? rawKey] = value;
+  }
+  return result;
 }
 
 function cellStr(value: unknown): string {
   if (value == null) return "";
   return String(value).trim();
+}
+
+// Colunas de código (IE/RG, etc.) às vezes chegam em notação científica quando
+// a planilha de origem formatou a célula como número — mesma causa do CNPJ em
+// normalizeDoc, mas aqui não removemos pontuação (IE pode ter letras/hífen em
+// alguns estados), só desfazemos a notação científica quando possível.
+function cellStrPreservingScientific(value: unknown): string {
+  const str = cellStr(value);
+  if (/^-?\d+([.,]\d+)?e\+?\d+$/i.test(str)) {
+    const asNumber = Number(str.replace(",", "."));
+    if (!Number.isNaN(asNumber)) return String(Math.round(asNumber));
+  }
+  return str;
 }
 
 function parsePersonType(value: unknown): string | undefined {
@@ -1315,7 +1367,7 @@ export async function importCustomers(req: Request, res: Response) {
     const errors: ImportRowResult[] = [];
 
     for (let i = 0; i < rows.length; i++) {
-      const row = rows[i];
+      const row = normalizeRowKeys(rows[i]);
       const excelRowNumber = i + 2; // linha 1 é o cabeçalho
 
       try {
@@ -1369,13 +1421,17 @@ export async function importCustomers(req: Request, res: Response) {
         setIfPresent("address_city", cellStr(row["Cidade"]) || undefined);
         setIfPresent("address_state", cellStr(row["UF"]) || undefined);
         setIfPresent("contact_name", cellStr(row["Contatos"]) || undefined);
-        setIfPresent("phone", cellStr(row["Fone"]).replace(/\D/g, "") || undefined);
+        // O sistema só tem um campo de telefone (`phone`) — se "Fone" vier vazio
+        // mas "Celular" tiver valor (planilhas legadas costumam só preencher o
+        // celular), usa o celular como phone.
+        const phoneValue = cellStr(row["Fone"]) || cellStr(row["Celular"]);
+        setIfPresent("phone", phoneValue.replace(/\D/g, "") || undefined);
         setIfPresent("fax", cellStr(row["Fax"]).replace(/\D/g, "") || undefined);
         setIfPresent("email", cellStr(row["E-mail"]) || undefined);
         setIfPresent("website", cellStr(row["Web Site"]) || undefined);
         if (personType) fields.person_type = personType;
         setIfPresent("document", document || undefined);
-        setIfPresent("state_registration", cellStr(row["IE/RG"]) || undefined);
+        setIfPresent("state_registration", cellStrPreservingScientific(row["IE/RG"]) || undefined);
         fields.state_registration_exempt = parseBoolYesNo(row["IE isento"]);
         setIfPresent("status", cellStr(row["Situação"]).toLowerCase().includes("inativ") ? "inactive" : cellStr(row["Situação"]) ? "active" : undefined);
         setIfPresent("notes", cellStr(row["Observações"]) || undefined);
