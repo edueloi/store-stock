@@ -134,9 +134,8 @@ export async function createQuote(req: Request, res: Response) {
       services?: Array<{ id: number; name: string; price: number; quantity?: number; dimensions_label?: string | null }>;
     };
 
-    // Sem cliente: nasce como rascunho, preenchido aos poucos na tela de detalhe
-    // (mesmo padrão de ServiceOrder — POST vazio cria e a tela de edição preenche o resto).
-    const isDraft = !customer_name;
+    // Criar/preencher um orçamento não significa que ele foi entregue ao cliente.
+    // Ele só sai de rascunho quando o envio é confirmado por e-mail ou manualmente.
 
     // Nunca confia no subtotal/total mandado pelo cliente — recalcula a partir
     // dos itens/serviços e do desconto, no mesmo padrão já usado em ServiceOrder.
@@ -180,7 +179,7 @@ export async function createQuote(req: Request, res: Response) {
         total_amount: totalAmountComputed,
         validity_days: validity_days || 7,
         notes: notes || null,
-        status: isDraft ? "rascunho" : "orcamento_enviado",
+        status: "rascunho",
         items: { create: itemRows },
         ...(serviceRows.length > 0 ? { services: { create: serviceRows } } : {}),
       },

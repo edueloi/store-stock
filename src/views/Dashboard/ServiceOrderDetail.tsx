@@ -284,6 +284,7 @@ export default function ServiceOrderDetail() {
       const data = await res.json().catch(() => ({}));
       if (!res.ok) { alert(data?.error || "Não foi possível enviar a ordem de serviço por e-mail."); return; }
       setEmailDelivery((current) => ({ sent: true, recipient: data.recipient, sent_at: data.sent_at, attempts: (current?.attempts || 0) + 1 }));
+      await fetchOrder(true);
       alert(`Ordem de serviço enviada para ${data.recipient}.`);
     } finally { setSendingEmail(false); }
   };
@@ -770,7 +771,7 @@ export default function ServiceOrderDetail() {
                   disabled={!canStartService}
                   className="h-9 px-4 rounded-xl bg-blue-600 hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed text-white text-[10px] font-black uppercase tracking-wider flex items-center gap-1.5 transition-all"
                 >
-                  Iniciar Atendimento <ArrowRight size={13} />
+                  Marcar Orçamento como Enviado <ArrowRight size={13} />
                 </button>
                 <button onClick={() => setShowDiscardModal(true)} className="text-[10px] font-bold text-slate-400 hover:text-red-500 transition-colors">
                   Descartar rascunho

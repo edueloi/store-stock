@@ -738,6 +738,7 @@ export default function QuoteDetail() {
       const data = await res.json().catch(() => ({}));
       if (!res.ok) { alert(data?.error || "Não foi possível enviar o orçamento por e-mail."); return; }
       setEmailDelivery((current) => ({ sent: true, recipient: data.recipient, sent_at: data.sent_at, attempts: (current?.attempts || 0) + 1 }));
+      await fetchQuote(true);
       alert(`Orçamento enviado para ${data.recipient}.`);
     } finally { setSendingEmail(false); }
   };
@@ -803,7 +804,7 @@ export default function QuoteDetail() {
                   disabled={starting || !(selectedCustomer?.name ?? manualCustomer.name).trim() || (formItems.length === 0 && formServices.length === 0)}
                   className="h-9 px-4 rounded-xl bg-blue-600 hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed text-white text-[10px] font-black uppercase tracking-wider flex items-center gap-1.5 transition-all"
                 >
-                  {starting ? <Loader2 size={13} className="animate-spin" /> : null} Ativar Orçamento <ArrowRight size={13} />
+                  {starting ? <Loader2 size={13} className="animate-spin" /> : null} Marcar como Enviado <ArrowRight size={13} />
                 </button>
                 <button onClick={() => setShowDiscardConfirm(true)} disabled={deleting} className="text-[10px] font-bold text-slate-400 hover:text-red-500 transition-colors">
                   Descartar rascunho

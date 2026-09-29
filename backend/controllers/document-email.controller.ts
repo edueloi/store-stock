@@ -5,11 +5,16 @@ import type { AuthenticatedRequest } from "../types/auth";
 import { escapeHtml } from "../utils/html-escape";
 import { baseTemplate, } from "../services/mailer.service";
 import { sendStoreEmail } from "../services/store-email.service";
+import { syncLinkedStatus } from "../utils/stage-permissions";
 
 type DocumentKind = "quote" | "service_order";
 const logKind = (kind: DocumentKind) => `${kind}_email`;
 
 function tenantId(req: Request) { return (req as AuthenticatedRequest).user.tenantId; }
+function actor(req: Request) {
+  const user = (req as AuthenticatedRequest).user as any;
+  return user.name ?? user.email ?? "Sistema";
+}
 function money(value: unknown) { return Number(value || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" }); }
 
 async function status(req: Request, res: Response, kind: DocumentKind) {
@@ -28,6 +33,36 @@ async function logDelivery(tenant_id: number, kind: DocumentKind, id: number, re
     summary: `${kind === "quote" ? "Orçamento" : "Ordem de serviço"} #${id}`,
     error: error?.slice(0, 1000) || null,
   } });
+}
+
+// O status representa a entrega ao cliente, não apenas o preenchimento do documento.
+// Ao enviar com sucesso, avança o rascunho e sincroniza a OS/Orçamento vinculados.
+async function markQuoteAsSent(tenant_id: number, quote: { id: number; status: string }, sentBy: string) {
+  if (quote.status !== "rascunho") return;
+  await prisma.quote.update({ where: { id: quote.id }, data: { status: "orcamento_enviado" } });
+  await prisma.quoteAction.create({ data: {
+    tenant_id,
+    quote_id: quote.id,
+    action: "sent_by_email",
+    from_status: "rascunho",
+    to_status: "orcamento_enviado",
+    actor: sentBy,
+  } });
+  await syncLinkedStatus(tenant_id, "quote", quote.id, "orcamento_enviado", { actor: sentBy });
+}
+
+async function markServiceOrderAsSent(tenant_id: number, order: { id: number; status: string }, sentBy: string) {
+  if (order.status !== "rascunho") return;
+  await prisma.serviceOrder.update({ where: { id: order.id }, data: { status: "orcamento_enviado" } });
+  await prisma.serviceOrderAction.create({ data: {
+    tenant_id,
+    service_order_id: order.id,
+    action: "sent_by_email",
+    from_status: "rascunho",
+    to_status: "orcamento_enviado",
+    actor: sentBy,
+  } });
+  await syncLinkedStatus(tenant_id, "service_order", order.id, "orcamento_enviado", { actor: sentBy });
 }
 
 export async function quoteEmailStatus(req: Request, res: Response) {
@@ -49,6 +84,7 @@ export async function sendQuoteEmail(req: Request, res: Response) {
   try {
     await sendStoreEmail(currentTenantId, { to: recipient, subject: `Orçamento #${quote.number} · ${money(quote.total_amount)}`, html });
     await logDelivery(currentTenantId, "quote", quote.id, recipient, "sent");
+    await markQuoteAsSent(currentTenantId, quote, actor(req));
     res.json({ success: true, recipient, sent_at: new Date() });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Não foi possível enviar o e-mail.";
@@ -73,6 +109,7 @@ export async function sendServiceOrderEmail(req: Request, res: Response) {
   try {
     await sendStoreEmail(currentTenantId, { to: recipient, subject: `Ordem de serviço #${order.number} · ${money(order.total_amount)}`, html });
     await logDelivery(currentTenantId, "service_order", order.id, recipient, "sent");
+    await markServiceOrderAsSent(currentTenantId, order, actor(req));
     res.json({ success: true, recipient, sent_at: new Date() });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Não foi possível enviar o e-mail.";

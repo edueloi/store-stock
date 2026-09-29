@@ -255,9 +255,8 @@ export async function createServiceOrder(req: Request, res: Response) {
 
     const requiresEquipment = has_equipment !== false;
 
-    // Sem cliente/categoria (quando o atendimento envolve equipamento): nasce como
-    // rascunho, preenchido aos poucos na tela de detalhe.
-    const isDraft = !customer_name || (requiresEquipment && !equipment_category);
+    // Criar/preencher uma OS não confirma o envio do orçamento ao cliente.
+    // Ela só sai de rascunho após envio confirmado por e-mail ou manualmente.
 
     // Server-side checklist instantiation — never trust client-submitted labels
     const tenant = await prisma.tenant.findUnique({ where: { id: tenantId }, select: { policies: true } });
@@ -296,7 +295,7 @@ export async function createServiceOrder(req: Request, res: Response) {
       data: {
         tenant_id: tenantId,
         number: nextNumber,
-        status: isDraft ? "rascunho" : "orcamento_enviado",
+        status: "rascunho",
         customer_id: customer_id || null,
         customer_name: customer_name || "",
         customer_phone: customer_phone || null,
