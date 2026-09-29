@@ -3,6 +3,8 @@ import react from '@vitejs/plugin-react';
 import path from 'path';
 import { defineConfig, loadEnv } from 'vite';
 import { VitePWA } from 'vite-plugin-pwa';
+import { browserslistToTargets } from 'lightningcss';
+import browserslist from 'browserslist';
 
 export default defineConfig(({mode}) => {
   const env = loadEnv(mode, '.', '');
@@ -50,7 +52,15 @@ export default defineConfig(({mode}) => {
         '@': path.resolve(__dirname, '.'),
       },
     },
+    // Windows 7 só chega ao Chrome 109, que não entende oklch()/color-mix() (Tailwind v4
+    // assume Chrome 111+). O Lightning CSS converte essas cores para rgb() no build.
+    css: {
+      lightningcss: {
+        targets: browserslistToTargets(browserslist('chrome >= 109, edge >= 109, firefox >= 102, safari >= 15')),
+      },
+    },
     build: {
+      cssMinify: 'lightningcss',
       rollupOptions: {
         // Página estática de prévia do logo, publicada em /logo.html.
         input: {
