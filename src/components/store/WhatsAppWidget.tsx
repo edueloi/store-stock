@@ -81,8 +81,10 @@ export default function WhatsAppWidget({
   const [nameInput, setNameInput] = useState("");
   const [messages, setMessages] = useState<Message[]>([]);
   const [showFaqs, setShowFaqs] = useState(true);
-  const [pulse, setPulse] = useState(true);
-  const [unread, setUnread] = useState(1);
+  // Sem balão automático, badge ou animação chamativa: a loja mantém o botão
+  // de atendimento disponível sem cobrir a vitrine nem parecer uma mensagem recebida.
+  const [pulse, setPulse] = useState(false);
+  const [unread, setUnread] = useState(0);
   const bottomRef = useRef<HTMLDivElement>(null);
   const nameInputRef = useRef<HTMLInputElement>(null);
   const msgId = useRef(0);

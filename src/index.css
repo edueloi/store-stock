@@ -1,4 +1,4 @@
-@import url("https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=Manrope:wght@400;500;600;700;800&family=Sora:wght@500;600;700;800&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=Manrope:wght@400;500;600;700;800&family=Poppins:wght@400;500;600;700;800&family=Sora:wght@500;600;700;800&display=swap");
 @import "tailwindcss";
 
 html, body, #root {
@@ -112,6 +112,22 @@ body {
 
 .font-tech .store-kicker {
   letter-spacing: 0.28em;
+  text-transform: uppercase;
+}
+
+/* Tema Urban Edit: tipografia limpa e contemporânea para moda. */
+.font-urban {
+  font-family: "Poppins", sans-serif;
+}
+
+.font-urban .store-display {
+  font-family: "Poppins", sans-serif;
+  letter-spacing: -0.055em;
+  font-weight: 700;
+}
+
+.font-urban .store-kicker {
+  letter-spacing: 0.18em;
   text-transform: uppercase;
 }
 
