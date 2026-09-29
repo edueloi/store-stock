@@ -356,7 +356,7 @@ ${so.has_equipment ? `
 
 ${so.reported_issue ? `
 <div class="doc-section">
-  <div class="doc-section-label">Defeito Relatado pelo Cliente</div>
+  <div class="doc-section-label">Detalhes do Atendimento</div>
   <div class="doc-obs-box">${so.reported_issue}</div>
 </div>` : ""}
 

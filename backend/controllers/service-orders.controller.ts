@@ -538,8 +538,8 @@ export async function updateServiceOrderStatus(req: Request, res: Response) {
       if (!order.customer_name || missingEquipment || !order.reported_issue) {
         return res.status(400).json({
           error: missingEquipment
-            ? "Preencha cliente, categoria do equipamento e problema relatado antes de iniciar o atendimento"
-            : "Preencha cliente e problema relatado antes de iniciar o atendimento",
+            ? "Preencha cliente, categoria do equipamento e detalhes do atendimento antes de iniciar o atendimento"
+            : "Preencha cliente e detalhes do atendimento antes de iniciar o atendimento",
         });
       }
     }

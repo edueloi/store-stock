@@ -777,7 +777,7 @@ export default function ServiceOrderDetail() {
                 </button>
                 {!canStartService && (
                   <span className="text-[10px] text-slate-400">
-                    {hasEquipment ? "Preencha cliente, categoria e defeito relatado" : "Preencha cliente e defeito relatado"}
+                    {hasEquipment ? "Preencha cliente, categoria e detalhes do atendimento" : "Preencha cliente e detalhes do atendimento"}
                   </span>
                 )}
               </div>
@@ -974,12 +974,12 @@ export default function ServiceOrderDetail() {
             )}
 
             <div>
-              <label className="text-[9px] font-black uppercase tracking-[0.2em] text-amber-500 mb-1.5 block">Defeito Relatado pelo Cliente</label>
+              <label className="text-[9px] font-black uppercase tracking-[0.2em] text-amber-500 mb-1.5 block">Detalhes do Atendimento</label>
               <textarea
                 value={reportedIssue}
                 onChange={(e) => setReportedIssue(e.target.value)}
                 onBlur={() => autosaveField({ reported_issue: reportedIssue || null }, "reported_issue")}
-                placeholder="O que o cliente relatou como problema..."
+                placeholder="Descreva a solicitação, observações ou detalhes informados pelo cliente..."
                 rows={2}
                 className="w-full px-3 py-2 rounded-xl border border-amber-200 bg-amber-50/50 text-[12px] font-medium focus:outline-none focus:border-amber-400 resize-none"
               />
