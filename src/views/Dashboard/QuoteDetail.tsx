@@ -106,6 +106,8 @@ interface Product {
   price: number;
   discount_price?: number;
   stock_quantity: number;
+  sku?: string | null;
+  barcode?: string | null;
   image_url?: string;
   is_active?: boolean;
   sale_unit?: "unidade" | "m2" | "linear";
@@ -704,7 +706,15 @@ export default function QuoteDetail() {
     });
   };
 
-  const filteredProducts = products.filter((p) => p.is_active !== false && p.name.toLowerCase().includes(productSearch.toLowerCase()));
+  // Orçamentos devem poder usar qualquer item cadastrado no estoque, inclusive
+  // produtos ocultos na vitrine/loja pública. O PDV já segue essa mesma regra.
+  const filteredProducts = products.filter((p) => {
+    const query = productSearch.trim().toLowerCase();
+    if (!query) return true;
+    return p.name.toLowerCase().includes(query)
+      || (p.sku ?? "").toLowerCase().includes(query)
+      || (p.barcode ?? "").toLowerCase().includes(query);
+  });
 
   // ── Render ────────────────────────────────────────────────────────────────
   if (loading) {
