@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { ArrowRight, ClipboardList, FileText, Loader2, Trash2, History, Link2, Plus } from "lucide-react";
+import { ArrowRight, ClipboardList, FileText, Loader2, Trash2, History, Link2, Plus, ClipboardPlus, UserRound, CalendarClock, Wrench } from "lucide-react";
 import PageHeader from "../../components/layout/PageHeader";
 import ConfirmDialog from "../../components/ui/ConfirmDialog";
 import Modal from "../../components/ui/Modal";
@@ -10,7 +10,7 @@ import { getStoredUser } from "../../lib/session";
 import { authHeader, fmt, STATUS_ORDER, STATUS_META, type SOStatus } from "./serviceOrders.shared";
 import { onRealtimeAny } from "../../lib/realtime";
 
-type Tab = "ordens_servico" | "orcamentos" | "concluidos";
+type Tab = "ordens_servico" | "orcamentos" | "atividades" | "concluidos";
 
 interface QuoteCard {
   id: number;
@@ -39,6 +39,13 @@ interface Card {
   subtitle: string;
   status: string;
   quoteNumber?: number | null;
+}
+
+interface ProductionTask {
+  id: number; number: number; title: string; description?: string | null; expected_result?: string | null;
+  status: string; priority: "normal" | "urgente"; customer_name?: string | null; customer_phone?: string | null;
+  customer_email?: string | null; assignee_name?: string | null; created_by_name?: string | null;
+  due_at?: string | null; planned_items?: { name?: string }[]; service_order_id?: number | null;
 }
 
 const QUOTE_STATUS_ORDER: string[] = ["rascunho", "orcamento_enviado", "aguardando_aprovacao", "aprovado", "aguardando_arte", "arte_finalizada", "em_producao", "finalizado", "nota_emitida", "entregue"];
@@ -73,6 +80,7 @@ export default function WorkflowBoard() {
   const [tab, setTab] = useState<Tab>("ordens_servico");
   const [orders, setOrders] = useState<OrderCard[]>([]);
   const [quotes, setQuotes] = useState<QuoteCard[]>([]);
+  const [tasks, setTasks] = useState<ProductionTask[]>([]);
   const [history, setHistory] = useState<(OrderCard | QuoteCard)[]>([]);
   const [historyType, setHistoryType] = useState<"ordens_servico" | "orcamentos">("ordens_servico");
   const [historyFrom, setHistoryFrom] = useState("");
@@ -89,6 +97,10 @@ export default function WorkflowBoard() {
   const [quickQuoteName, setQuickQuoteName] = useState("");
   const [quickQuoteCreating, setQuickQuoteCreating] = useState(false);
   const [quickQuoteError, setQuickQuoteError] = useState("");
+  const [taskOpen, setTaskOpen] = useState(false);
+  const [taskSaving, setTaskSaving] = useState(false);
+  const [taskError, setTaskError] = useState("");
+  const [taskForm, setTaskForm] = useState({ title: "", description: "", expected_result: "", priority: "normal", customer_name: "", customer_phone: "", customer_email: "", assignee_name: "", due_at: "", planned_items: "" });
 
   const effectiveTab: "ordens_servico" | "orcamentos" = graficaEnabled ? "ordens_servico" : (tab === "orcamentos" ? "orcamentos" : "ordens_servico");
 
@@ -96,15 +108,21 @@ export default function WorkflowBoard() {
     setLoading(true);
     try {
       if (graficaEnabled) {
-        const ordersRes = await fetch("/api/workflow/board?type=ordens_servico", { headers: authHeader() });
+        const [ordersRes, tasksRes] = await Promise.all([
+          fetch("/api/workflow/board?type=ordens_servico", { headers: authHeader() }),
+          fetch("/api/workflow/tasks", { headers: authHeader() }),
+        ]);
         if (ordersRes.ok) setOrders(await ordersRes.json());
+        if (tasksRes.ok) setTasks(await tasksRes.json());
       } else {
-        const [ordersRes, quotesRes] = await Promise.all([
+        const [ordersRes, quotesRes, tasksRes] = await Promise.all([
           fetch("/api/workflow/board?type=ordens_servico", { headers: authHeader() }),
           fetch("/api/workflow/board?type=orcamentos", { headers: authHeader() }),
+          fetch("/api/workflow/tasks", { headers: authHeader() }),
         ]);
         if (ordersRes.ok) setOrders(await ordersRes.json());
         if (quotesRes.ok) setQuotes(await quotesRes.json());
+        if (tasksRes.ok) setTasks(await tasksRes.json());
       }
     } finally {
       setLoading(false);
@@ -155,6 +173,13 @@ export default function WorkflowBoard() {
     }
     return map;
   }, [effectiveTab, orders, quotes, columns]);
+
+  const taskCardsByStage = useMemo(() => {
+    const map = new Map<string, ProductionTask[]>();
+    for (const stage of columns) map.set(stage, []);
+    for (const task of tasks) if (map.has(task.status)) map.get(task.status)!.push(task);
+    return map;
+  }, [tasks, columns]);
 
   const moveCard = async (id: number, fromStage: string, toStage: string) => {
     const fromIdx = columns.indexOf(fromStage);
@@ -259,6 +284,41 @@ export default function WorkflowBoard() {
     }
   };
 
+  const openTask = () => {
+    setTaskForm({ title: "", description: "", expected_result: "", priority: "normal", customer_name: "", customer_phone: "", customer_email: "", assignee_name: "", due_at: "", planned_items: "" });
+    setTaskError("");
+    setTaskOpen(true);
+  };
+
+  const submitTask = async () => {
+    if (!taskForm.title.trim()) { setTaskError("Informe a atividade que deve ser feita."); return; }
+    setTaskSaving(true);
+    try {
+      const res = await fetch("/api/workflow/tasks", {
+        method: "POST", headers: authHeader(),
+        body: JSON.stringify({ ...taskForm, planned_items: taskForm.planned_items.split("\n").map((name) => name.trim()).filter(Boolean).map((name) => ({ name })) }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) { setTaskError(data.error || "Não foi possível criar a atividade."); return; }
+      setTaskOpen(false);
+      setTasks((prev) => [data, ...prev]);
+    } finally { setTaskSaving(false); }
+  };
+
+  const moveTask = async (task: ProductionTask, nextStatus: string) => {
+    const res = await fetch(`/api/workflow/tasks/${task.id}/status`, { method: "PUT", headers: authHeader(), body: JSON.stringify({ status: nextStatus }) });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) { setError(data.error || "Não foi possível mover a atividade."); return; }
+    setTasks((prev) => prev.map((item) => item.id === task.id ? data : item));
+  };
+
+  const createTaskServiceOrder = async (task: ProductionTask) => {
+    const res = await fetch(`/api/workflow/tasks/${task.id}/create-service-order`, { method: "POST", headers: authHeader() });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) { setError(data.error || "Não foi possível criar a Ordem de Serviço."); return; }
+    navigate(`/admin/ordens-servico/${data.service_order_id}`);
+  };
+
   // Renderiza um card — extraído pra ser reaproveitado no quadro desktop (colunas
   // lado a lado) e na lista única mobile/modo-unificado (mesma estrutura, só que
   // empilhada verticalmente, agrupada por etapa).
@@ -313,19 +373,37 @@ export default function WorkflowBoard() {
     );
   };
 
+  const renderTaskCard = (task: ProductionTask, stage: string, nextStage: string | undefined) => (
+    <div key={task.id} className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm transition-all hover:-translate-y-0.5 hover:border-blue-300 hover:shadow-md">
+      <div className="flex items-start justify-between gap-2">
+        <span className="text-[9px] font-black tracking-wider text-slate-400">ATV #{String(task.number).padStart(4, "0")}</span>
+        <span className={cn("rounded-full px-2 py-0.5 text-[8px] font-black uppercase", task.priority === "urgente" ? "bg-rose-100 text-rose-600" : "bg-blue-50 text-blue-600")}>{task.priority}</span>
+      </div>
+      <p className="mt-2 text-[12px] font-black text-slate-800">{task.title}</p>
+      {task.description && <p className="mt-1 line-clamp-2 text-[10px] leading-relaxed text-slate-500">{task.description}</p>}
+      <div className="mt-3 space-y-1 border-t border-slate-100 pt-2 text-[9px] font-semibold text-slate-500">
+        {task.customer_name && <p className="flex items-center gap-1"><UserRound size={10} /> {task.customer_name}</p>}
+        {task.assignee_name && <p className="flex items-center gap-1"><Wrench size={10} /> {task.assignee_name}</p>}
+        {task.due_at && <p className="flex items-center gap-1 text-amber-600"><CalendarClock size={10} /> {new Date(`${task.due_at}T12:00:00`).toLocaleDateString("pt-BR")}</p>}
+      </div>
+      <div className="mt-3 flex items-center justify-between gap-2">
+        <button onClick={() => createTaskServiceOrder(task)} className="text-[9px] font-black uppercase tracking-wide text-violet-600 hover:text-violet-800">
+          {task.service_order_id ? "Abrir OS" : "Criar OS"}
+        </button>
+        {nextStage && <button onClick={() => moveTask(task, nextStage)} className="flex h-7 items-center gap-1 rounded-lg bg-blue-600 px-2 text-[9px] font-black uppercase text-white hover:bg-blue-700">Avançar <ArrowRight size={11} /></button>}
+      </div>
+    </div>
+  );
+
   return (
     <div className="space-y-5">
       <PageHeader
         title="Fluxo de Produção"
         subtitle={graficaEnabled ? "Acompanhe os trabalhos por etapa" : "Acompanhe Ordens de Serviço e Orçamentos por etapa"}
-        action={
-          <button
-            onClick={openQuickQuote}
-            className="h-9 px-4 bg-blue-600 text-white rounded-lg flex items-center gap-2 text-[12px] font-bold hover:bg-blue-700 transition-all shadow-md shadow-blue-500/20"
-          >
-            <Plus size={15} /> Novo Orçamento Rápido
-          </button>
-        }
+        action={<div className="flex gap-2">
+          <button onClick={openTask} className="h-9 px-3 bg-violet-600 text-white rounded-lg flex items-center gap-2 text-[11px] font-bold hover:bg-violet-700 transition-all"><ClipboardPlus size={15} /> Nova Atividade</button>
+          <button onClick={openQuickQuote} className="h-9 px-3 bg-blue-600 text-white rounded-lg flex items-center gap-2 text-[11px] font-bold hover:bg-blue-700 transition-all shadow-md shadow-blue-500/20"><Plus size={15} /> Novo Orçamento</button>
+        </div>}
       />
 
       <div className="flex items-center gap-2 flex-wrap">
@@ -347,6 +425,13 @@ export default function WorkflowBoard() {
             </button>
           </>
         )}
+        <button
+          onClick={() => setTab("atividades")}
+          className={cn("h-9 px-4 rounded-xl text-[11px] font-black uppercase tracking-wider flex items-center gap-2 transition-all",
+            tab === "atividades" ? "bg-violet-600 text-white" : "bg-white border border-slate-200 text-slate-500 hover:bg-slate-50")}
+        >
+          <ClipboardPlus size={13} /> Atividades
+        </button>
         <button
           onClick={() => setTab("concluidos")}
           className={cn("h-9 px-4 rounded-xl text-[11px] font-black uppercase tracking-wider flex items-center gap-2 transition-all",
@@ -429,6 +514,16 @@ export default function WorkflowBoard() {
               })}
             </div>
           )}
+        </div>
+      ) : tab === "atividades" ? (
+        <div className="flex gap-3 overflow-x-auto pb-4">
+          {columns.map((stage, idx) => {
+            const stageTasks = taskCardsByStage.get(stage) ?? [];
+            return <div key={stage} className="flex w-72 shrink-0 flex-col gap-2 rounded-2xl border border-violet-100 bg-violet-50/40 p-3">
+              <div className="flex items-center justify-between px-1"><p className="text-[10px] font-black uppercase tracking-widest text-violet-700">{labelFor(stage)}</p><span className="rounded-full bg-white px-2 py-0.5 text-[9px] font-black text-violet-500">{stageTasks.length}</span></div>
+              <div className="flex min-h-[80px] flex-col gap-2">{stageTasks.map((task) => renderTaskCard(task, stage, columns[idx + 1]))}</div>
+            </div>;
+          })}
         </div>
       ) : loading ? (
         <div className="flex items-center justify-center py-16">
@@ -549,6 +644,30 @@ export default function WorkflowBoard() {
           {quickQuoteError && (
             <p className="text-[11px] font-bold text-red-500">{quickQuoteError}</p>
           )}
+        </div>
+      </Modal>
+
+      <Modal
+        open={taskOpen}
+        onClose={() => !taskSaving && setTaskOpen(false)}
+        title="Nova atividade de produção"
+        subtitle="Crie um card independente e transforme em OS quando precisar"
+        size="lg"
+        persistent={taskSaving}
+        footer={<div className="flex w-full gap-3"><Button variant="secondary" className="flex-1" onClick={() => setTaskOpen(false)} disabled={taskSaving}>Cancelar</Button><Button variant="primary" className="flex-1" onClick={submitTask} loading={taskSaving}>Criar atividade</Button></div>}
+      >
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <div className="sm:col-span-2"><label className="mb-1 block text-[9px] font-black uppercase tracking-widest text-slate-400">Atividade *</label><input autoFocus value={taskForm.title} onChange={(e) => setTaskForm({ ...taskForm, title: e.target.value })} placeholder="Ex.: Produzir fachada e instalar até sexta" className="h-10 w-full rounded-xl border border-slate-200 px-3 text-[12px] focus:outline-none focus:border-violet-400" /></div>
+          <div><label className="mb-1 block text-[9px] font-black uppercase tracking-widest text-slate-400">Cliente</label><input value={taskForm.customer_name} onChange={(e) => setTaskForm({ ...taskForm, customer_name: e.target.value })} placeholder="Nome do cliente" className="h-10 w-full rounded-xl border border-slate-200 px-3 text-[12px]" /></div>
+          <div><label className="mb-1 block text-[9px] font-black uppercase tracking-widest text-slate-400">Quem vai fazer</label><input value={taskForm.assignee_name} onChange={(e) => setTaskForm({ ...taskForm, assignee_name: e.target.value })} placeholder="Responsável pela atividade" className="h-10 w-full rounded-xl border border-slate-200 px-3 text-[12px]" /></div>
+          <div><label className="mb-1 block text-[9px] font-black uppercase tracking-widest text-slate-400">Telefone</label><input value={taskForm.customer_phone} onChange={(e) => setTaskForm({ ...taskForm, customer_phone: e.target.value })} placeholder="(00) 00000-0000" className="h-10 w-full rounded-xl border border-slate-200 px-3 text-[12px]" /></div>
+          <div><label className="mb-1 block text-[9px] font-black uppercase tracking-widest text-slate-400">Prazo</label><input type="date" value={taskForm.due_at} onChange={(e) => setTaskForm({ ...taskForm, due_at: e.target.value })} className="h-10 w-full rounded-xl border border-slate-200 px-3 text-[12px]" /></div>
+          <div><label className="mb-1 block text-[9px] font-black uppercase tracking-widest text-slate-400">Prioridade</label><div className="flex gap-2"><button onClick={() => setTaskForm({ ...taskForm, priority: "normal" })} className={cn("h-10 flex-1 rounded-xl text-[10px] font-black uppercase", taskForm.priority === "normal" ? "bg-blue-600 text-white" : "bg-slate-100 text-slate-500")}>Normal</button><button onClick={() => setTaskForm({ ...taskForm, priority: "urgente" })} className={cn("h-10 flex-1 rounded-xl text-[10px] font-black uppercase", taskForm.priority === "urgente" ? "bg-rose-600 text-white" : "bg-slate-100 text-slate-500")}>Urgente</button></div></div>
+          <div><label className="mb-1 block text-[9px] font-black uppercase tracking-widest text-slate-400">E-mail do cliente</label><input type="email" value={taskForm.customer_email} onChange={(e) => setTaskForm({ ...taskForm, customer_email: e.target.value })} placeholder="cliente@empresa.com" className="h-10 w-full rounded-xl border border-slate-200 px-3 text-[12px]" /></div>
+          <div className="sm:col-span-2"><label className="mb-1 block text-[9px] font-black uppercase tracking-widest text-slate-400">O que precisa ser feito</label><textarea value={taskForm.description} onChange={(e) => setTaskForm({ ...taskForm, description: e.target.value })} rows={3} placeholder="Detalhes da atividade, medidas, orientações e observações" className="w-full rounded-xl border border-slate-200 px-3 py-2 text-[12px]" /></div>
+          <div className="sm:col-span-2"><label className="mb-1 block text-[9px] font-black uppercase tracking-widest text-slate-400">Produtos / serviços planejados</label><textarea value={taskForm.planned_items} onChange={(e) => setTaskForm({ ...taskForm, planned_items: e.target.value })} rows={2} placeholder="Um item por linha" className="w-full rounded-xl border border-slate-200 px-3 py-2 text-[12px]" /></div>
+          <div className="sm:col-span-2"><label className="mb-1 block text-[9px] font-black uppercase tracking-widest text-slate-400">Resultado esperado</label><textarea value={taskForm.expected_result} onChange={(e) => setTaskForm({ ...taskForm, expected_result: e.target.value })} rows={2} placeholder="Como deve ficar ao concluir" className="w-full rounded-xl border border-slate-200 px-3 py-2 text-[12px]" /></div>
+          {taskError && <p className="sm:col-span-2 text-[11px] font-bold text-rose-600">{taskError}</p>}
         </div>
       </Modal>
     </div>

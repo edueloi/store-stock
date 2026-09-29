@@ -141,6 +141,7 @@ model Tenant {
   order_actions          OrderAction[]
   service_orders         ServiceOrder[]
   service_order_actions  ServiceOrderAction[]
+  production_tasks       ProductionTask[]
   quote_actions          QuoteAction[]
   nfce_invoices          NfceInvoice[]
   nfse_invoices          NfseInvoice[]
@@ -1476,6 +1477,38 @@ model ServiceOrderAction {
   @@index([service_order_id])
   @@index([tenant_id])
   @@map("service_order_actions")
+}
+
+// Atividade avulsa do quadro de produção. Não depende de orçamento ou OS, mas pode
+// originar uma OS quando o atendimento precisar seguir para execução/faturamento.
+model ProductionTask {
+  id                Int      @id @default(autoincrement())
+  tenant_id         Int
+  number            Int
+  title             String
+  description       String?  @db.Text
+  expected_result   String?  @db.Text
+  status            String   @default("rascunho")
+  priority          String   @default("normal") // normal | urgente
+  customer_id       Int?
+  customer_name     String?
+  customer_phone    String?
+  customer_email    String?
+  assignee_id       Int?
+  assignee_name     String?
+  created_by_id     Int?
+  created_by_name   String?
+  due_at            DateTime? @db.Date
+  planned_items     Json?
+  service_order_id  Int?     @unique
+  created_at        DateTime @default(now())
+  updated_at        DateTime @updatedAt
+
+  tenant Tenant @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+
+  @@unique([tenant_id, number])
+  @@index([tenant_id, status])
+  @@map("production_tasks")
 }
 
 model Consignment {
