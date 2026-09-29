@@ -748,7 +748,7 @@ export default function QuoteDetail() {
         <p className="text-[10px] font-bold text-emerald-500 flex items-center gap-1"><CheckCircle2 size={12} /> Salvo</p>
       )}
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5 lg:items-start">
         <div className="lg:col-span-2 space-y-5">
           {/* Status */}
           <div className="bg-white rounded-2xl border border-slate-200 p-5">
@@ -812,7 +812,16 @@ export default function QuoteDetail() {
                 <UserPlus size={15} />
               </button>
             </div>
-            {!selectedCustomer && (
+            {selectedCustomer ? (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-2">
+                <div className="h-9 px-3 rounded-lg border border-slate-200 bg-slate-50 text-sm text-slate-600 flex items-center truncate">
+                  {(selectedCustomer.phone && maskPhone(selectedCustomer.phone)) || "Não informado"}
+                </div>
+                <div className="h-9 px-3 rounded-lg border border-slate-200 bg-slate-50 text-sm text-slate-600 flex items-center truncate">
+                  {selectedCustomer.email || "Não informado"}
+                </div>
+              </div>
+            ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-2">
                 <input
                   value={manualCustomer.phone}

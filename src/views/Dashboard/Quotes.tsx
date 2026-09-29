@@ -128,9 +128,9 @@ export default function Quotes() {
     await generateQuotePDF(q, tenant);
   };
 
-  // ── Filter (rascunhos ficam fora da lista "Todos" — aparecem só se buscados/filtrados) ──
+  // ── Filter (rascunhos agora aparecem também na aba "Todos") ──
   const filtered = quotes.filter((q) => {
-    const matchStatus = statusFilter === "all" ? q.status !== "rascunho" : q.status === statusFilter;
+    const matchStatus = statusFilter === "all" ? true : q.status === statusFilter;
     const matchSearch =
       !searchTerm ||
       q.customer_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -138,9 +138,10 @@ export default function Quotes() {
     return matchStatus && matchSearch;
   });
 
-  // ── Stats
+  // ── Stats (total conta todos, incluindo rascunhos, já que agora aparecem na lista;
+  // totalValue continua restrito a orçamentos em aberto para não contar valor de rascunho) ──
   const stats = {
-    total: quotes.filter((q) => q.status !== "rascunho").length,
+    total: quotes.length,
     open: quotes.filter((q) => q.status === "orcamento_enviado").length,
     converted: quotes.filter((q) => q.status === "converted").length,
     totalValue: quotes.filter((q) => q.status === "orcamento_enviado").reduce((s, q) => s + Number(q.total_amount), 0),

@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { ArrowRight, ClipboardList, FileText, Loader2, Trash2, History, Link2 } from "lucide-react";
+import { ArrowRight, ClipboardList, FileText, Loader2, Trash2, History, Link2, Plus } from "lucide-react";
 import PageHeader from "../../components/layout/PageHeader";
 import ConfirmDialog from "../../components/ui/ConfirmDialog";
+import Modal from "../../components/ui/Modal";
+import Button from "../../components/ui/Button";
 import { cn } from "../../lib/utils";
 import { getStoredUser } from "../../lib/session";
 import { authHeader, fmt, STATUS_ORDER, STATUS_META, type SOStatus } from "./serviceOrders.shared";
@@ -83,6 +85,10 @@ export default function WorkflowBoard() {
   const [deleteTarget, setDeleteTarget] = useState<{ id: number; isOrder: boolean } | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [mobileStage, setMobileStage] = useState<string | null>(null);
+  const [quickQuoteOpen, setQuickQuoteOpen] = useState(false);
+  const [quickQuoteName, setQuickQuoteName] = useState("");
+  const [quickQuoteCreating, setQuickQuoteCreating] = useState(false);
+  const [quickQuoteError, setQuickQuoteError] = useState("");
 
   const effectiveTab: "ordens_servico" | "orcamentos" = graficaEnabled ? "ordens_servico" : (tab === "orcamentos" ? "orcamentos" : "ordens_servico");
 
@@ -209,6 +215,50 @@ export default function WorkflowBoard() {
     }
   };
 
+  // "Novo Orçamento Rápido": o botão só ABRE o modal — nenhuma chamada à API acontece
+  // aqui. O POST /api/quotes só é disparado no submit do modal, e só com o nome do
+  // cliente já preenchido (evita o problema de rascunhos vazios criados ao simplesmente
+  // clicar/navegar, que hoje ocorre em Quotes.tsx -> /admin/orcamentos/novo -> QuoteNew.tsx).
+  const openQuickQuote = () => {
+    setQuickQuoteName("");
+    setQuickQuoteError("");
+    setQuickQuoteOpen(true);
+  };
+
+  const closeQuickQuote = () => {
+    if (quickQuoteCreating) return;
+    setQuickQuoteOpen(false);
+  };
+
+  const submitQuickQuote = async () => {
+    const name = quickQuoteName.trim();
+    if (!name) {
+      setQuickQuoteError("Informe o nome do cliente.");
+      return;
+    }
+    setQuickQuoteCreating(true);
+    setQuickQuoteError("");
+    try {
+      const res = await fetch("/api/quotes", {
+        method: "POST",
+        headers: authHeader(),
+        body: JSON.stringify({ customer_name: name }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        setQuickQuoteError(data.error || "Não foi possível criar o orçamento.");
+        return;
+      }
+      const created = await res.json();
+      setQuickQuoteOpen(false);
+      navigate(`/admin/orcamentos/${created.id}`);
+    } catch {
+      setQuickQuoteError("Não foi possível criar o orçamento.");
+    } finally {
+      setQuickQuoteCreating(false);
+    }
+  };
+
   // Renderiza um card — extraído pra ser reaproveitado no quadro desktop (colunas
   // lado a lado) e na lista única mobile/modo-unificado (mesma estrutura, só que
   // empilhada verticalmente, agrupada por etapa).
@@ -265,7 +315,18 @@ export default function WorkflowBoard() {
 
   return (
     <div className="space-y-5">
-      <PageHeader title="Fluxo de Produção" subtitle={graficaEnabled ? "Acompanhe os trabalhos por etapa" : "Acompanhe Ordens de Serviço e Orçamentos por etapa"} />
+      <PageHeader
+        title="Fluxo de Produção"
+        subtitle={graficaEnabled ? "Acompanhe os trabalhos por etapa" : "Acompanhe Ordens de Serviço e Orçamentos por etapa"}
+        action={
+          <button
+            onClick={openQuickQuote}
+            className="h-9 px-4 bg-blue-600 text-white rounded-lg flex items-center gap-2 text-[12px] font-bold hover:bg-blue-700 transition-all shadow-md shadow-blue-500/20"
+          >
+            <Plus size={15} /> Novo Orçamento Rápido
+          </button>
+        }
+      />
 
       <div className="flex items-center gap-2 flex-wrap">
         {!graficaEnabled && (
@@ -450,6 +511,46 @@ export default function WorkflowBoard() {
         variant="danger"
         loading={deleting}
       />
+
+      <Modal
+        open={quickQuoteOpen}
+        onClose={closeQuickQuote}
+        title="Novo Orçamento Rápido"
+        subtitle="Informe o cliente para criar o orçamento"
+        size="sm"
+        persistent={quickQuoteCreating}
+        footer={
+          <div className="flex gap-3 w-full">
+            <Button variant="secondary" onClick={closeQuickQuote} className="flex-1" disabled={quickQuoteCreating}>
+              Cancelar
+            </Button>
+            <Button
+              variant="primary"
+              onClick={submitQuickQuote}
+              loading={quickQuoteCreating}
+              disabled={!quickQuoteName.trim()}
+              className="flex-1"
+            >
+              Criar
+            </Button>
+          </div>
+        }
+      >
+        <div className="space-y-2">
+          <label className="text-[9px] font-black uppercase tracking-widest text-slate-400 block">Nome do Cliente</label>
+          <input
+            autoFocus
+            value={quickQuoteName}
+            onChange={(e) => { setQuickQuoteName(e.target.value); if (quickQuoteError) setQuickQuoteError(""); }}
+            onKeyDown={(e) => { if (e.key === "Enter" && quickQuoteName.trim() && !quickQuoteCreating) submitQuickQuote(); }}
+            placeholder="Ex: João da Silva"
+            className="w-full h-10 px-3 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+          {quickQuoteError && (
+            <p className="text-[11px] font-bold text-red-500">{quickQuoteError}</p>
+          )}
+        </div>
+      </Modal>
     </div>
   );
 }

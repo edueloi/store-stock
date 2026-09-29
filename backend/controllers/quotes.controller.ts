@@ -253,6 +253,47 @@ async function createLinkedServiceOrder(
   return order;
 }
 
+// Mantém a OS vinculada (ServiceOrder.quote_id) em sincronia sempre que o Orçamento
+// é editado depois de criado — a criação (createLinkedServiceOrder) só roda uma vez,
+// no instante em que o rascunho nasce vazio, então sem isso a OS nunca reflete
+// cliente/itens/totais preenchidos depois via autosave (updateQuote).
+// Observação: ServiceOrder não tem relação de itens/produtos própria (só ServiceOrderPart,
+// que é independente do Quote) — quem abre a OS já vê os itens do orçamento vinculado
+// via QUOTE_INCLUDE em getServiceOrderById (ver "Orçamento vinculado" em ServiceOrderDetail.tsx),
+// então reported_issue aqui só precisa de um resumo textual de fallback.
+async function syncLinkedServiceOrderFromQuote(tenantId: number, quoteId: number) {
+  const linked = await prisma.serviceOrder.findFirst({ where: { quote_id: quoteId, tenant_id: tenantId } });
+  if (!linked) return;
+
+  const quote = await prisma.quote.findFirst({
+    where: { id: quoteId, tenant_id: tenantId },
+    include: { items: true, services: true },
+  });
+  if (!quote) return;
+
+  const itemsCount = quote.items.length;
+  const servicesCount = quote.services.length;
+  const summaryParts: string[] = [];
+  if (itemsCount > 0) summaryParts.push(`${itemsCount} produto${itemsCount > 1 ? "s" : ""}`);
+  if (servicesCount > 0) summaryParts.push(`${servicesCount} serviço${servicesCount > 1 ? "s" : ""}`);
+  const fallback = summaryParts.length > 0
+    ? `Orçamento #${quote.number} — ${summaryParts.join(", ")}`
+    : `Orçamento #${quote.number}`;
+  const reportedIssue = quote.notes?.trim() || fallback;
+
+  await prisma.serviceOrder.update({
+    where: { id: linked.id },
+    data: {
+      customer_id: quote.customer_id,
+      customer_name: quote.customer_name,
+      customer_phone: quote.customer_phone,
+      reported_issue: reportedIssue,
+      subtotal: quote.subtotal,
+      total_amount: quote.total_amount,
+    },
+  });
+}
+
 export async function updateQuoteStatus(req: Request, res: Response) {
   try {
     const tenantId = getTenantId(req);
@@ -386,6 +427,11 @@ export async function updateQuote(req: Request, res: Response) {
 
     await recomputeQuoteTotals(id);
     await logQuoteAction(tenantId, id, "edited", { actor: getActor(req) });
+
+    const tenantRow = await prisma.tenant.findUnique({ where: { id: tenantId }, select: { grafica_enabled: true } });
+    if (tenantRow?.grafica_enabled) {
+      await syncLinkedServiceOrderFromQuote(tenantId, id);
+    }
 
     const updated = await prisma.quote.findFirst({ where: { id, tenant_id: tenantId }, include: QUOTE_INCLUDE });
     res.json(updated);
