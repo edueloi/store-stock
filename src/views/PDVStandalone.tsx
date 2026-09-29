@@ -323,6 +323,7 @@ export default function PDVStandalone() {
   const [requireCashSession, setRequireCashSession] = useState(false);
   const [printCashCloseReceipt, setPrintCashCloseReceipt] = useState(false);
   const [logoutOnCashClose, setLogoutOnCashClose] = useState(false);
+  const [sellWithoutStockControl, setSellWithoutStockControl] = useState(false);
   const [cashSession, setCashSession] = useState<CashSessionInfo | null>(null);
   const [cashSessionLoading, setCashSessionLoading] = useState(true);
   const [showCloseCashModal, setShowCloseCashModal] = useState(false);
@@ -818,6 +819,7 @@ export default function PDVStandalone() {
       if (t.require_cash_session !== undefined) setRequireCashSession(Boolean(t.require_cash_session));
       if (t.print_cash_close_receipt !== undefined) setPrintCashCloseReceipt(Boolean(t.print_cash_close_receipt));
       if (t.logout_on_cash_close !== undefined) setLogoutOnCashClose(Boolean(t.logout_on_cash_close));
+      if (t.sell_without_stock_control !== undefined) setSellWithoutStockControl(Boolean(t.sell_without_stock_control));
     };
 
     Promise.all([
@@ -3001,6 +3003,7 @@ ${nfceInvoice.protocol ? `<div class="row"><span class="bold">Protocolo:</span><
             cart={cart}
             updateQuantity={updateQuantity}
             setQuantityDirect={setQuantityDirect}
+            sellWithoutStockControl={sellWithoutStockControl}
             removeFromCart={removeFromCart}
             cartServices={cartServices}
             setCartServices={setCartServices}
@@ -3479,6 +3482,7 @@ ${nfceInvoice.protocol ? `<div class="row"><span class="bold">Protocolo:</span><
                   cart={cart}
                   updateQuantity={updateQuantity}
                   setQuantityDirect={setQuantityDirect}
+                  sellWithoutStockControl={sellWithoutStockControl}
                   removeFromCart={removeFromCart}
                   cartServices={cartServices}
                   setCartServices={setCartServices}
@@ -3569,7 +3573,7 @@ ${nfceInvoice.protocol ? `<div class="row"><span class="bold">Protocolo:</span><
                                 <div className="mx-auto flex w-fit items-center justify-center gap-0.5 rounded-lg border border-slate-200 bg-slate-100 p-0.5">
                                   <button onClick={() => updateQuantity(item.cartItemId, -1)} className="p-1 hover:bg-white rounded text-slate-500"><Minus size={9} /></button>
                                   <span className="w-4 text-center font-mono font-black text-[10px] text-slate-700">{item.quantity}</span>
-                                  <button onClick={() => updateQuantity(item.cartItemId, 1)} disabled={!item.isAvulso && item.quantity >= item.stock_quantity} className="p-1 hover:bg-white rounded text-slate-500 disabled:opacity-30"><Plus size={9} /></button>
+                                  <button onClick={() => updateQuantity(item.cartItemId, 1)} disabled={!sellWithoutStockControl && !item.isAvulso && item.quantity >= item.stock_quantity} className="p-1 hover:bg-white rounded text-slate-500 disabled:opacity-30"><Plus size={9} /></button>
                                 </div>
                               </td>
                               <td className="px-2 py-2 text-right font-mono text-[11px] font-black text-slate-800 whitespace-nowrap"><span className="hidden 3xl:inline">R$ </span>{(item.price * item.quantity).toFixed(2)}</td>
@@ -5531,7 +5535,7 @@ const PaymentRow = React.memo(function PaymentRow({
 
 // ─── CART PANEL (apenas lista + botão ir para pagamento) ──────────────────────
 function CartPanel({
-  cart, updateQuantity, setQuantityDirect, removeFromCart,
+  cart, updateQuantity, setQuantityDirect, sellWithoutStockControl, removeFromCart,
   cartServices, setCartServices,
   subtotal, discountValue, surchargeValue, feeAmount, total, cartQty,
   onCheckout, canFinish, onClose,
@@ -5540,6 +5544,7 @@ function CartPanel({
   cart: CartItem[];
   updateQuantity: (id: string, delta: number) => void;
   setQuantityDirect: (id: string, value: number, maxStock?: number) => void;
+  sellWithoutStockControl: boolean;
   removeFromCart: (id: string) => void;
   cartServices: ServiceItem[];
   setCartServices: React.Dispatch<React.SetStateAction<ServiceItem[]>>;
@@ -5629,13 +5634,13 @@ function CartPanel({
                     <input
                       type="number"
                       min={1}
-                      max={item.isAvulso ? undefined : item.stock_quantity}
+                      max={item.isAvulso || sellWithoutStockControl ? undefined : item.stock_quantity}
                       value={item.quantity}
-                      onChange={(e) => setQuantityDirect(item.cartItemId, parseInt(e.target.value) || 1, item.isAvulso ? undefined : item.stock_quantity)}
+                      onChange={(e) => setQuantityDirect(item.cartItemId, parseInt(e.target.value) || 1, item.isAvulso || sellWithoutStockControl ? undefined : item.stock_quantity)}
                       onFocus={(e) => e.target.select()}
                       className="w-8 text-center font-mono font-black text-[12px] text-slate-700 bg-transparent border-none outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
                     />
-                    <button onClick={() => updateQuantity(item.cartItemId, 1)} disabled={!item.isAvulso && item.quantity >= item.stock_quantity} className="p-1.5 hover:bg-slate-200 text-slate-400 hover:text-slate-700 transition-all disabled:opacity-30">
+                    <button onClick={() => updateQuantity(item.cartItemId, 1)} disabled={!sellWithoutStockControl && !item.isAvulso && item.quantity >= item.stock_quantity} className="p-1.5 hover:bg-slate-200 text-slate-400 hover:text-slate-700 transition-all disabled:opacity-30">
                       <Plus size={11} />
                     </button>
                   </div>

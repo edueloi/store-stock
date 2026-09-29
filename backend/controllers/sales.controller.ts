@@ -117,7 +117,7 @@ async function finalizeSaleOrder(params: FinalizeSaleParams): Promise<{ orderId:
     // Load tenant card fees to compute machine fee internally
     const tenantData = await prisma.tenant.findUnique({
       where: { id: tenantId },
-      select: { card_fees: true, require_cash_session: true },
+      select: { card_fees: true, require_cash_session: true, sell_without_stock_control: true },
     });
     const cardFees = (tenantData?.card_fees ?? {}) as Record<string, number[]>;
 
@@ -318,7 +318,12 @@ async function finalizeSaleOrder(params: FinalizeSaleParams): Promise<{ orderId:
     });
 
     console.log("[createSale] order created id:", order.id, "— updating stock");
-    if (decrementStock) {
+    // Loja com "vender sem controle de estoque" ligado: a venda é registrada normalmente,
+    // mas nunca debita stock_quantity — o PDV também não trava por estoque insuficiente
+    // (ver checagem de atLimit no frontend). Não afeta consignação/held-sales/devoluções,
+    // que passam por outros fluxos (finalizeSaleOrderForConsignment já usa decrementStock: false;
+    // held-sales e estornos usam decrementProductStock/returnProductStock em outros controllers).
+    if (decrementStock && !tenantData?.sell_without_stock_control) {
       for (let idx = 0; idx < items.length; idx++) {
         const item = items[idx];
         // Item avulso não existe no catálogo — não há estoque a debitar.

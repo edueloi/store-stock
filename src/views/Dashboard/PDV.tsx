@@ -353,6 +353,7 @@ export default function PDV() {
   const [requireCashSession, setRequireCashSession] = useState(false);
   const [printCashCloseReceipt, setPrintCashCloseReceipt] = useState(false);
   const [logoutOnCashClose, setLogoutOnCashClose] = useState(false);
+  const [sellWithoutStockControl, setSellWithoutStockControl] = useState(false);
   const [cashSession, setCashSession] = useState<CashSessionInfo | null>(null);
   const [cashSessionLoading, setCashSessionLoading] = useState(true);
   const [showCloseCashModal, setShowCloseCashModal] = useState(false);
@@ -399,6 +400,7 @@ export default function PDV() {
         setCrediarioGraceDays(Number(d?.crediario_grace_days) || 0);
         if (d?.print_cash_close_receipt !== undefined) setPrintCashCloseReceipt(Boolean(d.print_cash_close_receipt));
         if (d?.logout_on_cash_close !== undefined) setLogoutOnCashClose(Boolean(d.logout_on_cash_close));
+        if (d?.sell_without_stock_control !== undefined) setSellWithoutStockControl(Boolean(d.sell_without_stock_control));
         setTenant({
           name:          d?.name          || "BoxSys Store",
           address:       d?.address       || "",
@@ -2388,7 +2390,7 @@ export default function PDV() {
                 <div className="grid grid-cols-1 lg:grid-cols-2 2xl:grid-cols-3 gap-1.5">
                   {filteredProducts.map((product) => {
                     const qtyInCart   = cart.filter((i) => i.id === product.id).reduce((a, b) => a + b.quantity, 0);
-                    const atLimit     = qtyInCart >= product.stock_quantity;
+                    const atLimit     = !sellWithoutStockControl && qtyInCart >= product.stock_quantity;
                     const hasVariations = (Array.isArray(product.attributes) && product.attributes.length > 0) ||
                       (Array.isArray(product.variations) && product.variations.length > 0);
                     return (
@@ -2454,7 +2456,7 @@ export default function PDV() {
                 <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-2.5">
                   {filteredProducts.map((product) => {
                     const qtyInCart   = cart.filter((i) => i.id === product.id).reduce((a, b) => a + b.quantity, 0);
-                    const atLimit     = qtyInCart >= product.stock_quantity;
+                    const atLimit     = !sellWithoutStockControl && qtyInCart >= product.stock_quantity;
                     const hasVariations = (Array.isArray(product.attributes) && product.attributes.length > 0) ||
                       (Array.isArray(product.variations) && product.variations.length > 0);
                     return (
@@ -2577,15 +2579,15 @@ export default function PDV() {
                         <input
                           type="number"
                           min={1}
-                          max={item.isAvulso ? undefined : item.stock_quantity}
+                          max={item.isAvulso || sellWithoutStockControl ? undefined : item.stock_quantity}
                           value={item.quantity}
-                          onChange={(e) => item.isAvulso
+                          onChange={(e) => item.isAvulso || sellWithoutStockControl
                             ? setCart((prev) => prev.map((i) => i.cartItemId === item.cartItemId ? { ...i, quantity: Math.max(1, parseInt(e.target.value) || 1) } : i))
                             : setQuantityDirect(item.cartItemId, parseInt(e.target.value) || 1, item.stock_quantity)}
                           onFocus={(e) => e.target.select()}
                           className="w-8 text-center font-mono font-black text-[12px] text-slate-700 bg-transparent border-none outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
                         />
-                        <button onClick={() => updateQuantity(item.cartItemId, 1)} disabled={!item.isAvulso && item.quantity >= item.stock_quantity} className="p-1.5 hover:bg-slate-200 text-slate-400 hover:text-slate-700 transition-all disabled:opacity-20"><Plus size={11} /></button>
+                        <button onClick={() => updateQuantity(item.cartItemId, 1)} disabled={!sellWithoutStockControl && !item.isAvulso && item.quantity >= item.stock_quantity} className="p-1.5 hover:bg-slate-200 text-slate-400 hover:text-slate-700 transition-all disabled:opacity-20"><Plus size={11} /></button>
                       </div>
                       <button onClick={() => removeFromCart(item.cartItemId)} className="p-1 text-slate-300 hover:text-red-500 transition-colors rounded"><Trash2 size={12} /></button>
                     </div>
@@ -3261,7 +3263,7 @@ export default function PDV() {
                                 <div className="flex items-center justify-center gap-0.5 bg-slate-100 border border-slate-200 rounded-lg p-0.5 mx-auto w-fit">
                                   <button onClick={() => updateQuantity(item.cartItemId, -1)} className="p-1 hover:bg-white rounded text-slate-500"><Minus size={9} /></button>
                                   <span className="w-5 text-center font-mono font-black text-[10px] text-slate-700">{item.quantity}</span>
-                                  <button onClick={() => updateQuantity(item.cartItemId, 1)} disabled={!item.isAvulso && item.quantity >= item.stock_quantity} className="p-1 hover:bg-white rounded text-slate-500 disabled:opacity-30"><Plus size={9} /></button>
+                                  <button onClick={() => updateQuantity(item.cartItemId, 1)} disabled={!sellWithoutStockControl && !item.isAvulso && item.quantity >= item.stock_quantity} className="p-1 hover:bg-white rounded text-slate-500 disabled:opacity-30"><Plus size={9} /></button>
                                 </div>
                               </td>
                               <td className="px-3 py-2 text-[12px] font-mono font-black text-slate-800 text-right whitespace-nowrap">R$ {(item.price * item.quantity).toFixed(2)}</td>

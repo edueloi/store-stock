@@ -63,6 +63,7 @@ export interface Tenant {
   require_cash_session?: boolean;
   print_cash_close_receipt?: boolean;
   logout_on_cash_close?: boolean;
+  sell_without_stock_control?: boolean;
   fluxo_producao_enabled?: boolean;
   grafica_enabled?: boolean;
   plan_features?: string[] | null;

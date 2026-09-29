@@ -3498,6 +3498,24 @@ export default function Settings() {
                   </div>
                 </div>
 
+                <div className="bg-slate-50 border border-slate-100 rounded-2xl p-5 space-y-4 max-w-lg">
+                  <div className="flex items-center justify-between gap-4">
+                    <div>
+                      <p className="text-[11px] font-black uppercase tracking-widest text-slate-700">
+                        Vender sem controle de estoque
+                      </p>
+                      <p className="text-[10px] text-slate-400 font-medium mt-1 leading-relaxed">
+                        Permite finalizar vendas mesmo com estoque zerado ou insuficiente. O estoque
+                        do produto não será alterado pela venda.
+                      </p>
+                    </div>
+                    <Toggle
+                      checked={!!tenant?.sell_without_stock_control}
+                      onChange={(v) => setT({ sell_without_stock_control: v })}
+                    />
+                  </div>
+                </div>
+
                 <SaveButton
                   onClick={handleSaveTenant}
                   label={saving ? "Salvando..." : "Salvar Configuração"}
