@@ -27,6 +27,8 @@ import {
   Link2,
   Palette,
   PenTool,
+  Mail,
+  Send,
 } from "lucide-react";
 import PageHeader from "../../components/layout/PageHeader";
 import Combobox from "../../components/ui/Combobox";
@@ -99,6 +101,8 @@ interface Quote {
   actions?: QuoteActionLog[];
   files?: QuoteFileRow[];
 }
+
+interface EmailDeliveryStatus { sent: boolean; recipient: string | null; sent_at: string | null; attempts: number; }
 
 interface Product {
   id: number;
@@ -314,6 +318,8 @@ export default function QuoteDetail() {
   const [convertSellerId, setConvertSellerId] = useState<number | "">("");
   const [sellers, setSellers] = useState<{ id: number; name: string }[]>([]);
   const [converting, setConverting] = useState(false);
+  const [emailDelivery, setEmailDelivery] = useState<EmailDeliveryStatus | null>(null);
+  const [sendingEmail, setSendingEmail] = useState(false);
 
   const [generatingLink, setGeneratingLink] = useState(false);
   const [linkCopied, setLinkCopied] = useState(false);
@@ -715,6 +721,26 @@ export default function QuoteDetail() {
       || (p.sku ?? "").toLowerCase().includes(query)
       || (p.barcode ?? "").toLowerCase().includes(query);
   });
+
+  useEffect(() => {
+    if (!quote?.id) return;
+    fetch(`/api/quotes/${quote.id}/email-status`, { headers: authHeaderNoJson() })
+      .then((res) => res.ok ? res.json() : null)
+      .then((data) => setEmailDelivery(data))
+      .catch(() => setEmailDelivery(null));
+  }, [quote?.id]);
+
+  const handleSendQuoteEmail = async () => {
+    if (!quote) return;
+    setSendingEmail(true);
+    try {
+      const res = await fetch(`/api/quotes/${quote.id}/send-email`, { method: "POST", headers: authHeader() });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) { alert(data?.error || "Não foi possível enviar o orçamento por e-mail."); return; }
+      setEmailDelivery((current) => ({ sent: true, recipient: data.recipient, sent_at: data.sent_at, attempts: (current?.attempts || 0) + 1 }));
+      alert(`Orçamento enviado para ${data.recipient}.`);
+    } finally { setSendingEmail(false); }
+  };
 
   // ── Render ────────────────────────────────────────────────────────────────
   if (loading) {
@@ -1182,6 +1208,19 @@ export default function QuoteDetail() {
               className="w-full h-10 bg-slate-100 hover:bg-slate-200 disabled:opacity-40 rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 text-slate-700 transition-all">
               <Download size={14} /> Baixar PDF
             </button>
+            {(quote.customer_email || selectedCustomer?.email) && (
+              <>
+                <button onClick={handleSendQuoteEmail} disabled={sendingEmail}
+                  className="w-full h-10 bg-blue-600 hover:bg-blue-700 disabled:opacity-60 rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 text-white transition-all">
+                  {sendingEmail ? <Loader2 size={14} className="animate-spin" /> : emailDelivery?.sent ? <Send size={14} /> : <Mail size={14} />}
+                  {emailDelivery?.sent ? "Reenviar por E-mail" : "Enviar por E-mail"}
+                </button>
+                {emailDelivery?.sent && emailDelivery.sent_at && (
+                  <p className="px-2 text-center text-[9px] font-bold text-emerald-600">Enviado para {emailDelivery.recipient} em {new Date(emailDelivery.sent_at).toLocaleString("pt-BR")}</p>
+                )}
+              </>
+            )}
+            {!(quote.customer_email || selectedCustomer?.email) && <p className="px-2 text-center text-[9px] font-bold text-amber-600">Cadastre o e-mail do cliente para enviar este orçamento.</p>}
             {quote.status === "orcamento_enviado" && (
               <>
                 <button onClick={() => { setDepositAmount(""); setShowDepositModal(true); }}

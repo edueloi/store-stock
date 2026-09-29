@@ -12,6 +12,7 @@ import {
   deleteQuoteFileHandler,
 } from "../controllers/quotes.controller";
 import { createQuoteApprovalLink } from "../controllers/quote-approval.controller";
+import { quoteEmailStatus, sendQuoteEmail } from "../controllers/document-email.controller";
 import { authenticateToken } from "../middlewares/auth.middleware";
 import { requireMenuPermission } from "../middlewares/menu-permission.middleware";
 
@@ -22,6 +23,8 @@ router.use(requireMenuPermission("orcamentos"));
 
 router.get("/", listQuotes);
 router.get("/:id", getQuoteById);
+router.get("/:id/email-status", quoteEmailStatus);
+router.post("/:id/send-email", sendQuoteEmail);
 router.post("/", createQuote);
 router.put("/:id", updateQuote);
 router.put("/:id/status", updateQuoteStatus);

@@ -29,6 +29,8 @@ import {
   FileCheck2,
   FileText,
   ExternalLink,
+  Mail,
+  Send,
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { cn } from "../../lib/utils";
@@ -166,6 +168,8 @@ export default function ServiceOrderDetail() {
   const [launchingReceivable, setLaunchingReceivable] = useState(false);
 
   const [generatingPdf, setGeneratingPdf] = useState(false);
+  const [emailDelivery, setEmailDelivery] = useState<{ sent: boolean; recipient: string | null; sent_at: string | null; attempts: number } | null>(null);
+  const [sendingEmail, setSendingEmail] = useState(false);
 
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [cancelReason, setCancelReason] = useState("");
@@ -264,11 +268,32 @@ export default function ServiceOrderDetail() {
     if (payload?.id === orderId || payload?.serviceOrderId === orderId) fetchOrder(true);
   }), [orderId, fetchOrder]);
 
+  useEffect(() => {
+    if (!selected?.id) return;
+    fetch(`/api/service-orders/${selected.id}/email-status`, { headers: authHeaderNoJson() })
+      .then((res) => res.ok ? res.json() : null)
+      .then((data) => setEmailDelivery(data))
+      .catch(() => setEmailDelivery(null));
+  }, [selected?.id]);
+
+  const handleSendServiceOrderEmail = async () => {
+    if (!selected) return;
+    setSendingEmail(true);
+    try {
+      const res = await fetch(`/api/service-orders/${selected.id}/send-email`, { method: "POST", headers: authHeader() });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) { alert(data?.error || "Não foi possível enviar a ordem de serviço por e-mail."); return; }
+      setEmailDelivery((current) => ({ sent: true, recipient: data.recipient, sent_at: data.sent_at, attempts: (current?.attempts || 0) + 1 }));
+      alert(`Ordem de serviço enviada para ${data.recipient}.`);
+    } finally { setSendingEmail(false); }
+  };
+
   const checklistTemplates = tenant?.policies?.service_order_checklists ?? {};
   const categoryOptions = Object.keys(checklistTemplates).map((cat) => ({ value: cat, label: cat }));
   const isDraft = selected?.status === "rascunho";
   // Loja sem o módulo Gráfica não vê/avança pelas etapas de arte (ver Tenant.grafica_enabled).
   const statusOrderForTenant = getStatusOrderForTenant(tenant?.grafica_enabled);
+  const customerEmail = customers.find((customer) => customer.id === selected?.customer_id)?.email;
 
   // ── Autosave ────────────────────────────────────────────────────────────
   const autosaveField = useCallback(async (patch: Record<string, unknown>, fieldKey: string) => {
@@ -1440,6 +1465,15 @@ export default function ServiceOrderDetail() {
               className="h-11 bg-slate-100 hover:bg-slate-200 rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 text-slate-700 transition-all disabled:opacity-60">
               {generatingPdf ? <Loader2 size={14} className="animate-spin" /> : <FileDown size={14} />} Gerar PDF
             </button>
+            {customerEmail ? (
+              <button onClick={handleSendServiceOrderEmail} disabled={sendingEmail}
+                className="h-11 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-all disabled:opacity-60">
+                {sendingEmail ? <Loader2 size={14} className="animate-spin" /> : emailDelivery?.sent ? <Send size={14} /> : <Mail size={14} />}
+                {emailDelivery?.sent ? "Reenviar por E-mail" : "Enviar por E-mail"}
+              </button>
+            ) : (
+              <div className="flex items-center justify-center rounded-xl border border-amber-200 bg-amber-50 px-3 text-center text-[9px] font-bold text-amber-700">Cadastre o e-mail do cliente para enviar a OS.</div>
+            )}
             {!selected.invoiced_order_id && (selected.status === "finalizado" || selected.status === "nota_emitida") && (
               <button onClick={() => setShowInvoiceModal(true)}
                 className="h-11 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-all">
@@ -1447,6 +1481,7 @@ export default function ServiceOrderDetail() {
               </button>
             )}
           </div>
+          {emailDelivery?.sent && emailDelivery.sent_at && <p className="text-center text-[9px] font-bold text-emerald-600">Enviado para {emailDelivery.recipient} em {new Date(emailDelivery.sent_at).toLocaleString("pt-BR")}</p>}
 
           {!selected.invoiced_order_id && (selected.status === "finalizado" || selected.status === "nota_emitida") && (
             receivable ? (

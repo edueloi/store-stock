@@ -18,6 +18,7 @@ import {
 } from "../controllers/service-orders.controller";
 import { authenticateToken } from "../middlewares/auth.middleware";
 import { requireMenuPermission } from "../middlewares/menu-permission.middleware";
+import { serviceOrderEmailStatus, sendServiceOrderEmail } from "../controllers/document-email.controller";
 
 const router = Router();
 
@@ -26,6 +27,8 @@ router.use(requireMenuPermission("ordens_servico"));
 
 router.get("/", listServiceOrders);
 router.get("/:id", getServiceOrderById);
+router.get("/:id/email-status", serviceOrderEmailStatus);
+router.post("/:id/send-email", sendServiceOrderEmail);
 router.post("/", createServiceOrder);
 router.put("/:id", updateServiceOrder);
 router.put("/:id/checklist", updateChecklist);
