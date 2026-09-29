@@ -11,9 +11,14 @@ type DocumentKind = "quote" | "service_order";
 const logKind = (kind: DocumentKind) => `${kind}_email`;
 
 function tenantId(req: Request) { return (req as AuthenticatedRequest).user.tenantId; }
-function actor(req: Request) {
+async function actor(req: Request) {
   const user = (req as AuthenticatedRequest).user as any;
-  return user.name ?? user.email ?? "Sistema";
+  if (user.name || user.email) return user.name ?? user.email;
+  const account = await prisma.user.findFirst({
+    where: { id: user.userId, tenant_id: user.tenantId },
+    select: { name: true, email: true },
+  });
+  return account ? `${account.name} (${account.email})` : "Sistema";
 }
 function money(value: unknown) { return Number(value || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" }); }
 
@@ -84,7 +89,7 @@ export async function sendQuoteEmail(req: Request, res: Response) {
   try {
     await sendStoreEmail(currentTenantId, { to: recipient, subject: `Orçamento #${quote.number} · ${money(quote.total_amount)}`, html });
     await logDelivery(currentTenantId, "quote", quote.id, recipient, "sent");
-    await markQuoteAsSent(currentTenantId, quote, actor(req));
+    await markQuoteAsSent(currentTenantId, quote, await actor(req));
     res.json({ success: true, recipient, sent_at: new Date() });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Não foi possível enviar o e-mail.";
@@ -109,7 +114,7 @@ export async function sendServiceOrderEmail(req: Request, res: Response) {
   try {
     await sendStoreEmail(currentTenantId, { to: recipient, subject: `Ordem de serviço #${order.number} · ${money(order.total_amount)}`, html });
     await logDelivery(currentTenantId, "service_order", order.id, recipient, "sent");
-    await markServiceOrderAsSent(currentTenantId, order, actor(req));
+    await markServiceOrderAsSent(currentTenantId, order, await actor(req));
     res.json({ success: true, recipient, sent_at: new Date() });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Não foi possível enviar o e-mail.";

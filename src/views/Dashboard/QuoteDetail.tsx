@@ -29,6 +29,7 @@ import {
   PenTool,
   Mail,
   Send,
+  History,
 } from "lucide-react";
 import PageHeader from "../../components/layout/PageHeader";
 import Combobox from "../../components/ui/Combobox";
@@ -66,6 +67,7 @@ interface QuoteActionLog {
   to_status: string | null;
   actor: string | null;
   note: string | null;
+  meta?: { changes?: { field: string; label: string; before: string; after: string }[] } | null;
   created_at: string;
 }
 
@@ -256,6 +258,18 @@ function statusLabel(s: string) {
   return map[s] ?? map.orcamento_enviado;
 }
 
+function quoteActionLabel(action: QuoteActionLog) {
+  if (action.action === "status_changed" && action.to_status) return `Status alterado para ${statusLabel(action.to_status).label}`;
+  if (action.action === "status_synced" && action.to_status) return `Status sincronizado com a OS vinculada: ${statusLabel(action.to_status).label}`;
+  if (action.action === "sent_by_email") return "Orçamento enviado por e-mail";
+  if (action.action === "created") return "Orçamento criado";
+  if (action.action === "edited") return "Alterações salvas";
+  if (action.action === "converted") return "Convertido em venda";
+  if (action.action === "deposit_recorded") return `Entrada registrada${action.note ? `: ${action.note}` : ""}`;
+  if (action.action === "expired") return "Orçamento expirado";
+  return action.action;
+}
+
 // ─── Main Component ───────────────────────────────────────────────────────────
 
 export default function QuoteDetail() {
@@ -320,6 +334,7 @@ export default function QuoteDetail() {
   const [converting, setConverting] = useState(false);
   const [emailDelivery, setEmailDelivery] = useState<EmailDeliveryStatus | null>(null);
   const [sendingEmail, setSendingEmail] = useState(false);
+  const [showHistory, setShowHistory] = useState(false);
 
   const [generatingLink, setGeneratingLink] = useState(false);
   const [linkCopied, setLinkCopied] = useState(false);
@@ -1141,31 +1156,6 @@ export default function QuoteDetail() {
             )}
           </div>
 
-          {/* History */}
-          {quote.actions && quote.actions.length > 0 && (
-            <div className="bg-white rounded-2xl border border-slate-200 p-5">
-              <p className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400 mb-2">Histórico</p>
-              <div className="space-y-2">
-                {quote.actions.map((a) => (
-                  <div key={a.id} className="flex items-start gap-2 text-[11px]">
-                    <div className="w-1.5 h-1.5 rounded-full bg-slate-300 mt-1.5 shrink-0" />
-                    <div className="min-w-0">
-                      <p className="text-slate-600">
-                        {a.action === "status_changed" && a.to_status ? `Status alterado para ${statusLabel(a.to_status).label}` :
-                         a.action === "status_synced" && a.to_status ? `Status sincronizado com a OS vinculada: ${statusLabel(a.to_status).label}` :
-                         a.action === "created" ? "Orçamento criado" :
-                         a.action === "edited" ? "Orçamento editado" :
-                         a.action === "converted" ? "Convertido em venda" :
-                         a.action === "deposit_recorded" ? `Entrada registrada${a.note ? `: ${a.note}` : ""}` :
-                         a.action === "expired" ? "Orçamento expirado" : a.action}
-                      </p>
-                      <p className="text-slate-400 text-[10px]">{a.actor ?? "Sistema"} · {new Date(a.created_at).toLocaleString("pt-BR")}</p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
         </div>
 
         {/* Sidebar: totals + actions */}
@@ -1205,9 +1195,14 @@ export default function QuoteDetail() {
           </div>
 
           <div className="bg-white rounded-2xl border border-slate-200 p-4 space-y-2">
+            <p className="px-1 text-center text-[9px] font-bold text-emerald-600">Alterações salvas automaticamente</p>
             <button onClick={handleDownloadPDF} disabled={!formItems.length && !formServices.length}
               className="w-full h-10 bg-slate-100 hover:bg-slate-200 disabled:opacity-40 rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 text-slate-700 transition-all">
               <Download size={14} /> Baixar PDF
+            </button>
+            <button onClick={() => setShowHistory(true)}
+              className="w-full h-10 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 text-slate-700 transition-all">
+              <History size={14} /> Histórico
             </button>
             {(quote.customer_email || selectedCustomer?.email) && (
               <>
@@ -1693,6 +1688,42 @@ export default function QuoteDetail() {
                   Confirmar Venda
                 </button>
               </div>
+            </div>
+          </div>
+        </>
+      )}
+
+      {showHistory && (
+        <>
+          <div onClick={() => setShowHistory(false)} className="fixed inset-0 z-[400] bg-slate-900/60 backdrop-blur-sm" />
+          <div className="fixed inset-x-4 top-1/2 z-[401] max-h-[80vh] -translate-y-1/2 overflow-hidden rounded-3xl bg-white shadow-2xl sm:left-1/2 sm:right-auto sm:w-[min(680px,calc(100vw-32px))] sm:-translate-x-1/2">
+            <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4">
+              <div>
+                <p className="text-[9px] font-black uppercase tracking-[0.2em] text-blue-600">Auditoria do orçamento</p>
+                <h2 className="mt-1 text-[15px] font-black text-slate-800">Histórico de alterações</h2>
+              </div>
+              <button onClick={() => setShowHistory(false)} className="flex h-8 w-8 items-center justify-center rounded-xl bg-slate-100 text-slate-500 hover:bg-slate-200"><X size={15} /></button>
+            </div>
+            <div className="max-h-[calc(80vh-76px)] space-y-3 overflow-y-auto p-5">
+              {!quote.actions?.length ? (
+                <p className="py-8 text-center text-[12px] text-slate-400">Nenhuma alteração registrada.</p>
+              ) : quote.actions.map((action) => (
+                <div key={action.id} className="rounded-2xl border border-slate-200 p-3">
+                  <p className="text-[12px] font-bold text-slate-700">{quoteActionLabel(action)}</p>
+                  <p className="mt-1 text-[10px] text-slate-400">{action.actor ?? "Sistema"} · {new Date(action.created_at).toLocaleString("pt-BR")}</p>
+                  {action.meta?.changes?.length ? (
+                    <div className="mt-3 space-y-2 border-t border-slate-100 pt-3">
+                      {action.meta.changes.map((change, index) => (
+                        <div key={`${action.id}-${change.field}-${index}`} className="rounded-xl bg-slate-50 px-3 py-2 text-[10px]">
+                          <p className="font-black uppercase tracking-wide text-slate-500">{change.label}</p>
+                          <p className="mt-1 break-words text-rose-600"><span className="font-bold">Antes:</span> {change.before}</p>
+                          <p className="mt-0.5 break-words text-emerald-700"><span className="font-bold">Depois:</span> {change.after}</p>
+                        </div>
+                      ))}
+                    </div>
+                  ) : null}
+                </div>
+              ))}
             </div>
           </div>
         </>

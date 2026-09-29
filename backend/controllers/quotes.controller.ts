@@ -19,9 +19,14 @@ function getUserId(req: Request): number {
   return (req as AuthenticatedRequest).user.userId;
 }
 
-function getActor(req: Request): string {
+async function getActor(req: Request): Promise<string> {
   const u = (req as AuthenticatedRequest).user;
-  return (u as any).name ?? (u as any).email ?? "Sistema";
+  if ((u as any).name || (u as any).email) return (u as any).name ?? (u as any).email;
+  const user = await prisma.user.findFirst({
+    where: { id: u.userId, tenant_id: u.tenantId },
+    select: { name: true, email: true },
+  });
+  return user ? `${user.name} (${user.email})` : "Sistema";
 }
 
 const QUOTE_INCLUDE = {
@@ -69,6 +74,25 @@ async function recomputeQuoteTotals(quoteId: number) {
     data: { subtotal, total_amount: totalAmount },
   });
   return { subtotal, totalAmount };
+}
+
+type AuditChange = { field: string; label: string; before: string; after: string };
+
+function auditText(value: unknown) {
+  if (value === null || value === undefined || value === "") return "Não informado";
+  return String(value);
+}
+
+function auditMoney(value: unknown) {
+  return Number(value || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+}
+
+function auditItemsSummary(items: Array<{ name: string; quantity: number; unit_price: unknown }>, services: Array<{ name: string; quantity: number; unit_price: unknown }>) {
+  const lines = [
+    ...items.map((item) => `${item.name} × ${item.quantity} (${auditMoney(item.unit_price)})`),
+    ...services.map((service) => `${service.name} × ${service.quantity} (${auditMoney(service.unit_price)})`),
+  ];
+  return lines.length ? lines.join("; ") : "Sem itens ou serviços";
 }
 
 export async function listQuotes(req: Request, res: Response) {
@@ -186,11 +210,12 @@ export async function createQuote(req: Request, res: Response) {
       include: { items: true, services: true },
     });
 
-    await logQuoteAction(tenantId, quote.id, "created", { toStatus: quote.status, actor: getActor(req) });
+    const actor = await getActor(req);
+    await logQuoteAction(tenantId, quote.id, "created", { toStatus: quote.status, actor });
 
     const tenantRow = await prisma.tenant.findUnique({ where: { id: tenantId }, select: { grafica_enabled: true } });
     if (tenantRow?.grafica_enabled) {
-      await createLinkedServiceOrder(tenantId, quote, getActor(req));
+      await createLinkedServiceOrder(tenantId, quote, actor);
     }
 
     res.json(quote);
@@ -299,7 +324,10 @@ export async function updateQuoteStatus(req: Request, res: Response) {
     const id = Number(req.params.id);
     const { status } = req.body as { status: string };
 
-    const existing = await prisma.quote.findFirst({ where: { id, tenant_id: tenantId } });
+    const existing = await prisma.quote.findFirst({
+      where: { id, tenant_id: tenantId },
+      include: { items: true, services: true },
+    });
     if (!existing) return res.status(404).json({ error: "Orçamento não encontrado" });
 
     const tenantRow = await prisma.tenant.findUnique({ where: { id: tenantId }, select: { grafica_enabled: true } });
@@ -327,12 +355,13 @@ export async function updateQuoteStatus(req: Request, res: Response) {
     }
 
     await prisma.quote.update({ where: { id }, data: { status } });
+    const actor = await getActor(req);
     await logQuoteAction(tenantId, id, "status_changed", {
-      fromStatus: existing.status, toStatus: status, actor: getActor(req),
+      fromStatus: existing.status, toStatus: status, actor,
     });
 
     if (tenantRow?.grafica_enabled) {
-      await syncLinkedStatus(tenantId, "quote", id, status, { actor: getActor(req) });
+      await syncLinkedStatus(tenantId, "quote", id, status, { actor });
     }
 
     res.json({ success: true });
@@ -346,7 +375,10 @@ export async function updateQuote(req: Request, res: Response) {
     const tenantId = getTenantId(req);
     const id = Number(req.params.id);
 
-    const existing = await prisma.quote.findFirst({ where: { id, tenant_id: tenantId } });
+    const existing = await prisma.quote.findFirst({
+      where: { id, tenant_id: tenantId },
+      include: { items: true, services: true },
+    });
     if (!existing) return res.status(404).json({ error: "Orçamento não encontrado" });
     if (existing.status !== "orcamento_enviado" && existing.status !== "rascunho") {
       return res.status(400).json({ error: "Só é possível editar orçamentos em aberto ou rascunho" });
@@ -375,6 +407,28 @@ export async function updateQuote(req: Request, res: Response) {
       items?: Array<{ product_id?: number; name: string; quantity: number; unit_price: number; dimensions_label?: string | null }>;
       services?: Array<{ id: number; name: string; price: number; quantity?: number; dimensions_label?: string | null }>;
     };
+
+    const changes: AuditChange[] = [];
+    const addChange = (field: string, label: string, before: unknown, after: unknown, format = auditText) => {
+      const beforeText = format(before);
+      const afterText = format(after);
+      if (beforeText !== afterText) changes.push({ field, label, before: beforeText, after: afterText });
+    };
+    if (customer_name !== undefined) addChange("customer_name", "Cliente", existing.customer_name, customer_name);
+    if (customer_phone !== undefined) addChange("customer_phone", "Telefone", existing.customer_phone, customer_phone);
+    if (customer_email !== undefined) addChange("customer_email", "E-mail do cliente", existing.customer_email, customer_email);
+    if (discount_type !== undefined) addChange("discount_type", "Tipo de desconto", existing.discount_type === "fixed" ? "Valor fixo" : "Percentual", discount_type === "fixed" ? "Valor fixo" : "Percentual");
+    if (discount_value !== undefined) addChange("discount_value", "Desconto", existing.discount_value, discount_value, auditMoney);
+    if (validity_days !== undefined) addChange("validity_days", "Validade", `${existing.validity_days} dias`, `${validity_days} dias`);
+    if (notes !== undefined) addChange("notes", "Observações", existing.notes, notes);
+    if (items !== undefined || services !== undefined) {
+      const before = auditItemsSummary(existing.items, existing.services);
+      const after = auditItemsSummary(
+        (items ?? existing.items).map((item) => ({ ...item, unit_price: item.unit_price })),
+        (services ?? existing.services).map((service) => ({ ...service, unit_price: "price" in service ? service.price : service.unit_price })),
+      );
+      if (before !== after) changes.push({ field: "items", label: "Itens e serviços", before, after });
+    }
 
     // Substitui items/services por completo (delete + recreate) apenas quando o body
     // enviar essas listas — permite autosave de campos isolados (ex: notes) sem apagar
@@ -424,8 +478,16 @@ export async function updateQuote(req: Request, res: Response) {
       },
     });
 
-    await recomputeQuoteTotals(id);
-    await logQuoteAction(tenantId, id, "edited", { actor: getActor(req) });
+    const totals = await recomputeQuoteTotals(id);
+    if (changes.length > 0 && totals) {
+      addChange("total_amount", "Total do orçamento", existing.total_amount, totals.totalAmount, auditMoney);
+    }
+    if (changes.length > 0) {
+      await logQuoteAction(tenantId, id, "edited", {
+        actor: await getActor(req),
+        meta: { changes },
+      });
+    }
 
     const tenantRow = await prisma.tenant.findUnique({ where: { id: tenantId }, select: { grafica_enabled: true } });
     if (tenantRow?.grafica_enabled) {
@@ -483,7 +545,7 @@ export async function recordQuoteDeposit(req: Request, res: Response) {
     });
 
     await logQuoteAction(tenantId, id, "deposit_recorded", {
-      actor: getActor(req),
+      actor: await getActor(req),
       note: `Entrada de ${depositAmount.toFixed(2)} (${methodSummary})`,
       meta: { amount: depositAmount, payment_method: pmString },
     });
@@ -699,7 +761,7 @@ export async function convertToOrder(req: Request, res: Response) {
     });
 
     await logQuoteAction(tenantId, quoteId, "converted", {
-      fromStatus: quote.status, toStatus: "converted", actor: getActor(req), meta: { order_id: order.id },
+      fromStatus: quote.status, toStatus: "converted", actor: await getActor(req), meta: { order_id: order.id },
     });
 
     emitToTenant(tenantId, "order:created", { orderId: order.id, quoteId });
