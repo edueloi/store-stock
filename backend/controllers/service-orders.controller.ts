@@ -144,10 +144,18 @@ async function recomputeTotals(serviceOrderId: number) {
   const partsTotal = parts.reduce((sum, p) => sum + Number(p.total), 0);
   const so = await prisma.serviceOrder.findUnique({
     where: { id: serviceOrderId },
-    select: { service_value: true, discount_type: true, discount_value: true },
+    select: {
+      service_value: true,
+      discount_type: true,
+      discount_value: true,
+      quote: { select: { total_amount: true } },
+    },
   });
   const serviceValue = Number(so?.service_value ?? 0);
-  const subtotal = Math.round((serviceValue + partsTotal) * 100) / 100;
+  // Em OS vinculada, os itens do orçamento compõem o valor-base. Peças e mão de
+  // obra lançadas diretamente na OS são adicionais e não podem apagar esse valor.
+  const linkedQuoteTotal = Number(so?.quote?.total_amount ?? 0);
+  const subtotal = Math.round((linkedQuoteTotal + serviceValue + partsTotal) * 100) / 100;
   const totalAmount = applyDiscount(subtotal, so?.discount_type ?? "percent", Number(so?.discount_value ?? 0));
   await prisma.serviceOrder.update({
     where: { id: serviceOrderId },
@@ -160,6 +168,17 @@ const SERVICE_ORDER_INCLUDE = {
   checklist_items: { orderBy: { position: "asc" as const } },
   parts: true,
   photos: { orderBy: { created_at: "asc" as const } },
+  quote: {
+    select: {
+      id: true,
+      number: true,
+      total_amount: true,
+      discount_type: true,
+      discount_value: true,
+      items: { select: { id: true, name: true, quantity: true, unit_price: true, total: true, dimensions_label: true } },
+      services: { select: { id: true, name: true, quantity: true, unit_price: true, total: true, dimensions_label: true } },
+    },
+  },
   technician: { select: { id: true, name: true } },
   accounts_receivable: { select: { id: true, status: true, due_date: true }, take: 1 },
 };

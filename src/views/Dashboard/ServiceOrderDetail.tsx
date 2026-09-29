@@ -1344,12 +1344,18 @@ export default function ServiceOrderDetail() {
             </div>
 
             <div className="bg-slate-900 rounded-2xl p-4 space-y-1.5">
+              {linkedQuote && (
+                <div className="flex justify-between text-[10px] font-bold uppercase text-blue-300">
+                  <span>Orçamento #{String(linkedQuote.number).padStart(4, "0")}</span>
+                  <span className="font-mono">{fmt(linkedQuote.total_amount)}</span>
+                </div>
+              )}
               <div className="flex justify-between text-[10px] font-bold uppercase text-slate-400">
                 <span>Mão de obra</span>
                 <span className="font-mono text-slate-200">{fmt(selected.service_value)}</span>
               </div>
               <div className="flex justify-between text-[10px] font-bold uppercase text-slate-400">
-                <span>Peças</span>
+                <span>Peças adicionais</span>
                 <span className="font-mono text-slate-200">{fmt(selected.parts_total)}</span>
               </div>
               {Number(selected.discount_value) > 0 && (

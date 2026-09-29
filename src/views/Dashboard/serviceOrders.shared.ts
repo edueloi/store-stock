@@ -42,6 +42,16 @@ export interface ServiceOrderPart {
   dimensions_label?: string | null;
 }
 
+export interface LinkedQuote {
+  id: number;
+  number: number;
+  total_amount: number;
+  discount_type: string;
+  discount_value: number;
+  items: { id: number; name: string; quantity: number; unit_price: number; total: number; dimensions_label: string | null }[];
+  services: { id: number; name: string; unit_price: number; quantity: number; total: number; dimensions_label: string | null }[];
+}
+
 export interface ServiceOrderPhoto {
   id: number;
   url: string;
@@ -106,6 +116,7 @@ export interface ServiceOrder {
   invoiced_order_id: number | null;
   invoiced_at: string | null;
   quote_id: number | null;
+  quote?: LinkedQuote | null;
   accounts_receivable?: { id: number; status: string; due_date: string }[];
   cancel_reason: string | null;
   created_at: string;
@@ -306,6 +317,22 @@ export function buildServiceOrderIntakeHtml(so: ServiceOrder, tenant: Tenant | n
       )
     : "";
 
+  const quoteItems = so.quote ? [...so.quote.items, ...so.quote.services] : [];
+  const quoteItemsTable = quoteItems.length
+    ? buildDocumentTableHtml(
+        [
+          { label: "Descrição" },
+          { label: "Qtd", align: "center", width: "45px" },
+          { label: "Valor Unit.", align: "right", width: "80px" },
+          { label: "Total", align: "right", width: "80px" },
+        ],
+        quoteItems.map((item) => ({
+          cells: [item.name, String(item.quantity), fmtMoney(item.unit_price), fmtMoney(item.total)],
+          sub: item.dimensions_label ?? undefined,
+        })),
+      )
+    : "";
+
   const priorityBadge = so.priority === "urgente"
     ? `<span style="display:inline-block;background:#fee2e2;color:#dc2626;font-weight:700;font-size:9.5px;text-transform:uppercase;letter-spacing:1px;padding:3px 8px;border-radius:5px;margin-left:8px">Urgente</span>`
     : "";
@@ -360,6 +387,13 @@ ${so.reported_issue ? `
   <div class="doc-obs-box">${so.reported_issue}</div>
 </div>` : ""}
 
+${quoteItemsTable && so.quote ? `
+<div class="doc-section">
+  <div class="doc-section-label">Itens do Orçamento Vinculado #${String(so.quote.number).padStart(4, "0")}</div>
+  ${quoteItemsTable}
+  <div class="doc-totals" style="margin-top:10px"><div class="doc-totals-box"><div class="doc-totals-row grand"><span>Total do orçamento</span><span>${fmtMoney(so.quote.total_amount)}</span></div></div></div>
+</div>` : ""}
+
 ${checklistTable ? `
 <div class="doc-section">
   <div class="doc-section-label">Checklist de Entrada</div>
@@ -368,15 +402,16 @@ ${checklistTable ? `
 
 ${partsTable ? `
 <div class="doc-section">
-  <div class="doc-section-label">Peças / Itens</div>
+  <div class="doc-section-label">Peças / Itens Adicionais da OS</div>
   ${partsTable}
 </div>` : ""}
 
 <div class="doc-section">
   <div class="doc-totals">
     <div class="doc-totals-box">
+      ${so.quote ? `<div class="doc-totals-row"><span>Orçamento vinculado</span><span>${fmtMoney(so.quote.total_amount)}</span></div>` : ""}
       <div class="doc-totals-row"><span>Mão de obra</span><span>${fmtMoney(so.service_value)}</span></div>
-      <div class="doc-totals-row"><span>Peças / Itens</span><span>${fmtMoney(so.parts_total)}</span></div>
+      <div class="doc-totals-row"><span>Peças / itens adicionais</span><span>${fmtMoney(so.parts_total)}</span></div>
       <div class="doc-totals-row grand"><span>TOTAL</span><span>${fmtMoney(so.total_amount)}</span></div>
     </div>
   </div>
