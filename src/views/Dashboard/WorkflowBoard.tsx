@@ -381,6 +381,8 @@ export default function WorkflowBoard() {
       </div>
       <p className="mt-2 text-[12px] font-black text-slate-800">{task.title}</p>
       {task.description && <p className="mt-1 line-clamp-2 text-[10px] leading-relaxed text-slate-500">{task.description}</p>}
+      {task.expected_result && <p className="mt-1 line-clamp-1 text-[9px] font-semibold text-violet-600">Entrega: {task.expected_result}</p>}
+      {!!task.planned_items?.length && <p className="mt-2 line-clamp-2 rounded-lg bg-slate-50 px-2 py-1.5 text-[9px] text-slate-500">Itens: {task.planned_items.map((item) => item.name).filter(Boolean).join(" · ")}</p>}
       <div className="mt-3 space-y-1 border-t border-slate-100 pt-2 text-[9px] font-semibold text-slate-500">
         {task.customer_name && <p className="flex items-center gap-1"><UserRound size={10} /> {task.customer_name}</p>}
         {task.assignee_name && <p className="flex items-center gap-1"><Wrench size={10} /> {task.assignee_name}</p>}
