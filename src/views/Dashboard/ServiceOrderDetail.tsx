@@ -37,6 +37,7 @@ import { cn } from "../../lib/utils";
 import PageHeader from "../../components/layout/PageHeader";
 import Modal from "../../components/ui/Modal";
 import Combobox from "../../components/ui/Combobox";
+import { useToast } from "../../components/ui/Toast";
 import { computeMeasuredPrice } from "../../utils/measurePricing";
 import { onRealtimeAny } from "../../lib/realtime";
 import {
@@ -67,6 +68,7 @@ import {
 export default function ServiceOrderDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const toast = useToast();
   const orderId = Number(id);
 
   const [selected, setSelected] = useState<ServiceOrder | null>(null);
@@ -282,10 +284,10 @@ export default function ServiceOrderDetail() {
     try {
       const res = await fetch(`/api/service-orders/${selected.id}/send-email`, { method: "POST", headers: authHeader() });
       const data = await res.json().catch(() => ({}));
-      if (!res.ok) { alert(data?.error || "Não foi possível enviar a ordem de serviço por e-mail."); return; }
+      if (!res.ok) { toast.error(data?.error || "Não foi possível enviar a ordem de serviço por e-mail."); return; }
       setEmailDelivery((current) => ({ sent: true, recipient: data.recipient, sent_at: data.sent_at, attempts: (current?.attempts || 0) + 1 }));
       await fetchOrder(true);
-      alert(`Ordem de serviço enviada para ${data.recipient}.`);
+      toast.success(`Ordem de serviço enviada para ${data.recipient}.`);
     } finally { setSendingEmail(false); }
   };
 
@@ -376,7 +378,7 @@ export default function ServiceOrderDetail() {
       await fetchOrder(true);
     } else {
       const err = await res.json().catch(() => ({}));
-      alert(err.error || "Falha ao atualizar status");
+      toast.error(err.error || "Falha ao atualizar status");
     }
   };
 
@@ -400,7 +402,7 @@ export default function ServiceOrderDetail() {
         navigate("/admin/ordens-servico");
       } else {
         const err = await res.json().catch(() => ({}));
-        alert(err.error || "Falha ao excluir ordem de serviço");
+        toast.error(err.error || "Falha ao excluir ordem de serviço");
         setShowDiscardModal(false);
       }
     } finally {
@@ -496,7 +498,7 @@ export default function ServiceOrderDetail() {
         await fetchOrder(true);
       } else {
         const err = await res.json().catch(() => ({}));
-        alert(err.error || "Falha ao adicionar item");
+        toast.error(err.error || "Falha ao adicionar item");
       }
     } finally {
       setAddingPart(false);
@@ -523,7 +525,7 @@ export default function ServiceOrderDetail() {
         await fetchOrder(true);
       } else {
         const err = await res.json().catch(() => ({}));
-        alert(err.error || "Falha ao salvar desconto");
+        toast.error(err.error || "Falha ao salvar desconto");
       }
     } finally {
       setSavingItemDiscount(false);
@@ -653,7 +655,7 @@ export default function ServiceOrderDetail() {
         await fetchOrder(true);
       } else {
         const err = await res.json().catch(() => ({}));
-        alert(err.error || "Falha ao faturar");
+        toast.error(err.error || "Falha ao faturar");
       }
     } finally {
       setInvoicing(false);
@@ -687,7 +689,7 @@ export default function ServiceOrderDetail() {
         await fetchOrder(true);
       } else {
         const err = await res.json().catch(() => ({}));
-        alert(err.error || "Falha ao lançar em Contas a Receber");
+        toast.error(err.error || "Falha ao lançar em Contas a Receber");
       }
     } finally {
       setLaunchingReceivable(false);

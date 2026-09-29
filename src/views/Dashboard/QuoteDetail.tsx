@@ -34,6 +34,7 @@ import {
 import PageHeader from "../../components/layout/PageHeader";
 import Combobox from "../../components/ui/Combobox";
 import ConfirmDialog from "../../components/ui/ConfirmDialog";
+import { useToast } from "../../components/ui/Toast";
 import { cn } from "../../lib/utils";
 import { computeMeasuredPrice } from "../../utils/measurePricing";
 import { generateQuotePDF } from "../../lib/quotePdf";
@@ -200,11 +201,11 @@ function newConvertPayment(): ConvertPayment {
 
 function buildConvertPmString(payments: ConvertPayment[]): string {
   return payments
-    .filter((p) => Number(p.amount) > 0)
+    .filter((p) => parseMaskedPrice(p.amount) > 0)
     .map((p) => {
       const brand = (p.method === "credit" || p.method === "debit") ? `-${p.cardBrand}` : "";
       const inst  = p.method === "credit" && p.installments > 1 ? `-${p.installments}x` : "";
-      return `${p.method}${brand}${inst}:${Number(p.amount).toFixed(2)}`;
+      return `${p.method}${brand}${inst}:${parseMaskedPrice(p.amount).toFixed(2)}`;
     })
     .join("|");
 }
@@ -275,6 +276,7 @@ function quoteActionLabel(action: QuoteActionLog) {
 export default function QuoteDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const toast = useToast();
   const quoteId = Number(id);
 
   const [quote, setQuote] = useState<Quote | null>(null);
@@ -669,7 +671,7 @@ export default function QuoteDetail() {
       const res = await fetch(`/api/quotes/${quote.id}/deposit`, {
         method: "POST",
         headers: authHeader(),
-        body: JSON.stringify({ amount: Number(depositAmount) || 0, payment_method: pmString }),
+        body: JSON.stringify({ amount: parseMaskedPrice(depositAmount), payment_method: pmString }),
       });
       if (res.ok) {
         setShowDepositModal(false);
@@ -677,9 +679,10 @@ export default function QuoteDetail() {
         setDepositMethod("money");
         setDepositInstallments(1);
         await fetchQuote(true);
+        toast.success("Entrada registrada com sucesso.");
       } else {
         const err = await res.json().catch(() => ({}));
-        alert(err.error || "Falha ao registrar entrada");
+        toast.error(err.error || "Falha ao registrar entrada");
       }
     } finally {
       setSavingDeposit(false);
@@ -691,15 +694,18 @@ export default function QuoteDetail() {
     setConverting(true);
     try {
       const pmString = buildConvertPmString(convertPayments) || "money";
-      await fetch(`/api/quotes/${quote.id}/convert`, {
+      const res = await fetch(`/api/quotes/${quote.id}/convert`, {
         method: "POST",
         headers: authHeader(),
         body: JSON.stringify({ payment_method: pmString, seller_id: convertSellerId || undefined }),
       });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) { toast.error(data?.error || "Não foi possível converter o orçamento em venda."); return; }
       setShowConvertModal(false);
       setConvertPayments([newConvertPayment()]);
       setConvertSellerId("");
       await fetchQuote(true);
+      toast.success("Orçamento convertido em venda.");
     } finally {
       setConverting(false);
     }
@@ -708,7 +714,10 @@ export default function QuoteDetail() {
   const updateConvertPayment = (id: string, patch: Partial<ConvertPayment>) => {
     setConvertPayments((prev) => prev.map((p) => p.id === id ? { ...p, ...patch } : p));
   };
-  const addConvertPayment = () => setConvertPayments((prev) => [...prev, newConvertPayment()]);
+  const addConvertPayment = () => setConvertPayments((prev) => [
+    ...prev,
+    { ...newConvertPayment(), amount: centsToMasked(Math.max(0, amountDue - prev.reduce((sum, payment) => sum + parseMaskedPrice(payment.amount), 0))) },
+  ]);
   const removeConvertPayment = (id: string) => setConvertPayments((prev) => prev.filter((p) => p.id !== id));
 
   const handleDownloadPDF = async () => {
@@ -751,10 +760,10 @@ export default function QuoteDetail() {
     try {
       const res = await fetch(`/api/quotes/${quote.id}/send-email`, { method: "POST", headers: authHeader() });
       const data = await res.json().catch(() => ({}));
-      if (!res.ok) { alert(data?.error || "Não foi possível enviar o orçamento por e-mail."); return; }
+      if (!res.ok) { toast.error(data?.error || "Não foi possível enviar o orçamento por e-mail."); return; }
       setEmailDelivery((current) => ({ sent: true, recipient: data.recipient, sent_at: data.sent_at, attempts: (current?.attempts || 0) + 1 }));
       await fetchQuote(true);
-      alert(`Orçamento enviado para ${data.recipient}.`);
+      toast.success(`Orçamento enviado para ${data.recipient}.`);
     } finally { setSendingEmail(false); }
   };
 
@@ -780,7 +789,7 @@ export default function QuoteDetail() {
   const quoteTotal = Number(quote.total_amount);
   const depositAlready = Number(quote.deposit_amount ?? 0);
   const amountDue  = Math.max(0, quoteTotal - depositAlready);
-  const paidTotal  = convertPayments.reduce((s, p) => s + (Number(p.amount) || 0), 0);
+  const paidTotal  = convertPayments.reduce((s, p) => s + parseMaskedPrice(p.amount), 0);
   const convertRemaining = Math.max(0, amountDue - paidTotal);
 
   return (
@@ -1219,11 +1228,11 @@ export default function QuoteDetail() {
             {!(quote.customer_email || selectedCustomer?.email) && <p className="px-2 text-center text-[9px] font-bold text-amber-600">Cadastre o e-mail do cliente para enviar este orçamento.</p>}
             {quote.status === "orcamento_enviado" && (
               <>
-                <button onClick={() => { setDepositAmount(""); setShowDepositModal(true); }}
+                <button onClick={() => { setDepositAmount(centsToMasked(remaining)); setShowDepositModal(true); }}
                   className="w-full h-10 bg-cyan-50 hover:bg-cyan-100 border border-cyan-200 rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 text-cyan-700 transition-all">
                   <Wallet size={14} /> Registrar Entrada
                 </button>
-                <button onClick={() => { setConvertPayments([newConvertPayment()]); setConvertSellerId(""); setShowConvertModal(true); }}
+                <button onClick={() => { setConvertPayments([{ ...newConvertPayment(), amount: centsToMasked(remaining) }]); setConvertSellerId(""); setShowConvertModal(true); }}
                   className="w-full h-10 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-all">
                   <ArrowRight size={14} /> Converter em Venda
                 </button>
@@ -1396,7 +1405,7 @@ export default function QuoteDetail() {
                 <label className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400 mb-1.5 block">Valor da Entrada</label>
                 <div className="relative">
                   <Banknote className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
-                  <input type="number" min="0" step="0.01" value={depositAmount} onChange={(e) => setDepositAmount(e.target.value)} placeholder="0,00"
+                  <input inputMode="numeric" value={depositAmount} onChange={(e) => setDepositAmount(applyMoneyMask(e.target.value))} placeholder="0,00"
                     className="w-full pl-9 pr-3 h-10 rounded-xl border border-slate-200 text-[13px] font-mono font-bold focus:outline-none focus:border-blue-400 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none" />
                 </div>
               </div>
@@ -1442,7 +1451,7 @@ export default function QuoteDetail() {
               <button onClick={() => setShowDepositModal(false)} className="flex-1 h-11 rounded-xl border border-slate-200 text-[10px] font-black uppercase tracking-widest text-slate-600 hover:bg-slate-50 transition-colors">
                 Cancelar
               </button>
-              <button onClick={handleRecordDeposit} disabled={savingDeposit || !(Number(depositAmount) > 0)}
+              <button onClick={handleRecordDeposit} disabled={savingDeposit || !(parseMaskedPrice(depositAmount) > 0)}
                 className="flex-1 h-11 bg-cyan-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-cyan-700 transition-all disabled:opacity-50 flex items-center justify-center gap-2">
                 {savingDeposit ? <Loader2 size={14} className="animate-spin" /> : <Wallet size={14} />}
                 Confirmar Entrada
@@ -1572,7 +1581,7 @@ export default function QuoteDetail() {
                   <div className="space-y-2.5">
                     {convertPayments.map((p, idx) => {
                       const feeRate = p.method === "credit" ? (tenant?.card_fees?.[p.cardBrand]?.[p.installments - 1] ?? 0) : 0;
-                      const pAmt    = Number(p.amount) || 0;
+                      const pAmt    = parseMaskedPrice(p.amount);
                       const pFee    = feeRate > 0 && pAmt > 0 ? pAmt * (feeRate / 100) : 0;
                       return (
                         <div key={p.id} className="bg-slate-50 rounded-2xl border border-slate-200 p-3 space-y-2.5">
@@ -1632,10 +1641,10 @@ export default function QuoteDetail() {
                           <div className="flex gap-2">
                             <div className="relative flex-1">
                               <Banknote className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={13} />
-                              <input type="number" min="0" step="0.01"
-                                placeholder={idx === 0 && convertRemaining > 0 ? `R$ ${convertRemaining.toFixed(2)}` : "Valor (R$)"}
+                              <input inputMode="numeric"
+                                placeholder={idx === 0 && convertRemaining > 0 ? centsToMasked(convertRemaining) : "0,00"}
                                 className="w-full pl-9 pr-3 h-10 bg-white border border-slate-200 rounded-xl focus:outline-none focus:border-blue-500 text-[11px] font-medium text-slate-800 placeholder:text-slate-400 transition-all [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none"
-                                value={p.amount} onChange={(e) => updateConvertPayment(p.id, { amount: e.target.value })} />
+                                value={p.amount} onChange={(e) => updateConvertPayment(p.id, { amount: applyMoneyMask(e.target.value) })} />
                             </div>
                             {pFee > 0.005 && (
                               <div className="flex flex-col items-end gap-0.5 bg-amber-50 border border-amber-200 rounded-xl px-3 py-1.5 shrink-0">
