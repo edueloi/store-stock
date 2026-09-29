@@ -175,6 +175,24 @@ function maskDoc(v: string) {
   return d.slice(0, 14).replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{0,2})/, "$1.$2.$3/$4-$5").replace(/-$/, "").replace(/\/$/, "");
 }
 
+// Exibição somente-leitura — aplica a máscara certa (CPF ou CNPJ) conforme o
+// tamanho do documento já salvo, sem alterar o valor armazenado.
+function displayDoc(v?: string | null): string {
+  if (!v) return "";
+  return maskDoc(v);
+}
+
+function displayPhone(v?: string | null): string {
+  if (!v) return "";
+  return maskPhone(v);
+}
+
+function displayZip(v?: string | null): string {
+  const d = (v ?? "").replace(/\D/g, "");
+  if (d.length !== 8) return v ?? "";
+  return d.replace(/(\d{5})(\d{3})/, "$1-$2");
+}
+
 type DetailTab = "summary" | "fiado" | "history" | "notes" | "loyalty";
 
 export default function CustomerDetail() {
@@ -855,7 +873,7 @@ export default function CustomerDetail() {
             <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:gap-2">
               {detail.phone && (
                 <a href={`tel:${detail.phone}`} className="inline-flex min-w-0 items-center gap-1.5 rounded-lg bg-slate-50 px-2.5 py-1.5 text-[12px] font-semibold text-slate-600 transition-colors hover:bg-blue-50 hover:text-blue-600">
-                  <Phone size={11} className="shrink-0" /> <span className="truncate">{detail.phone}</span>
+                  <Phone size={11} className="shrink-0" /> <span className="truncate">{displayPhone(detail.phone)}</span>
                 </a>
               )}
               {detail.email && (
@@ -941,7 +959,7 @@ export default function CustomerDetail() {
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                   <div className="rounded-xl border border-slate-100 bg-slate-50/70 p-3">
                     <p className="flex items-center gap-1.5 text-[9px] font-black uppercase tracking-widest text-slate-400"><Phone size={11} /> Telefone</p>
-                    {detail.phone ? <a href={`tel:${detail.phone}`} className="mt-1.5 block truncate text-[13px] font-bold text-slate-800 hover:text-blue-600">{detail.phone}</a> : <p className="mt-1.5 text-[13px] font-medium text-slate-400">Não informado</p>}
+                    {detail.phone ? <a href={`tel:${detail.phone}`} className="mt-1.5 block truncate text-[13px] font-bold text-slate-800 hover:text-blue-600">{displayPhone(detail.phone)}</a> : <p className="mt-1.5 text-[13px] font-medium text-slate-400">Não informado</p>}
                   </div>
                   <div className="rounded-xl border border-slate-100 bg-slate-50/70 p-3">
                     <p className="flex items-center gap-1.5 text-[9px] font-black uppercase tracking-widest text-slate-400"><Mail size={11} /> E-mail</p>
@@ -949,7 +967,7 @@ export default function CustomerDetail() {
                   </div>
                   <div className="rounded-xl border border-slate-100 bg-slate-50/70 p-3">
                     <p className="text-[9px] font-black uppercase tracking-widest text-slate-400">CPF/CNPJ</p>
-                    <p className="mt-1.5 break-all text-[13px] font-bold text-slate-800">{detail.document || "Não informado"}</p>
+                    <p className="mt-1.5 break-all text-[13px] font-bold text-slate-800">{displayDoc(detail.document) || "Não informado"}</p>
                   </div>
                   <div className="rounded-xl border border-slate-100 bg-slate-50/70 p-3">
                     <p className="flex items-center gap-1.5 text-[9px] font-black uppercase tracking-widest text-slate-400"><Calendar size={11} /> Aniversário</p>
@@ -1003,7 +1021,7 @@ export default function CustomerDetail() {
                     <div><p className="text-[9px] font-black uppercase tracking-widest text-slate-400">Número / complemento</p><p className="mt-1 text-[13px] font-bold text-slate-800">{[detail.address_number, detail.address_complement].filter(Boolean).join(" · ") || "Não informado"}</p></div>
                     <div><p className="text-[9px] font-black uppercase tracking-widest text-slate-400">Bairro</p><p className="mt-1 text-[13px] font-bold text-slate-800">{detail.address_district || "Não informado"}</p></div>
                     <div><p className="text-[9px] font-black uppercase tracking-widest text-slate-400">Cidade / UF</p><p className="mt-1 text-[13px] font-bold text-slate-800">{[detail.address_city, detail.address_state].filter(Boolean).join(" / ") || "Não informado"}</p></div>
-                    <div><p className="text-[9px] font-black uppercase tracking-widest text-slate-400">CEP</p><p className="mt-1 text-[13px] font-bold text-slate-800">{detail.address_zip || "Não informado"}</p></div>
+                    <div><p className="text-[9px] font-black uppercase tracking-widest text-slate-400">CEP</p><p className="mt-1 text-[13px] font-bold text-slate-800">{displayZip(detail.address_zip) || "Não informado"}</p></div>
                     <div><p className="text-[9px] font-black uppercase tracking-widest text-slate-400">País</p><p className="mt-1 text-[13px] font-bold text-slate-800">{detail.address_country || "Brasil"}</p></div>
                   </div>
                 ) : (

@@ -837,7 +837,7 @@ export default function Customers() {
                     <div className="grid grid-cols-1 gap-2 border-y border-slate-100 py-3 min-[430px]:grid-cols-2">
                       <div className="flex min-w-0 items-center gap-2 text-slate-500">
                         {c.phone ? <Phone size={13} className="shrink-0 text-blue-500" /> : <Mail size={13} className="shrink-0 text-blue-500" />}
-                        <span className="truncate text-[11px] font-semibold">{c.phone ?? c.email ?? "Contato não informado"}</span>
+                        <span className="truncate text-[11px] font-semibold">{(c.phone && maskPhone(c.phone)) || c.email || "Contato não informado"}</span>
                       </div>
                       <div className="flex min-w-0 items-center gap-2 text-slate-500">
                         <MapPin size={13} className="shrink-0 text-blue-500" />
@@ -891,7 +891,7 @@ export default function Customers() {
                   {pagedCustomers.map((c) => (
                     <tr key={c.id} className="hover:bg-slate-50 transition-colors cursor-pointer" onClick={() => navigate(`/admin/customers/${c.id}`)}>
                       <td className="px-4 py-3 font-semibold text-slate-800">{c.name}</td>
-                      <td className="px-4 py-3 text-slate-500">{c.phone ?? "–"}</td>
+                      <td className="px-4 py-3 text-slate-500">{(c.phone && maskPhone(c.phone)) || "–"}</td>
                       <td className="px-4 py-3 text-slate-500">{[c.address_city, c.address_state].filter(Boolean).join(" - ") || "–"}</td>
                       <td className="px-4 py-3 text-right font-black text-red-600">{(c.total_debt ?? 0) > 0 ? fmt(c.total_debt!) : "–"}</td>
                       <td className="px-4 py-3 text-center">
@@ -943,7 +943,7 @@ export default function Customers() {
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
                         <p className="truncate text-[13px] font-black text-slate-900">{d.customer_name}</p>
-                        <p className="mt-1 flex items-center gap-1 text-[11px] font-medium text-slate-500"><Phone size={11} /> {d.customer_phone ?? "Contato não informado"}</p>
+                        <p className="mt-1 flex items-center gap-1 text-[11px] font-medium text-slate-500"><Phone size={11} /> {(d.customer_phone && maskPhone(d.customer_phone)) || "Contato não informado"}</p>
                       </div>
                       {d.risk_flag && <span className="inline-flex shrink-0 items-center gap-1 rounded-lg bg-rose-50 px-2 py-1 text-[9px] font-black uppercase text-rose-600"><AlertTriangle size={11} /> Risco</span>}
                     </div>
@@ -979,7 +979,7 @@ export default function Customers() {
                       <td className="px-4 py-3">
                         <span className="font-semibold text-slate-800">{d.customer_name}</span>
                       </td>
-                      <td className="px-4 py-3 text-slate-500 hidden sm:table-cell">{d.customer_phone ?? "–"}</td>
+                      <td className="px-4 py-3 text-slate-500 hidden sm:table-cell">{(d.customer_phone && maskPhone(d.customer_phone)) || "–"}</td>
                       <td className="px-4 py-3 text-center">
                         <span className="text-[11px] font-bold text-slate-600 bg-slate-100 px-2 py-0.5 rounded-full">
                           {d.open_debts}
