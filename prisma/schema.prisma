@@ -141,6 +141,7 @@ model Tenant {
   technicians            Technician[]
   goals                  Goal[]
   services               Service[]
+  service_categories     ServiceCategory[]
   loyalty_program        LoyaltyProgram?
   order_actions          OrderAction[]
   service_orders         ServiceOrder[]
@@ -458,7 +459,11 @@ model Service {
   description String? @db.Text
   price       Decimal @db.Decimal(10, 2)
   unit        String  @default("unidade")
+  // Categoria antiga (string livre) — mantida temporariamente durante a migração
+  // para ServiceCategory (ver category_id abaixo). Será removida numa segunda
+  // migration, depois que os dados existentes forem migrados com segurança.
   category    String  @default("Geral")
+  category_id Int?
   is_active   Boolean @default(true)
   image_url   String?
 
@@ -470,12 +475,34 @@ model Service {
   created_at DateTime @default(now())
   updated_at DateTime @updatedAt
 
-  tenant         Tenant         @relation(fields: [tenant_id], references: [id])
-  order_services OrderService[]
-  quote_services QuoteService[]
+  tenant              Tenant             @relation(fields: [tenant_id], references: [id])
+  category_ref        ServiceCategory?   @relation(fields: [category_id], references: [id], onDelete: SetNull)
+  order_services      OrderService[]
+  quote_services      QuoteService[]
+  service_order_parts ServiceOrderPart[]
 
   @@index([tenant_id])
+  @@index([category_id])
   @@map("services")
+}
+
+// Categoria dedicada a Service — tabela separada de Category (que é exclusiva de
+// Product), mesmo padrão visual (ícone + cor), mas sem capa de imagem: serviço
+// não precisa de vitrine com foto de categoria como o catálogo de produtos tem.
+model ServiceCategory {
+  id         Int      @id @default(autoincrement())
+  tenant_id  Int
+  name       String
+  icon       String?  @default("wrench")
+  color      String?  @default("#2563eb")
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  tenant   Tenant    @relation(fields: [tenant_id], references: [id])
+  services Service[]
+
+  @@index([tenant_id])
+  @@map("service_categories")
 }
 
 model OrderService {
@@ -1428,6 +1455,12 @@ model ServiceOrderPart {
   id                    Int      @id @default(autoincrement())
   service_order_id      Int
   product_id            Int?
+  // Serviço do catálogo (Service) vinculado a este item — mutuamente exclusivo
+  // com product_id (nunca os dois preenchidos ao mesmo tempo; ver
+  // addServiceOrderPart no controller). Reaproveita 100% do cálculo de
+  // totais/desconto/cortesia já existente para peças, em vez de duplicar a
+  // lógica numa tabela de junção separada.
+  service_id            Int?
   name                  String
   quantity              Int      @default(1)
   unit                  String   @default("UN")
@@ -1442,8 +1475,10 @@ model ServiceOrderPart {
 
   service_order ServiceOrder @relation(fields: [service_order_id], references: [id], onDelete: Cascade)
   product       Product?     @relation(fields: [product_id], references: [id], onDelete: SetNull)
+  service       Service?     @relation(fields: [service_id], references: [id], onDelete: SetNull)
 
   @@index([service_order_id])
+  @@index([service_id])
   @@map("service_order_parts")
 }
 

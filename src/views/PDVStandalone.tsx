@@ -14,7 +14,7 @@ import { motion, AnimatePresence } from "motion/react";
 import { Product, Category, NfceInvoice } from "../types";
 import { cn } from "../lib/utils";
 import Combobox from "../components/ui/Combobox";
-import { SERVICE_CATEGORIES, SERVICE_UNITS } from "./Dashboard/Services";
+import { SERVICE_UNITS, getCategoryIcon, UNCATEGORIZED_SERVICE_CATEGORY } from "./Dashboard/Services";
 import {
   cacheSet, cacheGet, queueSale, getPendingSales,
   removePendingSale, countPendingSales, PendingSale,
@@ -120,7 +120,10 @@ interface CompletedSale {
 
 interface SellerEntry { id: number; name: string; commission_rate: number; user_id?: number | null }
 interface ServiceItem  {
-  id: number; name: string; price: number; description?: string; unit?: string; category?: string; quantity?: number;
+  id: number; name: string; price: number; description?: string; unit?: string;
+  category_id?: number | null;
+  category_ref?: { id: number; name: string; icon: string | null; color: string | null } | null;
+  quantity?: number;
   sale_unit?: "unidade" | "m2" | "linear"; price_per_measure?: number | null; min_billable_quantity?: number | null;
   dimensionsLabel?: string;
 }
@@ -2776,9 +2779,10 @@ ${nfceInvoice.protocol ? `<div class="row"><span class="bold">Protocolo:</span><
                 <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 2xl:grid-cols-5 gap-2 sm:gap-2.5">
                   {services.map((svc) => {
                     const inCart = cartServices.some((s) => s.id === svc.id);
-                    const catMeta = SERVICE_CATEGORIES.find((c) => c.value === svc.category) ?? SERVICE_CATEGORIES[SERVICE_CATEGORIES.length - 1];
+                    const catMeta = svc.category_ref ?? UNCATEGORIZED_SERVICE_CATEGORY;
+                    const catColor = catMeta.color || "#64748b";
                     const unitAbbr = SERVICE_UNITS.find((u) => u.value === svc.unit)?.abbr ?? svc.unit ?? "un";
-                    const CatIcon = catMeta.icon;
+                    const CatIcon = getCategoryIcon(catMeta.icon);
                     const cartEntry = cartServices.find((s) => s.id === svc.id);
                     return (
                       <motion.button layout key={svc.id}
@@ -2800,7 +2804,7 @@ ${nfceInvoice.protocol ? `<div class="row"><span class="bold">Protocolo:</span><
                             : "border-slate-200 hover:border-violet-300 hover:shadow-md hover:shadow-violet-50"
                         )}>
                         {/* Área ícone */}
-                        <div className={cn("w-full aspect-[4/3] flex items-center justify-center relative", catMeta.color)}>
+                        <div className="w-full aspect-[4/3] flex items-center justify-center relative" style={{ background: `${catColor}1a`, color: catColor }}>
                           <CatIcon size={36} strokeWidth={1.5} />
                           {/* badge unidade */}
                           <div className="absolute top-2 right-2 px-1.5 py-0.5 rounded-md text-[8px] font-mono font-bold bg-white/90 border border-slate-200 text-slate-500 shadow-sm">

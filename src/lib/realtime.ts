@@ -16,6 +16,7 @@ export type RealtimeEvent =
   | "cash-session:changed"
   | "customer-credit:changed"
   | "service-order:changed"
+  | "service-category:changed"
   | "consignment:changed"
   | "nfce:changed"
   | "nfse:changed"

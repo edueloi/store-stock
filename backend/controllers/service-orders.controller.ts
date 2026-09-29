@@ -605,11 +605,11 @@ export async function addServiceOrderPart(req: Request, res: Response) {
     const tenantId = getTenantId(req);
     const id = Number(req.params.id);
     const {
-      product_id, quantity, height, width, no_charge,
+      product_id, service_id, quantity, height, width, no_charge,
       name: freeName, unit: freeUnit, unit_price: freeUnitPrice,
       discount_type: discountType, discount_value: discountValueRaw,
     } = req.body as {
-      product_id?: number; quantity?: number; height?: number; width?: number; no_charge?: boolean;
+      product_id?: number; service_id?: number; quantity?: number; height?: number; width?: number; no_charge?: boolean;
       name?: string; unit?: string; unit_price?: number;
       discount_type?: string; discount_value?: number;
     };
@@ -622,8 +622,81 @@ export async function addServiceOrderPart(req: Request, res: Response) {
     const itemDiscountType = discountType === "fixed" ? "fixed" : "percent";
     const itemDiscountValue = no_charge ? 0 : Math.max(0, Number(discountValueRaw) || 0);
 
-    // Item livre: sem produto vinculado, nome/unidade/valor informados manualmente
-    // (ex.: "Mão de obra extra", item de terceiro, cortesia) — sem controle de estoque.
+    // Serviço do catálogo: mutuamente exclusivo com product_id (o client nunca
+    // deveria mandar os dois, mas por segurança product_id tem precedência caso
+    // venha preenchido junto). Nunca confia em nome/preço vindos do client —
+    // mesma trilha de segurança já usada abaixo para product_id.
+    if (service_id && !product_id) {
+      const service = await prisma.service.findFirst({ where: { id: service_id, tenant_id: tenantId } });
+      if (!service) return res.status(404).json({ error: "Serviço não encontrado" });
+
+      const isMeasured = !!service.sale_unit && service.sale_unit !== "unidade";
+
+      let qty = Number(quantity) || 1;
+      let unitPrice = Number(service.price);
+      let totalBeforeDiscount: number;
+      let dimensionsLabel: string | null = null;
+
+      if (isMeasured) {
+        const result = computeMeasuredPrice(
+          service.sale_unit as "m2" | "linear",
+          Number(service.price_per_measure) || 0,
+          service.min_billable_quantity ? Number(service.min_billable_quantity) : null,
+          Number(height) || 0,
+          Number(width) || 0,
+        );
+        qty = 1;
+        unitPrice = result.total;
+        totalBeforeDiscount = result.total;
+        dimensionsLabel = result.label;
+      } else {
+        totalBeforeDiscount = Math.round(unitPrice * qty * 100) / 100;
+      }
+
+      let total = applyDiscount(totalBeforeDiscount, itemDiscountType, itemDiscountValue);
+      if (no_charge) {
+        unitPrice = 0;
+        totalBeforeDiscount = 0;
+        total = 0;
+      }
+
+      const unitLabel = service.sale_unit === "m2" ? "M²" : service.sale_unit === "linear" ? "M" : (service.unit || "UN").toUpperCase().slice(0, 10);
+
+      await prisma.serviceOrderPart.create({
+        data: {
+          service_order_id: id,
+          service_id: service.id,
+          name: service.name,
+          quantity: qty,
+          unit: unitLabel,
+          unit_price: unitPrice,
+          total_before_discount: totalBeforeDiscount,
+          discount_type: itemDiscountType,
+          discount_value: itemDiscountValue,
+          total,
+          no_charge: !!no_charge,
+          dimensions_label: dimensionsLabel,
+        },
+      });
+
+      await recomputeTotals(id);
+      await logAction(tenantId, id, "part_added", {
+        actor: getActor(req),
+        note: dimensionsLabel ? `${service.name} (${dimensionsLabel})` : `${service.name} x${qty}${no_charge ? " (sem cobrança)" : ""}`,
+        meta: { service_id: service.id, quantity: qty, no_charge: !!no_charge },
+      });
+
+      const updatedForService = await prisma.serviceOrder.findFirst({
+        where: { id, tenant_id: tenantId },
+        include: SERVICE_ORDER_INCLUDE,
+      });
+      res.json(updatedForService);
+      return;
+    }
+
+    // Item livre: sem produto/serviço vinculado, nome/unidade/valor informados
+    // manualmente (ex.: "Mão de obra extra", item de terceiro, cortesia) — sem
+    // controle de estoque.
     if (!product_id) {
       if (!freeName || !freeName.trim()) {
         return res.status(422).json({ error: "Informe a descrição do item" });
@@ -1059,17 +1132,48 @@ export async function invoiceServiceOrder(req: Request, res: Response) {
       where: { tenant_id: tenantId, name: LABOR_SERVICE_NAME },
     });
     if (!laborService && Number(order.service_value) > 0) {
+      // Find-or-create a categoria "Ordem de Serviço" pra este tenant — mesmo
+      // nome usado antes da migração de category (string) para category_id (FK).
+      let laborCategory = await prisma.serviceCategory.findFirst({
+        where: { tenant_id: tenantId, name: "Ordem de Serviço" },
+      });
+      if (!laborCategory) {
+        laborCategory = await prisma.serviceCategory.create({
+          data: { tenant_id: tenantId, name: "Ordem de Serviço", icon: "wrench", color: "#2563eb" },
+        });
+      }
       laborService = await prisma.service.create({
         data: {
           tenant_id: tenantId,
           name: LABOR_SERVICE_NAME,
           price: order.service_value,
           unit: "unidade",
-          category: "Ordem de Serviço",
+          category_id: laborCategory.id,
           is_active: true,
         },
       });
     }
+
+    // Peças com service_id (serviço do catálogo vinculado a um item da OS — ver
+    // 3ª aba "Serviços" no modal de adicionar item) viram OrderService também,
+    // igual à mão de obra genérica — senão o cliente ficaria sem cobrar por esse
+    // item no pedido faturado, mesmo ele já entrando no total_amount da OS.
+    const linkedServiceParts = order.parts.filter((p) => p.service_id);
+    const servicesToCreate = [
+      ...(Number(order.service_value) > 0 && laborService ? [{
+        service_id: laborService.id,
+        name: LABOR_SERVICE_NAME,
+        unit_price: order.service_value,
+        quantity: 1,
+      }] : []),
+      ...linkedServiceParts.map((p) => ({
+        service_id: p.service_id!,
+        name: p.name,
+        unit_price: p.unit_price,
+        quantity: p.quantity,
+        dimensions_label: p.dimensions_label,
+      })),
+    ];
 
     const newOrder = await prisma.order.create({
       data: {
@@ -1093,16 +1197,7 @@ export async function invoiceServiceOrder(req: Request, res: Response) {
             dimensions_label: p.dimensions_label,
           })),
         },
-        ...(Number(order.service_value) > 0 && laborService ? {
-          services: {
-            create: [{
-              service_id: laborService.id,
-              name: LABOR_SERVICE_NAME,
-              unit_price: order.service_value,
-              quantity: 1,
-            }],
-          },
-        } : {}),
+        ...(servicesToCreate.length > 0 ? { services: { create: servicesToCreate } } : {}),
       },
     });
 

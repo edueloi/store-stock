@@ -22,6 +22,7 @@ export type RealtimeEvent =
   | "cash-session:changed"   // sessão de caixa aberta ou fechada
   | "customer-credit:changed" // saldo de crédito de troca de um cliente mudou
   | "service-order:changed"  // ordem de serviço criada ou com status alterado
+  | "service-category:changed" // categoria de serviço criada, editada ou removida
   | "consignment:changed"    // consignação criada, editada ou liquidada
   | "nfce:changed"           // NFC-e emitida, autorizada, rejeitada ou cancelada
   | "nfse:changed"           // NFS-e emitida, autorizada, rejeitada ou cancelada

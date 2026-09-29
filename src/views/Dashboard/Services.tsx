@@ -3,8 +3,8 @@ import {
   Wrench, Plus, Edit2, Trash2, Save, ToggleLeft, ToggleRight,
   AlertTriangle, CheckCircle, XCircle,
   Search, X, LayoutGrid, List, Clock,
-  Scissors, Box, LayoutPanelTop, Hammer,
-  Ruler, Package, Tag, Upload, Percent, DollarSign, HelpCircle,
+  Scissors, LayoutPanelTop, Hammer,
+  Ruler, Package, Tag, Upload, HelpCircle, Settings, FolderOpen,
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import Button from "../../components/ui/Button";
@@ -14,9 +14,18 @@ import PageHeader from "../../components/layout/PageHeader";
 import { EmptyState, LoadingState } from "../../components/layout/EmptyState";
 import { StatCard } from "../../components/ui/Card";
 import Combobox from "../../components/ui/Combobox";
+import { onRealtime } from "../../lib/realtime";
 import ServicesPageTour, { SERVICES_PAGE_TOUR_EVENTS, type ServicesPageTourHandle } from "../../components/onboarding/ServicesPageTour";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
+
+interface ServiceCategory {
+  id: number;
+  name: string;
+  icon?: string | null;
+  color?: string | null;
+  _count?: { services: number };
+}
 
 interface Service {
   id: number;
@@ -24,7 +33,8 @@ interface Service {
   description?: string;
   price: number;
   unit: string;
-  category: string;
+  category_id: number | null;
+  category_ref?: { id: number; name: string; icon: string | null; color: string | null } | null;
   is_active: boolean;
   image_url?: string | null;
   sale_unit: "unidade" | "m2" | "linear";
@@ -41,14 +51,31 @@ export const SALE_UNIT_OPTIONS = [
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-export const SERVICE_CATEGORIES = [
-  { value: "Vidros",              label: "Vidros",              icon: LayoutPanelTop, color: "bg-blue-50 text-blue-600",       badge: "bg-blue-100 text-blue-700"      },
-  { value: "Placas / Sinalização", label: "Placas / Sinalização", icon: Tag,           color: "bg-violet-50 text-violet-600",   badge: "bg-violet-100 text-violet-700"  },
-  { value: "Corte / Gravação",     label: "Corte / Gravação",     icon: Scissors,      color: "bg-amber-50 text-amber-600",     badge: "bg-amber-100 text-amber-700"    },
-  { value: "Instalação",          label: "Instalação",          icon: Hammer,         color: "bg-orange-50 text-orange-600",   badge: "bg-orange-100 text-orange-700"  },
-  { value: "Acabamento",          label: "Acabamento",           icon: Wrench,        color: "bg-emerald-50 text-emerald-600", badge: "bg-emerald-100 text-emerald-700"},
-  { value: "Geral",               label: "Geral / Outros",       icon: Package,       color: "bg-slate-50 text-slate-500",     badge: "bg-slate-100 text-slate-600"    },
+// Ícones disponíveis para categoria de serviço — mesmas chaves usadas em
+// scripts/migrate-service-categories.ts (KNOWN_CATEGORY_META), pra que
+// categorias herdadas da migração antiga (string -> FK) já apareçam com o
+// ícone certo aqui.
+export const SERVICE_ICON_OPTIONS = [
+  { value: "wrench",           label: "Geral",       Icon: Wrench },
+  { value: "package",          label: "Outros",      Icon: Package },
+  { value: "layout-panel-top", label: "Vidros",      Icon: LayoutPanelTop },
+  { value: "tag",              label: "Sinalização", Icon: Tag },
+  { value: "scissors",         label: "Corte",       Icon: Scissors },
+  { value: "hammer",           label: "Instalação",  Icon: Hammer },
 ] as const;
+
+export const SERVICE_ICON_MAP: Record<string, React.ComponentType<{ size?: number; className?: string }>> = {
+  wrench: Wrench, package: Package, "layout-panel-top": LayoutPanelTop, tag: Tag, scissors: Scissors, hammer: Hammer,
+};
+
+export const SERVICE_CATEGORY_COLORS = ["#2563eb", "#059669", "#ea580c", "#9333ea", "#dc2626", "#0891b2", "#ca8a04"];
+
+export const UNCATEGORIZED_SERVICE_CATEGORY = { id: 0, name: "Sem categoria", icon: "package", color: "#64748b" };
+const UNCATEGORIZED: ServiceCategory = UNCATEGORIZED_SERVICE_CATEGORY;
+
+export function getCategoryIcon(iconKey?: string | null) {
+  return SERVICE_ICON_MAP[iconKey ?? ""] ?? Wrench;
+}
 
 // Unidades de preço fixo. Serviço por medida (m²/linear) usa saleUnit à parte
 // (mesmo mecanismo de Product) — ver SALE_UNIT_OPTIONS mais abaixo.
@@ -68,7 +95,7 @@ export const SERVICE_UNITS = [
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 const EMPTY_FORM = () => ({
-  name: "", description: "", price: "", unit: "unidade", category: "Geral", is_active: true, image_url: "",
+  name: "", description: "", price: "", unit: "unidade", category_id: null as number | null, is_active: true, image_url: "",
   sale_unit: "unidade" as "unidade" | "m2" | "linear",
   price_per_measure: "", min_billable_quantity: "",
 });
@@ -95,10 +122,6 @@ function parseMaskedPrice(masked: string) {
   return parseFloat(masked.replace(/\./g, "").replace(",", ".")) || 0;
 }
 
-function getCategoryMeta(value: string) {
-  return SERVICE_CATEGORIES.find((c) => c.value === value) ?? SERVICE_CATEGORIES[SERVICE_CATEGORIES.length - 1];
-}
-
 function getUnitAbbr(value: string) {
   return SERVICE_UNITS.find((u) => u.value === value)?.abbr ?? value;
 }
@@ -117,19 +140,17 @@ type ViewMode = "grid" | "list";
 
 export default function Services() {
   const [services, setServices]   = useState<Service[]>([]);
+  const [categories, setCategories] = useState<ServiceCategory[]>([]);
   const [loading, setLoading]     = useState(true);
   const [search, setSearch]       = useState("");
   const [viewMode, setViewMode]   = useState<ViewMode>("grid");
   const [filterActive, setFilterActive] = useState<"all" | "active" | "inactive">("all");
-  const [filterCategory, setFilterCategory] = useState<string>("all");
+  const [filterCategory, setFilterCategory] = useState<number | "all">("all");
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editing, setEditing]         = useState<Service | null>(null);
   const [form, setForm]               = useState(EMPTY_FORM());
   const [saving, setSaving]           = useState(false);
-  const [customCategories, setCustomCategories] = useState<string[]>(() => {
-    try { return JSON.parse(localStorage.getItem("svc_custom_cats") ?? "[]"); } catch { return []; }
-  });
 
   const [deleteTarget, setDeleteTarget] = useState<Service | null>(null);
   const [deleting, setDeleting]         = useState(false);
@@ -138,6 +159,13 @@ export default function Services() {
   const [uploadingImg, setUploadingImg]   = useState(false);
   const [imgToast, setImgToast]           = useState<string>("");
   const fileInputRef                      = useRef<HTMLInputElement>(null);
+
+  // ── Gerenciar categorias (modal integrado, sem sair da tela de Serviços) ──
+  const [showManageCategories, setShowManageCategories] = useState(false);
+  const [catEditing, setCatEditing]       = useState<ServiceCategory | null>(null);
+  const [catForm, setCatForm]             = useState({ name: "", icon: "wrench", color: "#2563eb" });
+  const [savingCategory, setSavingCategory] = useState(false);
+  const [catDeleteTarget, setCatDeleteTarget] = useState<ServiceCategory | null>(null);
 
   const servicesPageTourRef = useRef<ServicesPageTourHandle>(null);
 
@@ -152,7 +180,14 @@ export default function Services() {
     }
   }, []);
 
-  useEffect(() => { fetchServices(); }, [fetchServices]);
+  const fetchCategories = useCallback(async () => {
+    const r = await fetch("/api/services/categories", { headers: authH() });
+    const d = await r.json();
+    setCategories(Array.isArray(d) ? d : []);
+  }, []);
+
+  useEffect(() => { fetchServices(); fetchCategories(); }, [fetchServices, fetchCategories]);
+  useEffect(() => onRealtime("service-category:changed", () => { fetchCategories(); }), [fetchCategories]);
 
   const openNew = () => {
     setEditing(null);
@@ -173,7 +208,7 @@ export default function Services() {
       description: s.description ?? "",
       price: masked,
       unit: s.unit ?? "unidade",
-      category: s.category ?? "Geral",
+      category_id: s.category_id ?? null,
       is_active: s.is_active,
       image_url: s.image_url ?? "",
       sale_unit: s.sale_unit ?? "unidade",
@@ -294,60 +329,94 @@ export default function Services() {
     await fetch(`/api/services/${s.id}`, {
       method: "PUT", headers: authH(),
       body: JSON.stringify({
-        name: s.name, description: s.description, price: Number(s.price), unit: s.unit, category: s.category,
+        name: s.name, description: s.description, price: Number(s.price), unit: s.unit, category_id: s.category_id,
         is_active: !s.is_active, sale_unit: s.sale_unit, price_per_measure: s.price_per_measure, min_billable_quantity: s.min_billable_quantity,
       }),
     });
     fetchServices();
   };
 
-  // derived categories present in data
-  const presentCategories = useMemo(() => {
-    const cats = [...new Set(services.map((s) => s.category).filter(Boolean))];
-    return cats.sort();
-  }, [services]);
+  // Metadados de exibição (ícone/cor) de uma categoria, com fallback pra
+  // "Sem categoria" quando o serviço não tem category_id (ou a categoria foi excluída).
+  const getCategoryMeta = useCallback((categoryId: number | null): ServiceCategory => {
+    if (!categoryId) return UNCATEGORIZED;
+    return categories.find((c) => c.id === categoryId) ?? UNCATEGORIZED;
+  }, [categories]);
+
+  // derived categories present in data (para os pills de filtro)
+  const presentCategoryIds = useMemo(() => {
+    const ids = [...new Set(services.map((s) => s.category_id).filter((id): id is number => !!id))];
+    return ids.sort((a, b) => (getCategoryMeta(a).name).localeCompare(getCategoryMeta(b).name));
+  }, [services, getCategoryMeta]);
 
   const filtered = useMemo(() => services.filter((s) => {
+    const catName = getCategoryMeta(s.category_id).name;
     const matchSearch = !search
       || s.name.toLowerCase().includes(search.toLowerCase())
       || (s.description ?? "").toLowerCase().includes(search.toLowerCase())
-      || s.category.toLowerCase().includes(search.toLowerCase());
+      || catName.toLowerCase().includes(search.toLowerCase());
     const matchStatus =
       filterActive === "all"      ? true :
       filterActive === "active"   ? s.is_active :
       !s.is_active;
-    const matchCat = filterCategory === "all" || s.category === filterCategory;
+    const matchCat = filterCategory === "all" || s.category_id === filterCategory;
     return matchSearch && matchStatus && matchCat;
-  }), [services, search, filterActive, filterCategory]);
+  }), [services, search, filterActive, filterCategory, getCategoryMeta]);
 
   const activeCount   = services.filter((s) => s.is_active).length;
   const inactiveCount = services.filter((s) => !s.is_active).length;
 
   // group filtered by category for grid
   const grouped = useMemo(() => {
-    const map = new Map<string, Service[]>();
+    const map = new Map<number, Service[]>();
     filtered.forEach((s) => {
-      const key = s.category || "Geral";
+      const key = s.category_id ?? 0;
       if (!map.has(key)) map.set(key, []);
       map.get(key)!.push(s);
     });
     return map;
   }, [filtered]);
 
-  // all category options: built-in + custom ones from previous saves + ones already used in data
+  // Opções de categoria pro combobox do formulário de serviço (categorias reais do backend)
   const allCategoryOptions = useMemo(() => {
-    const builtIn = SERVICE_CATEGORIES.map((c) => ({ value: c.value, label: c.label, icon: <c.icon size={12} /> }));
-    const existingInData = services.map((s) => s.category).filter(Boolean);
-    const extra = [...new Set([...customCategories, ...existingInData])]
-      .filter((c) => !SERVICE_CATEGORIES.some((b) => b.value === c));
-    return [...builtIn, ...extra.map((c) => ({ value: c, label: c, icon: <Tag size={12} /> }))];
-  }, [customCategories, services]);
+    return categories.map((c) => {
+      const Icon = getCategoryIcon(c.icon);
+      return { value: String(c.id), label: c.name, icon: <Icon size={12} /> };
+    });
+  }, [categories]);
 
   const unitOptions = SERVICE_UNITS.map((u) => ({
     value: u.value,
     label: `${u.label} (${u.abbr})`,
     description: u.abbr,
   }));
+
+  // ── CRUD de categoria de serviço (modal "Gerenciar categorias") ──────────
+  const openNewCategory = () => { setCatEditing(null); setCatForm({ name: "", icon: "wrench", color: "#2563eb" }); };
+  const openEditCategory = (c: ServiceCategory) => { setCatEditing(c); setCatForm({ name: c.name, icon: c.icon || "wrench", color: c.color || "#2563eb" }); };
+
+  const handleSaveCategory = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!catForm.name.trim()) return;
+    setSavingCategory(true);
+    try {
+      const url    = catEditing ? `/api/services/categories/${catEditing.id}` : "/api/services/categories";
+      const method = catEditing ? "PUT" : "POST";
+      await fetch(url, { method, headers: authH(), body: JSON.stringify(catForm) });
+      openNewCategory();
+      fetchCategories();
+    } finally {
+      setSavingCategory(false);
+    }
+  };
+
+  const handleDeleteCategory = async () => {
+    if (!catDeleteTarget) return;
+    await fetch(`/api/services/categories/${catDeleteTarget.id}`, { method: "DELETE", headers: authH() });
+    setCatDeleteTarget(null);
+    fetchCategories();
+    fetchServices();
+  };
 
   return (
     <div data-tour="services-page" className="space-y-6">
@@ -358,6 +427,15 @@ export default function Services() {
           <div className="flex gap-2 items-center flex-wrap">
             <Button data-tour="services-new-btn" icon={<Plus size={15} />} onClick={openNew}>
               Novo Serviço
+            </Button>
+            <Button
+              variant="secondary"
+              className="text-slate-400 hover:text-blue-600 hover:bg-blue-50 border-slate-200 hover:border-blue-300"
+              icon={<FolderOpen size={14} />}
+              onClick={() => { openNewCategory(); setShowManageCategories(true); }}
+              title="Gerenciar categorias de serviço"
+            >
+              <span className="sr-only sm:not-sr-only">Categorias</span>
             </Button>
             <Button
               variant="secondary"
@@ -432,7 +510,7 @@ export default function Services() {
         </div>
 
         {/* Category filter pills */}
-        {presentCategories.length > 1 && (
+        {presentCategoryIds.length > 1 && (
           <div className="flex flex-wrap gap-1.5">
             <button
               onClick={() => setFilterCategory("all")}
@@ -444,21 +522,21 @@ export default function Services() {
             >
               Todas
             </button>
-            {presentCategories.map((cat) => {
-              const meta = getCategoryMeta(cat);
-              const Icon = meta.icon;
+            {presentCategoryIds.map((catId) => {
+              const meta = getCategoryMeta(catId);
+              const Icon = getCategoryIcon(meta.icon);
               return (
                 <button
-                  key={cat}
-                  onClick={() => setFilterCategory(cat)}
+                  key={catId}
+                  onClick={() => setFilterCategory(catId)}
                   className={`h-7 px-3 rounded-full text-[10px] font-black uppercase tracking-wider border transition-all flex items-center gap-1.5 ${
-                    filterCategory === cat
+                    filterCategory === catId
                       ? "bg-slate-900 text-white border-slate-900"
                       : "bg-white text-slate-500 border-slate-200 hover:border-slate-400"
                   }`}
                 >
                   <Icon size={10} />
-                  {cat}
+                  {meta.name}
                 </button>
               );
             })}
@@ -490,8 +568,9 @@ export default function Services() {
           </div>
           <div className="divide-y divide-slate-50">
             {filtered.map((svc) => {
-              const meta = getCategoryMeta(svc.category);
-              const Icon = meta.icon;
+              const meta = getCategoryMeta(svc.category_id);
+              const Icon = getCategoryIcon(meta.icon);
+              const color = meta.color || "#64748b";
               return (
                 <motion.div
                   key={svc.id}
@@ -507,8 +586,11 @@ export default function Services() {
                         <img src={svc.image_url} alt={svc.name} className="w-full h-full object-cover" />
                       </div>
                     ) : (
-                      <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${svc.is_active ? meta.color : "bg-slate-100 text-slate-400"}`}>
-                        <Icon size={15} />
+                      <div
+                        className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0"
+                        style={svc.is_active ? { background: `${color}1a`, color } : undefined}
+                      >
+                        <Icon size={15} className={!svc.is_active ? "text-slate-400" : undefined} />
                       </div>
                     )}
                     <div className="min-w-0">
@@ -517,8 +599,8 @@ export default function Services() {
                         <span className={`text-[9px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded-full ${svc.is_active ? "bg-emerald-50 text-emerald-600" : "bg-slate-100 text-slate-400"}`}>
                           {svc.is_active ? "Ativo" : "Inativo"}
                         </span>
-                        <span className={`text-[9px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded-full ${meta.badge}`}>
-                          {svc.category}
+                        <span className="text-[9px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded-full" style={{ background: `${color}1a`, color }}>
+                          {meta.name}
                         </span>
                         <span className="flex items-center gap-0.5 text-[9px] text-slate-400">
                           <Clock size={8} />
@@ -578,30 +660,32 @@ export default function Services() {
         /* ── GRID VIEW — grouped by category ── */
         <div className="space-y-6">
           <AnimatePresence>
-            {[...grouped.entries()].map(([cat, items]) => {
-              const meta = getCategoryMeta(cat);
-              const CatIcon = meta.icon;
+            {[...grouped.entries()].map(([catId, items]) => {
+              const meta = getCategoryMeta(catId || null);
+              const CatIcon = getCategoryIcon(meta.icon);
+              const color = meta.color || "#64748b";
               return (
                 <motion.div
-                  key={cat}
+                  key={catId}
                   initial={{ opacity: 0, y: 8 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0 }}
                 >
                   {/* Category header */}
                   <div className="flex items-center gap-2 mb-3">
-                    <div className={`w-7 h-7 rounded-lg flex items-center justify-center ${meta.color}`}>
+                    <div className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ background: `${color}1a`, color }}>
                       <CatIcon size={13} />
                     </div>
-                    <span className="text-[10px] font-black uppercase tracking-widest text-slate-600">{cat}</span>
+                    <span className="text-[10px] font-black uppercase tracking-widest text-slate-600">{meta.name}</span>
                     <span className="text-[9px] text-slate-400 font-bold">{items.length} serviço{items.length !== 1 ? "s" : ""}</span>
                     <div className="flex-1 h-px bg-slate-100" />
                   </div>
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
                     {items.map((svc) => {
-                      const m = getCategoryMeta(svc.category);
-                      const Ic = m.icon;
+                      const m = getCategoryMeta(svc.category_id);
+                      const Ic = getCategoryIcon(m.icon);
+                      const c = m.color || "#64748b";
                       return (
                         <motion.div
                           key={svc.id}
@@ -615,16 +699,19 @@ export default function Services() {
                                 <img src={svc.image_url} alt={svc.name} className="w-full h-full object-cover" />
                               </div>
                             ) : (
-                              <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${svc.is_active ? m.color : "bg-slate-100 text-slate-400"}`}>
-                                <Ic size={16} />
+                              <div
+                                className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
+                                style={svc.is_active ? { background: `${c}1a`, color: c } : undefined}
+                              >
+                                <Ic size={16} className={!svc.is_active ? "text-slate-400" : undefined} />
                               </div>
                             )}
                             <div className="flex flex-col items-end gap-1">
                               <span className={`text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full ${svc.is_active ? "bg-emerald-50 text-emerald-600" : "bg-slate-100 text-slate-400"}`}>
                                 {svc.is_active ? "Ativo" : "Inativo"}
                               </span>
-                              <span className={`text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full ${m.badge}`}>
-                                {svc.category}
+                              <span className="text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full" style={{ background: `${c}1a`, color: c }}>
+                                {m.name}
                               </span>
                             </div>
                           </div>
@@ -752,23 +839,27 @@ export default function Services() {
                 value={form.name}
                 onChange={(e) => setForm({ ...form, name: e.target.value })}
               />
-              <Combobox
-                label="Categoria"
-                placeholder="Selecionar..."
-                searchPlaceholder="Buscar ou criar..."
-                options={allCategoryOptions}
-                value={form.category}
-                onChange={(v) => setForm({ ...form, category: v })}
-                freeInput
-                onAddNew={(q) => {
-                  const trimmed = q.trim();
-                  if (!trimmed) return;
-                  const updated = [...new Set([...customCategories, trimmed])];
-                  setCustomCategories(updated);
-                  localStorage.setItem("svc_custom_cats", JSON.stringify(updated));
-                  setForm((f) => ({ ...f, category: trimmed }));
-                }}
-              />
+              <div className="flex gap-2 items-end">
+                <div className="flex-1 min-w-0">
+                  <Combobox
+                    label="Categoria"
+                    placeholder="Selecionar..."
+                    searchPlaceholder="Buscar categoria..."
+                    clearable
+                    options={allCategoryOptions}
+                    value={form.category_id != null ? String(form.category_id) : ""}
+                    onChange={(v) => setForm({ ...form, category_id: v ? Number(v) : null })}
+                  />
+                </div>
+                <button
+                  type="button"
+                  title="Nova categoria"
+                  onClick={() => { openNewCategory(); setShowManageCategories(true); }}
+                  className="h-10 w-10 shrink-0 flex items-center justify-center rounded-xl border border-slate-200 text-slate-400 hover:text-blue-600 hover:border-blue-300 hover:bg-blue-50 transition-all"
+                >
+                  <Plus size={16} />
+                </button>
+              </div>
             </div>
           </div>
           {imgToast && (
@@ -927,6 +1018,138 @@ export default function Services() {
             </p>
             <p className="text-xs text-slate-500 mt-1">
               Este serviço será removido permanentemente do sistema e não poderá mais ser usado no PDV.
+            </p>
+          </div>
+        </div>
+      </Modal>
+
+      {/* ── Modal Gerenciar Categorias (integrado à tela de Serviços) ── */}
+      <Modal
+        open={showManageCategories}
+        onClose={() => { setShowManageCategories(false); setCatDeleteTarget(null); }}
+        title="Gerenciar Categorias"
+        subtitle="Categorias de serviço desta loja"
+        size="md"
+      >
+        <div className="space-y-5">
+          {/* Mini-formulário de criar/editar */}
+          <form onSubmit={handleSaveCategory} className="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-3">
+            <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">
+              {catEditing ? `Editando "${catEditing.name}"` : "Nova categoria"}
+            </p>
+            <div className="flex gap-2">
+              <input
+                autoFocus
+                value={catForm.name}
+                onChange={(e) => setCatForm((f) => ({ ...f, name: e.target.value }))}
+                placeholder="Nome da categoria (ex: Vidros, Instalação...)"
+                className="flex-1 h-10 px-3 rounded-xl border border-slate-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400"
+              />
+              {catEditing && (
+                <button type="button" onClick={openNewCategory} title="Cancelar edição"
+                  className="h-10 w-10 shrink-0 flex items-center justify-center rounded-xl border border-slate-200 text-slate-400 hover:text-slate-600 hover:bg-white transition-all">
+                  <X size={14} />
+                </button>
+              )}
+            </div>
+
+            <div>
+              <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-1.5">Ícone</p>
+              <div className="grid grid-cols-6 gap-1.5">
+                {SERVICE_ICON_OPTIONS.map(({ value, Icon }) => (
+                  <button
+                    type="button"
+                    key={value}
+                    onClick={() => setCatForm((f) => ({ ...f, icon: value }))}
+                    className={`h-9 rounded-lg border flex items-center justify-center transition-all ${
+                      catForm.icon === value ? "border-blue-500 bg-blue-50 text-blue-600" : "border-slate-200 bg-white text-slate-500 hover:border-blue-200"
+                    }`}
+                  >
+                    <Icon size={14} />
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div>
+              <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-1.5">Cor</p>
+              <div className="flex gap-1.5 items-center">
+                {SERVICE_CATEGORY_COLORS.map((color) => (
+                  <button
+                    type="button"
+                    key={color}
+                    aria-label={`Usar a cor ${color}`}
+                    onClick={() => setCatForm((f) => ({ ...f, color }))}
+                    className={`w-7 h-7 rounded-full border-2 ${catForm.color === color ? "border-slate-900 scale-110" : "border-white"}`}
+                    style={{ backgroundColor: color }}
+                  />
+                ))}
+                <label className="w-7 h-7 rounded-full border border-slate-200 overflow-hidden cursor-pointer shrink-0">
+                  <input type="color" value={catForm.color} onChange={(e) => setCatForm((f) => ({ ...f, color: e.target.value }))} className="w-9 h-9 -m-1 cursor-pointer" />
+                </label>
+              </div>
+            </div>
+
+            <Button type="submit" size="sm" loading={savingCategory} icon={<Save size={12} />} disabled={!catForm.name.trim()}>
+              {catEditing ? "Salvar alterações" : "Criar categoria"}
+            </Button>
+          </form>
+
+          {/* Lista de categorias existentes */}
+          <div className="space-y-1.5 max-h-64 overflow-y-auto">
+            {categories.length === 0 ? (
+              <p className="text-center text-xs text-slate-400 py-6">Nenhuma categoria criada ainda.</p>
+            ) : categories.map((c) => {
+              const Icon = getCategoryIcon(c.icon);
+              const color = c.color || "#2563eb";
+              return (
+                <div key={c.id} className="flex items-center gap-3 px-3 py-2 rounded-xl border border-slate-200 bg-white">
+                  <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0" style={{ background: `${color}1a`, color }}>
+                    <Icon size={14} />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-bold text-slate-800 truncate">{c.name}</p>
+                    <p className="text-[10px] text-slate-400">{c._count?.services ?? 0} serviço{(c._count?.services ?? 0) !== 1 ? "s" : ""}</p>
+                  </div>
+                  <button onClick={() => openEditCategory(c)} className="w-7 h-7 flex items-center justify-center rounded-lg text-slate-400 hover:bg-blue-50 hover:text-blue-600 transition-all">
+                    <Edit2 size={12} />
+                  </button>
+                  <button onClick={() => setCatDeleteTarget(c)} className="w-7 h-7 flex items-center justify-center rounded-lg text-slate-400 hover:bg-rose-50 hover:text-rose-600 transition-all">
+                    <Trash2 size={12} />
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </Modal>
+
+      {/* ── Modal Excluir Categoria ── */}
+      <Modal
+        open={!!catDeleteTarget}
+        onClose={() => setCatDeleteTarget(null)}
+        title="Excluir Categoria"
+        subtitle="Esta ação não pode ser desfeita"
+        size="sm"
+        footer={
+          <>
+            <Button variant="secondary" onClick={() => setCatDeleteTarget(null)}>Cancelar</Button>
+            <Button variant="danger" icon={<Trash2 size={13} />} onClick={handleDeleteCategory}>
+              Excluir
+            </Button>
+          </>
+        }
+      >
+        <div className="flex gap-3 items-start">
+          <div className="w-10 h-10 bg-red-50 rounded-xl flex items-center justify-center text-red-500 shrink-0">
+            <AlertTriangle size={18} />
+          </div>
+          <div>
+            <p className="text-sm font-semibold text-slate-800">
+              Excluir <span className="text-red-600">"{catDeleteTarget?.name}"</span>?
+            </p>
+            <p className="text-xs text-slate-500 mt-1">
+              Serviços vinculados a esta categoria ficarão sem categoria — eles não são excluídos.
             </p>
           </div>
         </div>

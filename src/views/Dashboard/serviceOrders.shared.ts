@@ -30,6 +30,9 @@ export interface ChecklistItem {
 export interface ServiceOrderPart {
   id: number;
   product_id: number | null;
+  // Serviço do catálogo (Service) vinculado a este item — mutuamente exclusivo
+  // com product_id. Ver 3ª aba "Serviços" no modal de adicionar item.
+  service_id: number | null;
   name: string;
   quantity: number;
   unit: string;
@@ -135,6 +138,19 @@ export interface Product {
   sale_unit?: "unidade" | "m2" | "linear";
   price_per_measure?: number;
   min_billable_quantity?: number;
+}
+
+// Serviço do catálogo (tela Serviços) — usado na 3ª aba "Serviços" do modal de
+// adicionar item da OS. Nome distinto de ServiceOrder pra não colidir.
+export interface CatalogService {
+  id: number;
+  name: string;
+  price: number;
+  unit: string;
+  is_active: boolean;
+  sale_unit?: "unidade" | "m2" | "linear";
+  price_per_measure?: number | null;
+  min_billable_quantity?: number | null;
 }
 
 export interface Customer {
@@ -305,7 +321,7 @@ export function buildServiceOrderIntakeHtml(so: ServiceOrder, tenant: Tenant | n
         ],
         so.parts.map((p) => ({
           cells: [
-            p.product_id ? String(p.product_id) : "—",
+            p.product_id ? String(p.product_id) : p.service_id ? String(p.service_id) : "—",
             p.name,
             p.unit || "UN",
             String(p.quantity),

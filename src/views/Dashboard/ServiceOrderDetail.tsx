@@ -44,6 +44,7 @@ import {
   ServiceOrder,
   ChecklistItem,
   Product,
+  CatalogService,
   Customer,
   Seller,
   Technician,
@@ -76,6 +77,7 @@ export default function ServiceOrderDetail() {
   const [notFound, setNotFound] = useState(false);
 
   const [products, setProducts] = useState<Product[]>([]);
+  const [catalogServices, setCatalogServices] = useState<CatalogService[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [sellers, setSellers] = useState<Seller[]>([]);
   const [technicians, setTechnicians] = useState<Technician[]>([]);
@@ -133,11 +135,12 @@ export default function ServiceOrderDetail() {
   const [ncatItems, setNcatItems] = useState<string[]>([""]);
   const [savingCategory, setSavingCategory] = useState(false);
 
-  // ── Modal unificado de adicionar item (catálogo / medida / livre) ───────
+  // ── Modal unificado de adicionar item (catálogo / serviços / livre) ───────
   const [showAddPartModal, setShowAddPartModal] = useState(false);
-  const [addPartTab, setAddPartTab] = useState<"catalog" | "free">("catalog");
+  const [addPartTab, setAddPartTab] = useState<"catalog" | "services" | "free">("catalog");
   const [partSearch, setPartSearch] = useState("");
   const [partSelectedProduct, setPartSelectedProduct] = useState<Product | null>(null);
+  const [partSelectedService, setPartSelectedService] = useState<CatalogService | null>(null);
   const [partQty, setPartQty] = useState(1);
   const [partNoCharge, setPartNoCharge] = useState(false);
   const [partDiscountType, setPartDiscountType] = useState<"percent" | "fixed">("percent");
@@ -247,15 +250,17 @@ export default function ServiceOrderDetail() {
   useEffect(() => {
     (async () => {
       const h = authHeaderNoJson();
-      const [pRes, cRes, sRes, tcRes, tRes] = await Promise.all([
+      const [pRes, svcRes, cRes, sRes, tcRes, tRes] = await Promise.all([
         fetch("/api/products", { headers: h }),
+        fetch("/api/services", { headers: h }),
         fetch("/api/customers", { headers: h }),
         fetch("/api/sellers", { headers: h }),
         fetch("/api/technicians", { headers: h }),
         fetch("/api/tenant", { headers: h }),
       ]);
-      const [pData, cData, sData, tcData, tData] = await Promise.all([pRes.json(), cRes.json(), sRes.json(), tcRes.json(), tRes.json()]);
+      const [pData, svcData, cData, sData, tcData, tData] = await Promise.all([pRes.json(), svcRes.json(), cRes.json(), sRes.json(), tcRes.json(), tRes.json()]);
       setProducts(Array.isArray(pData) ? pData.filter((p: Product) => p.is_active !== false) : []);
+      setCatalogServices(Array.isArray(svcData) ? svcData.filter((s: CatalogService) => s.is_active !== false) : []);
       setCustomers(Array.isArray(cData) ? cData : []);
       setSellers(Array.isArray(sData) ? sData.filter((s: Seller) => s.is_active !== false) : []);
       setTechnicians(Array.isArray(tcData) ? tcData.filter((t: Technician) => t.is_active !== false) : []);
@@ -414,11 +419,14 @@ export default function ServiceOrderDetail() {
 
   // ── Parts ───────────────────────────────────────────────────────────────
   const isMeasuredProduct = !!partSelectedProduct?.sale_unit && partSelectedProduct.sale_unit !== "unidade";
+  const isMeasuredService = !!partSelectedService?.sale_unit && partSelectedService.sale_unit !== "unidade";
+  const isMeasuredSelection = addPartTab === "services" ? isMeasuredService : isMeasuredProduct;
 
   const openAddPartModal = () => {
     setAddPartTab("catalog");
     setPartSearch("");
     setPartSelectedProduct(null);
+    setPartSelectedService(null);
     setPartQty(1);
     setPartNoCharge(false);
     setPartDiscountType("percent");
@@ -443,7 +451,15 @@ export default function ServiceOrderDetail() {
     ? computeMeasuredPrice(
         (partSelectedProduct.sale_unit as "m2" | "linear") ?? "m2",
         Number(partSelectedProduct.price_per_measure) || 0,
-        partSelectedProduct.min_billable_quantity,
+        partSelectedProduct.min_billable_quantity ?? null,
+        Number(measureHeight) || 0,
+        Number(measureWidth) || 0,
+      )
+    : isMeasuredService && partSelectedService
+    ? computeMeasuredPrice(
+        (partSelectedService.sale_unit as "m2" | "linear") ?? "m2",
+        Number(partSelectedService.price_per_measure) || 0,
+        partSelectedService.min_billable_quantity ?? null,
         Number(measureHeight) || 0,
         Number(measureWidth) || 0,
       )
@@ -452,7 +468,8 @@ export default function ServiceOrderDetail() {
   // Preço bruto (antes do desconto do item) do item sendo montado no modal, conforme a aba/modo ativo.
   const addPartRawTotal = partNoCharge ? 0
     : addPartTab === "free" ? Math.max(0, Number(freePartPrice) || 0) * Math.max(1, partQty)
-    : isMeasuredProduct ? (measurePreview?.total ?? 0)
+    : isMeasuredSelection ? (measurePreview?.total ?? 0)
+    : addPartTab === "services" ? (partSelectedService ? Number(partSelectedService.price) * Math.max(1, partQty) : 0)
     : partSelectedProduct ? Number(partSelectedProduct.price) * Math.max(1, partQty)
     : 0;
   const addPartFinalTotal = partNoCharge ? 0 : previewWithDiscount(addPartRawTotal, partDiscountType, Number(partDiscountValue) || 0);
@@ -472,6 +489,16 @@ export default function ServiceOrderDetail() {
         no_charge: partNoCharge,
         ...commonDiscount,
       };
+    } else if (addPartTab === "services" && isMeasuredService && partSelectedService) {
+      body = {
+        service_id: partSelectedService.id,
+        height: Number(measureHeight) || 0,
+        width: Number(measureWidth) || 0,
+        no_charge: partNoCharge,
+        ...commonDiscount,
+      };
+    } else if (addPartTab === "services" && partSelectedService) {
+      body = { service_id: partSelectedService.id, quantity: partQty, no_charge: partNoCharge, ...commonDiscount };
     } else if (isMeasuredProduct && partSelectedProduct) {
       body = {
         product_id: partSelectedProduct.id,
@@ -1657,7 +1684,7 @@ export default function ServiceOrderDetail() {
         open={showAddPartModal}
         onClose={() => setShowAddPartModal(false)}
         title="Adicionar item"
-        subtitle={isMeasuredProduct ? `Venda por ${partSelectedProduct!.sale_unit === "m2" ? "m²" : "metro linear"}` : undefined}
+        subtitle={isMeasuredSelection ? `Venda por ${(addPartTab === "services" ? partSelectedService!.sale_unit : partSelectedProduct!.sale_unit) === "m2" ? "m²" : "metro linear"}` : undefined}
         size="lg"
         footer={
           <>
@@ -1668,7 +1695,8 @@ export default function ServiceOrderDetail() {
               disabled={
                 addingPart ||
                 (addPartTab === "free" ? !freePartName.trim() :
-                  isMeasuredProduct ? !measurePreview || measurePreview.rawQuantity <= 0 :
+                  isMeasuredSelection ? !measurePreview || measurePreview.rawQuantity <= 0 :
+                  addPartTab === "services" ? !partSelectedService :
                   !partSelectedProduct)
               }
               className="flex-1 h-11 bg-blue-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-blue-700 transition-all disabled:opacity-50 flex items-center justify-center gap-2">
@@ -1680,19 +1708,96 @@ export default function ServiceOrderDetail() {
       >
         {/* Abas */}
         <div className="flex gap-1.5 p-1 bg-slate-100 rounded-xl">
-          <button onClick={() => { setAddPartTab("catalog"); setFreePartName(""); }}
+          <button onClick={() => { setAddPartTab("catalog"); setFreePartName(""); setPartSelectedService(null); }}
             className={cn("flex-1 h-8 rounded-lg text-[10px] font-black uppercase tracking-wide transition-all",
               addPartTab === "catalog" ? "bg-white text-blue-600 shadow-sm" : "text-slate-400 hover:text-slate-600")}>
             Catálogo
           </button>
-          <button onClick={() => { setAddPartTab("free"); setPartSelectedProduct(null); }}
+          <button onClick={() => { setAddPartTab("services"); setPartSelectedProduct(null); setFreePartName(""); setMeasureHeight(""); setMeasureWidth(""); }}
+            className={cn("flex-1 h-8 rounded-lg text-[10px] font-black uppercase tracking-wide transition-all",
+              addPartTab === "services" ? "bg-white text-blue-600 shadow-sm" : "text-slate-400 hover:text-slate-600")}>
+            Serviços
+          </button>
+          <button onClick={() => { setAddPartTab("free"); setPartSelectedProduct(null); setPartSelectedService(null); }}
             className={cn("flex-1 h-8 rounded-lg text-[10px] font-black uppercase tracking-wide transition-all",
               addPartTab === "free" ? "bg-white text-blue-600 shadow-sm" : "text-slate-400 hover:text-slate-600")}>
-            Item / Serviço Livre
+            Item Livre
           </button>
         </div>
 
-        {addPartTab === "catalog" ? (
+        {addPartTab === "services" ? (
+          <div className="space-y-3">
+            <Combobox
+              placeholder="Buscar serviço no catálogo..."
+              searchPlaceholder="Nome do serviço..."
+              value={partSelectedService ? String(partSelectedService.id) : ""}
+              onChange={(v) => {
+                const service = catalogServices.find((s) => String(s.id) === v);
+                setPartSelectedService(service ?? null);
+                setMeasureHeight("");
+                setMeasureWidth("");
+              }}
+              options={catalogServices.map((s) => ({
+                value: String(s.id),
+                label: s.name,
+                description: s.sale_unit && s.sale_unit !== "unidade"
+                  ? `${fmt(s.price_per_measure ?? 0)}/${s.sale_unit === "m2" ? "m²" : "m"}`
+                  : fmt(s.price),
+              }))}
+            />
+
+            {partSelectedService && isMeasuredService && (
+              partSelectedService.sale_unit === "m2" ? (
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400 mb-1.5 block">Altura (m)</label>
+                    <input type="number" min="0" step="0.01" autoFocus value={measureHeight}
+                      onChange={(e) => setMeasureHeight(e.target.value)}
+                      placeholder="0,00"
+                      className="w-full h-11 px-3 rounded-xl border border-slate-200 text-sm font-mono font-bold text-center focus:outline-none focus:border-blue-400" />
+                  </div>
+                  <div>
+                    <label className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400 mb-1.5 block">Largura (m)</label>
+                    <input type="number" min="0" step="0.01" value={measureWidth}
+                      onChange={(e) => setMeasureWidth(e.target.value)}
+                      placeholder="0,00"
+                      className="w-full h-11 px-3 rounded-xl border border-slate-200 text-sm font-mono font-bold text-center focus:outline-none focus:border-blue-400" />
+                  </div>
+                </div>
+              ) : (
+                <div>
+                  <label className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400 mb-1.5 block">Comprimento (m)</label>
+                  <input type="number" min="0" step="0.01" autoFocus value={measureHeight}
+                    onChange={(e) => setMeasureHeight(e.target.value)}
+                    placeholder="0,00"
+                    className="w-full h-11 px-3 rounded-xl border border-slate-200 text-sm font-mono font-bold text-center focus:outline-none focus:border-blue-400" />
+                </div>
+              )
+            )}
+
+            {partSelectedService && !isMeasuredService && (
+              <div>
+                <label className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400 mb-1.5 block">Quantidade</label>
+                <input type="number" min="1" value={partQty} onChange={(e) => setPartQty(Math.max(1, Number(e.target.value) || 1))}
+                  className="w-24 h-11 px-3 rounded-xl border border-slate-200 text-sm font-mono font-bold text-center focus:outline-none focus:border-blue-400" />
+              </div>
+            )}
+
+            {measurePreview && isMeasuredService && measurePreview.rawQuantity > 0 && (
+              <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 space-y-1">
+                <div className="flex justify-between text-[10px] font-bold uppercase text-slate-400">
+                  <span>{partSelectedService!.sale_unit === "m2" ? "Área" : "Comprimento"}</span>
+                  <span className="font-mono text-slate-600">{measurePreview.label}</span>
+                </div>
+                {measurePreview.minimumApplied && (
+                  <p className="text-[10px] font-bold text-amber-600">
+                    Cobrando o mínimo de {Number(partSelectedService!.min_billable_quantity).toFixed(2)}{partSelectedService!.sale_unit === "m2" ? "m²" : "m"}
+                  </p>
+                )}
+              </div>
+            )}
+          </div>
+        ) : addPartTab === "catalog" ? (
           <div className="space-y-3">
             <Combobox
               placeholder="Buscar produto ou serviço no catálogo..."
@@ -1784,8 +1889,8 @@ export default function ServiceOrderDetail() {
           </div>
         )}
 
-        {/* Desconto do item + cortesia — comum às duas abas */}
-        {(partSelectedProduct || addPartTab === "free") && (
+        {/* Desconto do item + cortesia — comum às três abas */}
+        {(partSelectedProduct || partSelectedService || addPartTab === "free") && (
           <div className="border-t border-slate-100 pt-3 space-y-3">
             <label className="flex items-center gap-1.5 text-[10px] font-bold text-slate-500 cursor-pointer">
               <input type="checkbox" checked={partNoCharge} onChange={(e) => setPartNoCharge(e.target.checked)} className="w-3.5 h-3.5 accent-blue-600" />

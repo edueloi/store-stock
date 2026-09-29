@@ -12,7 +12,7 @@ import { motion, AnimatePresence } from "motion/react";
 import { Product, Category, NfceInvoice } from "../../types";
 import { cn } from "../../lib/utils";
 import Combobox from "../../components/ui/Combobox";
-import { SERVICE_CATEGORIES, SERVICE_UNITS } from "./Services";
+import { SERVICE_UNITS, getCategoryIcon, UNCATEGORIZED_SERVICE_CATEGORY } from "./Services";
 import { computeMeasuredPrice } from "../../utils/measurePricing";
 import { productHasStock } from "../../utils/productStock";
 import { fetchCurrentCashSession, openCashSession as apiOpenCashSession, closeCashSession as apiCloseCashSession, CashSessionInfo, ClosedCashSession } from "../../lib/cashSession";
@@ -246,7 +246,10 @@ export default function PDV() {
 
   // services
   interface ServiceItem {
-    id: number; name: string; price: number; description?: string; unit?: string; category?: string; quantity?: number;
+    id: number; name: string; price: number; description?: string; unit?: string;
+    category_id?: number | null;
+    category_ref?: { id: number; name: string; icon: string | null; color: string | null } | null;
+    quantity?: number;
     sale_unit?: "unidade" | "m2" | "linear"; price_per_measure?: number | null; min_billable_quantity?: number | null;
     dimensionsLabel?: string;
   }
@@ -2300,10 +2303,11 @@ export default function PDV() {
                 </div>
               ) : (
                 <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-2.5">
-                  {services.filter((s) => !searchTerm || s.name.toLowerCase().includes(searchTerm.toLowerCase()) || (s.category ?? "").toLowerCase().includes(searchTerm.toLowerCase())).map((svc) => {
+                  {services.filter((s) => !searchTerm || s.name.toLowerCase().includes(searchTerm.toLowerCase()) || (s.category_ref?.name ?? "").toLowerCase().includes(searchTerm.toLowerCase())).map((svc) => {
                     const cartEntry = cartServices.find((s) => s.id === svc.id);
-                    const catMeta = SERVICE_CATEGORIES.find((c) => c.value === svc.category) ?? SERVICE_CATEGORIES[SERVICE_CATEGORIES.length - 1];
-                    const CatIcon = catMeta.icon;
+                    const catMeta = svc.category_ref ?? UNCATEGORIZED_SERVICE_CATEGORY;
+                    const catColor = catMeta.color || "#64748b";
+                    const CatIcon = getCategoryIcon(catMeta.icon);
                     const unitAbbr = SERVICE_UNITS.find((u) => u.value === svc.unit)?.abbr ?? (svc.unit ?? "un");
                     return (
                       <motion.button
@@ -2328,14 +2332,14 @@ export default function PDV() {
                         )}
                       >
                         {/* Ícone categoria */}
-                        <div className={cn("w-full aspect-[4/3] flex items-center justify-center relative", catMeta.color.replace("text-", "text-").replace("bg-", "bg-"))}>
-                          <div className={cn("w-14 h-14 rounded-2xl flex items-center justify-center", catMeta.color)}>
+                        <div className="w-full aspect-[4/3] flex items-center justify-center relative" style={{ background: `${catColor}14` }}>
+                          <div className="w-14 h-14 rounded-2xl flex items-center justify-center" style={{ background: `${catColor}26`, color: catColor }}>
                             <CatIcon size={26} strokeWidth={1.5} />
                           </div>
                           {/* badge categoria */}
                           <div className="absolute top-2 right-2">
-                            <span className={cn("text-[8px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded-md", catMeta.badge)}>
-                              {svc.category}
+                            <span className="text-[8px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded-md" style={{ background: `${catColor}26`, color: catColor }}>
+                              {catMeta.name}
                             </span>
                           </div>
                           {/* badge qty no carrinho */}
@@ -2597,14 +2601,15 @@ export default function PDV() {
 
               {/* Itens de serviço */}
               {cartServices.map((svc) => {
-                const catMeta = SERVICE_CATEGORIES.find((c) => c.value === svc.category) ?? SERVICE_CATEGORIES[SERVICE_CATEGORIES.length - 1];
-                const CatIcon = catMeta.icon;
+                const catMeta = svc.category_ref ?? UNCATEGORIZED_SERVICE_CATEGORY;
+                const catColor = catMeta.color || "#64748b";
+                const CatIcon = getCategoryIcon(catMeta.icon);
                 return (
                   <motion.div key={`svc-${svc.id}`}
                     initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20, height: 0 }}
                     transition={{ duration: 0.18 }}>
                     <div className="flex items-center gap-2 p-3 rounded-2xl border border-violet-200 bg-violet-50/60 hover:border-violet-300 transition-colors shadow-sm">
-                      <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 border border-violet-200 ${catMeta.color}`}>
+                      <div className="w-8 h-8 rounded-xl flex items-center justify-center shrink-0 border border-violet-200" style={{ background: `${catColor}1a`, color: catColor }}>
                         <CatIcon size={13} />
                       </div>
                       <div className="flex-1 min-w-0">
@@ -4206,29 +4211,30 @@ export default function PDV() {
               <div className="flex-1 overflow-y-auto admin-scroll">
                 {(() => {
                   // group services by category
-                  const catMap = new Map<string, typeof services>();
+                  const catMap = new Map<number, typeof services>();
                   services.forEach((svc) => {
-                    const key = svc.category || "Geral";
+                    const key = svc.category_id ?? 0;
                     if (!catMap.has(key)) catMap.set(key, []);
                     catMap.get(key)!.push(svc);
                   });
                   const unitAbbr = (v?: string) => SERVICE_UNITS.find((u) => u.value === (v ?? "unidade"))?.abbr ?? (v ?? "un");
-                  return [...catMap.entries()].map(([cat, items]) => {
-                    const meta = SERVICE_CATEGORIES.find((c) => c.value === cat) ?? SERVICE_CATEGORIES[SERVICE_CATEGORIES.length - 1];
-                    const Icon = meta.icon;
+                  return [...catMap.entries()].map(([catId, items]) => {
+                    const meta = items[0]?.category_ref ?? UNCATEGORIZED_SERVICE_CATEGORY;
+                    const color = meta.color || "#64748b";
+                    const Icon = getCategoryIcon(meta.icon);
                     return (
-                      <div key={cat}>
+                      <div key={catId}>
                         {/* category header */}
-                        <div className={`px-4 py-2 flex items-center gap-2 border-b border-slate-100 ${meta.color} bg-opacity-40`}>
+                        <div className="px-4 py-2 flex items-center gap-2 border-b border-slate-100" style={{ background: `${color}14`, color }}>
                           <Icon size={11} />
-                          <span className="text-[9px] font-black uppercase tracking-widest">{cat}</span>
+                          <span className="text-[9px] font-black uppercase tracking-widest">{meta.name}</span>
                           <span className="text-[9px] opacity-60">{items.length}</span>
                         </div>
                         {items.map((svc) => {
                           const inCart = cartServices.some((s) => s.id === svc.id);
                           return (
                             <div key={svc.id} className={cn("px-4 py-3 flex items-center gap-3 border-b border-slate-50 hover:bg-slate-50/70 transition-colors", inCart && "bg-blue-50/40")}>
-                              <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 ${meta.color}`}>
+                              <div className="w-8 h-8 rounded-xl flex items-center justify-center shrink-0" style={{ background: `${color}1a`, color }}>
                                 <Icon size={13} />
                               </div>
                               <div className="flex-1 min-w-0">
