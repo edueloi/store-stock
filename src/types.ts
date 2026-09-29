@@ -77,6 +77,15 @@ export interface Tenant {
   public_url?: string;
   created_at?: string;
   updated_at?: string;
+  email_connection?: {
+    configured: boolean;
+    provider: string;
+    email: string;
+    host: string;
+    port: number | string;
+    secure: boolean;
+    from_name: string;
+  } | null;
   // Dados fiscais
   razao_social?: string;
   inscricao_estadual?: string;

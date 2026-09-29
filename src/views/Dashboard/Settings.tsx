@@ -179,6 +179,7 @@ const NAV = [
       { id: "security", icon: Shield, label: "Segurança" },
       { id: "users", icon: Users, label: "Time & Acessos" },
       { id: "desktop", icon: Monitor, label: "App Desktop PDV" },
+      { id: "email_connection", icon: Mail, label: "Conectar E-mail" },
       { id: "email_reports", icon: Mail, label: "Relatórios por Email" },
     ],
   },
@@ -201,8 +202,20 @@ const SETTING_META: Record<string, { description: string; icon: string; iconBg: 
   security: { description: "Proteção, acesso e senha", icon: "text-violet-600", iconBg: "bg-violet-50", border: "hover:border-violet-200" },
   users: { description: "Equipe, cargos e permissões", icon: "text-sky-600", iconBg: "bg-sky-50", border: "hover:border-sky-200" },
   desktop: { description: "Instalação e terminais do PDV", icon: "text-indigo-600", iconBg: "bg-indigo-50", border: "hover:border-indigo-200" },
+  email_connection: { description: "E-mail da loja para documentos dos clientes", icon: "text-cyan-600", iconBg: "bg-cyan-50", border: "hover:border-cyan-200" },
   email_reports: { description: "Envio automático de relatórios", icon: "text-rose-600", iconBg: "bg-rose-50", border: "hover:border-rose-200" },
 };
+
+type EmailProvider = "gmail" | "outlook" | "hotmail" | "yahoo" | "icloud" | "custom";
+
+const EMAIL_PROVIDERS: { id: EmailProvider; label: string; host: string; port: string; secure: boolean; guideUrl: string; guideLabel: string }[] = [
+  { id: "gmail", label: "Gmail", host: "smtp.gmail.com", port: "465", secure: true, guideUrl: "https://myaccount.google.com/apppasswords", guideLabel: "Abrir senhas de app do Google" },
+  { id: "outlook", label: "Outlook.com", host: "smtp-mail.outlook.com", port: "587", secure: false, guideUrl: "https://account.microsoft.com/security", guideLabel: "Abrir segurança da conta Microsoft" },
+  { id: "hotmail", label: "Hotmail / Live", host: "smtp-mail.outlook.com", port: "587", secure: false, guideUrl: "https://account.microsoft.com/security", guideLabel: "Abrir segurança da conta Microsoft" },
+  { id: "yahoo", label: "Yahoo Mail", host: "smtp.mail.yahoo.com", port: "465", secure: true, guideUrl: "https://login.yahoo.com/account/security", guideLabel: "Abrir segurança da conta Yahoo" },
+  { id: "icloud", label: "iCloud Mail", host: "smtp.mail.me.com", port: "587", secure: false, guideUrl: "https://account.apple.com/", guideLabel: "Abrir conta Apple" },
+  { id: "custom", label: "Outro / e-mail profissional", host: "", port: "587", secure: false, guideUrl: "", guideLabel: "" },
+];
 
 // ─── TeamSection ─────────────────────────────────────────────────────────────
 
@@ -723,6 +736,18 @@ export default function Settings() {
   const [adminEmails, setAdminEmails] = useState<string[]>([]);
   const hasUnsavedReportRecipients = JSON.stringify(reportRecipientEmails) !== JSON.stringify(savedReportRecipientEmails);
 
+  // ── E-mail próprio da loja: usado nos documentos enviados aos clientes ──────
+  const [emailProvider, setEmailProvider] = useState<EmailProvider>("gmail");
+  const [storeEmail, setStoreEmail] = useState("");
+  const [emailAppPassword, setEmailAppPassword] = useState("");
+  const [emailFromName, setEmailFromName] = useState("");
+  const [emailSmtpHost, setEmailSmtpHost] = useState("smtp.gmail.com");
+  const [emailSmtpPort, setEmailSmtpPort] = useState("465");
+  const [emailSmtpSecure, setEmailSmtpSecure] = useState(true);
+  const [emailConnectionConfigured, setEmailConnectionConfigured] = useState(false);
+  const [savingEmailConnection, setSavingEmailConnection] = useState(false);
+  const [testingEmailConnection, setTestingEmailConnection] = useState(false);
+
   // ── Terminal (maquininha API) ────────────────────────────────────────────────
   type TerminalProvider = "rede" | "stone" | "mercadopago" | "cielo" | "pagseguro";
   const TERMINAL_PROVIDERS: { id: TerminalProvider; label: string; color: string }[] = [
@@ -780,6 +805,19 @@ export default function Settings() {
         if (Array.isArray(d?.report_recipient_emails)) {
           setReportRecipientEmails(d.report_recipient_emails);
           setSavedReportRecipientEmails(d.report_recipient_emails);
+        }
+        if (d?.email_connection) {
+          const connection = d.email_connection;
+          const provider = EMAIL_PROVIDERS.some((item) => item.id === connection.provider)
+            ? connection.provider as EmailProvider
+            : "custom";
+          setEmailProvider(provider);
+          setStoreEmail(connection.email || "");
+          setEmailFromName(connection.from_name || "");
+          setEmailSmtpHost(connection.host || "");
+          setEmailSmtpPort(String(connection.port || ""));
+          setEmailSmtpSecure(Boolean(connection.secure));
+          setEmailConnectionConfigured(Boolean(connection.configured));
         }
         setLoading(false);
       });
@@ -1203,6 +1241,95 @@ export default function Settings() {
 
   const removeReportEmail = (email: string) =>
     setReportRecipientEmails((prev) => prev.filter((e) => e !== email));
+
+  const selectEmailProvider = (provider: EmailProvider) => {
+    const option = EMAIL_PROVIDERS.find((item) => item.id === provider)!;
+    setEmailProvider(provider);
+    setEmailSmtpHost(option.host);
+    setEmailSmtpPort(option.port);
+    setEmailSmtpSecure(option.secure);
+  };
+
+  const handleSaveEmailConnection = async () => {
+    if (!/^\S+@\S+\.\S+$/.test(storeEmail.trim())) {
+      toast.error("Informe o e-mail que será usado para enviar os documentos.");
+      return;
+    }
+    if (!emailConnectionConfigured && !emailAppPassword.trim()) {
+      toast.error("Informe a senha de aplicativo gerada pelo seu provedor de e-mail.");
+      return;
+    }
+    if (emailProvider === "custom" && (!emailSmtpHost.trim() || !emailSmtpPort.trim())) {
+      toast.error("Informe o servidor SMTP e a porta do seu e-mail profissional.");
+      return;
+    }
+
+    setSavingEmailConnection(true);
+    try {
+      const res = await fetch("/api/tenant", {
+        method: "PUT",
+        headers: API_HEADERS(),
+        body: JSON.stringify({
+          email_connection: {
+            provider: emailProvider,
+            email: storeEmail.trim(),
+            password: emailAppPassword,
+            from_name: emailFromName.trim(),
+            host: emailSmtpHost.trim(),
+            port: Number(emailSmtpPort),
+            secure: emailSmtpSecure,
+          },
+        }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        toast.error(data?.error || "Não foi possível salvar a conexão de e-mail.");
+        return;
+      }
+      setEmailConnectionConfigured(true);
+      setEmailAppPassword("");
+      toast.success("E-mail da loja salvo. Agora faça o teste de envio.");
+    } catch {
+      toast.error("Erro de conexão ao salvar o e-mail da loja.");
+    } finally {
+      setSavingEmailConnection(false);
+    }
+  };
+
+  const handleTestEmailConnection = async () => {
+    setTestingEmailConnection(true);
+    try {
+      const res = await fetch("/api/tenant/email-connection/test", { method: "POST", headers: API_HEADERS() });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        toast.error(data?.error || "A conexão não pôde ser confirmada.");
+        return;
+      }
+      toast.success("Conexão confirmada! Enviamos um e-mail de teste para a conta da loja.");
+    } catch {
+      toast.error("Erro de conexão ao testar o e-mail da loja.");
+    } finally {
+      setTestingEmailConnection(false);
+    }
+  };
+
+  const handleDisconnectEmail = async () => {
+    if (!window.confirm("Desconectar este e-mail? Os próximos documentos não poderão ser enviados por esta conta.")) return;
+    setSavingEmailConnection(true);
+    try {
+      const res = await fetch("/api/tenant", {
+        method: "PUT", headers: API_HEADERS(), body: JSON.stringify({ email_connection: null }),
+      });
+      if (!res.ok) throw new Error();
+      setEmailConnectionConfigured(false);
+      setEmailAppPassword("");
+      toast.success("E-mail da loja desconectado.");
+    } catch {
+      toast.error("Não foi possível desconectar o e-mail da loja.");
+    } finally {
+      setSavingEmailConnection(false);
+    }
+  };
 
   const terminalFieldsMissing = () =>
     TERMINAL_CREDENTIAL_FIELDS[terminalProvider].some((f) => !terminalCredentials[f.key]);
@@ -2695,6 +2822,138 @@ export default function Settings() {
                 <SaveButton onClick={handleSaveCrediario} label={savingCrediario ? "Salvando..." : "Salvar Configurações"} />
               </div>
             )}
+
+            {/* ── E-mail da loja ─────────────────────────────────────────── */}
+            {active === "email_connection" && (() => {
+              const selectedProvider = EMAIL_PROVIDERS.find((item) => item.id === emailProvider)!;
+              return (
+                <div className="space-y-6">
+                  <SectionHeader
+                    title="Conectar E-mail da Loja"
+                    subtitle="Use a conta da sua loja para enviar documentos aos clientes"
+                  />
+
+                  <div className="rounded-xl border border-cyan-100 bg-cyan-50 px-4 py-3.5">
+                    <p className="text-[11px] font-black uppercase tracking-widest text-cyan-800">E-mail dos clientes</p>
+                    <p className="mt-1 text-[11px] leading-relaxed text-cyan-800">
+                      Esta conta será usada nos envios de orçamento, ordem de serviço, nota fiscal e outros documentos para os seus clientes.
+                      Os relatórios automáticos do sistema continuam separados, na seção “Relatórios por Email”.
+                    </p>
+                  </div>
+
+                  <div className={cn(
+                    "flex items-center gap-3 rounded-xl border px-4 py-3",
+                    emailConnectionConfigured ? "border-emerald-100 bg-emerald-50" : "border-amber-100 bg-amber-50",
+                  )}>
+                    {emailConnectionConfigured ? <CheckCircle2 size={18} className="shrink-0 text-emerald-600" /> : <AlertTriangle size={18} className="shrink-0 text-amber-600" />}
+                    <div>
+                      <p className={cn("text-[11px] font-bold", emailConnectionConfigured ? "text-emerald-800" : "text-amber-800")}>
+                        {emailConnectionConfigured ? `Conta conectada: ${storeEmail}` : "Nenhuma conta de e-mail conectada"}
+                      </p>
+                      <p className={cn("mt-0.5 text-[10px]", emailConnectionConfigured ? "text-emerald-700" : "text-amber-700")}>
+                        {emailConnectionConfigured ? "Você pode atualizar a senha de aplicativo a qualquer momento." : "Conecte uma conta antes de enviar documentos por e-mail."}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="space-y-3">
+                    <p className="border-l-4 border-cyan-500 pl-3 text-[10px] font-black uppercase tracking-widest text-slate-700">1. Escolha seu provedor</p>
+                    <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                      {EMAIL_PROVIDERS.map((provider) => (
+                        <button
+                          key={provider.id}
+                          onClick={() => selectEmailProvider(provider.id)}
+                          className={cn(
+                            "h-11 rounded-xl border px-3 text-[10px] font-black uppercase tracking-wide transition-all",
+                            emailProvider === provider.id ? "border-cyan-500 bg-cyan-50 text-cyan-700 ring-2 ring-cyan-500/10" : "border-slate-200 bg-white text-slate-500 hover:bg-slate-50",
+                          )}
+                        >
+                          {provider.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                    <Field label="2. E-mail que fará os envios" hint="Ex.: contato@sualoja.com.br">
+                      <TextInput value={storeEmail} onChange={setStoreEmail} type="email" placeholder="contato@sualoja.com.br" autoComplete="email" />
+                    </Field>
+                    <Field label="Nome exibido para o cliente" hint="Opcional. Se vazio, usamos o endereço de e-mail.">
+                      <TextInput value={emailFromName} onChange={setEmailFromName} placeholder="Minha Loja" />
+                    </Field>
+                  </div>
+
+                  <Field
+                    label="3. Senha de aplicativo"
+                    hint={emailConnectionConfigured ? "Deixe em branco para manter a senha já salva. Nunca mostramos nem enviamos essa senha de volta ao painel." : "Não use a senha normal do seu e-mail. Gere uma senha de aplicativo seguindo o passo a passo abaixo."}
+                  >
+                    <TextInput value={emailAppPassword} onChange={setEmailAppPassword} type="password" placeholder="Cole aqui a senha de aplicativo" autoComplete="new-password" />
+                  </Field>
+
+                  {emailProvider === "custom" && (
+                    <div className="space-y-4 rounded-xl border border-slate-200 bg-slate-50 p-4">
+                      <p className="text-[10px] font-black uppercase tracking-widest text-slate-600">Dados SMTP do e-mail profissional</p>
+                      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+                        <div className="sm:col-span-2"><Field label="Servidor SMTP"><TextInput value={emailSmtpHost} onChange={setEmailSmtpHost} placeholder="smtp.seudominio.com" /></Field></div>
+                        <Field label="Porta"><TextInput value={emailSmtpPort} onChange={setEmailSmtpPort} placeholder="587" mono /></Field>
+                      </div>
+                      <Toggle checked={emailSmtpSecure} onChange={setEmailSmtpSecure} label="Usar SSL/TLS direto" />
+                      <p className="text-[10px] leading-relaxed text-slate-500">Peça esses dados ao suporte do seu provedor de hospedagem. Em geral, a porta 465 usa SSL/TLS direto; a 587 usa STARTTLS e deve ficar desmarcada aqui.</p>
+                    </div>
+                  )}
+
+                  <div className="rounded-xl border border-slate-200 bg-white p-4">
+                    <p className="text-[10px] font-black uppercase tracking-widest text-slate-700">Passo a passo atualizado para {selectedProvider.label}</p>
+                    <ol className="mt-3 list-decimal space-y-2 pl-4 text-[11px] leading-relaxed text-slate-600">
+                      {emailProvider === "gmail" && <>
+                        <li>Ative a verificação em duas etapas na sua Conta Google.</li>
+                        <li>Abra “Senhas de app”, crie uma senha com o nome <strong>BoxSys</strong> e copie o código gerado.</li>
+                        <li>Cole o código no campo “Senha de aplicativo”, salve e faça o teste.</li>
+                      </>}
+                      {(emailProvider === "outlook" || emailProvider === "hotmail") && <>
+                        <li>Abra as opções avançadas de segurança da sua conta Microsoft e ative a verificação em duas etapas, se ela ainda não estiver ativa.</li>
+                        <li>Em “Senhas de aplicativo”, crie uma nova senha e copie o código.</li>
+                        <li>Cole o código aqui, salve e envie o teste. Para conta corporativa Microsoft 365, consulte o administrador caso a opção não apareça.</li>
+                      </>}
+                      {emailProvider === "yahoo" && <>
+                        <li>Abra a segurança da conta Yahoo e gere uma senha de aplicativo para um app de e-mail.</li>
+                        <li>Dê o nome <strong>BoxSys</strong>, copie a senha criada e cole neste formulário.</li>
+                        <li>Salve a conexão e envie o teste.</li>
+                      </>}
+                      {emailProvider === "icloud" && <>
+                        <li>Entre na sua Conta Apple e confirme que a autenticação de dois fatores está ativa.</li>
+                        <li>Em “Senhas específicas de apps”, gere uma senha para <strong>BoxSys</strong>.</li>
+                        <li>Cole a senha gerada neste formulário, salve e faça o teste.</li>
+                      </>}
+                      {emailProvider === "custom" && <>
+                        <li>Peça ao provedor do seu domínio os dados de SMTP: servidor, porta, tipo de segurança e senha de aplicativo.</li>
+                        <li>Preencha os dados acima. Prefira senha de aplicativo em vez da senha principal da conta.</li>
+                        <li>Salve e faça o teste para confirmar que o servidor aceita os envios.</li>
+                      </>}
+                    </ol>
+                    {selectedProvider.guideUrl && (
+                      <a href={selectedProvider.guideUrl} target="_blank" rel="noreferrer" className="mt-4 inline-flex text-[10px] font-black uppercase tracking-widest text-cyan-700 hover:text-cyan-900 hover:underline">
+                        {selectedProvider.guideLabel} ↗
+                      </a>
+                    )}
+                  </div>
+
+                  <div className="flex flex-col gap-2 border-t border-slate-100 pt-6 sm:flex-row sm:justify-end">
+                    {emailConnectionConfigured && (
+                      <button onClick={handleDisconnectEmail} disabled={savingEmailConnection} className="h-11 rounded-xl px-4 text-[10px] font-black uppercase tracking-widest text-rose-600 hover:bg-rose-50 disabled:opacity-60">
+                        Desconectar
+                      </button>
+                    )}
+                    <button onClick={handleTestEmailConnection} disabled={!emailConnectionConfigured || testingEmailConnection || savingEmailConnection} className="flex h-11 items-center justify-center gap-2 rounded-xl border border-slate-200 px-5 text-[10px] font-black uppercase tracking-widest text-slate-600 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60">
+                      {testingEmailConnection ? <Loader2 size={13} className="animate-spin" /> : <Send size={13} />} Enviar teste
+                    </button>
+                    <button onClick={handleSaveEmailConnection} disabled={savingEmailConnection} className="flex h-11 items-center justify-center gap-2 rounded-xl bg-cyan-600 px-5 text-[10px] font-black uppercase tracking-widest text-white shadow-lg shadow-cyan-500/20 hover:bg-cyan-700 disabled:opacity-60">
+                      {savingEmailConnection ? <Loader2 size={13} className="animate-spin" /> : <Save size={13} />} Salvar conexão
+                    </button>
+                  </div>
+                </div>
+              );
+            })()}
 
             {/* ── Relatórios por Email ──────────────────────────────────── */}
             {active === "email_reports" && (

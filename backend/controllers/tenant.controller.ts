@@ -12,9 +12,60 @@ import { buildTenantAccessUrl, normalizeSubdomain } from "../utils/tenant-domain
 import { encryptSecret } from "../utils/secretCrypto";
 import { parsePfx } from "../services/nfce/signer";
 import { sendReportNow } from "../services/email-reports.service";
+import { sendStoreEmailConnectionTest } from "../services/store-email.service";
 
 function getTenantId(req: Request) {
   return (req as AuthenticatedRequest).user.tenantId;
+}
+
+type EmailConnectionInput = {
+  provider?: string;
+  email?: string;
+  password?: string;
+  host?: string;
+  port?: number;
+  secure?: boolean;
+  from_name?: string;
+};
+
+const EMAIL_PROVIDER_DEFAULTS: Record<string, { host: string; port: number; secure: boolean }> = {
+  gmail: { host: "smtp.gmail.com", port: 465, secure: true },
+  outlook: { host: "smtp-mail.outlook.com", port: 587, secure: false },
+  hotmail: { host: "smtp-mail.outlook.com", port: 587, secure: false },
+  yahoo: { host: "smtp.mail.yahoo.com", port: 465, secure: true },
+  icloud: { host: "smtp.mail.me.com", port: 587, secure: false },
+};
+
+class EmailConnectionValidationError extends Error {}
+
+function prepareEmailConnection(input: EmailConnectionInput, currentValue: unknown) {
+  const provider = String(input.provider || "custom").trim().toLowerCase();
+  const email = String(input.email || "").trim().toLowerCase();
+  const current = currentValue && typeof currentValue === "object" ? currentValue as Record<string, unknown> : {};
+  const preset = EMAIL_PROVIDER_DEFAULTS[provider];
+  const host = String(preset?.host || input.host || "").trim().toLowerCase();
+  const port = Number(preset?.port || input.port);
+  const secure = preset?.secure ?? Boolean(input.secure);
+  const rawPassword = String(input.password || "").replace(/\s+/g, "");
+  const storedPassword = typeof current.password === "string" ? current.password : "";
+
+  if (!/^\S+@\S+\.\S+$/.test(email)) throw new EmailConnectionValidationError("Informe um endereço de e-mail válido.");
+  if (!host || !Number.isInteger(port) || port < 1 || port > 65535) {
+    throw new EmailConnectionValidationError("Informe um servidor SMTP e uma porta válidos.");
+  }
+  if (!rawPassword && !storedPassword) {
+    throw new EmailConnectionValidationError("Informe a senha de aplicativo fornecida pelo seu e-mail.");
+  }
+
+  return {
+    provider,
+    email,
+    host,
+    port,
+    secure,
+    from_name: String(input.from_name || "").trim() || email,
+    password: rawPassword ? encryptSecret(rawPassword) : storedPassword,
+  };
 }
 
 // Só os dados da PRÓPRIA assinatura do tenant logado — nunca de outros tenants (isso é
@@ -40,7 +91,7 @@ export async function getTenant(req: Request, res: Response) {
   try {
     const tenant = await prisma.tenant.findUnique({
       where: { id: getTenantId(req) },
-    });
+    }) as any;
 
     if (!tenant) {
       res.status(404).json({ error: "Tenant not found" });
@@ -53,6 +104,7 @@ export async function getTenant(req: Request, res: Response) {
       nfce_csc_token,
       nfce_csc_token_homologacao,
       nfce_csc_token_producao,
+      email_config,
       ...safeTenant
     } = tenant;
 
@@ -62,6 +114,17 @@ export async function getTenant(req: Request, res: Response) {
       nfce_csc_configured: !!(tenant.nfce_csc_id && tenant.nfce_csc_token),
       nfce_csc_homologacao_configured: !!(tenant.nfce_csc_id_homologacao && tenant.nfce_csc_token_homologacao),
       nfce_csc_producao_configured: !!(tenant.nfce_csc_id_producao && tenant.nfce_csc_token_producao),
+      // A senha nunca sai do servidor. O frontend recebe apenas o estado e os
+      // dados necessários para mostrar a conta conectada.
+      email_connection: email_config && typeof email_config === "object" ? {
+        configured: Boolean((email_config as Record<string, unknown>).email && (email_config as Record<string, unknown>).password),
+        provider: (email_config as Record<string, unknown>).provider || "custom",
+        email: (email_config as Record<string, unknown>).email || "",
+        host: (email_config as Record<string, unknown>).host || "",
+        port: (email_config as Record<string, unknown>).port || "",
+        secure: Boolean((email_config as Record<string, unknown>).secure),
+        from_name: (email_config as Record<string, unknown>).from_name || "",
+      } : null,
       public_url: buildTenantAccessUrl(tenant.subdomain || tenant.slug),
     });
   } catch {
@@ -121,6 +184,20 @@ export async function updateTenant(req: Request, res: Response) {
         ? b.report_recipient_emails.filter((e: unknown) => typeof e === "string" && e.trim()).map((e: string) => e.trim())
         : null;
     }
+    if (b.email_connection !== undefined) {
+      if (b.email_connection === null) {
+        data.email_config = null;
+      } else if (typeof b.email_connection === "object") {
+        const current = await (prisma.tenant as any).findUnique({
+          where: { id: getTenantId(req) },
+          select: { email_config: true },
+        });
+        data.email_config = prepareEmailConnection(b.email_connection as EmailConnectionInput, current?.email_config);
+      } else {
+        res.status(422).json({ error: "Configuração de e-mail inválida." });
+        return;
+      }
+    }
 
     // Dados fiscais
     if (b.razao_social !== undefined)        data.razao_social        = b.razao_social;
@@ -169,7 +246,8 @@ export async function updateTenant(req: Request, res: Response) {
     res.json({ message: "Tenant updated" });
   } catch (err) {
     console.error("updateTenant error:", err);
-    res.status(500).json({ error: "Failed to update tenant" });
+    const message = err instanceof Error ? err.message : "Failed to update tenant";
+    res.status(err instanceof EmailConnectionValidationError ? 422 : 500).json({ error: message });
   }
 }
 
@@ -267,6 +345,18 @@ export async function sendReportNowHandler(req: Request, res: Response) {
   } catch (err) {
     console.error("sendReportNowHandler error:", err);
     res.status(500).json({ error: "Falha ao enviar relatório" });
+  }
+}
+
+// Confirma autenticação SMTP e envia uma mensagem para a própria conta da loja.
+// É uma ação explícita do administrador, usada na tela Configurações > Conectar e-mail.
+export async function testEmailConnection(req: Request, res: Response) {
+  try {
+    await sendStoreEmailConnectionTest(getTenantId(req));
+    res.json({ success: true });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Não foi possível conectar ao e-mail.";
+    res.status(422).json({ error: message });
   }
 }
 
