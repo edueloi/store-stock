@@ -6,6 +6,7 @@ import { cn } from "../../lib/utils";
 import { Tenant, Product, Category } from "../../types";
 import WhatsAppWidget from "../../components/store/WhatsAppWidget";
 import { buildStorePath, resolveStoreSlug } from "./store-routing";
+import { getVariationImages } from "../../utils/variationImages";
 
 // ── Store pages (lazy-loaded per theme)
 import { lazy, Suspense } from "react";
@@ -29,6 +30,12 @@ function themePages(templateId: string | undefined) {
     Catalog: lazy(() => import("./themes/atelier/StoreCatalog")),
     Product: lazy(() => import("./themes/atelier/StoreProduct")),
     About: lazy(() => import("./themes/atelier/StoreAbout")),
+  };
+  if (t === "urban") return {
+    Front: lazy(() => import("./themes/urban/StoreFront")),
+    Catalog: lazy(() => import("./themes/urban/StoreCatalog")),
+    Product: lazy(() => import("./themes/urban/StoreProduct")),
+    About: lazy(() => import("./themes/urban/StoreAbout")),
   };
   if (t === "nexus_tech") return {
     Front: lazy(() => import("./themes/nexus-tech/StoreFront")),
@@ -112,6 +119,7 @@ const templates: Record<string, StoreStyle> = {
   tech:     { bg: "bg-[#f4f6fb]",   card: "bg-white border-slate-200",       accent: "#0ea5e9", text: "text-slate-900",  font: "font-sans",  radius: "rounded-2xl" },
   nexus_tech: { bg: "tech-shell bg-[#f4f8ff]", card: "bg-white/90 border-[#d7e4ff]", accent: "#2563eb", text: "text-[#071426]", font: "font-tech", radius: "rounded-[2rem]" },
   atelier:  { bg: "fashion-shell bg-[#fffaf5]", card: "bg-white/90 border-[#eadbd0]", accent: "#a26157", text: "text-[#2d221f]", font: "font-editorial", radius: "rounded-[2rem]" },
+  urban:    { bg: "bg-[#f5f0e9]", card: "bg-[#fffdf9] border-[#d8cbbf]", accent: "#c76532", text: "text-[#1b1714]", font: "font-editorial", radius: "rounded-none" },
   electronics: { bg: "bg-[#080c14]", card: "bg-[#0e1525]/90 border-[#1e2d4a]", accent: "#3b82f6", text: "text-white", font: "font-sans", radius: "rounded-2xl" },
   electric: { bg: "bg-[#f8fafc]", card: "bg-white border-slate-200", accent: "#f97316", text: "text-slate-900", font: "font-sans", radius: "rounded-xl" },
 };
@@ -133,6 +141,7 @@ function StoreLayoutInner() {
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [megaMenuOpen, setMegaMenuOpen] = useState(false);
+  const [reservationState, setReservationState] = useState<{ loading: boolean; message: string | null }>({ loading: false, message: null });
   const megaMenuCloseTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const navigate = useNavigate();
   const storeSlug = resolveStoreSlug(routeSlug);
@@ -187,10 +196,12 @@ function StoreLayoutInner() {
   const addToCart = (product: Product, options?: Record<string, string>) => {
     const variationLabel = options ? Object.entries(options).map(([k, v]) => `${k}: ${v}`).join(", ") : "";
     const cartItemId = options ? `${product.id}-${variationLabel}` : `${product.id}`;
+    const variationImages = getVariationImages(product, options || {});
+    const productForCart = variationImages.length ? { ...product, image_url: variationImages[0], images: variationImages } : product;
     setCart(prev => {
       const existing = prev.find(i => i.cartItemId === cartItemId);
       if (existing) return prev.map(i => i.cartItemId === cartItemId ? { ...i, quantity: i.quantity + 1 } : i);
-      return [...prev, { ...product, quantity: 1, cartItemId, selectedOptions: options, variationLabel }];
+      return [...prev, { ...productForCart, quantity: 1, cartItemId, selectedOptions: options, variationLabel }];
     });
     setIsCartOpen(true);
   };
@@ -213,6 +224,8 @@ function StoreLayoutInner() {
 
   const total = cart.reduce((acc, i) => acc + Number(i.price) * i.quantity, 0);
   const cartCount = cart.reduce((acc, i) => acc + i.quantity, 0);
+  const storefront = storeData?.tenant.policies?.storefront || {};
+  const checkoutMode = storefront.checkout_mode || "whatsapp";
 
   const handleWhatsAppCheckout = () => {
     const lines = cart.map(i => {
@@ -224,6 +237,21 @@ function StoreLayoutInner() {
     });
     const msg = `Olá! Gostaria de fazer um pedido:%0A%0A${lines.join("%0A%0A")}%0A%0A*Total do pedido: R$ ${total.toFixed(2)}*%0A%0AFavor confirmar disponibilidade.`;
     window.open(`https://wa.me/${storeData?.tenant.whatsapp?.replace(/\D/g, "")}?text=${msg}`, "_blank");
+  };
+
+  const handleReserveCart = async () => {
+    if (!storeData || reservationState.loading) return;
+    setReservationState({ loading: true, message: null });
+    try {
+      const response = await fetch("/api/public/reservations", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ tenantId: storeData.tenant.id, items: cart.map(item => ({ product_id: item.id, quantity: item.quantity, selected_options: item.selectedOptions })) }) });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Não foi possível reservar os itens.");
+      const time = new Date(data.expires_at).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+      setCart([]);
+      setReservationState({ loading: false, message: `Reserva #${data.number} confirmada. Seus itens ficam separados até ${time}.` });
+    } catch (error) {
+      setReservationState({ loading: false, message: error instanceof Error ? error.message : "Não foi possível reservar os itens." });
+    }
   };
 
   if (loading) {
@@ -823,17 +851,21 @@ function StoreLayoutInner() {
                       <p className={cn("text-xs font-bold uppercase tracking-wider", isElectronics ? "text-blue-400/70" : isTechNova ? "text-[#7b95ba]" : "text-slate-400")}>Total</p>
                       <p className={cn("text-2xl font-black font-mono", isElectronics ? "text-white" : isTechNova ? "text-[#071426]" : "text-white")}>R$ {total.toFixed(2)}</p>
                     </div>
+                    {checkoutMode === "reservation" && <p className={cn("rounded-xl px-3 py-2 text-[10px] font-medium leading-relaxed", isElectronics ? "bg-blue-500/10 text-blue-200" : "bg-white/10 text-slate-300")}>Ao reservar, o estoque destes itens fica separado por {Math.max(5, Math.min(120, storefront.reservation_minutes || 20))} minutos.</p>}
                     <button
-                      onClick={handleWhatsAppCheckout}
+                      onClick={checkoutMode === "reservation" ? handleReserveCart : handleWhatsAppCheckout}
+                      disabled={reservationState.loading}
                       className="w-full bg-[#25D366] text-white h-12 rounded-2xl font-black text-xs uppercase tracking-widest flex items-center justify-center gap-3 hover:bg-[#1db954] transition-all"
                     >
                       <svg viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5">
                         <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/>
                       </svg>
-                      Fechar Pedido via WhatsApp
+                      {reservationState.loading ? "Reservando itens..." : checkoutMode === "reservation" ? "Reservar itens agora" : "Fechar pedido via WhatsApp"}
                     </button>
+                    <p className={cn("text-center text-[9px] font-medium", isElectronics ? "text-slate-500" : "text-slate-400")}>{checkoutMode === "reservation" ? "Frete e pagamento serão definidos com a loja." : "Frete e pagamento serão combinados no atendimento."}</p>
                   </div>
                 )}
+                {reservationState.message && <div className="mx-4 mb-4 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-center text-[11px] font-semibold leading-relaxed text-emerald-800">{reservationState.message}</div>}
               </motion.div>
             </>
           )}

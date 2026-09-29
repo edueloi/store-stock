@@ -23,6 +23,12 @@ export interface StorePolicies {
   warranty_title?: string;
   warranty_clauses?: string[];
   service_order_checklists?: Record<string, { label: string }[]>;
+  storefront?: {
+    checkout_mode?: "whatsapp" | "reservation" | "online";
+    reservation_minutes?: number;
+    shipping_status?: "disabled" | "coming_soon" | "enabled";
+    payment_status?: "disabled" | "coming_soon" | "enabled";
+  };
 }
 
 export interface Tenant {
@@ -163,7 +169,9 @@ export interface Product {
   // attribute groups (ex: [{name:"Tamanho", values:["P","M","G"]}, {name:"Cor", values:["Preto","Branco"]}])
   attributes?: { name: string; values: string[]; colors?: Record<string, string> }[];
   // SKU combinations (ex: [{combo:{"Tamanho":"G","Cor":"Preto"}, stock:3}])
-  skus?: { combo: Record<string, string>; stock: number }[];
+  // Cada combinação pode ter a própria galeria. Ex.: Cor "Azul" + Tamanho "M"
+  // exibe as fotos azuis ao cliente sem alterar as imagens principais do produto.
+  skus?: { combo: Record<string, string>; stock: number; images?: string[] }[];
   /** @deprecated use attributes+skus */
   variations?: { name: string; options: { value: string; stock: number }[] }[];
   // Venda por medida (m²/metro linear) — vidraçaria/marcenaria/gráfica

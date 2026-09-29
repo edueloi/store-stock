@@ -10,6 +10,7 @@ import { useStore } from "../../StoreLayout";
 import StoreSEO from "../../../../components/store/StoreSEO";
 import { buildStorePath, resolveStoreSlug, parseProductIdFromRoute, productRouteSegment } from "../../store-routing";
 import { productHasStock } from "../../../../utils/productStock";
+import { getVariationImages } from "../../../../utils/variationImages";
 
 export default function StoreProduct() {
   const { slug: routeSlug, productId } = useParams();
@@ -17,7 +18,7 @@ export default function StoreProduct() {
   const slug = resolveStoreSlug(routeSlug);
 
   const product = products.find(p => p.id === parseProductIdFromRoute(productId));
-  const allImages = Array.isArray(product?.images) && product.images.length > 0 ? product.images : product?.image_url ? [product.image_url] : [];
+  const baseImages = Array.isArray(product?.images) && product.images.length > 0 ? product.images : product?.image_url ? [product.image_url] : [];
   const [activeImg, setActiveImg] = useState(0);
 
   // Normalize both variation formats into a unified shape
@@ -57,6 +58,8 @@ export default function StoreProduct() {
   const [qty, setQty] = useState(1);
   const [inWishlist, setInWishlist] = useState(false);
   const [justAdded, setJustAdded] = useState(false);
+  const variationImages = getVariationImages(product, selectedOptions);
+  const allImages = variationImages.length > 0 ? variationImages : baseImages;
 
   if (!product) {
     return (
@@ -94,6 +97,7 @@ export default function StoreProduct() {
 
   const handleSelectOption = (variationName: string, value: string) => {
     setSelectedOptions(prev => ({ ...prev, [variationName]: value }));
+    setActiveImg(0);
     setShowVariationError(false);
   };
 

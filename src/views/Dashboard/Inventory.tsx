@@ -90,9 +90,10 @@ const VARIATION_PRESETS: { label: string; icon: string; variations: { name: stri
 interface GalleryUploaderProps {
   images: string[];
   onChange: (imgs: string[]) => void;
+  label?: string;
 }
 
-function GalleryUploader({ images, onChange }: GalleryUploaderProps) {
+function GalleryUploader({ images, onChange, label = "Fotos do Produto" }: GalleryUploaderProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
@@ -159,7 +160,7 @@ function GalleryUploader({ images, onChange }: GalleryUploaderProps) {
     <div className="space-y-2">
       <div className="flex items-center justify-between px-1">
         <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">
-          Fotos do Produto <span className="text-slate-400 normal-case font-normal">({images.length}/10)</span>
+          {label} <span className="text-slate-400 normal-case font-normal">({images.length}/10)</span>
         </label>
         {images.length > 0 && (
           <div className="flex items-center gap-3">
@@ -312,6 +313,7 @@ export default function Inventory() {
   // digitar livremente (ex.: apagar tudo, digitar "6", depois "60") sem o input travar em 0.
   const [profitMarginInput, setProfitMarginInput] = useState("");
   const [editingImages, setEditingImages] = useState<string[]>([]);
+  const [expandedSkuImagesIndex, setExpandedSkuImagesIndex] = useState<number | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [viewMode, setViewMode] = useState<"table" | "grid">("table");
   const [deleteTarget, setDeleteTarget] = useState<Product | null>(null);
@@ -477,6 +479,7 @@ export default function Inventory() {
   const openNew = () => {
     setEditingProduct({ type: "sale", is_active: false, is_featured: false, stock_quantity: 0, attributes: [], skus: [] });
     setEditingImages([]);
+    setExpandedSkuImagesIndex(null);
     setProfitMarginInput("");
     resetVarState();
     setCreatingCategory(false);
@@ -497,6 +500,7 @@ export default function Inventory() {
     }
     setEditingProduct({ ...p, attributes: attrs, skus });
     setEditingImages(Array.isArray(p.images) ? p.images : p.image_url ? [p.image_url] : []);
+    setExpandedSkuImagesIndex(null);
     setProfitMarginInput("");
     resetVarState();
     setCreatingCategory(false);
@@ -726,9 +730,9 @@ export default function Inventory() {
     }
 
     const oldSkus = editingProduct?.skus || [];
-    const oldMap = Object.fromEntries(oldSkus.map(s => [comboKey(s.combo), s.stock]));
+    const oldMap = Object.fromEntries(oldSkus.map(s => [comboKey(s.combo), s]));
     const newCombos = generateCombos(attrs);
-    const newSkus = newCombos.map(combo => ({ combo, stock: oldMap[comboKey(combo)] ?? 0 }));
+    const newSkus = newCombos.map(combo => ({ combo, stock: oldMap[comboKey(combo)]?.stock ?? 0, images: oldMap[comboKey(combo)]?.images }));
 
     setEditingProduct(prev => ({ ...prev!, attributes: attrs, skus: newSkus }));
     setNewAttrValue("");
@@ -746,9 +750,9 @@ export default function Inventory() {
       attrs[attrIdx] = { ...attrs[attrIdx], values: newVals, colors };
     }
     const oldSkus = editingProduct?.skus || [];
-    const oldMap = Object.fromEntries(oldSkus.map(s => [comboKey(s.combo), s.stock]));
+    const oldMap = Object.fromEntries(oldSkus.map(s => [comboKey(s.combo), s]));
     const newCombos = generateCombos(attrs);
-    const newSkus = newCombos.map(combo => ({ combo, stock: oldMap[comboKey(combo)] ?? 0 }));
+    const newSkus = newCombos.map(combo => ({ combo, stock: oldMap[comboKey(combo)]?.stock ?? 0, images: oldMap[comboKey(combo)]?.images }));
     setEditingProduct(prev => ({ ...prev!, attributes: attrs, skus: newSkus }));
   };
 
@@ -761,6 +765,12 @@ export default function Inventory() {
   const updateSkuStock = (skuIdx: number, stock: number) => {
     const skus = [...(editingProduct?.skus || [])];
     skus[skuIdx] = { ...skus[skuIdx], stock };
+    setEditingProduct(prev => ({ ...prev!, skus }));
+  };
+
+  const updateSkuImages = (skuIdx: number, images: string[]) => {
+    const skus = [...(editingProduct?.skus || [])];
+    skus[skuIdx] = { ...skus[skuIdx], images };
     setEditingProduct(prev => ({ ...prev!, skus }));
   };
 
@@ -1758,15 +1768,28 @@ export default function Inventory() {
                     {(editingProduct?.skus || []).map((sku, skuIdx) => {
                       const label = Object.values(sku.combo).join(" · ");
                       return (
-                        <div key={skuIdx} className="flex items-center gap-3 px-4 py-2.5">
-                          <p className="flex-1 text-xs font-semibold text-slate-700 min-w-0 truncate">{label}</p>
-                          <div className="flex items-center gap-2 shrink-0">
-                            <input type="number" min="0"
-                              className="w-20 bg-slate-50 border border-slate-200 rounded-lg px-2 text-xs font-mono font-bold outline-none h-8 text-center focus:border-blue-500 transition-all"
-                              value={sku.stock}
-                              onChange={e => updateSkuStock(skuIdx, Number(e.target.value))} />
-                            <span className="text-[9px] text-slate-400 font-bold w-4">un</span>
+                        <div key={skuIdx} className="px-4 py-2.5">
+                          <div className="flex items-center gap-3">
+                            <p className="flex-1 text-xs font-semibold text-slate-700 min-w-0 truncate">{label}</p>
+                            <button type="button" onClick={() => setExpandedSkuImagesIndex(i => i === skuIdx ? null : skuIdx)}
+                              className={cn("h-8 px-2.5 rounded-lg border text-[9px] font-black uppercase tracking-wide transition-all flex items-center gap-1.5", expandedSkuImagesIndex === skuIdx ? "bg-blue-600 text-white border-blue-600" : "border-slate-200 text-slate-500 hover:border-blue-300 hover:text-blue-600")}
+                            >
+                              <ImageIcon size={12} /> Fotos {sku.images?.length ? `(${sku.images.length})` : ""}
+                            </button>
+                            <div className="flex items-center gap-2 shrink-0">
+                              <input type="number" min="0"
+                                className="w-20 bg-slate-50 border border-slate-200 rounded-lg px-2 text-xs font-mono font-bold outline-none h-8 text-center focus:border-blue-500 transition-all"
+                                value={sku.stock}
+                                onChange={e => updateSkuStock(skuIdx, Number(e.target.value))} />
+                              <span className="text-[9px] text-slate-400 font-bold w-4">un</span>
+                            </div>
                           </div>
+                          {expandedSkuImagesIndex === skuIdx && (
+                            <div className="mt-3 rounded-xl border border-blue-100 bg-blue-50/40 p-3">
+                              <p className="mb-2 text-[10px] font-semibold leading-relaxed text-slate-500">Estas fotos aparecerão automaticamente quando o cliente escolher <strong className="text-slate-700">{label}</strong>.</p>
+                              <GalleryUploader label="Fotos desta variação" images={sku.images || []} onChange={images => updateSkuImages(skuIdx, images)} />
+                            </div>
+                          )}
                         </div>
                       );
                     })}

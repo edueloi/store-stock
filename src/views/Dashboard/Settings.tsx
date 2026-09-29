@@ -56,6 +56,12 @@ const DEFAULT_POLICIES: StorePolicies = {
     "O produto defeituoso será reparado, substituído por outro de mesma espécie, ou o valor será devolvido, a critério do fornecedor e conforme disponibilidade de estoque.",
     "Esta garantia é intransferível e válida somente para o comprador original identificado neste documento.",
   ],
+  storefront: {
+    checkout_mode: "whatsapp",
+    reservation_minutes: 20,
+    shipping_status: "coming_soon",
+    payment_status: "coming_soon",
+  },
 };
 
 // ─── sub-components ──────────────────────────────────────────────────────────
@@ -158,6 +164,7 @@ const NAV = [
     items: [
       { id: "identity", icon: Store, label: "Identidade & Dados" },
       { id: "design", icon: Palette, label: "Design e Modelos" },
+      { id: "storefront", icon: ShoppingCart, label: "Loja Online & Checkout" },
       { id: "social", icon: Share2, label: "Canais Sociais" },
       { id: "hours", icon: Clock, label: "Horário de Funcionamento" },
       { id: "payments", icon: CreditCard, label: "Pagamentos & Políticas" },
@@ -188,6 +195,7 @@ const NAV = [
 const SETTING_META: Record<string, { description: string; icon: string; iconBg: string; border: string }> = {
   identity: { description: "Dados e apresentação da sua loja", icon: "text-[#ed670e]", iconBg: "bg-orange-50", border: "hover:border-orange-200" },
   design: { description: "Tema, cores e modelos da vitrine", icon: "text-violet-600", iconBg: "bg-violet-50", border: "hover:border-violet-200" },
+  storefront: { description: "Carrinho, reserva de estoque e próximos passos de checkout", icon: "text-orange-600", iconBg: "bg-orange-50", border: "hover:border-orange-200" },
   social: { description: "Redes, contatos e canais de venda", icon: "text-cyan-600", iconBg: "bg-cyan-50", border: "hover:border-cyan-200" },
   hours: { description: "Horários exibidos para seus clientes", icon: "text-amber-600", iconBg: "bg-amber-50", border: "hover:border-amber-200" },
   payments: { description: "Formas de pagamento e políticas", icon: "text-emerald-600", iconBg: "bg-emerald-50", border: "hover:border-emerald-200" },
@@ -2119,6 +2127,12 @@ export default function Settings() {
                         badge: { bg: "#fde8e0", text: "#9f4132" },
                       },
                       {
+                        id: "urban", name: "Urban Edit", tag: "Moda & Acessórios",
+                        desc: "Vitrine editorial marcante, ideal para roupas, calçados e acessórios.",
+                        color: "#c76532", bg: "#f5f0e9", cardBg: "#fffdf9", textColor: "#1b1714",
+                        badge: { bg: "#f8dfd0", text: "#a9471d" },
+                      },
+                      {
                         id: "electric", name: "Elétrica Pro", tag: "Claro & Robusto",
                         desc: "Visual limpo e profissional para material elétrico, ferragens e eletrônicos.",
                         color: "#f97316", bg: "#f8fafc", cardBg: "#fff", textColor: "#0f172a",
@@ -2493,6 +2507,30 @@ export default function Settings() {
             )}
 
             {/* ── Maquininha & Taxas ──────────────────────────────────── */}
+            {active === "storefront" && (() => {
+              const storefront = { checkout_mode: "whatsapp" as const, reservation_minutes: 20, shipping_status: "coming_soon" as const, payment_status: "coming_soon" as const, ...(policies.storefront || {}) };
+              const setStorefront = (patch: Partial<typeof storefront>) => setPolicies({ storefront: { ...storefront, ...patch } });
+              const modes = [
+                { id: "whatsapp" as const, title: "Enviar para WhatsApp", description: "O cliente monta o carrinho e sua equipe fecha a venda no atendimento.", badge: "Disponível agora" },
+                { id: "reservation" as const, title: "Reservar estoque", description: "Bloqueia os itens por alguns minutos antes da confirmação com a equipe.", badge: "Disponível agora" },
+                { id: "online" as const, title: "Pagamento online", description: "Checkout com frete e pagamento integrado. Será liberado quando a integração estiver pronta.", badge: "Em breve" },
+              ];
+              return <div className="space-y-8">
+                <SectionHeader title="Loja Online & Checkout" subtitle="Defina como cada cliente conclui o pedido no carrinho da sua loja." />
+                <div className="grid gap-3 lg:grid-cols-3">
+                  {modes.map(mode => <button key={mode.id} onClick={() => mode.id !== "online" && setStorefront({ checkout_mode: mode.id })}
+                    className={cn("min-h-44 rounded-2xl border-2 p-5 text-left transition-all", storefront.checkout_mode === mode.id ? "border-blue-600 bg-blue-50 shadow-lg shadow-blue-500/10" : mode.id === "online" ? "cursor-not-allowed border-slate-100 bg-slate-50 opacity-70" : "border-slate-100 bg-white hover:border-slate-300")}
+                    disabled={mode.id === "online"}>
+                    <div className="flex items-center justify-between gap-2"><span className="text-[9px] font-black uppercase tracking-widest text-blue-600">{mode.badge}</span>{storefront.checkout_mode === mode.id && <Check size={15} className="text-blue-600" />}</div>
+                    <p className="mt-5 text-sm font-black text-slate-900">{mode.title}</p><p className="mt-2 text-[11px] leading-relaxed text-slate-500">{mode.description}</p>
+                  </button>)}
+                </div>
+                {storefront.checkout_mode === "reservation" && <div className="rounded-2xl border border-amber-200 bg-amber-50 p-5"><Field label="Tempo da reserva (minutos)" hint="Após esse período, a reserva fica disponível para a equipe cancelar e devolver os itens ao estoque."><input type="number" min="5" max="120" value={storefront.reservation_minutes} onChange={e => setStorefront({ reservation_minutes: Math.max(5, Math.min(120, Number(e.target.value) || 20)) })} className="h-11 w-32 rounded-xl border border-amber-200 bg-white px-3 text-xs font-bold outline-none focus:border-amber-500" /></Field></div>}
+                <div className="grid gap-3 md:grid-cols-2"><div className="rounded-2xl border border-slate-200 bg-white p-5"><p className="text-xs font-black text-slate-800">Cálculo de frete</p><p className="mt-1 text-[11px] leading-relaxed text-slate-500">Estrutura preparada para CEP, transportadoras e regras de frete grátis.</p><span className="mt-4 inline-flex rounded-full bg-amber-100 px-3 py-1 text-[9px] font-black uppercase tracking-wider text-amber-700">Em preparação</span></div><div className="rounded-2xl border border-slate-200 bg-white p-5"><p className="text-xs font-black text-slate-800">Pagamentos na plataforma</p><p className="mt-1 text-[11px] leading-relaxed text-slate-500">O carrinho já separa o fluxo para ativar Pix, cartão e checkout seguro depois.</p><span className="mt-4 inline-flex rounded-full bg-amber-100 px-3 py-1 text-[9px] font-black uppercase tracking-wider text-amber-700">Em preparação</span></div></div>
+                <SaveButton onClick={handleSaveTenant} label="Salvar checkout da loja" />
+              </div>;
+            })()}
+
             {active === "card_fees" && (() => {
               const BRANDS = [
                 { key: "visa",   label: "Visa",             color: "#1A1F71" },

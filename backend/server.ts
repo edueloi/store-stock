@@ -15,6 +15,7 @@ import { startPlatformBillingSuspensionLoop } from "./services/billing/platform-
 import { startEmailReportsCron } from "./services/email-reports.service";
 import { startQuoteExpirationLoop } from "./controllers/quotes.controller";
 import { initStoreSeoTemplate, handleProductSeo } from "./controllers/store-seo.controller";
+import { releaseExpiredStoreReservations } from "./controllers/public.controller";
 import { initRealtime } from "./services/realtime.service";
 
 async function attachFrontend(app: express.Express) {
@@ -73,6 +74,7 @@ export async function startServer() {
   startPushNotificationsLoop();
   startPlatformBillingSuspensionLoop();
   startEmailReportsCron();
+  setInterval(() => { releaseExpiredStoreReservations().catch(() => undefined); }, 60_000).unref();
 
   const app = createApp();
   await attachFrontend(app);
