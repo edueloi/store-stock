@@ -15,7 +15,12 @@ export function initStoreSeoTemplate(html: string) {
 }
 
 function baseUrl(req: Request) {
-  return `${req.protocol}://${req.headers.host}`;
+  // Na VPS o Node recebe a conexão interna em HTTP, mas o visitante acessa HTTPS
+  // pelo proxy. Usar o header evita sitemap/canonical com protocolo incorreto.
+  const forwarded = req.headers["x-forwarded-proto"];
+  const forwardedProtocol = (Array.isArray(forwarded) ? forwarded[0] : forwarded)?.split(",")[0]?.trim();
+  const protocol = forwardedProtocol === "https" || req.protocol === "https" ? "https" : req.protocol;
+  return `${protocol}://${req.headers.host}`;
 }
 
 function storePath(req: Request, suffix = "") {
@@ -117,6 +122,17 @@ function renderSeoPage(res: Response, options: {
 function productSeoUrl(req: Request) {
   const slug = typeof req.params.slug === "string" ? req.params.slug : "";
   return `${baseUrl(req)}${slug ? `/s/${encodeURIComponent(slug)}` : ""}/produto/${encodeURIComponent(req.params.productId)}`;
+}
+
+function productSegment(product: { id: number; name: string }) {
+  const name = product.name
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 60);
+  return name ? `${name}-${product.id}` : String(product.id);
 }
 
 export async function handleProductSeo(req: Request, res: Response) {
@@ -265,7 +281,7 @@ export async function handleStoreSitemap(req: Request, res: Response) {
       { loc: storePath(req, "/catalogo"), lastmod: undefined },
       { loc: storePath(req, "/sobre"), lastmod: undefined },
       ...products.map((product) => ({
-        loc: storePath(req, `/produto/${encodeURIComponent(`${product.name}-${product.id}`)}`),
+        loc: storePath(req, `/produto/${productSegment(product)}`),
         lastmod: product.updated_at.toISOString().slice(0, 10),
       })),
     ];
