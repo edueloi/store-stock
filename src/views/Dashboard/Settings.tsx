@@ -302,7 +302,11 @@ const NAV = [
       { id: "terminal", icon: Terminal, label: "Maquininha (API)" },
       { id: "card_fees", icon: Landmark, label: "Maquininha & Taxas" },
       { id: "crediario", icon: Percent, label: "Crediário & Juros" },
-      { id: "service_checklists", icon: ClipboardList, label: "Checklists de OS" },
+      {
+        id: "service_checklists",
+        icon: ClipboardList,
+        label: "Checklists de OS",
+      },
       { id: "cash_session", icon: Wallet, label: "Controle de Caixa" },
       { id: "preferences", icon: Settings2, label: "Preferências do Painel" },
       { id: "security", icon: Shield, label: "Segurança" },
@@ -317,7 +321,11 @@ const NAV = [
 const STORE_CONFIGURATION_ITEMS = [
   { id: "identity", icon: Store, label: "Identidade & Dados" },
   { id: "design", icon: Palette, label: "Layout, Tema & Modelos" },
-  { id: "storefront", icon: ShoppingCart, label: "Checkout, Entrega & Integrações" },
+  {
+    id: "storefront",
+    icon: ShoppingCart,
+    label: "Checkout, Entrega & Integrações",
+  },
   { id: "social", icon: Share2, label: "Canais Sociais" },
   { id: "hours", icon: Clock, label: "Horários da Loja" },
   { id: "payments", icon: CreditCard, label: "Pagamentos & Políticas" },
@@ -446,12 +454,7 @@ const SETTING_META: Record<
 };
 
 type EmailProvider =
-  | "gmail"
-  | "outlook"
-  | "hotmail"
-  | "yahoo"
-  | "icloud"
-  | "custom";
+  "gmail" | "outlook" | "hotmail" | "yahoo" | "icloud" | "custom";
 
 const EMAIL_PROVIDERS: {
   id: EmailProvider;
@@ -1153,7 +1156,11 @@ function TeamSection() {
 
 // ─── main component ──────────────────────────────────────────────────────────
 
-export default function Settings({ storeMode = false }: { storeMode?: boolean }) {
+export default function Settings({
+  storeMode = false,
+}: {
+  storeMode?: boolean;
+}) {
   const toast = useToast();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -1162,7 +1169,9 @@ export default function Settings({ storeMode = false }: { storeMode?: boolean })
   const requestedTab = searchParams.get("tab");
   const storeTabs = STORE_CONFIGURATION_ITEMS.map((item) => item.id);
   const active = storeMode
-    ? (storeTabs.includes(requestedTab || "") ? requestedTab : "storefront")
+    ? storeTabs.includes(requestedTab || "")
+      ? requestedTab
+      : "storefront"
     : requestedTab;
   const setActive = useCallback(
     (id: string) => {
@@ -1193,16 +1202,19 @@ export default function Settings({ storeMode = false }: { storeMode?: boolean })
   }, [navigate, setSearchParams, storeMode]);
 
   useEffect(() => {
-    if (!storeMode && STORE_CONFIGURATION_ITEMS.some((item) => item.id === requestedTab)) {
-      navigate(`/admin/minha-loja/configurar?tab=${requestedTab}`, { replace: true });
+    if (
+      !storeMode &&
+      STORE_CONFIGURATION_ITEMS.some((item) => item.id === requestedTab)
+    ) {
+      navigate(`/admin/minha-loja/configurar?tab=${requestedTab}`, {
+        replace: true,
+      });
     }
   }, [navigate, requestedTab, storeMode]);
 
   // sub-tab de maquininha sincronizada com ?payType=xxx
   const activePayType = (searchParams.get("payType") ?? "credit") as
-    | "credit"
-    | "debit"
-    | "pix";
+    "credit" | "debit" | "pix";
   const setActivePayType = useCallback(
     (id: "credit" | "debit" | "pix") => {
       setSearchParams(
@@ -1251,13 +1263,17 @@ export default function Settings({ storeMode = false }: { storeMode?: boolean })
   );
   const [pushEnabled, setPushEnabled] = useState(false);
   const [pushSaving, setPushSaving] = useState(false);
-  const [storePaymentGateways, setStorePaymentGateways] = useState<Array<{
-    provider: "mercadopago" | "asaas";
-    enabled: boolean;
-    environment: "sandbox" | "production";
-    connected: boolean;
-  }>>([]);
-  const [gatewayTokens, setGatewayTokens] = useState<Record<string, string>>({});
+  const [storePaymentGateways, setStorePaymentGateways] = useState<
+    Array<{
+      provider: "mercadopago" | "asaas";
+      enabled: boolean;
+      environment: "sandbox" | "production";
+      connected: boolean;
+    }>
+  >([]);
+  const [gatewayTokens, setGatewayTokens] = useState<Record<string, string>>(
+    {},
+  );
   const [gatewaySaving, setGatewaySaving] = useState<string | null>(null);
 
   // password fields
@@ -1334,11 +1350,7 @@ export default function Settings({ storeMode = false }: { storeMode?: boolean })
 
   // ── Terminal (maquininha API) ────────────────────────────────────────────────
   type TerminalProvider =
-    | "rede"
-    | "stone"
-    | "mercadopago"
-    | "cielo"
-    | "pagseguro";
+    "rede" | "stone" | "mercadopago" | "cielo" | "pagseguro";
   const TERMINAL_PROVIDERS: {
     id: TerminalProvider;
     label: string;
@@ -1514,7 +1526,7 @@ export default function Settings({ storeMode = false }: { storeMode?: boolean })
       });
 
     fetch("/api/tenant/payment-gateways", { headers: API_HEADERS() })
-      .then((r) => r.ok ? r.json() : [])
+      .then((r) => (r.ok ? r.json() : []))
       .then((gateways) => {
         if (Array.isArray(gateways)) setStorePaymentGateways(gateways);
       })
@@ -1601,19 +1613,30 @@ export default function Settings({ storeMode = false }: { storeMode?: boolean })
         }),
       });
       const gateway = await response.json();
-      if (!response.ok) throw new Error(gateway?.error || "Não foi possível conectar a conta.");
+      if (!response.ok)
+        throw new Error(gateway?.error || "Não foi possível conectar a conta.");
       setStorePaymentGateways((current) => [
         ...current.filter((item) => item.provider !== provider),
         gateway,
       ]);
       setGatewayTokens((current) => ({ ...current, [provider]: "" }));
       if (enabled && !gateway.connected) {
-        toast.error("Cole o token da conta da loja antes de ativar o checkout.");
+        toast.error(
+          "Cole o token da conta da loja antes de ativar o checkout.",
+        );
       } else {
-        toast.success(gateway.connected ? "Conta de recebimento salva." : "Integração desativada.");
+        toast.success(
+          gateway.connected
+            ? "Conta de recebimento salva."
+            : "Integração desativada.",
+        );
       }
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Não foi possível salvar a integração.");
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : "Não foi possível salvar a integração.",
+      );
     } finally {
       setGatewaySaving(null);
     }
@@ -2206,13 +2229,21 @@ export default function Settings({ storeMode = false }: { storeMode?: boolean })
 
   // find active item label
   const allItems = NAV.flatMap((g) => g.items);
-  const activeItem = allItems.find((i) => i.id === active) || STORE_CONFIGURATION_ITEMS.find((item) => item.id === active);
+  const activeItem =
+    allItems.find((i) => i.id === active) ||
+    STORE_CONFIGURATION_ITEMS.find((item) => item.id === active);
 
   return (
     <div className="space-y-6">
       <PageHeader
         title={storeMode ? "Minha Loja" : "Configurações"}
-        subtitle={storeMode ? "Vitrine, catálogo, checkout e canais de venda" : active ? activeItem?.label : "Loja pública e sistema interno"}
+        subtitle={
+          storeMode
+            ? "Vitrine, catálogo, checkout e canais de venda"
+            : active
+              ? activeItem?.label
+              : "Loja pública e sistema interno"
+        }
         action={
           <div className="flex items-center gap-2">
             {(active || storeMode) && (
@@ -2326,7 +2357,9 @@ export default function Settings({ storeMode = false }: { storeMode?: boolean })
                     onClick={() => setActive(item.id)}
                     className={cn(
                       "flex h-9 shrink-0 items-center gap-2 rounded-lg px-3 text-[10px] font-black uppercase tracking-wider transition",
-                      active === item.id ? "bg-blue-600 text-white shadow-sm" : "bg-slate-50 text-slate-500 hover:bg-slate-100",
+                      active === item.id
+                        ? "bg-blue-600 text-white shadow-sm"
+                        : "bg-slate-50 text-slate-500 hover:bg-slate-100",
                     )}
                   >
                     <item.icon size={13} /> {item.label}
@@ -3754,11 +3787,20 @@ export default function Settings({ storeMode = false }: { storeMode?: boolean })
                 const delivery = {
                   pickup_enabled: true,
                   delivery_enabled: false,
-                  cep_zones: [] as Array<{ name: string; from: string; to: string; fee?: number }> ,
+                  cep_zones: [] as Array<{
+                    name: string;
+                    from: string;
+                    to: string;
+                    fee?: number;
+                  }>,
                   ...(storefront.delivery || {}),
                 };
-                const setCheckoutPayments = (patch: Partial<typeof checkoutPayments>) =>
-                  setStorefront({ checkout_payment_methods: { ...checkoutPayments, ...patch } });
+                const setCheckoutPayments = (
+                  patch: Partial<typeof checkoutPayments>,
+                ) =>
+                  setStorefront({
+                    checkout_payment_methods: { ...checkoutPayments, ...patch },
+                  });
                 const setDelivery = (patch: Partial<typeof delivery>) =>
                   setStorefront({ delivery: { ...delivery, ...patch } });
                 const modes = [
@@ -3854,13 +3896,45 @@ export default function Settings({ storeMode = false }: { storeMode?: boolean })
                     )}
                     {storefront.checkout_mode === "order_request" && (
                       <div className="rounded-2xl border border-pink-200 bg-pink-50 p-5">
-                        <p className="text-xs font-black text-pink-950">Automação da solicitação de encomenda</p>
-                        <p className="mt-1 text-[11px] leading-relaxed text-pink-800">Não baixa nem exige estoque. Ao enviar, a fábrica recebe um PDF com os itens e o cliente é levado ao WhatsApp com o número do pedido para confirmar prazo e produção.</p>
+                        <p className="text-xs font-black text-pink-950">
+                          Automação da solicitação de encomenda
+                        </p>
+                        <p className="mt-1 text-[11px] leading-relaxed text-pink-800">
+                          Não baixa nem exige estoque. Ao enviar, a fábrica
+                          recebe um PDF com os itens e o cliente é levado ao
+                          WhatsApp com o número do pedido para confirmar prazo e
+                          produção.
+                        </p>
                         <div className="mt-4 grid gap-4 md:grid-cols-2">
-                          <Field label="E-mails que recebem os pedidos em PDF" hint="Separe vários e-mails por vírgula. A BoxSys faz o envio institucional, sem precisar conectar SMTP da loja.">
-                            <TextInput value={storefront.order_notification_emails || ""} onChange={(value) => setStorefront({ order_notification_emails: value.toLowerCase() })} placeholder="producao@sualoja.com.br, pedidos@sualoja.com.br" />
+                          <Field
+                            label="E-mails que recebem os pedidos em PDF"
+                            hint="Separe vários e-mails por vírgula. A BoxSys faz o envio institucional, sem precisar conectar SMTP da loja."
+                          >
+                            <TextInput
+                              value={storefront.order_notification_emails || ""}
+                              onChange={(value) =>
+                                setStorefront({
+                                  order_notification_emails:
+                                    value.toLowerCase(),
+                                })
+                              }
+                              placeholder="producao@sualoja.com.br, pedidos@sualoja.com.br"
+                            />
                           </Field>
-                          <div className="rounded-xl border border-pink-100 bg-white p-4 text-[11px] leading-relaxed text-slate-600"><strong className="block text-slate-800">Fluxo automático</strong><span className="mt-1 block">1. Cliente seleciona os itens.<br />2. Pedido é registrado sem mexer no estoque.<br />3. PDF chega no e-mail da fábrica.<br />4. WhatsApp abre com o pedido numerado.</span></div>
+                          <div className="rounded-xl border border-pink-100 bg-white p-4 text-[11px] leading-relaxed text-slate-600">
+                            <strong className="block text-slate-800">
+                              Fluxo automático
+                            </strong>
+                            <span className="mt-1 block">
+                              1. Cliente seleciona os itens.
+                              <br />
+                              2. Pedido é registrado sem mexer no estoque.
+                              <br />
+                              3. PDF chega no e-mail da fábrica.
+                              <br />
+                              4. WhatsApp abre com o pedido numerado.
+                            </span>
+                          </div>
                         </div>
                       </div>
                     )}
@@ -3922,56 +3996,279 @@ export default function Settings({ storeMode = false }: { storeMode?: boolean })
                     <div className="grid gap-5 xl:grid-cols-2">
                       <div className="rounded-2xl border border-slate-200 bg-white p-5 space-y-4">
                         <div>
-                          <p className="text-xs font-black text-slate-800">Entrega e retirada</p>
-                          <p className="mt-1 text-[11px] leading-relaxed text-slate-500">Defina se aceita retirada e em quais faixas de CEP a loja entrega. O carrinho valida a faixa antes de fechar o pedido.</p>
+                          <p className="text-xs font-black text-slate-800">
+                            Entrega e retirada
+                          </p>
+                          <p className="mt-1 text-[11px] leading-relaxed text-slate-500">
+                            Defina se aceita retirada e em quais faixas de CEP a
+                            loja entrega. O carrinho valida a faixa antes de
+                            fechar o pedido.
+                          </p>
                         </div>
                         <div className="flex flex-wrap gap-5">
-                          <Toggle checked={delivery.pickup_enabled} onChange={(value) => setDelivery({ pickup_enabled: value })} label="Permitir retirada na loja" />
-                          <Toggle checked={delivery.delivery_enabled} onChange={(value) => setDelivery({ delivery_enabled: value })} label="Permitir entrega por CEP" />
+                          <Toggle
+                            checked={delivery.pickup_enabled}
+                            onChange={(value) =>
+                              setDelivery({ pickup_enabled: value })
+                            }
+                            label="Permitir retirada na loja"
+                          />
+                          <Toggle
+                            checked={delivery.delivery_enabled}
+                            onChange={(value) =>
+                              setDelivery({ delivery_enabled: value })
+                            }
+                            label="Permitir entrega por CEP"
+                          />
                         </div>
                         {delivery.delivery_enabled && (
                           <div className="space-y-3 border-t border-slate-100 pt-4">
-                            <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">Faixas atendidas</p>
+                            <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">
+                              Faixas atendidas
+                            </p>
                             {delivery.cep_zones.map((zone, index) => (
-                              <div key={index} className="grid grid-cols-[1.3fr_1fr_1fr_100px_32px] gap-2 items-center">
-                                <input value={zone.name} onChange={(e) => setDelivery({ cep_zones: delivery.cep_zones.map((item, i) => i === index ? { ...item, name: e.target.value } : item) })} className="h-10 rounded-lg border border-slate-200 px-3 text-xs" placeholder="Nome da região" />
-                                <input value={zone.from} inputMode="numeric" onChange={(e) => setDelivery({ cep_zones: delivery.cep_zones.map((item, i) => i === index ? { ...item, from: e.target.value.replace(/\D/g, "").slice(0, 8) } : item) })} className="h-10 rounded-lg border border-slate-200 px-3 text-xs" placeholder="CEP inicial" />
-                                <input value={zone.to} inputMode="numeric" onChange={(e) => setDelivery({ cep_zones: delivery.cep_zones.map((item, i) => i === index ? { ...item, to: e.target.value.replace(/\D/g, "").slice(0, 8) } : item) })} className="h-10 rounded-lg border border-slate-200 px-3 text-xs" placeholder="CEP final" />
-                                <input type="number" min="0" step="0.01" value={zone.fee ?? ""} onChange={(e) => setDelivery({ cep_zones: delivery.cep_zones.map((item, i) => i === index ? { ...item, fee: Number(e.target.value) || 0 } : item) })} className="h-10 rounded-lg border border-slate-200 px-3 text-xs" placeholder="Frete R$" />
-                                <button type="button" onClick={() => setDelivery({ cep_zones: delivery.cep_zones.filter((_, i) => i !== index) })} className="text-slate-400 hover:text-red-600"><Trash2 size={16} /></button>
+                              <div
+                                key={index}
+                                className="grid grid-cols-[1.3fr_1fr_1fr_100px_32px] gap-2 items-center"
+                              >
+                                <input
+                                  value={zone.name}
+                                  onChange={(e) =>
+                                    setDelivery({
+                                      cep_zones: delivery.cep_zones.map(
+                                        (item, i) =>
+                                          i === index
+                                            ? { ...item, name: e.target.value }
+                                            : item,
+                                      ),
+                                    })
+                                  }
+                                  className="h-10 rounded-lg border border-slate-200 px-3 text-xs"
+                                  placeholder="Nome da região"
+                                />
+                                <input
+                                  value={zone.from}
+                                  inputMode="numeric"
+                                  onChange={(e) =>
+                                    setDelivery({
+                                      cep_zones: delivery.cep_zones.map(
+                                        (item, i) =>
+                                          i === index
+                                            ? {
+                                                ...item,
+                                                from: e.target.value
+                                                  .replace(/\D/g, "")
+                                                  .slice(0, 8),
+                                              }
+                                            : item,
+                                      ),
+                                    })
+                                  }
+                                  className="h-10 rounded-lg border border-slate-200 px-3 text-xs"
+                                  placeholder="CEP inicial"
+                                />
+                                <input
+                                  value={zone.to}
+                                  inputMode="numeric"
+                                  onChange={(e) =>
+                                    setDelivery({
+                                      cep_zones: delivery.cep_zones.map(
+                                        (item, i) =>
+                                          i === index
+                                            ? {
+                                                ...item,
+                                                to: e.target.value
+                                                  .replace(/\D/g, "")
+                                                  .slice(0, 8),
+                                              }
+                                            : item,
+                                      ),
+                                    })
+                                  }
+                                  className="h-10 rounded-lg border border-slate-200 px-3 text-xs"
+                                  placeholder="CEP final"
+                                />
+                                <input
+                                  type="number"
+                                  min="0"
+                                  step="0.01"
+                                  value={zone.fee ?? ""}
+                                  onChange={(e) =>
+                                    setDelivery({
+                                      cep_zones: delivery.cep_zones.map(
+                                        (item, i) =>
+                                          i === index
+                                            ? {
+                                                ...item,
+                                                fee:
+                                                  Number(e.target.value) || 0,
+                                              }
+                                            : item,
+                                      ),
+                                    })
+                                  }
+                                  className="h-10 rounded-lg border border-slate-200 px-3 text-xs"
+                                  placeholder="Frete R$"
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    setDelivery({
+                                      cep_zones: delivery.cep_zones.filter(
+                                        (_, i) => i !== index,
+                                      ),
+                                    })
+                                  }
+                                  className="text-slate-400 hover:text-red-600"
+                                >
+                                  <Trash2 size={16} />
+                                </button>
                               </div>
                             ))}
-                            <button type="button" onClick={() => setDelivery({ cep_zones: [...delivery.cep_zones, { name: "", from: "", to: "", fee: 0 }] })} className="text-xs font-bold text-blue-600 hover:text-blue-700">+ Adicionar faixa de CEP</button>
-                            <p className="text-[10px] leading-relaxed text-slate-400">Para entrega por quilômetros, conectaremos um provedor de rotas depois. CEP não informa distância geográfica por si só.</p>
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setDelivery({
+                                  cep_zones: [
+                                    ...delivery.cep_zones,
+                                    { name: "", from: "", to: "", fee: 0 },
+                                  ],
+                                })
+                              }
+                              className="text-xs font-bold text-blue-600 hover:text-blue-700"
+                            >
+                              + Adicionar faixa de CEP
+                            </button>
+                            <p className="text-[10px] leading-relaxed text-slate-400">
+                              Para entrega por quilômetros, conectaremos um
+                              provedor de rotas depois. CEP não informa
+                              distância geográfica por si só.
+                            </p>
                           </div>
                         )}
                       </div>
                       <div className="rounded-2xl border border-slate-200 bg-white p-5 space-y-4">
                         <div>
-                          <p className="text-xs font-black text-slate-800">Formas de pagamento do checkout</p>
-                          <p className="mt-1 text-[11px] leading-relaxed text-slate-500">Cada loja recebe em sua própria conta. Tokens nunca ficam visíveis depois de salvos. A ativação de cobrança depende da homologação do webhook.</p>
+                          <p className="text-xs font-black text-slate-800">
+                            Formas de pagamento do checkout
+                          </p>
+                          <p className="mt-1 text-[11px] leading-relaxed text-slate-500">
+                            Cada loja recebe em sua própria conta. Tokens nunca
+                            ficam visíveis depois de salvos. A ativação de
+                            cobrança depende da homologação do webhook.
+                          </p>
                         </div>
                         <div className="grid gap-3 sm:grid-cols-3">
                           {[
                             ["pix", "PIX combinado"],
                             ["cash_on_delivery", "Dinheiro na entrega"],
                             ["card_on_delivery", "Cartão na entrega"],
-                          ].map(([key, label]) => <Toggle key={key} checked={Boolean(checkoutPayments[key as keyof typeof checkoutPayments])} onChange={(value) => setCheckoutPayments({ [key]: value })} label={label} />)}
+                          ].map(([key, label]) => (
+                            <Toggle
+                              key={key}
+                              checked={Boolean(
+                                checkoutPayments[
+                                  key as keyof typeof checkoutPayments
+                                ],
+                              )}
+                              onChange={(value) =>
+                                setCheckoutPayments({ [key]: value })
+                              }
+                              label={label}
+                            />
+                          ))}
                         </div>
                         {(["mercadopago", "asaas"] as const).map((provider) => {
-                          const gateway = storePaymentGateways.find((item) => item.provider === provider);
+                          const gateway = storePaymentGateways.find(
+                            (item) => item.provider === provider,
+                          );
                           const active = Boolean(gateway?.enabled);
                           const environment = gateway?.environment || "sandbox";
                           return (
-                            <div key={provider} className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                            <div
+                              key={provider}
+                              className="rounded-xl border border-slate-200 bg-slate-50 p-4"
+                            >
                               <div className="flex flex-wrap items-center justify-between gap-3">
-                                <div><p className="text-xs font-black text-slate-900">{provider === "mercadopago" ? "Mercado Pago" : "Asaas"}</p><p className="mt-1 text-[10px] text-slate-500">{gateway?.connected ? "Conta da loja conectada" : "Nenhuma conta conectada"}</p></div>
-                                <Toggle checked={Boolean(checkoutPayments[provider])} onChange={(value) => setCheckoutPayments({ [provider]: value })} label="Pronta para ativação" />
+                                <div>
+                                  <p className="text-xs font-black text-slate-900">
+                                    {provider === "mercadopago"
+                                      ? "Mercado Pago"
+                                      : "Asaas"}
+                                  </p>
+                                  <p className="mt-1 text-[10px] text-slate-500">
+                                    {gateway?.connected
+                                      ? "Conta da loja conectada"
+                                      : "Nenhuma conta conectada"}
+                                  </p>
+                                </div>
+                                <Toggle
+                                  checked={Boolean(checkoutPayments[provider])}
+                                  onChange={(value) =>
+                                    setCheckoutPayments({ [provider]: value })
+                                  }
+                                  label="Pronta para ativação"
+                                />
                               </div>
                               <div className="mt-3 grid gap-2 sm:grid-cols-[1fr_130px_auto]">
-                                <input value={gatewayTokens[provider] || ""} onChange={(e) => setGatewayTokens((current) => ({ ...current, [provider]: e.target.value }))} type="password" className="h-10 rounded-lg border border-slate-200 bg-white px-3 text-xs" placeholder={gateway?.connected ? "Cole outro token para substituir" : "Access token da conta desta loja"} />
-                                <select value={environment} onChange={(e) => setStorePaymentGateways((current) => [...current.filter((item) => item.provider !== provider), { provider, enabled: active, connected: Boolean(gateway?.connected), environment: e.target.value as "sandbox" | "production" }])} className="h-10 rounded-lg border border-slate-200 bg-white px-2 text-xs"><option value="sandbox">Teste</option><option value="production">Produção</option></select>
-                                <button type="button" disabled={gatewaySaving === provider} onClick={() => saveStorePaymentGateway(provider, true, (storePaymentGateways.find((item) => item.provider === provider)?.environment || "sandbox") as "sandbox" | "production")} className="h-10 rounded-lg bg-slate-950 px-4 text-[10px] font-black uppercase tracking-wider text-white disabled:opacity-60">{gatewaySaving === provider ? "Salvando" : gateway?.connected ? "Atualizar" : "Conectar"}</button>
+                                <input
+                                  value={gatewayTokens[provider] || ""}
+                                  onChange={(e) =>
+                                    setGatewayTokens((current) => ({
+                                      ...current,
+                                      [provider]: e.target.value,
+                                    }))
+                                  }
+                                  type="password"
+                                  className="h-10 rounded-lg border border-slate-200 bg-white px-3 text-xs"
+                                  placeholder={
+                                    gateway?.connected
+                                      ? "Cole outro token para substituir"
+                                      : "Access token da conta desta loja"
+                                  }
+                                />
+                                <select
+                                  value={environment}
+                                  onChange={(e) =>
+                                    setStorePaymentGateways((current) => [
+                                      ...current.filter(
+                                        (item) => item.provider !== provider,
+                                      ),
+                                      {
+                                        provider,
+                                        enabled: active,
+                                        connected: Boolean(gateway?.connected),
+                                        environment: e.target.value as
+                                          "sandbox" | "production",
+                                      },
+                                    ])
+                                  }
+                                  className="h-10 rounded-lg border border-slate-200 bg-white px-2 text-xs"
+                                >
+                                  <option value="sandbox">Teste</option>
+                                  <option value="production">Produção</option>
+                                </select>
+                                <button
+                                  type="button"
+                                  disabled={gatewaySaving === provider}
+                                  onClick={() =>
+                                    saveStorePaymentGateway(
+                                      provider,
+                                      true,
+                                      (storePaymentGateways.find(
+                                        (item) => item.provider === provider,
+                                      )?.environment || "sandbox") as
+                                        "sandbox" | "production",
+                                    )
+                                  }
+                                  className="h-10 rounded-lg bg-slate-950 px-4 text-[10px] font-black uppercase tracking-wider text-white disabled:opacity-60"
+                                >
+                                  {gatewaySaving === provider
+                                    ? "Salvando"
+                                    : gateway?.connected
+                                      ? "Atualizar"
+                                      : "Conectar"}
+                                </button>
                               </div>
                             </div>
                           );
@@ -4707,6 +5004,29 @@ export default function Settings({ storeMode = false }: { storeMode?: boolean })
                         autoComplete="new-password"
                       />
                     </Field>
+
+                    {emailProvider === "gmail" && (
+                      <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3.5 text-[11px] leading-relaxed text-amber-950">
+                        <p className="font-black uppercase tracking-widest text-amber-800">
+                          O Google informou que “Senhas de app” não está
+                          disponível?
+                        </p>
+                        <p className="mt-1.5">
+                          Isso é uma regra da própria conta Google, não um
+                          bloqueio da BoxSys. Primeiro ative a verificação em
+                          duas etapas. A opção também pode ficar indisponível em
+                          contas com Proteção Avançada, somente chave de
+                          segurança, conta supervisionada ou política do
+                          administrador Google Workspace.
+                        </p>
+                        <p className="mt-2 font-semibold">
+                          Nesses casos, não use a senha normal do Gmail. Escolha
+                          “Outro / e-mail profissional” acima e informe o SMTP
+                          da empresa, ou use uma conta de e-mail que permita
+                          senha de aplicativo.
+                        </p>
+                      </div>
+                    )}
 
                     {emailProvider === "custom" && (
                       <div className="space-y-4 rounded-xl border border-slate-200 bg-slate-50 p-4">
