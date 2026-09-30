@@ -327,6 +327,8 @@ export async function checkout(req: Request, res: Response) {
         discount_amount: discountAmount,
         status: "pending",
         sales_channel: "storefront",
+        delivery_method: customerInfo.deliveryType || "pickup",
+        shipping_amount: deliveryFee,
         payment_method: customerInfo.paymentMethod,
         items: { create: orderItems },
       },

@@ -602,6 +602,8 @@ model Order {
   // Canal de origem independente do tipo de item: pdv | storefront | manual.
   // Permite separar faturamento da loja online sem alterar relatórios do caixa.
   sales_channel     String    @default("pdv")
+  delivery_method   String?   // pickup | delivery (origem: checkout da vitrine)
+  shipping_amount   Decimal?  @default(0) @db.Decimal(10, 2)
   payment_method    String?
   client_sale_id    String?   @unique
   cash_session_id   Int?

@@ -14,11 +14,13 @@ export async function getStorefrontDashboard(req: Request, res: Response) {
     const orders = await prisma.order.findMany({
       where: { tenant_id: tenantId, sales_channel: "storefront", created_at: { gte: from } },
       orderBy: { created_at: "desc" },
-      take: 80,
+      // A central de vendas precisa permitir a conferência dos pedidos de um período inteiro.
+      // O limite ainda protege o painel de uma consulta sem paginação infinita.
+      take: 250,
       select: {
-        id: true, customer_name: true, customer_phone: true, total_amount: true,
+        id: true, customer_name: true, customer_phone: true, customer_document: true, customer_address: true, total_amount: true,
         gross_amount: true, discount_amount: true, payment_method: true,
-        status: true, created_at: true,
+        delivery_method: true, shipping_amount: true, status: true, created_at: true,
         items: { select: { product_id: true, name: true, quantity: true, unit_price: true, product: { select: { name: true, sku: true } } } },
       },
     });
@@ -47,11 +49,12 @@ export async function getStorefrontDashboard(req: Request, res: Response) {
         units_sold: [...productMap.values()].reduce((sum, item) => sum + item.units, 0),
       },
       top_products: [...productMap.values()].sort((a, b) => b.units - a.units || b.revenue - a.revenue).slice(0, 8),
-      recent_orders: orders.slice(0, 15).map((order) => ({
+      recent_orders: orders.map((order) => ({
         ...order,
         total_amount: Number(order.total_amount),
         gross_amount: order.gross_amount === null ? null : Number(order.gross_amount),
         discount_amount: order.discount_amount === null ? null : Number(order.discount_amount),
+        shipping_amount: order.shipping_amount === null ? 0 : Number(order.shipping_amount),
         items: order.items.map((item) => ({ ...item, unit_price: Number(item.unit_price) })),
       })),
     });
