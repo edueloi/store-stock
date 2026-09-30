@@ -27,13 +27,26 @@ async function logAction(
   meta?: object,
 ) {
   await (prisma as any).orderAction.create({
-    data: { tenant_id: tenantId, order_id: orderId, action, actor: actor ?? null, note: note ?? null, meta: meta ?? null },
+    data: {
+      tenant_id: tenantId,
+      order_id: orderId,
+      action,
+      actor: actor ?? null,
+      note: note ?? null,
+      meta: meta ?? null,
+    },
   });
 }
 
 // Reverts stock for all items of a completed order (cancel or delete).
 // Also handles SKU/variation stock for items that carried selectedOptions in meta.
-async function revertStock(items: { product_id: number | null; quantity: number; selected_options?: any }[]) {
+async function revertStock(
+  items: {
+    product_id: number | null;
+    quantity: number;
+    selected_options?: any;
+  }[],
+) {
   for (const item of items) {
     // Item avulso (sem produto no catálogo) nunca debitou estoque — nada a reverter.
     if (!item.product_id) continue;
@@ -43,7 +56,8 @@ async function revertStock(items: { product_id: number | null; quantity: number;
     });
 
     // Revert SKU-level stock if the item had specific variation options stored in meta
-    const opts = item.selected_options as Record<string, string> | null | undefined;
+    const opts = item.selected_options as
+      Record<string, string> | null | undefined;
     if (opts && Object.keys(opts).length > 0) {
       const product = await prisma.product.findUnique({
         where: { id: item.product_id },
@@ -53,12 +67,20 @@ async function revertStock(items: { product_id: number | null; quantity: number;
         type SkuEntry = { combo: Record<string, string>; stock: number };
         const skus = product.skus as SkuEntry[];
         const updated = skus.map((sku) => {
-          const matches = Object.entries(opts).every(([k, v]) => sku.combo[k] === v);
+          const matches = Object.entries(opts).every(
+            ([k, v]) => sku.combo[k] === v,
+          );
           return matches ? { ...sku, stock: sku.stock + item.quantity } : sku;
         });
-        await prisma.product.update({ where: { id: item.product_id }, data: { skus: updated } });
+        await prisma.product.update({
+          where: { id: item.product_id },
+          data: { skus: updated },
+        });
       } else if (product?.variations) {
-        type LegacyVariation = { name: string; options: { value: string; stock: number }[] };
+        type LegacyVariation = {
+          name: string;
+          options: { value: string; stock: number }[];
+        };
         const variations = product.variations as LegacyVariation[];
         const updated = variations.map((v) => ({
           ...v,
@@ -67,7 +89,10 @@ async function revertStock(items: { product_id: number | null; quantity: number;
             return matches ? { ...o, stock: o.stock + item.quantity } : o;
           }),
         }));
-        await prisma.product.update({ where: { id: item.product_id }, data: { variations: updated } });
+        await prisma.product.update({
+          where: { id: item.product_id },
+          data: { variations: updated },
+        });
       }
     }
   }
@@ -84,7 +109,9 @@ export async function listOrders(req: Request, res: Response) {
       orderBy: { created_at: "desc" },
       take: limit,
       include: {
-        items: { include: { product: { select: { name: true, image_url: true } } } },
+        items: {
+          include: { product: { select: { name: true, image_url: true } } },
+        },
         services: true,
         nfce_invoice: { select: { status: true, access_key: true } },
       },
@@ -92,29 +119,45 @@ export async function listOrders(req: Request, res: Response) {
 
     // Para pedidos sem documento avulso digitado na venda, completa com o CPF/CNPJ do
     // cliente cadastrado vinculado — usado para decidir se o pedido é elegível a NFC-e.
-    const customerIds = [...new Set(
-      orders.filter((o) => o.customer_id && !o.customer_document).map((o) => o.customer_id as number),
-    )];
+    const customerIds = [
+      ...new Set(
+        orders
+          .filter((o) => o.customer_id && !o.customer_document)
+          .map((o) => o.customer_id as number),
+      ),
+    ];
     const customers = customerIds.length
-      ? await prisma.customer.findMany({ where: { id: { in: customerIds }, tenant_id: tenantId }, select: { id: true, document: true } })
+      ? await prisma.customer.findMany({
+          where: { id: { in: customerIds }, tenant_id: tenantId },
+          select: { id: true, document: true },
+        })
       : [];
     const docByCustomerId = new Map(customers.map((c) => [c.id, c.document]));
 
-    res.json(orders.map((order) => ({
-      ...order,
-      customer_document: order.customer_document ?? (order.customer_id ? docByCustomerId.get(order.customer_id) ?? null : null),
-      items: order.items.map((item) => ({
-        id: item.id,
-        product_name: item.product?.name ?? item.name,
-        image_url: item.product?.image_url ?? null,
-        quantity: item.quantity,
-        unit_price: item.unit_price,
+    res.json(
+      orders.map((order) => ({
+        ...order,
+        customer_document:
+          order.customer_document ??
+          (order.customer_id
+            ? (docByCustomerId.get(order.customer_id) ?? null)
+            : null),
+        items: order.items.map((item) => ({
+          id: item.id,
+          product_name: item.product?.name ?? item.name,
+          image_url: item.product?.image_url ?? null,
+          quantity: item.quantity,
+          unit_price: item.unit_price,
+        })),
+        services: order.services.map((svc) => ({
+          id: svc.id,
+          service_id: svc.service_id,
+          name: svc.name,
+          unit_price: svc.unit_price,
+          quantity: svc.quantity,
+        })),
       })),
-      services: order.services.map((svc) => ({
-        id: svc.id, service_id: svc.service_id, name: svc.name,
-        unit_price: svc.unit_price, quantity: svc.quantity,
-      })),
-    })));
+    );
   } catch {
     res.status(500).json({ error: "Failed to fetch orders" });
   }
@@ -128,7 +171,10 @@ export async function searchOrders(req: Request, res: Response) {
   try {
     const tenantId = getTenantId(req);
     const q = String(req.query.q ?? "").trim();
-    if (!q) { res.json([]); return; }
+    if (!q) {
+      res.json([]);
+      return;
+    }
 
     const asNumber = Number(q.replace(/\D/g, ""));
     const orders = await prisma.order.findMany({
@@ -136,7 +182,9 @@ export async function searchOrders(req: Request, res: Response) {
         tenant_id: tenantId,
         status: "completed",
         OR: [
-          ...(q.replace(/\D/g, "") && !Number.isNaN(asNumber) ? [{ id: asNumber }] : []),
+          ...(q.replace(/\D/g, "") && !Number.isNaN(asNumber)
+            ? [{ id: asNumber }]
+            : []),
           { customer_name: { contains: q } },
           { items: { some: { name: { contains: q } } } },
           { items: { some: { product: { name: { contains: q } } } } },
@@ -149,17 +197,19 @@ export async function searchOrders(req: Request, res: Response) {
       },
     });
 
-    res.json(orders.map((order) => ({
-      id: order.id,
-      created_at: order.created_at,
-      customer_name: order.customer_name,
-      total_amount: order.total_amount,
-      payment_method: order.payment_method,
-      items: order.items.map((item) => ({
-        product_name: item.product?.name ?? item.name,
-        quantity: item.quantity,
+    res.json(
+      orders.map((order) => ({
+        id: order.id,
+        created_at: order.created_at,
+        customer_name: order.customer_name,
+        total_amount: order.total_amount,
+        payment_method: order.payment_method,
+        items: order.items.map((item) => ({
+          product_name: item.product?.name ?? item.name,
+          quantity: item.quantity,
+        })),
       })),
-    })));
+    );
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Falha ao buscar vendas" });
@@ -171,12 +221,17 @@ export async function getOrderById(req: Request, res: Response) {
     const order = await prisma.order.findFirst({
       where: { id: Number(req.params.id), tenant_id: getTenantId(req) },
       include: {
-        items: { include: { product: { select: { name: true, image_url: true } } } },
+        items: {
+          include: { product: { select: { name: true, image_url: true } } },
+        },
         services: true,
       },
     });
 
-    if (!order) { res.status(404).json({ error: "Order not found" }); return; }
+    if (!order) {
+      res.status(404).json({ error: "Order not found" });
+      return;
+    }
 
     res.json({
       ...order,
@@ -186,8 +241,11 @@ export async function getOrderById(req: Request, res: Response) {
         image_url: item.product?.image_url ?? null,
       })),
       services: order.services.map((svc) => ({
-        id: svc.id, service_id: svc.service_id, name: svc.name,
-        unit_price: svc.unit_price, quantity: svc.quantity,
+        id: svc.id,
+        service_id: svc.service_id,
+        name: svc.name,
+        unit_price: svc.unit_price,
+        quantity: svc.quantity,
       })),
     });
   } catch {
@@ -198,10 +256,16 @@ export async function getOrderById(req: Request, res: Response) {
 export async function getOrderActions(req: Request, res: Response) {
   try {
     const tenantId = getTenantId(req);
-    const orderId  = Number(req.params.id);
+    const orderId = Number(req.params.id);
 
-    const order = await prisma.order.findFirst({ where: { id: orderId, tenant_id: tenantId }, select: { id: true } });
-    if (!order) { res.status(404).json({ error: "Pedido não encontrado" }); return; }
+    const order = await prisma.order.findFirst({
+      where: { id: orderId, tenant_id: tenantId },
+      select: { id: true },
+    });
+    if (!order) {
+      res.status(404).json({ error: "Pedido não encontrado" });
+      return;
+    }
 
     const actions = await (prisma as any).orderAction.findMany({
       where: { order_id: orderId, tenant_id: tenantId },
@@ -217,41 +281,82 @@ export async function getOrderActions(req: Request, res: Response) {
 export async function updateOrderStatus(req: Request, res: Response) {
   try {
     const tenantId = getTenantId(req);
-    const orderId  = Number(req.params.id);
+    const orderId = Number(req.params.id);
     const newStatus: string = req.body.status;
-    const requestedPaymentMethod = typeof req.body.payment_method === "string" ? req.body.payment_method.trim() : "";
+    const requestedPaymentMethod =
+      typeof req.body.payment_method === "string"
+        ? req.body.payment_method.trim()
+        : "";
 
-    const order = await prisma.order.findFirst({ where: { id: orderId, tenant_id: tenantId } });
-    if (!order) { res.status(404).json({ error: "Order not found" }); return; }
+    const order = await prisma.order.findFirst({
+      where: { id: orderId, tenant_id: tenantId },
+    });
+    if (!order) {
+      res.status(404).json({ error: "Order not found" });
+      return;
+    }
 
-    const allowedPaymentMethods = new Set(["pix", "money", "debit", "credit", "cash_on_delivery", "card_on_delivery", "to_confirm"]);
-    const paymentMethod = allowedPaymentMethods.has(requestedPaymentMethod) ? requestedPaymentMethod : null;
-    await prisma.order.update({ where: { id: orderId }, data: { status: newStatus, ...(paymentMethod ? { payment_method: paymentMethod } : {}) } });
+    const allowedPaymentMethods = new Set([
+      "pix",
+      "money",
+      "debit",
+      "credit",
+      "cash_on_delivery",
+      "card_on_delivery",
+      "to_confirm",
+    ]);
+    const paymentMethod = allowedPaymentMethods.has(requestedPaymentMethod)
+      ? requestedPaymentMethod
+      : null;
+    await prisma.order.update({
+      where: { id: orderId },
+      data: {
+        status: newStatus,
+        ...(paymentMethod ? { payment_method: paymentMethod } : {}),
+      },
+    });
 
     // Log the status change
-    await logAction(tenantId, orderId, "status_change", getActor(req), `Status alterado: ${order.status} → ${newStatus}`);
+    await logAction(
+      tenantId,
+      orderId,
+      "status_change",
+      getActor(req),
+      `Status alterado: ${order.status} → ${newStatus}`,
+    );
 
     // When a pending order is manually marked as completed, create the finance entry
     if (newStatus === "completed" && order.status !== "completed") {
-      const total    = Number(order.total_amount);
-      const fee      = Number(order.fee_amount ?? 0);
+      const total = Number(order.total_amount);
+      const fee = Number(order.fee_amount ?? 0);
       const discount = Number(order.discount_amount ?? 0);
-      const gross    = Number(order.gross_amount ?? total);
-      const net      = Math.round((total - fee) * 100) / 100;
+      const gross = Number(order.gross_amount ?? total);
+      const net = Math.round((total - fee) * 100) / 100;
 
       const pm = paymentMethod ?? order.payment_method ?? "money";
-      const methodLabel: Record<string, string> = { money: "Dinheiro", pix: "PIX", debit: "Débito", credit: "Crédito" };
-      const methodSummary = pm.split("|").map(seg => {
-        const method = seg.split(":")[0].split("-")[0];
-        return methodLabel[method] ?? method;
-      }).join(" + ");
-      const discountNote = discount > 0 ? ` (desc. R$ ${discount.toFixed(2)})` : "";
+      const methodLabel: Record<string, string> = {
+        money: "Dinheiro",
+        pix: "PIX",
+        debit: "Débito",
+        credit: "Crédito",
+      };
+      const methodSummary = pm
+        .split("|")
+        .map((seg) => {
+          const method = seg.split(":")[0].split("-")[0];
+          return methodLabel[method] ?? method;
+        })
+        .join(" + ");
+      const discountNote =
+        discount > 0 ? ` (desc. R$ ${discount.toFixed(2)})` : "";
 
       await prisma.finance.create({
         data: {
-          tenant_id: tenantId, type: "income",
+          tenant_id: tenantId,
+          type: "income",
           description: `Venda PDV #${orderId} — ${methodSummary}${discountNote}`,
-          amount: net, gross_amount: gross,
+          amount: net,
+          gross_amount: gross,
           fee_amount: fee > 0 ? fee : null,
           discount_amount: discount > 0 ? discount : null,
           payment_method: pm,
@@ -259,7 +364,13 @@ export async function updateOrderStatus(req: Request, res: Response) {
         },
       });
 
-      await logAction(tenantId, orderId, "finance_created", getActor(req), `Entrada financeira criada: R$ ${net.toFixed(2)}`);
+      await logAction(
+        tenantId,
+        orderId,
+        "finance_created",
+        getActor(req),
+        `Entrada financeira criada: R$ ${net.toFixed(2)}`,
+      );
       emitToTenant(tenantId, "finance:changed", { orderId });
     }
 
@@ -267,6 +378,138 @@ export async function updateOrderStatus(req: Request, res: Response) {
     res.json({ success: true });
   } catch {
     res.status(500).json({ error: "Failed to update order status" });
+  }
+}
+
+/** Edição comercial de uma solicitação da vitrine antes da confirmação/faturamento. */
+export async function updatePendingStorefrontOrder(
+  req: Request,
+  res: Response,
+) {
+  try {
+    const tenantId = getTenantId(req);
+    const orderId = Number(req.params.id);
+    const order = await prisma.order.findFirst({
+      where: { id: orderId, tenant_id: tenantId, sales_channel: "storefront" },
+      include: { items: true },
+    });
+    if (!order) {
+      res.status(404).json({ error: "Pedido online não encontrado." });
+      return;
+    }
+    if (order.status !== "pending") {
+      res.status(409).json({
+        error: "Somente pedidos aguardando confirmação podem ser editados.",
+      });
+      return;
+    }
+
+    const rawItems = Array.isArray(req.body.items) ? req.body.items : [];
+    if (!rawItems.length) {
+      res.status(400).json({ error: "Inclua ao menos um item no pedido." });
+      return;
+    }
+    const productIds = rawItems
+      .map((item: any) => Number(item.product_id))
+      .filter((id: number) => Number.isInteger(id) && id > 0);
+    const products = productIds.length
+      ? await prisma.product.findMany({
+          where: { tenant_id: tenantId, id: { in: productIds } },
+          select: { id: true, name: true },
+        })
+      : [];
+    const productById = new Map(
+      products.map((product) => [product.id, product]),
+    );
+    const items = rawItems.map((item: any) => {
+      const productId = Number(item.product_id);
+      const product = productById.get(productId);
+      const quantity = Math.max(
+        1,
+        Math.min(9999, Math.floor(Number(item.quantity) || 0)),
+      );
+      const unitPrice = Math.max(
+        0,
+        Math.min(999999.99, Number(item.unit_price) || 0),
+      );
+      if (!product || !Number.isFinite(unitPrice))
+        throw new Error("Há um produto inválido no pedido.");
+      return {
+        product_id: product.id,
+        name: product.name,
+        quantity,
+        unit_price: unitPrice,
+      };
+    });
+    const shippingAmount = Math.max(
+      0,
+      Math.min(999999.99, Number(req.body.shipping_amount) || 0),
+    );
+    const grossAmount = items.reduce(
+      (sum, item) => sum + item.quantity * item.unit_price,
+      0,
+    );
+    const totalAmount = Math.round((grossAmount + shippingAmount) * 100) / 100;
+    const fields = {
+      customer_name: String(req.body.customer_name || "").trim() || null,
+      customer_phone:
+        String(req.body.customer_phone || "")
+          .replace(/\D/g, "")
+          .slice(0, 15) || null,
+      customer_address: String(req.body.customer_address || "").trim() || null,
+      customer_document:
+        String(req.body.customer_document || "")
+          .replace(/\D/g, "")
+          .slice(0, 14) || null,
+      delivery_method: ["pickup", "delivery", "to_confirm"].includes(
+        req.body.delivery_method,
+      )
+        ? req.body.delivery_method
+        : "to_confirm",
+      payment_method: [
+        "pix",
+        "money",
+        "debit",
+        "credit",
+        "cash_on_delivery",
+        "card_on_delivery",
+        "to_confirm",
+      ].includes(req.body.payment_method)
+        ? req.body.payment_method
+        : "to_confirm",
+    };
+    await prisma.$transaction(async (tx) => {
+      await tx.orderItem.deleteMany({ where: { order_id: orderId } });
+      await tx.orderItem.createMany({
+        data: items.map((item) => ({ order_id: orderId, ...item })),
+      });
+      await tx.order.update({
+        where: { id: orderId },
+        data: {
+          ...fields,
+          gross_amount: grossAmount,
+          total_amount: totalAmount,
+          shipping_amount: shippingAmount,
+        },
+      });
+    });
+    await logAction(
+      tenantId,
+      orderId,
+      "storefront_request_edited",
+      getActor(req),
+      "Solicitação online editada antes da confirmação.",
+      { old_total: Number(order.total_amount), new_total: totalAmount },
+    );
+    emitToTenant(tenantId, "order:updated", { orderId, status: "pending" });
+    res.json({ success: true, total_amount: totalAmount });
+  } catch (error) {
+    res.status(400).json({
+      error:
+        error instanceof Error
+          ? error.message
+          : "Não foi possível editar o pedido.",
+    });
   }
 }
 
@@ -279,14 +522,23 @@ export async function updateOrderDocument(req: Request, res: Response) {
   try {
     const tenantId = getTenantId(req);
     const orderId = Number(req.params.id);
-    const { customer_document } = req.body as { customer_document?: string | null };
+    const { customer_document } = req.body as {
+      customer_document?: string | null;
+    };
 
-    const order = await prisma.order.findFirst({ where: { id: orderId, tenant_id: tenantId } });
-    if (!order) { res.status(404).json({ error: "Pedido não encontrado" }); return; }
+    const order = await prisma.order.findFirst({
+      where: { id: orderId, tenant_id: tenantId },
+    });
+    if (!order) {
+      res.status(404).json({ error: "Pedido não encontrado" });
+      return;
+    }
 
     const digits = (customer_document ?? "").replace(/\D/g, "");
     if (digits && digits.length !== 11 && digits.length !== 14) {
-      res.status(422).json({ error: "Informe um CPF (11 dígitos) ou CNPJ (14 dígitos) válido." });
+      res.status(422).json({
+        error: "Informe um CPF (11 dígitos) ou CNPJ (14 dígitos) válido.",
+      });
       return;
     }
 
@@ -304,39 +556,50 @@ export async function updateOrderDocument(req: Request, res: Response) {
 
 export async function cancelOrder(req: Request, res: Response) {
   try {
-    const tenantId  = getTenantId(req);
-    const orderId   = Number(req.params.id);
-    const { cancel_reason, cancelled_by } = req.body as { cancel_reason?: string; cancelled_by?: string };
+    const tenantId = getTenantId(req);
+    const orderId = Number(req.params.id);
+    const { cancel_reason, cancelled_by } = req.body as {
+      cancel_reason?: string;
+      cancelled_by?: string;
+    };
 
     const order = await prisma.order.findFirst({
       where: { id: orderId, tenant_id: tenantId },
       include: { items: true },
     });
 
-    if (!order) { res.status(404).json({ error: "Pedido não encontrado" }); return; }
-    if (order.status === "cancelled") { res.status(400).json({ error: "Pedido já cancelado" }); return; }
+    if (!order) {
+      res.status(404).json({ error: "Pedido não encontrado" });
+      return;
+    }
+    if (order.status === "cancelled") {
+      res.status(400).json({ error: "Pedido já cancelado" });
+      return;
+    }
 
     // Mark as cancelled
     await prisma.order.update({
       where: { id: orderId },
       data: {
-        status:        "cancelled",
-        cancelled_by:  cancelled_by || "Sistema",
+        status: "cancelled",
+        cancelled_by: cancelled_by || "Sistema",
         cancel_reason: cancel_reason || null,
-        cancelled_at:  new Date(),
+        cancelled_at: new Date(),
       },
     });
 
     // Revert stock (total + SKU/variation level)
     const itemsWithOptions = order.items.map((item) => ({
       product_id: item.product_id,
-      quantity:   item.quantity,
+      quantity: item.quantity,
       selected_options: (item as any).selected_options ?? null,
     }));
     await revertStock(itemsWithOptions);
 
     // Build stock revert summary for the log
-    const stockNote = order.items.map(i => `#${i.product_id} +${i.quantity}`).join(", ");
+    const stockNote = order.items
+      .map((i) => `#${i.product_id} +${i.quantity}`)
+      .join(", ");
 
     // Remove the original finance entry linked to this order (instead of creating a counter-entry)
     // This cleanly removes the sale from cash flow and the overview, as if it never happened.
@@ -348,9 +611,9 @@ export async function cancelOrder(req: Request, res: Response) {
     if (deleted.count === 0) {
       await prisma.finance.deleteMany({
         where: {
-          tenant_id:   tenantId,
+          tenant_id: tenantId,
           description: { contains: `#${orderId}` },
-          type:        "income",
+          type: "income",
         },
       });
     }
@@ -365,7 +628,9 @@ export async function cancelOrder(req: Request, res: Response) {
 
     // Log the cancellation action
     await logAction(
-      tenantId, orderId, "cancelled",
+      tenantId,
+      orderId,
+      "cancelled",
       cancelled_by || getActor(req),
       cancel_reason || undefined,
       { stock_reverted: stockNote, finance_entries_removed: deleted.count },
@@ -374,11 +639,17 @@ export async function cancelOrder(req: Request, res: Response) {
     // Se houver NFC-e autorizada para este pedido, tenta cancelar o evento fiscal.
     // Não bloqueia o cancelamento do pedido em si — estoque/financeiro já revertidos acima
     // independentemente do resultado fiscal, que fica registrado no NfceInvoice.
-    let nfceCancel: { attempted: boolean; success?: boolean; error?: string } = { attempted: false };
-    const invoice = await prisma.nfceInvoice.findUnique({ where: { order_id: orderId } });
+    let nfceCancel: { attempted: boolean; success?: boolean; error?: string } =
+      { attempted: false };
+    const invoice = await prisma.nfceInvoice.findUnique({
+      where: { order_id: orderId },
+    });
     if (invoice && invoice.status === "authorized") {
       nfceCancel.attempted = true;
-      const result = await cancelarNfce(orderId, cancel_reason || "Cancelamento do pedido pelo operador");
+      const result = await cancelarNfce(
+        orderId,
+        cancel_reason || "Cancelamento do pedido pelo operador",
+      );
       nfceCancel.success = result.success;
       if (!result.success) nfceCancel.error = result.error;
       emitToTenant(tenantId, "nfce:changed", { orderId });
@@ -411,21 +682,34 @@ export async function createOrderReturn(req: Request, res: Response) {
   try {
     const tenantId = getTenantId(req);
     const orderId = Number(req.params.id);
-    const { items, reason } = req.body as { items: OrderReturnLineInput[]; reason?: string };
+    const { items, reason } = req.body as {
+      items: OrderReturnLineInput[];
+      reason?: string;
+    };
 
     if (!Array.isArray(items) || items.length === 0) {
       res.status(422).json({ error: "Informe ao menos um item para devolver" });
       return;
     }
 
-    const order = await prisma.order.findFirst({ where: { id: orderId, tenant_id: tenantId } });
-    if (!order) { res.status(404).json({ error: "Pedido não encontrado" }); return; }
+    const order = await prisma.order.findFirst({
+      where: { id: orderId, tenant_id: tenantId },
+    });
+    if (!order) {
+      res.status(404).json({ error: "Pedido não encontrado" });
+      return;
+    }
     if (order.status === "cancelled") {
-      res.status(400).json({ error: "Pedido já cancelado — estoque e financeiro já foram revertidos por inteiro" });
+      res.status(400).json({
+        error:
+          "Pedido já cancelado — estoque e financeiro já foram revertidos por inteiro",
+      });
       return;
     }
     if (order.status !== "completed") {
-      res.status(400).json({ error: "Só é possível devolver itens de um pedido já efetivado" });
+      res.status(400).json({
+        error: "Só é possível devolver itens de um pedido já efetivado",
+      });
       return;
     }
 
@@ -445,13 +729,22 @@ export async function createOrderReturn(req: Request, res: Response) {
         const oi = orderItemById.get(line.order_item_id);
         if (!oi) throw new Error(`ITEM_NOT_FOUND:${line.order_item_id}`);
         const available = oi.quantity - oi.returned_quantity;
-        if (!Number.isInteger(line.quantity) || line.quantity <= 0 || line.quantity > available) {
+        if (
+          !Number.isInteger(line.quantity) ||
+          line.quantity <= 0 ||
+          line.quantity > available
+        ) {
           throw new Error(`INVALID_QUANTITY:${line.order_item_id}`);
         }
       }
 
       const orderReturn = await tx.orderReturn.create({
-        data: { tenant_id: tenantId, order_id: orderId, reason: reason || null, created_by: actor },
+        data: {
+          tenant_id: tenantId,
+          order_id: orderId,
+          reason: reason || null,
+          created_by: actor,
+        },
       });
 
       let creditAmount = 0;
@@ -480,9 +773,12 @@ export async function createOrderReturn(req: Request, res: Response) {
         if (line.restock && oi.product_id) {
           await tx.product.update({
             where: { id: oi.product_id },
-            data: oi.measured_quantity !== null
-              ? { measure_stock_quantity: { increment: oi.measured_quantity } }
-              : { stock_quantity: { increment: line.quantity } },
+            data:
+              oi.measured_quantity !== null
+                ? {
+                    measure_stock_quantity: { increment: oi.measured_quantity },
+                  }
+                : { stock_quantity: { increment: line.quantity } },
           });
           await tx.stockMovement.create({
             data: {
@@ -530,7 +826,10 @@ export async function createOrderReturn(req: Request, res: Response) {
         credit = { id: created.id, amount: creditAmount };
       }
 
-      await tx.orderReturn.update({ where: { id: orderReturn.id }, data: { credit_amount: creditAmount } });
+      await tx.orderReturn.update({
+        where: { id: orderReturn.id },
+        data: { credit_amount: creditAmount },
+      });
 
       await tx.orderAction.create({
         data: {
@@ -539,7 +838,12 @@ export async function createOrderReturn(req: Request, res: Response) {
           action: "returned",
           actor,
           note: reason || null,
-          meta: { order_return_id: orderReturn.id, credit_amount: creditAmount, finance_id: finance.id, credit_id: credit?.id ?? null },
+          meta: {
+            order_return_id: orderReturn.id,
+            credit_amount: creditAmount,
+            finance_id: finance.id,
+            credit_id: credit?.id ?? null,
+          },
         },
       });
 
@@ -549,13 +853,24 @@ export async function createOrderReturn(req: Request, res: Response) {
     emitToTenant(tenantId, "order:returned", { orderId });
     emitToTenant(tenantId, "stock:changed", { orderId });
     emitToTenant(tenantId, "finance:changed", { orderId });
-    if (result.credit) emitToTenant(tenantId, "customer-credit:changed", { customerId: order.customer_id });
+    if (result.credit)
+      emitToTenant(tenantId, "customer-credit:changed", {
+        customerId: order.customer_id,
+      });
 
     res.json({ success: true, ...result });
   } catch (err) {
     const msg = err instanceof Error ? err.message : "";
-    if (msg.startsWith("ITEM_NOT_FOUND")) { res.status(404).json({ error: "Item do pedido não encontrado" }); return; }
-    if (msg.startsWith("INVALID_QUANTITY")) { res.status(422).json({ error: "Quantidade a devolver inválida ou maior que a disponível" }); return; }
+    if (msg.startsWith("ITEM_NOT_FOUND")) {
+      res.status(404).json({ error: "Item do pedido não encontrado" });
+      return;
+    }
+    if (msg.startsWith("INVALID_QUANTITY")) {
+      res.status(422).json({
+        error: "Quantidade a devolver inválida ou maior que a disponível",
+      });
+      return;
+    }
     console.error(err);
     res.status(500).json({ error: "Falha ao registrar devolução" });
   }
@@ -579,8 +894,8 @@ export async function listOrderReturns(req: Request, res: Response) {
 export async function deleteOrder(req: Request, res: Response) {
   try {
     const tenantId = getTenantId(req);
-    const orderId  = Number(req.params.id);
-    const shouldRevertStock   = req.body?.revertStock   !== false;
+    const orderId = Number(req.params.id);
+    const shouldRevertStock = req.body?.revertStock !== false;
     const shouldRevertFinance = req.body?.revertFinance !== false;
 
     const order = await prisma.order.findFirst({
@@ -588,14 +903,18 @@ export async function deleteOrder(req: Request, res: Response) {
       include: { items: true, nfce_invoice: true },
     });
 
-    if (!order) { res.status(404).json({ error: "Pedido não encontrado" }); return; }
+    if (!order) {
+      res.status(404).json({ error: "Pedido não encontrado" });
+      return;
+    }
 
     // Uma NFC-e autorizada é um documento fiscal válido perante a SEFAZ — não dá
     // pra simplesmente apagar o pedido por baixo dela. É preciso cancelar a nota
     // primeiro (via "Cancelar pedido", que já faz esse evento fiscal).
     if (order.nfce_invoice && order.nfce_invoice.status === "authorized") {
       res.status(409).json({
-        error: "Este pedido tem uma NFC-e autorizada. Cancele o pedido (o que também cancela a nota fiscal) antes de excluí-lo.",
+        error:
+          "Este pedido tem uma NFC-e autorizada. Cancele o pedido (o que também cancela a nota fiscal) antes de excluí-lo.",
       });
       return;
     }
@@ -607,7 +926,7 @@ export async function deleteOrder(req: Request, res: Response) {
       if (shouldRevertStock) {
         const itemsWithOptions = order.items.map((item) => ({
           product_id: item.product_id,
-          quantity:   item.quantity,
+          quantity: item.quantity,
           selected_options: (item as any).selected_options ?? null,
         }));
         await revertStock(itemsWithOptions);
@@ -619,7 +938,11 @@ export async function deleteOrder(req: Request, res: Response) {
         });
         if (deleted.count === 0) {
           await prisma.finance.deleteMany({
-            where: { tenant_id: tenantId, description: { contains: `#${orderId}` }, type: "income" },
+            where: {
+              tenant_id: tenantId,
+              description: { contains: `#${orderId}` },
+              type: "income",
+            },
           });
         }
       }
@@ -658,11 +981,12 @@ export async function bulkDeleteOrders(req: Request, res: Response) {
   try {
     const tenantId = getTenantId(req);
     const { ids } = req.body as { ids: number[] };
-    const shouldRevertStock   = req.body?.revertStock   !== false;
+    const shouldRevertStock = req.body?.revertStock !== false;
     const shouldRevertFinance = req.body?.revertFinance !== false;
 
     if (!Array.isArray(ids) || ids.length === 0) {
-      res.status(400).json({ error: "IDs inválidos" }); return;
+      res.status(400).json({ error: "IDs inválidos" });
+      return;
     }
 
     const orders = await prisma.order.findMany({
@@ -670,11 +994,16 @@ export async function bulkDeleteOrders(req: Request, res: Response) {
       include: { items: true, nfce_invoice: true },
     });
 
-    if (orders.length === 0) { res.status(404).json({ error: "Nenhum pedido encontrado" }); return; }
+    if (orders.length === 0) {
+      res.status(404).json({ error: "Nenhum pedido encontrado" });
+      return;
+    }
 
     // Pedidos com NFC-e autorizada são documentos fiscais válidos — não entram no
     // hard-delete. Precisam ser cancelados primeiro (o que cancela a nota também).
-    const blocked  = orders.filter((o) => o.nfce_invoice && o.nfce_invoice.status === "authorized");
+    const blocked = orders.filter(
+      (o) => o.nfce_invoice && o.nfce_invoice.status === "authorized",
+    );
     const deletable = orders.filter((o) => !blocked.includes(o));
     const validIds = deletable.map((o) => o.id);
 
@@ -683,7 +1012,7 @@ export async function bulkDeleteOrders(req: Request, res: Response) {
         if (shouldRevertStock) {
           const itemsWithOptions = order.items.map((item) => ({
             product_id: item.product_id,
-            quantity:   item.quantity,
+            quantity: item.quantity,
             selected_options: (item as any).selected_options ?? null,
           }));
           await revertStock(itemsWithOptions);
@@ -695,7 +1024,11 @@ export async function bulkDeleteOrders(req: Request, res: Response) {
           });
           if (deleted.count === 0) {
             await prisma.finance.deleteMany({
-              where: { tenant_id: tenantId, description: { contains: `#${order.id}` }, type: "income" },
+              where: {
+                tenant_id: tenantId,
+                description: { contains: `#${order.id}` },
+                type: "income",
+              },
             });
           }
         }
@@ -704,12 +1037,18 @@ export async function bulkDeleteOrders(req: Request, res: Response) {
       // Nota não-autorizada não tem validade fiscal — some junto com o pedido,
       // senão a FK do nfce_invoices trava o delete do pedido.
       if (order.nfce_invoice) {
-        await prisma.nfceInvoice.delete({ where: { id: order.nfce_invoice.id } });
+        await prisma.nfceInvoice.delete({
+          where: { id: order.nfce_invoice.id },
+        });
       }
     }
 
-    await prisma.orderItem.deleteMany({ where: { order_id: { in: validIds } } });
-    await prisma.orderService.deleteMany({ where: { order_id: { in: validIds } } });
+    await prisma.orderItem.deleteMany({
+      where: { order_id: { in: validIds } },
+    });
+    await prisma.orderService.deleteMany({
+      where: { order_id: { in: validIds } },
+    });
     await prisma.order.deleteMany({ where: { id: { in: validIds } } });
 
     if (validIds.length > 0) {
@@ -721,7 +1060,10 @@ export async function bulkDeleteOrders(req: Request, res: Response) {
     res.json({
       success: true,
       deleted: validIds.length,
-      blocked: blocked.map((o) => ({ id: o.id, reason: "NFC-e autorizada — cancele o pedido antes de excluir" })),
+      blocked: blocked.map((o) => ({
+        id: o.id,
+        reason: "NFC-e autorizada — cancele o pedido antes de excluir",
+      })),
     });
   } catch (err) {
     console.error(err);

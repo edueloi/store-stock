@@ -6,6 +6,7 @@ import {
   listOrders,
   searchOrders,
   updateOrderStatus,
+  updatePendingStorefrontOrder,
   updateOrderDocument,
   cancelOrder,
   deleteOrder,
@@ -25,6 +26,7 @@ router.delete("/bulk", bulkDeleteOrders);
 router.get("/:id/actions", getOrderActions);
 router.get("/:id", getOrderById);
 router.put("/:id/status", updateOrderStatus);
+router.put("/:id/pending-edit", updatePendingStorefrontOrder);
 router.put("/:id/document", updateOrderDocument);
 router.post("/:id/cancel", cancelOrder);
 router.get("/:id/returns", listOrderReturns);
