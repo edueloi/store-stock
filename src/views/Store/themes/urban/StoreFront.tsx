@@ -3,8 +3,11 @@ import {
   ArrowUpRight,
   ChevronRight,
   Heart,
+  MessageCircle,
   ShoppingBag,
   Sparkles,
+  ShieldCheck,
+  Truck,
 } from "lucide-react";
 import { motion } from "motion/react";
 import StoreSEO from "../../../../components/store/StoreSEO";
@@ -286,27 +289,25 @@ export default function StoreFront() {
         )}
       </section>
 
-      <section
-        className="grid text-white md:grid-cols-2"
-        style={{ backgroundColor: accent }}
-      >
-        <div className="p-9 md:p-16">
-          <p className="text-[10px] font-bold uppercase tracking-[.28em] text-white/65">
-            Clube {tenant.name}
-          </p>
-          <h2 className="mt-4 max-w-md text-4xl font-bold leading-[.9] tracking-[-.06em] md:text-6xl">
-            Novidades no seu radar.
-          </h2>
-          <p className="mt-6 max-w-sm text-sm leading-relaxed text-white/80">
-            Receba os lançamentos e seleções especiais antes de todo mundo.
-          </p>
-        </div>
-        <div className="flex items-center p-9 md:p-16">
-          <div className="w-full border-b border-white/60 pb-3">
-            <div className="flex items-center justify-between">
-              <span className="text-sm text-white/70">seu melhor e-mail</span>
-              <ArrowUpRight />
-            </div>
+      <section className="relative isolate overflow-hidden bg-[#071426] text-white">
+        <div className="absolute -right-24 -top-24 h-80 w-80 rounded-full opacity-30 blur-3xl" style={{ backgroundColor: accent }} />
+        <div className="relative mx-auto grid max-w-7xl gap-9 px-6 py-12 sm:px-8 md:grid-cols-[1.05fr_1fr] md:items-center md:py-16">
+          <div>
+            <p className="text-[10px] font-black uppercase tracking-[.26em] text-white/55">Comprar com tranquilidade</p>
+            <h2 className="mt-3 max-w-lg text-3xl font-black leading-[.96] tracking-[-.055em] sm:text-5xl">Uma seleção feita para o seu ritmo.</h2>
+            <p className="mt-5 max-w-md text-sm leading-relaxed text-white/70">Escolha suas peças com calma e conte com atendimento humano quando precisar.</p>
+            {tenant.whatsapp ? (
+              <a href={`https://wa.me/${tenant.whatsapp.replace(/\D/g, "")}`} target="_blank" rel="noreferrer" className="mt-7 inline-flex h-11 items-center gap-2 rounded-full bg-white px-5 text-[10px] font-black uppercase tracking-[.15em] text-[#071426] transition-transform hover:-translate-y-0.5"><MessageCircle size={15} /> Falar no WhatsApp <ArrowUpRight size={14} /></a>
+            ) : (
+              <Link to={path("/catalogo")} className="mt-7 inline-flex h-11 items-center gap-2 rounded-full bg-white px-5 text-[10px] font-black uppercase tracking-[.15em] text-[#071426] transition-transform hover:-translate-y-0.5">Ver catálogo <ArrowUpRight size={14} /></Link>
+            )}
+          </div>
+          <div className="grid gap-3 sm:grid-cols-3 md:grid-cols-1">
+            {[
+              { icon: ShieldCheck, title: "Compra segura", text: "Seu pedido é revisado com cuidado." },
+              { icon: MessageCircle, title: "Atendimento real", text: "Dúvidas? Chame a loja pelo WhatsApp." },
+              { icon: Truck, title: "Entrega combinada", text: "Você acompanha tudo com a equipe." },
+            ].map(({ icon: Icon, title, text }) => <div key={title} className="flex gap-4 rounded-2xl border border-white/10 bg-white/[.06] p-4 backdrop-blur-sm"><span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white/10"><Icon size={17} /></span><div><p className="text-sm font-bold">{title}</p><p className="mt-1 text-xs leading-relaxed text-white/60">{text}</p></div></div>)}
           </div>
         </div>
       </section>

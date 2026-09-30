@@ -1261,8 +1261,8 @@ function StoreLayoutInner() {
                       : "text-slate-600",
               )}
             >
-              © {new Date().getFullYear()} {storeData.tenant.name} · Powered by
-              Store BoxSys
+              © {new Date().getFullYear()} {storeData.tenant.name} · Powered by{" "}
+              <a href="https://boxsys.com.br" target="_blank" rel="noreferrer" className="font-bold underline-offset-4 hover:underline">BoxSys</a>
             </p>
           </div>
         </footer>
