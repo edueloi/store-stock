@@ -3213,6 +3213,17 @@ export default function Settings({ storeMode = false }: { storeMode?: boolean })
                           badge: { bg: "#dbeafe", text: "#1d4ed8" },
                         },
                         {
+                          id: "doceria",
+                          name: "Doçura",
+                          tag: "Doces & Confeitaria",
+                          desc: "Vitrine leve e saborosa para bolos, doces, kits, presentes e encomendas.",
+                          color: "#db2777",
+                          bg: "#fff7fb",
+                          cardBg: "#ffffff",
+                          textColor: "#3b1d2c",
+                          badge: { bg: "#fce7f3", text: "#be185d" },
+                        },
+                        {
                           id: "electric",
                           name: "Elétrica Pro",
                           tag: "Claro & Robusto",

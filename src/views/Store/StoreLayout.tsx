@@ -113,6 +113,7 @@ interface StoreContextValue {
   tenant: Tenant;
   categories: Category[];
   products: Product[];
+  templateId: string;
   cart: CartItem[];
   addToCart: (product: Product, options?: Record<string, string>) => void;
   updateQuantity: (cartItemId: string, delta: number) => void;
@@ -206,6 +207,14 @@ const templates: Record<string, StoreStyle> = {
     text: "text-slate-900",
     font: "font-urban",
     radius: "rounded-xl",
+  },
+  doceria: {
+    bg: "candy-shell bg-[#fff7fb]",
+    card: "bg-white border-pink-100",
+    accent: "#db2777",
+    text: "text-[#3b1d2c]",
+    font: "font-doceria",
+    radius: "rounded-2xl",
   },
   electronics: {
     bg: "bg-[#080c14]",
@@ -626,6 +635,7 @@ function StoreLayoutInner() {
     tenant: storeData.tenant,
     categories: storeData.categories,
     products: storeData.products,
+    templateId: templateId || "minimal",
     cart,
     addToCart,
     updateQuantity,

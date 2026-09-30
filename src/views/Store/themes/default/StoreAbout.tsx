@@ -20,8 +20,12 @@ function DotTexture({ className }: { className?: string }) {
 
 export default function StoreAbout() {
   const { slug: routeSlug } = useParams();
-  const { tenant, products, style } = useStore();
+  const { tenant, products, style, templateId } = useStore();
   const slug = resolveStoreSlug(routeSlug);
+  const isDoceria = templateId === "doceria";
+  const defaultAbout = isDoceria
+    ? "Criamos doces, bolos e lembranças para adoçar cada momento. Tudo é preparado com carinho, ingredientes selecionados e atenção aos detalhes."
+    : "Nossa loja oferece produtos naturais e artesanais selecionados com qualidade e dedicação. Priorizamos a satisfação de cada cliente, garantindo uma experiência de compra calorosa, ágil e prazerosa.";
 
   return (
     <div className="min-h-screen bg-[#fefaf6]">
@@ -75,7 +79,7 @@ export default function StoreAbout() {
               {tenant.name}
             </h1>
             <p className="text-stone-500 leading-relaxed text-sm font-medium">
-              {tenant.about_text || "Nossa loja oferece produtos naturais e artesanais selecionados com qualidade e dedicação. Priorizamos a satisfação de cada cliente, garantindo uma experiência de compra calorosa, ágil e prazerosa."}
+              {tenant.about_text || defaultAbout}
             </p>
             <div className="flex flex-wrap gap-3 mt-8">
               <motion.div whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}>

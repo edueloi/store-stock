@@ -143,9 +143,13 @@ function ProductCard({ product, index, slug, style, onAddToCart }: {
 
 export default function StoreFront() {
   const { slug: routeSlug } = useParams();
-  const { tenant, categories, products, addToCart, style } = useStore();
+  const { tenant, categories, products, addToCart, style, templateId } = useStore();
   const slug = resolveStoreSlug(routeSlug);
   const storePath = (suffix = "") => buildStorePath(slug, suffix);
+  const isDoceria = templateId === "doceria";
+  const defaultTagline = isDoceria
+    ? "Doces feitos com carinho para celebrar os pequenos e grandes momentos."
+    : "Produtos naturais e artesanais selecionados com cuidado para você.";
 
   const featuredLimit = tenant.featured_limit ?? 4;
   const bestsellerLimit = tenant.bestseller_limit ?? 8;
@@ -166,7 +170,7 @@ export default function StoreFront() {
     p ? ((Array.isArray(p.images) && (p.images as string[])[0]) || p.image_url || null) : null;
 
   return (
-    <div className="space-y-0 bg-[#fefaf6]">
+    <div className={cn("space-y-0", isDoceria ? "bg-[#fff7fb]" : "bg-[#fefaf6]")}>
       <StoreSEO
         title={`${tenant.name} — Loja Online`}
         description={tenant.about_text || `Bem-vindo à ${tenant.name}. Confira nossos produtos, promoções e novidades. Atendimento via WhatsApp.`}
@@ -204,7 +208,7 @@ export default function StoreFront() {
                 transition={{ duration: 0.6 }}
               >
                 <p className="text-[10px] font-semibold uppercase tracking-[0.35em] mb-3 text-amber-300">
-                  Bem-vindo à
+                  {isDoceria ? "Feito com carinho por" : "Bem-vindo à"}
                 </p>
                 <h1 className="text-3xl md:text-5xl lg:text-6xl font-serif font-bold text-white leading-[0.95] tracking-tight">
                   {tenant.name}
@@ -260,7 +264,7 @@ export default function StoreFront() {
               </h1>
 
               <p className="text-stone-500 mt-6 max-w-lg text-sm font-normal leading-relaxed">
-                {tenant.hero_tagline || "Produtos naturais e artesanais selecionados com cuidado para você."}
+                {tenant.hero_tagline || defaultTagline}
               </p>
 
               <div className="flex flex-wrap gap-3 mt-10">
@@ -270,7 +274,7 @@ export default function StoreFront() {
                     style={{ backgroundColor: style.accent }}
                     className="inline-flex items-center gap-2 px-7 h-11 text-white text-[11px] font-bold uppercase tracking-widest shadow-[0_4px_20px_rgba(217,119,6,0.35)] hover:shadow-[0_6px_28px_rgba(217,119,6,0.5)] transition-all rounded-2xl"
                   >
-                    <ShoppingBag size={14} /> Explorar Catálogo <ArrowRight size={12} />
+                    <ShoppingBag size={14} /> {isDoceria ? "Ver delícias" : "Explorar Catálogo"} <ArrowRight size={12} />
                   </Link>
                 </motion.div>
                 {onSale.length > 0 && (
@@ -279,7 +283,7 @@ export default function StoreFront() {
                     className="inline-flex items-center gap-2 px-7 h-11 border border-amber-200 bg-white/80 text-stone-700 text-[11px] font-bold uppercase tracking-widest hover:border-amber-300 hover:bg-white hover:shadow transition-all rounded-2xl"
                   >
                     <Zap size={12} style={{ color: style.accent }} />
-                    {onSale.length} {onSale.length === 1 ? "Promoção" : "Promoções"}
+                    {onSale.length} {onSale.length === 1 ? "Oferta especial" : isDoceria ? "Ofertas doces" : "Promoções"}
                   </Link>
                 )}
               </div>
