@@ -632,10 +632,6 @@ function NfceTabContent() {
                               className="h-8 px-3 bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 rounded-lg text-[9px] font-black uppercase tracking-widest flex items-center gap-1.5 transition-all">
                               <FileCheck size={12} /> XML
                             </button>
-                            <button onClick={() => handleSendEmail(inv)} disabled={sendingEmail === inv.service_order_id}
-                              className="h-8 px-3 bg-blue-50 border border-blue-200 hover:bg-blue-100 text-blue-700 rounded-lg text-[9px] font-black uppercase tracking-widest flex items-center gap-1.5 transition-all disabled:opacity-60">
-                              {sendingEmail === inv.service_order_id ? <Loader2 size={12} className="animate-spin" /> : <Mail size={12} />} E-mail
-                            </button>
                             {whatsappConnected && (
                               <button onClick={() => handleSendWhatsapp(inv)} disabled={sendingWhatsapp === inv.order_id}
                                 className="h-8 px-3 bg-emerald-50 border border-emerald-200 hover:bg-emerald-100 text-emerald-700 rounded-lg text-[9px] font-black uppercase tracking-widest flex items-center gap-1.5 transition-all disabled:opacity-60">
@@ -761,10 +757,6 @@ function NfceTabContent() {
                         <button onClick={() => handleDownloadXml(inv)}
                           className="h-8 px-3 bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 rounded-lg text-[9px] font-black uppercase tracking-widest flex items-center gap-1.5 transition-all">
                           <FileCheck size={12} /> XML
-                        </button>
-                        <button onClick={() => handleSendEmail(inv)} disabled={sendingEmail === inv.service_order_id}
-                          className="h-8 px-3 bg-blue-50 border border-blue-200 hover:bg-blue-100 text-blue-700 rounded-lg text-[9px] font-black uppercase tracking-widest flex items-center gap-1.5 transition-all disabled:opacity-60">
-                          {sendingEmail === inv.service_order_id ? <Loader2 size={12} className="animate-spin" /> : <Mail size={12} />} E-mail
                         </button>
                         {whatsappConnected && (
                           <button onClick={() => handleSendWhatsapp(inv)} disabled={sendingWhatsapp === inv.order_id}
@@ -1505,6 +1497,10 @@ function NfseTabContent() {
                               className="h-8 px-3 bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 rounded-lg text-[9px] font-black uppercase tracking-widest flex items-center gap-1.5 transition-all">
                               <FileCheck size={12} /> XML
                             </button>
+                            <button onClick={() => handleSendEmail(inv)} disabled={sendingEmail === inv.service_order_id}
+                              className="h-8 px-3 bg-blue-50 border border-blue-200 hover:bg-blue-100 text-blue-700 rounded-lg text-[9px] font-black uppercase tracking-widest flex items-center gap-1.5 transition-all disabled:opacity-60">
+                              {sendingEmail === inv.service_order_id ? <Loader2 size={12} className="animate-spin" /> : <Mail size={12} />} E-mail
+                            </button>
                             {whatsappConnected && (
                               <button onClick={() => handleSendWhatsapp(inv)} disabled={sendingWhatsapp === inv.service_order_id}
                                 className="h-8 px-3 bg-emerald-50 border border-emerald-200 hover:bg-emerald-100 text-emerald-700 rounded-lg text-[9px] font-black uppercase tracking-widest flex items-center gap-1.5 transition-all disabled:opacity-60">
@@ -1611,6 +1607,10 @@ function NfseTabContent() {
                         <button onClick={() => handleDownloadXml(inv)}
                           className="h-8 px-3 bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 rounded-lg text-[9px] font-black uppercase tracking-widest flex items-center gap-1.5 transition-all">
                           <FileCheck size={12} /> XML
+                        </button>
+                        <button onClick={() => handleSendEmail(inv)} disabled={sendingEmail === inv.service_order_id}
+                          className="h-8 px-3 bg-blue-50 border border-blue-200 hover:bg-blue-100 text-blue-700 rounded-lg text-[9px] font-black uppercase tracking-widest flex items-center gap-1.5 transition-all disabled:opacity-60">
+                          {sendingEmail === inv.service_order_id ? <Loader2 size={12} className="animate-spin" /> : <Mail size={12} />} E-mail
                         </button>
                         {whatsappConnected && (
                           <button onClick={() => handleSendWhatsapp(inv)} disabled={sendingWhatsapp === inv.service_order_id}
