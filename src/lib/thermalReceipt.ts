@@ -231,6 +231,8 @@ export interface OrderReceiptOrder {
   gross_amount?: number | string | null;
   discount_amount?: number | string | null;
   fee_amount?: number | string | null;
+  /** Taxa que foi realmente repassada ao cliente. `fee_amount` é custo interno. */
+  passed_fee_amount?: number | string | null;
   surcharge_amount?: number | string | null;
   total_amount: number | string;
 }
@@ -280,20 +282,19 @@ export function buildOrderReceiptText(tenant: OrderReceiptTenant | null | undefi
   receipt += thermalRow("Qtde. Total Itens", String(order.items.reduce((sum, i) => sum + i.quantity, 0))) + "\n";
   const grossAmount = order.gross_amount != null ? Number(order.gross_amount) : Number(order.total_amount);
   const discountAmount = order.discount_amount ? Number(order.discount_amount) : 0;
-  const feeAmount = order.fee_amount ? Number(order.fee_amount) : 0;
-  // Pedidos criados antes do campo surcharge_amount existir têm o acréscimo
-  // embutido só na diferença gross/total — reconstituído como fallback.
+  // `fee_amount` é custo da loja. Nunca vai para o cupom do cliente: apenas a
+  // taxa registrada explicitamente como repassada deve aparecer aqui.
+  const passedFeeAmount = order.passed_fee_amount ? Number(order.passed_fee_amount) : 0;
   const surchargeAmount = order.surcharge_amount != null
     ? Number(order.surcharge_amount)
-    : (order.gross_amount != null
-        ? Number(order.total_amount) - grossAmount - feeAmount + discountAmount
-        : 0);
-  if (discountAmount > 0 || feeAmount > 0 || surchargeAmount > 0.009) {
-    receipt += thermalRow("Subtotal", `R$ ${thermalMoney(grossAmount)}`) + "\n";
+    : 0;
+  const customerSubtotal = Math.max(0, grossAmount - passedFeeAmount);
+  if (discountAmount > 0 || passedFeeAmount > 0 || surchargeAmount > 0.009) {
+    receipt += thermalRow("Subtotal", `R$ ${thermalMoney(customerSubtotal)}`) + "\n";
   }
   if (discountAmount > 0) receipt += thermalRow("Desconto", `- R$ ${thermalMoney(discountAmount)}`) + "\n";
   if (surchargeAmount > 0.009) receipt += thermalRow("Acréscimo", `+ R$ ${thermalMoney(surchargeAmount)}`) + "\n";
-  if (feeAmount > 0) receipt += thermalRow("Taxa Maquininha", `+ R$ ${thermalMoney(feeAmount)}`) + "\n";
+  if (passedFeeAmount > 0) receipt += thermalRow("Taxa de pagamento", `+ R$ ${thermalMoney(passedFeeAmount)}`) + "\n";
   receipt += `${thermalRule}\n${thermalRow("Valor Total R$", thermalMoney(Number(order.total_amount)))}\n${thermalRule}\n`;
   const parsedPayments = parseOrderReceiptPayments(order.payment_method);
   parsedPayments.forEach((p) => {

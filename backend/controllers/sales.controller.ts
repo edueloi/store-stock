@@ -305,6 +305,7 @@ async function finalizeSaleOrder(params: FinalizeSaleParams): Promise<{ orderId:
         gross_amount:    grossAmount,
         discount_amount:  discountVal > 0 ? discountVal : null,
         fee_amount:       roundedFee > 0 ? roundedFee : null,
+        passed_fee_amount: roundedPassedFee > 0 ? roundedPassedFee : null,
         surcharge_amount: surchargeVal > 0 ? surchargeVal : null,
         change_amount:    changeAmount && changeAmount > 0 ? changeAmount : null,
         status:          "completed",

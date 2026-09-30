@@ -962,7 +962,10 @@ export default function Orders() {
     }, 0);
     const changeAmount = Math.round((paidTotal - Number(order.total_amount)) * 100) / 100;
     const hasDiscount = order.discount_amount && Number(order.discount_amount) > 0;
-    const hasFee = order.fee_amount && Number(order.fee_amount) > 0;
+    // A taxa de maquininha é custo interno. O cliente só vê a parcela que foi
+    // marcada como repassada na finalização da venda.
+    const passedFeeAmount = order.passed_fee_amount ? Number(order.passed_fee_amount) : 0;
+    const hasFee = passedFeeAmount > 0;
     const grossAmount = order.gross_amount
       ? Number(order.gross_amount)
       : Number(order.total_amount);
@@ -1058,9 +1061,9 @@ ${order.items
 ${
   hasDiscount || hasFee
     ? `
-<div class="subtotal-row"><span class="lbl">Subtotal</span><span class="val">R$ ${grossAmount.toFixed(2)}</span></div>
+<div class="subtotal-row"><span class="lbl">Subtotal</span><span class="val">R$ ${Math.max(0, grossAmount - passedFeeAmount).toFixed(2)}</span></div>
 ${hasDiscount ? `<div class="subtotal-row"><span class="lbl">Desconto</span><span class="val">- R$ ${Number(order.discount_amount).toFixed(2)}</span></div>` : ""}
-${hasFee ? `<div class="subtotal-row"><span class="lbl">Acréscimo</span><span class="val">+ R$ ${Number(order.fee_amount).toFixed(2)}</span></div>` : ""}
+${hasFee ? `<div class="subtotal-row"><span class="lbl">Taxa de pagamento</span><span class="val">+ R$ ${passedFeeAmount.toFixed(2)}</span></div>` : ""}
 `
     : ""
 }
@@ -2124,17 +2127,13 @@ ${
 
                 {/* Subtotal / desconto / acréscimo / taxa / total */}
                 {(() => {
+                  const passedFee = Number(selectedOrder.passed_fee_amount ?? 0);
                   const hasGross = selectedOrder.gross_amount != null && Number(selectedOrder.gross_amount) !== Number(selectedOrder.total_amount);
                   const hasDisc  = selectedOrder.discount_amount != null && Number(selectedOrder.discount_amount) > 0;
-                  const hasFee   = selectedOrder.fee_amount != null && Number(selectedOrder.fee_amount) > 0;
-                  // Pedidos criados antes do campo surcharge_amount existir têm o acréscimo
-                  // embutido só na diferença gross/total — reconstituído aqui como fallback
-                  // pra não sumir o valor em pedidos antigos.
+                  const hasFee   = passedFee > 0;
                   const surchargeRaw = selectedOrder.surcharge_amount != null
                     ? Number(selectedOrder.surcharge_amount)
-                    : (selectedOrder.gross_amount != null
-                        ? Number(selectedOrder.total_amount) - Number(selectedOrder.gross_amount) - Number(selectedOrder.fee_amount ?? 0) + Number(selectedOrder.discount_amount ?? 0)
-                        : 0);
+                    : 0;
                   const hasSurcharge = surchargeRaw > 0.009;
                   if (!hasGross && !hasDisc && !hasFee && !hasSurcharge) return null;
                   return (
@@ -2142,7 +2141,7 @@ ${
                       {hasGross && (
                         <div className="px-4 py-2.5 flex justify-between items-center border-b border-slate-50">
                           <span className="text-[11px] font-bold text-slate-500">Subtotal</span>
-                          <span className="font-mono text-[11px] font-bold text-slate-700">R$ {Number(selectedOrder.gross_amount).toFixed(2)}</span>
+                          <span className="font-mono text-[11px] font-bold text-slate-700">R$ {Math.max(0, Number(selectedOrder.gross_amount) - passedFee).toFixed(2)}</span>
                         </div>
                       )}
                       {hasDisc && (
@@ -2159,8 +2158,8 @@ ${
                       )}
                       {hasFee && (
                         <div className="px-4 py-2.5 flex justify-between items-center border-b border-slate-50">
-                          <span className="text-[11px] font-bold text-amber-600">Taxa Maquininha</span>
-                          <span className="font-mono text-[11px] font-bold text-amber-600">+ R$ {Number(selectedOrder.fee_amount).toFixed(2)}</span>
+                          <span className="text-[11px] font-bold text-amber-600">Taxa de pagamento</span>
+                          <span className="font-mono text-[11px] font-bold text-amber-600">+ R$ {passedFee.toFixed(2)}</span>
                         </div>
                       )}
                       <div className="px-4 py-3 flex justify-between items-center bg-slate-50">
