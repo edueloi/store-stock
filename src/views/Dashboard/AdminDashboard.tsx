@@ -39,6 +39,7 @@ import {
   History,
   Kanban,
   HelpCircle,
+  Store,
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { cn } from "../../lib/utils";
@@ -85,6 +86,7 @@ import WorkflowBoard from "./WorkflowBoard";
 import WhatsApp from "./WhatsApp";
 import Consignments from "./Consignments";
 import Assinatura from "./Assinatura";
+import MinhaLoja from "./MinhaLoja";
 
 // ── Tooltip da sidebar recolhida (portal, foge do overflow do nav) ───────────
 function SidebarTooltip({ anchorRef, label }: { anchorRef: RefObject<HTMLElement>; label: string }) {
@@ -760,6 +762,12 @@ export default function AdminDashboard() {
       ],
     },
     {
+      label: "Minha Loja",
+      items: [
+        { icon: Store, label: "Minha Loja", path: "/admin/minha-loja", key: "my_store" },
+      ],
+    },
+    {
       label: "Sistema",
       items: [
         { icon: Receipt,      label: "Assinatura",    path: "/admin/assinatura", key: "assinatura" },
@@ -773,7 +781,7 @@ export default function AdminDashboard() {
   const currentUser = getStoredUser();
   const allowedMenus = currentUser?.menus ?? [];
   const planFeatures = currentUser?.plan_features;
-  const alwaysAvailable = ["dashboard", "settings"];
+  const alwaysAvailable = ["dashboard", "settings", "my_store"];
   const canSeeMenu = (key: string) => {
     const isIncludedInPlan = !Array.isArray(planFeatures) || alwaysAvailable.includes(key) || planFeatures.includes(key);
     return isIncludedInPlan && (currentUser?.role === "admin" || allowedMenus.includes(key));
@@ -1126,6 +1134,7 @@ export default function AdminDashboard() {
               <Route path="markup"     element={<Markup />} />
               <Route path="etiquetas"  element={<Barcodes />} />
               <Route path="settings" element={<Settings />} />
+              <Route path="minha-loja" element={<MinhaLoja />} />
               <Route path="assinatura" element={<Assinatura />} />
               <Route path="loyalty" element={<Loyalty />} />
               <Route path="inventory" element={<Stock />} />

@@ -290,7 +290,10 @@ export async function checkout(req: Request, res: Response) {
       res.status(422).json({ error: "A retirada não está disponível nesta loja." });
       return;
     }
-    let total = Number(delivery.delivery_fee || 0);
+    const deliveryFee = Number(delivery.delivery_fee || 0);
+    let total = deliveryFee;
+    let grossAmount = deliveryFee;
+    let discountAmount = 0;
     const orderItems: CheckoutOrderItem[] = [];
 
     for (const item of items) {
@@ -303,6 +306,8 @@ export async function checkout(req: Request, res: Response) {
 
       const unitPrice = Number(product.discount_price ?? product.price);
       total += unitPrice * item.quantity;
+      grossAmount += Number(product.price) * item.quantity;
+      discountAmount += Math.max(0, Number(product.price) - unitPrice) * item.quantity;
       orderItems.push({
         product_id: product.id,
         quantity: item.quantity,
@@ -318,7 +323,10 @@ export async function checkout(req: Request, res: Response) {
         customer_address: [customerInfo.address, customerInfo.cep ? `CEP ${digits(customerInfo.cep)}` : "", customerInfo.deliveryType === "pickup" ? "Retirada na loja" : ""].filter(Boolean).join(" \u00b7 "),
         customer_document: digits(customerInfo.document) || null,
         total_amount: total,
+        gross_amount: grossAmount,
+        discount_amount: discountAmount,
         status: "pending",
+        sales_channel: "storefront",
         payment_method: customerInfo.paymentMethod,
         items: { create: orderItems },
       },

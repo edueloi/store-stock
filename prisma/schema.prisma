@@ -599,6 +599,9 @@ model Order {
   change_amount     Decimal?  @db.Decimal(10, 2) // troco (venda em dinheiro), calculado no PDV e enviado na criação da venda — usado no DANFE/recibo
   status            String    @default("pending")
   order_type        String    @default("products")
+  // Canal de origem independente do tipo de item: pdv | storefront | manual.
+  // Permite separar faturamento da loja online sem alterar relatórios do caixa.
+  sales_channel     String    @default("pdv")
   payment_method    String?
   client_sale_id    String?   @unique
   cash_session_id   Int?
@@ -621,6 +624,7 @@ model Order {
   credit_usages         CustomerCreditUsage[]
 
   @@index([cash_session_id])
+  @@index([tenant_id, sales_channel, created_at])
   @@map("orders")
 }
 
