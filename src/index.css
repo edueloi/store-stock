@@ -218,6 +218,27 @@ body {
   border-radius: 7px !important;
 }
 
+/* Fotos de produtos nunca podem aumentar o card: cada imagem se limita ao
+   espaço reservado, independente da resolução ou proporção do arquivo. */
+.candy-shell article img.object-contain {
+  width: auto !important;
+  height: auto !important;
+  max-width: 100% !important;
+  max-height: 100% !important;
+}
+
+/* A faixa de produtos da home fica leve como o catálogo impresso; o vermelho
+   fica nos destaques e botões, sem ocupar toda a tela. */
+.candy-shell section.bg-\[\#4a2135\] {
+  background-color: #f7f6ed !important;
+  border-top: 1px solid #e5d9c1;
+  border-bottom: 1px solid #e5d9c1;
+}
+
+.candy-shell section.bg-\[\#4a2135\] > div > div:first-child {
+  color: #6e541e;
+}
+
 .fashion-shell {
   background-image:
     radial-gradient(circle at top left, rgba(222, 184, 135, 0.18), transparent 34%),
