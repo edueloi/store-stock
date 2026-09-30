@@ -5,7 +5,7 @@ import React, {
   useRef,
   useMemo,
 } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import {
   Store,
   Palette,
@@ -301,7 +301,6 @@ const NAV = [
     items: [
       { id: "identity", icon: Store, label: "Identidade & Dados" },
       { id: "design", icon: Palette, label: "Design e Modelos" },
-      { id: "storefront", icon: ShoppingCart, label: "Loja Online & Checkout" },
       { id: "social", icon: Share2, label: "Canais Sociais" },
       { id: "hours", icon: Clock, label: "Horário de Funcionamento" },
       { id: "payments", icon: CreditCard, label: "Pagamentos & Políticas" },
@@ -1161,12 +1160,17 @@ function TeamSection() {
 
 // ─── main component ──────────────────────────────────────────────────────────
 
-export default function Settings() {
+export default function Settings({ storeMode = false }: { storeMode?: boolean }) {
   const toast = useToast();
+  const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
 
   // tab ativa sincronizada com ?tab=xxx na URL — ausente = mostra a grade de seções
-  const active = searchParams.get("tab");
+  const requestedTab = searchParams.get("tab");
+  const storeTabs = ["identity", "design", "storefront", "social", "hours", "payments"];
+  const active = storeMode
+    ? (storeTabs.includes(requestedTab || "") ? requestedTab : "storefront")
+    : requestedTab;
   const setActive = useCallback(
     (id: string) => {
       setSearchParams(
@@ -1181,6 +1185,10 @@ export default function Settings() {
     [setSearchParams],
   );
   const goToGrid = useCallback(() => {
+    if (storeMode) {
+      navigate("/admin/minha-loja");
+      return;
+    }
     setSearchParams(
       (prev) => {
         const n = new URLSearchParams(prev);
@@ -1189,7 +1197,13 @@ export default function Settings() {
       },
       { replace: true },
     );
-  }, [setSearchParams]);
+  }, [navigate, setSearchParams, storeMode]);
+
+  useEffect(() => {
+    if (!storeMode && requestedTab === "storefront") {
+      navigate("/admin/minha-loja/configurar?tab=storefront", { replace: true });
+    }
+  }, [navigate, requestedTab, storeMode]);
 
   // sub-tab de maquininha sincronizada com ?payType=xxx
   const activePayType = (searchParams.get("payType") ?? "credit") as
@@ -2199,16 +2213,18 @@ export default function Settings() {
 
   // find active item label
   const allItems = NAV.flatMap((g) => g.items);
-  const activeItem = allItems.find((i) => i.id === active);
+  const activeItem = allItems.find((i) => i.id === active) || (
+    active === "storefront" ? { label: "Loja Online & Checkout" } : undefined
+  );
 
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Configurações"
-        subtitle={active ? activeItem?.label : "Loja pública e sistema interno"}
+        title={storeMode ? "Minha Loja" : "Configurações"}
+        subtitle={storeMode ? "Vitrine, catálogo, checkout e canais de venda" : active ? activeItem?.label : "Loja pública e sistema interno"}
         action={
           <div className="flex items-center gap-2">
-            {active && (
+            {(active || storeMode) && (
               <button
                 onClick={goToGrid}
                 className="h-9 px-4 bg-slate-100 hover:bg-slate-200 rounded-lg flex items-center gap-2 text-[12px] font-bold text-slate-600 transition-all"
@@ -2305,7 +2321,7 @@ export default function Settings() {
           {/* breadcrumb strip */}
           <div className="flex items-center gap-2 overflow-x-auto border-b border-slate-50 px-4 py-3 text-[9px] font-black uppercase tracking-widest text-slate-300 sm:px-6">
             <Settings2 size={10} />
-            <span>Configurações</span>
+            <span>{storeMode ? "Minha Loja" : "Configurações"}</span>
             <ChevronRight size={9} />
             <span className="text-slate-600">{activeItem?.label}</span>
           </div>

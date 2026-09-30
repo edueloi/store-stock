@@ -69,7 +69,7 @@ export default function MinhaLoja() {
     { label: "Aguardando confirmação", value: String(data?.summary.pending_orders || 0), icon: Wallet, tone: "text-amber-600 bg-amber-50" },
   ], [data]);
 
-  const goSettings = (section: string) => navigate(`/admin/settings?tab=${section}`);
+  const goSettings = (section: string) => navigate(`/admin/minha-loja/configurar?tab=${section}`);
 
   return (
     <div className="space-y-6">

@@ -1135,6 +1135,7 @@ export default function AdminDashboard() {
               <Route path="etiquetas"  element={<Barcodes />} />
               <Route path="settings" element={<Settings />} />
               <Route path="minha-loja" element={<MinhaLoja />} />
+              <Route path="minha-loja/configurar" element={<Settings storeMode />} />
               <Route path="assinatura" element={<Assinatura />} />
               <Route path="loyalty" element={<Loyalty />} />
               <Route path="inventory" element={<Stock />} />
