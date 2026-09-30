@@ -807,6 +807,26 @@ export default function Inventory() {
   const stockUnit = (p: Product) => ({
     m: "m", cm: "cm", mm: "mm", km: "km", m2: "m²", cm2: "cm²", mm2: "mm²", km2: "km²",
   }[p.measure_unit ?? (p.sale_unit === "m2" ? "m2" : "m")] ?? "un");
+  const measureUnitFactor = (unit: string) => ({
+    m: 1, cm: 0.01, mm: 0.001, km: 1000,
+    m2: 1, cm2: 0.0001, mm2: 0.000001, km2: 1000000,
+  }[unit] ?? 1);
+  const changeMeasureUnit = (nextUnit: string) => setEditingProduct((previous) => {
+    if (!previous) return previous;
+    const previousUnit = previous.measure_unit ?? (previous.sale_unit === "m2" ? "m2" : "m");
+    if (previousUnit === nextUnit) return previous;
+    const ratio = measureUnitFactor(previousUnit) / measureUnitFactor(nextUnit);
+    const priceRatio = 1 / ratio;
+    const round = (value: number) => Math.round(value * 1000000) / 1000000;
+    return {
+      ...previous,
+      measure_unit: nextUnit,
+      measure_stock_quantity: round(Number(previous.measure_stock_quantity ?? 0) * ratio),
+      measure_min_stock: round(Number(previous.measure_min_stock ?? 0) * ratio),
+      min_billable_quantity: previous.min_billable_quantity == null ? previous.min_billable_quantity : round(Number(previous.min_billable_quantity) * ratio),
+      price_per_measure: previous.price_per_measure == null ? previous.price_per_measure : round(Number(previous.price_per_measure) * priceRatio),
+    };
+  });
   const formatStock = (p: Product) => isMeasuredProduct(p) ? stockValue(p).toFixed(3) : String(stockValue(p));
 
   const filteredProducts = [...products]
@@ -1622,7 +1642,7 @@ export default function Inventory() {
                 <select
                   className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs font-bold outline-none h-10 focus:border-blue-400 transition-all"
                   value={editingProduct?.measure_unit ?? (editingProduct?.sale_unit === "m2" ? "m2" : "m")}
-                  onChange={e => setEditingProduct(prev => ({ ...prev!, measure_unit: e.target.value }))}
+                  onChange={e => changeMeasureUnit(e.target.value)}
                 >
                   {(editingProduct?.sale_unit === "m2"
                     ? [["m2", "Metro quadrado (m²)"], ["cm2", "Centímetro quadrado (cm²)"], ["mm2", "Milímetro quadrado (mm²)"], ["km2", "Quilômetro quadrado (km²)"]]
