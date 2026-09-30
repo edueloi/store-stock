@@ -1,6 +1,30 @@
-import React, { useState, useEffect, createContext, useContext, useMemo, useRef } from "react";
-import { Routes, Route, Link, useParams, useNavigate, useLocation } from "react-router-dom";
-import { ShoppingCart, Menu, X, Search, Home, Grid3X3, Info, Phone, ChevronRight } from "lucide-react";
+import React, {
+  useState,
+  useEffect,
+  createContext,
+  useContext,
+  useMemo,
+  useRef,
+} from "react";
+import {
+  Routes,
+  Route,
+  Link,
+  useParams,
+  useNavigate,
+  useLocation,
+} from "react-router-dom";
+import {
+  ShoppingCart,
+  Menu,
+  X,
+  Search,
+  Home,
+  Grid3X3,
+  Info,
+  Phone,
+  ChevronRight,
+} from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { cn } from "../../lib/utils";
 import { Tenant, Product, Category } from "../../types";
@@ -13,48 +37,55 @@ import { lazy, Suspense } from "react";
 
 function themePages(templateId: string | undefined) {
   const t = templateId || "minimal";
-  if (t === "minimal") return {
-    Front: lazy(() => import("./themes/minimal/StoreFront")),
-    Catalog: lazy(() => import("./themes/minimal/StoreCatalog")),
-    Product: lazy(() => import("./themes/minimal/StoreProduct")),
-    About: lazy(() => import("./themes/minimal/StoreAbout")),
-  };
-  if (t === "electronics") return {
-    Front: lazy(() => import("./themes/electronics/StoreFront")),
-    Catalog: lazy(() => import("./themes/electronics/StoreCatalog")),
-    Product: lazy(() => import("./themes/electronics/StoreProduct")),
-    About: lazy(() => import("./themes/electronics/StoreAbout")),
-  };
-  if (t === "atelier") return {
-    Front: lazy(() => import("./themes/atelier/StoreFront")),
-    Catalog: lazy(() => import("./themes/atelier/StoreCatalog")),
-    Product: lazy(() => import("./themes/atelier/StoreProduct")),
-    About: lazy(() => import("./themes/atelier/StoreAbout")),
-  };
-  if (t === "urban") return {
-    Front: lazy(() => import("./themes/urban/StoreFront")),
-    Catalog: lazy(() => import("./themes/urban/StoreCatalog")),
-    Product: lazy(() => import("./themes/urban/StoreProduct")),
-    About: lazy(() => import("./themes/urban/StoreAbout")),
-  };
-  if (t === "nexus_tech") return {
-    Front: lazy(() => import("./themes/nexus-tech/StoreFront")),
-    Catalog: lazy(() => import("./themes/nexus-tech/StoreCatalog")),
-    Product: lazy(() => import("./themes/nexus-tech/StoreProduct")),
-    About: lazy(() => import("./themes/nexus-tech/StoreAbout")),
-  };
-  if (t === "tech") return {
-    Front: lazy(() => import("./themes/tech/StoreFront")),
-    Catalog: lazy(() => import("./themes/tech/StoreCatalog")),
-    Product: lazy(() => import("./themes/tech/StoreProduct")),
-    About: lazy(() => import("./themes/tech/StoreAbout")),
-  };
-  if (t === "electric") return {
-    Front: lazy(() => import("./themes/electric/StoreFront")),
-    Catalog: lazy(() => import("./themes/electric/StoreCatalog")),
-    Product: lazy(() => import("./themes/electric/StoreProduct")),
-    About: lazy(() => import("./themes/electric/StoreAbout")),
-  };
+  if (t === "minimal")
+    return {
+      Front: lazy(() => import("./themes/minimal/StoreFront")),
+      Catalog: lazy(() => import("./themes/minimal/StoreCatalog")),
+      Product: lazy(() => import("./themes/minimal/StoreProduct")),
+      About: lazy(() => import("./themes/minimal/StoreAbout")),
+    };
+  if (t === "electronics")
+    return {
+      Front: lazy(() => import("./themes/electronics/StoreFront")),
+      Catalog: lazy(() => import("./themes/electronics/StoreCatalog")),
+      Product: lazy(() => import("./themes/electronics/StoreProduct")),
+      About: lazy(() => import("./themes/electronics/StoreAbout")),
+    };
+  if (t === "atelier")
+    return {
+      Front: lazy(() => import("./themes/atelier/StoreFront")),
+      Catalog: lazy(() => import("./themes/atelier/StoreCatalog")),
+      Product: lazy(() => import("./themes/atelier/StoreProduct")),
+      About: lazy(() => import("./themes/atelier/StoreAbout")),
+    };
+  if (t === "urban")
+    return {
+      Front: lazy(() => import("./themes/urban/StoreFront")),
+      Catalog: lazy(() => import("./themes/urban/StoreCatalog")),
+      Product: lazy(() => import("./themes/urban/StoreProduct")),
+      About: lazy(() => import("./themes/urban/StoreAbout")),
+    };
+  if (t === "nexus_tech")
+    return {
+      Front: lazy(() => import("./themes/nexus-tech/StoreFront")),
+      Catalog: lazy(() => import("./themes/nexus-tech/StoreCatalog")),
+      Product: lazy(() => import("./themes/nexus-tech/StoreProduct")),
+      About: lazy(() => import("./themes/nexus-tech/StoreAbout")),
+    };
+  if (t === "tech")
+    return {
+      Front: lazy(() => import("./themes/tech/StoreFront")),
+      Catalog: lazy(() => import("./themes/tech/StoreCatalog")),
+      Product: lazy(() => import("./themes/tech/StoreProduct")),
+      About: lazy(() => import("./themes/tech/StoreAbout")),
+    };
+  if (t === "electric")
+    return {
+      Front: lazy(() => import("./themes/electric/StoreFront")),
+      Catalog: lazy(() => import("./themes/electric/StoreCatalog")),
+      Product: lazy(() => import("./themes/electric/StoreProduct")),
+      About: lazy(() => import("./themes/electric/StoreAbout")),
+    };
   return {
     Front: lazy(() => import("./themes/default/StoreFront")),
     Catalog: lazy(() => import("./themes/default/StoreCatalog")),
@@ -112,16 +143,86 @@ export const useStore = () => {
 // ── Style presets ──────────────────────────────────────────────────────────
 
 const templates: Record<string, StoreStyle> = {
-  minimal:  { bg: "bg-[#f8fafc]",   card: "bg-white border-slate-100",        accent: "#2563eb", text: "text-slate-900",  font: "font-sans",  radius: "rounded-2xl" },
-  cyber:    { bg: "bg-black",        card: "bg-slate-900 border-slate-800",    accent: "#00ff7f", text: "text-white",      font: "font-mono",  radius: "rounded-none" },
-  organic:  { bg: "bg-[#fefaf6]",   card: "bg-white border-orange-100",       accent: "#d97706", text: "text-stone-800",  font: "font-sans",  radius: "rounded-[2rem]" },
-  luxury:   { bg: "bg-[#0a0a0a]",   card: "bg-[#111] border-yellow-500/10",  accent: "#c5a059", text: "text-stone-200",  font: "font-serif", radius: "rounded-lg" },
-  tech:     { bg: "bg-[#f4f6fb]",   card: "bg-white border-slate-200",       accent: "#0ea5e9", text: "text-slate-900",  font: "font-sans",  radius: "rounded-2xl" },
-  nexus_tech: { bg: "tech-shell bg-[#f4f8ff]", card: "bg-white/90 border-[#d7e4ff]", accent: "#2563eb", text: "text-[#071426]", font: "font-tech", radius: "rounded-[2rem]" },
-  atelier:  { bg: "fashion-shell bg-[#fffaf5]", card: "bg-white/90 border-[#eadbd0]", accent: "#a26157", text: "text-[#2d221f]", font: "font-editorial", radius: "rounded-[2rem]" },
-  urban:    { bg: "bg-[#f5f0e9]", card: "bg-[#fffdf9] border-[#d8cbbf]", accent: "#c76532", text: "text-[#1b1714]", font: "font-urban", radius: "rounded-none" },
-  electronics: { bg: "bg-[#080c14]", card: "bg-[#0e1525]/90 border-[#1e2d4a]", accent: "#3b82f6", text: "text-white", font: "font-sans", radius: "rounded-2xl" },
-  electric: { bg: "bg-[#f8fafc]", card: "bg-white border-slate-200", accent: "#f97316", text: "text-slate-900", font: "font-sans", radius: "rounded-xl" },
+  minimal: {
+    bg: "bg-[#f8fafc]",
+    card: "bg-white border-slate-100",
+    accent: "#2563eb",
+    text: "text-slate-900",
+    font: "font-sans",
+    radius: "rounded-2xl",
+  },
+  cyber: {
+    bg: "bg-black",
+    card: "bg-slate-900 border-slate-800",
+    accent: "#00ff7f",
+    text: "text-white",
+    font: "font-mono",
+    radius: "rounded-none",
+  },
+  organic: {
+    bg: "bg-[#fefaf6]",
+    card: "bg-white border-orange-100",
+    accent: "#d97706",
+    text: "text-stone-800",
+    font: "font-sans",
+    radius: "rounded-[2rem]",
+  },
+  luxury: {
+    bg: "bg-[#0a0a0a]",
+    card: "bg-[#111] border-yellow-500/10",
+    accent: "#c5a059",
+    text: "text-stone-200",
+    font: "font-serif",
+    radius: "rounded-lg",
+  },
+  tech: {
+    bg: "bg-[#f4f6fb]",
+    card: "bg-white border-slate-200",
+    accent: "#0ea5e9",
+    text: "text-slate-900",
+    font: "font-sans",
+    radius: "rounded-2xl",
+  },
+  nexus_tech: {
+    bg: "tech-shell bg-[#f4f8ff]",
+    card: "bg-white/90 border-[#d7e4ff]",
+    accent: "#2563eb",
+    text: "text-[#071426]",
+    font: "font-tech",
+    radius: "rounded-[2rem]",
+  },
+  atelier: {
+    bg: "fashion-shell bg-[#fffaf5]",
+    card: "bg-white/90 border-[#eadbd0]",
+    accent: "#a26157",
+    text: "text-[#2d221f]",
+    font: "font-editorial",
+    radius: "rounded-[2rem]",
+  },
+  urban: {
+    bg: "bg-[#f6f7f9]",
+    card: "bg-white border-slate-200",
+    accent: "#2563eb",
+    text: "text-slate-900",
+    font: "font-urban",
+    radius: "rounded-xl",
+  },
+  electronics: {
+    bg: "bg-[#080c14]",
+    card: "bg-[#0e1525]/90 border-[#1e2d4a]",
+    accent: "#3b82f6",
+    text: "text-white",
+    font: "font-sans",
+    radius: "rounded-2xl",
+  },
+  electric: {
+    bg: "bg-[#f8fafc]",
+    card: "bg-white border-slate-200",
+    accent: "#f97316",
+    text: "text-slate-900",
+    font: "font-sans",
+    radius: "rounded-xl",
+  },
 };
 
 // ── Main Layout ────────────────────────────────────────────────────────────
@@ -129,19 +230,30 @@ const templates: Record<string, StoreStyle> = {
 function StoreLayoutInner() {
   const { slug: routeSlug } = useParams();
   const location = useLocation();
-  const [storeData, setStoreData] = useState<{ tenant: Tenant; categories: Category[]; products: Product[] } | null>(null);
+  const [storeData, setStoreData] = useState<{
+    tenant: Tenant;
+    categories: Category[];
+    products: Product[];
+  } | null>(null);
   const [loading, setLoading] = useState(true);
   const [accessDenied, setAccessDenied] = useState<string | null>(null);
   const [cart, setCart] = useState<CartItem[]>([]);
   const [wishlist, setWishlist] = useState<number[]>(() => {
-    try { return JSON.parse(localStorage.getItem("store_wishlist") || "[]"); } catch { return []; }
+    try {
+      return JSON.parse(localStorage.getItem("store_wishlist") || "[]");
+    } catch {
+      return [];
+    }
   });
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [megaMenuOpen, setMegaMenuOpen] = useState(false);
-  const [reservationState, setReservationState] = useState<{ loading: boolean; message: string | null }>({ loading: false, message: null });
+  const [reservationState, setReservationState] = useState<{
+    loading: boolean;
+    message: string | null;
+  }>({ loading: false, message: null });
   const megaMenuCloseTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const navigate = useNavigate();
   const storeSlug = resolveStoreSlug(routeSlug);
@@ -161,62 +273,105 @@ function StoreLayoutInner() {
     if (megaMenuCloseTimer.current) clearTimeout(megaMenuCloseTimer.current);
     megaMenuCloseTimer.current = setTimeout(() => setMegaMenuOpen(false), 180);
   };
-  useEffect(() => () => {
-    if (megaMenuCloseTimer.current) clearTimeout(megaMenuCloseTimer.current);
-  }, []);
+  useEffect(
+    () => () => {
+      if (megaMenuCloseTimer.current) clearTimeout(megaMenuCloseTimer.current);
+    },
+    [],
+  );
 
   const pagesRef = useRef<ReturnType<typeof themePages> | null>(null);
   const lastTemplateRef = useRef<string | undefined>(undefined);
-  const templateId = storeData?.tenant.template_id;
+  const requestedPreviewTemplate = new URLSearchParams(location.search).get(
+    "previewTheme",
+  );
+  const templateId =
+    requestedPreviewTemplate && templates[requestedPreviewTemplate]
+      ? requestedPreviewTemplate
+      : storeData?.tenant.template_id;
   if (templateId !== lastTemplateRef.current || pagesRef.current === null) {
     pagesRef.current = themePages(templateId);
     lastTemplateRef.current = templateId;
   }
-  const { Front: StoreFront, Catalog: StoreCatalog, Product: StoreProduct, About: StoreAbout } = pagesRef.current;
+  const {
+    Front: StoreFront,
+    Catalog: StoreCatalog,
+    Product: StoreProduct,
+    About: StoreAbout,
+  } = pagesRef.current;
 
   useEffect(() => {
-    const endpoint = storeSlug ? `/api/public/store/${storeSlug}` : "/api/public/store";
+    const endpoint = storeSlug
+      ? `/api/public/store/${storeSlug}`
+      : "/api/public/store";
 
-    fetch(endpoint)
-      .then(async r => {
-        const data = await r.json();
-        if (r.status === 403) {
-          setAccessDenied(data.error || "Loja indisponível.");
-        } else if (data && !data.error) {
-          setStoreData({
-            tenant: data.tenant,
-            categories: Array.isArray(data.categories) ? data.categories : [],
-            products: Array.isArray(data.products) ? data.products : [],
-          });
-        }
-        setLoading(false);
-      });
+    fetch(endpoint).then(async (r) => {
+      const data = await r.json();
+      if (r.status === 403) {
+        setAccessDenied(data.error || "Loja indisponível.");
+      } else if (data && !data.error) {
+        setStoreData({
+          tenant: data.tenant,
+          categories: Array.isArray(data.categories) ? data.categories : [],
+          products: Array.isArray(data.products) ? data.products : [],
+        });
+      }
+      setLoading(false);
+    });
   }, [storeSlug]);
 
   const addToCart = (product: Product, options?: Record<string, string>) => {
-    const variationLabel = options ? Object.entries(options).map(([k, v]) => `${k}: ${v}`).join(", ") : "";
-    const cartItemId = options ? `${product.id}-${variationLabel}` : `${product.id}`;
+    const variationLabel = options
+      ? Object.entries(options)
+          .map(([k, v]) => `${k}: ${v}`)
+          .join(", ")
+      : "";
+    const cartItemId = options
+      ? `${product.id}-${variationLabel}`
+      : `${product.id}`;
     const variationImages = getVariationImages(product, options || {});
-    const productForCart = variationImages.length ? { ...product, image_url: variationImages[0], images: variationImages } : product;
-    setCart(prev => {
-      const existing = prev.find(i => i.cartItemId === cartItemId);
-      if (existing) return prev.map(i => i.cartItemId === cartItemId ? { ...i, quantity: i.quantity + 1 } : i);
-      return [...prev, { ...productForCart, quantity: 1, cartItemId, selectedOptions: options, variationLabel }];
+    const productForCart = variationImages.length
+      ? { ...product, image_url: variationImages[0], images: variationImages }
+      : product;
+    setCart((prev) => {
+      const existing = prev.find((i) => i.cartItemId === cartItemId);
+      if (existing)
+        return prev.map((i) =>
+          i.cartItemId === cartItemId ? { ...i, quantity: i.quantity + 1 } : i,
+        );
+      return [
+        ...prev,
+        {
+          ...productForCart,
+          quantity: 1,
+          cartItemId,
+          selectedOptions: options,
+          variationLabel,
+        },
+      ];
     });
     setIsCartOpen(true);
   };
 
   const updateQuantity = (cartItemId: string, delta: number) => {
-    setCart(prev => prev.map(i => i.cartItemId === cartItemId ? { ...i, quantity: Math.max(1, i.quantity + delta) } : i));
+    setCart((prev) =>
+      prev.map((i) =>
+        i.cartItemId === cartItemId
+          ? { ...i, quantity: Math.max(1, i.quantity + delta) }
+          : i,
+      ),
+    );
   };
 
   const removeFromCart = (cartItemId: string) => {
-    setCart(prev => prev.filter(i => i.cartItemId !== cartItemId));
+    setCart((prev) => prev.filter((i) => i.cartItemId !== cartItemId));
   };
 
   const toggleWishlist = (id: number) => {
-    setWishlist(prev => {
-      const next = prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id];
+    setWishlist((prev) => {
+      const next = prev.includes(id)
+        ? prev.filter((x) => x !== id)
+        : [...prev, id];
       localStorage.setItem("store_wishlist", JSON.stringify(next));
       return next;
     });
@@ -228,7 +383,7 @@ function StoreLayoutInner() {
   const checkoutMode = storefront.checkout_mode || "whatsapp";
 
   const handleWhatsAppCheckout = () => {
-    const lines = cart.map(i => {
+    const lines = cart.map((i) => {
       const skuPart = i.sku ? ` [Cód: ${i.sku}]` : "";
       const varPart = i.variationLabel ? ` (${i.variationLabel})` : "";
       const unitPrice = Number(i.price).toFixed(2);
@@ -236,21 +391,48 @@ function StoreLayoutInner() {
       return `*${i.quantity}x* ${i.name}${skuPart}${varPart}%0A   Unitário: R$ ${unitPrice} · Total: R$ ${lineTotal}`;
     });
     const msg = `Olá! Gostaria de fazer um pedido:%0A%0A${lines.join("%0A%0A")}%0A%0A*Total do pedido: R$ ${total.toFixed(2)}*%0A%0AFavor confirmar disponibilidade.`;
-    window.open(`https://wa.me/${storeData?.tenant.whatsapp?.replace(/\D/g, "")}?text=${msg}`, "_blank");
+    window.open(
+      `https://wa.me/${storeData?.tenant.whatsapp?.replace(/\D/g, "")}?text=${msg}`,
+      "_blank",
+    );
   };
 
   const handleReserveCart = async () => {
     if (!storeData || reservationState.loading) return;
     setReservationState({ loading: true, message: null });
     try {
-      const response = await fetch("/api/public/reservations", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ tenantId: storeData.tenant.id, items: cart.map(item => ({ product_id: item.id, quantity: item.quantity, selected_options: item.selectedOptions })) }) });
+      const response = await fetch("/api/public/reservations", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          tenantId: storeData.tenant.id,
+          items: cart.map((item) => ({
+            product_id: item.id,
+            quantity: item.quantity,
+            selected_options: item.selectedOptions,
+          })),
+        }),
+      });
       const data = await response.json();
-      if (!response.ok) throw new Error(data.error || "Não foi possível reservar os itens.");
-      const time = new Date(data.expires_at).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+      if (!response.ok)
+        throw new Error(data.error || "Não foi possível reservar os itens.");
+      const time = new Date(data.expires_at).toLocaleTimeString("pt-BR", {
+        hour: "2-digit",
+        minute: "2-digit",
+      });
       setCart([]);
-      setReservationState({ loading: false, message: `Reserva #${data.number} confirmada. Seus itens ficam separados até ${time}.` });
+      setReservationState({
+        loading: false,
+        message: `Reserva #${data.number} confirmada. Seus itens ficam separados até ${time}.`,
+      });
     } catch (error) {
-      setReservationState({ loading: false, message: error instanceof Error ? error.message : "Não foi possível reservar os itens." });
+      setReservationState({
+        loading: false,
+        message:
+          error instanceof Error
+            ? error.message
+            : "Não foi possível reservar os itens.",
+      });
     }
   };
 
@@ -258,7 +440,9 @@ function StoreLayoutInner() {
     return (
       <div className="h-screen flex flex-col items-center justify-center gap-4 bg-white">
         <div className="w-10 h-10 border-4 border-blue-600 border-t-transparent rounded-full animate-spin" />
-        <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Carregando loja...</p>
+        <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">
+          Carregando loja...
+        </p>
       </div>
     );
   }
@@ -266,12 +450,18 @@ function StoreLayoutInner() {
   if (accessDenied) {
     return (
       <div className="h-screen flex flex-col items-center justify-center gap-6 bg-slate-50 px-6 text-center">
-        <div className="w-16 h-16 rounded-2xl bg-slate-100 flex items-center justify-center text-3xl">🔒</div>
+        <div className="w-16 h-16 rounded-2xl bg-slate-100 flex items-center justify-center text-3xl">
+          🔒
+        </div>
         <div>
-          <p className="text-xl font-black text-slate-800 mb-1">Loja indisponível</p>
+          <p className="text-xl font-black text-slate-800 mb-1">
+            Loja indisponível
+          </p>
           <p className="text-sm text-slate-500 max-w-xs">{accessDenied}</p>
         </div>
-        <p className="text-[10px] font-bold uppercase tracking-widest text-slate-300">Em breve por aqui</p>
+        <p className="text-[10px] font-bold uppercase tracking-widest text-slate-300">
+          Em breve por aqui
+        </p>
       </div>
     );
   }
@@ -286,19 +476,26 @@ function StoreLayoutInner() {
   }
 
   const style: StoreStyle = {
-    ...(templates[storeData.tenant.template_id || "minimal"] || templates.minimal),
-    accent: storeData.tenant.primary_color || templates[storeData.tenant.template_id || "minimal"]?.accent || "#2563eb",
+    ...(templates[templateId || "minimal"] || templates.minimal),
+    accent:
+      storeData.tenant.primary_color ||
+      templates[templateId || "minimal"]?.accent ||
+      "#2563eb",
   };
-  const isDark = ["cyber", "luxury"].includes(storeData.tenant.template_id || "");
+  const isDark = ["cyber", "luxury"].includes(templateId || "");
   const isFashion = style.font === "font-editorial";
   const isTechNova = style.font === "font-tech";
-  const isElectronics = storeData.tenant.template_id === "electronics";
-  const isElectric = storeData.tenant.template_id === "electric";
-  const isUrban = storeData.tenant.template_id === "urban";
+  const isElectronics = templateId === "electronics";
+  const isElectric = templateId === "electric";
+  const isUrban = templateId === "urban";
 
   const navLinks = [
     { label: "Início", path: storePath(), icon: <Home size={15} /> },
-    { label: "Catálogo", path: storePath("/catalogo"), icon: <Grid3X3 size={15} /> },
+    {
+      label: "Catálogo",
+      path: storePath("/catalogo"),
+      icon: <Grid3X3 size={15} />,
+    },
     { label: "Sobre", path: storePath("/sobre"), icon: <Info size={15} /> },
   ];
 
@@ -309,43 +506,80 @@ function StoreLayoutInner() {
 
   const categoryImage = (cat: Category) => {
     if (cat.cover_url) return cat.cover_url;
-    const firstProduct = storeData.products.find(p => p.category_id === cat.id && (p.image_url || (Array.isArray(p.images) && p.images.length > 0)));
+    const firstProduct = storeData.products.find(
+      (p) =>
+        p.category_id === cat.id &&
+        (p.image_url || (Array.isArray(p.images) && p.images.length > 0)),
+    );
     if (!firstProduct) return null;
-    return (Array.isArray(firstProduct.images) && (firstProduct.images as string[])[0]) || firstProduct.image_url || null;
+    return (
+      (Array.isArray(firstProduct.images) &&
+        (firstProduct.images as string[])[0]) ||
+      firstProduct.image_url ||
+      null
+    );
   };
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
     if (searchQuery.trim()) {
-      navigate(storePath(`/catalogo?q=${encodeURIComponent(searchQuery.trim())}`));
+      navigate(
+        storePath(`/catalogo?q=${encodeURIComponent(searchQuery.trim())}`),
+      );
       setSearchOpen(false);
       setSearchQuery("");
     }
   };
 
-  const ctx: StoreContextValue = { tenant: storeData.tenant, categories: storeData.categories, products: storeData.products, cart, addToCart, updateQuantity, removeFromCart, style, openCart: () => setIsCartOpen(true), isElectronics, wishlist, toggleWishlist };
+  const ctx: StoreContextValue = {
+    tenant: storeData.tenant,
+    categories: storeData.categories,
+    products: storeData.products,
+    cart,
+    addToCart,
+    updateQuantity,
+    removeFromCart,
+    style,
+    openCart: () => setIsCartOpen(true),
+    isElectronics,
+    wishlist,
+    toggleWishlist,
+  };
 
   return (
     <StoreContext.Provider value={ctx}>
       <div className={cn("min-h-screen", style.bg, style.text, style.font)}>
-
         {/* ── NAVBAR ─────────────────────────────────────────────── */}
-        <header className={cn("sticky top-0 z-50 border-b shadow-sm",
-          isElectronics || isElectric
-            ? "bg-[#071426]/95 backdrop-blur-xl border-[#17325d]"
-            : isDark
-              ? "bg-black border-slate-800"
-              : isFashion
-                ? "bg-[#fffaf5]/92 backdrop-blur-xl border-[#ead7cc]"
-                : isTechNova
-                  ? "bg-[#f7fbff]/88 backdrop-blur-xl border-[#d7e4ff]"
-                  : "bg-white/95 backdrop-blur-md border-slate-200")}>
-          <div className={cn("max-w-7xl mx-auto px-4 flex items-center justify-between gap-4", isFashion || isTechNova || isElectronics || isElectric ? "h-[4.5rem]" : "h-16")}>
-
+        <header
+          className={cn(
+            "sticky top-0 z-50 border-b shadow-sm",
+            isElectronics || isElectric
+              ? "bg-[#071426]/95 backdrop-blur-xl border-[#17325d]"
+              : isDark
+                ? "bg-black border-slate-800"
+                : isFashion
+                  ? "bg-[#fffaf5]/92 backdrop-blur-xl border-[#ead7cc]"
+                  : isTechNova
+                    ? "bg-[#f7fbff]/88 backdrop-blur-xl border-[#d7e4ff]"
+                    : "bg-white/95 backdrop-blur-md border-slate-200",
+          )}
+        >
+          <div
+            className={cn(
+              "max-w-7xl mx-auto px-4 flex items-center justify-between gap-4",
+              isFashion || isTechNova || isElectronics || isElectric
+                ? "h-[4.5rem]"
+                : "h-16",
+            )}
+          >
             {/* Logo */}
             <Link to={storePath()} className="flex items-center gap-3 shrink-0">
               <div
-                style={{ backgroundColor: storeData.tenant.logo_url ? "transparent" : style.accent }}
+                style={{
+                  backgroundColor: storeData.tenant.logo_url
+                    ? "transparent"
+                    : style.accent,
+                }}
                 className={cn(
                   "flex items-center justify-center text-white font-black text-base overflow-hidden shrink-0",
                   isElectronics || isElectric
@@ -355,12 +589,18 @@ function StoreLayoutInner() {
                       : isTechNova
                         ? "w-11 h-11 tech-pulse shadow-[0_16px_35px_rgba(37,99,235,0.24)]"
                         : "w-9 h-9",
-                  style.radius
+                  style.radius,
                 )}
               >
-                {storeData.tenant.logo_url
-                  ? <img src={storeData.tenant.logo_url} className="w-full h-full object-contain" alt={`Logo ${storeData.tenant.name}`} />
-                  : storeData.tenant.name.charAt(0)}
+                {storeData.tenant.logo_url ? (
+                  <img
+                    src={storeData.tenant.logo_url}
+                    className="w-full h-full object-contain"
+                    alt={`Logo ${storeData.tenant.name}`}
+                  />
+                ) : (
+                  storeData.tenant.name.charAt(0)
+                )}
               </div>
               <div className="hidden sm:block">
                 <p
@@ -370,16 +610,48 @@ function StoreLayoutInner() {
                       ? "text-white font-black text-lg tracking-tight"
                       : isFashion || isTechNova
                         ? "store-display text-2xl font-semibold tracking-[-0.04em]"
-                        : "text-sm font-black uppercase tracking-wider"
+                        : "text-sm font-black uppercase tracking-wider",
                   )}
-                  style={{ color: isDark || isElectronics || isElectric ? "#fff" : isFashion ? "#2d221f" : isTechNova ? "#071426" : "#0f172a" }}
+                  style={{
+                    color:
+                      isDark || isElectronics || isElectric
+                        ? "#fff"
+                        : isFashion
+                          ? "#2d221f"
+                          : isTechNova
+                            ? "#071426"
+                            : "#0f172a",
+                  }}
                 >
                   {storeData.tenant.name}
                 </p>
                 <div className="flex items-center gap-1 mt-0.5">
-                  <span className={cn("w-1.5 h-1.5 rounded-full", isElectronics || isElectric ? "bg-emerald-400 animate-pulse" : "bg-emerald-500")} />
-                  <span className={cn("text-[9px] font-bold", isElectronics || isElectric ? "text-blue-200/80 uppercase tracking-[0.22em]" : "text-slate-400", isFashion || isTechNova ? "store-kicker tracking-[0.28em]" : "uppercase tracking-wider")}>
-                    {isElectronics || isElectric ? "Loja Online" : isFashion ? "Curadoria ativa" : isTechNova ? "Lançamentos ativos" : "Online"}
+                  <span
+                    className={cn(
+                      "w-1.5 h-1.5 rounded-full",
+                      isElectronics || isElectric
+                        ? "bg-emerald-400 animate-pulse"
+                        : "bg-emerald-500",
+                    )}
+                  />
+                  <span
+                    className={cn(
+                      "text-[9px] font-bold",
+                      isElectronics || isElectric
+                        ? "text-blue-200/80 uppercase tracking-[0.22em]"
+                        : "text-slate-400",
+                      isFashion || isTechNova
+                        ? "store-kicker tracking-[0.28em]"
+                        : "uppercase tracking-wider",
+                    )}
+                  >
+                    {isElectronics || isElectric
+                      ? "Loja Online"
+                      : isFashion
+                        ? "Curadoria ativa"
+                        : isTechNova
+                          ? "Lançamentos ativos"
+                          : "Online"}
                   </span>
                 </div>
               </div>
@@ -387,7 +659,7 @@ function StoreLayoutInner() {
 
             {/* Desktop nav */}
             <nav className="hidden md:flex items-center gap-1">
-              {navLinks.map(l => {
+              {navLinks.map((l) => {
                 const linkClassName = cn(
                   "flex items-center gap-2 transition-all",
                   isElectronics
@@ -405,7 +677,7 @@ function StoreLayoutInner() {
                         ? "text-[#6f4b43] hover:text-[#2d221f] hover:bg-white"
                         : isTechNova
                           ? "border-[#dbe6ff] bg-white/72 text-[#456186] hover:text-[#071426] hover:border-[#b9cdfd] hover:bg-white"
-                          : "text-slate-500 hover:text-slate-900 hover:bg-slate-50"
+                          : "text-slate-500 hover:text-slate-900 hover:bg-slate-50",
                 );
                 const isCatalogLink = l.label === "Catálogo";
 
@@ -420,7 +692,11 @@ function StoreLayoutInner() {
                       <Link
                         to={l.path}
                         className={linkClassName}
-                        style={isActive(l.path) ? { backgroundColor: style.accent } : {}}
+                        style={
+                          isActive(l.path)
+                            ? { backgroundColor: style.accent }
+                            : {}
+                        }
                       >
                         {l.icon} {l.label}
                       </Link>
@@ -440,11 +716,11 @@ function StoreLayoutInner() {
                                   ? "bg-white border-[#ead7cc]"
                                   : isTechNova
                                     ? "bg-white border-[#d7e4ff]"
-                                    : "bg-white border-slate-200"
+                                    : "bg-white border-slate-200",
                             )}
                           >
                             <div className="grid grid-cols-2 sm:grid-cols-3 gap-1 p-3 max-h-[70vh] overflow-y-auto">
-                              {storeData.categories.map(cat => {
+                              {storeData.categories.map((cat) => {
                                 const img = categoryImage(cat);
                                 return (
                                   <Link
@@ -454,21 +730,46 @@ function StoreLayoutInner() {
                                       "flex items-center gap-3 p-2 rounded-xl transition-colors",
                                       isElectronics
                                         ? "hover:bg-[#131c30]"
-                                        : "hover:bg-slate-50"
+                                        : "hover:bg-slate-50",
                                     )}
                                   >
-                                    <div className={cn(
-                                      "w-12 h-12 rounded-lg overflow-hidden shrink-0 flex items-center justify-center border",
-                                      isElectronics ? "bg-[#070b12] border-[#1e2d4a]" : "bg-slate-50 border-slate-100"
-                                    )}>
-                                      {img
-                                        ? <img src={img} alt="" className="w-full h-full object-cover" />
-                                        : <Grid3X3 size={16} className={isElectronics ? "text-slate-600" : "text-slate-300"} />}
+                                    <div
+                                      className={cn(
+                                        "w-12 h-12 rounded-lg overflow-hidden shrink-0 flex items-center justify-center border",
+                                        isElectronics
+                                          ? "bg-[#070b12] border-[#1e2d4a]"
+                                          : "bg-slate-50 border-slate-100",
+                                      )}
+                                    >
+                                      {img ? (
+                                        <img
+                                          src={img}
+                                          alt=""
+                                          className="w-full h-full object-cover"
+                                        />
+                                      ) : (
+                                        <Grid3X3
+                                          size={16}
+                                          className={
+                                            isElectronics
+                                              ? "text-slate-600"
+                                              : "text-slate-300"
+                                          }
+                                        />
+                                      )}
                                     </div>
-                                    <span className={cn(
-                                      "text-[12px] font-semibold leading-snug line-clamp-2",
-                                      isElectronics ? "text-slate-200" : isFashion ? "text-[#2d221f]" : isTechNova ? "text-[#071426]" : "text-slate-700"
-                                    )}>
+                                    <span
+                                      className={cn(
+                                        "text-[12px] font-semibold leading-snug line-clamp-2",
+                                        isElectronics
+                                          ? "text-slate-200"
+                                          : isFashion
+                                            ? "text-[#2d221f]"
+                                            : isTechNova
+                                              ? "text-[#071426]"
+                                              : "text-slate-700",
+                                      )}
+                                    >
                                       {cat.name}
                                     </span>
                                   </Link>
@@ -481,9 +782,11 @@ function StoreLayoutInner() {
                                 "flex items-center justify-center gap-2 py-3 text-[10px] font-black uppercase tracking-widest border-t transition-colors",
                                 isElectronics
                                   ? "border-[#1e2d4a] text-blue-400 hover:bg-[#131c30]"
-                                  : "border-slate-100 hover:bg-slate-50"
+                                  : "border-slate-100 hover:bg-slate-50",
                               )}
-                              style={!isElectronics ? { color: style.accent } : {}}
+                              style={
+                                !isElectronics ? { color: style.accent } : {}
+                              }
                             >
                               Ver catálogo completo <ChevronRight size={12} />
                             </Link>
@@ -499,7 +802,9 @@ function StoreLayoutInner() {
                     key={l.path}
                     to={l.path}
                     className={linkClassName}
-                    style={isActive(l.path) ? { backgroundColor: style.accent } : {}}
+                    style={
+                      isActive(l.path) ? { backgroundColor: style.accent } : {}
+                    }
                   >
                     {l.icon} {l.label}
                   </Link>
@@ -511,7 +816,7 @@ function StoreLayoutInner() {
             <div className="flex items-center gap-2">
               {/* Search toggle */}
               <button
-                onClick={() => setSearchOpen(v => !v)}
+                onClick={() => setSearchOpen((v) => !v)}
                 className={cn(
                   "flex items-center justify-center border transition-all",
                   isElectronics
@@ -520,7 +825,7 @@ function StoreLayoutInner() {
                       ? "w-10 h-10 rounded-full border-[#e7d8ce] bg-white/80 text-[#7c5c54] hover:text-[#2d221f]"
                       : isTechNova
                         ? "w-10 h-10 rounded-full border-[#d7e4ff] bg-white/80 text-[#567298] hover:text-[#071426] hover:border-[#bfd0fb]"
-                        : "w-9 h-9 rounded-xl border-slate-200 text-slate-500 hover:text-slate-900 hover:bg-slate-50"
+                        : "w-9 h-9 rounded-xl border-slate-200 text-slate-500 hover:text-slate-900 hover:bg-slate-50",
                 )}
               >
                 <Search size={15} />
@@ -539,11 +844,20 @@ function StoreLayoutInner() {
                       : isTechNova
                         ? "h-10 px-4 md:px-5 rounded-full shadow-[0_18px_40px_rgba(37,99,235,0.26)]"
                         : "h-9 px-3 md:px-4",
-                  style.radius
+                  style.radius,
                 )}
               >
                 <ShoppingCart size={15} />
-                <span className={cn("hidden sm:inline", isFashion || isTechNova ? "text-[11px] font-semibold tracking-[0.08em]" : "text-[10px] font-black uppercase tracking-wider")}>Carrinho</span>
+                <span
+                  className={cn(
+                    "hidden sm:inline",
+                    isFashion || isTechNova
+                      ? "text-[11px] font-semibold tracking-[0.08em]"
+                      : "text-[10px] font-black uppercase tracking-wider",
+                  )}
+                >
+                  Carrinho
+                </span>
                 {cartCount > 0 && (
                   <span className="bg-white text-slate-900 text-[9px] font-black px-1.5 py-0.5 rounded-full">
                     {cartCount}
@@ -553,7 +867,7 @@ function StoreLayoutInner() {
 
               {/* Mobile menu */}
               <button
-                onClick={() => setMobileMenuOpen(v => !v)}
+                onClick={() => setMobileMenuOpen((v) => !v)}
                 className={cn(
                   "md:hidden flex items-center justify-center border",
                   isElectronics
@@ -562,7 +876,7 @@ function StoreLayoutInner() {
                       ? "w-10 h-10 rounded-full border-[#e7d8ce] bg-white/80 text-[#7c5c54]"
                       : isTechNova
                         ? "w-10 h-10 rounded-full border-[#d7e4ff] bg-white/80 text-[#567298]"
-                        : "w-9 h-9 rounded-xl border-slate-200 text-slate-500"
+                        : "w-9 h-9 rounded-xl border-slate-200 text-slate-500",
                 )}
               >
                 {mobileMenuOpen ? <X size={16} /> : <Menu size={16} />}
@@ -577,16 +891,31 @@ function StoreLayoutInner() {
                 initial={{ height: 0, opacity: 0 }}
                 animate={{ height: "auto", opacity: 1 }}
                 exit={{ height: 0, opacity: 0 }}
-                className={cn("overflow-hidden border-t", isElectronics ? "border-[#1a2540] bg-[#070b12]" : isFashion ? "border-[#eeded4]" : isTechNova ? "border-[#dbe6ff]" : "border-slate-100")}
+                className={cn(
+                  "overflow-hidden border-t",
+                  isElectronics
+                    ? "border-[#1a2540] bg-[#070b12]"
+                    : isFashion
+                      ? "border-[#eeded4]"
+                      : isTechNova
+                        ? "border-[#dbe6ff]"
+                        : "border-slate-100",
+                )}
               >
-                <form onSubmit={handleSearch} className="max-w-7xl mx-auto px-4 py-3 flex gap-2">
+                <form
+                  onSubmit={handleSearch}
+                  className="max-w-7xl mx-auto px-4 py-3 flex gap-2"
+                >
                   <div className="flex-1 relative">
-                    <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                    <Search
+                      size={15}
+                      className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
+                    />
                     <input
                       autoFocus
                       type="text"
                       value={searchQuery}
-                      onChange={e => setSearchQuery(e.target.value)}
+                      onChange={(e) => setSearchQuery(e.target.value)}
                       placeholder="Buscar produtos, categorias..."
                       className={cn(
                         "w-full pl-9 pr-4 h-10 text-sm outline-none transition-all",
@@ -596,21 +925,31 @@ function StoreLayoutInner() {
                             ? "bg-white border border-[#ead7cc] rounded-full focus:border-[#c48a80] focus:ring-2 focus:ring-[#efd7d1]"
                             : isTechNova
                               ? "bg-white/90 border border-[#d7e4ff] rounded-full focus:border-[#7aa2ff] focus:ring-2 focus:ring-[#dce8ff]"
-                              : "bg-slate-50 border border-slate-200 rounded-xl focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
+                              : "bg-slate-50 border border-slate-200 rounded-xl focus:border-blue-400 focus:ring-2 focus:ring-blue-100",
                       )}
                     />
                   </div>
                   <button
                     type="submit"
                     style={{ backgroundColor: style.accent }}
-                    className={cn("h-10 px-5 text-white text-xs font-black uppercase tracking-wider", isFashion || isTechNova ? "rounded-full" : "rounded-xl")}
+                    className={cn(
+                      "h-10 px-5 text-white text-xs font-black uppercase tracking-wider",
+                      isFashion || isTechNova ? "rounded-full" : "rounded-xl",
+                    )}
                   >
                     Buscar
                   </button>
                   <button
                     type="button"
                     onClick={() => setSearchOpen(false)}
-                    className={cn("h-10 w-10 flex items-center justify-center border text-slate-400", isFashion ? "border-[#ead7cc] rounded-full" : isTechNova ? "border-[#d7e4ff] rounded-full" : "border-slate-200 rounded-xl")}
+                    className={cn(
+                      "h-10 w-10 flex items-center justify-center border text-slate-400",
+                      isFashion
+                        ? "border-[#ead7cc] rounded-full"
+                        : isTechNova
+                          ? "border-[#d7e4ff] rounded-full"
+                          : "border-slate-200 rounded-xl",
+                    )}
                   >
                     <X size={15} />
                   </button>
@@ -626,10 +965,19 @@ function StoreLayoutInner() {
                 initial={{ height: 0, opacity: 0 }}
                 animate={{ height: "auto", opacity: 1 }}
                 exit={{ height: 0, opacity: 0 }}
-                className={cn("md:hidden overflow-hidden border-t", isElectronics ? "border-[#1a2540] bg-[#070b12]" : isFashion ? "border-[#eeded4] bg-[#fffaf5]" : isTechNova ? "border-[#dbe6ff] bg-[#f7fbff]" : "border-slate-100 bg-white")}
+                className={cn(
+                  "md:hidden overflow-hidden border-t",
+                  isElectronics
+                    ? "border-[#1a2540] bg-[#070b12]"
+                    : isFashion
+                      ? "border-[#eeded4] bg-[#fffaf5]"
+                      : isTechNova
+                        ? "border-[#dbe6ff] bg-[#f7fbff]"
+                        : "border-slate-100 bg-white",
+                )}
               >
                 <nav className="px-4 py-3 space-y-1">
-                  {navLinks.map(l => (
+                  {navLinks.map((l) => (
                     <Link
                       key={l.path}
                       to={l.path}
@@ -640,21 +988,37 @@ function StoreLayoutInner() {
                           ? "text-white"
                           : isTechNova
                             ? "text-[#28466b] hover:bg-white"
-                            : "text-slate-700 hover:bg-slate-50"
+                            : "text-slate-700 hover:bg-slate-50",
                       )}
-                      style={isActive(l.path) ? { backgroundColor: style.accent } : {}}
+                      style={
+                        isActive(l.path)
+                          ? { backgroundColor: style.accent }
+                          : {}
+                      }
                     >
                       {l.icon} {l.label}
                     </Link>
                   ))}
                   <div className="pt-2 border-t border-slate-100">
-                    <p className={cn("text-[10px] font-black uppercase tracking-widest px-4 mb-1", isTechNova ? "text-[#7690b3]" : "text-slate-400")}>Categorias</p>
-                    {storeData.categories.map(cat => (
+                    <p
+                      className={cn(
+                        "text-[10px] font-black uppercase tracking-widest px-4 mb-1",
+                        isTechNova ? "text-[#7690b3]" : "text-slate-400",
+                      )}
+                    >
+                      Categorias
+                    </p>
+                    {storeData.categories.map((cat) => (
                       <Link
                         key={cat.id}
                         to={storePath(`/catalogo?cat=${cat.id}`)}
                         onClick={() => setMobileMenuOpen(false)}
-                        className={cn("flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm transition-all", isTechNova ? "text-[#466485] hover:bg-white" : "text-slate-600 hover:bg-slate-50")}
+                        className={cn(
+                          "flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm transition-all",
+                          isTechNova
+                            ? "text-[#466485] hover:bg-white"
+                            : "text-slate-600 hover:bg-slate-50",
+                        )}
                       >
                         {cat.name}
                       </Link>
@@ -679,36 +1043,111 @@ function StoreLayoutInner() {
         </main>
 
         {/* ── FOOTER ─────────────────────────────────────────────── */}
-        <footer className={cn(
-          "mt-20 border-t",
-          isUrban
-            ? "bg-[#16110f] text-[#f7eee8] border-[#3a2c25]"
-            : isElectronics
-            ? "bg-[#050810] text-slate-400 border-[#1a2540]"
-            : isFashion
-              ? "bg-[#f7ede5] text-[#5e453d] border-[#e6d5ca]"
-              : isTechNova
-                ? "bg-[linear-gradient(180deg,#eef4ff_0%,#f8fbff_100%)] text-[#314b70] border-[#dbe6ff]"
-                : "bg-slate-900 text-slate-300 border-transparent"
-        )}>
-          <div className={cn("max-w-7xl mx-auto px-6 py-12 grid grid-cols-1 gap-10", isUrban ? "sm:grid-cols-[1.5fr_1fr_1fr]" : "sm:grid-cols-3")}>
+        <footer
+          className={cn(
+            "mt-20 border-t",
+            isUrban
+              ? "bg-slate-950 text-slate-100 border-slate-800"
+              : isElectronics
+                ? "bg-[#050810] text-slate-400 border-[#1a2540]"
+                : isFashion
+                  ? "bg-[#f7ede5] text-[#5e453d] border-[#e6d5ca]"
+                  : isTechNova
+                    ? "bg-[linear-gradient(180deg,#eef4ff_0%,#f8fbff_100%)] text-[#314b70] border-[#dbe6ff]"
+                    : "bg-slate-900 text-slate-300 border-transparent",
+          )}
+        >
+          <div
+            className={cn(
+              "max-w-7xl mx-auto px-6 py-12 grid grid-cols-1 gap-10",
+              isUrban ? "sm:grid-cols-[1.5fr_1fr_1fr]" : "sm:grid-cols-3",
+            )}
+          >
             <div>
               <div className="flex items-center gap-3 mb-4">
-                <div style={{ backgroundColor: style.accent }} className={cn("w-9 h-9 flex items-center justify-center text-white font-black", style.radius)}>
+                <div
+                  style={{ backgroundColor: style.accent }}
+                  className={cn(
+                    "w-9 h-9 flex items-center justify-center text-white font-black",
+                    style.radius,
+                  )}
+                >
                   {storeData.tenant.name.charAt(0)}
                 </div>
-                <h4 className={cn(isElectronics || isUrban ? "text-white font-black text-xl tracking-tight" : isFashion || isTechNova ? "store-display text-3xl font-semibold" : "font-black uppercase tracking-wider text-white", isFashion ? "text-[#2d221f]" : isTechNova ? "text-[#071426]" : "text-white")}>{storeData.tenant.name}</h4>
+                <h4
+                  className={cn(
+                    isElectronics || isUrban
+                      ? "text-white font-black text-xl tracking-tight"
+                      : isFashion || isTechNova
+                        ? "store-display text-3xl font-semibold"
+                        : "font-black uppercase tracking-wider text-white",
+                    isFashion
+                      ? "text-[#2d221f]"
+                      : isTechNova
+                        ? "text-[#071426]"
+                        : "text-white",
+                  )}
+                >
+                  {storeData.tenant.name}
+                </h4>
               </div>
-              <p className={cn("text-xs leading-relaxed max-w-sm", isUrban ? "text-[#c9b8ad]" : isElectronics ? "text-slate-500" : isFashion ? "text-[#7d6259]" : isTechNova ? "text-[#5d7698]" : "text-slate-500")}>
-                {storeData.tenant.footer_text || (isElectronics ? "Os melhores eletrônicos com os melhores preços. Tecnologia de ponta ao seu alcance." : isFashion ? "Moda e acessórios apresentados com uma experiência elegante, leve e atual." : isTechNova ? "Tecnologia, desempenho e produtos conectados em uma vitrine clara, moderna e pronta para vender mais." : "Excelência em catálogo digital.")}
+              <p
+                className={cn(
+                  "text-xs leading-relaxed max-w-sm",
+                  isUrban
+                    ? "text-slate-400"
+                    : isElectronics
+                      ? "text-slate-500"
+                      : isFashion
+                        ? "text-[#7d6259]"
+                        : isTechNova
+                          ? "text-[#5d7698]"
+                          : "text-slate-500",
+                )}
+              >
+                {storeData.tenant.footer_text ||
+                  (isElectronics
+                    ? "Os melhores eletrônicos com os melhores preços. Tecnologia de ponta ao seu alcance."
+                    : isFashion
+                      ? "Moda e acessórios apresentados com uma experiência elegante, leve e atual."
+                      : isTechNova
+                        ? "Tecnologia, desempenho e produtos conectados em uma vitrine clara, moderna e pronta para vender mais."
+                        : "Excelência em catálogo digital.")}
               </p>
             </div>
             <div>
-              <p className={cn("mb-4", isElectronics ? "text-[10px] font-black uppercase tracking-widest text-blue-400/70" : isFashion ? "store-kicker text-[10px] font-semibold text-[#9a7d73]" : isTechNova ? "store-kicker text-[10px] font-semibold text-[#6d89b0]" : "text-[10px] font-black uppercase tracking-widest text-slate-400")}>Navegação</p>
+              <p
+                className={cn(
+                  "mb-4",
+                  isElectronics
+                    ? "text-[10px] font-black uppercase tracking-widest text-blue-400/70"
+                    : isFashion
+                      ? "store-kicker text-[10px] font-semibold text-[#9a7d73]"
+                      : isTechNova
+                        ? "store-kicker text-[10px] font-semibold text-[#6d89b0]"
+                        : "text-[10px] font-black uppercase tracking-widest text-slate-400",
+                )}
+              >
+                Navegação
+              </p>
               <ul className="space-y-2">
-                {navLinks.map(l => (
+                {navLinks.map((l) => (
                   <li key={l.path}>
-                    <Link to={l.path} className={cn("text-xs transition-colors font-medium", isUrban ? "text-[#c9b8ad] hover:text-white" : isElectronics ? "text-slate-500 hover:text-blue-400" : isFashion ? "text-[#6b5149] hover:text-[#2d221f]" : isTechNova ? "text-[#5d7698] hover:text-[#071426]" : "text-slate-500 hover:text-white")}>
+                    <Link
+                      to={l.path}
+                      className={cn(
+                        "text-xs transition-colors font-medium",
+                        isUrban
+                          ? "text-slate-400 hover:text-white"
+                          : isElectronics
+                            ? "text-slate-500 hover:text-blue-400"
+                            : isFashion
+                              ? "text-[#6b5149] hover:text-[#2d221f]"
+                              : isTechNova
+                                ? "text-[#5d7698] hover:text-[#071426]"
+                                : "text-slate-500 hover:text-white",
+                      )}
+                    >
                       {l.label}
                     </Link>
                   </li>
@@ -716,164 +1155,498 @@ function StoreLayoutInner() {
               </ul>
             </div>
             <div>
-              <p className={cn("mb-4", isElectronics ? "text-[10px] font-black uppercase tracking-widest text-blue-400/70" : isFashion ? "store-kicker text-[10px] font-semibold text-[#9a7d73]" : isTechNova ? "store-kicker text-[10px] font-semibold text-[#6d89b0]" : "text-[10px] font-black uppercase tracking-widest text-slate-400")}>Contato</p>
+              <p
+                className={cn(
+                  "mb-4",
+                  isElectronics
+                    ? "text-[10px] font-black uppercase tracking-widest text-blue-400/70"
+                    : isFashion
+                      ? "store-kicker text-[10px] font-semibold text-[#9a7d73]"
+                      : isTechNova
+                        ? "store-kicker text-[10px] font-semibold text-[#6d89b0]"
+                        : "text-[10px] font-black uppercase tracking-widest text-slate-400",
+                )}
+              >
+                Contato
+              </p>
               {storeData.tenant.whatsapp && (
                 <a
                   href={`https://wa.me/${storeData.tenant.whatsapp.replace(/\D/g, "")}`}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className={cn("flex items-center gap-3 transition-colors", isUrban ? "text-[#e8ddd6] hover:text-white" : isElectronics ? "text-slate-400 hover:text-white" : isFashion ? "text-[#6b5149] hover:text-[#2d221f]" : isTechNova ? "text-[#4f6c91] hover:text-[#071426]" : "text-slate-400 hover:text-white")}
+                  className={cn(
+                    "flex items-center gap-3 transition-colors",
+                    isUrban
+                      ? "text-slate-200 hover:text-white"
+                      : isElectronics
+                        ? "text-slate-400 hover:text-white"
+                        : isFashion
+                          ? "text-[#6b5149] hover:text-[#2d221f]"
+                          : isTechNova
+                            ? "text-[#4f6c91] hover:text-[#071426]"
+                            : "text-slate-400 hover:text-white",
+                  )}
                 >
-                  <div style={{ backgroundColor: "#25D366" }} className="w-8 h-8 rounded-xl flex items-center justify-center shrink-0">
+                  <div
+                    style={{ backgroundColor: "#25D366" }}
+                    className="w-8 h-8 rounded-xl flex items-center justify-center shrink-0"
+                  >
                     <Phone size={14} className="text-white" />
                   </div>
                   <div>
-                    <p className={cn("text-[9px] font-bold uppercase tracking-wider", isFashion ? "text-[#8d7068]" : isTechNova ? "text-[#7b95ba]" : "text-slate-500")}>WhatsApp</p>
-                    <p className={cn("text-sm font-mono font-bold", isFashion ? "text-[#2d221f]" : isTechNova ? "text-[#071426]" : "text-white")}>+{storeData.tenant.whatsapp}</p>
+                    <p
+                      className={cn(
+                        "text-[9px] font-bold uppercase tracking-wider",
+                        isFashion
+                          ? "text-[#8d7068]"
+                          : isTechNova
+                            ? "text-[#7b95ba]"
+                            : "text-slate-500",
+                      )}
+                    >
+                      WhatsApp
+                    </p>
+                    <p
+                      className={cn(
+                        "text-sm font-mono font-bold",
+                        isFashion
+                          ? "text-[#2d221f]"
+                          : isTechNova
+                            ? "text-[#071426]"
+                            : "text-white",
+                      )}
+                    >
+                      +{storeData.tenant.whatsapp}
+                    </p>
                   </div>
                 </a>
               )}
               {storeData.tenant.address && (
-                <p className={cn("text-xs mt-4", isFashion ? "text-[#7d6259]" : isTechNova ? "text-[#5d7698]" : "text-slate-500")}>{storeData.tenant.address}</p>
+                <p
+                  className={cn(
+                    "text-xs mt-4",
+                    isFashion
+                      ? "text-[#7d6259]"
+                      : isTechNova
+                        ? "text-[#5d7698]"
+                        : "text-slate-500",
+                  )}
+                >
+                  {storeData.tenant.address}
+                </p>
               )}
             </div>
           </div>
-          <div className={cn("py-5", isElectronics ? "border-t border-[#1a2540]" : isFashion ? "border-t border-[#e4cfc4]" : isTechNova ? "border-t border-[#dbe6ff]" : "border-t border-slate-800")}>
-            <p className={cn("text-center text-[10px] font-bold uppercase tracking-widest", isElectronics ? "text-slate-600" : isFashion ? "text-[#9a7d73]" : isTechNova ? "text-[#7b95ba]" : "text-slate-600")}>
-              © {new Date().getFullYear()} {storeData.tenant.name} · Powered by Store BoxSys
+          <div
+            className={cn(
+              "py-5",
+              isElectronics
+                ? "border-t border-[#1a2540]"
+                : isFashion
+                  ? "border-t border-[#e4cfc4]"
+                  : isTechNova
+                    ? "border-t border-[#dbe6ff]"
+                    : "border-t border-slate-800",
+            )}
+          >
+            <p
+              className={cn(
+                "text-center text-[10px] font-bold uppercase tracking-widest",
+                isElectronics
+                  ? "text-slate-600"
+                  : isFashion
+                    ? "text-[#9a7d73]"
+                    : isTechNova
+                      ? "text-[#7b95ba]"
+                      : "text-slate-600",
+              )}
+            >
+              © {new Date().getFullYear()} {storeData.tenant.name} · Powered by
+              Store BoxSys
             </p>
           </div>
         </footer>
 
         {/* WhatsApp Widget */}
-        <WhatsAppWidget
-          whatsapp={storeData.tenant.whatsapp || ""}
-          storeName={storeData.tenant.name}
-          primaryColor={storeData.tenant.primary_color || "#25D366"}
-        />
+        {storefront.show_whatsapp_widget !== false && (
+          <WhatsAppWidget
+            whatsapp={storeData.tenant.whatsapp || ""}
+            storeName={storeData.tenant.name}
+            primaryColor={storeData.tenant.primary_color || "#25D366"}
+          />
+        )}
 
         {/* ── CART DRAWER ─────────────────────────────────────────── */}
         <AnimatePresence>
           {isCartOpen && (
             <>
               <motion.div
-                initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
                 onClick={() => setIsCartOpen(false)}
                 className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[100]"
               />
               <motion.div
-                initial={{ x: "100%" }} animate={{ x: 0 }} exit={{ x: "100%" }}
+                initial={{ x: "100%" }}
+                animate={{ x: 0 }}
+                exit={{ x: "100%" }}
                 transition={{ type: "spring", damping: 30, stiffness: 300 }}
                 className={cn(
-                  "fixed top-0 right-0 h-full w-full max-w-sm z-[101] shadow-2xl flex flex-col border-l",
+                  "fixed top-0 right-0 h-full w-full max-w-md z-[101] shadow-2xl flex flex-col border-l",
                   isElectronics
                     ? "bg-[#08101e] border-[#1a2540]"
                     : isUrban
-                      ? "bg-[#fffaf5] border-[#e4d5c8]"
-                    : isFashion
-                      ? "bg-[#fffaf7] border-[#ead7cc]"
-                      : isTechNova
-                        ? "bg-[#f7fbff] border-[#d7e4ff]"
-                        : "bg-white border-slate-200"
+                      ? "bg-slate-50 border-slate-200"
+                      : isFashion
+                        ? "bg-[#fffaf7] border-[#ead7cc]"
+                        : isTechNova
+                          ? "bg-[#f7fbff] border-[#d7e4ff]"
+                          : "bg-white border-slate-200",
                 )}
               >
-                <div className={cn("px-6 h-16 border-b flex items-center justify-between shrink-0", isUrban ? "border-[#e4d5c8] bg-[#f6eee7]" : isElectronics ? "border-[#1a2540]" : "border-slate-100")}>
+                <div
+                  className={cn(
+                    "px-5 h-20 border-b flex items-center justify-between shrink-0",
+                    isUrban
+                      ? "border-slate-200 bg-white"
+                      : isElectronics
+                        ? "border-[#1a2540]"
+                        : "border-slate-100",
+                  )}
+                >
                   <div>
-                    <h3 className={cn("text-xs font-black uppercase tracking-wider", isElectronics ? "text-white" : "text-slate-900")}>{isUrban ? "Seu carrinho" : "Carrinho"}</h3>
-                    <p className={cn("text-[10px] font-medium", isUrban ? "text-[#8b776a]" : isElectronics ? "text-blue-400/70" : "text-slate-400")}>{cartCount} {cartCount === 1 ? "item selecionado" : "itens selecionados"}</p>
+                    <h3
+                      className={cn(
+                        "text-xs font-black uppercase tracking-wider",
+                        isElectronics ? "text-white" : "text-slate-900",
+                      )}
+                    >
+                      {isUrban ? "Seu carrinho" : "Carrinho"}
+                    </h3>
+                    <p
+                      className={cn(
+                        "text-[10px] font-medium",
+                        isUrban
+                          ? "text-slate-400"
+                          : isElectronics
+                            ? "text-blue-400/70"
+                            : "text-slate-400",
+                      )}
+                    >
+                      {cartCount}{" "}
+                      {cartCount === 1
+                        ? "item selecionado"
+                        : "itens selecionados"}
+                    </p>
                   </div>
-                  <button onClick={() => setIsCartOpen(false)} className={cn("p-2 rounded-xl", isElectronics ? "text-slate-500 hover:text-white hover:bg-[#0e1525]" : "hover:bg-slate-50 text-slate-400")}>
+                  <button
+                    onClick={() => setIsCartOpen(false)}
+                    className={cn(
+                      "p-2 rounded-xl",
+                      isElectronics
+                        ? "text-slate-500 hover:text-white hover:bg-[#0e1525]"
+                        : "hover:bg-slate-50 text-slate-400",
+                    )}
+                  >
                     <X size={18} />
                   </button>
                 </div>
 
-                <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3">
+                <div className="flex-1 overflow-y-auto bg-slate-50 px-5 py-5 space-y-3">
                   {cart.length === 0 ? (
-                    <div className={cn("h-full flex flex-col items-center justify-center gap-4 py-20", isElectronics ? "text-slate-600" : "text-slate-400")}>
-                      <ShoppingCart size={48} strokeWidth={1} className="opacity-20" />
-                      <p className="text-xs font-black uppercase tracking-wider">Carrinho vazio</p>
+                    <div
+                      className={cn(
+                        "h-full flex flex-col items-center justify-center gap-4 py-20",
+                        isElectronics ? "text-slate-600" : "text-slate-400",
+                      )}
+                    >
+                      <ShoppingCart
+                        size={48}
+                        strokeWidth={1}
+                        className="opacity-20"
+                      />
+                      <p className="text-xs font-black uppercase tracking-wider">
+                        Carrinho vazio
+                      </p>
                       <button
-                        onClick={() => { setIsCartOpen(false); navigate(storePath("/catalogo")); }}
+                        onClick={() => {
+                          setIsCartOpen(false);
+                          navigate(storePath("/catalogo"));
+                        }}
                         style={{ backgroundColor: style.accent }}
                         className="text-white px-6 h-10 rounded-xl text-[10px] font-black uppercase tracking-wider"
                       >
                         Ver produtos
                       </button>
                     </div>
-                  ) : cart.map(item => (
-                    <div key={item.cartItemId} className={cn("flex gap-3 p-3 rounded-2xl border", isUrban ? "rounded-none bg-[#f8f3ed] border-[#eaded3]" : isElectronics ? "bg-[#0e1525] border-[#1e2d4a]" : "bg-slate-50 border-slate-100")}>
-                      <div className={cn("w-16 h-16 rounded-xl overflow-hidden border shrink-0 flex items-center justify-center", isElectronics ? "bg-[#070b12] border-[#1e2d4a]" : "bg-white border-slate-100")}>
-                        {item.image_url
-                          ? <img src={item.image_url} className="w-full h-full object-cover" alt={item.name} />
-                          : <ShoppingCart size={18} className="text-slate-600" />}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <h4 className={cn("text-[11px] font-black uppercase leading-tight line-clamp-2", isElectronics ? "text-white" : "text-slate-800")}>{item.name}</h4>
-                        {item.sku && (
-                          <p className={cn("text-[9px] mt-0.5 font-mono uppercase tracking-widest", isElectronics ? "text-blue-400/60" : "text-slate-400")}>Cód: {item.sku}</p>
+                  ) : (
+                    cart.map((item) => (
+                      <div
+                        key={item.cartItemId}
+                        className={cn(
+                          "flex gap-3 p-3 rounded-2xl border",
+                          isUrban
+                            ? "rounded-xl bg-slate-50 border-slate-200"
+                            : isElectronics
+                              ? "bg-[#0e1525] border-[#1e2d4a]"
+                              : "bg-slate-50 border-slate-100",
                         )}
-                        {item.variationLabel && (
-                          <p className={cn("text-[9px] mt-0.5 font-bold uppercase", isElectronics ? "text-slate-500" : "text-slate-500")}>{item.variationLabel}</p>
-                        )}
-                        <div className="flex items-center gap-2 mt-1">
-                          <p className={cn("text-[10px] font-mono", isElectronics ? "text-slate-500" : "text-slate-400")}>R$ {Number(item.price).toFixed(2)} un.</p>
-                          <span className={isElectronics ? "text-slate-700" : "text-slate-200"}>·</span>
-                          <p className={cn("text-xs font-black font-mono", isElectronics ? "text-blue-400" : "text-emerald-600")}>
-                            R$ {(Number(item.price) * item.quantity).toFixed(2)}
-                          </p>
+                      >
+                        <div
+                          className={cn(
+                            "w-20 h-20 rounded-xl overflow-hidden border shrink-0 flex items-center justify-center",
+                            isElectronics
+                              ? "bg-[#070b12] border-[#1e2d4a]"
+                              : "bg-white border-slate-100",
+                          )}
+                        >
+                          {item.image_url ? (
+                            <img
+                              src={item.image_url}
+                              className="w-full h-full object-cover"
+                              alt={item.name}
+                            />
+                          ) : (
+                            <ShoppingCart
+                              size={18}
+                              className="text-slate-600"
+                            />
+                          )}
                         </div>
-                        <div className="flex items-center gap-2 mt-2">
-                          <div className={cn("flex items-center gap-2 border rounded-lg px-2 py-1", isElectronics ? "bg-[#070b12] border-[#1e2d4a]" : "bg-white border-slate-200")}>
-                            <button onClick={() => updateQuantity(item.cartItemId, -1)} className={cn(isElectronics ? "text-slate-500 hover:text-white" : "text-slate-400 hover:text-slate-700")}>
-                              <span className="text-sm font-black">−</span>
-                            </button>
-                            <span className={cn("text-xs font-black w-4 text-center", isElectronics ? "text-white" : "")}>{item.quantity}</span>
-                            <button onClick={() => updateQuantity(item.cartItemId, 1)} className={cn(isElectronics ? "text-slate-500 hover:text-white" : "text-slate-400 hover:text-slate-700")}>
-                              <span className="text-sm font-black">+</span>
+                        <div className="flex-1 min-w-0">
+                          <h4
+                            className={cn(
+                              "text-xs font-bold leading-snug line-clamp-2",
+                              isElectronics ? "text-white" : "text-slate-800",
+                            )}
+                          >
+                            {item.name}
+                          </h4>
+                          {item.sku && (
+                            <p
+                              className={cn(
+                                "text-[9px] mt-0.5 font-mono uppercase tracking-widest",
+                                isElectronics
+                                  ? "text-blue-400/60"
+                                  : "text-slate-400",
+                              )}
+                            >
+                              Cód: {item.sku}
+                            </p>
+                          )}
+                          {item.variationLabel && (
+                            <p
+                              className={cn(
+                                "text-[9px] mt-0.5 font-bold uppercase",
+                                isElectronics
+                                  ? "text-slate-500"
+                                  : "text-slate-500",
+                              )}
+                            >
+                              {item.variationLabel}
+                            </p>
+                          )}
+                          <div className="flex items-center gap-2 mt-1">
+                            <p
+                              className={cn(
+                                "text-[10px] font-mono",
+                                isElectronics
+                                  ? "text-slate-500"
+                                  : "text-slate-400",
+                              )}
+                            >
+                              R$ {Number(item.price).toFixed(2)} un.
+                            </p>
+                            <span
+                              className={
+                                isElectronics
+                                  ? "text-slate-700"
+                                  : "text-slate-200"
+                              }
+                            >
+                              ·
+                            </span>
+                            <p
+                              className={cn(
+                                "text-xs font-black font-mono",
+                                isElectronics
+                                  ? "text-blue-400"
+                                  : "text-emerald-600",
+                              )}
+                            >
+                              R${" "}
+                              {(Number(item.price) * item.quantity).toFixed(2)}
+                            </p>
+                          </div>
+                          <div className="flex items-center gap-2 mt-2">
+                            <div
+                              className={cn(
+                                "flex items-center gap-2 border rounded-lg px-2 py-1",
+                                isElectronics
+                                  ? "bg-[#070b12] border-[#1e2d4a]"
+                                  : "bg-white border-slate-200",
+                              )}
+                            >
+                              <button
+                                onClick={() =>
+                                  updateQuantity(item.cartItemId, -1)
+                                }
+                                className={cn(
+                                  isElectronics
+                                    ? "text-slate-500 hover:text-white"
+                                    : "text-slate-400 hover:text-slate-700",
+                                )}
+                              >
+                                <span className="text-sm font-black">−</span>
+                              </button>
+                              <span
+                                className={cn(
+                                  "text-xs font-black w-4 text-center",
+                                  isElectronics ? "text-white" : "",
+                                )}
+                              >
+                                {item.quantity}
+                              </span>
+                              <button
+                                onClick={() =>
+                                  updateQuantity(item.cartItemId, 1)
+                                }
+                                className={cn(
+                                  isElectronics
+                                    ? "text-slate-500 hover:text-white"
+                                    : "text-slate-400 hover:text-slate-700",
+                                )}
+                              >
+                                <span className="text-sm font-black">+</span>
+                              </button>
+                            </div>
+                            <button
+                              onClick={() => removeFromCart(item.cartItemId)}
+                              className="text-slate-500 hover:text-red-500 transition-colors"
+                            >
+                              <X size={14} />
                             </button>
                           </div>
-                          <button onClick={() => removeFromCart(item.cartItemId)} className="text-slate-500 hover:text-red-500 transition-colors">
-                            <X size={14} />
-                          </button>
                         </div>
                       </div>
-                    </div>
-                  ))}
+                    ))
+                  )}
                 </div>
 
                 {cart.length > 0 && (
-                  <div className={cn(
-                    "p-4 space-y-3",
-                    isUrban
-                      ? "bg-[#18110f] border-t border-[#3a2b25] p-6"
-                      : isElectronics
-                      ? "bg-[#050810] border-t border-[#1a2540]"
-                      : isFashion
-                        ? "bg-[#2d221f] border-t border-[#4f3831]"
-                        : isTechNova
-                          ? "bg-white border-t border-[#d7e4ff]"
-                          : "bg-slate-950 border-t border-white/5"
-                  )}>
+                  <div
+                    className={cn(
+                      "p-4 space-y-3",
+                      isUrban
+                        ? "bg-white border-t border-slate-200 p-5 shadow-[0_-12px_32px_rgba(15,23,42,.06)]"
+                        : isElectronics
+                          ? "bg-[#050810] border-t border-[#1a2540]"
+                          : isFashion
+                            ? "bg-[#2d221f] border-t border-[#4f3831]"
+                            : isTechNova
+                              ? "bg-white border-t border-[#d7e4ff]"
+                              : "bg-slate-950 border-t border-white/5",
+                    )}
+                  >
                     <div className="flex items-center justify-between">
-                      <p className={cn("text-xs font-bold uppercase tracking-wider", isUrban ? "text-[#cbb8ac]" : isElectronics ? "text-blue-400/70" : isTechNova ? "text-[#7b95ba]" : "text-slate-400")}>{isUrban ? "Resumo do pedido" : "Total"}</p>
-                      <p className={cn("text-2xl font-black font-mono", isElectronics || isUrban ? "text-white" : isTechNova ? "text-[#071426]" : "text-white")}>R$ {total.toFixed(2)}</p>
+                      <p
+                        className={cn(
+                          "text-xs font-bold uppercase tracking-wider",
+                          isUrban
+                            ? "text-slate-500"
+                            : isElectronics
+                              ? "text-blue-400/70"
+                              : isTechNova
+                                ? "text-[#7b95ba]"
+                                : "text-slate-400",
+                        )}
+                      >
+                        {isUrban ? "Resumo do pedido" : "Total"}
+                      </p>
+                      <p
+                        className={cn(
+                          "text-2xl font-black font-mono",
+                          isElectronics
+                            ? "text-white"
+                            : isUrban
+                              ? "text-slate-950"
+                              : isTechNova
+                                ? "text-[#071426]"
+                                : "text-white",
+                        )}
+                      >
+                        R$ {total.toFixed(2)}
+                      </p>
                     </div>
-                    {checkoutMode === "reservation" && <p className={cn("rounded-xl px-3 py-2 text-[10px] font-medium leading-relaxed", isElectronics ? "bg-blue-500/10 text-blue-200" : "bg-white/10 text-slate-300")}>Ao reservar, o estoque destes itens fica separado por {Math.max(5, Math.min(120, storefront.reservation_minutes || 20))} minutos.</p>}
+                    {checkoutMode === "reservation" && (
+                      <p
+                        className={cn(
+                          "rounded-xl px-3 py-2 text-[10px] font-medium leading-relaxed",
+                          isElectronics
+                            ? "bg-blue-500/10 text-blue-200"
+                            : "bg-white/10 text-slate-300",
+                        )}
+                      >
+                        Ao reservar, o estoque destes itens fica separado por{" "}
+                        {Math.max(
+                          5,
+                          Math.min(120, storefront.reservation_minutes || 20),
+                        )}{" "}
+                        minutos.
+                      </p>
+                    )}
                     <button
-                      onClick={checkoutMode === "reservation" ? handleReserveCart : handleWhatsAppCheckout}
+                      onClick={
+                        checkoutMode === "reservation"
+                          ? handleReserveCart
+                          : handleWhatsAppCheckout
+                      }
                       disabled={reservationState.loading}
-                      style={isUrban ? { backgroundColor: style.accent } : undefined}
-                      className={cn("w-full text-white h-12 font-black text-xs uppercase tracking-widest flex items-center justify-center gap-3 transition-all", isUrban ? "rounded-none hover:brightness-110" : "bg-[#25D366] rounded-2xl hover:bg-[#1db954]")}
+                      style={
+                        isUrban ? { backgroundColor: style.accent } : undefined
+                      }
+                      className={cn(
+                        "w-full text-white h-12 font-black text-xs uppercase tracking-widest flex items-center justify-center gap-3 transition-all",
+                        isUrban
+                          ? "rounded-xl hover:brightness-110 shadow-lg shadow-slate-900/10"
+                          : "bg-[#25D366] rounded-2xl hover:bg-[#1db954]",
+                      )}
                     >
-                      <svg viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5">
-                        <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/>
+                      <svg
+                        viewBox="0 0 24 24"
+                        fill="currentColor"
+                        className="w-5 h-5"
+                      >
+                        <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z" />
                       </svg>
-                      {reservationState.loading ? "Reservando itens..." : checkoutMode === "reservation" ? "Reservar itens agora" : "Fechar pedido via WhatsApp"}
+                      {reservationState.loading
+                        ? "Reservando itens..."
+                        : checkoutMode === "reservation"
+                          ? "Reservar itens agora"
+                          : "Fechar pedido via WhatsApp"}
                     </button>
-                    <p className={cn("text-center text-[9px] font-medium", isUrban ? "text-[#cbb8ac]" : isElectronics ? "text-slate-500" : "text-slate-400")}>{checkoutMode === "reservation" ? "Reserva de estoque segura. Frete e pagamento serão definidos com a loja." : "Você revisa tudo com a equipe antes de confirmar o pedido."}</p>
+                    <p
+                      className={cn(
+                        "text-center text-[9px] font-medium",
+                        isUrban
+                          ? "text-slate-500"
+                          : isElectronics
+                            ? "text-slate-500"
+                            : "text-slate-400",
+                      )}
+                    >
+                      {checkoutMode === "reservation"
+                        ? "Reserva de estoque segura. Frete e pagamento serão definidos com a loja."
+                        : "Você revisa tudo com a equipe antes de confirmar o pedido."}
+                    </p>
                   </div>
                 )}
-                {reservationState.message && <div className="mx-4 mb-4 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-center text-[11px] font-semibold leading-relaxed text-emerald-800">{reservationState.message}</div>}
+                {reservationState.message && (
+                  <div className="mx-4 mb-4 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-center text-[11px] font-semibold leading-relaxed text-emerald-800">
+                    {reservationState.message}
+                  </div>
+                )}
               </motion.div>
             </>
           )}
@@ -881,18 +1654,24 @@ function StoreLayoutInner() {
 
         {/* Mobile floating cart */}
         {cart.length > 0 && !isCartOpen && (
-          <motion.div initial={{ y: 100 }} animate={{ y: 0 }} className="fixed bottom-24 right-4 z-40 sm:hidden">
+          <motion.div
+            initial={{ y: 100 }}
+            animate={{ y: 0 }}
+            className="fixed bottom-24 right-4 z-40 sm:hidden"
+          >
             <button
               onClick={() => setIsCartOpen(true)}
               style={{ backgroundColor: style.accent }}
-              className={cn("h-12 px-5 text-white shadow-2xl flex items-center gap-3 font-black text-xs uppercase tracking-wider", isFashion || isTechNova ? "rounded-full" : "rounded-2xl")}
+              className={cn(
+                "h-12 px-5 text-white shadow-2xl flex items-center gap-3 font-black text-xs uppercase tracking-wider",
+                isFashion || isTechNova ? "rounded-full" : "rounded-2xl",
+              )}
             >
               <ShoppingCart size={16} />
               {cartCount} itens · R$ {total.toFixed(2)}
             </button>
           </motion.div>
         )}
-
       </div>
     </StoreContext.Provider>
   );

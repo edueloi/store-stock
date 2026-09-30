@@ -10,7 +10,6 @@ import { cn } from "../../../../lib/utils";
 import { useStore } from "../../StoreLayout";
 import { Product } from "../../../../types";
 import { buildStorePath, resolveStoreSlug, productRouteSegment } from "../../store-routing";
-import { productHasStock } from "../../../../utils/productStock";
 
 type SortKey = "default" | "price_asc" | "price_desc" | "name";
 type ViewMode = "grid" | "list";
@@ -62,7 +61,6 @@ export default function StoreCatalog() {
 
   const filtered = products
     .filter(p => p.is_active)
-    .filter(p => productHasStock(p))
     .filter(p =>
       (searchTerm === "" || p.name.toLowerCase().includes(searchTerm.toLowerCase())) &&
       (selectedCategory === null || p.category_id === selectedCategory) &&

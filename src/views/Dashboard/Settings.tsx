@@ -1,12 +1,61 @@
-import React, { useState, useEffect, useCallback, useRef, useMemo } from "react";
+import React, {
+  useState,
+  useEffect,
+  useCallback,
+  useRef,
+  useMemo,
+} from "react";
 import { useSearchParams } from "react-router-dom";
 import {
-  Store, Palette, Share2, Clock, CreditCard, Shield, Settings2,
-  Users, Save, Loader2, Search, Check, ChevronRight, ChevronLeft, Globe,
-  Bell, Sun, Moon, Package, AlertTriangle, Lock, Image, Upload, X, FileCheck, ShieldCheck,
-  Smartphone, Zap, UserPlus, Trash2, Edit2, Eye, EyeOff, ShoppingCart, User,
-  Monitor, Download, WifiOff, Terminal, CheckCircle2, XCircle, ClipboardList, Wallet,
-  Percent, Landmark, MousePointer2, CheckSquare, Mail, Send,
+  Store,
+  Palette,
+  Share2,
+  Clock,
+  CreditCard,
+  Shield,
+  Settings2,
+  Users,
+  Save,
+  Loader2,
+  Search,
+  Check,
+  ChevronRight,
+  ChevronLeft,
+  Globe,
+  Bell,
+  Sun,
+  Moon,
+  Package,
+  AlertTriangle,
+  Lock,
+  Image,
+  Upload,
+  X,
+  FileCheck,
+  ShieldCheck,
+  Smartphone,
+  Zap,
+  UserPlus,
+  Trash2,
+  Edit2,
+  Eye,
+  EyeOff,
+  ShoppingCart,
+  User,
+  Monitor,
+  Download,
+  WifiOff,
+  Terminal,
+  CheckCircle2,
+  XCircle,
+  ClipboardList,
+  Wallet,
+  Percent,
+  Landmark,
+  MousePointer2,
+  CheckSquare,
+  Mail,
+  Send,
 } from "lucide-react";
 import PageHeader from "../../components/layout/PageHeader";
 import DesktopTerminalsSection from "./DesktopTerminalsSection";
@@ -14,8 +63,18 @@ import { cn } from "../../lib/utils";
 import { useToast } from "../../components/ui/Toast";
 import Modal from "../../components/ui/Modal";
 import Button from "../../components/ui/Button";
-import type { Tenant, BusinessHours, PaymentMethods, StorePolicies, CardFees } from "../../types";
-import { subscribeToPush, unsubscribeFromPush, isPushSupported } from "../../lib/push";
+import type {
+  Tenant,
+  BusinessHours,
+  PaymentMethods,
+  StorePolicies,
+  CardFees,
+} from "../../types";
+import {
+  subscribeToPush,
+  unsubscribeFromPush,
+  isPushSupported,
+} from "../../lib/push";
 
 // ─── helpers ────────────────────────────────────────────────────────────────
 
@@ -35,11 +94,18 @@ const DAYS: { key: string; label: string }[] = [
 ];
 
 const DEFAULT_HOURS: BusinessHours = Object.fromEntries(
-  DAYS.map(({ key }) => [key, { open: "09:00", close: "18:00", closed: key === "dom" }])
+  DAYS.map(({ key }) => [
+    key,
+    { open: "09:00", close: "18:00", closed: key === "dom" },
+  ]),
 );
 
 const DEFAULT_PAYMENTS: PaymentMethods = {
-  pix: true, credit_card: true, debit_card: true, cash: true, boleto: false,
+  pix: true,
+  credit_card: true,
+  debit_card: true,
+  cash: true,
+  boleto: false,
 };
 
 const DEFAULT_POLICIES: StorePolicies = {
@@ -61,39 +127,75 @@ const DEFAULT_POLICIES: StorePolicies = {
     reservation_minutes: 20,
     shipping_status: "coming_soon",
     payment_status: "coming_soon",
+    catalog_title: "Todos os produtos",
+    catalog_description: "",
+    home_categories_title: "Explore a loja.",
+    home_featured_title: "Seleção da loja.",
+    show_whatsapp_widget: true,
   },
 };
 
 // ─── sub-components ──────────────────────────────────────────────────────────
 
-function SectionHeader({ title, subtitle }: { title: string; subtitle?: string }) {
+function SectionHeader({
+  title,
+  subtitle,
+}: {
+  title: string;
+  subtitle?: string;
+}) {
   return (
     <div className="pb-4 border-b border-slate-100 mb-6">
-      <h3 className="text-sm font-black uppercase tracking-widest text-slate-900">{title}</h3>
-      {subtitle && <p className="text-[10px] text-slate-400 font-medium mt-1">{subtitle}</p>}
+      <h3 className="text-sm font-black uppercase tracking-widest text-slate-900">
+        {title}
+      </h3>
+      {subtitle && (
+        <p className="text-[10px] text-slate-400 font-medium mt-1">
+          {subtitle}
+        </p>
+      )}
     </div>
   );
 }
 
 function Field({
-  label, hint, children,
-}: { label: string; hint?: string; children: React.ReactNode }) {
+  label,
+  hint,
+  children,
+}: {
+  label: string;
+  hint?: string;
+  children: React.ReactNode;
+}) {
   return (
     <div className="space-y-1.5">
       <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.18em] px-1 block">
         {label}
       </label>
       {children}
-      {hint && <p className="text-[9px] text-slate-400 font-medium px-1">{hint}</p>}
+      {hint && (
+        <p className="text-[9px] text-slate-400 font-medium px-1">{hint}</p>
+      )}
     </div>
   );
 }
 
 function TextInput({
-  value, onChange, placeholder, type = "text", mono = false, className = "", autoComplete = "off",
+  value,
+  onChange,
+  placeholder,
+  type = "text",
+  mono = false,
+  className = "",
+  autoComplete = "off",
 }: {
-  value: string; onChange: (v: string) => void; placeholder?: string;
-  type?: string; mono?: boolean; className?: string; autoComplete?: string;
+  value: string;
+  onChange: (v: string) => void;
+  placeholder?: string;
+  type?: string;
+  mono?: boolean;
+  className?: string;
+  autoComplete?: string;
 }) {
   return (
     <input
@@ -118,8 +220,14 @@ function TextInput({
 }
 
 function Toggle({
-  checked, onChange, label,
-}: { checked: boolean; onChange: (v: boolean) => void; label?: string }) {
+  checked,
+  onChange,
+  label,
+}: {
+  checked: boolean;
+  onChange: (v: boolean) => void;
+  label?: string;
+}) {
   return (
     <div className="flex items-center gap-3">
       <button
@@ -129,21 +237,38 @@ function Toggle({
           checked ? "bg-emerald-500" : "bg-slate-200",
         )}
       >
-        <div className={cn(
-          "absolute top-1 w-3 h-3 bg-white rounded-full transition-all shadow-sm",
-          checked ? "left-6" : "left-1",
-        )} />
+        <div
+          className={cn(
+            "absolute top-1 w-3 h-3 bg-white rounded-full transition-all shadow-sm",
+            checked ? "left-6" : "left-1",
+          )}
+        />
       </button>
-      {label && <span className="text-[10px] font-bold text-slate-600 uppercase tracking-widest">{label}</span>}
+      {label && (
+        <span className="text-[10px] font-bold text-slate-600 uppercase tracking-widest">
+          {label}
+        </span>
+      )}
     </div>
   );
 }
 
-function SaveButton({ onClick, label = "Guardar Alterações", className = "" }: {
-  onClick: () => void; label?: string; className?: string;
+function SaveButton({
+  onClick,
+  label = "Guardar Alterações",
+  className = "",
+}: {
+  onClick: () => void;
+  label?: string;
+  className?: string;
 }) {
   return (
-    <div className={cn("pt-6 border-t border-slate-100 flex justify-end", className)}>
+    <div
+      className={cn(
+        "pt-6 border-t border-slate-100 flex justify-end",
+        className,
+      )}
+    >
       <button
         onClick={onClick}
         className="bg-blue-600 text-white px-8 h-12 rounded-xl text-[10px] font-black uppercase tracking-[0.2em] shadow-xl shadow-blue-500/20 flex items-center gap-3 hover:bg-blue-700 transition-all active:scale-95"
@@ -171,7 +296,11 @@ const NAV = [
       { id: "card_fees", icon: Landmark, label: "Maquininha & Taxas" },
       { id: "crediario", icon: Percent, label: "Crediário & Juros" },
       { id: "warranty", icon: FileCheck, label: "Termos de Garantia" },
-      { id: "service_checklists", icon: ClipboardList, label: "Checklists de OS" },
+      {
+        id: "service_checklists",
+        icon: ClipboardList,
+        label: "Checklists de OS",
+      },
       { id: "fiscal", icon: FileCheck, label: "Dados Fiscais" },
     ],
   },
@@ -192,90 +321,328 @@ const NAV = [
   },
 ];
 
-const SETTING_META: Record<string, { description: string; icon: string; iconBg: string; border: string }> = {
-  identity: { description: "Dados e apresentação da sua loja", icon: "text-[#ed670e]", iconBg: "bg-orange-50", border: "hover:border-orange-200" },
-  design: { description: "Tema, cores e modelos da vitrine", icon: "text-violet-600", iconBg: "bg-violet-50", border: "hover:border-violet-200" },
-  storefront: { description: "Carrinho, reserva de estoque e próximos passos de checkout", icon: "text-orange-600", iconBg: "bg-orange-50", border: "hover:border-orange-200" },
-  social: { description: "Redes, contatos e canais de venda", icon: "text-cyan-600", iconBg: "bg-cyan-50", border: "hover:border-cyan-200" },
-  hours: { description: "Horários exibidos para seus clientes", icon: "text-amber-600", iconBg: "bg-amber-50", border: "hover:border-amber-200" },
-  payments: { description: "Formas de pagamento e políticas", icon: "text-emerald-600", iconBg: "bg-emerald-50", border: "hover:border-emerald-200" },
-  card_fees: { description: "Taxas e regras da maquininha", icon: "text-indigo-600", iconBg: "bg-indigo-50", border: "hover:border-indigo-200" },
-  crediario: { description: "Parcelas, prazos e juros", icon: "text-rose-600", iconBg: "bg-rose-50", border: "hover:border-rose-200" },
-  warranty: { description: "Termos entregues com seus produtos", icon: "text-orange-600", iconBg: "bg-orange-50", border: "hover:border-orange-200" },
-  service_checklists: { description: "Etapas padrão para ordens de serviço", icon: "text-sky-600", iconBg: "bg-sky-50", border: "hover:border-sky-200" },
-  fiscal: { description: "Informações fiscais e emissão", icon: "text-blue-600", iconBg: "bg-blue-50", border: "hover:border-blue-200" },
-  terminal: { description: "Integração e credenciais do terminal", icon: "text-orange-600", iconBg: "bg-orange-50", border: "hover:border-orange-200" },
-  cash_session: { description: "Abertura, fechamento e regras de caixa", icon: "text-emerald-600", iconBg: "bg-emerald-50", border: "hover:border-emerald-200" },
-  preferences: { description: "Preferências de uso do painel", icon: "text-blue-600", iconBg: "bg-blue-50", border: "hover:border-blue-200" },
-  security: { description: "Proteção, acesso e senha", icon: "text-violet-600", iconBg: "bg-violet-50", border: "hover:border-violet-200" },
-  users: { description: "Equipe, cargos e permissões", icon: "text-sky-600", iconBg: "bg-sky-50", border: "hover:border-sky-200" },
-  desktop: { description: "Instalação e terminais do PDV", icon: "text-indigo-600", iconBg: "bg-indigo-50", border: "hover:border-indigo-200" },
-  email_connection: { description: "E-mail da loja para documentos dos clientes", icon: "text-cyan-600", iconBg: "bg-cyan-50", border: "hover:border-cyan-200" },
-  email_reports: { description: "Envio automático de relatórios", icon: "text-rose-600", iconBg: "bg-rose-50", border: "hover:border-rose-200" },
+const SETTING_META: Record<
+  string,
+  { description: string; icon: string; iconBg: string; border: string }
+> = {
+  identity: {
+    description: "Dados e apresentação da sua loja",
+    icon: "text-[#ed670e]",
+    iconBg: "bg-orange-50",
+    border: "hover:border-orange-200",
+  },
+  design: {
+    description: "Tema, cores e modelos da vitrine",
+    icon: "text-violet-600",
+    iconBg: "bg-violet-50",
+    border: "hover:border-violet-200",
+  },
+  storefront: {
+    description: "Carrinho, reserva de estoque e próximos passos de checkout",
+    icon: "text-orange-600",
+    iconBg: "bg-orange-50",
+    border: "hover:border-orange-200",
+  },
+  social: {
+    description: "Redes, contatos e canais de venda",
+    icon: "text-cyan-600",
+    iconBg: "bg-cyan-50",
+    border: "hover:border-cyan-200",
+  },
+  hours: {
+    description: "Horários exibidos para seus clientes",
+    icon: "text-amber-600",
+    iconBg: "bg-amber-50",
+    border: "hover:border-amber-200",
+  },
+  payments: {
+    description: "Formas de pagamento e políticas",
+    icon: "text-emerald-600",
+    iconBg: "bg-emerald-50",
+    border: "hover:border-emerald-200",
+  },
+  card_fees: {
+    description: "Taxas e regras da maquininha",
+    icon: "text-indigo-600",
+    iconBg: "bg-indigo-50",
+    border: "hover:border-indigo-200",
+  },
+  crediario: {
+    description: "Parcelas, prazos e juros",
+    icon: "text-rose-600",
+    iconBg: "bg-rose-50",
+    border: "hover:border-rose-200",
+  },
+  warranty: {
+    description: "Termos entregues com seus produtos",
+    icon: "text-orange-600",
+    iconBg: "bg-orange-50",
+    border: "hover:border-orange-200",
+  },
+  service_checklists: {
+    description: "Etapas padrão para ordens de serviço",
+    icon: "text-sky-600",
+    iconBg: "bg-sky-50",
+    border: "hover:border-sky-200",
+  },
+  fiscal: {
+    description: "Informações fiscais e emissão",
+    icon: "text-blue-600",
+    iconBg: "bg-blue-50",
+    border: "hover:border-blue-200",
+  },
+  terminal: {
+    description: "Integração e credenciais do terminal",
+    icon: "text-orange-600",
+    iconBg: "bg-orange-50",
+    border: "hover:border-orange-200",
+  },
+  cash_session: {
+    description: "Abertura, fechamento e regras de caixa",
+    icon: "text-emerald-600",
+    iconBg: "bg-emerald-50",
+    border: "hover:border-emerald-200",
+  },
+  preferences: {
+    description: "Preferências de uso do painel",
+    icon: "text-blue-600",
+    iconBg: "bg-blue-50",
+    border: "hover:border-blue-200",
+  },
+  security: {
+    description: "Proteção, acesso e senha",
+    icon: "text-violet-600",
+    iconBg: "bg-violet-50",
+    border: "hover:border-violet-200",
+  },
+  users: {
+    description: "Equipe, cargos e permissões",
+    icon: "text-sky-600",
+    iconBg: "bg-sky-50",
+    border: "hover:border-sky-200",
+  },
+  desktop: {
+    description: "Instalação e terminais do PDV",
+    icon: "text-indigo-600",
+    iconBg: "bg-indigo-50",
+    border: "hover:border-indigo-200",
+  },
+  email_connection: {
+    description: "E-mail da loja para documentos dos clientes",
+    icon: "text-cyan-600",
+    iconBg: "bg-cyan-50",
+    border: "hover:border-cyan-200",
+  },
+  email_reports: {
+    description: "Envio automático de relatórios",
+    icon: "text-rose-600",
+    iconBg: "bg-rose-50",
+    border: "hover:border-rose-200",
+  },
 };
 
-type EmailProvider = "gmail" | "outlook" | "hotmail" | "yahoo" | "icloud" | "custom";
+type EmailProvider =
+  | "gmail"
+  | "outlook"
+  | "hotmail"
+  | "yahoo"
+  | "icloud"
+  | "custom";
 
-const EMAIL_PROVIDERS: { id: EmailProvider; label: string; host: string; port: string; secure: boolean; guideUrl: string; guideLabel: string }[] = [
-  { id: "gmail", label: "Gmail", host: "smtp.gmail.com", port: "465", secure: true, guideUrl: "https://myaccount.google.com/apppasswords", guideLabel: "Abrir senhas de app do Google" },
-  { id: "outlook", label: "Outlook.com", host: "smtp-mail.outlook.com", port: "587", secure: false, guideUrl: "https://account.microsoft.com/security", guideLabel: "Abrir segurança da conta Microsoft" },
-  { id: "hotmail", label: "Hotmail / Live", host: "smtp-mail.outlook.com", port: "587", secure: false, guideUrl: "https://account.microsoft.com/security", guideLabel: "Abrir segurança da conta Microsoft" },
-  { id: "yahoo", label: "Yahoo Mail", host: "smtp.mail.yahoo.com", port: "465", secure: true, guideUrl: "https://login.yahoo.com/account/security", guideLabel: "Abrir segurança da conta Yahoo" },
-  { id: "icloud", label: "iCloud Mail", host: "smtp.mail.me.com", port: "587", secure: false, guideUrl: "https://account.apple.com/", guideLabel: "Abrir conta Apple" },
-  { id: "custom", label: "Outro / e-mail profissional", host: "", port: "587", secure: false, guideUrl: "", guideLabel: "" },
+const EMAIL_PROVIDERS: {
+  id: EmailProvider;
+  label: string;
+  host: string;
+  port: string;
+  secure: boolean;
+  guideUrl: string;
+  guideLabel: string;
+}[] = [
+  {
+    id: "gmail",
+    label: "Gmail",
+    host: "smtp.gmail.com",
+    port: "465",
+    secure: true,
+    guideUrl: "https://myaccount.google.com/apppasswords",
+    guideLabel: "Abrir senhas de app do Google",
+  },
+  {
+    id: "outlook",
+    label: "Outlook.com",
+    host: "smtp-mail.outlook.com",
+    port: "587",
+    secure: false,
+    guideUrl: "https://account.microsoft.com/security",
+    guideLabel: "Abrir segurança da conta Microsoft",
+  },
+  {
+    id: "hotmail",
+    label: "Hotmail / Live",
+    host: "smtp-mail.outlook.com",
+    port: "587",
+    secure: false,
+    guideUrl: "https://account.microsoft.com/security",
+    guideLabel: "Abrir segurança da conta Microsoft",
+  },
+  {
+    id: "yahoo",
+    label: "Yahoo Mail",
+    host: "smtp.mail.yahoo.com",
+    port: "465",
+    secure: true,
+    guideUrl: "https://login.yahoo.com/account/security",
+    guideLabel: "Abrir segurança da conta Yahoo",
+  },
+  {
+    id: "icloud",
+    label: "iCloud Mail",
+    host: "smtp.mail.me.com",
+    port: "587",
+    secure: false,
+    guideUrl: "https://account.apple.com/",
+    guideLabel: "Abrir conta Apple",
+  },
+  {
+    id: "custom",
+    label: "Outro / e-mail profissional",
+    host: "",
+    port: "587",
+    secure: false,
+    guideUrl: "",
+    guideLabel: "",
+  },
 ];
 
 // ─── TeamSection ─────────────────────────────────────────────────────────────
 
-type TeamMember = { id: number; name: string; email: string; phone?: string | null; nickname?: string | null; role: string; created_at: string };
-type MemberForm = { name: string; email: string; password: string; role: string; phone: string; nickname: string; showPass: boolean };
+type TeamMember = {
+  id: number;
+  name: string;
+  email: string;
+  phone?: string | null;
+  nickname?: string | null;
+  role: string;
+  created_at: string;
+};
+type MemberForm = {
+  name: string;
+  email: string;
+  password: string;
+  role: string;
+  phone: string;
+  nickname: string;
+  showPass: boolean;
+};
 type PermissionOption = { key: string; label: string };
-type PermissionOptions = { menus: PermissionOption[]; stages: PermissionOption[] };
+type PermissionOptions = {
+  menus: PermissionOption[];
+  stages: PermissionOption[];
+};
 
-const ROLE_META: Record<string, { label: string; color: string; bg: string; icon: React.ReactNode; desc: string }> = {
-  admin: { label: "Admin",       color: "#2563eb", bg: "#eff6ff", icon: <Shield size={12} />,      desc: "Acesso total ao painel" },
-  staff: { label: "Atendente",   color: "#059669", bg: "#ecfdf5", icon: <User size={12} />,         desc: "Pedidos, clientes, catálogo, estoque e categorias" },
-  pdv:   { label: "Operador PDV",color: "#d97706", bg: "#fffbeb", icon: <ShoppingCart size={12} />, desc: "Acesso somente ao PDV" },
+const ROLE_META: Record<
+  string,
+  {
+    label: string;
+    color: string;
+    bg: string;
+    icon: React.ReactNode;
+    desc: string;
+  }
+> = {
+  admin: {
+    label: "Admin",
+    color: "#2563eb",
+    bg: "#eff6ff",
+    icon: <Shield size={12} />,
+    desc: "Acesso total ao painel",
+  },
+  staff: {
+    label: "Atendente",
+    color: "#059669",
+    bg: "#ecfdf5",
+    icon: <User size={12} />,
+    desc: "Pedidos, clientes, catálogo, estoque e categorias",
+  },
+  pdv: {
+    label: "Operador PDV",
+    color: "#d97706",
+    bg: "#fffbeb",
+    icon: <ShoppingCart size={12} />,
+    desc: "Acesso somente ao PDV",
+  },
 };
 
 function TeamSection() {
   const toast = useToast();
-  const [members, setMembers]     = useState<TeamMember[]>([]);
-  const [loading, setLoading]     = useState(true);
-  const [showForm, setShowForm]   = useState(false);
-  const [saving, setSaving]       = useState(false);
-  const [editId, setEditId]       = useState<number | null>(null);
+  const [members, setMembers] = useState<TeamMember[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [showForm, setShowForm] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [editId, setEditId] = useState<number | null>(null);
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<TeamMember | null>(null);
-  const [form, setForm]           = useState<MemberForm>({ name: "", email: "", password: "", role: "staff", phone: "", nickname: "", showPass: false });
+  const [form, setForm] = useState<MemberForm>({
+    name: "",
+    email: "",
+    password: "",
+    role: "staff",
+    phone: "",
+    nickname: "",
+    showPass: false,
+  });
 
-  const [permOptions, setPermOptions] = useState<PermissionOptions>({ menus: [], stages: [] });
+  const [permOptions, setPermOptions] = useState<PermissionOptions>({
+    menus: [],
+    stages: [],
+  });
   const [selectedMenus, setSelectedMenus] = useState<string[]>([]);
   const [selectedStages, setSelectedStages] = useState<string[]>([]);
   const [savingPerms, setSavingPerms] = useState(false);
 
   const token = localStorage.getItem("token");
-  const headers = { "Content-Type": "application/json", Authorization: `Bearer ${token}` };
+  const headers = {
+    "Content-Type": "application/json",
+    Authorization: `Bearer ${token}`,
+  };
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await fetch("/api/team", { headers: { Authorization: `Bearer ${token}` } });
+      const res = await fetch("/api/team", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
       if (res.ok) setMembers(await res.json());
-    } finally { setLoading(false); }
+    } finally {
+      setLoading(false);
+    }
   }, [token]);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    load();
+  }, [load]);
 
   useEffect(() => {
-    fetch("/api/team/permission-options", { headers: { Authorization: `Bearer ${token}` } })
+    fetch("/api/team/permission-options", {
+      headers: { Authorization: `Bearer ${token}` },
+    })
       .then((res) => (res.ok ? res.json() : null))
-      .then((data) => { if (data) setPermOptions(data); });
+      .then((data) => {
+        if (data) setPermOptions(data);
+      });
   }, [token]);
 
   const openCreate = () => {
     setEditId(null);
-    setForm({ name: "", email: "", password: "", role: "staff", phone: "", nickname: "", showPass: false });
+    setForm({
+      name: "",
+      email: "",
+      password: "",
+      role: "staff",
+      phone: "",
+      nickname: "",
+      showPass: false,
+    });
     setSelectedMenus([]);
     setSelectedStages([]);
     setShowForm(true);
@@ -283,13 +650,23 @@ function TeamSection() {
 
   const openEdit = async (m: TeamMember) => {
     setEditId(m.id);
-    setForm({ name: m.name, email: m.email, password: "", role: m.role, phone: m.phone || "", nickname: m.nickname || "", showPass: false });
+    setForm({
+      name: m.name,
+      email: m.email,
+      password: "",
+      role: m.role,
+      phone: m.phone || "",
+      nickname: m.nickname || "",
+      showPass: false,
+    });
     setSelectedMenus([]);
     setSelectedStages([]);
     setShowForm(true);
 
     if (m.role !== "admin") {
-      const res = await fetch(`/api/team/${m.id}/permissions`, { headers: { Authorization: `Bearer ${token}` } });
+      const res = await fetch(`/api/team/${m.id}/permissions`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
       if (res.ok) {
         const data = await res.json();
         setSelectedMenus(data.menus ?? []);
@@ -299,10 +676,14 @@ function TeamSection() {
   };
 
   const toggleMenu = (key: string) => {
-    setSelectedMenus((prev) => prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key]);
+    setSelectedMenus((prev) =>
+      prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key],
+    );
   };
   const toggleStage = (key: string) => {
-    setSelectedStages((prev) => prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key]);
+    setSelectedStages((prev) =>
+      prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key],
+    );
   };
 
   const savePermissions = async (memberId: number) => {
@@ -317,16 +698,30 @@ function TeamSection() {
         const data = await res.json();
         toast.error(data.error || "Erro ao salvar permissões.");
       }
-    } finally { setSavingPerms(false); }
+    } finally {
+      setSavingPerms(false);
+    }
   };
 
   const handleSave = async () => {
-    if (!form.name.trim() || !form.email.trim()) { toast.error("Nome e e-mail são obrigatórios."); return; }
-    if (!editId && !form.password) { toast.error("Senha é obrigatória para novo membro."); return; }
+    if (!form.name.trim() || !form.email.trim()) {
+      toast.error("Nome e e-mail são obrigatórios.");
+      return;
+    }
+    if (!editId && !form.password) {
+      toast.error("Senha é obrigatória para novo membro.");
+      return;
+    }
 
     setSaving(true);
     try {
-      const body: Record<string, string> = { name: form.name, email: form.email, role: form.role, phone: form.phone, nickname: form.nickname };
+      const body: Record<string, string> = {
+        name: form.name,
+        email: form.email,
+        role: form.role,
+        phone: form.phone,
+        nickname: form.nickname,
+      };
       if (form.password) body.password = form.password;
 
       const res = await fetch(editId ? `/api/team/${editId}` : "/api/team", {
@@ -339,13 +734,17 @@ function TeamSection() {
         if (form.role !== "admin") {
           await savePermissions(editId ?? data.id);
         }
-        toast.success(editId ? "Membro atualizado!" : "Membro criado com sucesso!");
+        toast.success(
+          editId ? "Membro atualizado!" : "Membro criado com sucesso!",
+        );
         setShowForm(false);
         load();
       } else {
         toast.error(data.error || "Erro ao salvar.");
       }
-    } finally { setSaving(false); }
+    } finally {
+      setSaving(false);
+    }
   };
 
   const handleDelete = async () => {
@@ -356,29 +755,47 @@ function TeamSection() {
       const res = await fetch(`/api/team/${id}`, { method: "DELETE", headers });
       if (res.ok) {
         toast.success("Membro removido.");
-        setMembers(ms => ms.filter(m => m.id !== id));
+        setMembers((ms) => ms.filter((m) => m.id !== id));
         setDeleteTarget(null);
       } else {
         const data = await res.json();
         toast.error(data.error || "Erro ao remover.");
       }
-    } finally { setDeletingId(null); }
+    } finally {
+      setDeletingId(null);
+    }
   };
 
   return (
     <div className="mx-auto w-full max-w-[1600px] space-y-4 sm:space-y-6">
-      <SectionHeader title="Time & Acessos" subtitle="Gerencie quem tem acesso ao painel e ao PDV" />
+      <SectionHeader
+        title="Time & Acessos"
+        subtitle="Gerencie quem tem acesso ao painel e ao PDV"
+      />
 
       {/* Role legend */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         {Object.entries(ROLE_META).map(([key, meta]) => (
-          <div key={key} className="flex items-start gap-3 p-4 rounded-2xl border border-slate-100 bg-white">
-            <div className="w-8 h-8 rounded-xl flex items-center justify-center shrink-0" style={{ backgroundColor: meta.bg, color: meta.color }}>
+          <div
+            key={key}
+            className="flex items-start gap-3 p-4 rounded-2xl border border-slate-100 bg-white"
+          >
+            <div
+              className="w-8 h-8 rounded-xl flex items-center justify-center shrink-0"
+              style={{ backgroundColor: meta.bg, color: meta.color }}
+            >
               {meta.icon}
             </div>
             <div>
-              <p className="text-[11px] font-black uppercase tracking-wider" style={{ color: meta.color }}>{meta.label}</p>
-              <p className="text-[10px] text-slate-400 mt-0.5 font-medium leading-relaxed">{meta.desc}</p>
+              <p
+                className="text-[11px] font-black uppercase tracking-wider"
+                style={{ color: meta.color }}
+              >
+                {meta.label}
+              </p>
+              <p className="text-[10px] text-slate-400 mt-0.5 font-medium leading-relaxed">
+                {meta.desc}
+              </p>
             </div>
           </div>
         ))}
@@ -389,8 +806,12 @@ function TeamSection() {
         <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100">
           <div className="flex flex-wrap items-center gap-2">
             <Users size={15} className="text-slate-400" />
-            <p className="text-[11px] font-black uppercase tracking-widest text-slate-700">Membros</p>
-            <span className="bg-slate-100 text-slate-500 text-[9px] font-black px-2 py-0.5 rounded-full">{members.length}</span>
+            <p className="text-[11px] font-black uppercase tracking-widest text-slate-700">
+              Membros
+            </p>
+            <span className="bg-slate-100 text-slate-500 text-[9px] font-black px-2 py-0.5 rounded-full">
+              {members.length}
+            </span>
           </div>
           <button
             onClick={openCreate}
@@ -407,14 +828,19 @@ function TeamSection() {
         ) : members.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-12 gap-2 text-slate-300">
             <Users size={32} strokeWidth={1} />
-            <p className="text-[10px] font-black uppercase tracking-wider">Nenhum membro cadastrado</p>
+            <p className="text-[10px] font-black uppercase tracking-wider">
+              Nenhum membro cadastrado
+            </p>
           </div>
         ) : (
           <div className="divide-y divide-slate-50">
-            {members.map(m => {
+            {members.map((m) => {
               const meta = ROLE_META[m.role] ?? ROLE_META.staff;
               return (
-                <div key={m.id} className="flex items-center gap-4 px-5 py-3.5 hover:bg-slate-50/60 transition-colors">
+                <div
+                  key={m.id}
+                  className="flex items-center gap-4 px-5 py-3.5 hover:bg-slate-50/60 transition-colors"
+                >
                   <div
                     className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0 text-sm font-black"
                     style={{ backgroundColor: meta.bg, color: meta.color }}
@@ -422,8 +848,12 @@ function TeamSection() {
                     {m.name.charAt(0).toUpperCase()}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-[12px] font-bold text-slate-800 leading-tight truncate">{m.name}</p>
-                    <p className="text-[10px] text-slate-400 font-medium truncate">{m.email}</p>
+                    <p className="text-[12px] font-bold text-slate-800 leading-tight truncate">
+                      {m.name}
+                    </p>
+                    <p className="text-[10px] text-slate-400 font-medium truncate">
+                      {m.email}
+                    </p>
                   </div>
                   <span
                     className="shrink-0 inline-flex items-center gap-1.5 text-[9px] font-black uppercase tracking-wider px-2.5 py-1 rounded-full"
@@ -443,7 +873,11 @@ function TeamSection() {
                       disabled={deletingId === m.id}
                       className="p-1.5 rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 transition-all disabled:opacity-40"
                     >
-                      {deletingId === m.id ? <Loader2 size={13} className="animate-spin" /> : <Trash2 size={13} />}
+                      {deletingId === m.id ? (
+                        <Loader2 size={13} className="animate-spin" />
+                      ) : (
+                        <Trash2 size={13} />
+                      )}
                     </button>
                   </div>
                 </div>
@@ -457,10 +891,13 @@ function TeamSection() {
       <div className="flex items-start gap-3 p-4 rounded-2xl border border-amber-200 bg-amber-50">
         <ShoppingCart size={16} className="text-amber-600 mt-0.5 shrink-0" />
         <div>
-          <p className="text-[11px] font-black text-amber-700 uppercase tracking-wider">Operadores PDV</p>
+          <p className="text-[11px] font-black text-amber-700 uppercase tracking-wider">
+            Operadores PDV
+          </p>
           <p className="text-[10px] text-amber-600 font-medium leading-relaxed mt-0.5">
-            Usuários com perfil <strong>Operador PDV</strong> são direcionados automaticamente para o terminal de vendas ao fazer login.
-            Eles não têm acesso ao painel administrativo.
+            Usuários com perfil <strong>Operador PDV</strong> são direcionados
+            automaticamente para o terminal de vendas ao fazer login. Eles não
+            têm acesso ao painel administrativo.
           </p>
         </div>
       </div>
@@ -474,8 +911,14 @@ function TeamSection() {
         size="md"
         footer={
           <>
-            <Button variant="secondary" onClick={() => setShowForm(false)}>Cancelar</Button>
-            <Button onClick={handleSave} loading={saving || savingPerms} icon={<Save size={13} />}>
+            <Button variant="secondary" onClick={() => setShowForm(false)}>
+              Cancelar
+            </Button>
+            <Button
+              onClick={handleSave}
+              loading={saving || savingPerms}
+              icon={<Save size={13} />}
+            >
               {editId ? "Salvar" : "Criar"}
             </Button>
           </>
@@ -483,11 +926,13 @@ function TeamSection() {
       >
         {/* Name */}
         <div>
-          <label className="text-[10px] font-black uppercase tracking-widest text-slate-500 block mb-1.5">Nome</label>
+          <label className="text-[10px] font-black uppercase tracking-widest text-slate-500 block mb-1.5">
+            Nome
+          </label>
           <input
             type="text"
             value={form.name}
-            onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
+            onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
             placeholder="Nome completo"
             className="w-full h-10 px-3 border border-slate-200 rounded-xl text-sm font-medium text-slate-800 placeholder:text-slate-300 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition-all"
           />
@@ -495,11 +940,13 @@ function TeamSection() {
 
         {/* Email */}
         <div>
-          <label className="text-[10px] font-black uppercase tracking-widest text-slate-500 block mb-1.5">E-mail</label>
+          <label className="text-[10px] font-black uppercase tracking-widest text-slate-500 block mb-1.5">
+            E-mail
+          </label>
           <input
             type="email"
             value={form.email}
-            onChange={e => setForm(f => ({ ...f, email: e.target.value }))}
+            onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
             placeholder="email@exemplo.com"
             className="w-full h-10 px-3 border border-slate-200 rounded-xl text-sm font-medium text-slate-800 placeholder:text-slate-300 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition-all"
           />
@@ -508,21 +955,32 @@ function TeamSection() {
         {/* Telefone + Nick */}
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className="text-[10px] font-black uppercase tracking-widest text-slate-500 block mb-1.5">Telefone</label>
+            <label className="text-[10px] font-black uppercase tracking-widest text-slate-500 block mb-1.5">
+              Telefone
+            </label>
             <input
               type="text"
               value={form.phone}
-              onChange={e => setForm(f => ({ ...f, phone: e.target.value }))}
+              onChange={(e) =>
+                setForm((f) => ({ ...f, phone: e.target.value }))
+              }
               placeholder="(00) 00000-0000"
               className="w-full h-10 px-3 border border-slate-200 rounded-xl text-sm font-medium text-slate-800 placeholder:text-slate-300 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition-all"
             />
           </div>
           <div>
-            <label className="text-[10px] font-black uppercase tracking-widest text-slate-500 block mb-1.5">Nick <span className="normal-case font-medium text-slate-400">(login alternativo)</span></label>
+            <label className="text-[10px] font-black uppercase tracking-widest text-slate-500 block mb-1.5">
+              Nick{" "}
+              <span className="normal-case font-medium text-slate-400">
+                (login alternativo)
+              </span>
+            </label>
             <input
               type="text"
               value={form.nickname}
-              onChange={e => setForm(f => ({ ...f, nickname: e.target.value }))}
+              onChange={(e) =>
+                setForm((f) => ({ ...f, nickname: e.target.value }))
+              }
               placeholder="Ex: eduardo"
               className="w-full h-10 px-3 border border-slate-200 rounded-xl text-sm font-medium text-slate-800 placeholder:text-slate-300 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition-all"
             />
@@ -532,19 +990,26 @@ function TeamSection() {
         {/* Password */}
         <div>
           <label className="text-[10px] font-black uppercase tracking-widest text-slate-500 block mb-1.5">
-            Senha {editId && <span className="normal-case font-medium text-slate-400">(deixe em branco para manter)</span>}
+            Senha{" "}
+            {editId && (
+              <span className="normal-case font-medium text-slate-400">
+                (deixe em branco para manter)
+              </span>
+            )}
           </label>
           <div className="relative">
             <input
               type={form.showPass ? "text" : "password"}
               value={form.password}
-              onChange={e => setForm(f => ({ ...f, password: e.target.value }))}
+              onChange={(e) =>
+                setForm((f) => ({ ...f, password: e.target.value }))
+              }
               placeholder={editId ? "Nova senha (opcional)" : "Senha de acesso"}
               className="w-full h-10 px-3 pr-10 border border-slate-200 rounded-xl text-sm font-medium text-slate-800 placeholder:text-slate-300 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition-all"
             />
             <button
               type="button"
-              onClick={() => setForm(f => ({ ...f, showPass: !f.showPass }))}
+              onClick={() => setForm((f) => ({ ...f, showPass: !f.showPass }))}
               className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700"
             >
               {form.showPass ? <EyeOff size={14} /> : <Eye size={14} />}
@@ -554,31 +1019,45 @@ function TeamSection() {
 
         {/* Role */}
         <div>
-          <label className="text-[10px] font-black uppercase tracking-widest text-slate-500 block mb-2">Perfil de acesso</label>
+          <label className="text-[10px] font-black uppercase tracking-widest text-slate-500 block mb-2">
+            Perfil de acesso
+          </label>
           <div className="grid grid-cols-3 gap-2">
             {Object.entries(ROLE_META).map(([key, meta]) => (
               <button
                 key={key}
                 type="button"
-                onClick={() => setForm(f => ({ ...f, role: key }))}
+                onClick={() => setForm((f) => ({ ...f, role: key }))}
                 className={cn(
                   "flex flex-col items-center gap-1.5 p-3 rounded-xl border-2 transition-all text-center",
                   form.role === key
                     ? "border-current shadow-sm"
-                    : "border-slate-100 hover:border-slate-200 bg-white"
+                    : "border-slate-100 hover:border-slate-200 bg-white",
                 )}
-                style={form.role === key ? { borderColor: meta.color, backgroundColor: meta.bg } : {}}
+                style={
+                  form.role === key
+                    ? { borderColor: meta.color, backgroundColor: meta.bg }
+                    : {}
+                }
               >
-                <div className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ backgroundColor: meta.bg, color: meta.color }}>
+                <div
+                  className="w-7 h-7 rounded-lg flex items-center justify-center"
+                  style={{ backgroundColor: meta.bg, color: meta.color }}
+                >
                   {meta.icon}
                 </div>
-                <p className="text-[9px] font-black uppercase tracking-wider leading-tight" style={{ color: form.role === key ? meta.color : undefined }}>
+                <p
+                  className="text-[9px] font-black uppercase tracking-wider leading-tight"
+                  style={{ color: form.role === key ? meta.color : undefined }}
+                >
                   {meta.label}
                 </p>
               </button>
             ))}
           </div>
-          <p className="text-[10px] text-slate-400 mt-2 font-medium">{ROLE_META[form.role]?.desc}</p>
+          <p className="text-[10px] text-slate-400 mt-2 font-medium">
+            {ROLE_META[form.role]?.desc}
+          </p>
         </div>
 
         {/* Permissões individuais — admin já tem acesso total, não precisa marcar nada */}
@@ -590,7 +1069,10 @@ function TeamSection() {
               </label>
               <div className="grid grid-cols-2 gap-1.5">
                 {permOptions.menus.map((opt) => (
-                  <label key={opt.key} className="flex items-center gap-2 text-[11px] font-medium text-slate-600 px-2 py-1.5 rounded-lg hover:bg-slate-50 cursor-pointer">
+                  <label
+                    key={opt.key}
+                    className="flex items-center gap-2 text-[11px] font-medium text-slate-600 px-2 py-1.5 rounded-lg hover:bg-slate-50 cursor-pointer"
+                  >
                     <input
                       type="checkbox"
                       checked={selectedMenus.includes(opt.key)}
@@ -609,7 +1091,10 @@ function TeamSection() {
               </label>
               <div className="grid grid-cols-2 gap-1.5">
                 {permOptions.stages.map((opt) => (
-                  <label key={opt.key} className="flex items-center gap-2 text-[11px] font-medium text-slate-600 px-2 py-1.5 rounded-lg hover:bg-slate-50 cursor-pointer">
+                  <label
+                    key={opt.key}
+                    className="flex items-center gap-2 text-[11px] font-medium text-slate-600 px-2 py-1.5 rounded-lg hover:bg-slate-50 cursor-pointer"
+                  >
                     <input
                       type="checkbox"
                       checked={selectedStages.includes(opt.key)}
@@ -634,8 +1119,15 @@ function TeamSection() {
         size="sm"
         footer={
           <>
-            <Button variant="secondary" onClick={() => setDeleteTarget(null)}>Cancelar</Button>
-            <Button variant="danger" loading={deletingId === deleteTarget?.id} icon={<Trash2 size={13} />} onClick={handleDelete}>
+            <Button variant="secondary" onClick={() => setDeleteTarget(null)}>
+              Cancelar
+            </Button>
+            <Button
+              variant="danger"
+              loading={deletingId === deleteTarget?.id}
+              icon={<Trash2 size={13} />}
+              onClick={handleDelete}
+            >
               Remover
             </Button>
           </>
@@ -646,7 +1138,8 @@ function TeamSection() {
             <AlertTriangle size={18} />
           </div>
           <p className="text-sm font-semibold text-slate-800">
-            Remover <span className="text-red-600">"{deleteTarget?.name}"</span> do time? Este usuário perderá o acesso ao painel imediatamente.
+            Remover <span className="text-red-600">"{deleteTarget?.name}"</span>{" "}
+            do time? Este usuário perderá o acesso ao painel imediatamente.
           </p>
         </div>
       </Modal>
@@ -662,18 +1155,48 @@ export default function Settings() {
 
   // tab ativa sincronizada com ?tab=xxx na URL — ausente = mostra a grade de seções
   const active = searchParams.get("tab");
-  const setActive = useCallback((id: string) => {
-    setSearchParams((prev) => { const n = new URLSearchParams(prev); n.set("tab", id); return n; }, { replace: true });
-  }, [setSearchParams]);
+  const setActive = useCallback(
+    (id: string) => {
+      setSearchParams(
+        (prev) => {
+          const n = new URLSearchParams(prev);
+          n.set("tab", id);
+          return n;
+        },
+        { replace: true },
+      );
+    },
+    [setSearchParams],
+  );
   const goToGrid = useCallback(() => {
-    setSearchParams((prev) => { const n = new URLSearchParams(prev); n.delete("tab"); return n; }, { replace: true });
+    setSearchParams(
+      (prev) => {
+        const n = new URLSearchParams(prev);
+        n.delete("tab");
+        return n;
+      },
+      { replace: true },
+    );
   }, [setSearchParams]);
 
   // sub-tab de maquininha sincronizada com ?payType=xxx
-  const activePayType = (searchParams.get("payType") ?? "credit") as "credit" | "debit" | "pix";
-  const setActivePayType = useCallback((id: "credit" | "debit" | "pix") => {
-    setSearchParams((prev) => { const n = new URLSearchParams(prev); n.set("payType", id); return n; }, { replace: true });
-  }, [setSearchParams]);
+  const activePayType = (searchParams.get("payType") ?? "credit") as
+    | "credit"
+    | "debit"
+    | "pix";
+  const setActivePayType = useCallback(
+    (id: "credit" | "debit" | "pix") => {
+      setSearchParams(
+        (prev) => {
+          const n = new URLSearchParams(prev);
+          n.set("payType", id);
+          return n;
+        },
+        { replace: true },
+      );
+    },
+    [setSearchParams],
+  );
 
   const [tenant, setTenant] = useState<Partial<Tenant> | null>(null);
   const [loading, setLoading] = useState(true);
@@ -687,18 +1210,26 @@ export default function Settings() {
   const [certUploading, setCertUploading] = useState(false);
   const [certPassword, setCertPassword] = useState("");
   const [certError, setCertError] = useState<string | null>(null);
-  const [certInfo, setCertInfo] = useState<{ subjectName: string; validUntil: string } | null>(null);
+  const [certInfo, setCertInfo] = useState<{
+    subjectName: string;
+    validUntil: string;
+  } | null>(null);
   const [certFile, setCertFile] = useState<File | null>(null);
   const certInputRef = useRef<HTMLInputElement>(null);
   const [testingNfse, setTestingNfse] = useState(false);
   const [nfseTestResult, setNfseTestResult] = useState<{
-    success: boolean; status?: string; rejection_reason?: string | null; chave_acesso?: string | null;
+    success: boolean;
+    status?: string;
+    rejection_reason?: string | null;
+    chave_acesso?: string | null;
   } | null>(null);
   // system prefs (stored in UserPreference)
   const [panelTheme, setPanelTheme] = useState<"light" | "dark">("light");
   const [lowStockAlert, setLowStockAlert] = useState(5);
   const [panelLang, setPanelLang] = useState("pt-BR");
-  const [printerSize, setPrinterSize] = useState<"58mm" | "80mm" | "A4">("58mm");
+  const [printerSize, setPrinterSize] = useState<"58mm" | "80mm" | "A4">(
+    "58mm",
+  );
   const [pushEnabled, setPushEnabled] = useState(false);
   const [pushSaving, setPushSaving] = useState(false);
 
@@ -708,23 +1239,32 @@ export default function Settings() {
 
   // card fees state
   const DEFAULT_CARD_FEES: CardFees = {
-    visa:   [2.5, 3.0, 3.5, 4.0, 4.5, 5.0, 0, 0, 0, 0, 0, 0],
+    visa: [2.5, 3.0, 3.5, 4.0, 4.5, 5.0, 0, 0, 0, 0, 0, 0],
     master: [2.5, 3.0, 3.5, 4.0, 4.5, 5.0, 0, 0, 0, 0, 0, 0],
-    elo:    [2.8, 3.3, 3.8, 4.3, 4.8, 5.3, 0, 0, 0, 0, 0, 0],
-    amex:   [3.0, 3.5, 4.0, 4.5, 5.0, 5.5, 0, 0, 0, 0, 0, 0],
-    hiper:  [2.7, 3.2, 3.7, 4.2, 4.7, 5.2, 0, 0, 0, 0, 0, 0],
-    other:  [2.5, 3.0, 3.5, 4.0, 4.5, 5.0, 0, 0, 0, 0, 0, 0],
+    elo: [2.8, 3.3, 3.8, 4.3, 4.8, 5.3, 0, 0, 0, 0, 0, 0],
+    amex: [3.0, 3.5, 4.0, 4.5, 5.0, 5.5, 0, 0, 0, 0, 0, 0],
+    hiper: [2.7, 3.2, 3.7, 4.2, 4.7, 5.2, 0, 0, 0, 0, 0, 0],
+    other: [2.5, 3.0, 3.5, 4.0, 4.5, 5.0, 0, 0, 0, 0, 0, 0],
   };
   const [cardFees, setCardFees] = useState<CardFees>(DEFAULT_CARD_FEES);
   const [passFeeToCustomer, setPassFeeToCustomer] = useState(false);
   const [maxInstallments, setMaxInstallments] = useState(12);
   // Bandeiras habilitadas: { visa: true, master: true, ... }
   const [enabledBrands, setEnabledBrands] = useState<Record<string, boolean>>({
-    visa: true, master: true, elo: true, amex: true, hiper: true, other: true,
+    visa: true,
+    master: true,
+    elo: true,
+    amex: true,
+    hiper: true,
+    other: true,
   });
   // Repasse de taxa por método: { credit: false, debit: false, pix: false }
-  const [passFeeByMethod, setPassFeeByMethod] = useState<Record<string, boolean>>({
-    credit: false, debit: false, pix: false,
+  const [passFeeByMethod, setPassFeeByMethod] = useState<
+    Record<string, boolean>
+  >({
+    credit: false,
+    debit: false,
+    pix: false,
   });
 
   // ── Crediário: juros configurável sobre parcela em atraso ───────────────────
@@ -736,13 +1276,21 @@ export default function Settings() {
   // ── Relatórios automáticos por email (semanal/mensal) ────────────────────────
   const [weeklyReportEnabled, setWeeklyReportEnabled] = useState(false);
   const [monthlyReportEnabled, setMonthlyReportEnabled] = useState(false);
-  const [reportRecipientEmails, setReportRecipientEmails] = useState<string[]>([]);
-  const [savedReportRecipientEmails, setSavedReportRecipientEmails] = useState<string[]>([]);
+  const [reportRecipientEmails, setReportRecipientEmails] = useState<string[]>(
+    [],
+  );
+  const [savedReportRecipientEmails, setSavedReportRecipientEmails] = useState<
+    string[]
+  >([]);
   const [newReportEmail, setNewReportEmail] = useState("");
   const [savingReports, setSavingReports] = useState(false);
-  const [sendingReportNow, setSendingReportNow] = useState<"weekly" | "monthly" | null>(null);
+  const [sendingReportNow, setSendingReportNow] = useState<
+    "weekly" | "monthly" | null
+  >(null);
   const [adminEmails, setAdminEmails] = useState<string[]>([]);
-  const hasUnsavedReportRecipients = JSON.stringify(reportRecipientEmails) !== JSON.stringify(savedReportRecipientEmails);
+  const hasUnsavedReportRecipients =
+    JSON.stringify(reportRecipientEmails) !==
+    JSON.stringify(savedReportRecipientEmails);
 
   // ── E-mail próprio da loja: usado nos documentos enviados aos clientes ──────
   const [emailProvider, setEmailProvider] = useState<EmailProvider>("gmail");
@@ -752,47 +1300,115 @@ export default function Settings() {
   const [emailSmtpHost, setEmailSmtpHost] = useState("smtp.gmail.com");
   const [emailSmtpPort, setEmailSmtpPort] = useState("465");
   const [emailSmtpSecure, setEmailSmtpSecure] = useState(true);
-  const [emailConnectionConfigured, setEmailConnectionConfigured] = useState(false);
+  const [emailConnectionConfigured, setEmailConnectionConfigured] =
+    useState(false);
   const [savingEmailConnection, setSavingEmailConnection] = useState(false);
   const [testingEmailConnection, setTestingEmailConnection] = useState(false);
 
   // ── Terminal (maquininha API) ────────────────────────────────────────────────
-  type TerminalProvider = "rede" | "stone" | "mercadopago" | "cielo" | "pagseguro";
-  const TERMINAL_PROVIDERS: { id: TerminalProvider; label: string; color: string }[] = [
-    { id: "rede",        label: "Rede (Itaú)",        color: "#FF6200" },
-    { id: "stone",       label: "Stone",               color: "#00A868" },
-    { id: "mercadopago", label: "Mercado Pago",        color: "#009EE3" },
-    { id: "cielo",       label: "Cielo",               color: "#00AEEF" },
-    { id: "pagseguro",   label: "PagBank",             color: "#F7971C" },
+  type TerminalProvider =
+    | "rede"
+    | "stone"
+    | "mercadopago"
+    | "cielo"
+    | "pagseguro";
+  const TERMINAL_PROVIDERS: {
+    id: TerminalProvider;
+    label: string;
+    color: string;
+  }[] = [
+    { id: "rede", label: "Rede (Itaú)", color: "#FF6200" },
+    { id: "stone", label: "Stone", color: "#00A868" },
+    { id: "mercadopago", label: "Mercado Pago", color: "#009EE3" },
+    { id: "cielo", label: "Cielo", color: "#00AEEF" },
+    { id: "pagseguro", label: "PagBank", color: "#F7971C" },
   ];
   // Cada provider expõe um conjunto diferente de campos de credencial —
   // a chave é o nome salvo em terminal_config.credentials, lido pelo provider correspondente.
-  const TERMINAL_CREDENTIAL_FIELDS: Record<TerminalProvider, { key: string; label: string; placeholder: string; secret: boolean }[]> = {
+  const TERMINAL_CREDENTIAL_FIELDS: Record<
+    TerminalProvider,
+    { key: string; label: string; placeholder: string; secret: boolean }[]
+  > = {
     rede: [
-      { key: "clientId", label: "Client ID (PV)", placeholder: "Ex: 48152954", secret: false },
-      { key: "clientSecret", label: "Client Secret (Token)", placeholder: "Cole o token gerado no portal do desenvolvedor", secret: true },
+      {
+        key: "clientId",
+        label: "Client ID (PV)",
+        placeholder: "Ex: 48152954",
+        secret: false,
+      },
+      {
+        key: "clientSecret",
+        label: "Client Secret (Token)",
+        placeholder: "Cole o token gerado no portal do desenvolvedor",
+        secret: true,
+      },
     ],
     stone: [
-      { key: "secretKey", label: "Chave Secreta (SK)", placeholder: "sk_...", secret: true },
-      { key: "serviceRefererName", label: "ID do Parceiro (ServiceRefererName)", placeholder: "Fornecido pela Stone no credenciamento", secret: false },
-      { key: "deviceSerialNumber", label: "Número de Série da Maquininha", placeholder: "Ex: 6C568971", secret: false },
+      {
+        key: "secretKey",
+        label: "Chave Secreta (SK)",
+        placeholder: "sk_...",
+        secret: true,
+      },
+      {
+        key: "serviceRefererName",
+        label: "ID do Parceiro (ServiceRefererName)",
+        placeholder: "Fornecido pela Stone no credenciamento",
+        secret: false,
+      },
+      {
+        key: "deviceSerialNumber",
+        label: "Número de Série da Maquininha",
+        placeholder: "Ex: 6C568971",
+        secret: false,
+      },
     ],
     mercadopago: [
-      { key: "accessToken", label: "Access Token", placeholder: "APP_USR-... (gerado no painel de desenvolvedores)", secret: true },
-      { key: "deviceId", label: "Device ID (Maquininha Point)", placeholder: "Ex: PAX_A910__SMART0000...", secret: false },
+      {
+        key: "accessToken",
+        label: "Access Token",
+        placeholder: "APP_USR-... (gerado no painel de desenvolvedores)",
+        secret: true,
+      },
+      {
+        key: "deviceId",
+        label: "Device ID (Maquininha Point)",
+        placeholder: "Ex: PAX_A910__SMART0000...",
+        secret: false,
+      },
     ],
     cielo: [
-      { key: "merchantId", label: "Merchant ID", placeholder: "Merchant ID Cielo", secret: false },
-      { key: "merchantKey", label: "Merchant Key", placeholder: "Merchant Key Cielo", secret: true },
+      {
+        key: "merchantId",
+        label: "Merchant ID",
+        placeholder: "Merchant ID Cielo",
+        secret: false,
+      },
+      {
+        key: "merchantKey",
+        label: "Merchant Key",
+        placeholder: "Merchant Key Cielo",
+        secret: true,
+      },
     ],
     pagseguro: [
-      { key: "token", label: "Token de API", placeholder: "Token gerado no painel PagBank", secret: true },
+      {
+        key: "token",
+        label: "Token de API",
+        placeholder: "Token gerado no painel PagBank",
+        secret: true,
+      },
     ],
   };
-  const [terminalProvider, setTerminalProvider] = useState<TerminalProvider>("rede");
+  const [terminalProvider, setTerminalProvider] =
+    useState<TerminalProvider>("rede");
   const [terminalSandbox, setTerminalSandbox] = useState(true);
-  const [terminalCredentials, setTerminalCredentials] = useState<Record<string, string>>({});
-  const [terminalPingStatus, setTerminalPingStatus] = useState<"idle" | "loading" | "ok" | "fail">("idle");
+  const [terminalCredentials, setTerminalCredentials] = useState<
+    Record<string, string>
+  >({});
+  const [terminalPingStatus, setTerminalPingStatus] = useState<
+    "idle" | "loading" | "ok" | "fail"
+  >("idle");
   const [terminalSaving, setTerminalSaving] = useState(false);
 
   useEffect(() => {
@@ -801,23 +1417,36 @@ export default function Settings() {
       .then((d) => {
         setTenant(d);
         if (d?.card_fees) setCardFees(d.card_fees);
-        if (d?.pass_fee_to_customer !== undefined) setPassFeeToCustomer(Boolean(d.pass_fee_to_customer));
+        if (d?.pass_fee_to_customer !== undefined)
+          setPassFeeToCustomer(Boolean(d.pass_fee_to_customer));
         if (d?.max_installments) setMaxInstallments(Number(d.max_installments));
-        if (d?.enabled_brands) setEnabledBrands(d.enabled_brands as Record<string, boolean>);
-        if (d?.pass_fee_by_method) setPassFeeByMethod(d.pass_fee_by_method as Record<string, boolean>);
-        if (d?.crediario_interest_rate !== undefined) setCrediarioInterestRate(Number(d.crediario_interest_rate));
-        if (d?.crediario_grace_days !== undefined) setCrediarioGraceDays(Number(d.crediario_grace_days));
-        if (d?.return_deadline_days !== undefined && d.return_deadline_days !== null) setReturnDeadlineDays(Number(d.return_deadline_days));
-        if (d?.weekly_report_enabled !== undefined) setWeeklyReportEnabled(Boolean(d.weekly_report_enabled));
-        if (d?.monthly_report_enabled !== undefined) setMonthlyReportEnabled(Boolean(d.monthly_report_enabled));
+        if (d?.enabled_brands)
+          setEnabledBrands(d.enabled_brands as Record<string, boolean>);
+        if (d?.pass_fee_by_method)
+          setPassFeeByMethod(d.pass_fee_by_method as Record<string, boolean>);
+        if (d?.crediario_interest_rate !== undefined)
+          setCrediarioInterestRate(Number(d.crediario_interest_rate));
+        if (d?.crediario_grace_days !== undefined)
+          setCrediarioGraceDays(Number(d.crediario_grace_days));
+        if (
+          d?.return_deadline_days !== undefined &&
+          d.return_deadline_days !== null
+        )
+          setReturnDeadlineDays(Number(d.return_deadline_days));
+        if (d?.weekly_report_enabled !== undefined)
+          setWeeklyReportEnabled(Boolean(d.weekly_report_enabled));
+        if (d?.monthly_report_enabled !== undefined)
+          setMonthlyReportEnabled(Boolean(d.monthly_report_enabled));
         if (Array.isArray(d?.report_recipient_emails)) {
           setReportRecipientEmails(d.report_recipient_emails);
           setSavedReportRecipientEmails(d.report_recipient_emails);
         }
         if (d?.email_connection) {
           const connection = d.email_connection;
-          const provider = EMAIL_PROVIDERS.some((item) => item.id === connection.provider)
-            ? connection.provider as EmailProvider
+          const provider = EMAIL_PROVIDERS.some(
+            (item) => item.id === connection.provider,
+          )
+            ? (connection.provider as EmailProvider)
             : "custom";
           setEmailProvider(provider);
           setStoreEmail(connection.email || "");
@@ -834,9 +1463,15 @@ export default function Settings() {
       .then((r) => r.json())
       .then((d) => {
         if (!Array.isArray(d)) return;
-        setAdminEmails(d.filter((u: any) => u.role === "admin" && u.email).map((u: any) => u.email));
+        setAdminEmails(
+          d
+            .filter((u: any) => u.role === "admin" && u.email)
+            .map((u: any) => u.email),
+        );
       })
-      .catch(() => { /* lista de admins é só informativa */ });
+      .catch(() => {
+        /* lista de admins é só informativa */
+      });
 
     fetch("/api/terminals/config", { headers: API_HEADERS() })
       .then((r) => r.json())
@@ -844,24 +1479,43 @@ export default function Settings() {
         if (!cfg) return;
         if (cfg.provider) setTerminalProvider(cfg.provider as TerminalProvider);
         if (cfg.sandbox !== undefined) setTerminalSandbox(Boolean(cfg.sandbox));
-        if (cfg.credentials) setTerminalCredentials(cfg.credentials as Record<string, string>);
+        if (cfg.credentials)
+          setTerminalCredentials(cfg.credentials as Record<string, string>);
       })
-      .catch(() => { /* terminal config optional */ });
+      .catch(() => {
+        /* terminal config optional */
+      });
 
     // load panel prefs
     Promise.all([
-      fetch("/api/preferences/panel_theme", { headers: API_HEADERS() }).then((r) => r.json()),
-      fetch("/api/preferences/low_stock_alert", { headers: API_HEADERS() }).then((r) => r.json()),
-      fetch("/api/preferences/panel_lang", { headers: API_HEADERS() }).then((r) => r.json()),
-      fetch("/api/preferences/receipt_printer_size", { headers: API_HEADERS() }).then((r) => r.json()).catch(() => null),
-      fetch("/api/preferences/push_notifications_enabled", { headers: API_HEADERS() }).then((r) => r.json()).catch(() => null),
-    ]).then(([theme, alert, lang, printer, pushPref]) => {
-      if (theme) setPanelTheme(theme as "light" | "dark");
-      if (alert !== null) setLowStockAlert(Number(alert));
-      if (lang) setPanelLang(lang as string);
-      if (printer) setPrinterSize(printer as "58mm" | "80mm" | "A4");
-      if (pushPref) setPushEnabled(Boolean(pushPref));
-    }).catch(() => { /* prefs optional */ });
+      fetch("/api/preferences/panel_theme", { headers: API_HEADERS() }).then(
+        (r) => r.json(),
+      ),
+      fetch("/api/preferences/low_stock_alert", {
+        headers: API_HEADERS(),
+      }).then((r) => r.json()),
+      fetch("/api/preferences/panel_lang", { headers: API_HEADERS() }).then(
+        (r) => r.json(),
+      ),
+      fetch("/api/preferences/receipt_printer_size", { headers: API_HEADERS() })
+        .then((r) => r.json())
+        .catch(() => null),
+      fetch("/api/preferences/push_notifications_enabled", {
+        headers: API_HEADERS(),
+      })
+        .then((r) => r.json())
+        .catch(() => null),
+    ])
+      .then(([theme, alert, lang, printer, pushPref]) => {
+        if (theme) setPanelTheme(theme as "light" | "dark");
+        if (alert !== null) setLowStockAlert(Number(alert));
+        if (lang) setPanelLang(lang as string);
+        if (printer) setPrinterSize(printer as "58mm" | "80mm" | "A4");
+        if (pushPref) setPushEnabled(Boolean(pushPref));
+      })
+      .catch(() => {
+        /* prefs optional */
+      });
   }, []);
 
   const setT = useCallback(
@@ -870,7 +1524,8 @@ export default function Settings() {
   );
 
   const hours = (tenant?.business_hours ?? DEFAULT_HOURS) as BusinessHours;
-  const payments = (tenant?.payment_methods ?? DEFAULT_PAYMENTS) as PaymentMethods;
+  const payments = (tenant?.payment_methods ??
+    DEFAULT_PAYMENTS) as PaymentMethods;
   const policies = (tenant?.policies ?? DEFAULT_POLICIES) as StorePolicies;
 
   const showSaved = () => {
@@ -897,14 +1552,18 @@ export default function Settings() {
     setTestingNfse(true);
     setNfseTestResult(null);
     try {
-      const res = await fetch("/api/nfse/test", { method: "POST", headers: API_HEADERS() });
+      const res = await fetch("/api/nfse/test", {
+        method: "POST",
+        headers: API_HEADERS(),
+      });
       const data = await res.json();
       if (!res.ok) {
         toast.error(data?.error || "Erro ao testar emissão.");
         return;
       }
       setNfseTestResult(data);
-      if (data.success) toast.success("Nota de teste autorizada em homologação!");
+      if (data.success)
+        toast.success("Nota de teste autorizada em homologação!");
       else toast.error("Nota de teste rejeitada — veja o motivo abaixo.");
     } catch {
       toast.error("Erro de conexão ao testar emissão.");
@@ -918,19 +1577,23 @@ export default function Settings() {
     try {
       await Promise.all([
         fetch("/api/preferences/panel_theme", {
-          method: "PUT", headers: API_HEADERS(),
+          method: "PUT",
+          headers: API_HEADERS(),
           body: JSON.stringify({ value: panelTheme }),
         }),
         fetch("/api/preferences/low_stock_alert", {
-          method: "PUT", headers: API_HEADERS(),
+          method: "PUT",
+          headers: API_HEADERS(),
           body: JSON.stringify({ value: lowStockAlert }),
         }),
         fetch("/api/preferences/panel_lang", {
-          method: "PUT", headers: API_HEADERS(),
+          method: "PUT",
+          headers: API_HEADERS(),
           body: JSON.stringify({ value: panelLang }),
         }),
         fetch("/api/preferences/receipt_printer_size", {
-          method: "PUT", headers: API_HEADERS(),
+          method: "PUT",
+          headers: API_HEADERS(),
           body: JSON.stringify({ value: printerSize }),
         }),
       ]);
@@ -948,11 +1611,15 @@ export default function Settings() {
     setSaving(true);
     try {
       const res = await fetch("/api/auth/change-password", {
-        method: "POST", headers: API_HEADERS(),
+        method: "POST",
+        headers: API_HEADERS(),
         body: JSON.stringify({ password: newPass }),
       });
-      if (res.ok) { showSaved(); setNewPass(""); setConfirmPass(""); }
-      else alert("Erro ao alterar senha.");
+      if (res.ok) {
+        showSaved();
+        setNewPass("");
+        setConfirmPass("");
+      } else alert("Erro ao alterar senha.");
     } finally {
       setSaving(false);
     }
@@ -994,7 +1661,9 @@ export default function Settings() {
             method: "PUT",
             headers: API_HEADERS(),
             body: JSON.stringify(updated),
-          }).then(() => showSaved()).catch(() => {});
+          })
+            .then(() => showSaved())
+            .catch(() => {});
           return updated;
         });
       }
@@ -1021,7 +1690,9 @@ export default function Settings() {
             method: "PUT",
             headers: API_HEADERS(),
             body: JSON.stringify(updated),
-          }).then(() => showSaved()).catch(() => {});
+          })
+            .then(() => showSaved())
+            .catch(() => {});
           return updated;
         });
       }
@@ -1040,13 +1711,18 @@ export default function Settings() {
         await unsubscribeFromPush(token);
       }
       await fetch("/api/preferences/push_notifications_enabled", {
-        method: "PUT", headers: API_HEADERS(),
+        method: "PUT",
+        headers: API_HEADERS(),
         body: JSON.stringify({ value: next }),
       });
       setPushEnabled(next);
       showSaved();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Falha ao configurar notificações push");
+      toast.error(
+        err instanceof Error
+          ? err.message
+          : "Falha ao configurar notificações push",
+      );
     } finally {
       setPushSaving(false);
     }
@@ -1077,10 +1753,15 @@ export default function Settings() {
         setCertError(data.error ?? "Falha ao enviar certificado");
         return;
       }
-      setCertInfo({ subjectName: data.subjectName, validUntil: data.validUntil });
+      setCertInfo({
+        subjectName: data.subjectName,
+        validUntil: data.validUntil,
+      });
       setCertPassword("");
       setCertFile(null);
-      setTenant((prev) => (prev ? { ...prev, nfce_cert_configured: true } : prev));
+      setTenant((prev) =>
+        prev ? { ...prev, nfce_cert_configured: true } : prev,
+      );
       showSaved();
     } catch {
       setCertError("Falha de conexão ao enviar certificado");
@@ -1099,7 +1780,9 @@ export default function Settings() {
       });
       if (res.ok) {
         setCertInfo(null);
-        setTenant((prev) => (prev ? { ...prev, nfce_cert_configured: false } : prev));
+        setTenant((prev) =>
+          prev ? { ...prev, nfce_cert_configured: false } : prev,
+        );
         showSaved();
       }
     } finally {
@@ -1116,11 +1799,11 @@ export default function Settings() {
       const d = await res.json();
       if (!d.erro) {
         setT({
-          address_street:   d.logradouro ?? "",
+          address_street: d.logradouro ?? "",
           address_district: d.bairro ?? "",
-          address_city:     d.localidade ?? "",
-          address_state:    d.uf ?? "",
-          address_zip:      raw,
+          address_city: d.localidade ?? "",
+          address_state: d.uf ?? "",
+          address_zip: raw,
         });
       }
     } catch {
@@ -1221,7 +1904,9 @@ export default function Settings() {
         body: JSON.stringify({ kind }),
       });
       if (res.ok) {
-        toast.success(`Relatório ${kind === "weekly" ? "semanal" : "mensal"} enviado!`);
+        toast.success(
+          `Relatório ${kind === "weekly" ? "semanal" : "mensal"} enviado!`,
+        );
       } else {
         const err = await res.json().catch(() => ({}));
         toast.error("Erro ao enviar: " + (err?.error ?? res.status));
@@ -1264,11 +1949,18 @@ export default function Settings() {
       return;
     }
     if (!emailConnectionConfigured && !emailAppPassword.trim()) {
-      toast.error("Informe a senha de aplicativo gerada pelo seu provedor de e-mail.");
+      toast.error(
+        "Informe a senha de aplicativo gerada pelo seu provedor de e-mail.",
+      );
       return;
     }
-    if (emailProvider === "custom" && (!emailSmtpHost.trim() || !emailSmtpPort.trim())) {
-      toast.error("Informe o servidor SMTP e a porta do seu e-mail profissional.");
+    if (
+      emailProvider === "custom" &&
+      (!emailSmtpHost.trim() || !emailSmtpPort.trim())
+    ) {
+      toast.error(
+        "Informe o servidor SMTP e a porta do seu e-mail profissional.",
+      );
       return;
     }
 
@@ -1291,7 +1983,9 @@ export default function Settings() {
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
-        toast.error(data?.error || "Não foi possível salvar a conexão de e-mail.");
+        toast.error(
+          data?.error || "Não foi possível salvar a conexão de e-mail.",
+        );
         return;
       }
       setEmailConnectionConfigured(true);
@@ -1307,13 +2001,18 @@ export default function Settings() {
   const handleTestEmailConnection = async () => {
     setTestingEmailConnection(true);
     try {
-      const res = await fetch("/api/tenant/email-connection/test", { method: "POST", headers: API_HEADERS() });
+      const res = await fetch("/api/tenant/email-connection/test", {
+        method: "POST",
+        headers: API_HEADERS(),
+      });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
         toast.error(data?.error || "A conexão não pôde ser confirmada.");
         return;
       }
-      toast.success("Conexão confirmada! Enviamos um e-mail de teste para a conta da loja.");
+      toast.success(
+        "Conexão confirmada! Enviamos um e-mail de teste para a conta da loja.",
+      );
     } catch {
       toast.error("Erro de conexão ao testar o e-mail da loja.");
     } finally {
@@ -1322,11 +2021,18 @@ export default function Settings() {
   };
 
   const handleDisconnectEmail = async () => {
-    if (!window.confirm("Desconectar este e-mail? Os próximos documentos não poderão ser enviados por esta conta.")) return;
+    if (
+      !window.confirm(
+        "Desconectar este e-mail? Os próximos documentos não poderão ser enviados por esta conta.",
+      )
+    )
+      return;
     setSavingEmailConnection(true);
     try {
       const res = await fetch("/api/tenant", {
-        method: "PUT", headers: API_HEADERS(), body: JSON.stringify({ email_connection: null }),
+        method: "PUT",
+        headers: API_HEADERS(),
+        body: JSON.stringify({ email_connection: null }),
       });
       if (!res.ok) throw new Error();
       setEmailConnectionConfigured(false);
@@ -1340,7 +2046,9 @@ export default function Settings() {
   };
 
   const terminalFieldsMissing = () =>
-    TERMINAL_CREDENTIAL_FIELDS[terminalProvider].some((f) => !terminalCredentials[f.key]);
+    TERMINAL_CREDENTIAL_FIELDS[terminalProvider].some(
+      (f) => !terminalCredentials[f.key],
+    );
 
   const handleSaveTerminal = async () => {
     if (terminalFieldsMissing()) {
@@ -1405,7 +2113,10 @@ export default function Settings() {
     setCardFees((prev) => ({ ...prev, pix: [value] }));
   };
 
-  const setHours = (day: string, patch: Partial<{ open: string; close: string; closed: boolean }>) =>
+  const setHours = (
+    day: string,
+    patch: Partial<{ open: string; close: string; closed: boolean }>,
+  ) =>
     setT({ business_hours: { ...hours, [day]: { ...hours[day], ...patch } } });
 
   const setPayment = (key: keyof PaymentMethods, val: boolean) =>
@@ -1455,10 +2166,20 @@ export default function Settings() {
           {NAV.map((group) => (
             <div key={group.group}>
               <div className="mb-3 flex flex-wrap items-center gap-x-2 gap-y-1 sm:mb-4">
-                <div className={cn("flex h-7 w-7 items-center justify-center rounded-lg bg-white shadow-sm ring-1 ring-slate-100", group.color)}>
+                <div
+                  className={cn(
+                    "flex h-7 w-7 items-center justify-center rounded-lg bg-white shadow-sm ring-1 ring-slate-100",
+                    group.color,
+                  )}
+                >
                   <Globe size={13} />
                 </div>
-                <span className={cn("text-[10px] font-black uppercase tracking-[0.2em]", group.color)}>
+                <span
+                  className={cn(
+                    "text-[10px] font-black uppercase tracking-[0.2em]",
+                    group.color,
+                  )}
+                >
                   {group.group}
                 </span>
                 <span className="text-[10px] text-slate-400 font-medium normal-case tracking-normal">
@@ -1467,21 +2188,45 @@ export default function Settings() {
               </div>
               <div className="grid grid-cols-1 gap-3 min-[460px]:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
                 {group.items.map((item) => {
-                  const meta = SETTING_META[item.id] ?? { description: "Personalize esta área do sistema", icon: "text-slate-600", iconBg: "bg-slate-50", border: "hover:border-slate-300" };
+                  const meta = SETTING_META[item.id] ?? {
+                    description: "Personalize esta área do sistema",
+                    icon: "text-slate-600",
+                    iconBg: "bg-slate-50",
+                    border: "hover:border-slate-300",
+                  };
                   return (
                     <button
                       key={item.id}
                       onClick={() => setActive(item.id)}
-                      className={cn("group relative flex min-h-[112px] cursor-pointer items-center gap-4 rounded-2xl border border-slate-200/80 bg-white p-4 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md sm:min-h-[124px] sm:p-5", meta.border)}
+                      className={cn(
+                        "group relative flex min-h-[112px] cursor-pointer items-center gap-4 rounded-2xl border border-slate-200/80 bg-white p-4 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md sm:min-h-[124px] sm:p-5",
+                        meta.border,
+                      )}
                     >
-                      <div className={cn("flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl transition-transform group-hover:scale-105", meta.iconBg)}>
-                        <item.icon size={22} strokeWidth={2.15} className={meta.icon} />
+                      <div
+                        className={cn(
+                          "flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl transition-transform group-hover:scale-105",
+                          meta.iconBg,
+                        )}
+                      >
+                        <item.icon
+                          size={22}
+                          strokeWidth={2.15}
+                          className={meta.icon}
+                        />
                       </div>
                       <div className="min-w-0 pr-5">
-                        <span className="block text-[13px] font-black leading-tight text-slate-800 sm:text-sm">{item.label}</span>
-                        <span className="mt-1.5 block text-[10px] font-medium leading-relaxed text-slate-400">{meta.description}</span>
+                        <span className="block text-[13px] font-black leading-tight text-slate-800 sm:text-sm">
+                          {item.label}
+                        </span>
+                        <span className="mt-1.5 block text-[10px] font-medium leading-relaxed text-slate-400">
+                          {meta.description}
+                        </span>
                       </div>
-                      <ChevronRight size={16} className="absolute right-4 text-slate-300 transition-all group-hover:translate-x-0.5 group-hover:text-[#297ed1]" />
+                      <ChevronRight
+                        size={16}
+                        className="absolute right-4 text-slate-300 transition-all group-hover:translate-x-0.5 group-hover:text-[#297ed1]"
+                      />
                     </button>
                   );
                 })}
@@ -1492,7 +2237,7 @@ export default function Settings() {
       )}
 
       {active && (
-      <div className="overflow-hidden rounded-2xl border border-slate-100 bg-white shadow-sm">
+        <div className="overflow-hidden rounded-2xl border border-slate-100 bg-white shadow-sm">
           {/* breadcrumb strip */}
           <div className="flex items-center gap-2 overflow-x-auto border-b border-slate-50 px-4 py-3 text-[9px] font-black uppercase tracking-widest text-slate-300 sm:px-6">
             <Settings2 size={10} />
@@ -1523,17 +2268,27 @@ export default function Settings() {
                     >
                       {tenant?.logo_url ? (
                         <>
-                          <img src={tenant.logo_url} alt="Logo" className="w-full h-full object-contain p-1" />
+                          <img
+                            src={tenant.logo_url}
+                            alt="Logo"
+                            className="w-full h-full object-contain p-1"
+                          />
                           <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center rounded-2xl">
                             <Upload size={20} className="text-white" />
                           </div>
                         </>
                       ) : (
                         <div className="flex flex-col items-center gap-1 text-slate-300">
-                          {logoUploading
-                            ? <Loader2 size={24} className="animate-spin" />
-                            : <><Image size={24} /><span className="text-[8px] font-black uppercase tracking-widest">Clique</span></>
-                          }
+                          {logoUploading ? (
+                            <Loader2 size={24} className="animate-spin" />
+                          ) : (
+                            <>
+                              <Image size={24} />
+                              <span className="text-[8px] font-black uppercase tracking-widest">
+                                Clique
+                              </span>
+                            </>
+                          )}
                         </div>
                       )}
                     </div>
@@ -1549,10 +2304,17 @@ export default function Settings() {
                           disabled={logoUploading}
                           className="h-11 px-5 bg-slate-900 text-white rounded-xl text-[9px] font-black uppercase tracking-[0.2em] hover:bg-slate-800 transition-all flex items-center gap-2 disabled:opacity-50"
                         >
-                          {logoUploading
-                            ? <><Loader2 size={13} className="animate-spin" /> Enviando...</>
-                            : <><Upload size={13} strokeWidth={2.5} /> Selecionar arquivo</>
-                          }
+                          {logoUploading ? (
+                            <>
+                              <Loader2 size={13} className="animate-spin" />{" "}
+                              Enviando...
+                            </>
+                          ) : (
+                            <>
+                              <Upload size={13} strokeWidth={2.5} /> Selecionar
+                              arquivo
+                            </>
+                          )}
                         </button>
                         <p className="text-[9px] text-slate-400 font-medium px-1 mt-1.5">
                           PNG transparente recomendado · máx. 2 MB
@@ -1590,9 +2352,15 @@ export default function Settings() {
                   </p>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                     <Field label="Nome da Organização">
-                      <TextInput value={tenant?.name ?? ""} onChange={(v) => setT({ name: v })} />
+                      <TextInput
+                        value={tenant?.name ?? ""}
+                        onChange={(v) => setT({ name: v })}
+                      />
                     </Field>
-                    <Field label="CPF / CNPJ" hint="Será exibido nas notas fiscais">
+                    <Field
+                      label="CPF / CNPJ"
+                      hint="Será exibido nas notas fiscais"
+                    >
                       <TextInput
                         value={tenant?.document ?? ""}
                         onChange={(v) => setT({ document: maskDocument(v) })}
@@ -1600,7 +2368,10 @@ export default function Settings() {
                         mono
                       />
                     </Field>
-                    <Field label="WhatsApp de Vendas" hint="Formato: 5511999999999">
+                    <Field
+                      label="WhatsApp de Vendas"
+                      hint="Formato: 5511999999999"
+                    >
                       <TextInput
                         value={tenant?.whatsapp ?? ""}
                         onChange={(v) => setT({ whatsapp: v })}
@@ -1610,7 +2381,9 @@ export default function Settings() {
                     </Field>
                     <Field label="Identificador Público (Slug)">
                       <div className="flex items-center border border-slate-200 rounded-xl overflow-hidden focus-within:ring-4 focus-within:ring-blue-500/8 focus-within:border-blue-500 transition-all bg-slate-50">
-                        <span className="bg-slate-100 border-r border-slate-200 px-3 h-11 flex items-center text-[10px] font-mono text-slate-400 shrink-0">/s/</span>
+                        <span className="bg-slate-100 border-r border-slate-200 px-3 h-11 flex items-center text-[10px] font-mono text-slate-400 shrink-0">
+                          /s/
+                        </span>
                         <input
                           type="text"
                           className="flex-1 bg-transparent px-4 h-11 text-xs font-bold uppercase outline-none font-mono"
@@ -1629,7 +2402,9 @@ export default function Settings() {
                       Endereço / Sede
                     </p>
                     <div className="flex items-center gap-3 bg-slate-50 px-3 py-1.5 rounded-full border border-slate-100">
-                      <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Exibir no Site</span>
+                      <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">
+                        Exibir no Site
+                      </span>
                       <Toggle
                         checked={tenant?.show_address ?? true}
                         onChange={(v) => setT({ show_address: v })}
@@ -1656,11 +2431,17 @@ export default function Settings() {
                         disabled={cepLoading}
                         className="h-11 px-5 bg-slate-900 text-white rounded-xl text-[9px] font-black uppercase tracking-[0.2em] hover:bg-slate-800 transition-all flex items-center gap-2 disabled:opacity-50 shrink-0"
                       >
-                        {cepLoading ? <Loader2 size={13} className="animate-spin" /> : <Search size={13} strokeWidth={3} />}
+                        {cepLoading ? (
+                          <Loader2 size={13} className="animate-spin" />
+                        ) : (
+                          <Search size={13} strokeWidth={3} />
+                        )}
                         Buscar CEP
                       </button>
                     </div>
-                    <p className="text-[9px] text-slate-400 font-medium px-1">Digite o CEP para preencher o endereço automaticamente</p>
+                    <p className="text-[9px] text-slate-400 font-medium px-1">
+                      Digite o CEP para preencher o endereço automaticamente
+                    </p>
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
@@ -1704,12 +2485,44 @@ export default function Settings() {
                     <Field label="Estado (UF)">
                       <select
                         value={tenant?.address_state ?? ""}
-                        onChange={(e) => setT({ address_state: e.target.value })}
+                        onChange={(e) =>
+                          setT({ address_state: e.target.value })
+                        }
                         className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 h-11 text-xs font-bold outline-none focus:ring-4 focus:ring-blue-500/8 focus:border-blue-500 transition-all appearance-none"
                       >
                         <option value="">UF</option>
-                        {["AC","AL","AP","AM","BA","CE","DF","ES","GO","MA","MT","MS","MG","PA","PB","PR","PE","PI","RJ","RN","RS","RO","RR","SC","SP","SE","TO"].map((uf) => (
-                          <option key={uf} value={uf}>{uf}</option>
+                        {[
+                          "AC",
+                          "AL",
+                          "AP",
+                          "AM",
+                          "BA",
+                          "CE",
+                          "DF",
+                          "ES",
+                          "GO",
+                          "MA",
+                          "MT",
+                          "MS",
+                          "MG",
+                          "PA",
+                          "PB",
+                          "PR",
+                          "PE",
+                          "PI",
+                          "RJ",
+                          "RN",
+                          "RS",
+                          "RO",
+                          "RR",
+                          "SC",
+                          "SP",
+                          "SE",
+                          "TO",
+                        ].map((uf) => (
+                          <option key={uf} value={uf}>
+                            {uf}
+                          </option>
                         ))}
                       </select>
                     </Field>
@@ -1718,7 +2531,10 @@ export default function Settings() {
 
                 {/* Hero tagline */}
                 <div>
-                  <Field label="Frase de Destaque (Home)" hint="Subtítulo curto exibido logo abaixo do nome da loja na página inicial pública — sem preencher, aparece um texto genérico de exemplo do tema escolhido">
+                  <Field
+                    label="Frase de Destaque (Home)"
+                    hint="Subtítulo curto exibido logo abaixo do nome da loja na página inicial pública — sem preencher, aparece um texto genérico de exemplo do tema escolhido"
+                  >
                     <textarea
                       className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-5 py-4 text-xs font-medium outline-none h-20 resize-none focus:ring-4 focus:ring-blue-500/8 focus:border-blue-500 transition-all"
                       value={tenant?.hero_tagline ?? ""}
@@ -1730,7 +2546,10 @@ export default function Settings() {
 
                 {/* About */}
                 <div>
-                  <Field label="Manifesto da Marca (About)" hint="Texto mais longo exibido na página Sobre da loja pública — diferente da Frase de Destaque, que aparece na Home">
+                  <Field
+                    label="Manifesto da Marca (About)"
+                    hint="Texto mais longo exibido na página Sobre da loja pública — diferente da Frase de Destaque, que aparece na Home"
+                  >
                     <textarea
                       className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-5 py-4 text-xs font-medium outline-none h-36 resize-none focus:ring-4 focus:ring-blue-500/8 focus:border-blue-500 transition-all"
                       value={tenant?.about_text ?? ""}
@@ -1758,7 +2577,10 @@ export default function Settings() {
                     Dados da Empresa
                   </p>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                    <Field label="CPF / CNPJ" hint="Identifica o emitente perante a SEFAZ — editável em Identidade & Dados">
+                    <Field
+                      label="CPF / CNPJ"
+                      hint="Identifica o emitente perante a SEFAZ — editável em Identidade & Dados"
+                    >
                       <TextInput
                         value={tenant?.document ?? ""}
                         onChange={(v) => setT({ document: maskDocument(v) })}
@@ -1766,7 +2588,10 @@ export default function Settings() {
                         mono
                       />
                     </Field>
-                    <Field label="Razão Social" hint="Nome jurídico oficial, usado na tag xNome do XML">
+                    <Field
+                      label="Razão Social"
+                      hint="Nome jurídico oficial, usado na tag xNome do XML"
+                    >
                       <TextInput
                         value={tenant?.razao_social ?? ""}
                         onChange={(v) => setT({ razao_social: v })}
@@ -1805,7 +2630,10 @@ export default function Settings() {
                     Regime Tributário
                   </p>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                    <Field label="Regime" hint="Define CRT no XML e se produtos usam CSOSN ou CST">
+                    <Field
+                      label="Regime"
+                      hint="Define CRT no XML e se produtos usam CSOSN ou CST"
+                    >
                       <select
                         value={tenant?.tax_regime ?? "simples_nacional"}
                         onChange={(e) => {
@@ -1816,18 +2644,35 @@ export default function Settings() {
                             lucro_presumido: 3,
                             lucro_real: 3,
                           };
-                          setT({ tax_regime: regime as Tenant["tax_regime"], crt: crtByRegime[regime] ?? 1 });
+                          setT({
+                            tax_regime: regime as Tenant["tax_regime"],
+                            crt: crtByRegime[regime] ?? 1,
+                          });
                         }}
                         className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 h-11 text-xs font-bold outline-none focus:ring-4 focus:ring-blue-500/8 focus:border-blue-500 transition-all appearance-none"
                       >
-                        <option value="simples_nacional">Simples Nacional</option>
-                        <option value="simples_excesso">Simples Nacional – Excesso de Sublimite</option>
+                        <option value="simples_nacional">
+                          Simples Nacional
+                        </option>
+                        <option value="simples_excesso">
+                          Simples Nacional – Excesso de Sublimite
+                        </option>
                         <option value="lucro_presumido">Lucro Presumido</option>
                         <option value="lucro_real">Lucro Real</option>
                       </select>
                     </Field>
-                    <Field label="CRT (Código de Regime Tributário)" hint="Preenchido automaticamente pelo regime acima">
-                      <TextInput value={String(tenant?.crt ?? 1)} onChange={() => { /* derivado do regime */ }} mono className="opacity-60 pointer-events-none" />
+                    <Field
+                      label="CRT (Código de Regime Tributário)"
+                      hint="Preenchido automaticamente pelo regime acima"
+                    >
+                      <TextInput
+                        value={String(tenant?.crt ?? 1)}
+                        onChange={() => {
+                          /* derivado do regime */
+                        }}
+                        mono
+                        className="opacity-60 pointer-events-none"
+                      />
                     </Field>
                   </div>
                 </div>
@@ -1838,21 +2683,28 @@ export default function Settings() {
                     NFC-e — Emissão
                   </p>
                   <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 flex items-start gap-2.5">
-                    <AlertTriangle size={15} className="text-amber-500 shrink-0 mt-0.5" />
+                    <AlertTriangle
+                      size={15}
+                      className="text-amber-500 shrink-0 mt-0.5"
+                    />
                     <p className="text-[10px] font-bold text-amber-700 leading-relaxed">
-                      Ambiente "Homologação" emite notas de teste, sem validade fiscal. Só troque para
-                      "Produção" quando tiver certificado digital A1 e CSC de produção configurados.
+                      Ambiente "Homologação" emite notas de teste, sem validade
+                      fiscal. Só troque para "Produção" quando tiver certificado
+                      digital A1 e CSC de produção configurados.
                     </p>
                   </div>
 
                   <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-3">
-                    <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">Certificado Digital A1</p>
+                    <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">
+                      Certificado Digital A1
+                    </p>
                     {tenant?.nfce_cert_configured ? (
                       <div className="flex items-center justify-between gap-3">
                         <div className="flex items-center gap-2 text-emerald-700">
                           <ShieldCheck size={15} />
                           <span className="text-[11px] font-bold">
-                            Certificado configurado{certInfo ? ` — ${certInfo.subjectName}` : ""}
+                            Certificado configurado
+                            {certInfo ? ` — ${certInfo.subjectName}` : ""}
                           </span>
                         </div>
                         <button
@@ -1866,7 +2718,9 @@ export default function Settings() {
                     ) : (
                       <div className="space-y-2.5">
                         <p className="text-[10px] text-slate-500">
-                          Envie o arquivo .pfx/.p12 do certificado A1 da loja e a senha dele. É necessário para emitir NFC-e em produção.
+                          Envie o arquivo .pfx/.p12 do certificado A1 da loja e
+                          a senha dele. É necessário para emitir NFC-e em
+                          produção.
                         </p>
 
                         <div>
@@ -1880,7 +2734,10 @@ export default function Settings() {
                             className="hidden"
                             onChange={(e) => {
                               const file = e.target.files?.[0];
-                              if (file) { setCertFile(file); setCertError(null); }
+                              if (file) {
+                                setCertFile(file);
+                                setCertError(null);
+                              }
                               e.target.value = "";
                             }}
                           />
@@ -1892,8 +2749,17 @@ export default function Settings() {
                             >
                               <Upload size={13} /> Selecionar Arquivo
                             </button>
-                            <span className={cn("text-[11px] truncate", certFile ? "text-slate-700 font-bold" : "text-slate-400")}>
-                              {certFile ? certFile.name : "Nenhum arquivo selecionado"}
+                            <span
+                              className={cn(
+                                "text-[11px] truncate",
+                                certFile
+                                  ? "text-slate-700 font-bold"
+                                  : "text-slate-400",
+                              )}
+                            >
+                              {certFile
+                                ? certFile.name
+                                : "Nenhum arquivo selecionado"}
                             </span>
                           </div>
                         </div>
@@ -1912,15 +2778,23 @@ export default function Settings() {
                             />
                             <button
                               onClick={handleCertUpload}
-                              disabled={certUploading || !certPassword || !certFile}
+                              disabled={
+                                certUploading || !certPassword || !certFile
+                              }
                               className="h-11 px-4 rounded-xl bg-slate-800 text-white text-[10px] font-black uppercase tracking-wide hover:bg-slate-700 transition-all disabled:opacity-50 shrink-0"
                             >
-                              {certUploading ? "Enviando…" : "Enviar Certificado"}
+                              {certUploading
+                                ? "Enviando…"
+                                : "Enviar Certificado"}
                             </button>
                           </div>
                         </div>
 
-                        {certError && <p className="text-[10px] font-bold text-red-600">{certError}</p>}
+                        {certError && (
+                          <p className="text-[10px] font-bold text-red-600">
+                            {certError}
+                          </p>
+                        )}
                       </div>
                     )}
                   </div>
@@ -1929,7 +2803,12 @@ export default function Settings() {
                     <Field label="Ambiente NFC-e">
                       <select
                         value={tenant?.nfce_environment ?? "homologacao"}
-                        onChange={(e) => setT({ nfce_environment: e.target.value as Tenant["nfce_environment"] })}
+                        onChange={(e) =>
+                          setT({
+                            nfce_environment: e.target
+                              .value as Tenant["nfce_environment"],
+                          })
+                        }
                         className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 h-11 text-xs font-bold outline-none focus:ring-4 focus:ring-blue-500/8 focus:border-blue-500 transition-all appearance-none"
                       >
                         <option value="homologacao">Homologação (teste)</option>
@@ -1940,14 +2819,25 @@ export default function Settings() {
                     <Field label="Série">
                       <TextInput
                         value={String(tenant?.nfce_series ?? 1)}
-                        onChange={(v) => setT({ nfce_series: Number(v.replace(/\D/g, "")) || 1 })}
+                        onChange={(v) =>
+                          setT({
+                            nfce_series: Number(v.replace(/\D/g, "")) || 1,
+                          })
+                        }
                         mono
                       />
                     </Field>
-                    <Field label="Próximo Número" hint="Numeração sequencial da NFC-e">
+                    <Field
+                      label="Próximo Número"
+                      hint="Numeração sequencial da NFC-e"
+                    >
                       <TextInput
                         value={String(tenant?.nfce_next_number ?? 1)}
-                        onChange={(v) => setT({ nfce_next_number: Number(v.replace(/\D/g, "")) || 1 })}
+                        onChange={(v) =>
+                          setT({
+                            nfce_next_number: Number(v.replace(/\D/g, "")) || 1,
+                          })
+                        }
                         mono
                       />
                     </Field>
@@ -1959,7 +2849,10 @@ export default function Settings() {
                         mono
                       />
                     </Field>
-                    <Field label="CSC Token" hint="Código de Segurança do Contribuinte">
+                    <Field
+                      label="CSC Token"
+                      hint="Código de Segurança do Contribuinte"
+                    >
                       <TextInput
                         value={tenant?.nfce_csc_token ?? ""}
                         onChange={(v) => setT({ nfce_csc_token: v })}
@@ -1977,18 +2870,27 @@ export default function Settings() {
                     NFS-e — Emissão (Sistema Nacional)
                   </p>
                   <div className="bg-violet-50 border border-violet-200 rounded-xl px-4 py-3 flex items-start gap-2.5">
-                    <AlertTriangle size={15} className="text-violet-500 shrink-0 mt-0.5" />
+                    <AlertTriangle
+                      size={15}
+                      className="text-violet-500 shrink-0 mt-0.5"
+                    />
                     <p className="text-[10px] font-bold text-violet-700 leading-relaxed">
-                      Emitida a partir da mão de obra/serviço de uma Ordem de Serviço (peças continuam gerando NFC-e).
-                      Reaproveita o mesmo certificado digital A1 configurado acima. Consulte o código IBGE do seu
-                      município no site do IBGE.
+                      Emitida a partir da mão de obra/serviço de uma Ordem de
+                      Serviço (peças continuam gerando NFC-e). Reaproveita o
+                      mesmo certificado digital A1 configurado acima. Consulte o
+                      código IBGE do seu município no site do IBGE.
                     </p>
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                     <Field label="Ambiente NFS-e">
                       <select
                         value={tenant?.nfse_environment ?? "homologacao"}
-                        onChange={(e) => setT({ nfse_environment: e.target.value as Tenant["nfse_environment"] })}
+                        onChange={(e) =>
+                          setT({
+                            nfse_environment: e.target
+                              .value as Tenant["nfse_environment"],
+                          })
+                        }
                         className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 h-11 text-xs font-bold outline-none focus:ring-4 focus:ring-blue-500/8 focus:border-blue-500 transition-all appearance-none"
                       >
                         <option value="homologacao">Homologação (teste)</option>
@@ -1996,14 +2898,26 @@ export default function Settings() {
                       </select>
                     </Field>
                     <div />
-                    <Field label="Código IBGE do Município" hint="7 dígitos, ex: 3554003 (Tatuí/SP) — usado também na NFC-e">
+                    <Field
+                      label="Código IBGE do Município"
+                      hint="7 dígitos, ex: 3554003 (Tatuí/SP) — usado também na NFC-e"
+                    >
                       <TextInput
                         value={tenant?.nfse_codigo_municipio ?? ""}
-                        onChange={(v) => setT({ nfse_codigo_municipio: v.replace(/\D/g, "").slice(0, 7) })}
+                        onChange={(v) =>
+                          setT({
+                            nfse_codigo_municipio: v
+                              .replace(/\D/g, "")
+                              .slice(0, 7),
+                          })
+                        }
                         mono
                       />
                     </Field>
-                    <Field label="Inscrição Municipal (IM)" hint="Opcional para alguns municípios">
+                    <Field
+                      label="Inscrição Municipal (IM)"
+                      hint="Opcional para alguns municípios"
+                    >
                       <TextInput
                         value={tenant?.nfse_inscricao_municipal ?? ""}
                         onChange={(v) => setT({ nfse_inscricao_municipal: v })}
@@ -2013,14 +2927,25 @@ export default function Settings() {
                     <Field label="Série">
                       <TextInput
                         value={String(tenant?.nfse_serie ?? 1)}
-                        onChange={(v) => setT({ nfse_serie: Number(v.replace(/\D/g, "")) || 1 })}
+                        onChange={(v) =>
+                          setT({
+                            nfse_serie: Number(v.replace(/\D/g, "")) || 1,
+                          })
+                        }
                         mono
                       />
                     </Field>
-                    <Field label="Próximo Número" hint="Numeração sequencial da DPS/NFS-e">
+                    <Field
+                      label="Próximo Número"
+                      hint="Numeração sequencial da DPS/NFS-e"
+                    >
                       <TextInput
                         value={String(tenant?.nfse_next_number ?? 1)}
-                        onChange={(v) => setT({ nfse_next_number: Number(v.replace(/\D/g, "")) || 1 })}
+                        onChange={(v) =>
+                          setT({
+                            nfse_next_number: Number(v.replace(/\D/g, "")) || 1,
+                          })
+                        }
                         mono
                       />
                     </Field>
@@ -2028,10 +2953,14 @@ export default function Settings() {
 
                   <div className="flex items-center justify-between gap-3 bg-slate-50 border border-slate-200 rounded-xl px-4 py-3">
                     <div>
-                      <p className="text-[11px] font-bold text-slate-700">Testar emissão em homologação</p>
+                      <p className="text-[11px] font-bold text-slate-700">
+                        Testar emissão em homologação
+                      </p>
                       <p className="text-[10px] text-slate-400 mt-0.5">
-                        Gera uma nota de teste de R$ 1,00 sempre em homologação (nunca em produção), pra validar
-                        certificado, código do município e comunicação com o governo sem precisar de uma Ordem de Serviço real.
+                        Gera uma nota de teste de R$ 1,00 sempre em homologação
+                        (nunca em produção), pra validar certificado, código do
+                        município e comunicação com o governo sem precisar de
+                        uma Ordem de Serviço real.
                       </p>
                     </div>
                     <button
@@ -2039,30 +2968,52 @@ export default function Settings() {
                       disabled={testingNfse}
                       className="shrink-0 h-10 px-4 rounded-xl bg-violet-600 text-white text-[10px] font-black uppercase tracking-widest hover:bg-violet-700 disabled:opacity-50 transition-all flex items-center gap-2"
                     >
-                      {testingNfse ? <Loader2 size={14} className="animate-spin" /> : null}
+                      {testingNfse ? (
+                        <Loader2 size={14} className="animate-spin" />
+                      ) : null}
                       {testingNfse ? "Testando..." : "Testar Emissão"}
                     </button>
                   </div>
 
                   {nfseTestResult && (
-                    <div className={cn(
-                      "rounded-xl border px-4 py-3",
-                      nfseTestResult.success ? "bg-emerald-50 border-emerald-200" : "bg-red-50 border-red-200"
-                    )}>
-                      <p className={cn("text-[11px] font-black uppercase tracking-wide", nfseTestResult.success ? "text-emerald-700" : "text-red-700")}>
-                        {nfseTestResult.success ? "Autorizada ✓" : `Falhou (${nfseTestResult.status ?? "erro"})`}
+                    <div
+                      className={cn(
+                        "rounded-xl border px-4 py-3",
+                        nfseTestResult.success
+                          ? "bg-emerald-50 border-emerald-200"
+                          : "bg-red-50 border-red-200",
+                      )}
+                    >
+                      <p
+                        className={cn(
+                          "text-[11px] font-black uppercase tracking-wide",
+                          nfseTestResult.success
+                            ? "text-emerald-700"
+                            : "text-red-700",
+                        )}
+                      >
+                        {nfseTestResult.success
+                          ? "Autorizada ✓"
+                          : `Falhou (${nfseTestResult.status ?? "erro"})`}
                       </p>
                       {nfseTestResult.chave_acesso && (
-                        <p className="text-[10px] text-emerald-600 font-mono mt-1">Chave: {nfseTestResult.chave_acesso}</p>
+                        <p className="text-[10px] text-emerald-600 font-mono mt-1">
+                          Chave: {nfseTestResult.chave_acesso}
+                        </p>
                       )}
                       {nfseTestResult.rejection_reason && (
-                        <p className="text-[10px] text-red-600 mt-1">{nfseTestResult.rejection_reason}</p>
+                        <p className="text-[10px] text-red-600 mt-1">
+                          {nfseTestResult.rejection_reason}
+                        </p>
                       )}
                     </div>
                   )}
                 </div>
 
-                <SaveButton onClick={handleSaveTenant} label="Salvar Dados Fiscais" />
+                <SaveButton
+                  onClick={handleSaveTenant}
+                  label="Salvar Dados Fiscais"
+                />
               </div>
             )}
 
@@ -2080,109 +3031,148 @@ export default function Settings() {
                     Aplicar Modelo Pronto
                   </p>
                   <p className="text-xs text-slate-500">
-                    Selecione um modelo visual para definir o estilo da vitrine, das cores e da sensação da sua loja.
+                    Selecione um modelo visual para definir o estilo da vitrine,
+                    das cores e da sensação da sua loja.
                   </p>
                   <div className="flex gap-3 overflow-x-auto no-scrollbar pb-2 sm:grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 sm:overflow-visible sm:pb-0">
-                    {([
-                      {
-                        id: "minimal", name: "Minimalista", tag: "Clean & Moderno",
-                        desc: "Visual limpo para destacar seus produtos e imagens.",
-                        color: "#2563eb", bg: "#f8fafc", cardBg: "#fff", textColor: "#1e293b",
-                        badge: { bg: "#eff6ff", text: "#2563eb" },
-                      },
-                      {
-                        id: "cyber", name: "Neon Escuro", tag: "Bold & Contrastante",
-                        desc: "Estilo marcante com alto contraste, ideal para tecnologia e games.",
-                        color: "#00ff7f", bg: "#000", cardBg: "#0d1117", textColor: "#e2e8f0",
-                        badge: { bg: "#00ff7f22", text: "#00ff7f" },
-                      },
-                      {
-                        id: "organic", name: "Orgânico", tag: "Natural & Artesanal",
-                        desc: "Cores suaves e acolhedoras para marcas naturais, leves e artesanais.",
-                        color: "#d97706", bg: "#fefaf6", cardBg: "#fff8f0", textColor: "#78350f",
-                        badge: { bg: "#fef3c7", text: "#b45309" },
-                      },
-                      {
-                        id: "luxury", name: "Luxo Dourado", tag: "Premium & Exclusivo",
-                        desc: "Aparência sofisticada para catálogos premium e produtos exclusivos.",
-                        color: "#c5a059", bg: "#0a0a0a", cardBg: "#111", textColor: "#e5c98a",
-                        badge: { bg: "#c5a05922", text: "#c5a059" },
-                      },
-                      {
-                        id: "tech", name: "Tecnologia Pro", tag: "Profissional & Leve",
-                        desc: "Layout moderno e profissional para eletrônicos, inovação e desempenho.",
-                        color: "#0ea5e9", bg: "#f4f6fb", cardBg: "#fff", textColor: "#0f172a",
-                        badge: { bg: "#e0f2fe", text: "#0284c7" },
-                      },
-                      {
-                        id: "nexus_tech", name: "Nexus Tech", tag: "Vibrante & Premium",
-                        desc: "Tema claro e sofisticado com tipografia forte para qualquer nicho.",
-                        color: "#2563eb", bg: "#eef4ff", cardBg: "#fff", textColor: "#071426",
-                        badge: { bg: "#dbeafe", text: "#1d4ed8" },
-                      },
-                      {
-                        id: "atelier", name: "Ateliê Chic", tag: "Editorial & Elegante",
-                        desc: "Editorial claro e elegante para lojas de roupas, moda e acessórios.",
-                        color: "#a26157", bg: "#fff6ef", cardBg: "#fff", textColor: "#44201a",
-                        badge: { bg: "#fde8e0", text: "#9f4132" },
-                      },
-                      {
-                        id: "urban", name: "Urban Edit", tag: "Moda & Acessórios",
-                        desc: "Vitrine editorial marcante, ideal para roupas, calçados e acessórios.",
-                        color: "#c76532", bg: "#f5f0e9", cardBg: "#fffdf9", textColor: "#1b1714",
-                        badge: { bg: "#f8dfd0", text: "#a9471d" },
-                      },
-                      {
-                        id: "electric", name: "Elétrica Pro", tag: "Claro & Robusto",
-                        desc: "Visual limpo e profissional para material elétrico, ferragens e eletrônicos.",
-                        color: "#f97316", bg: "#f8fafc", cardBg: "#fff", textColor: "#0f172a",
-                        badge: { bg: "#ffedd5", text: "#c2410c" },
-                      },
-                    ] as const).map((t) => {
+                    {(
+                      [
+                        {
+                          id: "minimal",
+                          name: "Minimalista",
+                          tag: "Clean & Moderno",
+                          desc: "Visual limpo para destacar seus produtos e imagens.",
+                          color: "#2563eb",
+                          bg: "#f8fafc",
+                          cardBg: "#fff",
+                          textColor: "#1e293b",
+                          badge: { bg: "#eff6ff", text: "#2563eb" },
+                        },
+                        {
+                          id: "cyber",
+                          name: "Neon Escuro",
+                          tag: "Bold & Contrastante",
+                          desc: "Estilo marcante com alto contraste, ideal para tecnologia e games.",
+                          color: "#00ff7f",
+                          bg: "#000",
+                          cardBg: "#0d1117",
+                          textColor: "#e2e8f0",
+                          badge: { bg: "#00ff7f22", text: "#00ff7f" },
+                        },
+                        {
+                          id: "organic",
+                          name: "Orgânico",
+                          tag: "Natural & Artesanal",
+                          desc: "Cores suaves e acolhedoras para marcas naturais, leves e artesanais.",
+                          color: "#d97706",
+                          bg: "#fefaf6",
+                          cardBg: "#fff8f0",
+                          textColor: "#78350f",
+                          badge: { bg: "#fef3c7", text: "#b45309" },
+                        },
+                        {
+                          id: "luxury",
+                          name: "Luxo Dourado",
+                          tag: "Premium & Exclusivo",
+                          desc: "Aparência sofisticada para catálogos premium e produtos exclusivos.",
+                          color: "#c5a059",
+                          bg: "#0a0a0a",
+                          cardBg: "#111",
+                          textColor: "#e5c98a",
+                          badge: { bg: "#c5a05922", text: "#c5a059" },
+                        },
+                        {
+                          id: "tech",
+                          name: "Tecnologia Pro",
+                          tag: "Profissional & Leve",
+                          desc: "Layout moderno e profissional para eletrônicos, inovação e desempenho.",
+                          color: "#0ea5e9",
+                          bg: "#f4f6fb",
+                          cardBg: "#fff",
+                          textColor: "#0f172a",
+                          badge: { bg: "#e0f2fe", text: "#0284c7" },
+                        },
+                        {
+                          id: "nexus_tech",
+                          name: "Nexus Tech",
+                          tag: "Vibrante & Premium",
+                          desc: "Tema claro e sofisticado com tipografia forte para qualquer nicho.",
+                          color: "#2563eb",
+                          bg: "#eef4ff",
+                          cardBg: "#fff",
+                          textColor: "#071426",
+                          badge: { bg: "#dbeafe", text: "#1d4ed8" },
+                        },
+                        {
+                          id: "atelier",
+                          name: "Ateliê Chic",
+                          tag: "Editorial & Elegante",
+                          desc: "Editorial claro e elegante para lojas de roupas, moda e acessórios.",
+                          color: "#a26157",
+                          bg: "#fff6ef",
+                          cardBg: "#fff",
+                          textColor: "#44201a",
+                          badge: { bg: "#fde8e0", text: "#9f4132" },
+                        },
+                        {
+                          id: "urban",
+                          name: "Urban Edit",
+                          tag: "Moda & Acessórios",
+                          desc: "Vitrine editorial marcante, ideal para roupas, calçados e acessórios.",
+                          color: "#2563eb",
+                          bg: "#f6f7f9",
+                          cardBg: "#ffffff",
+                          textColor: "#0f172a",
+                          badge: { bg: "#dbeafe", text: "#1d4ed8" },
+                        },
+                        {
+                          id: "electric",
+                          name: "Elétrica Pro",
+                          tag: "Claro & Robusto",
+                          desc: "Visual limpo e profissional para material elétrico, ferragens e eletrônicos.",
+                          color: "#f97316",
+                          bg: "#f8fafc",
+                          cardBg: "#fff",
+                          textColor: "#0f172a",
+                          badge: { bg: "#ffedd5", text: "#c2410c" },
+                        },
+                      ] as const
+                    ).map((t) => {
                       const isActive = tenant?.template_id === t.id;
+                      const previewBase =
+                        tenant?.public_url ||
+                        `${window.location.origin}/s/${tenant?.slug || ""}`;
+                      const previewUrl = `${previewBase}${previewBase.includes("?") ? "&" : "?"}previewTheme=${t.id}`;
                       return (
-                        <button
+                        <div
                           key={t.id}
                           onClick={() => setT({ template_id: t.id })}
+                          role="button"
+                          tabIndex={0}
+                          onKeyDown={(event) => {
+                            if (event.key === "Enter" || event.key === " ")
+                              setT({ template_id: t.id });
+                          }}
                           className={cn(
-                            "min-w-[200px] sm:min-w-0 rounded-2xl border-2 text-left transition-all relative overflow-hidden group shrink-0 flex flex-col",
+                            "min-w-[200px] sm:min-w-0 rounded-2xl border-2 text-left transition-all relative overflow-hidden group shrink-0 flex flex-col cursor-pointer",
                             isActive
                               ? "border-blue-600 shadow-lg shadow-blue-500/10 ring-2 ring-blue-200"
                               : "border-slate-100 hover:border-slate-300 hover:shadow-lg bg-white",
                           )}
                         >
-                          {/* Mini storefront preview */}
-                          <div className="relative w-full h-28 overflow-hidden rounded-t-[14px] flex flex-col" style={{ backgroundColor: t.bg }}>
-                            {/* Fake nav bar */}
-                            <div className="flex items-center justify-between px-3 py-2" style={{ backgroundColor: t.bg }}>
-                              <div className="w-8 h-1.5 rounded-full opacity-60" style={{ backgroundColor: t.color }} />
-                              <div className="flex gap-1">
-                                <div className="w-4 h-1 rounded-full opacity-30" style={{ backgroundColor: t.textColor }} />
-                                <div className="w-4 h-1 rounded-full opacity-30" style={{ backgroundColor: t.textColor }} />
-                                <div className="w-4 h-1 rounded-full opacity-30" style={{ backgroundColor: t.textColor }} />
-                              </div>
-                            </div>
-                            {/* Fake hero */}
-                            <div className="flex-1 flex items-center px-3 gap-2">
-                              <div className="flex flex-col gap-1 flex-1">
-                                <div className="h-1.5 w-14 rounded-full" style={{ backgroundColor: t.color, opacity: 0.9 }} />
-                                <div className="h-2.5 w-20 rounded-sm" style={{ backgroundColor: t.textColor, opacity: 0.85 }} />
-                                <div className="h-1 w-16 rounded-full mt-0.5" style={{ backgroundColor: t.textColor, opacity: 0.25 }} />
-                                <div className="h-1 w-12 rounded-full" style={{ backgroundColor: t.textColor, opacity: 0.18 }} />
-                                <div className="mt-1.5 h-4 w-14 rounded-lg flex items-center justify-center" style={{ backgroundColor: t.color }}>
-                                  <div className="w-8 h-0.5 rounded-full bg-white/80" />
-                                </div>
-                              </div>
-                              {/* Fake product card */}
-                              <div className="w-14 h-16 rounded-xl overflow-hidden border shrink-0 flex flex-col" style={{ backgroundColor: t.cardBg, borderColor: t.color + "30" }}>
-                                <div className="flex-1" style={{ backgroundColor: t.color + "18" }} />
-                                <div className="px-1.5 py-1 space-y-0.5">
-                                  <div className="h-1 rounded-full w-full" style={{ backgroundColor: t.textColor, opacity: 0.35 }} />
-                                  <div className="h-1.5 rounded-full w-8" style={{ backgroundColor: t.color, opacity: 0.8 }} />
-                                </div>
-                              </div>
-                            </div>
-                            {/* Active glow */}
+                          {/* Preview real: a mesma loja, com produtos e o tema aplicado temporariamente. */}
+                          <div className="relative h-32 w-full overflow-hidden rounded-t-[14px] bg-slate-100">
+                            <iframe
+                              title={`Demonstração do modelo ${t.name}`}
+                              src={previewUrl}
+                              tabIndex={-1}
+                              className="pointer-events-none absolute left-0 top-0 h-[400%] w-[400%] origin-top-left border-0"
+                              style={{
+                                transform: "scale(.25)",
+                                backgroundColor: t.bg,
+                              }}
+                            />
+                            <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-slate-950/30 via-transparent to-transparent" />
                             {isActive && (
                               <div className="absolute inset-0 ring-2 ring-inset ring-blue-400/40 rounded-t-[14px] pointer-events-none" />
                             )}
@@ -2191,18 +3181,45 @@ export default function Settings() {
                           {/* Card footer */}
                           <div className="p-3 flex flex-col gap-1 bg-white flex-1">
                             <div className="flex items-center justify-between">
-                              <p className="text-[11px] font-black uppercase tracking-wider text-slate-800 group-hover:text-blue-600 transition-colors leading-none">{t.name}</p>
-                              {isActive && <Check size={12} strokeWidth={3} className="text-blue-600 shrink-0" />}
+                              <p className="text-[11px] font-black uppercase tracking-wider text-slate-800 group-hover:text-blue-600 transition-colors leading-none">
+                                {t.name}
+                              </p>
+                              {isActive && (
+                                <Check
+                                  size={12}
+                                  strokeWidth={3}
+                                  className="text-blue-600 shrink-0"
+                                />
+                              )}
                             </div>
                             <span
                               className="inline-block self-start text-[8px] font-bold uppercase tracking-widest px-1.5 py-0.5 rounded-full"
-                              style={{ backgroundColor: t.badge.bg, color: t.badge.text }}
+                              style={{
+                                backgroundColor: t.badge.bg,
+                                color: t.badge.text,
+                              }}
                             >
                               {t.tag}
                             </span>
-                            <p className="text-[10px] text-slate-400 leading-relaxed mt-0.5">{t.desc}</p>
+                            <p className="text-[10px] text-slate-400 leading-relaxed mt-0.5">
+                              {t.desc}
+                            </p>
+                            <button
+                              type="button"
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                window.open(
+                                  previewUrl,
+                                  "_blank",
+                                  "noopener,noreferrer",
+                                );
+                              }}
+                              className="mt-2 self-start text-[9px] font-black uppercase tracking-[.14em] text-blue-600 hover:text-blue-800"
+                            >
+                              Ver demonstração real ↗
+                            </button>
                           </div>
-                        </button>
+                        </div>
                       );
                     })}
                   </div>
@@ -2216,7 +3233,9 @@ export default function Settings() {
                         type="color"
                         className="w-11 h-11 rounded-xl cursor-pointer border-2 border-slate-100 shadow-sm shrink-0"
                         value={tenant?.primary_color ?? "#000000"}
-                        onChange={(e) => setT({ primary_color: e.target.value })}
+                        onChange={(e) =>
+                          setT({ primary_color: e.target.value })
+                        }
                       />
                       <TextInput
                         value={tenant?.primary_color ?? ""}
@@ -2229,7 +3248,11 @@ export default function Settings() {
                     <div className="flex items-center gap-3">
                       <div className="w-14 h-14 rounded-xl border-2 border-dashed border-slate-200 bg-slate-50 flex items-center justify-center shrink-0 overflow-hidden">
                         {tenant?.logo_url ? (
-                          <img src={tenant.logo_url} alt="Logo" className="w-full h-full object-contain p-1" />
+                          <img
+                            src={tenant.logo_url}
+                            alt="Logo"
+                            className="w-full h-full object-contain p-1"
+                          />
                         ) : (
                           <Image size={18} className="text-slate-300" />
                         )}
@@ -2240,10 +3263,17 @@ export default function Settings() {
                         disabled={logoUploading}
                         className="h-10 px-4 bg-slate-900 text-white rounded-xl text-[9px] font-black uppercase tracking-[0.2em] hover:bg-slate-800 transition-all flex items-center gap-2 disabled:opacity-50"
                       >
-                        {logoUploading
-                          ? <><Loader2 size={12} className="animate-spin" /> Enviando...</>
-                          : <><Upload size={12} strokeWidth={2.5} /> {tenant?.logo_url ? "Trocar" : "Selecionar"} imagem</>
-                        }
+                        {logoUploading ? (
+                          <>
+                            <Loader2 size={12} className="animate-spin" />{" "}
+                            Enviando...
+                          </>
+                        ) : (
+                          <>
+                            <Upload size={12} strokeWidth={2.5} />{" "}
+                            {tenant?.logo_url ? "Trocar" : "Selecionar"} imagem
+                          </>
+                        )}
                       </button>
                     </div>
                   </Field>
@@ -2252,7 +3282,11 @@ export default function Settings() {
                       <div className="flex items-center gap-3">
                         <div className="w-24 h-14 rounded-xl border-2 border-dashed border-slate-200 bg-slate-50 flex items-center justify-center shrink-0 overflow-hidden">
                           {tenant?.banner_url ? (
-                            <img src={tenant.banner_url} alt="Banner" className="w-full h-full object-cover" />
+                            <img
+                              src={tenant.banner_url}
+                              alt="Banner"
+                              className="w-full h-full object-cover"
+                            />
                           ) : (
                             <Image size={18} className="text-slate-300" />
                           )}
@@ -2263,10 +3297,18 @@ export default function Settings() {
                           disabled={bannerUploading}
                           className="h-10 px-4 bg-slate-900 text-white rounded-xl text-[9px] font-black uppercase tracking-[0.2em] hover:bg-slate-800 transition-all flex items-center gap-2 disabled:opacity-50"
                         >
-                          {bannerUploading
-                            ? <><Loader2 size={12} className="animate-spin" /> Enviando...</>
-                            : <><Upload size={12} strokeWidth={2.5} /> {tenant?.banner_url ? "Trocar" : "Selecionar"} imagem</>
-                          }
+                          {bannerUploading ? (
+                            <>
+                              <Loader2 size={12} className="animate-spin" />{" "}
+                              Enviando...
+                            </>
+                          ) : (
+                            <>
+                              <Upload size={12} strokeWidth={2.5} />{" "}
+                              {tenant?.banner_url ? "Trocar" : "Selecionar"}{" "}
+                              imagem
+                            </>
+                          )}
                         </button>
                         {tenant?.banner_url && (
                           <button
@@ -2309,24 +3351,50 @@ export default function Settings() {
                   </p>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     {[
-                      { key: "featured_limit" as const, label: "Seção Destaques", min: 1, max: 12, desc: "Produtos marcados como destaque" },
-                      { key: "bestseller_limit" as const, label: "Mais Vendidos", min: 2, max: 20, desc: "Gerado automaticamente por popularidade" },
+                      {
+                        key: "featured_limit" as const,
+                        label: "Seção Destaques",
+                        min: 1,
+                        max: 12,
+                        desc: "Produtos marcados como destaque",
+                      },
+                      {
+                        key: "bestseller_limit" as const,
+                        label: "Mais Vendidos",
+                        min: 2,
+                        max: 20,
+                        desc: "Gerado automaticamente por popularidade",
+                      },
                     ].map(({ key, label, min, max, desc }) => (
-                      <div key={key} className="bg-slate-50 border border-slate-100 rounded-2xl p-5 space-y-3">
+                      <div
+                        key={key}
+                        className="bg-slate-50 border border-slate-100 rounded-2xl p-5 space-y-3"
+                      >
                         <div>
-                          <p className="text-[10px] font-black uppercase tracking-widest text-slate-700">{label}</p>
-                          <p className="text-[9px] text-slate-400 mt-0.5 font-medium">{desc}</p>
+                          <p className="text-[10px] font-black uppercase tracking-widest text-slate-700">
+                            {label}
+                          </p>
+                          <p className="text-[9px] text-slate-400 mt-0.5 font-medium">
+                            {desc}
+                          </p>
                         </div>
                         <div className="flex items-center gap-4">
                           <input
                             type="range"
-                            min={min} max={max}
-                            value={(tenant?.[key] as number) ?? (key === "featured_limit" ? 4 : 8)}
-                            onChange={(e) => setT({ [key]: Number(e.target.value) })}
+                            min={min}
+                            max={max}
+                            value={
+                              (tenant?.[key] as number) ??
+                              (key === "featured_limit" ? 4 : 8)
+                            }
+                            onChange={(e) =>
+                              setT({ [key]: Number(e.target.value) })
+                            }
                             className="flex-1 accent-blue-600"
                           />
                           <span className="text-xl font-black text-slate-900 w-8 text-center tabular-nums">
-                            {(tenant?.[key] as number) ?? (key === "featured_limit" ? 4 : 8)}
+                            {(tenant?.[key] as number) ??
+                              (key === "featured_limit" ? 4 : 8)}
                           </span>
                         </div>
                       </div>
@@ -2367,17 +3435,25 @@ export default function Settings() {
                     Integração WhatsApp
                   </p>
                   <p className="text-[10px] text-blue-800 leading-relaxed font-medium">
-                    Pedidos realizados na loja pública disparam notificação automática para o número configurado em{" "}
+                    Pedidos realizados na loja pública disparam notificação
+                    automática para o número configurado em{" "}
                     <button
                       onClick={() => setActive("identity")}
                       className="underline font-black hover:no-underline"
                     >
                       Identidade &amp; Dados
                     </button>
-                    . Use o formato internacional: <span className="font-mono font-bold">55 + DDD + Número</span>.
+                    . Use o formato internacional:{" "}
+                    <span className="font-mono font-bold">
+                      55 + DDD + Número
+                    </span>
+                    .
                   </p>
                 </div>
-                <SaveButton onClick={handleSaveTenant} label="Vincular Canais" />
+                <SaveButton
+                  onClick={handleSaveTenant}
+                  label="Vincular Canais"
+                />
               </div>
             )}
 
@@ -2390,13 +3466,19 @@ export default function Settings() {
                 />
                 <div className="space-y-2">
                   {DAYS.map(({ key, label }) => {
-                    const day = hours[key] ?? { open: "09:00", close: "18:00", closed: false };
+                    const day = hours[key] ?? {
+                      open: "09:00",
+                      close: "18:00",
+                      closed: false,
+                    };
                     return (
                       <div
                         key={key}
                         className={cn(
                           "flex flex-col sm:flex-row items-start sm:items-center gap-3 p-4 rounded-xl border transition-all",
-                          day.closed ? "bg-slate-50 border-slate-100" : "bg-white border-slate-100",
+                          day.closed
+                            ? "bg-slate-50 border-slate-100"
+                            : "bg-white border-slate-100",
                         )}
                       >
                         <span className="text-[10px] font-black uppercase tracking-widest text-slate-700 w-20 shrink-0">
@@ -2411,14 +3493,20 @@ export default function Settings() {
                             <input
                               type="time"
                               value={day.open}
-                              onChange={(e) => setHours(key, { open: e.target.value })}
+                              onChange={(e) =>
+                                setHours(key, { open: e.target.value })
+                              }
                               className="bg-slate-50 border border-slate-200 rounded-lg px-3 h-9 text-xs font-mono font-bold outline-none focus:border-blue-500 transition-all"
                             />
-                            <span className="text-[10px] text-slate-300 font-bold">até</span>
+                            <span className="text-[10px] text-slate-300 font-bold">
+                              até
+                            </span>
                             <input
                               type="time"
                               value={day.close}
-                              onChange={(e) => setHours(key, { close: e.target.value })}
+                              onChange={(e) =>
+                                setHours(key, { close: e.target.value })
+                              }
                               className="bg-slate-50 border border-slate-200 rounded-lg px-3 h-9 text-xs font-mono font-bold outline-none focus:border-blue-500 transition-all"
                             />
                           </div>
@@ -2432,7 +3520,10 @@ export default function Settings() {
                     );
                   })}
                 </div>
-                <SaveButton onClick={handleSaveTenant} label="Salvar Horários" />
+                <SaveButton
+                  onClick={handleSaveTenant}
+                  label="Salvar Horários"
+                />
               </div>
             )}
 
@@ -2457,7 +3548,11 @@ export default function Settings() {
                         { key: "debit_card", label: "Débito", emoji: "🏧" },
                         { key: "cash", label: "Dinheiro", emoji: "💵" },
                         { key: "boleto", label: "Boleto", emoji: "📄" },
-                      ] as { key: keyof PaymentMethods; label: string; emoji: string }[]
+                      ] as {
+                        key: keyof PaymentMethods;
+                        label: string;
+                        emoji: string;
+                      }[]
                     ).map(({ key, label, emoji }) => (
                       <button
                         key={key}
@@ -2470,8 +3565,16 @@ export default function Settings() {
                         )}
                       >
                         <span className="text-xl">{emoji}</span>
-                        <span className="text-[9px] font-black uppercase tracking-widest">{label}</span>
-                        {payments[key] && <Check size={12} strokeWidth={3} className="text-emerald-600" />}
+                        <span className="text-[9px] font-black uppercase tracking-widest">
+                          {label}
+                        </span>
+                        {payments[key] && (
+                          <Check
+                            size={12}
+                            strokeWidth={3}
+                            className="text-emerald-600"
+                          />
+                        )}
                       </button>
                     ))}
                   </div>
@@ -2484,17 +3587,38 @@ export default function Settings() {
                   </p>
                   {(
                     [
-                      { policyKey: "returns" as const, label: "Política de Devolução", placeholder: "Ex: Devoluções aceitas em até 7 dias após a entrega..." },
-                      { policyKey: "exchange" as const, label: "Política de Troca", placeholder: "Ex: Trocas em até 30 dias mediante apresentação da nota..." },
-                      { policyKey: "shipping" as const, label: "Política de Frete", placeholder: "Ex: Frete grátis para compras acima de R$ 150..." },
-                    ] as { policyKey: "returns" | "exchange" | "shipping"; label: string; placeholder: string }[]
+                      {
+                        policyKey: "returns" as const,
+                        label: "Política de Devolução",
+                        placeholder:
+                          "Ex: Devoluções aceitas em até 7 dias após a entrega...",
+                      },
+                      {
+                        policyKey: "exchange" as const,
+                        label: "Política de Troca",
+                        placeholder:
+                          "Ex: Trocas em até 30 dias mediante apresentação da nota...",
+                      },
+                      {
+                        policyKey: "shipping" as const,
+                        label: "Política de Frete",
+                        placeholder:
+                          "Ex: Frete grátis para compras acima de R$ 150...",
+                      },
+                    ] as {
+                      policyKey: "returns" | "exchange" | "shipping";
+                      label: string;
+                      placeholder: string;
+                    }[]
                   ).map(({ policyKey, label, placeholder }) => (
                     <div key={policyKey}>
                       <Field label={label}>
                         <textarea
                           className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-xs font-medium outline-none h-24 resize-none focus:ring-4 focus:ring-blue-500/8 focus:border-blue-500 transition-all"
                           value={policies[policyKey]}
-                          onChange={(e) => setPolicies({ [policyKey]: e.target.value })}
+                          onChange={(e) =>
+                            setPolicies({ [policyKey]: e.target.value })
+                          }
                           placeholder={placeholder}
                         />
                       </Field>
@@ -2502,297 +3626,657 @@ export default function Settings() {
                   ))}
                 </div>
 
-                <SaveButton onClick={handleSaveTenant} label="Salvar Políticas" />
+                <SaveButton
+                  onClick={handleSaveTenant}
+                  label="Salvar Políticas"
+                />
               </div>
             )}
 
             {/* ── Maquininha & Taxas ──────────────────────────────────── */}
-            {active === "storefront" && (() => {
-              const storefront = { checkout_mode: "whatsapp" as const, reservation_minutes: 20, shipping_status: "coming_soon" as const, payment_status: "coming_soon" as const, ...(policies.storefront || {}) };
-              const setStorefront = (patch: Partial<typeof storefront>) => setPolicies({ storefront: { ...storefront, ...patch } });
-              const modes = [
-                { id: "whatsapp" as const, title: "Enviar para WhatsApp", description: "O cliente monta o carrinho e sua equipe fecha a venda no atendimento.", badge: "Disponível agora" },
-                { id: "reservation" as const, title: "Reservar estoque", description: "Bloqueia os itens por alguns minutos antes da confirmação com a equipe.", badge: "Disponível agora" },
-                { id: "online" as const, title: "Pagamento online", description: "Checkout com frete e pagamento integrado. Será liberado quando a integração estiver pronta.", badge: "Em breve" },
-              ];
-              return <div className="space-y-8">
-                <SectionHeader title="Loja Online & Checkout" subtitle="Defina como cada cliente conclui o pedido no carrinho da sua loja." />
-                <div className="grid gap-3 lg:grid-cols-3">
-                  {modes.map(mode => <button key={mode.id} onClick={() => mode.id !== "online" && setStorefront({ checkout_mode: mode.id })}
-                    className={cn("min-h-44 rounded-2xl border-2 p-5 text-left transition-all", storefront.checkout_mode === mode.id ? "border-blue-600 bg-blue-50 shadow-lg shadow-blue-500/10" : mode.id === "online" ? "cursor-not-allowed border-slate-100 bg-slate-50 opacity-70" : "border-slate-100 bg-white hover:border-slate-300")}
-                    disabled={mode.id === "online"}>
-                    <div className="flex items-center justify-between gap-2"><span className="text-[9px] font-black uppercase tracking-widest text-blue-600">{mode.badge}</span>{storefront.checkout_mode === mode.id && <Check size={15} className="text-blue-600" />}</div>
-                    <p className="mt-5 text-sm font-black text-slate-900">{mode.title}</p><p className="mt-2 text-[11px] leading-relaxed text-slate-500">{mode.description}</p>
-                  </button>)}
-                </div>
-                {storefront.checkout_mode === "reservation" && <div className="rounded-2xl border border-amber-200 bg-amber-50 p-5"><Field label="Tempo da reserva (minutos)" hint="Após esse período, a reserva fica disponível para a equipe cancelar e devolver os itens ao estoque."><input type="number" min="5" max="120" value={storefront.reservation_minutes} onChange={e => setStorefront({ reservation_minutes: Math.max(5, Math.min(120, Number(e.target.value) || 20)) })} className="h-11 w-32 rounded-xl border border-amber-200 bg-white px-3 text-xs font-bold outline-none focus:border-amber-500" /></Field></div>}
-                <div className="grid gap-3 md:grid-cols-2"><div className="rounded-2xl border border-slate-200 bg-white p-5"><p className="text-xs font-black text-slate-800">Cálculo de frete</p><p className="mt-1 text-[11px] leading-relaxed text-slate-500">Estrutura preparada para CEP, transportadoras e regras de frete grátis.</p><span className="mt-4 inline-flex rounded-full bg-amber-100 px-3 py-1 text-[9px] font-black uppercase tracking-wider text-amber-700">Em preparação</span></div><div className="rounded-2xl border border-slate-200 bg-white p-5"><p className="text-xs font-black text-slate-800">Pagamentos na plataforma</p><p className="mt-1 text-[11px] leading-relaxed text-slate-500">O carrinho já separa o fluxo para ativar Pix, cartão e checkout seguro depois.</p><span className="mt-4 inline-flex rounded-full bg-amber-100 px-3 py-1 text-[9px] font-black uppercase tracking-wider text-amber-700">Em preparação</span></div></div>
-                <SaveButton onClick={handleSaveTenant} label="Salvar checkout da loja" />
-              </div>;
-            })()}
-
-            {active === "card_fees" && (() => {
-              const BRANDS = [
-                { key: "visa",   label: "Visa",             color: "#1A1F71" },
-                { key: "master", label: "Mastercard",       color: "#EB001B" },
-                { key: "elo",    label: "Elo",              color: "#00A4E0" },
-                { key: "amex",   label: "American Express", color: "#2E77BC" },
-                { key: "hiper",  label: "Hipercard",        color: "#B22222" },
-                { key: "other",  label: "Outras Bandeiras", color: "#64748b" },
-              ] as { key: string; label: string; color: string }[];
-
-              const activeBrands = BRANDS.filter((b) => enabledBrands[b.key] !== false);
-
-              const toggleBrand = (key: string) =>
-                setEnabledBrands((prev) => ({ ...prev, [key]: !prev[key] }));
-
-              const togglePassFee = (method: string) =>
-                setPassFeeByMethod((prev) => ({ ...prev, [method]: !prev[method] }));
-
-              // toggle component reutilizável
-              const Toggle = ({ on, onChange }: { on: boolean; onChange: () => void }) => (
-                <button onClick={onChange}
-                  className={`relative shrink-0 flex items-center rounded-full transition-all duration-200 border ${on ? "bg-blue-600 border-blue-600" : "bg-white border-slate-300"}`}
-                  style={{ width: 72, height: 32 }}>
-                  {/* label Não */}
-                  <span className={`absolute right-2 text-[9px] font-black uppercase tracking-wider transition-opacity duration-150 ${on ? "opacity-0" : "opacity-100 text-slate-400"}`}>Não</span>
-                  {/* label Sim */}
-                  <span className={`absolute left-2 text-[9px] font-black uppercase tracking-wider transition-opacity duration-150 ${on ? "opacity-100 text-white" : "opacity-0"}`}>Sim</span>
-                  {/* knob */}
-                  <span
-                    className="absolute bg-white rounded-full shadow-md transition-transform duration-200"
-                    style={{
-                      width: 24, height: 24,
-                      top: 3,
-                      left: 4,
-                      transform: on ? "translateX(40px)" : "translateX(0px)",
-                      boxShadow: "0 1px 4px rgba(0,0,0,0.18)",
-                    }}
-                  />
-                </button>
-              );
-
-              return (
-                <div className="space-y-6">
-                  <SectionHeader
-                    title="Maquininha & Taxas"
-                    subtitle="Configure as taxas, bandeiras e regras de repasse por modalidade de pagamento."
-                  />
-
-                  {/* ── Bandeiras ativas ── */}
-                  <div className="border border-slate-100 rounded-2xl overflow-hidden">
-                    <div className="px-5 py-3 bg-slate-50 border-b border-slate-100 flex items-center justify-between">
-                      <span className="text-[10px] font-black uppercase tracking-widest text-slate-600">Bandeiras Ativas</span>
-                      <span className="text-[9px] text-slate-400 font-medium">{activeBrands.length} de {BRANDS.length} ativas</span>
-                    </div>
-                    <div className="p-4 grid grid-cols-2 sm:grid-cols-3 gap-3">
-                      {BRANDS.map(({ key, label, color }) => {
-                        const on = enabledBrands[key] !== false;
-                        return (
-                          <button key={key} onClick={() => toggleBrand(key)}
-                            className={cn(
-                              "flex items-center gap-3 px-4 py-3 rounded-xl border transition-all",
-                              on ? "border-transparent shadow-sm" : "bg-slate-50 border-slate-200 opacity-50"
+            {active === "storefront" &&
+              (() => {
+                const storefront = {
+                  checkout_mode: "whatsapp" as const,
+                  reservation_minutes: 20,
+                  shipping_status: "coming_soon" as const,
+                  payment_status: "coming_soon" as const,
+                  ...(policies.storefront || {}),
+                };
+                const setStorefront = (patch: Partial<typeof storefront>) =>
+                  setPolicies({ storefront: { ...storefront, ...patch } });
+                const modes = [
+                  {
+                    id: "whatsapp" as const,
+                    title: "Enviar para WhatsApp",
+                    description:
+                      "O cliente monta o carrinho e sua equipe fecha a venda no atendimento.",
+                    badge: "Disponível agora",
+                  },
+                  {
+                    id: "reservation" as const,
+                    title: "Reservar estoque",
+                    description:
+                      "Bloqueia os itens por alguns minutos antes da confirmação com a equipe.",
+                    badge: "Disponível agora",
+                  },
+                  {
+                    id: "online" as const,
+                    title: "Pagamento online",
+                    description:
+                      "Checkout com frete e pagamento integrado. Será liberado quando a integração estiver pronta.",
+                    badge: "Em breve",
+                  },
+                ];
+                return (
+                  <div className="space-y-8">
+                    <SectionHeader
+                      title="Loja Online & Checkout"
+                      subtitle="Defina como cada cliente conclui o pedido no carrinho da sua loja."
+                    />
+                    <div className="grid gap-3 lg:grid-cols-3">
+                      {modes.map((mode) => (
+                        <button
+                          key={mode.id}
+                          onClick={() =>
+                            mode.id !== "online" &&
+                            setStorefront({ checkout_mode: mode.id })
+                          }
+                          className={cn(
+                            "min-h-44 rounded-2xl border-2 p-5 text-left transition-all",
+                            storefront.checkout_mode === mode.id
+                              ? "border-blue-600 bg-blue-50 shadow-lg shadow-blue-500/10"
+                              : mode.id === "online"
+                                ? "cursor-not-allowed border-slate-100 bg-slate-50 opacity-70"
+                                : "border-slate-100 bg-white hover:border-slate-300",
+                          )}
+                          disabled={mode.id === "online"}
+                        >
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="text-[9px] font-black uppercase tracking-widest text-blue-600">
+                              {mode.badge}
+                            </span>
+                            {storefront.checkout_mode === mode.id && (
+                              <Check size={15} className="text-blue-600" />
                             )}
-                            style={on ? { backgroundColor: color + "15", borderColor: color + "40" } : {}}>
-                            <div className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: on ? color : "#cbd5e1" }} />
-                            <span className="text-[11px] font-black uppercase tracking-widest flex-1 text-left"
-                              style={{ color: on ? color : "#94a3b8" }}>{label}</span>
-                            <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center shrink-0 transition-all ${on ? "bg-white border-white" : "bg-transparent border-slate-300"}`}
-                              style={on ? { boxShadow: `0 0 0 3px ${color}40` } : {}}>
-                              {on && <div className="w-2 h-2 rounded-full" style={{ backgroundColor: color }} />}
-                            </div>
-                          </button>
-                        );
-                      })}
+                          </div>
+                          <p className="mt-5 text-sm font-black text-slate-900">
+                            {mode.title}
+                          </p>
+                          <p className="mt-2 text-[11px] leading-relaxed text-slate-500">
+                            {mode.description}
+                          </p>
+                        </button>
+                      ))}
                     </div>
-                  </div>
-
-                  {/* Payment type tabs */}
-                  <div className="flex gap-2 p-1 bg-slate-100 rounded-2xl w-fit">
-                    {([
-                      { id: "credit", label: "Crédito", icon: CreditCard },
-                      { id: "debit",  label: "Débito",  icon: Smartphone },
-                      { id: "pix",    label: "PIX",     icon: Zap },
-                    ] as { id: "credit"|"debit"|"pix"; label: string; icon: React.ElementType }[]).map(({ id, label, icon: Icon }) => (
-                      <button key={id} onClick={() => setActivePayType(id)}
-                        className={cn(
-                          "flex items-center gap-2 px-4 py-2 rounded-xl text-[11px] font-black uppercase tracking-widest transition-all",
-                          activePayType === id ? "bg-white shadow text-slate-900" : "text-slate-500 hover:text-slate-700"
-                        )}>
-                        <Icon size={13} />
-                        {label}
-                      </button>
-                    ))}
-                  </div>
-
-                  {/* ── Crédito ── */}
-                  {activePayType === "credit" && (
-                    <div className="space-y-5">
-                      {/* Repassar taxa — crédito */}
-                      <div className="flex items-center justify-between gap-4 p-4 bg-amber-50 border border-amber-100 rounded-xl">
-                        <div className="flex items-start gap-3">
-                          <CreditCard size={16} className="text-amber-600 shrink-0 mt-0.5" />
-                          <div>
-                            <p className="text-[11px] font-black text-amber-800 uppercase tracking-wider">Repassar taxa ao cliente — Crédito</p>
-                            <p className="text-[10px] text-amber-700 mt-0.5 leading-relaxed">
-                              Ativo: taxa somada ao total cobrado. Ex: R$ 30 + 2,5% → R$ 30,75 para o cliente.
-                            </p>
-                          </div>
-                        </div>
-                        <Toggle on={!!passFeeByMethod["credit"]} onChange={() => togglePassFee("credit")} />
+                    {storefront.checkout_mode === "reservation" && (
+                      <div className="rounded-2xl border border-amber-200 bg-amber-50 p-5">
+                        <Field
+                          label="Tempo da reserva (minutos)"
+                          hint="Após esse período, a reserva fica disponível para a equipe cancelar e devolver os itens ao estoque."
+                        >
+                          <input
+                            type="number"
+                            min="5"
+                            max="120"
+                            value={storefront.reservation_minutes}
+                            onChange={(e) =>
+                              setStorefront({
+                                reservation_minutes: Math.max(
+                                  5,
+                                  Math.min(120, Number(e.target.value) || 20),
+                                ),
+                              })
+                            }
+                            className="h-11 w-32 rounded-xl border border-amber-200 bg-white px-3 text-xs font-bold outline-none focus:border-amber-500"
+                          />
+                        </Field>
                       </div>
-
-                      {/* Máximo de parcelas */}
-                      <div className="flex items-center justify-between gap-4 p-4 bg-white border border-slate-200 rounded-xl">
-                        <div>
-                          <p className="text-[12px] font-bold text-slate-700">Máximo de parcelas</p>
-                          <p className="text-[10px] text-slate-400 mt-0.5">Quantas opções aparecem no PDV (1 a 12).</p>
-                        </div>
-                        <div className="flex items-center gap-2 shrink-0">
-                          <button onClick={() => setMaxInstallments((v) => Math.max(1, v - 1))}
-                            className="w-8 h-8 rounded-lg bg-slate-100 hover:bg-slate-200 border border-slate-200 text-slate-600 font-black text-lg flex items-center justify-center transition-all">−</button>
-                          <span className="w-10 text-center font-mono font-black text-[16px] text-slate-800">{maxInstallments}×</span>
-                          <button onClick={() => setMaxInstallments((v) => Math.min(24, v + 1))}
-                            className="w-8 h-8 rounded-lg bg-slate-100 hover:bg-slate-200 border border-slate-200 text-slate-600 font-black text-lg flex items-center justify-center transition-all">+</button>
-                        </div>
+                    )}
+                    <div className="rounded-2xl border border-slate-200 bg-white p-5 space-y-4">
+                      <p className="text-xs font-black text-slate-800">
+                        Textos da vitrine
+                      </p>
+                      <p className="text-[11px] text-slate-500">
+                        Personalize a linguagem exibida no modelo Urban Edit.
+                      </p>
+                      <div className="grid gap-4 md:grid-cols-2">
+                        <Field label="Título do catálogo">
+                          <TextInput
+                            value={storefront.catalog_title || ""}
+                            onChange={(value) =>
+                              setStorefront({ catalog_title: value })
+                            }
+                            placeholder="Todos os produtos"
+                          />
+                        </Field>
+                        <Field label="Descrição do catálogo">
+                          <TextInput
+                            value={storefront.catalog_description || ""}
+                            onChange={(value) =>
+                              setStorefront({ catalog_description: value })
+                            }
+                            placeholder="Texto abaixo do título"
+                          />
+                        </Field>
+                        <Field label="Título das categorias">
+                          <TextInput
+                            value={storefront.home_categories_title || ""}
+                            onChange={(value) =>
+                              setStorefront({ home_categories_title: value })
+                            }
+                            placeholder="Explore a loja."
+                          />
+                        </Field>
+                        <Field label="Título dos destaques">
+                          <TextInput
+                            value={storefront.home_featured_title || ""}
+                            onChange={(value) =>
+                              setStorefront({ home_featured_title: value })
+                            }
+                            placeholder="Seleção da loja."
+                          />
+                        </Field>
                       </div>
-
-                      {/* Preview das parcelas ativas */}
-                      <div className="flex flex-wrap gap-2 px-1">
-                        {Array.from({ length: 24 }, (_, i) => i + 1).map((n) => (
-                          <span key={n}
-                            className={cn("px-3 py-1 rounded-lg text-[10px] font-black border transition-all",
-                              n <= maxInstallments
-                                ? "bg-blue-50 border-blue-200 text-blue-700"
-                                : "bg-slate-50 border-slate-200 text-slate-300 line-through"
-                            )}>
-                            {n === 1 ? "À vista" : `${n}×`}
-                          </span>
-                        ))}
+                      <div className="pt-2">
+                        <Toggle
+                          checked={storefront.show_whatsapp_widget !== false}
+                          onChange={(value) =>
+                            setStorefront({ show_whatsapp_widget: value })
+                          }
+                          label="Exibir botão flutuante do WhatsApp na loja"
+                        />
                       </div>
-
-                      {/* Taxas por bandeira */}
-                      {activeBrands.map(({ key, label, color }) => {
-                        const fees = cardFees[key] ?? Array(maxInstallments).fill(0);
-                        return (
-                          <div key={key} className="border border-slate-100 rounded-2xl overflow-hidden">
-                            <div className="flex items-center gap-3 px-5 py-3"
-                              style={{ backgroundColor: color + "15", borderBottom: `2px solid ${color}30` }}>
-                              <div className="w-3 h-3 rounded-full" style={{ backgroundColor: color }} />
-                              <span className="text-[10px] font-black uppercase tracking-widest" style={{ color }}>{label}</span>
-                            </div>
-                            <div className="p-4 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
-                              {Array.from({ length: maxInstallments }, (_, i) => i + 1).map((n) => {
-                                const idx = n - 1;
-                                return (
-                                  <div key={n} className="space-y-1">
-                                    <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest px-1 block">
-                                      {n === 1 ? "À Vista" : `${n}× parcelas`}
-                                    </label>
-                                    <div className="flex items-center border border-slate-200 rounded-xl overflow-hidden focus-within:ring-2 focus-within:ring-blue-500/10 focus-within:border-blue-500 bg-slate-50 transition-all">
-                                      <input type="number" min="0" max="30" step="0.1"
-                                        value={fees[idx] ?? 0}
-                                        onChange={(e) => setFeeRate(key, idx, parseFloat(e.target.value) || 0)}
-                                        className="flex-1 bg-transparent px-2 h-9 text-xs font-mono font-bold outline-none w-0 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none"
-                                      />
-                                      <span className="bg-slate-100 border-l border-slate-200 px-2 h-9 flex items-center text-[10px] font-black text-slate-400 shrink-0">%</span>
-                                    </div>
-                                  </div>
-                                );
-                              })}
-                            </div>
-                          </div>
-                        );
-                      })}
                     </div>
-                  )}
-
-                  {/* ── Débito ── */}
-                  {activePayType === "debit" && (
-                    <div className="space-y-5">
-                      {/* Repassar taxa — débito */}
-                      <div className="flex items-center justify-between gap-4 p-4 bg-blue-50 border border-blue-100 rounded-xl">
-                        <div className="flex items-start gap-3">
-                          <Smartphone size={16} className="text-blue-600 shrink-0 mt-0.5" />
-                          <div>
-                            <p className="text-[11px] font-black text-blue-800 uppercase tracking-wider">Repassar taxa ao cliente — Débito</p>
-                            <p className="text-[10px] text-blue-700 mt-0.5 leading-relaxed">
-                              Ativo: taxa somada ao total cobrado no débito.
-                            </p>
-                          </div>
-                        </div>
-                        <Toggle on={!!passFeeByMethod["debit"]} onChange={() => togglePassFee("debit")} />
+                    <div className="grid gap-3 md:grid-cols-2">
+                      <div className="rounded-2xl border border-slate-200 bg-white p-5">
+                        <p className="text-xs font-black text-slate-800">
+                          Cálculo de frete
+                        </p>
+                        <p className="mt-1 text-[11px] leading-relaxed text-slate-500">
+                          Estrutura preparada para CEP, transportadoras e regras
+                          de frete grátis.
+                        </p>
+                        <span className="mt-4 inline-flex rounded-full bg-amber-100 px-3 py-1 text-[9px] font-black uppercase tracking-wider text-amber-700">
+                          Em preparação
+                        </span>
                       </div>
+                      <div className="rounded-2xl border border-slate-200 bg-white p-5">
+                        <p className="text-xs font-black text-slate-800">
+                          Pagamentos na plataforma
+                        </p>
+                        <p className="mt-1 text-[11px] leading-relaxed text-slate-500">
+                          O carrinho já separa o fluxo para ativar Pix, cartão e
+                          checkout seguro depois.
+                        </p>
+                        <span className="mt-4 inline-flex rounded-full bg-amber-100 px-3 py-1 text-[9px] font-black uppercase tracking-wider text-amber-700">
+                          Em preparação
+                        </span>
+                      </div>
+                    </div>
+                    <SaveButton
+                      onClick={handleSaveTenant}
+                      label="Salvar checkout da loja"
+                    />
+                  </div>
+                );
+              })()}
 
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        {activeBrands.map(({ key, label, color }) => {
-                          const rate = (cardFees[`debit_${key}`] ?? [0])[0];
+            {active === "card_fees" &&
+              (() => {
+                const BRANDS = [
+                  { key: "visa", label: "Visa", color: "#1A1F71" },
+                  { key: "master", label: "Mastercard", color: "#EB001B" },
+                  { key: "elo", label: "Elo", color: "#00A4E0" },
+                  { key: "amex", label: "American Express", color: "#2E77BC" },
+                  { key: "hiper", label: "Hipercard", color: "#B22222" },
+                  { key: "other", label: "Outras Bandeiras", color: "#64748b" },
+                ] as { key: string; label: string; color: string }[];
+
+                const activeBrands = BRANDS.filter(
+                  (b) => enabledBrands[b.key] !== false,
+                );
+
+                const toggleBrand = (key: string) =>
+                  setEnabledBrands((prev) => ({ ...prev, [key]: !prev[key] }));
+
+                const togglePassFee = (method: string) =>
+                  setPassFeeByMethod((prev) => ({
+                    ...prev,
+                    [method]: !prev[method],
+                  }));
+
+                // toggle component reutilizável
+                const Toggle = ({
+                  on,
+                  onChange,
+                }: {
+                  on: boolean;
+                  onChange: () => void;
+                }) => (
+                  <button
+                    onClick={onChange}
+                    className={`relative shrink-0 flex items-center rounded-full transition-all duration-200 border ${on ? "bg-blue-600 border-blue-600" : "bg-white border-slate-300"}`}
+                    style={{ width: 72, height: 32 }}
+                  >
+                    {/* label Não */}
+                    <span
+                      className={`absolute right-2 text-[9px] font-black uppercase tracking-wider transition-opacity duration-150 ${on ? "opacity-0" : "opacity-100 text-slate-400"}`}
+                    >
+                      Não
+                    </span>
+                    {/* label Sim */}
+                    <span
+                      className={`absolute left-2 text-[9px] font-black uppercase tracking-wider transition-opacity duration-150 ${on ? "opacity-100 text-white" : "opacity-0"}`}
+                    >
+                      Sim
+                    </span>
+                    {/* knob */}
+                    <span
+                      className="absolute bg-white rounded-full shadow-md transition-transform duration-200"
+                      style={{
+                        width: 24,
+                        height: 24,
+                        top: 3,
+                        left: 4,
+                        transform: on ? "translateX(40px)" : "translateX(0px)",
+                        boxShadow: "0 1px 4px rgba(0,0,0,0.18)",
+                      }}
+                    />
+                  </button>
+                );
+
+                return (
+                  <div className="space-y-6">
+                    <SectionHeader
+                      title="Maquininha & Taxas"
+                      subtitle="Configure as taxas, bandeiras e regras de repasse por modalidade de pagamento."
+                    />
+
+                    {/* ── Bandeiras ativas ── */}
+                    <div className="border border-slate-100 rounded-2xl overflow-hidden">
+                      <div className="px-5 py-3 bg-slate-50 border-b border-slate-100 flex items-center justify-between">
+                        <span className="text-[10px] font-black uppercase tracking-widest text-slate-600">
+                          Bandeiras Ativas
+                        </span>
+                        <span className="text-[9px] text-slate-400 font-medium">
+                          {activeBrands.length} de {BRANDS.length} ativas
+                        </span>
+                      </div>
+                      <div className="p-4 grid grid-cols-2 sm:grid-cols-3 gap-3">
+                        {BRANDS.map(({ key, label, color }) => {
+                          const on = enabledBrands[key] !== false;
                           return (
-                            <div key={key} className="border border-slate-100 rounded-2xl overflow-hidden">
-                              <div className="flex items-center gap-3 px-5 py-3"
-                                style={{ backgroundColor: color + "15", borderBottom: `2px solid ${color}30` }}>
-                                <div className="w-3 h-3 rounded-full" style={{ backgroundColor: color }} />
-                                <span className="text-[10px] font-black uppercase tracking-widest" style={{ color }}>{label}</span>
-                              </div>
-                              <div className="p-4">
-                                <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest px-1 block mb-1">Taxa Débito</label>
-                                <div className="flex items-center border border-slate-200 rounded-xl overflow-hidden focus-within:ring-2 focus-within:ring-blue-500/10 focus-within:border-blue-500 bg-slate-50 transition-all">
-                                  <input type="number" min="0" max="30" step="0.1"
-                                    value={rate}
-                                    onChange={(e) => setDebitRate(key, parseFloat(e.target.value) || 0)}
-                                    className="flex-1 bg-transparent px-2 h-9 text-xs font-mono font-bold outline-none w-0 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none"
+                            <button
+                              key={key}
+                              onClick={() => toggleBrand(key)}
+                              className={cn(
+                                "flex items-center gap-3 px-4 py-3 rounded-xl border transition-all",
+                                on
+                                  ? "border-transparent shadow-sm"
+                                  : "bg-slate-50 border-slate-200 opacity-50",
+                              )}
+                              style={
+                                on
+                                  ? {
+                                      backgroundColor: color + "15",
+                                      borderColor: color + "40",
+                                    }
+                                  : {}
+                              }
+                            >
+                              <div
+                                className="w-3 h-3 rounded-full shrink-0"
+                                style={{
+                                  backgroundColor: on ? color : "#cbd5e1",
+                                }}
+                              />
+                              <span
+                                className="text-[11px] font-black uppercase tracking-widest flex-1 text-left"
+                                style={{ color: on ? color : "#94a3b8" }}
+                              >
+                                {label}
+                              </span>
+                              <div
+                                className={`w-4 h-4 rounded-full border-2 flex items-center justify-center shrink-0 transition-all ${on ? "bg-white border-white" : "bg-transparent border-slate-300"}`}
+                                style={
+                                  on
+                                    ? { boxShadow: `0 0 0 3px ${color}40` }
+                                    : {}
+                                }
+                              >
+                                {on && (
+                                  <div
+                                    className="w-2 h-2 rounded-full"
+                                    style={{ backgroundColor: color }}
                                   />
-                                  <span className="bg-slate-100 border-l border-slate-200 px-2 h-9 flex items-center text-[10px] font-black text-slate-400 shrink-0">%</span>
-                                </div>
+                                )}
+                              </div>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    {/* Payment type tabs */}
+                    <div className="flex gap-2 p-1 bg-slate-100 rounded-2xl w-fit">
+                      {(
+                        [
+                          { id: "credit", label: "Crédito", icon: CreditCard },
+                          { id: "debit", label: "Débito", icon: Smartphone },
+                          { id: "pix", label: "PIX", icon: Zap },
+                        ] as {
+                          id: "credit" | "debit" | "pix";
+                          label: string;
+                          icon: React.ElementType;
+                        }[]
+                      ).map(({ id, label, icon: Icon }) => (
+                        <button
+                          key={id}
+                          onClick={() => setActivePayType(id)}
+                          className={cn(
+                            "flex items-center gap-2 px-4 py-2 rounded-xl text-[11px] font-black uppercase tracking-widest transition-all",
+                            activePayType === id
+                              ? "bg-white shadow text-slate-900"
+                              : "text-slate-500 hover:text-slate-700",
+                          )}
+                        >
+                          <Icon size={13} />
+                          {label}
+                        </button>
+                      ))}
+                    </div>
+
+                    {/* ── Crédito ── */}
+                    {activePayType === "credit" && (
+                      <div className="space-y-5">
+                        {/* Repassar taxa — crédito */}
+                        <div className="flex items-center justify-between gap-4 p-4 bg-amber-50 border border-amber-100 rounded-xl">
+                          <div className="flex items-start gap-3">
+                            <CreditCard
+                              size={16}
+                              className="text-amber-600 shrink-0 mt-0.5"
+                            />
+                            <div>
+                              <p className="text-[11px] font-black text-amber-800 uppercase tracking-wider">
+                                Repassar taxa ao cliente — Crédito
+                              </p>
+                              <p className="text-[10px] text-amber-700 mt-0.5 leading-relaxed">
+                                Ativo: taxa somada ao total cobrado. Ex: R$ 30 +
+                                2,5% → R$ 30,75 para o cliente.
+                              </p>
+                            </div>
+                          </div>
+                          <Toggle
+                            on={!!passFeeByMethod["credit"]}
+                            onChange={() => togglePassFee("credit")}
+                          />
+                        </div>
+
+                        {/* Máximo de parcelas */}
+                        <div className="flex items-center justify-between gap-4 p-4 bg-white border border-slate-200 rounded-xl">
+                          <div>
+                            <p className="text-[12px] font-bold text-slate-700">
+                              Máximo de parcelas
+                            </p>
+                            <p className="text-[10px] text-slate-400 mt-0.5">
+                              Quantas opções aparecem no PDV (1 a 12).
+                            </p>
+                          </div>
+                          <div className="flex items-center gap-2 shrink-0">
+                            <button
+                              onClick={() =>
+                                setMaxInstallments((v) => Math.max(1, v - 1))
+                              }
+                              className="w-8 h-8 rounded-lg bg-slate-100 hover:bg-slate-200 border border-slate-200 text-slate-600 font-black text-lg flex items-center justify-center transition-all"
+                            >
+                              −
+                            </button>
+                            <span className="w-10 text-center font-mono font-black text-[16px] text-slate-800">
+                              {maxInstallments}×
+                            </span>
+                            <button
+                              onClick={() =>
+                                setMaxInstallments((v) => Math.min(24, v + 1))
+                              }
+                              className="w-8 h-8 rounded-lg bg-slate-100 hover:bg-slate-200 border border-slate-200 text-slate-600 font-black text-lg flex items-center justify-center transition-all"
+                            >
+                              +
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Preview das parcelas ativas */}
+                        <div className="flex flex-wrap gap-2 px-1">
+                          {Array.from({ length: 24 }, (_, i) => i + 1).map(
+                            (n) => (
+                              <span
+                                key={n}
+                                className={cn(
+                                  "px-3 py-1 rounded-lg text-[10px] font-black border transition-all",
+                                  n <= maxInstallments
+                                    ? "bg-blue-50 border-blue-200 text-blue-700"
+                                    : "bg-slate-50 border-slate-200 text-slate-300 line-through",
+                                )}
+                              >
+                                {n === 1 ? "À vista" : `${n}×`}
+                              </span>
+                            ),
+                          )}
+                        </div>
+
+                        {/* Taxas por bandeira */}
+                        {activeBrands.map(({ key, label, color }) => {
+                          const fees =
+                            cardFees[key] ?? Array(maxInstallments).fill(0);
+                          return (
+                            <div
+                              key={key}
+                              className="border border-slate-100 rounded-2xl overflow-hidden"
+                            >
+                              <div
+                                className="flex items-center gap-3 px-5 py-3"
+                                style={{
+                                  backgroundColor: color + "15",
+                                  borderBottom: `2px solid ${color}30`,
+                                }}
+                              >
+                                <div
+                                  className="w-3 h-3 rounded-full"
+                                  style={{ backgroundColor: color }}
+                                />
+                                <span
+                                  className="text-[10px] font-black uppercase tracking-widest"
+                                  style={{ color }}
+                                >
+                                  {label}
+                                </span>
+                              </div>
+                              <div className="p-4 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+                                {Array.from(
+                                  { length: maxInstallments },
+                                  (_, i) => i + 1,
+                                ).map((n) => {
+                                  const idx = n - 1;
+                                  return (
+                                    <div key={n} className="space-y-1">
+                                      <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest px-1 block">
+                                        {n === 1 ? "À Vista" : `${n}× parcelas`}
+                                      </label>
+                                      <div className="flex items-center border border-slate-200 rounded-xl overflow-hidden focus-within:ring-2 focus-within:ring-blue-500/10 focus-within:border-blue-500 bg-slate-50 transition-all">
+                                        <input
+                                          type="number"
+                                          min="0"
+                                          max="30"
+                                          step="0.1"
+                                          value={fees[idx] ?? 0}
+                                          onChange={(e) =>
+                                            setFeeRate(
+                                              key,
+                                              idx,
+                                              parseFloat(e.target.value) || 0,
+                                            )
+                                          }
+                                          className="flex-1 bg-transparent px-2 h-9 text-xs font-mono font-bold outline-none w-0 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none"
+                                        />
+                                        <span className="bg-slate-100 border-l border-slate-200 px-2 h-9 flex items-center text-[10px] font-black text-slate-400 shrink-0">
+                                          %
+                                        </span>
+                                      </div>
+                                    </div>
+                                  );
+                                })}
                               </div>
                             </div>
                           );
                         })}
                       </div>
-                    </div>
-                  )}
+                    )}
 
-                  {/* ── PIX ── */}
-                  {activePayType === "pix" && (
-                    <div className="space-y-5">
-                      {/* Repassar taxa — PIX */}
-                      <div className="flex items-center justify-between gap-4 p-4 bg-emerald-50 border border-emerald-100 rounded-xl">
-                        <div className="flex items-start gap-3">
-                          <Zap size={16} className="text-emerald-600 shrink-0 mt-0.5" />
-                          <div>
-                            <p className="text-[11px] font-black text-emerald-800 uppercase tracking-wider">Repassar taxa ao cliente — PIX</p>
-                            <p className="text-[10px] text-emerald-700 mt-0.5 leading-relaxed">
-                              Ativo: taxa PIX somada ao total cobrado. Muitas maquininhas cobram 0% no PIX.
-                            </p>
-                          </div>
-                        </div>
-                        <Toggle on={!!passFeeByMethod["pix"]} onChange={() => togglePassFee("pix")} />
-                      </div>
-
-                      <div className="border border-slate-100 rounded-2xl overflow-hidden max-w-xs">
-                        <div className="flex items-center gap-3 px-5 py-3 bg-emerald-50 border-b-2 border-emerald-100">
-                          <Zap size={14} className="text-emerald-600" />
-                          <span className="text-[10px] font-black uppercase tracking-widest text-emerald-700">Taxa PIX</span>
-                        </div>
-                        <div className="p-4">
-                          <div className="flex items-center border border-slate-200 rounded-xl overflow-hidden focus-within:ring-2 focus-within:ring-emerald-500/10 focus-within:border-emerald-500 bg-slate-50 transition-all">
-                            <input type="number" min="0" max="30" step="0.01"
-                              value={(cardFees["pix"] ?? [0])[0]}
-                              onChange={(e) => setPixRate(parseFloat(e.target.value) || 0)}
-                              className="flex-1 bg-transparent px-2 h-9 text-xs font-mono font-bold outline-none w-0 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none"
+                    {/* ── Débito ── */}
+                    {activePayType === "debit" && (
+                      <div className="space-y-5">
+                        {/* Repassar taxa — débito */}
+                        <div className="flex items-center justify-between gap-4 p-4 bg-blue-50 border border-blue-100 rounded-xl">
+                          <div className="flex items-start gap-3">
+                            <Smartphone
+                              size={16}
+                              className="text-blue-600 shrink-0 mt-0.5"
                             />
-                            <span className="bg-slate-100 border-l border-slate-200 px-2 h-9 flex items-center text-[10px] font-black text-slate-400 shrink-0">%</span>
+                            <div>
+                              <p className="text-[11px] font-black text-blue-800 uppercase tracking-wider">
+                                Repassar taxa ao cliente — Débito
+                              </p>
+                              <p className="text-[10px] text-blue-700 mt-0.5 leading-relaxed">
+                                Ativo: taxa somada ao total cobrado no débito.
+                              </p>
+                            </div>
+                          </div>
+                          <Toggle
+                            on={!!passFeeByMethod["debit"]}
+                            onChange={() => togglePassFee("debit")}
+                          />
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                          {activeBrands.map(({ key, label, color }) => {
+                            const rate = (cardFees[`debit_${key}`] ?? [0])[0];
+                            return (
+                              <div
+                                key={key}
+                                className="border border-slate-100 rounded-2xl overflow-hidden"
+                              >
+                                <div
+                                  className="flex items-center gap-3 px-5 py-3"
+                                  style={{
+                                    backgroundColor: color + "15",
+                                    borderBottom: `2px solid ${color}30`,
+                                  }}
+                                >
+                                  <div
+                                    className="w-3 h-3 rounded-full"
+                                    style={{ backgroundColor: color }}
+                                  />
+                                  <span
+                                    className="text-[10px] font-black uppercase tracking-widest"
+                                    style={{ color }}
+                                  >
+                                    {label}
+                                  </span>
+                                </div>
+                                <div className="p-4">
+                                  <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest px-1 block mb-1">
+                                    Taxa Débito
+                                  </label>
+                                  <div className="flex items-center border border-slate-200 rounded-xl overflow-hidden focus-within:ring-2 focus-within:ring-blue-500/10 focus-within:border-blue-500 bg-slate-50 transition-all">
+                                    <input
+                                      type="number"
+                                      min="0"
+                                      max="30"
+                                      step="0.1"
+                                      value={rate}
+                                      onChange={(e) =>
+                                        setDebitRate(
+                                          key,
+                                          parseFloat(e.target.value) || 0,
+                                        )
+                                      }
+                                      className="flex-1 bg-transparent px-2 h-9 text-xs font-mono font-bold outline-none w-0 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none"
+                                    />
+                                    <span className="bg-slate-100 border-l border-slate-200 px-2 h-9 flex items-center text-[10px] font-black text-slate-400 shrink-0">
+                                      %
+                                    </span>
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* ── PIX ── */}
+                    {activePayType === "pix" && (
+                      <div className="space-y-5">
+                        {/* Repassar taxa — PIX */}
+                        <div className="flex items-center justify-between gap-4 p-4 bg-emerald-50 border border-emerald-100 rounded-xl">
+                          <div className="flex items-start gap-3">
+                            <Zap
+                              size={16}
+                              className="text-emerald-600 shrink-0 mt-0.5"
+                            />
+                            <div>
+                              <p className="text-[11px] font-black text-emerald-800 uppercase tracking-wider">
+                                Repassar taxa ao cliente — PIX
+                              </p>
+                              <p className="text-[10px] text-emerald-700 mt-0.5 leading-relaxed">
+                                Ativo: taxa PIX somada ao total cobrado. Muitas
+                                maquininhas cobram 0% no PIX.
+                              </p>
+                            </div>
+                          </div>
+                          <Toggle
+                            on={!!passFeeByMethod["pix"]}
+                            onChange={() => togglePassFee("pix")}
+                          />
+                        </div>
+
+                        <div className="border border-slate-100 rounded-2xl overflow-hidden max-w-xs">
+                          <div className="flex items-center gap-3 px-5 py-3 bg-emerald-50 border-b-2 border-emerald-100">
+                            <Zap size={14} className="text-emerald-600" />
+                            <span className="text-[10px] font-black uppercase tracking-widest text-emerald-700">
+                              Taxa PIX
+                            </span>
+                          </div>
+                          <div className="p-4">
+                            <div className="flex items-center border border-slate-200 rounded-xl overflow-hidden focus-within:ring-2 focus-within:ring-emerald-500/10 focus-within:border-emerald-500 bg-slate-50 transition-all">
+                              <input
+                                type="number"
+                                min="0"
+                                max="30"
+                                step="0.01"
+                                value={(cardFees["pix"] ?? [0])[0]}
+                                onChange={(e) =>
+                                  setPixRate(parseFloat(e.target.value) || 0)
+                                }
+                                className="flex-1 bg-transparent px-2 h-9 text-xs font-mono font-bold outline-none w-0 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none"
+                              />
+                              <span className="bg-slate-100 border-l border-slate-200 px-2 h-9 flex items-center text-[10px] font-black text-slate-400 shrink-0">
+                                %
+                              </span>
+                            </div>
                           </div>
                         </div>
                       </div>
-                    </div>
-                  )}
+                    )}
 
-                  <SaveButton onClick={handleSaveCardFees} label="Salvar Taxas" />
-                </div>
-              );
-            })()}
+                    <SaveButton
+                      onClick={handleSaveCardFees}
+                      label="Salvar Taxas"
+                    />
+                  </div>
+                );
+              })()}
 
             {/* ── Crediário & Juros ──────────────────────────────────── */}
             {active === "crediario" && (
@@ -2804,38 +4288,77 @@ export default function Settings() {
 
                 <div className="flex items-center justify-between gap-4 p-4 bg-white border border-slate-200 rounded-xl">
                   <div>
-                    <p className="text-[12px] font-bold text-slate-700">Taxa de juros por atraso</p>
-                    <p className="text-[10px] text-slate-400 mt-0.5">% ao mês, aplicado pro-rata sobre os dias de atraso.</p>
+                    <p className="text-[12px] font-bold text-slate-700">
+                      Taxa de juros por atraso
+                    </p>
+                    <p className="text-[10px] text-slate-400 mt-0.5">
+                      % ao mês, aplicado pro-rata sobre os dias de atraso.
+                    </p>
                   </div>
                   <div className="flex items-center border border-slate-200 rounded-xl overflow-hidden focus-within:ring-2 focus-within:ring-blue-500/10 focus-within:border-blue-500 bg-slate-50 transition-all shrink-0 w-32">
-                    <input type="number" min="0" max="30" step="0.1"
+                    <input
+                      type="number"
+                      min="0"
+                      max="30"
+                      step="0.1"
                       value={crediarioInterestRate}
-                      onChange={(e) => setCrediarioInterestRate(Math.min(30, Math.max(0, parseFloat(e.target.value) || 0)))}
+                      onChange={(e) =>
+                        setCrediarioInterestRate(
+                          Math.min(
+                            30,
+                            Math.max(0, parseFloat(e.target.value) || 0),
+                          ),
+                        )
+                      }
                       className="flex-1 bg-transparent px-2 h-9 text-xs font-mono font-bold outline-none w-0 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none"
                     />
-                    <span className="bg-slate-100 border-l border-slate-200 px-2 h-9 flex items-center text-[10px] font-black text-slate-400 shrink-0">%/mês</span>
+                    <span className="bg-slate-100 border-l border-slate-200 px-2 h-9 flex items-center text-[10px] font-black text-slate-400 shrink-0">
+                      %/mês
+                    </span>
                   </div>
                 </div>
 
                 <div className="flex items-center justify-between gap-4 p-4 bg-white border border-slate-200 rounded-xl">
                   <div>
-                    <p className="text-[12px] font-bold text-slate-700">Dias de carência</p>
-                    <p className="text-[10px] text-slate-400 mt-0.5">Nº de dias após o vencimento antes de sugerir juros.</p>
+                    <p className="text-[12px] font-bold text-slate-700">
+                      Dias de carência
+                    </p>
+                    <p className="text-[10px] text-slate-400 mt-0.5">
+                      Nº de dias após o vencimento antes de sugerir juros.
+                    </p>
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
-                    <button onClick={() => setCrediarioGraceDays((v) => Math.max(0, v - 1))}
-                      className="w-8 h-8 rounded-lg bg-slate-100 hover:bg-slate-200 border border-slate-200 text-slate-600 font-black text-lg flex items-center justify-center transition-all">−</button>
-                    <span className="w-10 text-center font-mono font-black text-[16px] text-slate-800">{crediarioGraceDays}d</span>
-                    <button onClick={() => setCrediarioGraceDays((v) => Math.min(90, v + 1))}
-                      className="w-8 h-8 rounded-lg bg-slate-100 hover:bg-slate-200 border border-slate-200 text-slate-600 font-black text-lg flex items-center justify-center transition-all">+</button>
+                    <button
+                      onClick={() =>
+                        setCrediarioGraceDays((v) => Math.max(0, v - 1))
+                      }
+                      className="w-8 h-8 rounded-lg bg-slate-100 hover:bg-slate-200 border border-slate-200 text-slate-600 font-black text-lg flex items-center justify-center transition-all"
+                    >
+                      −
+                    </button>
+                    <span className="w-10 text-center font-mono font-black text-[16px] text-slate-800">
+                      {crediarioGraceDays}d
+                    </span>
+                    <button
+                      onClick={() =>
+                        setCrediarioGraceDays((v) => Math.min(90, v + 1))
+                      }
+                      className="w-8 h-8 rounded-lg bg-slate-100 hover:bg-slate-200 border border-slate-200 text-slate-600 font-black text-lg flex items-center justify-center transition-all"
+                    >
+                      +
+                    </button>
                   </div>
                 </div>
 
                 <div className="flex items-start gap-3 p-4 bg-amber-50 border border-amber-100 rounded-xl">
-                  <AlertTriangle size={16} className="text-amber-600 shrink-0 mt-0.5" />
+                  <AlertTriangle
+                    size={16}
+                    className="text-amber-600 shrink-0 mt-0.5"
+                  />
                   <p className="text-[10px] text-amber-700 leading-relaxed">
-                    Juros nunca é cobrado sozinho: essa taxa só serve de sugestão na tela de crediário
-                    (Cliente / PDV). Aplicar o valor a uma parcela é sempre uma ação manual do operador.
+                    Juros nunca é cobrado sozinho: essa taxa só serve de
+                    sugestão na tela de crediário (Cliente / PDV). Aplicar o
+                    valor a uma parcela é sempre uma ação manual do operador.
                   </p>
                 </div>
 
@@ -2845,153 +4368,360 @@ export default function Settings() {
 
                 <div className="flex items-center justify-between gap-4 p-4 bg-white border border-slate-200 rounded-xl">
                   <div>
-                    <p className="text-[12px] font-bold text-slate-700">Prazo de devolução</p>
-                    <p className="text-[10px] text-slate-400 mt-0.5">Dias desde a venda — só um aviso na tela de devolução, nunca bloqueia.</p>
+                    <p className="text-[12px] font-bold text-slate-700">
+                      Prazo de devolução
+                    </p>
+                    <p className="text-[10px] text-slate-400 mt-0.5">
+                      Dias desde a venda — só um aviso na tela de devolução,
+                      nunca bloqueia.
+                    </p>
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
-                    <button onClick={() => setReturnDeadlineDays((v) => Math.max(0, v - 1))}
-                      className="w-8 h-8 rounded-lg bg-slate-100 hover:bg-slate-200 border border-slate-200 text-slate-600 font-black text-lg flex items-center justify-center transition-all">−</button>
-                    <span className="w-10 text-center font-mono font-black text-[16px] text-slate-800">{returnDeadlineDays}d</span>
-                    <button onClick={() => setReturnDeadlineDays((v) => Math.min(365, v + 1))}
-                      className="w-8 h-8 rounded-lg bg-slate-100 hover:bg-slate-200 border border-slate-200 text-slate-600 font-black text-lg flex items-center justify-center transition-all">+</button>
+                    <button
+                      onClick={() =>
+                        setReturnDeadlineDays((v) => Math.max(0, v - 1))
+                      }
+                      className="w-8 h-8 rounded-lg bg-slate-100 hover:bg-slate-200 border border-slate-200 text-slate-600 font-black text-lg flex items-center justify-center transition-all"
+                    >
+                      −
+                    </button>
+                    <span className="w-10 text-center font-mono font-black text-[16px] text-slate-800">
+                      {returnDeadlineDays}d
+                    </span>
+                    <button
+                      onClick={() =>
+                        setReturnDeadlineDays((v) => Math.min(365, v + 1))
+                      }
+                      className="w-8 h-8 rounded-lg bg-slate-100 hover:bg-slate-200 border border-slate-200 text-slate-600 font-black text-lg flex items-center justify-center transition-all"
+                    >
+                      +
+                    </button>
                   </div>
                 </div>
 
-                <SaveButton onClick={handleSaveCrediario} label={savingCrediario ? "Salvando..." : "Salvar Configurações"} />
+                <SaveButton
+                  onClick={handleSaveCrediario}
+                  label={
+                    savingCrediario ? "Salvando..." : "Salvar Configurações"
+                  }
+                />
               </div>
             )}
 
             {/* ── E-mail da loja ─────────────────────────────────────────── */}
-            {active === "email_connection" && (() => {
-              const selectedProvider = EMAIL_PROVIDERS.find((item) => item.id === emailProvider)!;
-              return (
-                <div className="space-y-6">
-                  <SectionHeader
-                    title="Conectar E-mail da Loja"
-                    subtitle="Use a conta da sua loja para enviar documentos aos clientes"
-                  />
+            {active === "email_connection" &&
+              (() => {
+                const selectedProvider = EMAIL_PROVIDERS.find(
+                  (item) => item.id === emailProvider,
+                )!;
+                return (
+                  <div className="space-y-6">
+                    <SectionHeader
+                      title="Conectar E-mail da Loja"
+                      subtitle="Use a conta da sua loja para enviar documentos aos clientes"
+                    />
 
-                  <div className="rounded-xl border border-cyan-100 bg-cyan-50 px-4 py-3.5">
-                    <p className="text-[11px] font-black uppercase tracking-widest text-cyan-800">E-mail dos clientes</p>
-                    <p className="mt-1 text-[11px] leading-relaxed text-cyan-800">
-                      Esta conta será usada nos envios de orçamento, ordem de serviço, nota fiscal e outros documentos para os seus clientes.
-                      Os relatórios automáticos do sistema continuam separados, na seção “Relatórios por Email”.
-                    </p>
-                  </div>
-
-                  <div className={cn(
-                    "flex items-center gap-3 rounded-xl border px-4 py-3",
-                    emailConnectionConfigured ? "border-emerald-100 bg-emerald-50" : "border-amber-100 bg-amber-50",
-                  )}>
-                    {emailConnectionConfigured ? <CheckCircle2 size={18} className="shrink-0 text-emerald-600" /> : <AlertTriangle size={18} className="shrink-0 text-amber-600" />}
-                    <div>
-                      <p className={cn("text-[11px] font-bold", emailConnectionConfigured ? "text-emerald-800" : "text-amber-800")}>
-                        {emailConnectionConfigured ? `Conta conectada: ${storeEmail}` : "Nenhuma conta de e-mail conectada"}
+                    <div className="rounded-xl border border-cyan-100 bg-cyan-50 px-4 py-3.5">
+                      <p className="text-[11px] font-black uppercase tracking-widest text-cyan-800">
+                        E-mail dos clientes
                       </p>
-                      <p className={cn("mt-0.5 text-[10px]", emailConnectionConfigured ? "text-emerald-700" : "text-amber-700")}>
-                        {emailConnectionConfigured ? "Você pode atualizar a senha de aplicativo a qualquer momento." : "Conecte uma conta antes de enviar documentos por e-mail."}
+                      <p className="mt-1 text-[11px] leading-relaxed text-cyan-800">
+                        Esta conta será usada nos envios de orçamento, ordem de
+                        serviço, nota fiscal e outros documentos para os seus
+                        clientes. Os relatórios automáticos do sistema continuam
+                        separados, na seção “Relatórios por Email”.
                       </p>
                     </div>
-                  </div>
 
-                  <div className="space-y-3">
-                    <p className="border-l-4 border-cyan-500 pl-3 text-[10px] font-black uppercase tracking-widest text-slate-700">1. Escolha seu provedor</p>
-                    <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-                      {EMAIL_PROVIDERS.map((provider) => (
-                        <button
-                          key={provider.id}
-                          onClick={() => selectEmailProvider(provider.id)}
+                    <div
+                      className={cn(
+                        "flex items-center gap-3 rounded-xl border px-4 py-3",
+                        emailConnectionConfigured
+                          ? "border-emerald-100 bg-emerald-50"
+                          : "border-amber-100 bg-amber-50",
+                      )}
+                    >
+                      {emailConnectionConfigured ? (
+                        <CheckCircle2
+                          size={18}
+                          className="shrink-0 text-emerald-600"
+                        />
+                      ) : (
+                        <AlertTriangle
+                          size={18}
+                          className="shrink-0 text-amber-600"
+                        />
+                      )}
+                      <div>
+                        <p
                           className={cn(
-                            "h-11 rounded-xl border px-3 text-[10px] font-black uppercase tracking-wide transition-all",
-                            emailProvider === provider.id ? "border-cyan-500 bg-cyan-50 text-cyan-700 ring-2 ring-cyan-500/10" : "border-slate-200 bg-white text-slate-500 hover:bg-slate-50",
+                            "text-[11px] font-bold",
+                            emailConnectionConfigured
+                              ? "text-emerald-800"
+                              : "text-amber-800",
                           )}
                         >
-                          {provider.label}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                    <Field label="2. E-mail que fará os envios" hint="Ex.: contato@sualoja.com.br">
-                      <TextInput value={storeEmail} onChange={setStoreEmail} type="email" placeholder="contato@sualoja.com.br" autoComplete="email" />
-                    </Field>
-                    <Field label="Nome exibido para o cliente" hint="Opcional. Se vazio, usamos o endereço de e-mail.">
-                      <TextInput value={emailFromName} onChange={setEmailFromName} placeholder="Minha Loja" />
-                    </Field>
-                  </div>
-
-                  <Field
-                    label="3. Senha de aplicativo"
-                    hint={emailConnectionConfigured ? "Deixe em branco para manter a senha já salva. Nunca mostramos nem enviamos essa senha de volta ao painel." : "Não use a senha normal do seu e-mail. Gere uma senha de aplicativo seguindo o passo a passo abaixo."}
-                  >
-                    <TextInput value={emailAppPassword} onChange={setEmailAppPassword} type="password" placeholder="Cole aqui a senha de aplicativo" autoComplete="new-password" />
-                  </Field>
-
-                  {emailProvider === "custom" && (
-                    <div className="space-y-4 rounded-xl border border-slate-200 bg-slate-50 p-4">
-                      <p className="text-[10px] font-black uppercase tracking-widest text-slate-600">Dados SMTP do e-mail profissional</p>
-                      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-                        <div className="sm:col-span-2"><Field label="Servidor SMTP"><TextInput value={emailSmtpHost} onChange={setEmailSmtpHost} placeholder="smtp.seudominio.com" /></Field></div>
-                        <Field label="Porta"><TextInput value={emailSmtpPort} onChange={setEmailSmtpPort} placeholder="587" mono /></Field>
+                          {emailConnectionConfigured
+                            ? `Conta conectada: ${storeEmail}`
+                            : "Nenhuma conta de e-mail conectada"}
+                        </p>
+                        <p
+                          className={cn(
+                            "mt-0.5 text-[10px]",
+                            emailConnectionConfigured
+                              ? "text-emerald-700"
+                              : "text-amber-700",
+                          )}
+                        >
+                          {emailConnectionConfigured
+                            ? "Você pode atualizar a senha de aplicativo a qualquer momento."
+                            : "Conecte uma conta antes de enviar documentos por e-mail."}
+                        </p>
                       </div>
-                      <Toggle checked={emailSmtpSecure} onChange={setEmailSmtpSecure} label="Usar SSL/TLS direto" />
-                      <p className="text-[10px] leading-relaxed text-slate-500">Peça esses dados ao suporte do seu provedor de hospedagem. Em geral, a porta 465 usa SSL/TLS direto; a 587 usa STARTTLS e deve ficar desmarcada aqui.</p>
                     </div>
-                  )}
 
-                  <div className="rounded-xl border border-slate-200 bg-white p-4">
-                    <p className="text-[10px] font-black uppercase tracking-widest text-slate-700">Passo a passo atualizado para {selectedProvider.label}</p>
-                    <ol className="mt-3 list-decimal space-y-2 pl-4 text-[11px] leading-relaxed text-slate-600">
-                      {emailProvider === "gmail" && <>
-                        <li>Ative a verificação em duas etapas na sua Conta Google.</li>
-                        <li>Abra “Senhas de app”, crie uma senha com o nome <strong>BoxSys</strong> e copie o código gerado.</li>
-                        <li>Cole o código no campo “Senha de aplicativo”, salve e faça o teste.</li>
-                      </>}
-                      {(emailProvider === "outlook" || emailProvider === "hotmail") && <>
-                        <li>Abra as opções avançadas de segurança da sua conta Microsoft e ative a verificação em duas etapas, se ela ainda não estiver ativa.</li>
-                        <li>Em “Senhas de aplicativo”, crie uma nova senha e copie o código.</li>
-                        <li>Cole o código aqui, salve e envie o teste. Para conta corporativa Microsoft 365, consulte o administrador caso a opção não apareça.</li>
-                      </>}
-                      {emailProvider === "yahoo" && <>
-                        <li>Abra a segurança da conta Yahoo e gere uma senha de aplicativo para um app de e-mail.</li>
-                        <li>Dê o nome <strong>BoxSys</strong>, copie a senha criada e cole neste formulário.</li>
-                        <li>Salve a conexão e envie o teste.</li>
-                      </>}
-                      {emailProvider === "icloud" && <>
-                        <li>Entre na sua Conta Apple e confirme que a autenticação de dois fatores está ativa.</li>
-                        <li>Em “Senhas específicas de apps”, gere uma senha para <strong>BoxSys</strong>.</li>
-                        <li>Cole a senha gerada neste formulário, salve e faça o teste.</li>
-                      </>}
-                      {emailProvider === "custom" && <>
-                        <li>Peça ao provedor do seu domínio os dados de SMTP: servidor, porta, tipo de segurança e senha de aplicativo.</li>
-                        <li>Preencha os dados acima. Prefira senha de aplicativo em vez da senha principal da conta.</li>
-                        <li>Salve e faça o teste para confirmar que o servidor aceita os envios.</li>
-                      </>}
-                    </ol>
-                    {selectedProvider.guideUrl && (
-                      <a href={selectedProvider.guideUrl} target="_blank" rel="noreferrer" className="mt-4 inline-flex text-[10px] font-black uppercase tracking-widest text-cyan-700 hover:text-cyan-900 hover:underline">
-                        {selectedProvider.guideLabel} ↗
-                      </a>
+                    <div className="space-y-3">
+                      <p className="border-l-4 border-cyan-500 pl-3 text-[10px] font-black uppercase tracking-widest text-slate-700">
+                        1. Escolha seu provedor
+                      </p>
+                      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                        {EMAIL_PROVIDERS.map((provider) => (
+                          <button
+                            key={provider.id}
+                            onClick={() => selectEmailProvider(provider.id)}
+                            className={cn(
+                              "h-11 rounded-xl border px-3 text-[10px] font-black uppercase tracking-wide transition-all",
+                              emailProvider === provider.id
+                                ? "border-cyan-500 bg-cyan-50 text-cyan-700 ring-2 ring-cyan-500/10"
+                                : "border-slate-200 bg-white text-slate-500 hover:bg-slate-50",
+                            )}
+                          >
+                            {provider.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                      <Field
+                        label="2. E-mail que fará os envios"
+                        hint="Ex.: contato@sualoja.com.br"
+                      >
+                        <TextInput
+                          value={storeEmail}
+                          onChange={setStoreEmail}
+                          type="email"
+                          placeholder="contato@sualoja.com.br"
+                          autoComplete="email"
+                        />
+                      </Field>
+                      <Field
+                        label="Nome exibido para o cliente"
+                        hint="Opcional. Se vazio, usamos o endereço de e-mail."
+                      >
+                        <TextInput
+                          value={emailFromName}
+                          onChange={setEmailFromName}
+                          placeholder="Minha Loja"
+                        />
+                      </Field>
+                    </div>
+
+                    <Field
+                      label="3. Senha de aplicativo"
+                      hint={
+                        emailConnectionConfigured
+                          ? "Deixe em branco para manter a senha já salva. Nunca mostramos nem enviamos essa senha de volta ao painel."
+                          : "Não use a senha normal do seu e-mail. Gere uma senha de aplicativo seguindo o passo a passo abaixo."
+                      }
+                    >
+                      <TextInput
+                        value={emailAppPassword}
+                        onChange={setEmailAppPassword}
+                        type="password"
+                        placeholder="Cole aqui a senha de aplicativo"
+                        autoComplete="new-password"
+                      />
+                    </Field>
+
+                    {emailProvider === "custom" && (
+                      <div className="space-y-4 rounded-xl border border-slate-200 bg-slate-50 p-4">
+                        <p className="text-[10px] font-black uppercase tracking-widest text-slate-600">
+                          Dados SMTP do e-mail profissional
+                        </p>
+                        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+                          <div className="sm:col-span-2">
+                            <Field label="Servidor SMTP">
+                              <TextInput
+                                value={emailSmtpHost}
+                                onChange={setEmailSmtpHost}
+                                placeholder="smtp.seudominio.com"
+                              />
+                            </Field>
+                          </div>
+                          <Field label="Porta">
+                            <TextInput
+                              value={emailSmtpPort}
+                              onChange={setEmailSmtpPort}
+                              placeholder="587"
+                              mono
+                            />
+                          </Field>
+                        </div>
+                        <Toggle
+                          checked={emailSmtpSecure}
+                          onChange={setEmailSmtpSecure}
+                          label="Usar SSL/TLS direto"
+                        />
+                        <p className="text-[10px] leading-relaxed text-slate-500">
+                          Peça esses dados ao suporte do seu provedor de
+                          hospedagem. Em geral, a porta 465 usa SSL/TLS direto;
+                          a 587 usa STARTTLS e deve ficar desmarcada aqui.
+                        </p>
+                      </div>
                     )}
-                  </div>
 
-                  <div className="flex flex-col gap-2 border-t border-slate-100 pt-6 sm:flex-row sm:justify-end">
-                    {emailConnectionConfigured && (
-                      <button onClick={handleDisconnectEmail} disabled={savingEmailConnection} className="h-11 rounded-xl px-4 text-[10px] font-black uppercase tracking-widest text-rose-600 hover:bg-rose-50 disabled:opacity-60">
-                        Desconectar
+                    <div className="rounded-xl border border-slate-200 bg-white p-4">
+                      <p className="text-[10px] font-black uppercase tracking-widest text-slate-700">
+                        Passo a passo atualizado para {selectedProvider.label}
+                      </p>
+                      <ol className="mt-3 list-decimal space-y-2 pl-4 text-[11px] leading-relaxed text-slate-600">
+                        {emailProvider === "gmail" && (
+                          <>
+                            <li>
+                              Ative a verificação em duas etapas na sua Conta
+                              Google.
+                            </li>
+                            <li>
+                              Abra “Senhas de app”, crie uma senha com o nome{" "}
+                              <strong>BoxSys</strong> e copie o código gerado.
+                            </li>
+                            <li>
+                              Cole o código no campo “Senha de aplicativo”,
+                              salve e faça o teste.
+                            </li>
+                          </>
+                        )}
+                        {(emailProvider === "outlook" ||
+                          emailProvider === "hotmail") && (
+                          <>
+                            <li>
+                              Abra as opções avançadas de segurança da sua conta
+                              Microsoft e ative a verificação em duas etapas, se
+                              ela ainda não estiver ativa.
+                            </li>
+                            <li>
+                              Em “Senhas de aplicativo”, crie uma nova senha e
+                              copie o código.
+                            </li>
+                            <li>
+                              Cole o código aqui, salve e envie o teste. Para
+                              conta corporativa Microsoft 365, consulte o
+                              administrador caso a opção não apareça.
+                            </li>
+                          </>
+                        )}
+                        {emailProvider === "yahoo" && (
+                          <>
+                            <li>
+                              Abra a segurança da conta Yahoo e gere uma senha
+                              de aplicativo para um app de e-mail.
+                            </li>
+                            <li>
+                              Dê o nome <strong>BoxSys</strong>, copie a senha
+                              criada e cole neste formulário.
+                            </li>
+                            <li>Salve a conexão e envie o teste.</li>
+                          </>
+                        )}
+                        {emailProvider === "icloud" && (
+                          <>
+                            <li>
+                              Entre na sua Conta Apple e confirme que a
+                              autenticação de dois fatores está ativa.
+                            </li>
+                            <li>
+                              Em “Senhas específicas de apps”, gere uma senha
+                              para <strong>BoxSys</strong>.
+                            </li>
+                            <li>
+                              Cole a senha gerada neste formulário, salve e faça
+                              o teste.
+                            </li>
+                          </>
+                        )}
+                        {emailProvider === "custom" && (
+                          <>
+                            <li>
+                              Peça ao provedor do seu domínio os dados de SMTP:
+                              servidor, porta, tipo de segurança e senha de
+                              aplicativo.
+                            </li>
+                            <li>
+                              Preencha os dados acima. Prefira senha de
+                              aplicativo em vez da senha principal da conta.
+                            </li>
+                            <li>
+                              Salve e faça o teste para confirmar que o servidor
+                              aceita os envios.
+                            </li>
+                          </>
+                        )}
+                      </ol>
+                      {selectedProvider.guideUrl && (
+                        <a
+                          href={selectedProvider.guideUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="mt-4 inline-flex text-[10px] font-black uppercase tracking-widest text-cyan-700 hover:text-cyan-900 hover:underline"
+                        >
+                          {selectedProvider.guideLabel} ↗
+                        </a>
+                      )}
+                    </div>
+
+                    <div className="flex flex-col gap-2 border-t border-slate-100 pt-6 sm:flex-row sm:justify-end">
+                      {emailConnectionConfigured && (
+                        <button
+                          onClick={handleDisconnectEmail}
+                          disabled={savingEmailConnection}
+                          className="h-11 rounded-xl px-4 text-[10px] font-black uppercase tracking-widest text-rose-600 hover:bg-rose-50 disabled:opacity-60"
+                        >
+                          Desconectar
+                        </button>
+                      )}
+                      <button
+                        onClick={handleTestEmailConnection}
+                        disabled={
+                          !emailConnectionConfigured ||
+                          testingEmailConnection ||
+                          savingEmailConnection
+                        }
+                        className="flex h-11 items-center justify-center gap-2 rounded-xl border border-slate-200 px-5 text-[10px] font-black uppercase tracking-widest text-slate-600 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        {testingEmailConnection ? (
+                          <Loader2 size={13} className="animate-spin" />
+                        ) : (
+                          <Send size={13} />
+                        )}{" "}
+                        Enviar teste
                       </button>
-                    )}
-                    <button onClick={handleTestEmailConnection} disabled={!emailConnectionConfigured || testingEmailConnection || savingEmailConnection} className="flex h-11 items-center justify-center gap-2 rounded-xl border border-slate-200 px-5 text-[10px] font-black uppercase tracking-widest text-slate-600 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60">
-                      {testingEmailConnection ? <Loader2 size={13} className="animate-spin" /> : <Send size={13} />} Enviar teste
-                    </button>
-                    <button onClick={handleSaveEmailConnection} disabled={savingEmailConnection} className="flex h-11 items-center justify-center gap-2 rounded-xl bg-cyan-600 px-5 text-[10px] font-black uppercase tracking-widest text-white shadow-lg shadow-cyan-500/20 hover:bg-cyan-700 disabled:opacity-60">
-                      {savingEmailConnection ? <Loader2 size={13} className="animate-spin" /> : <Save size={13} />} Salvar conexão
-                    </button>
+                      <button
+                        onClick={handleSaveEmailConnection}
+                        disabled={savingEmailConnection}
+                        className="flex h-11 items-center justify-center gap-2 rounded-xl bg-cyan-600 px-5 text-[10px] font-black uppercase tracking-widest text-white shadow-lg shadow-cyan-500/20 hover:bg-cyan-700 disabled:opacity-60"
+                      >
+                        {savingEmailConnection ? (
+                          <Loader2 size={13} className="animate-spin" />
+                        ) : (
+                          <Save size={13} />
+                        )}{" "}
+                        Salvar conexão
+                      </button>
+                    </div>
                   </div>
-                </div>
-              );
-            })()}
+                );
+              })()}
 
             {/* ── Relatórios por Email ──────────────────────────────────── */}
             {active === "email_reports" && (
@@ -3003,18 +4733,33 @@ export default function Settings() {
 
                 <div className="flex items-center justify-between gap-4 p-4 bg-white border border-slate-200 rounded-xl">
                   <div>
-                    <p className="text-[12px] font-bold text-slate-700">Relatório semanal</p>
-                    <p className="text-[10px] text-slate-400 mt-0.5">Toda segunda-feira às 8h, referente à semana anterior.</p>
+                    <p className="text-[12px] font-bold text-slate-700">
+                      Relatório semanal
+                    </p>
+                    <p className="text-[10px] text-slate-400 mt-0.5">
+                      Toda segunda-feira às 8h, referente à semana anterior.
+                    </p>
                   </div>
-                  <Toggle checked={weeklyReportEnabled} onChange={setWeeklyReportEnabled} />
+                  <Toggle
+                    checked={weeklyReportEnabled}
+                    onChange={setWeeklyReportEnabled}
+                  />
                 </div>
 
                 <div className="flex items-center justify-between gap-4 p-4 bg-white border border-slate-200 rounded-xl">
                   <div>
-                    <p className="text-[12px] font-bold text-slate-700">Relatório mensal</p>
-                    <p className="text-[10px] text-slate-400 mt-0.5">Todo dia 1º do mês, referente ao mês anterior (já fechado).</p>
+                    <p className="text-[12px] font-bold text-slate-700">
+                      Relatório mensal
+                    </p>
+                    <p className="text-[10px] text-slate-400 mt-0.5">
+                      Todo dia 1º do mês, referente ao mês anterior (já
+                      fechado).
+                    </p>
                   </div>
-                  <Toggle checked={monthlyReportEnabled} onChange={setMonthlyReportEnabled} />
+                  <Toggle
+                    checked={monthlyReportEnabled}
+                    onChange={setMonthlyReportEnabled}
+                  />
                 </div>
 
                 <div className="space-y-3">
@@ -3022,14 +4767,20 @@ export default function Settings() {
                     Destinatários
                   </p>
                   <p className="text-[10px] text-slate-400">
-                    Emails que recebem os relatórios. Se a lista estiver vazia, é enviado para todos os usuários com acesso de administrador.
+                    Emails que recebem os relatórios. Se a lista estiver vazia,
+                    é enviado para todos os usuários com acesso de
+                    administrador.
                   </p>
                   {adminEmails.length > 0 && (
                     <div className="px-4 py-2.5 bg-blue-50 border border-blue-100 rounded-xl">
                       <p className="text-[9px] font-black uppercase tracking-widest text-blue-600 mb-1">
-                        {reportRecipientEmails.length === 0 ? "Enviando por padrão para os administradores" : "Administradores do sistema"}
+                        {reportRecipientEmails.length === 0
+                          ? "Enviando por padrão para os administradores"
+                          : "Administradores do sistema"}
                       </p>
-                      <p className="text-[11px] text-blue-700 font-medium">{adminEmails.join(", ")}</p>
+                      <p className="text-[11px] text-blue-700 font-medium">
+                        {adminEmails.join(", ")}
+                      </p>
                     </div>
                   )}
                   <div className="flex gap-2">
@@ -3037,7 +4788,12 @@ export default function Settings() {
                       type="email"
                       value={newReportEmail}
                       onChange={(e) => setNewReportEmail(e.target.value)}
-                      onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addReportEmail(); } }}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          addReportEmail();
+                        }
+                      }}
                       placeholder="email@exemplo.com"
                       className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-4 h-11 text-sm font-medium outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-400 transition-all"
                     />
@@ -3051,9 +4807,17 @@ export default function Settings() {
                   {reportRecipientEmails.length > 0 && (
                     <div className="space-y-1.5">
                       {reportRecipientEmails.map((email) => (
-                        <div key={email} className="flex items-center justify-between gap-3 px-4 py-2.5 bg-slate-50 border border-slate-100 rounded-xl">
-                          <span className="text-[12px] font-bold text-slate-700">{email}</span>
-                          <button onClick={() => removeReportEmail(email)} className="text-slate-400 hover:text-rose-500 transition-colors">
+                        <div
+                          key={email}
+                          className="flex items-center justify-between gap-3 px-4 py-2.5 bg-slate-50 border border-slate-100 rounded-xl"
+                        >
+                          <span className="text-[12px] font-bold text-slate-700">
+                            {email}
+                          </span>
+                          <button
+                            onClick={() => removeReportEmail(email)}
+                            className="text-slate-400 hover:text-rose-500 transition-colors"
+                          >
                             <X size={14} />
                           </button>
                         </div>
@@ -3064,17 +4828,23 @@ export default function Settings() {
 
                 {hasUnsavedReportRecipients && (
                   <p className="text-[10px] font-bold text-amber-600 bg-amber-50 border border-amber-100 rounded-xl px-4 py-2">
-                    Você tem alterações não salvas na lista de destinatários — clique em "Salvar Configurações" pra confirmar.
+                    Você tem alterações não salvas na lista de destinatários —
+                    clique em "Salvar Configurações" pra confirmar.
                   </p>
                 )}
-                <SaveButton onClick={handleSaveReports} label={savingReports ? "Salvando..." : "Salvar Configurações"} />
+                <SaveButton
+                  onClick={handleSaveReports}
+                  label={savingReports ? "Salvando..." : "Salvar Configurações"}
+                />
 
                 <div className="space-y-3 pt-2">
                   <p className="text-[10px] font-black uppercase tracking-widest text-slate-700 border-l-4 border-emerald-500 pl-3">
                     Testar envio
                   </p>
                   <p className="text-[10px] text-slate-400">
-                    Envia agora, pro período já fechado mais recente — útil pra conferir o email antes de esperar o próximo disparo automático. Salve os destinatários antes de testar.
+                    Envia agora, pro período já fechado mais recente — útil pra
+                    conferir o email antes de esperar o próximo disparo
+                    automático. Salve os destinatários antes de testar.
                   </p>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <button
@@ -3082,14 +4852,24 @@ export default function Settings() {
                       disabled={sendingReportNow !== null}
                       className="h-11 flex items-center justify-center gap-2 rounded-xl border border-slate-200 text-[10px] font-black uppercase tracking-widest text-slate-600 hover:bg-slate-50 transition-all disabled:opacity-60"
                     >
-                      {sendingReportNow === "weekly" ? <Loader2 size={13} className="animate-spin" /> : <Send size={13} />} Enviar Semanal Agora
+                      {sendingReportNow === "weekly" ? (
+                        <Loader2 size={13} className="animate-spin" />
+                      ) : (
+                        <Send size={13} />
+                      )}{" "}
+                      Enviar Semanal Agora
                     </button>
                     <button
                       onClick={() => handleSendReportNow("monthly")}
                       disabled={sendingReportNow !== null}
                       className="h-11 flex items-center justify-center gap-2 rounded-xl border border-slate-200 text-[10px] font-black uppercase tracking-widest text-slate-600 hover:bg-slate-50 transition-all disabled:opacity-60"
                     >
-                      {sendingReportNow === "monthly" ? <Loader2 size={13} className="animate-spin" /> : <Send size={13} />} Enviar Mensal Agora
+                      {sendingReportNow === "monthly" ? (
+                        <Loader2 size={13} className="animate-spin" />
+                      ) : (
+                        <Send size={13} />
+                      )}{" "}
+                      Enviar Mensal Agora
                     </button>
                   </div>
                 </div>
@@ -3097,277 +4877,363 @@ export default function Settings() {
             )}
 
             {/* ── Termos de Garantia ──────────────────────────────────── */}
-            {active === "warranty" && (() => {
-              const wp = policies as StorePolicies;
-              const clauses: string[] = wp.warranty_clauses ?? DEFAULT_POLICIES.warranty_clauses!;
+            {active === "warranty" &&
+              (() => {
+                const wp = policies as StorePolicies;
+                const clauses: string[] =
+                  wp.warranty_clauses ?? DEFAULT_POLICIES.warranty_clauses!;
 
-              const setWarranty = (patch: Partial<StorePolicies>) =>
-                setPolicies(patch);
+                const setWarranty = (patch: Partial<StorePolicies>) =>
+                  setPolicies(patch);
 
-              const updateClause = (idx: number, val: string) => {
-                const next = [...clauses];
-                next[idx] = val;
-                setWarranty({ warranty_clauses: next });
-              };
+                const updateClause = (idx: number, val: string) => {
+                  const next = [...clauses];
+                  next[idx] = val;
+                  setWarranty({ warranty_clauses: next });
+                };
 
-              const addClause = () =>
-                setWarranty({ warranty_clauses: [...clauses, ""] });
+                const addClause = () =>
+                  setWarranty({ warranty_clauses: [...clauses, ""] });
 
-              const removeClause = (idx: number) =>
-                setWarranty({ warranty_clauses: clauses.filter((_, i) => i !== idx) });
+                const removeClause = (idx: number) =>
+                  setWarranty({
+                    warranty_clauses: clauses.filter((_, i) => i !== idx),
+                  });
 
-              return (
-                <div className="space-y-8">
-                  <SectionHeader
-                    title="Termos de Garantia"
-                    subtitle="Configure o texto do termo de garantia impresso nos pedidos"
-                  />
-
-                  {/* Prazos */}
-                  <div className="space-y-3">
-                    <p className="text-[10px] font-black uppercase tracking-widest text-slate-700 border-l-4 border-blue-500 pl-3">
-                      Prazos
-                    </p>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
-                      <div className="bg-slate-50 border border-slate-100 rounded-2xl p-5 space-y-3">
-                        <div>
-                          <p className="text-[10px] font-black uppercase tracking-widest text-slate-700">Prazo de Garantia</p>
-                          <p className="text-[9px] text-slate-400 mt-0.5 font-medium">Em dias a partir da emissão</p>
-                        </div>
-                        <div className="flex items-center gap-4">
-                          <input
-                            type="range"
-                            min={7} max={365}
-                            value={wp.warranty_days ?? 90}
-                            onChange={(e) => setWarranty({ warranty_days: Number(e.target.value) })}
-                            className="flex-1 accent-blue-600"
-                          />
-                          <div className="flex items-center gap-1.5">
-                            <span className="text-xl font-black text-slate-900 tabular-nums w-10 text-right">
-                              {wp.warranty_days ?? 90}
-                            </span>
-                            <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">dias</span>
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="bg-slate-50 border border-slate-100 rounded-2xl p-5 space-y-3">
-                        <div>
-                          <p className="text-[10px] font-black uppercase tracking-widest text-slate-700">Prazo de Atendimento</p>
-                          <p className="text-[9px] text-slate-400 mt-0.5 font-medium">Dias corridos para resolução</p>
-                        </div>
-                        <div className="flex items-center gap-4">
-                          <input
-                            type="range"
-                            min={1} max={90}
-                            value={wp.warranty_resolution_days ?? 30}
-                            onChange={(e) => setWarranty({ warranty_resolution_days: Number(e.target.value) })}
-                            className="flex-1 accent-blue-600"
-                          />
-                          <div className="flex items-center gap-1.5">
-                            <span className="text-xl font-black text-slate-900 tabular-nums w-10 text-right">
-                              {wp.warranty_resolution_days ?? 30}
-                            </span>
-                            <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">dias</span>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Título */}
-                  <div className="space-y-3">
-                    <p className="text-[10px] font-black uppercase tracking-widest text-slate-700 border-l-4 border-blue-500 pl-3">
-                      Título do Termo
-                    </p>
-                    <TextInput
-                      value={wp.warranty_title ?? "Termos e Condições de Garantia"}
-                      onChange={(v) => setWarranty({ warranty_title: v })}
-                      placeholder="Termos e Condições de Garantia"
+                return (
+                  <div className="space-y-8">
+                    <SectionHeader
+                      title="Termos de Garantia"
+                      subtitle="Configure o texto do termo de garantia impresso nos pedidos"
                     />
-                  </div>
 
-                  {/* Cláusulas */}
-                  <div className="space-y-3">
-                    <div className="flex items-center justify-between">
-                      <p className="text-[10px] font-black uppercase tracking-widest text-slate-700 border-l-4 border-blue-500 pl-3">
-                        Cláusulas
-                      </p>
-                      <button
-                        onClick={addClause}
-                        className="flex items-center gap-2 text-[9px] font-black uppercase tracking-widest text-blue-600 hover:text-blue-800 transition-colors px-3 h-8 rounded-lg border border-blue-200 bg-blue-50 hover:bg-blue-100"
-                      >
-                        + Adicionar Cláusula
-                      </button>
-                    </div>
-                    <p className="text-[9px] text-slate-400 font-medium">
-                      Use <strong className="text-slate-600">{"{{warranty_days}}"}</strong> e <strong className="text-slate-600">{"{{resolution_days}}"}</strong> para inserir os prazos automaticamente no texto.
-                    </p>
+                    {/* Prazos */}
                     <div className="space-y-3">
-                      {clauses.map((clause, idx) => (
-                        <div key={idx} className="flex gap-3 items-start">
-                          <div className="w-6 h-6 rounded-full bg-slate-900 text-white flex items-center justify-center text-[9px] font-black shrink-0 mt-3">
-                            {idx + 1}
+                      <p className="text-[10px] font-black uppercase tracking-widest text-slate-700 border-l-4 border-blue-500 pl-3">
+                        Prazos
+                      </p>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+                        <div className="bg-slate-50 border border-slate-100 rounded-2xl p-5 space-y-3">
+                          <div>
+                            <p className="text-[10px] font-black uppercase tracking-widest text-slate-700">
+                              Prazo de Garantia
+                            </p>
+                            <p className="text-[9px] text-slate-400 mt-0.5 font-medium">
+                              Em dias a partir da emissão
+                            </p>
                           </div>
-                          <textarea
-                            className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-xs font-medium outline-none h-20 resize-none focus:ring-4 focus:ring-blue-500/8 focus:border-blue-500 transition-all"
-                            value={clause}
-                            onChange={(e) => updateClause(idx, e.target.value)}
-                            placeholder={`Cláusula ${idx + 1}...`}
-                          />
-                          <button
-                            onClick={() => removeClause(idx)}
-                            className="w-6 h-6 rounded-full bg-rose-50 text-rose-400 flex items-center justify-center hover:bg-rose-100 hover:text-rose-600 transition-colors shrink-0 mt-3"
-                          >
-                            <X size={11} strokeWidth={3} />
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* Preview */}
-                  <div className="space-y-3">
-                    <p className="text-[10px] font-black uppercase tracking-widest text-slate-700 border-l-4 border-emerald-500 pl-3">
-                      Pré-visualização
-                    </p>
-                    <div className="border-2 border-slate-200 rounded-2xl p-5 bg-slate-50 font-mono text-[11px] leading-relaxed text-slate-700 space-y-2">
-                      <strong className="text-sm font-sans font-black text-slate-900 uppercase tracking-wide block mb-3">
-                        {wp.warranty_title ?? "Termos e Condições de Garantia"}
-                      </strong>
-                      {clauses.map((c, i) => (
-                        <div key={i} className="flex gap-2">
-                          <span className="text-emerald-600 font-black shrink-0">✓</span>
-                          <span>
-                            {c
-                              .replace(/\{\{warranty_days\}\}/g, String(wp.warranty_days ?? 90))
-                              .replace(/\{\{resolution_days\}\}/g, String(wp.warranty_resolution_days ?? 30))
-                            }
-                          </span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-
-                  <SaveButton onClick={handleSaveTenant} label="Salvar Termos" />
-                </div>
-              );
-            })()}
-
-            {/* ── Checklists de Ordem de Serviço ────────────────────────── */}
-            {active === "service_checklists" && (() => {
-              const sp = policies as StorePolicies;
-              const checklists = sp.service_order_checklists ?? {};
-              const categories = Object.keys(checklists);
-
-              const setChecklists = (next: Record<string, { label: string }[]>) =>
-                setPolicies({ service_order_checklists: next });
-
-              const addCategory = () => {
-                const name = window.prompt("Nome da categoria (ex: Notebook, Som, Celular):");
-                if (!name || checklists[name]) return;
-                setChecklists({ ...checklists, [name]: [] });
-              };
-
-              const removeCategory = (cat: string) => {
-                if (!window.confirm(`Remover a categoria "${cat}" e seu checklist?`)) return;
-                const next = { ...checklists };
-                delete next[cat];
-                setChecklists(next);
-              };
-
-              const addItem = (cat: string) =>
-                setChecklists({ ...checklists, [cat]: [...(checklists[cat] ?? []), { label: "" }] });
-
-              const updateItem = (cat: string, idx: number, label: string) => {
-                const items = [...(checklists[cat] ?? [])];
-                items[idx] = { label };
-                setChecklists({ ...checklists, [cat]: items });
-              };
-
-              const removeItem = (cat: string, idx: number) => {
-                const items = (checklists[cat] ?? []).filter((_, i) => i !== idx);
-                setChecklists({ ...checklists, [cat]: items });
-              };
-
-              return (
-                <div className="space-y-8">
-                  <SectionHeader
-                    title="Checklists de Ordem de Serviço"
-                    subtitle="Configure o checklist de entrada usado em cada categoria de equipamento (notebooks, sons, celulares, etc.)"
-                  />
-
-                  <div className="flex items-center justify-between">
-                    <p className="text-[10px] font-black uppercase tracking-widest text-slate-700 border-l-4 border-blue-500 pl-3">
-                      Categorias
-                    </p>
-                    <button
-                      onClick={addCategory}
-                      className="flex items-center gap-2 text-[9px] font-black uppercase tracking-widest text-blue-600 hover:text-blue-800 transition-colors px-3 h-8 rounded-lg border border-blue-200 bg-blue-50 hover:bg-blue-100"
-                    >
-                      + Nova Categoria
-                    </button>
-                  </div>
-
-                  {categories.length === 0 ? (
-                    <p className="text-[11px] text-slate-400 font-medium">
-                      Nenhuma categoria configurada ainda. Crie uma categoria (ex: "Notebook") para poder montar o checklist de entrada usado nas Ordens de Serviço.
-                    </p>
-                  ) : (
-                    <div className="space-y-6">
-                      {categories.map((cat) => (
-                        <div key={cat} className="bg-slate-50 border border-slate-100 rounded-2xl p-5 space-y-3">
-                          <div className="flex items-center justify-between">
-                            <p className="text-[12px] font-black text-slate-800">{cat}</p>
-                            <div className="flex items-center gap-2">
-                              <button
-                                onClick={() => addItem(cat)}
-                                className="flex items-center gap-1.5 h-7 px-2.5 rounded-lg text-[9px] font-black uppercase tracking-wider bg-blue-50 border border-blue-200 text-blue-600 hover:bg-blue-100 transition-all"
-                              >
-                                + Item
-                              </button>
-                              <button
-                                onClick={() => removeCategory(cat)}
-                                className="w-7 h-7 rounded-full bg-rose-50 text-rose-400 flex items-center justify-center hover:bg-rose-100 hover:text-rose-600 transition-colors"
-                              >
-                                <X size={11} strokeWidth={3} />
-                              </button>
+                          <div className="flex items-center gap-4">
+                            <input
+                              type="range"
+                              min={7}
+                              max={365}
+                              value={wp.warranty_days ?? 90}
+                              onChange={(e) =>
+                                setWarranty({
+                                  warranty_days: Number(e.target.value),
+                                })
+                              }
+                              className="flex-1 accent-blue-600"
+                            />
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-xl font-black text-slate-900 tabular-nums w-10 text-right">
+                                {wp.warranty_days ?? 90}
+                              </span>
+                              <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">
+                                dias
+                              </span>
                             </div>
                           </div>
-                          <div className="space-y-2">
-                            {(checklists[cat] ?? []).length === 0 ? (
-                              <p className="text-[10px] text-slate-400">Nenhum item — clique em "+ Item" para adicionar (ex: "Liga", "Tela sem trincos", "Carregador incluso").</p>
-                            ) : (
-                              (checklists[cat] ?? []).map((item, idx) => (
-                                <div key={idx} className="flex gap-2 items-center">
-                                  <div className="w-5 h-5 rounded-full bg-slate-900 text-white flex items-center justify-center text-[8px] font-black shrink-0">
-                                    {idx + 1}
-                                  </div>
-                                  <TextInput
-                                    value={item.label}
-                                    onChange={(v) => updateItem(cat, idx, v)}
-                                    placeholder={`Item ${idx + 1} do checklist...`}
-                                    className="h-9"
-                                  />
-                                  <button
-                                    onClick={() => removeItem(cat, idx)}
-                                    className="w-6 h-6 rounded-full bg-rose-50 text-rose-400 flex items-center justify-center hover:bg-rose-100 hover:text-rose-600 transition-colors shrink-0"
-                                  >
-                                    <X size={10} strokeWidth={3} />
-                                  </button>
-                                </div>
-                              ))
-                            )}
+                        </div>
+
+                        <div className="bg-slate-50 border border-slate-100 rounded-2xl p-5 space-y-3">
+                          <div>
+                            <p className="text-[10px] font-black uppercase tracking-widest text-slate-700">
+                              Prazo de Atendimento
+                            </p>
+                            <p className="text-[9px] text-slate-400 mt-0.5 font-medium">
+                              Dias corridos para resolução
+                            </p>
+                          </div>
+                          <div className="flex items-center gap-4">
+                            <input
+                              type="range"
+                              min={1}
+                              max={90}
+                              value={wp.warranty_resolution_days ?? 30}
+                              onChange={(e) =>
+                                setWarranty({
+                                  warranty_resolution_days: Number(
+                                    e.target.value,
+                                  ),
+                                })
+                              }
+                              className="flex-1 accent-blue-600"
+                            />
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-xl font-black text-slate-900 tabular-nums w-10 text-right">
+                                {wp.warranty_resolution_days ?? 30}
+                              </span>
+                              <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">
+                                dias
+                              </span>
+                            </div>
                           </div>
                         </div>
-                      ))}
+                      </div>
                     </div>
-                  )}
 
-                  <SaveButton onClick={handleSaveTenant} label="Salvar Checklists" />
-                </div>
-              );
-            })()}
+                    {/* Título */}
+                    <div className="space-y-3">
+                      <p className="text-[10px] font-black uppercase tracking-widest text-slate-700 border-l-4 border-blue-500 pl-3">
+                        Título do Termo
+                      </p>
+                      <TextInput
+                        value={
+                          wp.warranty_title ?? "Termos e Condições de Garantia"
+                        }
+                        onChange={(v) => setWarranty({ warranty_title: v })}
+                        placeholder="Termos e Condições de Garantia"
+                      />
+                    </div>
+
+                    {/* Cláusulas */}
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between">
+                        <p className="text-[10px] font-black uppercase tracking-widest text-slate-700 border-l-4 border-blue-500 pl-3">
+                          Cláusulas
+                        </p>
+                        <button
+                          onClick={addClause}
+                          className="flex items-center gap-2 text-[9px] font-black uppercase tracking-widest text-blue-600 hover:text-blue-800 transition-colors px-3 h-8 rounded-lg border border-blue-200 bg-blue-50 hover:bg-blue-100"
+                        >
+                          + Adicionar Cláusula
+                        </button>
+                      </div>
+                      <p className="text-[9px] text-slate-400 font-medium">
+                        Use{" "}
+                        <strong className="text-slate-600">
+                          {"{{warranty_days}}"}
+                        </strong>{" "}
+                        e{" "}
+                        <strong className="text-slate-600">
+                          {"{{resolution_days}}"}
+                        </strong>{" "}
+                        para inserir os prazos automaticamente no texto.
+                      </p>
+                      <div className="space-y-3">
+                        {clauses.map((clause, idx) => (
+                          <div key={idx} className="flex gap-3 items-start">
+                            <div className="w-6 h-6 rounded-full bg-slate-900 text-white flex items-center justify-center text-[9px] font-black shrink-0 mt-3">
+                              {idx + 1}
+                            </div>
+                            <textarea
+                              className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-xs font-medium outline-none h-20 resize-none focus:ring-4 focus:ring-blue-500/8 focus:border-blue-500 transition-all"
+                              value={clause}
+                              onChange={(e) =>
+                                updateClause(idx, e.target.value)
+                              }
+                              placeholder={`Cláusula ${idx + 1}...`}
+                            />
+                            <button
+                              onClick={() => removeClause(idx)}
+                              className="w-6 h-6 rounded-full bg-rose-50 text-rose-400 flex items-center justify-center hover:bg-rose-100 hover:text-rose-600 transition-colors shrink-0 mt-3"
+                            >
+                              <X size={11} strokeWidth={3} />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Preview */}
+                    <div className="space-y-3">
+                      <p className="text-[10px] font-black uppercase tracking-widest text-slate-700 border-l-4 border-emerald-500 pl-3">
+                        Pré-visualização
+                      </p>
+                      <div className="border-2 border-slate-200 rounded-2xl p-5 bg-slate-50 font-mono text-[11px] leading-relaxed text-slate-700 space-y-2">
+                        <strong className="text-sm font-sans font-black text-slate-900 uppercase tracking-wide block mb-3">
+                          {wp.warranty_title ??
+                            "Termos e Condições de Garantia"}
+                        </strong>
+                        {clauses.map((c, i) => (
+                          <div key={i} className="flex gap-2">
+                            <span className="text-emerald-600 font-black shrink-0">
+                              ✓
+                            </span>
+                            <span>
+                              {c
+                                .replace(
+                                  /\{\{warranty_days\}\}/g,
+                                  String(wp.warranty_days ?? 90),
+                                )
+                                .replace(
+                                  /\{\{resolution_days\}\}/g,
+                                  String(wp.warranty_resolution_days ?? 30),
+                                )}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    <SaveButton
+                      onClick={handleSaveTenant}
+                      label="Salvar Termos"
+                    />
+                  </div>
+                );
+              })()}
+
+            {/* ── Checklists de Ordem de Serviço ────────────────────────── */}
+            {active === "service_checklists" &&
+              (() => {
+                const sp = policies as StorePolicies;
+                const checklists = sp.service_order_checklists ?? {};
+                const categories = Object.keys(checklists);
+
+                const setChecklists = (
+                  next: Record<string, { label: string }[]>,
+                ) => setPolicies({ service_order_checklists: next });
+
+                const addCategory = () => {
+                  const name = window.prompt(
+                    "Nome da categoria (ex: Notebook, Som, Celular):",
+                  );
+                  if (!name || checklists[name]) return;
+                  setChecklists({ ...checklists, [name]: [] });
+                };
+
+                const removeCategory = (cat: string) => {
+                  if (
+                    !window.confirm(
+                      `Remover a categoria "${cat}" e seu checklist?`,
+                    )
+                  )
+                    return;
+                  const next = { ...checklists };
+                  delete next[cat];
+                  setChecklists(next);
+                };
+
+                const addItem = (cat: string) =>
+                  setChecklists({
+                    ...checklists,
+                    [cat]: [...(checklists[cat] ?? []), { label: "" }],
+                  });
+
+                const updateItem = (
+                  cat: string,
+                  idx: number,
+                  label: string,
+                ) => {
+                  const items = [...(checklists[cat] ?? [])];
+                  items[idx] = { label };
+                  setChecklists({ ...checklists, [cat]: items });
+                };
+
+                const removeItem = (cat: string, idx: number) => {
+                  const items = (checklists[cat] ?? []).filter(
+                    (_, i) => i !== idx,
+                  );
+                  setChecklists({ ...checklists, [cat]: items });
+                };
+
+                return (
+                  <div className="space-y-8">
+                    <SectionHeader
+                      title="Checklists de Ordem de Serviço"
+                      subtitle="Configure o checklist de entrada usado em cada categoria de equipamento (notebooks, sons, celulares, etc.)"
+                    />
+
+                    <div className="flex items-center justify-between">
+                      <p className="text-[10px] font-black uppercase tracking-widest text-slate-700 border-l-4 border-blue-500 pl-3">
+                        Categorias
+                      </p>
+                      <button
+                        onClick={addCategory}
+                        className="flex items-center gap-2 text-[9px] font-black uppercase tracking-widest text-blue-600 hover:text-blue-800 transition-colors px-3 h-8 rounded-lg border border-blue-200 bg-blue-50 hover:bg-blue-100"
+                      >
+                        + Nova Categoria
+                      </button>
+                    </div>
+
+                    {categories.length === 0 ? (
+                      <p className="text-[11px] text-slate-400 font-medium">
+                        Nenhuma categoria configurada ainda. Crie uma categoria
+                        (ex: "Notebook") para poder montar o checklist de
+                        entrada usado nas Ordens de Serviço.
+                      </p>
+                    ) : (
+                      <div className="space-y-6">
+                        {categories.map((cat) => (
+                          <div
+                            key={cat}
+                            className="bg-slate-50 border border-slate-100 rounded-2xl p-5 space-y-3"
+                          >
+                            <div className="flex items-center justify-between">
+                              <p className="text-[12px] font-black text-slate-800">
+                                {cat}
+                              </p>
+                              <div className="flex items-center gap-2">
+                                <button
+                                  onClick={() => addItem(cat)}
+                                  className="flex items-center gap-1.5 h-7 px-2.5 rounded-lg text-[9px] font-black uppercase tracking-wider bg-blue-50 border border-blue-200 text-blue-600 hover:bg-blue-100 transition-all"
+                                >
+                                  + Item
+                                </button>
+                                <button
+                                  onClick={() => removeCategory(cat)}
+                                  className="w-7 h-7 rounded-full bg-rose-50 text-rose-400 flex items-center justify-center hover:bg-rose-100 hover:text-rose-600 transition-colors"
+                                >
+                                  <X size={11} strokeWidth={3} />
+                                </button>
+                              </div>
+                            </div>
+                            <div className="space-y-2">
+                              {(checklists[cat] ?? []).length === 0 ? (
+                                <p className="text-[10px] text-slate-400">
+                                  Nenhum item — clique em "+ Item" para
+                                  adicionar (ex: "Liga", "Tela sem trincos",
+                                  "Carregador incluso").
+                                </p>
+                              ) : (
+                                (checklists[cat] ?? []).map((item, idx) => (
+                                  <div
+                                    key={idx}
+                                    className="flex gap-2 items-center"
+                                  >
+                                    <div className="w-5 h-5 rounded-full bg-slate-900 text-white flex items-center justify-center text-[8px] font-black shrink-0">
+                                      {idx + 1}
+                                    </div>
+                                    <TextInput
+                                      value={item.label}
+                                      onChange={(v) => updateItem(cat, idx, v)}
+                                      placeholder={`Item ${idx + 1} do checklist...`}
+                                      className="h-9"
+                                    />
+                                    <button
+                                      onClick={() => removeItem(cat, idx)}
+                                      className="w-6 h-6 rounded-full bg-rose-50 text-rose-400 flex items-center justify-center hover:bg-rose-100 hover:text-rose-600 transition-colors shrink-0"
+                                    >
+                                      <X size={10} strokeWidth={3} />
+                                    </button>
+                                  </div>
+                                ))
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    <SaveButton
+                      onClick={handleSaveTenant}
+                      label="Salvar Checklists"
+                    />
+                  </div>
+                );
+              })()}
 
             {/* ── Maquininha (API) ────────────────────────────────────── */}
             {active === "terminal" && (
@@ -3384,13 +5250,20 @@ export default function Settings() {
                       {TERMINAL_PROVIDERS.map((p) => (
                         <button
                           key={p.id}
-                          onClick={() => { setTerminalProvider(p.id); setTerminalPingStatus("idle"); }}
+                          onClick={() => {
+                            setTerminalProvider(p.id);
+                            setTerminalPingStatus("idle");
+                          }}
                           className={`flex items-center gap-2 px-3 py-2.5 rounded-xl border text-[11px] font-bold transition-all ${
                             terminalProvider === p.id
                               ? "border-current bg-slate-50 shadow-sm"
                               : "border-slate-200 text-slate-400 hover:border-slate-300"
                           }`}
-                          style={terminalProvider === p.id ? { color: p.color, borderColor: p.color } : {}}
+                          style={
+                            terminalProvider === p.id
+                              ? { color: p.color, borderColor: p.color }
+                              : {}
+                          }
                         >
                           <Terminal size={13} />
                           {p.label}
@@ -3401,10 +5274,13 @@ export default function Settings() {
                 </div>
 
                 {/* Sandbox toggle */}
-                <Field label="Ambiente" hint="Use Sandbox para testes; Produção para vendas reais">
+                <Field
+                  label="Ambiente"
+                  hint="Use Sandbox para testes; Produção para vendas reais"
+                >
                   <div className="flex gap-2">
                     {[
-                      { val: true,  label: "Sandbox (testes)" },
+                      { val: true, label: "Sandbox (testes)" },
                       { val: false, label: "Produção" },
                     ].map(({ val, label }) => (
                       <button
@@ -3431,7 +5307,12 @@ export default function Settings() {
                       <input
                         type={f.secret ? "password" : "text"}
                         value={terminalCredentials[f.key] ?? ""}
-                        onChange={(e) => setTerminalCredentials((prev) => ({ ...prev, [f.key]: e.target.value }))}
+                        onChange={(e) =>
+                          setTerminalCredentials((prev) => ({
+                            ...prev,
+                            [f.key]: e.target.value,
+                          }))
+                        }
                         placeholder={f.placeholder}
                         className="w-full px-4 py-3 rounded-xl border border-slate-200 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-slate-300"
                       />
@@ -3443,7 +5324,10 @@ export default function Settings() {
                 <div className="flex items-center gap-3">
                   <button
                     onClick={handlePingTerminal}
-                    disabled={terminalPingStatus === "loading" || terminalFieldsMissing()}
+                    disabled={
+                      terminalPingStatus === "loading" ||
+                      terminalFieldsMissing()
+                    }
                     className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-slate-300 text-[11px] font-black uppercase tracking-wide text-slate-600 hover:bg-slate-50 disabled:opacity-40 transition-all"
                   >
                     {terminalPingStatus === "loading" ? (
@@ -3460,7 +5344,8 @@ export default function Settings() {
                   )}
                   {terminalPingStatus === "fail" && (
                     <span className="flex items-center gap-1.5 text-[11px] font-bold text-red-500">
-                      <XCircle size={14} /> Falha na conexão — verifique as credenciais
+                      <XCircle size={14} /> Falha na conexão — verifique as
+                      credenciais
                     </span>
                   )}
                 </div>
@@ -3487,9 +5372,11 @@ export default function Settings() {
                         Exigir abertura/fechamento de caixa
                       </p>
                       <p className="text-[10px] text-slate-400 font-medium mt-1 leading-relaxed">
-                        Quando ativado, o PDV bloqueia novas vendas até o operador abrir o caixa
-                        informando o valor inicial em dinheiro. Ao final do expediente, o fechamento
-                        é feito às cegas: o valor esperado só aparece depois de confirmado o valor contado.
+                        Quando ativado, o PDV bloqueia novas vendas até o
+                        operador abrir o caixa informando o valor inicial em
+                        dinheiro. Ao final do expediente, o fechamento é feito
+                        às cegas: o valor esperado só aparece depois de
+                        confirmado o valor contado.
                       </p>
                     </div>
                     <Toggle
@@ -3506,9 +5393,10 @@ export default function Settings() {
                         Imprimir via de fechamento de caixa
                       </p>
                       <p className="text-[10px] text-slate-400 font-medium mt-1 leading-relaxed">
-                        Ao confirmar o fechamento, imprime automaticamente um comprovante com o
-                        resumo do que entrou e saiu no caixa, detalhado por forma de pagamento
-                        (dinheiro, débito, crédito, PIX).
+                        Ao confirmar o fechamento, imprime automaticamente um
+                        comprovante com o resumo do que entrou e saiu no caixa,
+                        detalhado por forma de pagamento (dinheiro, débito,
+                        crédito, PIX).
                       </p>
                     </div>
                     <Toggle
@@ -3525,8 +5413,9 @@ export default function Settings() {
                         Deslogar ao fechar o caixa
                       </p>
                       <p className="text-[10px] text-slate-400 font-medium mt-1 leading-relaxed">
-                        Ao confirmar o fechamento, encerra a sessão do operador no PDV — útil
-                        quando vários operadores revezam o mesmo terminal em turnos diferentes.
+                        Ao confirmar o fechamento, encerra a sessão do operador
+                        no PDV — útil quando vários operadores revezam o mesmo
+                        terminal em turnos diferentes.
                       </p>
                     </div>
                     <Toggle
@@ -3543,8 +5432,9 @@ export default function Settings() {
                         Vender sem controle de estoque
                       </p>
                       <p className="text-[10px] text-slate-400 font-medium mt-1 leading-relaxed">
-                        Permite finalizar vendas mesmo com estoque zerado ou insuficiente. O estoque
-                        do produto não será alterado pela venda.
+                        Permite finalizar vendas mesmo com estoque zerado ou
+                        insuficiente. O estoque do produto não será alterado
+                        pela venda.
                       </p>
                     </div>
                     <Toggle
@@ -3587,14 +5477,34 @@ export default function Settings() {
                         )}
                       >
                         {t === "light" ? (
-                          <Sun size={22} className={panelTheme === t ? "text-blue-600" : "text-slate-300"} />
+                          <Sun
+                            size={22}
+                            className={
+                              panelTheme === t
+                                ? "text-blue-600"
+                                : "text-slate-300"
+                            }
+                          />
                         ) : (
-                          <Moon size={22} className={panelTheme === t ? "text-blue-600" : "text-slate-300"} />
+                          <Moon
+                            size={22}
+                            className={
+                              panelTheme === t
+                                ? "text-blue-600"
+                                : "text-slate-300"
+                            }
+                          />
                         )}
                         <span className="text-[9px] font-black uppercase tracking-widest text-slate-600">
                           {t === "light" ? "Claro" : "Escuro"}
                         </span>
-                        {panelTheme === t && <Check size={12} strokeWidth={3} className="text-blue-600" />}
+                        {panelTheme === t && (
+                          <Check
+                            size={12}
+                            strokeWidth={3}
+                            className="text-blue-600"
+                          />
+                        )}
                       </button>
                     ))}
                   </div>
@@ -3610,19 +5520,29 @@ export default function Settings() {
                   </p>
                   <div className="bg-slate-50 border border-slate-100 rounded-2xl p-5 space-y-4 max-w-sm">
                     <div className="flex items-center gap-3">
-                      <AlertTriangle size={16} className="text-amber-500 shrink-0" />
+                      <AlertTriangle
+                        size={16}
+                        className="text-amber-500 shrink-0"
+                      />
                       <p className="text-[10px] text-slate-600 font-medium leading-relaxed">
-                        Exibir alerta no painel quando o estoque de um produto ficar abaixo de{" "}
-                        <strong className="text-slate-900 font-black">{lowStockAlert}</strong> unidades.
+                        Exibir alerta no painel quando o estoque de um produto
+                        ficar abaixo de{" "}
+                        <strong className="text-slate-900 font-black">
+                          {lowStockAlert}
+                        </strong>{" "}
+                        unidades.
                       </p>
                     </div>
                     <div className="flex items-center gap-4">
                       <Package size={14} className="text-slate-400 shrink-0" />
                       <input
                         type="range"
-                        min={1} max={50}
+                        min={1}
+                        max={50}
                         value={lowStockAlert}
-                        onChange={(e) => setLowStockAlert(Number(e.target.value))}
+                        onChange={(e) =>
+                          setLowStockAlert(Number(e.target.value))
+                        }
                         className="flex-1 accent-amber-500"
                       />
                       <span className="text-xl font-black text-slate-900 w-10 text-center tabular-nums">
@@ -3647,38 +5567,49 @@ export default function Settings() {
                           <Monitor size={18} />
                         </div>
                       </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-[11px] font-black text-slate-900 uppercase tracking-wide">Alertas em todos os dispositivos</p>
-                      <p className="text-[10px] text-slate-500 font-medium leading-relaxed mt-1">
-                        Avisa sobre contas a pagar vencendo e estoque baixo, mesmo com o app fechado.
-                      </p>
-                      {!isPushSupported() && (
-                        <p className="text-[10px] text-amber-600 font-bold mt-1">Este navegador não suporta notificações push.</p>
-                      )}
-                    </div>
-                    <button
-                      type="button"
-                      role="switch"
-                      aria-checked={pushEnabled}
-                      disabled={pushSaving || !isPushSupported()}
-                      onClick={() => handleTogglePush(!pushEnabled)}
-                      className={cn(
-                        "shrink-0 w-12 h-7 rounded-full transition-colors relative disabled:opacity-50",
-                        pushEnabled ? "bg-blue-600" : "bg-slate-300"
-                      )}
-                    >
-                      {pushSaving ? (
-                        <Loader2 size={14} className="absolute inset-0 m-auto text-white animate-spin" />
-                      ) : (
-                        <span className={cn(
-                          "absolute top-1 w-5 h-5 bg-white rounded-full transition-transform",
-                          pushEnabled ? "translate-x-6" : "translate-x-1"
-                        )} />
-                      )}
-                    </button>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-[11px] font-black text-slate-900 uppercase tracking-wide">
+                          Alertas em todos os dispositivos
+                        </p>
+                        <p className="text-[10px] text-slate-500 font-medium leading-relaxed mt-1">
+                          Avisa sobre contas a pagar vencendo e estoque baixo,
+                          mesmo com o app fechado.
+                        </p>
+                        {!isPushSupported() && (
+                          <p className="text-[10px] text-amber-600 font-bold mt-1">
+                            Este navegador não suporta notificações push.
+                          </p>
+                        )}
+                      </div>
+                      <button
+                        type="button"
+                        role="switch"
+                        aria-checked={pushEnabled}
+                        disabled={pushSaving || !isPushSupported()}
+                        onClick={() => handleTogglePush(!pushEnabled)}
+                        className={cn(
+                          "shrink-0 w-12 h-7 rounded-full transition-colors relative disabled:opacity-50",
+                          pushEnabled ? "bg-blue-600" : "bg-slate-300",
+                        )}
+                      >
+                        {pushSaving ? (
+                          <Loader2
+                            size={14}
+                            className="absolute inset-0 m-auto text-white animate-spin"
+                          />
+                        ) : (
+                          <span
+                            className={cn(
+                              "absolute top-1 w-5 h-5 bg-white rounded-full transition-transform",
+                              pushEnabled ? "translate-x-6" : "translate-x-1",
+                            )}
+                          />
+                        )}
+                      </button>
                     </div>
                     <div className="mt-4 flex items-center gap-2 border-t border-slate-100 pt-3 text-[10px] font-bold text-slate-400">
-                      <Bell size={13} className="text-[#297ed1]" /> Notificações sincronizadas no celular e no desktop
+                      <Bell size={13} className="text-[#297ed1]" /> Notificações
+                      sincronizadas no celular e no desktop
                     </div>
                   </div>
                 </div>
@@ -3719,14 +5650,32 @@ export default function Settings() {
                     Impressora de Comprovantes
                   </p>
                   <p className="text-[9px] text-slate-400 font-medium px-1">
-                    Selecione o modelo da sua impressora para que o comprovante seja gerado no tamanho correto.
+                    Selecione o modelo da sua impressora para que o comprovante
+                    seja gerado no tamanho correto.
                   </p>
                   <div className="grid grid-cols-3 gap-3 max-w-sm">
-                    {([
-                      { value: "58mm", label: "58mm", desc: "Térmica pequena", example: "KNUP, Bematech 55" },
-                      { value: "80mm", label: "80mm", desc: "Térmica padrão", example: "Epson TM, Elgin" },
-                      { value: "A4",   label: "A4",   desc: "Laser / Jato", example: "Impressora comum" },
-                    ] as const).map((opt) => (
+                    {(
+                      [
+                        {
+                          value: "58mm",
+                          label: "58mm",
+                          desc: "Térmica pequena",
+                          example: "KNUP, Bematech 55",
+                        },
+                        {
+                          value: "80mm",
+                          label: "80mm",
+                          desc: "Térmica padrão",
+                          example: "Epson TM, Elgin",
+                        },
+                        {
+                          value: "A4",
+                          label: "A4",
+                          desc: "Laser / Jato",
+                          example: "Impressora comum",
+                        },
+                      ] as const
+                    ).map((opt) => (
                       <button
                         key={opt.value}
                         onClick={() => setPrinterSize(opt.value)}
@@ -3738,23 +5687,69 @@ export default function Settings() {
                         )}
                       >
                         {/* mini receipt icon */}
-                        <div className={cn(
-                          "rounded flex items-end justify-center shrink-0 border",
-                          opt.value === "58mm" ? "w-5 h-7" : opt.value === "80mm" ? "w-6 h-7" : "w-7 h-7",
-                          printerSize === opt.value ? "border-violet-400 bg-violet-100" : "border-slate-200 bg-slate-50",
-                        )}>
+                        <div
+                          className={cn(
+                            "rounded flex items-end justify-center shrink-0 border",
+                            opt.value === "58mm"
+                              ? "w-5 h-7"
+                              : opt.value === "80mm"
+                                ? "w-6 h-7"
+                                : "w-7 h-7",
+                            printerSize === opt.value
+                              ? "border-violet-400 bg-violet-100"
+                              : "border-slate-200 bg-slate-50",
+                          )}
+                        >
                           <div className={cn("w-full mb-1 space-y-0.5 px-0.5")}>
-                            <div className={cn("h-px rounded", printerSize === opt.value ? "bg-violet-400" : "bg-slate-300")} />
-                            <div className={cn("h-px rounded", printerSize === opt.value ? "bg-violet-400" : "bg-slate-300")} />
-                            <div className={cn("h-px rounded w-2/3", printerSize === opt.value ? "bg-violet-400" : "bg-slate-300")} />
+                            <div
+                              className={cn(
+                                "h-px rounded",
+                                printerSize === opt.value
+                                  ? "bg-violet-400"
+                                  : "bg-slate-300",
+                              )}
+                            />
+                            <div
+                              className={cn(
+                                "h-px rounded",
+                                printerSize === opt.value
+                                  ? "bg-violet-400"
+                                  : "bg-slate-300",
+                              )}
+                            />
+                            <div
+                              className={cn(
+                                "h-px rounded w-2/3",
+                                printerSize === opt.value
+                                  ? "bg-violet-400"
+                                  : "bg-slate-300",
+                              )}
+                            />
                           </div>
                         </div>
-                        <span className={cn("text-[11px] font-black", printerSize === opt.value ? "text-violet-700" : "text-slate-700")}>
+                        <span
+                          className={cn(
+                            "text-[11px] font-black",
+                            printerSize === opt.value
+                              ? "text-violet-700"
+                              : "text-slate-700",
+                          )}
+                        >
                           {opt.label}
                         </span>
-                        <span className="text-[8px] font-medium text-slate-400 leading-tight">{opt.desc}</span>
-                        <span className="text-[7.5px] text-slate-300 leading-tight">{opt.example}</span>
-                        {printerSize === opt.value && <Check size={10} strokeWidth={3} className="text-violet-600" />}
+                        <span className="text-[8px] font-medium text-slate-400 leading-tight">
+                          {opt.desc}
+                        </span>
+                        <span className="text-[7.5px] text-slate-300 leading-tight">
+                          {opt.example}
+                        </span>
+                        {printerSize === opt.value && (
+                          <Check
+                            size={10}
+                            strokeWidth={3}
+                            className="text-violet-600"
+                          />
+                        )}
                       </button>
                     ))}
                   </div>
@@ -3763,11 +5758,15 @@ export default function Settings() {
                 <div className="flex items-center gap-3 p-4 bg-amber-50 border border-amber-100 rounded-xl">
                   <Bell size={14} className="text-amber-600 shrink-0" />
                   <p className="text-[10px] text-amber-800 font-medium">
-                    Notificações por email para alertas de estoque e novos pedidos podem ser configuradas nas preferências avançadas.
+                    Notificações por email para alertas de estoque e novos
+                    pedidos podem ser configuradas nas preferências avançadas.
                   </p>
                 </div>
 
-                <SaveButton onClick={handleSavePrefs} label="Salvar Preferências" />
+                <SaveButton
+                  onClick={handleSavePrefs}
+                  label="Salvar Preferências"
+                />
               </div>
             )}
 
@@ -3802,20 +5801,39 @@ export default function Settings() {
                       )}
                     />
                     {confirmPass && newPass !== confirmPass && (
-                      <p className="text-[9px] text-red-500 font-bold px-1 mt-1">As senhas não coincidem</p>
+                      <p className="text-[9px] text-red-500 font-bold px-1 mt-1">
+                        As senhas não coincidem
+                      </p>
                     )}
                   </Field>
 
                   <div className="p-4 bg-slate-50 border border-slate-100 rounded-xl space-y-1">
-                    <p className="text-[9px] font-black uppercase tracking-widest text-slate-500">Requisitos</p>
+                    <p className="text-[9px] font-black uppercase tracking-widest text-slate-500">
+                      Requisitos
+                    </p>
                     {[
                       { ok: newPass.length >= 8, label: "Mínimo 8 caracteres" },
-                      { ok: /[A-Z]/.test(newPass), label: "Uma letra maiúscula" },
+                      {
+                        ok: /[A-Z]/.test(newPass),
+                        label: "Uma letra maiúscula",
+                      },
                       { ok: /\d/.test(newPass), label: "Um número" },
                     ].map(({ ok, label }) => (
                       <div key={label} className="flex items-center gap-2">
-                        <div className={cn("w-3 h-3 rounded-full shrink-0 transition-all", ok ? "bg-emerald-500" : "bg-slate-200")} />
-                        <span className={cn("text-[9px] font-bold", ok ? "text-emerald-700" : "text-slate-400")}>{label}</span>
+                        <div
+                          className={cn(
+                            "w-3 h-3 rounded-full shrink-0 transition-all",
+                            ok ? "bg-emerald-500" : "bg-slate-200",
+                          )}
+                        />
+                        <span
+                          className={cn(
+                            "text-[9px] font-bold",
+                            ok ? "text-emerald-700" : "text-slate-400",
+                          )}
+                        >
+                          {label}
+                        </span>
                       </div>
                     ))}
                   </div>
@@ -3851,10 +5869,13 @@ export default function Settings() {
                     <WifiOff size={16} className="text-amber-600" />
                   </div>
                   <div>
-                    <p className="text-[11px] font-black text-amber-800 uppercase tracking-wide">Funciona Offline</p>
+                    <p className="text-[11px] font-black text-amber-800 uppercase tracking-wide">
+                      Funciona Offline
+                    </p>
                     <p className="text-[11px] text-amber-700 mt-1 leading-relaxed">
-                      Se a internet cair, o PDV continua vendendo normalmente. As vendas ficam salvas no
-                      computador e são sincronizadas automaticamente quando a conexão voltar — sem perder
+                      Se a internet cair, o PDV continua vendendo normalmente.
+                      As vendas ficam salvas no computador e são sincronizadas
+                      automaticamente quando a conexão voltar — sem perder
                       nenhuma venda e com a data correta no fluxo de caixa.
                     </p>
                   </div>
@@ -3863,9 +5884,24 @@ export default function Settings() {
                 {/* Download cards — sempre a versão mais recente publicada no GitHub Releases */}
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                   {[
-                    { os: "Windows", desc: "Windows 10 ou superior", file: "https://github.com/edueloi/store-stock/releases/latest/download/BoxSysPDV-Setup.exe", ext: ".exe" },
-                    { os: "macOS",   desc: "Intel e Apple Silicon",  file: "https://github.com/edueloi/store-stock/releases/latest/download/BoxSysPDV.dmg",      ext: ".dmg" },
-                    { os: "Linux",   desc: "AppImage universal",     file: "https://github.com/edueloi/store-stock/releases/latest/download/BoxSysPDV.AppImage", ext: ".AppImage" },
+                    {
+                      os: "Windows",
+                      desc: "Windows 10 ou superior",
+                      file: "https://github.com/edueloi/store-stock/releases/latest/download/BoxSysPDV-Setup.exe",
+                      ext: ".exe",
+                    },
+                    {
+                      os: "macOS",
+                      desc: "Intel e Apple Silicon",
+                      file: "https://github.com/edueloi/store-stock/releases/latest/download/BoxSysPDV.dmg",
+                      ext: ".dmg",
+                    },
+                    {
+                      os: "Linux",
+                      desc: "AppImage universal",
+                      file: "https://github.com/edueloi/store-stock/releases/latest/download/BoxSysPDV.AppImage",
+                      ext: ".AppImage",
+                    },
                   ].map(({ os, desc, file, ext }) => (
                     <button
                       key={os}
@@ -3884,10 +5920,17 @@ export default function Settings() {
                       className="group bg-white border border-slate-200 rounded-2xl p-5 flex flex-col items-center text-center hover:border-blue-300 hover:shadow-lg hover:shadow-blue-50 transition-all"
                     >
                       <div className="w-12 h-12 rounded-2xl bg-slate-100 group-hover:bg-blue-50 flex items-center justify-center mb-3 transition-colors">
-                        <Monitor size={22} className="text-slate-400 group-hover:text-blue-600 transition-colors" />
+                        <Monitor
+                          size={22}
+                          className="text-slate-400 group-hover:text-blue-600 transition-colors"
+                        />
                       </div>
-                      <p className="text-[13px] font-black text-slate-900">{os}</p>
-                      <p className="text-[10px] text-slate-400 font-bold mt-0.5">{desc}</p>
+                      <p className="text-[13px] font-black text-slate-900">
+                        {os}
+                      </p>
+                      <p className="text-[10px] text-slate-400 font-bold mt-0.5">
+                        {desc}
+                      </p>
                       <span className="mt-4 inline-flex items-center gap-1.5 px-4 h-9 rounded-xl bg-slate-900 group-hover:bg-blue-600 text-white text-[10px] font-black uppercase tracking-widest transition-colors">
                         <Download size={12} /> Baixar {ext}
                       </span>
@@ -3897,23 +5940,39 @@ export default function Settings() {
 
                 {/* Setup instructions */}
                 <div className="bg-slate-50 border border-slate-100 rounded-2xl p-5">
-                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">Como configurar</p>
+                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">
+                    Como configurar
+                  </p>
                   <ol className="space-y-2 text-[12px] text-slate-600 font-medium list-decimal list-inside">
                     <li>Baixe e instale o aplicativo no computador do caixa</li>
-                    <li>Na primeira abertura, informe o endereço da sua loja (ex: <span className="font-mono font-bold text-slate-800">{window.location.hostname}</span>)</li>
+                    <li>
+                      Na primeira abertura, informe o endereço da sua loja (ex:{" "}
+                      <span className="font-mono font-bold text-slate-800">
+                        {window.location.hostname}
+                      </span>
+                      )
+                    </li>
                     <li>Faça login com um usuário de acesso ao PDV</li>
-                    <li>Pronto — o terminal está conectado e preparado para vender</li>
+                    <li>
+                      Pronto — o terminal está conectado e preparado para vender
+                    </li>
                   </ol>
                   <p className="text-[10px] text-slate-400 mt-4 leading-relaxed">
-                    💡 No Windows, o aviso "aplicativo não reconhecido" é normal na primeira instalação —
-                    clique em "Mais informações" e depois "Executar assim mesmo".
+                    💡 No Windows, o aviso "aplicativo não reconhecido" é normal
+                    na primeira instalação — clique em "Mais informações" e
+                    depois "Executar assim mesmo".
                   </p>
                 </div>
 
                 {/* Guia visual: desbloquear o arquivo baixado (alternativa ao aviso do SmartScreen) */}
                 <div className="bg-white border border-slate-200 rounded-2xl p-5">
-                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Se o Windows continuar bloqueando</p>
-                  <p className="text-[11px] text-slate-500 font-medium mb-4">Desbloqueie o arquivo baixado antes de instalar — só precisa fazer isso uma vez.</p>
+                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">
+                    Se o Windows continuar bloqueando
+                  </p>
+                  <p className="text-[11px] text-slate-500 font-medium mb-4">
+                    Desbloqueie o arquivo baixado antes de instalar — só precisa
+                    fazer isso uma vez.
+                  </p>
 
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                     {/* Passo 1 — clicar com o direito e abrir Propriedades */}
@@ -3924,30 +5983,49 @@ export default function Settings() {
                             <Monitor size={16} className="text-blue-600" />
                           </div>
                           <div className="absolute left-6 top-6 w-24 bg-white border border-slate-300 rounded-md shadow-lg overflow-hidden">
-                            <div className="px-2 py-1 text-[7px] font-semibold text-slate-500 border-b border-slate-100">Abrir</div>
+                            <div className="px-2 py-1 text-[7px] font-semibold text-slate-500 border-b border-slate-100">
+                              Abrir
+                            </div>
                             <div className="px-2 py-1 text-[7px] font-bold text-blue-700 bg-blue-50 flex items-center gap-1">
                               <Settings2 size={8} /> Propriedades
                             </div>
                           </div>
-                          <MousePointer2 size={14} className="absolute -right-1 -bottom-1 text-slate-700" />
+                          <MousePointer2
+                            size={14}
+                            className="absolute -right-1 -bottom-1 text-slate-700"
+                          />
                         </div>
                       </div>
-                      <p className="text-[10px] font-bold text-slate-700 text-center">1. Clique com o botão direito no instalador e escolha <span className="text-blue-600">Propriedades</span></p>
+                      <p className="text-[10px] font-bold text-slate-700 text-center">
+                        1. Clique com o botão direito no instalador e escolha{" "}
+                        <span className="text-blue-600">Propriedades</span>
+                      </p>
                     </div>
 
                     {/* Passo 2 — marcar Desbloquear */}
                     <div className="space-y-2">
                       <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 h-32 flex items-center justify-center">
                         <div className="w-28 bg-white border border-slate-300 rounded-md shadow-lg px-2 py-2 space-y-1.5">
-                          <p className="text-[7px] font-black text-slate-500 uppercase tracking-wide border-b border-slate-100 pb-1">Segurança</p>
-                          <p className="text-[6.5px] text-slate-400 leading-tight">Este arquivo veio de outro computador e pode estar bloqueado.</p>
+                          <p className="text-[7px] font-black text-slate-500 uppercase tracking-wide border-b border-slate-100 pb-1">
+                            Segurança
+                          </p>
+                          <p className="text-[6.5px] text-slate-400 leading-tight">
+                            Este arquivo veio de outro computador e pode estar
+                            bloqueado.
+                          </p>
                           <div className="flex items-center gap-1 bg-blue-50 border border-blue-200 rounded px-1.5 py-1">
                             <CheckSquare size={10} className="text-blue-600" />
-                            <span className="text-[7px] font-bold text-blue-700">Desbloquear</span>
+                            <span className="text-[7px] font-bold text-blue-700">
+                              Desbloquear
+                            </span>
                           </div>
                         </div>
                       </div>
-                      <p className="text-[10px] font-bold text-slate-700 text-center">2. Na aba <span className="text-blue-600">Geral</span>, marque a caixa <span className="text-blue-600">Desbloquear</span></p>
+                      <p className="text-[10px] font-bold text-slate-700 text-center">
+                        2. Na aba <span className="text-blue-600">Geral</span>,
+                        marque a caixa{" "}
+                        <span className="text-blue-600">Desbloquear</span>
+                      </p>
                     </div>
 
                     {/* Passo 3 — confirmar em OK */}
@@ -3955,16 +6033,28 @@ export default function Settings() {
                       <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 h-32 flex items-center justify-center">
                         <div className="w-24 bg-white border border-slate-300 rounded-md shadow-lg px-2 py-2 space-y-1.5">
                           <div className="flex items-center gap-1 bg-emerald-50 border border-emerald-200 rounded px-1.5 py-1">
-                            <CheckSquare size={10} className="text-emerald-600" />
-                            <span className="text-[7px] font-bold text-emerald-700">Desbloquear</span>
+                            <CheckSquare
+                              size={10}
+                              className="text-emerald-600"
+                            />
+                            <span className="text-[7px] font-bold text-emerald-700">
+                              Desbloquear
+                            </span>
                           </div>
                           <div className="flex justify-end gap-1 pt-0.5">
-                            <span className="text-[7px] font-black text-white bg-blue-600 rounded px-2 py-0.5">OK</span>
-                            <span className="text-[7px] font-semibold text-slate-400 border border-slate-200 rounded px-2 py-0.5">Cancelar</span>
+                            <span className="text-[7px] font-black text-white bg-blue-600 rounded px-2 py-0.5">
+                              OK
+                            </span>
+                            <span className="text-[7px] font-semibold text-slate-400 border border-slate-200 rounded px-2 py-0.5">
+                              Cancelar
+                            </span>
                           </div>
                         </div>
                       </div>
-                      <p className="text-[10px] font-bold text-slate-700 text-center">3. Clique em <span className="text-blue-600">OK</span> e instale o arquivo normalmente</p>
+                      <p className="text-[10px] font-bold text-slate-700 text-center">
+                        3. Clique em <span className="text-blue-600">OK</span> e
+                        instale o arquivo normalmente
+                      </p>
                     </div>
                   </div>
                 </div>
@@ -3973,7 +6063,7 @@ export default function Settings() {
               </div>
             )}
           </div>
-      </div>
+        </div>
       )}
     </div>
   );

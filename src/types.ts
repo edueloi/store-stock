@@ -28,6 +28,11 @@ export interface StorePolicies {
     reservation_minutes?: number;
     shipping_status?: "disabled" | "coming_soon" | "enabled";
     payment_status?: "disabled" | "coming_soon" | "enabled";
+    catalog_title?: string;
+    catalog_description?: string;
+    home_categories_title?: string;
+    home_featured_title?: string;
+    show_whatsapp_widget?: boolean;
   };
 }
 
