@@ -38,6 +38,7 @@ import { useToast } from "../../components/ui/Toast";
 import { onRealtimeAny } from "../../lib/realtime";
 import { fetchRemotePrintTerminals, requestRemotePrint, type RemotePrintTerminal } from "../../lib/remotePrint";
 import { printThermalText, buildOrderReceiptText } from "../../lib/thermalReceipt";
+import { buildWarrantyDocumentHtml } from "../../lib/warrantyDocument";
 import { Printer } from "lucide-react";
 import OrderReturnModal from "./OrderReturnModal";
 import OrdersPageTour, { type OrdersPageTourHandle } from "../../components/onboarding/OrdersPageTour";
@@ -710,7 +711,7 @@ export default function Orders() {
 
   // ── Warranty / Receipt builders (unchanged) ─────────────────────────────────
 
-  const buildWarrantyHtml = (order: OrderDetail) => {
+  const buildLegacyWarrantyHtml = (order: OrderDetail) => {
     const storeName = tenant?.name ?? "Estabelecimento";
     const storeDoc = tenant?.document ? `CPF/CNPJ: ${tenant.document}` : "";
     const storeAddr = (() => {
@@ -894,6 +895,10 @@ export default function Orders() {
 </body>
 </html>`;
   };
+
+  // Mesmo certificado enviado pelo PDV: uma única versão visual para baixar,
+  // imprimir ou mandar ao cliente depois pela tela de Pedidos.
+  const buildWarrantyHtml = (order: OrderDetail) => buildWarrantyDocumentHtml(tenant ?? {}, order);
 
   const buildReceiptHtml = (order: OrderDetail) => {
     const storeName = tenant?.name ?? "Estabelecimento";

@@ -19,6 +19,7 @@ import { fetchCurrentCashSession, openCashSession as apiOpenCashSession, closeCa
 import PaymentSegmentsEditor, { PaymentSegment, newPaymentSegment } from "../../components/PaymentSegmentsEditor";
 import { buildInstallmentBookletText, printThermalText, buildCashCloseReceiptText } from "../../lib/thermalReceipt";
 import { htmlToPdfBase64 } from "../../lib/pdf";
+import { buildWarrantyDocumentHtml, type WarrantyPolicy } from "../../lib/warrantyDocument";
 import OpenCashSessionScreen from "../../components/pdv/OpenCashSessionScreen";
 import CloseCashSessionModal from "../../components/pdv/CloseCashSessionModal";
 import HeldSalesDrawer from "../../components/pdv/HeldSalesDrawer";
@@ -127,6 +128,7 @@ interface TenantInfo {
   document?: string;
   logo_url?: string;
   primary_color?: string;
+  policies?: WarrantyPolicy;
 }
 
 const PM_LABEL: Record<PaymentMethod, string> = {
@@ -327,6 +329,8 @@ export default function PDV() {
   const [waSending, setWaSending]         = useState(false);
   const [waSendError, setWaSendError]     = useState<string | null>(null);
   const [waSent, setWaSent]               = useState(false);
+  const [waSentWarranty, setWaSentWarranty] = useState(false);
+  const [sendWarrantyWithReceipt, setSendWarrantyWithReceipt] = useState(false);
   const [showMobileActionsMenu, setShowMobileActionsMenu] = useState(false);
 
   // right panel
@@ -413,6 +417,7 @@ export default function PDV() {
           whatsapp:      d?.whatsapp      || "",
           logo_url:      d?.logo_url      || "",
           primary_color: d?.primary_color || "#2563eb",
+          policies:      d?.policies       || {},
         });
       })
       .catch(() => {});
@@ -1581,6 +1586,16 @@ export default function PDV() {
     ].filter((l) => l !== null).join("\n");
   };
 
+  const buildWarrantyPdfHtml = (sale: CompletedSale) => buildWarrantyDocumentHtml(tenant, {
+    id: sale.orderId,
+    created_at: new Date().toISOString(),
+    customer_name: sale.customerName,
+    customer_phone: whatsappPhone,
+    payment_method: sale.payments.map((payment) => `${payment.method}-${payment.cardBrand}-${payment.installments}x:${payment.amount}`).join("|"),
+    total_amount: sale.total,
+    items: sale.items.map((item) => ({ product_name: item.name, quantity: item.quantity, unit_price: item.price })),
+  });
+
   const handleSendWhatsappDocument = async () => {
     if (!completedSale || waSending) return;
     const cleaned = whatsappPhone.replace(/\D/g, "");
@@ -1588,26 +1603,39 @@ export default function PDV() {
     setWaSending(true);
     setWaSendError(null);
     setWaSent(false);
+    setWaSentWarranty(false);
     try {
-      const base64 = await htmlToPdfBase64(buildPDFHtml(completedSale));
-      const res = await fetch("/api/whatsapp/send-document", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({
-          number: full,
-          base64,
-          fileName: `comprovante-${completedSale.orderId}.pdf`,
-          caption: `Comprovante da compra #${String(completedSale.orderId).padStart(5, "0")} — ${completedSale.tenantName}`,
-        }),
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        setWaSendError(data?.error || "Não foi possível enviar pelo WhatsApp.");
-        return;
+      const sendDocument = async (base64: string, fileName: string, caption: string) => {
+        const res = await fetch("/api/whatsapp/send-document", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+          body: JSON.stringify({ number: full, base64, fileName, caption }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data?.error || "Não foi possível enviar pelo WhatsApp.");
+      };
+
+      await sendDocument(
+        await htmlToPdfBase64(buildPDFHtml(completedSale)),
+        `comprovante-${completedSale.orderId}.pdf`,
+        `Comprovante da compra #${String(completedSale.orderId).padStart(5, "0")} — ${completedSale.tenantName}`,
+      );
+      if (sendWarrantyWithReceipt) {
+        try {
+          await sendDocument(
+            await htmlToPdfBase64(buildWarrantyPdfHtml(completedSale)),
+            `garantia-pedido-${String(completedSale.orderId).padStart(6, "0")}.pdf`,
+            `Certificado de garantia do pedido #${String(completedSale.orderId).padStart(6, "0")} — ${completedSale.tenantName}`,
+          );
+          setWaSentWarranty(true);
+        } catch (error) {
+          setWaSendError(`Comprovante enviado, mas a garantia não foi enviada: ${error instanceof Error ? error.message : "erro desconhecido"}`);
+          return;
+        }
       }
       setWaSent(true);
-    } catch {
-      setWaSendError("Erro de conexão ao enviar pelo WhatsApp.");
+    } catch (error) {
+      setWaSendError(error instanceof Error ? error.message : "Erro de conexão ao enviar pelo WhatsApp.");
     } finally {
       setWaSending(false);
     }
@@ -1869,7 +1897,7 @@ export default function PDV() {
         setPdvStep("cart");
         setShowReceipt(true);
         setWhatsappPhone(""); setShowPhoneInput(false);
-        setWaSending(false); setWaSendError(null); setWaSent(false);
+        setWaSending(false); setWaSendError(null); setWaSent(false); setWaSentWarranty(false); setSendWarrantyWithReceipt(false);
         if (activeHeldSaleId) {
           setActiveHeldSaleId(null);
           if (token) getOpenHeldSalesCount(token).then(setOpenHeldSalesCount).catch(() => {});
@@ -4142,6 +4170,17 @@ export default function PDV() {
                 <AnimatePresence>
                   {showPhoneInput && (
                     <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }} className="overflow-hidden">
+                      {waBotConnected && (
+                        <label className="mt-2 flex items-center gap-3 rounded-xl border border-emerald-100 bg-emerald-50/70 px-3 py-2.5 cursor-pointer select-none">
+                          <input type="checkbox" checked={sendWarrantyWithReceipt}
+                            onChange={(e) => { setSendWarrantyWithReceipt(e.target.checked); setWaSent(false); setWaSentWarranty(false); setWaSendError(null); }}
+                            className="h-4 w-4 rounded border-emerald-300 text-emerald-600 focus:ring-emerald-500" />
+                          <span className="min-w-0">
+                            <span className="block text-[10px] font-black uppercase tracking-wide text-emerald-800">Enviar garantia junto</span>
+                            <span className="block text-[9px] font-medium text-emerald-700">O cliente receberá o comprovante e o certificado de garantia em PDFs separados.</span>
+                          </span>
+                        </label>
+                      )}
                       <div className="flex gap-2 pt-1">
                         <div className="relative flex-1">
                           <Phone className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
@@ -4177,7 +4216,7 @@ export default function PDV() {
                         <p className="text-[9px] text-rose-500 font-bold pt-1.5 px-1">{waSendError}</p>
                       )}
                       {waSent && (
-                        <p className="text-[9px] text-emerald-600 font-bold pt-1.5 px-1">PDF enviado pelo WhatsApp!</p>
+                        <p className="text-[9px] text-emerald-600 font-bold pt-1.5 px-1">{waSentWarranty ? "Comprovante e garantia enviados pelo WhatsApp!" : "Comprovante enviado pelo WhatsApp!"}</p>
                       )}
                     </motion.div>
                   )}
