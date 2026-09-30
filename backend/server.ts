@@ -14,7 +14,13 @@ import { startPushNotificationsLoop } from "./services/push-notifications.servic
 import { startPlatformBillingSuspensionLoop } from "./services/billing/platform-billing-suspension.service";
 import { startEmailReportsCron } from "./services/email-reports.service";
 import { startQuoteExpirationLoop } from "./controllers/quotes.controller";
-import { initStoreSeoTemplate, handleProductSeo } from "./controllers/store-seo.controller";
+import {
+  initStoreSeoTemplate,
+  handleProductSeo,
+  handleStoreRobots,
+  handleStoreSeo,
+  handleStoreSitemap,
+} from "./controllers/store-seo.controller";
 import { releaseExpiredStoreReservations } from "./controllers/public.controller";
 import { initRealtime } from "./services/realtime.service";
 
@@ -30,6 +36,19 @@ async function attachFrontend(app: express.Express) {
   }
 
   const distPath = path.join(process.cwd(), "dist");
+  const indexHtmlPath = path.join(distPath, "index.html");
+  initStoreSeoTemplate(fs.readFileSync(indexHtmlPath, "utf-8"));
+
+  // Estas rotas vêm antes do static: robôs de busca e redes sociais recebem
+  // HTML com title, description, canonical e Schema.org de cada loja.
+  app.get("/s/:slug/robots.txt", handleStoreRobots);
+  app.get("/s/:slug/sitemap.xml", handleStoreSitemap);
+  app.get("/robots.txt", handleStoreRobots);
+  app.get("/sitemap.xml", handleStoreSitemap);
+  app.get("/s/:slug/produto/:productId", handleProductSeo);
+  app.get("/produto/:productId", handleProductSeo);
+  app.get(["/s/:slug", "/s/:slug/catalogo", "/s/:slug/sobre"], handleStoreSeo);
+  app.get(["/", "/catalogo", "/sobre"], handleStoreSeo);
   // O SW e toda página HTML precisam ser sempre revalidados — 1 ano de cache
   // imutável nesses arquivos
   // é o que fazia o Safari (e às vezes outros navegadores) nunca buscar a
@@ -50,11 +69,6 @@ async function attachFrontend(app: express.Express) {
   app.get("/assets/*", (_req, res) => {
     res.status(404).end();
   });
-
-  const indexHtmlPath = path.join(distPath, "index.html");
-  initStoreSeoTemplate(fs.readFileSync(indexHtmlPath, "utf-8"));
-  app.get("/produto/:productId", handleProductSeo);
-  app.get("/s/:slug/produto/:productId", handleProductSeo);
 
   app.get("*", (_req, res) => {
     // index.html referencia os assets com hash do build atual — nunca pode
