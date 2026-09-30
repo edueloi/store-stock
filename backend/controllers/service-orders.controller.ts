@@ -746,6 +746,7 @@ export async function addServiceOrderPart(req: Request, res: Response) {
     let unitPrice = Number(product.price);
     let totalBeforeDiscount: number;
     let dimensionsLabel: string | null = null;
+    let measuredQuantity: number | null = null;
 
     if (isMeasured) {
       // Nunca confia em preço mandado pelo cliente — recalcula a partir das
@@ -761,6 +762,11 @@ export async function addServiceOrderPart(req: Request, res: Response) {
       unitPrice = result.total;
       totalBeforeDiscount = result.total;
       dimensionsLabel = result.label;
+      measuredQuantity = result.rawQuantity;
+      const available = Number(product.measure_stock_quantity ?? 0);
+      if (measuredQuantity > available + 0.0005) {
+        return res.status(400).json({ error: `Estoque insuficiente para "${product.name}". Disponível: ${available.toFixed(3)} ${product.sale_unit === "m2" ? "m²" : "m"}.` });
+      }
     } else {
       if (product.stock_quantity < qty) {
         return res.status(400).json({ error: `Estoque insuficiente para "${product.name}"` });
@@ -784,6 +790,7 @@ export async function addServiceOrderPart(req: Request, res: Response) {
         product_id: product.id,
         name: product.name,
         quantity: qty,
+        measured_quantity: measuredQuantity,
         unit: unitLabel,
         unit_price: unitPrice,
         total_before_discount: totalBeforeDiscount,
@@ -796,7 +803,12 @@ export async function addServiceOrderPart(req: Request, res: Response) {
     });
 
     // Produtos por medida (m²/linear) não têm controle de estoque.
-    if (!isMeasured) {
+    if (isMeasured && measuredQuantity !== null) {
+      await prisma.product.update({
+        where: { id: product.id },
+        data: { measure_stock_quantity: { decrement: measuredQuantity } },
+      });
+    } else {
       await prisma.product.update({
         where: { id: product.id },
         data: { stock_quantity: { decrement: qty } },
@@ -882,7 +894,9 @@ export async function removeServiceOrderPart(req: Request, res: Response) {
     if (part.product_id) {
       await prisma.product.update({
         where: { id: part.product_id },
-        data: { stock_quantity: { increment: part.quantity } },
+        data: part.measured_quantity !== null
+          ? { measure_stock_quantity: { increment: part.measured_quantity } }
+          : { stock_quantity: { increment: part.quantity } },
       });
     }
 

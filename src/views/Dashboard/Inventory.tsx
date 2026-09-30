@@ -801,6 +801,14 @@ export default function Inventory() {
     setHistoryLoading(false);
   };
 
+  const isMeasuredProduct = (p: Product) => p.sale_unit === "m2" || p.sale_unit === "linear";
+  const stockValue = (p: Product) => isMeasuredProduct(p) ? Number(p.measure_stock_quantity ?? 0) : p.stock_quantity;
+  const minStockValue = (p: Product) => isMeasuredProduct(p) ? Number(p.measure_min_stock ?? 0) : (p.min_stock ?? 5);
+  const stockUnit = (p: Product) => ({
+    m: "m", cm: "cm", mm: "mm", km: "km", m2: "m²", cm2: "cm²", mm2: "mm²", km2: "km²",
+  }[p.measure_unit ?? (p.sale_unit === "m2" ? "m2" : "m")] ?? "un");
+  const formatStock = (p: Product) => isMeasuredProduct(p) ? stockValue(p).toFixed(3) : String(stockValue(p));
+
   const filteredProducts = [...products]
     .filter(p => {
       if (p.type !== "sale") return false;
@@ -808,14 +816,14 @@ export default function Inventory() {
       if (filterCategory && p.category_id !== filterCategory) return false;
       if (filterStatus === "active" && !p.is_active) return false;
       if (filterStatus === "inactive" && p.is_active) return false;
-      if (filterLowStock && p.stock_quantity > (p.min_stock ?? 5)) return false;
+      if (filterLowStock && stockValue(p) > minStockValue(p)) return false;
       return true;
     })
     .sort((a, b) => {
       let cmp = 0;
       if (sortField === "name")  cmp = a.name.localeCompare(b.name, "pt-BR");
       if (sortField === "price") cmp = Number(a.discount_price ?? a.price) - Number(b.discount_price ?? b.price);
-      if (sortField === "stock") cmp = a.stock_quantity - b.stock_quantity;
+      if (sortField === "stock") cmp = stockValue(a) - stockValue(b);
       if (sortField === "id")    cmp = a.id - b.id;
       return sortDir === "asc" ? cmp : -cmp;
     });
@@ -835,9 +843,9 @@ export default function Inventory() {
   const someSelected = selectedIds.size > 0 && !allSelected;
 
   const saleProducts = products.filter(p => p.type === "sale");
-  const totalCost = saleProducts.reduce((s, p) => s + Number(p.cost_price || 0) * p.stock_quantity, 0);
-  const totalRevenue = saleProducts.reduce((s, p) => s + Number(p.price || 0) * p.stock_quantity, 0);
-  const lowStock = saleProducts.filter(p => p.stock_quantity <= (p.min_stock ?? 5) && p.is_active).length;
+  const totalCost = saleProducts.reduce((s, p) => s + Number(p.cost_price || 0) * stockValue(p), 0);
+  const totalRevenue = saleProducts.reduce((s, p) => s + Number(p.price || 0) * stockValue(p), 0);
+  const lowStock = saleProducts.filter(p => stockValue(p) <= minStockValue(p) && p.is_active).length;
   const featured = saleProducts.filter(p => p.is_featured).length;
 
   const displaySku = (p: Product) => p.sku || toSlug(p.name);
@@ -1018,9 +1026,9 @@ export default function Inventory() {
                           R$ {Number(p.discount_price || p.price).toFixed(2)}
                         </span>
                         <div className="flex items-center gap-1">
-                          <div className={cn("w-1.5 h-1.5 rounded-full", p.stock_quantity <= (p.min_stock ?? 5) ? "bg-red-500" : p.stock_quantity <= (p.min_stock ?? 5) * 3 ? "bg-amber-400" : "bg-emerald-500")} />
-                          <span className={cn("text-xs font-mono font-bold", p.stock_quantity <= (p.min_stock ?? 5) ? "text-red-600" : "text-slate-600")}>
-                            {p.stock_quantity} un
+                          <div className={cn("w-1.5 h-1.5 rounded-full", stockValue(p) <= minStockValue(p) ? "bg-red-500" : stockValue(p) <= minStockValue(p) * 3 ? "bg-amber-400" : "bg-emerald-500")} />
+                          <span className={cn("text-xs font-mono font-bold", stockValue(p) <= minStockValue(p) ? "text-red-600" : "text-slate-600")}>
+                            {formatStock(p)} {stockUnit(p)}
                           </span>
                         </div>
                       </div>
@@ -1146,9 +1154,9 @@ export default function Inventory() {
                       </td>
                       <td className="px-3 py-2.5">
                         <div className="flex items-center gap-1.5">
-                          <div className={cn("w-1.5 h-1.5 rounded-full shrink-0", p.stock_quantity <= (p.min_stock ?? 5) ? "bg-red-500 animate-pulse" : p.stock_quantity <= (p.min_stock ?? 5) * 3 ? "bg-amber-400" : "bg-emerald-500")} />
-                          <span className={cn("text-xs font-mono font-bold", p.stock_quantity <= (p.min_stock ?? 5) ? "text-red-600" : "text-slate-900")}>
-                            {p.stock_quantity} <span className="text-[9px] text-slate-400 font-normal">un</span>
+                          <div className={cn("w-1.5 h-1.5 rounded-full shrink-0", stockValue(p) <= minStockValue(p) ? "bg-red-500 animate-pulse" : stockValue(p) <= minStockValue(p) * 3 ? "bg-amber-400" : "bg-emerald-500")} />
+                          <span className={cn("text-xs font-mono font-bold", stockValue(p) <= minStockValue(p) ? "text-red-600" : "text-slate-900")}>
+                            {formatStock(p)} <span className="text-[9px] text-slate-400 font-normal">{stockUnit(p)}</span>
                           </span>
                         </div>
                       </td>
@@ -1244,8 +1252,8 @@ export default function Inventory() {
                   <p className="text-[9px] font-mono text-slate-400 uppercase truncate">{displaySku(p)}</p>
                   <div className="flex items-center justify-between pt-1">
                     <span className="text-sm font-bold font-mono text-blue-600">R$ {Number(p.discount_price || p.price).toFixed(2)}</span>
-                    <span className={cn("text-[9px] font-bold px-1.5 py-0.5 rounded-full", p.stock_quantity <= (p.min_stock ?? 5) ? "bg-red-100 text-red-600" : "bg-emerald-100 text-emerald-700")}>
-                      {p.stock_quantity} un
+                    <span className={cn("text-[9px] font-bold px-1.5 py-0.5 rounded-full", stockValue(p) <= minStockValue(p) ? "bg-red-100 text-red-600" : "bg-emerald-100 text-emerald-700")}>
+                      {formatStock(p)} {stockUnit(p)}
                     </span>
                   </div>
                 </div>
@@ -1574,7 +1582,11 @@ export default function Inventory() {
                 { value: "linear", label: "Metro linear" },
               ] as const).map((opt) => (
                 <button key={opt.value} type="button"
-                  onClick={() => setEditingProduct(prev => ({ ...prev!, sale_unit: opt.value }))}
+                  onClick={() => setEditingProduct(prev => ({
+                    ...prev!,
+                    sale_unit: opt.value,
+                    measure_unit: opt.value === "m2" ? "m2" : opt.value === "linear" ? "m" : prev?.measure_unit,
+                  }))}
                   className={cn("h-8 px-3 rounded-lg text-[10px] font-black transition-all",
                     (editingProduct?.sale_unit ?? "unidade") === opt.value ? "bg-blue-600 text-white" : "text-slate-500")}>
                   {opt.label}
@@ -1604,7 +1616,21 @@ export default function Inventory() {
               </div>
             )
           ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold text-slate-700 uppercase tracking-widest px-1">Unidade de medida</label>
+                <select
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs font-bold outline-none h-10 focus:border-blue-400 transition-all"
+                  value={editingProduct?.measure_unit ?? (editingProduct?.sale_unit === "m2" ? "m2" : "m")}
+                  onChange={e => setEditingProduct(prev => ({ ...prev!, measure_unit: e.target.value }))}
+                >
+                  {(editingProduct?.sale_unit === "m2"
+                    ? [["m2", "Metro quadrado (m²)"], ["cm2", "Centímetro quadrado (cm²)"], ["mm2", "Milímetro quadrado (mm²)"], ["km2", "Quilômetro quadrado (km²)"]]
+                    : [["m", "Metro (m)"], ["cm", "Centímetro (cm)"], ["mm", "Milímetro (mm)"], ["km", "Quilômetro (km)"]]
+                  ).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+                </select>
+                <p className="text-[9px] text-slate-400 px-1">Preço, saldo e mínimo usam esta unidade.</p>
+              </div>
               <div className="space-y-1">
                 <label className="text-[10px] font-bold text-slate-700 uppercase tracking-widest px-1">
                   Preço por {editingProduct?.sale_unit === "m2" ? "m²" : "metro linear"} (R$) *
@@ -1615,6 +1641,16 @@ export default function Inventory() {
                   onChange={e => { const v = e.target.value; setEditingProduct(prev => ({ ...prev!, price_per_measure: v === "" ? undefined : Number(v) })); }} />
               </div>
               <div className="space-y-1">
+                <label className="text-[10px] font-bold text-slate-700 uppercase tracking-widest px-1">
+                  Estoque disponível ({editingProduct?.sale_unit === "m2" ? "m²" : "m"}) *
+                </label>
+                <input type="number" step="0.001" min="0" required
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs font-mono font-bold outline-none h-10 focus:border-blue-400 transition-all"
+                  value={editingProduct?.measure_stock_quantity ?? 0}
+                  onChange={e => setEditingProduct(prev => ({ ...prev!, measure_stock_quantity: Number(e.target.value) }))} />
+                <p className="text-[9px] text-slate-400 px-1">Ex.: 10 m; vender 0,50 m deixa 9,50 m.</p>
+              </div>
+              <div className="space-y-1">
                 <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest px-1">
                   Mínimo faturável ({editingProduct?.sale_unit === "m2" ? "m²" : "m"}) — opcional
                 </label>
@@ -1623,7 +1659,16 @@ export default function Inventory() {
                   value={editingProduct?.min_billable_quantity ?? ""}
                   onChange={e => { const v = e.target.value; setEditingProduct(prev => ({ ...prev!, min_billable_quantity: v === "" ? undefined : Number(v) })); }} />
               </div>
-              <p className="text-[10px] text-slate-400 sm:col-span-2">
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold text-rose-500 uppercase tracking-widest px-1">
+                  Estoque mínimo ({editingProduct?.sale_unit === "m2" ? "m²" : "m"})
+                </label>
+                <input type="number" step="0.001" min="0"
+                  className="w-full bg-rose-50 border border-rose-100 rounded-xl px-3 py-2.5 text-xs font-mono font-bold outline-none h-10 focus:border-rose-400 transition-all"
+                  value={editingProduct?.measure_min_stock ?? 0}
+                  onChange={e => setEditingProduct(prev => ({ ...prev!, measure_min_stock: Number(e.target.value) }))} />
+              </div>
+              <p className="hidden">
                 Produtos por medida não têm controle de estoque — a peça é cortada sob medida no momento da venda.
               </p>
             </div>

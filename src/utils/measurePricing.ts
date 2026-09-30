@@ -8,6 +8,14 @@ export interface MeasuredPriceResult {
   minimumApplied: boolean;
 }
 
+/** Aceita a vírgula brasileira e o ponto decimal sem alterar o que o usuário vê. */
+export function parseMeasureInput(value: string | number | null | undefined): number {
+  if (typeof value === "number") return Number.isFinite(value) ? value : 0;
+  const normalized = String(value ?? "").trim().replace(/\s/g, "").replace(",", ".");
+  const parsed = Number(normalized);
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : 0;
+}
+
 // Calcula o preço de um item vendido por medida (m² ou metro linear), aplicando
 // o mínimo faturável quando a medida informada for menor que ele. Espelhado em
 // backend/utils/measurePricing.ts — o backend é a fonte da verdade (nunca confia
@@ -27,7 +35,7 @@ export function computeMeasuredPrice(
 
   const label = saleUnit === "m2"
     ? `${height.toFixed(2)}m × ${(width ?? 0).toFixed(2)}m = ${billedQuantity.toFixed(2)}m²`
-    : `${billedQuantity.toFixed(2)}m linear`;
+    : `${rawQuantity.toFixed(2)}m linear`;
 
   return { rawQuantity, billedQuantity, total, label, minimumApplied };
 }

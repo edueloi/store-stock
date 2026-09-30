@@ -13,7 +13,7 @@ import { Product, Category, NfceInvoice } from "../../types";
 import { cn } from "../../lib/utils";
 import Combobox from "../../components/ui/Combobox";
 import { SERVICE_UNITS, getCategoryIcon, UNCATEGORIZED_SERVICE_CATEGORY } from "./Services";
-import { computeMeasuredPrice } from "../../utils/measurePricing";
+import { computeMeasuredPrice, parseMeasureInput } from "../../utils/measurePricing";
 import { productHasStock } from "../../utils/productStock";
 import { fetchCurrentCashSession, openCashSession as apiOpenCashSession, closeCashSession as apiCloseCashSession, CashSessionInfo, ClosedCashSession } from "../../lib/cashSession";
 import PaymentSegmentsEditor, { PaymentSegment, newPaymentSegment } from "../../components/PaymentSegmentsEditor";
@@ -60,6 +60,8 @@ interface CartItem extends Product {
   variationLabel: string;
   selectedOptions?: Record<string, string>;
   dimensionsLabel?: string;
+  /** Medida física baixada do estoque (m ou m²). */
+  measuredQuantity?: number;
   // id da HeldSaleItem de origem, quando esta linha veio de uma venda em espera retomada —
   // enviado ao finalizar pra não debitar de novo um estoque já reservado no hold.
   heldSaleItemId?: number;
@@ -819,13 +821,18 @@ export default function PDV() {
         (measureProduct.sale_unit as "m2" | "linear") ?? "m2",
         Number(measureProduct.price_per_measure) || 0,
         measureProduct.min_billable_quantity,
-        Number(measureHeight) || 0,
-        Number(measureWidth) || 0,
+        parseMeasureInput(measureHeight),
+        parseMeasureInput(measureWidth),
       )
     : null;
 
   const addMeasuredToCart = () => {
     if (!measureProduct || !measurePreview) return;
+    const available = Number(measureProduct.measure_stock_quantity ?? 0);
+    if (!sellWithoutStockControl && measurePreview.rawQuantity > available + 0.0005) {
+      setSaleError(`Estoque insuficiente: disponível ${available.toFixed(3)} ${measureProduct.sale_unit === "m2" ? "m²" : "m"}.`);
+      return;
+    }
     const cartItemId = `${measureProduct.id}-${Date.now()}`;
     setCart((prev) => [...prev, {
       ...measureProduct,
@@ -834,6 +841,7 @@ export default function PDV() {
       cartItemId,
       variationLabel: "",
       dimensionsLabel: measurePreview.label,
+      measuredQuantity: measurePreview.rawQuantity,
     }]);
     setMeasureProduct(null);
     setMeasureHeight("");
@@ -846,8 +854,8 @@ export default function PDV() {
         (measureService.sale_unit as "m2" | "linear") ?? "m2",
         Number(measureService.price_per_measure) || 0,
         measureService.min_billable_quantity ?? null,
-        Number(measureServiceHeight) || 0,
-        Number(measureServiceWidth) || 0,
+        parseMeasureInput(measureServiceHeight),
+        parseMeasureInput(measureServiceWidth),
       )
     : null;
 
@@ -1200,6 +1208,7 @@ export default function PDV() {
           quantity: i.quantity,
           selectedOptions: i.selectedOptions ?? null,
           dimensionsLabel: i.dimensionsLabel ?? null,
+          measuredQuantity: i.measuredQuantity ?? null,
         })),
       });
       setCart([]);
@@ -1768,6 +1777,7 @@ export default function PDV() {
             price: i.price,
             selectedOptions: i.selectedOptions ?? null,
             dimensionsLabel: i.dimensionsLabel ?? null,
+            measuredQuantity: i.measuredQuantity ?? null,
             heldSaleItemId: i.heldSaleItemId ?? undefined,
             isAvulso: i.isAvulso ?? undefined,
             name: i.isAvulso ? i.name : undefined,
@@ -2995,14 +3005,14 @@ export default function PDV() {
                   <div className="grid grid-cols-2 gap-3">
                     <div>
                       <label className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400 mb-1.5 block">Altura (m)</label>
-                      <input type="number" min="0" step="0.01" autoFocus value={measureHeight}
+                      <input type="text" inputMode="decimal" autoFocus value={measureHeight}
                         onChange={(e) => setMeasureHeight(e.target.value)}
                         placeholder="0,00"
                         className="w-full h-11 px-3 rounded-xl border border-slate-200 text-sm font-mono font-bold text-center focus:outline-none focus:border-blue-400" />
                     </div>
                     <div>
                       <label className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400 mb-1.5 block">Largura (m)</label>
-                      <input type="number" min="0" step="0.01" value={measureWidth}
+                      <input type="text" inputMode="decimal" value={measureWidth}
                         onChange={(e) => setMeasureWidth(e.target.value)}
                         placeholder="0,00"
                         className="w-full h-11 px-3 rounded-xl border border-slate-200 text-sm font-mono font-bold text-center focus:outline-none focus:border-blue-400" />
@@ -3011,7 +3021,7 @@ export default function PDV() {
                 ) : (
                   <div>
                     <label className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400 mb-1.5 block">Comprimento (m)</label>
-                    <input type="number" min="0" step="0.01" autoFocus value={measureHeight}
+                    <input type="text" inputMode="decimal" autoFocus value={measureHeight}
                       onChange={(e) => setMeasureHeight(e.target.value)}
                       placeholder="0,00"
                       className="w-full h-11 px-3 rounded-xl border border-slate-200 text-sm font-mono font-bold text-center focus:outline-none focus:border-blue-400" />
@@ -3035,11 +3045,14 @@ export default function PDV() {
                     </div>
                   </div>
                 )}
+                <p className="text-[10px] text-slate-500 font-medium">
+                  Saldo disponível: <span className="font-mono font-bold">{Number(measureProduct.measure_stock_quantity ?? 0).toFixed(3)} {measureProduct.sale_unit === "m2" ? "m²" : "m"}</span>
+                </p>
               </div>
 
               <div className="px-5 pb-6 pt-1">
                 <button onClick={addMeasuredToCart}
-                  disabled={!measurePreview || measurePreview.rawQuantity <= 0}
+                  disabled={!measurePreview || measurePreview.rawQuantity <= 0 || (!sellWithoutStockControl && measurePreview.rawQuantity > Number(measureProduct.measure_stock_quantity ?? 0) + 0.0005)}
                   className="w-full h-12 rounded-2xl text-[12px] font-black uppercase tracking-[0.15em] text-white flex items-center justify-center gap-2 transition-all active:scale-[0.98] disabled:opacity-40"
                   style={{ background: "linear-gradient(135deg, #3b82f6, #1d4ed8)" }}>
                   <Plus size={16} strokeWidth={3} /> Adicionar ao Carrinho
@@ -3081,14 +3094,14 @@ export default function PDV() {
                   <div className="grid grid-cols-2 gap-3">
                     <div>
                       <label className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400 mb-1.5 block">Altura (m)</label>
-                      <input type="number" min="0" step="0.01" autoFocus value={measureServiceHeight}
+                      <input type="text" inputMode="decimal" autoFocus value={measureServiceHeight}
                         onChange={(e) => setMeasureServiceHeight(e.target.value)}
                         placeholder="0,00"
                         className="w-full h-11 px-3 rounded-xl border border-slate-200 text-sm font-mono font-bold text-center focus:outline-none focus:border-violet-400" />
                     </div>
                     <div>
                       <label className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400 mb-1.5 block">Largura (m)</label>
-                      <input type="number" min="0" step="0.01" value={measureServiceWidth}
+                      <input type="text" inputMode="decimal" value={measureServiceWidth}
                         onChange={(e) => setMeasureServiceWidth(e.target.value)}
                         placeholder="0,00"
                         className="w-full h-11 px-3 rounded-xl border border-slate-200 text-sm font-mono font-bold text-center focus:outline-none focus:border-violet-400" />
@@ -3097,7 +3110,7 @@ export default function PDV() {
                 ) : (
                   <div>
                     <label className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400 mb-1.5 block">Comprimento (m)</label>
-                    <input type="number" min="0" step="0.01" autoFocus value={measureServiceHeight}
+                    <input type="text" inputMode="decimal" autoFocus value={measureServiceHeight}
                       onChange={(e) => setMeasureServiceHeight(e.target.value)}
                       placeholder="0,00"
                       className="w-full h-11 px-3 rounded-xl border border-slate-200 text-sm font-mono font-bold text-center focus:outline-none focus:border-violet-400" />

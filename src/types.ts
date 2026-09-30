@@ -183,6 +183,11 @@ export interface Product {
   sale_unit?: 'unidade' | 'm2' | 'linear';
   price_per_measure?: number;
   min_billable_quantity?: number;
+  /** Saldo físico em metros ou m² para produtos vendidos por medida. */
+  measure_stock_quantity?: number | null;
+  measure_min_stock?: number | null;
+  /** Unidade configurada para a venda por medida: m, cm, mm, km, m2, cm2... */
+  measure_unit?: string | null;
   // Dados fiscais
   ncm?: string;
   cest?: string;

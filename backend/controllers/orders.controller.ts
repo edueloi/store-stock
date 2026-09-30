@@ -477,13 +477,16 @@ export async function createOrderReturn(req: Request, res: Response) {
         if (line.restock && oi.product_id) {
           await tx.product.update({
             where: { id: oi.product_id },
-            data: { stock_quantity: { increment: line.quantity } },
+            data: oi.measured_quantity !== null
+              ? { measure_stock_quantity: { increment: oi.measured_quantity } }
+              : { stock_quantity: { increment: line.quantity } },
           });
           await tx.stockMovement.create({
             data: {
               tenant_id: tenantId,
               product_id: oi.product_id,
-              quantity: line.quantity,
+              quantity: oi.measured_quantity !== null ? 0 : line.quantity,
+              measured_quantity: oi.measured_quantity,
               type: "order_return",
               reason: reason || `Devolução — Pedido #${orderId}`,
             },

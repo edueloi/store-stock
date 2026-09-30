@@ -40,11 +40,20 @@ export async function getLowStockCount(req: Request, res: Response) {
     // default sugerido no formulário de um produto novo (ver Product model, default 5).
     const active = await prisma.product.findMany({
       where: { tenant_id: tenantId, is_active: true },
-      select: { id: true, name: true, stock_quantity: true, min_stock: true },
+      select: {
+        id: true, name: true, stock_quantity: true, min_stock: true,
+        sale_unit: true, measure_stock_quantity: true, measure_min_stock: true,
+      },
     });
     const products = active
-      .filter((p) => p.stock_quantity <= p.min_stock)
-      .sort((a, b) => a.stock_quantity - b.stock_quantity);
+      .filter((p) => p.sale_unit !== "unidade"
+        ? Number(p.measure_stock_quantity ?? 0) <= Number(p.measure_min_stock ?? 0)
+        : p.stock_quantity <= p.min_stock)
+      .sort((a, b) => {
+        const stockA = a.sale_unit !== "unidade" ? Number(a.measure_stock_quantity ?? 0) : a.stock_quantity;
+        const stockB = b.sale_unit !== "unidade" ? Number(b.measure_stock_quantity ?? 0) : b.stock_quantity;
+        return stockA - stockB;
+      });
     // threshold retornado só por compatibilidade com quem já consome esse endpoint
     // (ex.: exibir "abaixo de X unidades" em algum lugar do frontend).
     const threshold = await getLowStockThreshold((req as AuthenticatedRequest).user.userId);
@@ -192,7 +201,8 @@ export async function updateProduct(req: Request, res: Response) {
       select: {
         image_url: true, images: true,
         name: true, price: true, cost_price: true, discount_price: true, max_discount_pct: true,
-        stock_quantity: true, min_stock: true, sku: true, barcode: true, description: true,
+        stock_quantity: true, min_stock: true, measure_stock_quantity: true, measure_min_stock: true,
+        sku: true, barcode: true, description: true,
         is_active: true, is_featured: true, category_id: true,
         ncm: true, cfop: true, csosn: true, cst_icms: true,
       },
@@ -319,18 +329,26 @@ export async function adjustProductStock(req: Request, res: Response) {
       return;
     }
 
+    const measured = product.sale_unit !== "unidade";
+    const adjustment = Number(quantity);
+    if (!Number.isFinite(adjustment) || adjustment === 0) {
+      res.status(400).json({ error: "Quantidade de ajuste inválida" });
+      return;
+    }
+
     await prisma.$transaction([
       prisma.product.update({
         where: { id: productId },
-        data: {
-          stock_quantity: { increment: quantity },
-        },
+        data: measured
+          ? { measure_stock_quantity: { increment: adjustment } }
+          : { stock_quantity: { increment: adjustment } },
       }),
       prisma.stockMovement.create({
         data: {
           tenant_id: tenantId,
           product_id: productId,
-          quantity,
+          quantity: measured ? 0 : adjustment,
+          measured_quantity: measured ? adjustment : null,
           type,
           reason,
         },

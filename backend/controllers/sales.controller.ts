@@ -32,6 +32,9 @@ interface SaleItemInput {
   price: number;
   selectedOptions?: Record<string, string> | null;
   dimensionsLabel?: string | null;
+  // Quantidade física em metros ou m² para item vendido por medida. O campo
+  // `quantity` continua inteiro por compatibilidade com OrderItem.
+  measuredQuantity?: number | null;
   // id da HeldSaleItem de origem, quando esta linha veio de uma venda em espera
   // retomada — usado para não debitar de novo um estoque já reservado no hold.
   heldSaleItemId?: number | null;
@@ -220,13 +223,36 @@ async function finalizeSaleOrder(params: FinalizeSaleParams): Promise<{ orderId:
     if (productIds.length > 0) {
       const existingProducts = await prisma.product.findMany({
         where: { id: { in: productIds }, tenant_id: tenantId },
-        select: { id: true },
+        select: { id: true, name: true, sale_unit: true, measure_stock_quantity: true },
       });
       const foundIds = existingProducts.map(p => p.id);
       const missingIds = productIds.filter(id => !foundIds.includes(id));
       if (missingIds.length > 0) {
         console.error("[createSale] products not found:", missingIds, "for tenant:", tenantId);
         throw new SaleError(422, "Produto não encontrado", { missingIds });
+      }
+    }
+
+    // Antes de criar o pedido, valida o saldo físico dos produtos por medida.
+    // O mínimo faturável influencia apenas o preço; a baixa é sempre a medida real.
+    if (decrementStock && !tenantData?.sell_without_stock_control && productIds.length > 0) {
+      const measuredProducts = await prisma.product.findMany({
+        where: { id: { in: productIds }, tenant_id: tenantId, sale_unit: { not: "unidade" } },
+        select: { id: true, name: true, sale_unit: true, measure_stock_quantity: true },
+      });
+      const measuredById = new Map(measuredProducts.map((product) => [product.id, product]));
+      for (const item of items) {
+        if (item.isAvulso) continue;
+        const product = measuredById.get(item.id as number);
+        if (!product) continue;
+        const requested = Number(item.measuredQuantity);
+        if (!Number.isFinite(requested) || requested <= 0) {
+          throw new SaleError(422, `Informe uma medida válida para "${product.name}".`);
+        }
+        const available = Number(product.measure_stock_quantity ?? 0);
+        if (requested > available + 0.0005) {
+          throw new SaleError(409, `Estoque insuficiente para "${product.name}". Disponível: ${available.toFixed(3)} ${product.sale_unit === "m2" ? "m²" : "m"}.`);
+        }
       }
     }
 
@@ -295,12 +321,14 @@ async function finalizeSaleOrder(params: FinalizeSaleParams): Promise<{ orderId:
               quantity: item.quantity,
               unit_price: item.price,
               dimensions_label: item.dimensionsLabel ?? null,
+              measured_quantity: item.measuredQuantity ?? null,
             }
             : {
               product_id: item.id,
               quantity: item.quantity,
               unit_price: item.price,
               dimensions_label: item.dimensionsLabel ?? null,
+              measured_quantity: item.measuredQuantity ?? null,
             }),
         },
         ...(services && services.length > 0 ? {
@@ -332,9 +360,31 @@ async function finalizeSaleOrder(params: FinalizeSaleParams): Promise<{ orderId:
         // a peça é cortada sob medida, não há como inferir quanto resta em chapa/rolo.
         const productForStock = await prisma.product.findUnique({
           where: { id: item.id as number },
-          select: { sale_unit: true },
+          select: { name: true, sale_unit: true },
         });
         if (productForStock?.sale_unit && productForStock.sale_unit !== "unidade") {
+          const consumed = Math.round(Number(item.measuredQuantity) * 1000) / 1000;
+          const updated = await prisma.product.updateMany({
+            where: {
+              id: item.id as number,
+              tenant_id: tenantId,
+              measure_stock_quantity: { gte: consumed },
+            },
+            data: { measure_stock_quantity: { decrement: consumed } },
+          });
+          if (updated.count === 0) {
+            throw new SaleError(409, `Estoque insuficiente para "${productForStock.name}".`);
+          }
+          await prisma.stockMovement.create({
+            data: {
+              tenant_id: tenantId,
+              product_id: item.id as number,
+              quantity: 0,
+              measured_quantity: -consumed,
+              type: "sale",
+              reason: `Venda #${order.id}`,
+            },
+          });
           continue;
         }
 
