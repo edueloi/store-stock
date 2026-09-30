@@ -623,6 +623,7 @@ function StoreLayoutInner() {
   const isElectronics = templateId === "electronics";
   const isElectric = templateId === "electric";
   const isUrban = templateId === "urban";
+  const isDoceria = templateId === "doceria";
 
   const navLinks = [
     { label: "Início", path: storePath(), icon: <Home size={15} /> },
@@ -693,7 +694,9 @@ function StoreLayoutInner() {
               ? "bg-[#071426]/95 backdrop-blur-xl border-[#17325d]"
               : isDark
                 ? "bg-black border-slate-800"
-                : isFashion
+               : isDoceria
+                 ? "bg-[#fff8fb]/95 backdrop-blur-xl border-pink-100"
+               : isFashion
                   ? "bg-[#fffaf5]/92 backdrop-blur-xl border-[#ead7cc]"
                   : isTechNova
                     ? "bg-[#f7fbff]/88 backdrop-blur-xl border-[#d7e4ff]"
@@ -703,7 +706,7 @@ function StoreLayoutInner() {
           <div
             className={cn(
               "max-w-7xl mx-auto px-4 flex items-center justify-between gap-4",
-              isFashion || isTechNova || isElectronics || isElectric
+               isFashion || isTechNova || isElectronics || isElectric || isDoceria
                 ? "h-[4.5rem]"
                 : "h-16",
             )}
@@ -720,7 +723,9 @@ function StoreLayoutInner() {
                   "flex items-center justify-center text-white font-black text-base overflow-hidden shrink-0",
                   isElectronics || isElectric
                     ? "w-11 h-11 rounded-xl shadow-[0_0_24px_rgba(59,130,246,0.5)]"
-                    : isFashion
+                     : isDoceria
+                       ? "w-11 h-11 rounded-full shadow-[0_10px_25px_rgba(219,39,119,0.22)]"
+                     : isFashion
                       ? "w-11 h-11"
                       : isTechNova
                         ? "w-11 h-11 tech-pulse shadow-[0_16px_35px_rgba(37,99,235,0.24)]"
@@ -744,7 +749,9 @@ function StoreLayoutInner() {
                     "leading-none",
                     isElectronics || isElectric
                       ? "text-white font-black text-lg tracking-tight"
-                      : isFashion || isTechNova
+                     : isDoceria
+                       ? "store-display text-2xl font-bold tracking-[-0.04em]"
+                     : isFashion || isTechNova
                         ? "store-display text-2xl font-semibold tracking-[-0.04em]"
                         : "text-sm font-black uppercase tracking-wider",
                   )}
@@ -752,7 +759,9 @@ function StoreLayoutInner() {
                     color:
                       isDark || isElectronics || isElectric
                         ? "#fff"
-                        : isFashion
+                         : isDoceria
+                           ? "#4a2135"
+                         : isFashion
                           ? "#2d221f"
                           : isTechNova
                             ? "#071426"
@@ -783,7 +792,9 @@ function StoreLayoutInner() {
                   >
                     {isElectronics || isElectric
                       ? "Loja Online"
-                      : isFashion
+                       : isDoceria
+                         ? "Feito por encomenda"
+                       : isFashion
                         ? "Curadoria ativa"
                         : isTechNova
                           ? "Lançamentos ativos"
@@ -800,7 +811,9 @@ function StoreLayoutInner() {
                   "flex items-center gap-2 transition-all",
                   isElectronics
                     ? "px-4 py-2 rounded-xl text-[11px] font-bold uppercase tracking-wider border"
-                    : isFashion
+                   : isDoceria
+                     ? "px-4 py-2 rounded-full text-[11px] font-extrabold tracking-[0.08em]"
+                   : isFashion
                       ? "px-4 py-2 rounded-full text-[12px] font-semibold tracking-[0.02em]"
                       : isTechNova
                         ? "px-4 py-2 rounded-full border text-[11px] font-semibold tracking-[0.14em] uppercase"
@@ -809,7 +822,9 @@ function StoreLayoutInner() {
                     ? "text-white shadow-sm"
                     : isElectronics
                       ? "border-[#1e2d4a] text-slate-400 hover:text-white hover:border-blue-500/50 hover:bg-blue-500/10"
-                      : isFashion
+                       : isDoceria
+                         ? "text-[#795261] hover:text-pink-700 hover:bg-pink-50"
+                       : isFashion
                         ? "text-[#6f4b43] hover:text-[#2d221f] hover:bg-white"
                         : isTechNova
                           ? "border-[#dbe6ff] bg-white/72 text-[#456186] hover:text-[#071426] hover:border-[#b9cdfd] hover:bg-white"
@@ -848,7 +863,9 @@ function StoreLayoutInner() {
                               "absolute left-1/2 -translate-x-1/2 top-full mt-2 w-[min(90vw,640px)] rounded-2xl border shadow-xl overflow-hidden z-50",
                               isElectronics
                                 ? "bg-[#0b1220] border-[#1e2d4a]"
-                                : isFashion
+                     : isDoceria
+                       ? "w-10 h-10 rounded-full border-pink-100 bg-white text-pink-500 hover:text-pink-700 hover:border-pink-300"
+                     : isFashion
                                   ? "bg-white border-[#ead7cc]"
                                   : isTechNova
                                     ? "bg-white border-[#d7e4ff]"
@@ -899,7 +916,9 @@ function StoreLayoutInner() {
                                         "text-[12px] font-semibold leading-snug line-clamp-2",
                                         isElectronics
                                           ? "text-slate-200"
-                                          : isFashion
+                     : isDoceria
+                       ? "h-10 px-4 md:px-5 rounded-full shadow-[0_12px_28px_rgba(219,39,119,0.24)]"
+                     : isFashion
                                             ? "text-[#2d221f]"
                                             : isTechNova
                                               ? "text-[#071426]"
@@ -987,7 +1006,7 @@ function StoreLayoutInner() {
                 <span
                   className={cn(
                     "hidden sm:inline",
-                    isFashion || isTechNova
+                     isFashion || isTechNova || isDoceria
                       ? "text-[11px] font-semibold tracking-[0.08em]"
                       : "text-[10px] font-black uppercase tracking-wider",
                   )}
@@ -1008,7 +1027,9 @@ function StoreLayoutInner() {
                   "md:hidden flex items-center justify-center border",
                   isElectronics
                     ? "w-10 h-10 rounded-xl border-[#1e2d4a] bg-[#0e1525] text-slate-400"
-                    : isFashion
+                     : isDoceria
+                       ? "w-10 h-10 rounded-full border-pink-100 bg-white text-pink-500"
+                     : isFashion
                       ? "w-10 h-10 rounded-full border-[#e7d8ce] bg-white/80 text-[#7c5c54]"
                       : isTechNova
                         ? "w-10 h-10 rounded-full border-[#d7e4ff] bg-white/80 text-[#567298]"
@@ -1184,6 +1205,8 @@ function StoreLayoutInner() {
             "mt-20 border-t",
             isUrban
               ? "bg-slate-950 text-slate-100 border-slate-800"
+              : isDoceria
+                ? "bg-[#54243c] text-pink-100 border-pink-900"
               : isElectronics
                 ? "bg-[#050810] text-slate-400 border-[#1a2540]"
                 : isFashion
@@ -1196,7 +1219,7 @@ function StoreLayoutInner() {
           <div
             className={cn(
               "max-w-7xl mx-auto px-6 py-12 grid grid-cols-1 gap-10",
-              isUrban ? "sm:grid-cols-[1.5fr_1fr_1fr]" : "sm:grid-cols-3",
+               isUrban ? "sm:grid-cols-[1.5fr_1fr_1fr]" : isDoceria ? "sm:grid-cols-[1.4fr_1fr_1fr]" : "sm:grid-cols-3",
             )}
           >
             <div>
@@ -1214,6 +1237,8 @@ function StoreLayoutInner() {
                   className={cn(
                     isElectronics || isUrban
                       ? "text-white font-black text-xl tracking-tight"
+                      : isDoceria
+                        ? "store-display text-3xl font-bold tracking-[-0.04em] text-white"
                       : isFashion || isTechNova
                         ? "store-display text-3xl font-semibold"
                         : "font-black uppercase tracking-wider text-white",
@@ -1242,7 +1267,9 @@ function StoreLayoutInner() {
                 )}
               >
                 {storeData.tenant.footer_text ||
-                  (isElectronics
+                  (isDoceria
+                    ? "Doces feitos por encomenda para adoçar celebrações, presentes e momentos especiais."
+                    : isElectronics
                     ? "Os melhores eletrônicos com os melhores preços. Tecnologia de ponta ao seu alcance."
                     : isFashion
                       ? "Moda e acessórios apresentados com uma experiência elegante, leve e atual."
@@ -1257,6 +1284,8 @@ function StoreLayoutInner() {
                   "mb-4",
                   isElectronics
                     ? "text-[10px] font-black uppercase tracking-widest text-blue-400/70"
+                    : isDoceria
+                      ? "text-[10px] font-extrabold uppercase tracking-[.2em] text-pink-300"
                     : isFashion
                       ? "store-kicker text-[10px] font-semibold text-[#9a7d73]"
                       : isTechNova
@@ -1277,6 +1306,8 @@ function StoreLayoutInner() {
                           ? "text-slate-400 hover:text-white"
                           : isElectronics
                             ? "text-slate-500 hover:text-blue-400"
+                            : isDoceria
+                              ? "text-pink-100 hover:text-white"
                             : isFashion
                               ? "text-[#6b5149] hover:text-[#2d221f]"
                               : isTechNova
@@ -1296,6 +1327,8 @@ function StoreLayoutInner() {
                   "mb-4",
                   isElectronics
                     ? "text-[10px] font-black uppercase tracking-widest text-blue-400/70"
+                    : isDoceria
+                      ? "text-[10px] font-extrabold uppercase tracking-[.2em] text-pink-300"
                     : isFashion
                       ? "store-kicker text-[10px] font-semibold text-[#9a7d73]"
                       : isTechNova
@@ -1316,6 +1349,8 @@ function StoreLayoutInner() {
                       ? "text-slate-200 hover:text-white"
                       : isElectronics
                         ? "text-slate-400 hover:text-white"
+                        : isDoceria
+                          ? "text-pink-100 hover:text-white"
                         : isFashion
                           ? "text-[#6b5149] hover:text-[#2d221f]"
                           : isTechNova
@@ -1465,6 +1500,8 @@ function StoreLayoutInner() {
                         "text-[10px] font-medium",
                         isUrban
                           ? "text-slate-400"
+                      : isDoceria
+                        ? "text-pink-200"
                           : isElectronics
                             ? "text-blue-400/70"
                             : "text-slate-400",
