@@ -79,24 +79,42 @@ export async function getCustomer(req: Request, res: Response) {
       },
       orderBy: { created_at: "desc" },
       take: 50,
-      include: { items: { include: { product: { select: { name: true } } } } },
+      include: { items: { include: { product: { select: { name: true } } } }, services: true },
     });
 
-    // Expõe item.name direto (produto pode ter sido excluído depois da venda,
-    // por isso o fallback), mantendo o shape que o frontend já espera.
-    const mapItems = (items: { product?: { name: string } | null }[]) =>
-      items.map((it) => ({ ...it, name: it.product?.name ?? null }));
+    // Mantém o nome digitado para item avulso. Nesses itens product_id é nulo,
+    // portanto não existe relação Product para consultar. Sem esse fallback a
+    // tela mostrava apenas "Item #123" mesmo com o nome salvo na venda.
+    const mapItems = (items: { product?: { name: string } | null; name?: string | null }[]) =>
+      items.map((it) => ({ ...it, name: it.product?.name ?? it.name ?? null }));
+
+    // Produtos e serviços aparecem juntos no histórico e no crediário, em um
+    // formato comum para a interface do cliente.
+    const mapOrderItems = (order: { items: any[]; services?: any[] }) => ({
+      ...order,
+      items: [
+        ...mapItems(order.items),
+        ...(order.services ?? []).map((service) => ({
+          id: `service-${service.id}`,
+          product_id: null,
+          name: service.name,
+          quantity: service.quantity,
+          unit_price: service.unit_price,
+          dimensions_label: service.dimensions_label ?? null,
+        })),
+      ],
+    });
 
     res.json({
       ...customer,
       debts: customer.debts.map((d) => ({
         ...d,
-        order: d.order ? { ...d.order, items: mapItems(d.order.items) } : d.order,
+        order: d.order ? mapOrderItems(d.order) : d.order,
       })),
       total_debt: customer.debts
         .filter((d) => d.status === "open")
         .reduce((s, d) => s + (Number(d.amount) - Number(d.amount_paid)), 0),
-      orders: orders.map((o) => ({ ...o, items: mapItems(o.items) })),
+      orders: orders.map(mapOrderItems),
     });
   } catch (err) {
     console.error(err);
@@ -298,7 +316,20 @@ export async function listDebts(req: Request, res: Response) {
     });
     res.json(debts.map((d) => ({
       ...d,
-      order: d.order ? { ...d.order, items: d.order.items.map((it) => ({ ...it, name: it.product?.name ?? null })) } : d.order,
+      order: d.order ? {
+        ...d.order,
+        items: [
+          ...d.order.items.map((it) => ({ ...it, name: it.product?.name ?? it.name ?? null })),
+          ...d.order.services.map((service) => ({
+            id: `service-${service.id}`,
+            product_id: null,
+            name: service.name,
+            quantity: service.quantity,
+            unit_price: service.unit_price,
+            dimensions_label: service.dimensions_label ?? null,
+          })),
+        ],
+      } : d.order,
     })));
   } catch (err) {
     console.error(err);
