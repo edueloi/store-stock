@@ -1,10 +1,36 @@
-import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import React, {
+  useState,
+  useEffect,
+  useCallback,
+  useMemo,
+  useRef,
+} from "react";
 import {
-  Wrench, Plus, Edit2, Trash2, Save, ToggleLeft, ToggleRight,
-  AlertTriangle, CheckCircle, XCircle,
-  Search, X, LayoutGrid, List, Clock,
-  Scissors, LayoutPanelTop, Hammer,
-  Ruler, Package, Tag, Upload, HelpCircle, Settings, FolderOpen,
+  Wrench,
+  Plus,
+  Edit2,
+  Trash2,
+  Save,
+  ToggleLeft,
+  ToggleRight,
+  AlertTriangle,
+  CheckCircle,
+  XCircle,
+  Search,
+  X,
+  LayoutGrid,
+  List,
+  Clock,
+  Scissors,
+  LayoutPanelTop,
+  Hammer,
+  Ruler,
+  Package,
+  Tag,
+  Upload,
+  HelpCircle,
+  Settings,
+  FolderOpen,
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import Button from "../../components/ui/Button";
@@ -15,7 +41,10 @@ import { EmptyState, LoadingState } from "../../components/layout/EmptyState";
 import { StatCard } from "../../components/ui/Card";
 import Combobox from "../../components/ui/Combobox";
 import { onRealtime } from "../../lib/realtime";
-import ServicesPageTour, { SERVICES_PAGE_TOUR_EVENTS, type ServicesPageTourHandle } from "../../components/onboarding/ServicesPageTour";
+import ServicesPageTour, {
+  SERVICES_PAGE_TOUR_EVENTS,
+  type ServicesPageTourHandle,
+} from "../../components/onboarding/ServicesPageTour";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -34,7 +63,12 @@ interface Service {
   price: number;
   unit: string;
   category_id: number | null;
-  category_ref?: { id: number; name: string; icon: string | null; color: string | null } | null;
+  category_ref?: {
+    id: number;
+    name: string;
+    icon: string | null;
+    color: string | null;
+  } | null;
   is_active: boolean;
   image_url?: string | null;
   sale_unit: "unidade" | "m2" | "linear";
@@ -45,8 +79,8 @@ interface Service {
 
 export const SALE_UNIT_OPTIONS = [
   { value: "unidade", label: "Preço fixo" },
-  { value: "m2",      label: "Por m² (área)" },
-  { value: "linear",  label: "Por metro linear" },
+  { value: "m2", label: "Por m² (área)" },
+  { value: "linear", label: "Por metro linear" },
 ] as const;
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -56,21 +90,42 @@ export const SALE_UNIT_OPTIONS = [
 // categorias herdadas da migração antiga (string -> FK) já apareçam com o
 // ícone certo aqui.
 export const SERVICE_ICON_OPTIONS = [
-  { value: "wrench",           label: "Geral",       Icon: Wrench },
-  { value: "package",          label: "Outros",      Icon: Package },
-  { value: "layout-panel-top", label: "Vidros",      Icon: LayoutPanelTop },
-  { value: "tag",              label: "Sinalização", Icon: Tag },
-  { value: "scissors",         label: "Corte",       Icon: Scissors },
-  { value: "hammer",           label: "Instalação",  Icon: Hammer },
+  { value: "wrench", label: "Geral", Icon: Wrench },
+  { value: "package", label: "Outros", Icon: Package },
+  { value: "layout-panel-top", label: "Vidros", Icon: LayoutPanelTop },
+  { value: "tag", label: "Sinalização", Icon: Tag },
+  { value: "scissors", label: "Corte", Icon: Scissors },
+  { value: "hammer", label: "Instalação", Icon: Hammer },
 ] as const;
 
-export const SERVICE_ICON_MAP: Record<string, React.ComponentType<{ size?: number; className?: string }>> = {
-  wrench: Wrench, package: Package, "layout-panel-top": LayoutPanelTop, tag: Tag, scissors: Scissors, hammer: Hammer,
+export const SERVICE_ICON_MAP: Record<
+  string,
+  React.ComponentType<{ size?: number; className?: string }>
+> = {
+  wrench: Wrench,
+  package: Package,
+  "layout-panel-top": LayoutPanelTop,
+  tag: Tag,
+  scissors: Scissors,
+  hammer: Hammer,
 };
 
-export const SERVICE_CATEGORY_COLORS = ["#2563eb", "#059669", "#ea580c", "#9333ea", "#dc2626", "#0891b2", "#ca8a04"];
+export const SERVICE_CATEGORY_COLORS = [
+  "#2563eb",
+  "#059669",
+  "#ea580c",
+  "#9333ea",
+  "#dc2626",
+  "#0891b2",
+  "#ca8a04",
+];
 
-export const UNCATEGORIZED_SERVICE_CATEGORY = { id: 0, name: "Sem categoria", icon: "package", color: "#64748b" };
+export const UNCATEGORIZED_SERVICE_CATEGORY = {
+  id: 0,
+  name: "Sem categoria",
+  icon: "package",
+  color: "#64748b",
+};
 const UNCATEGORIZED: ServiceCategory = UNCATEGORIZED_SERVICE_CATEGORY;
 
 export function getCategoryIcon(iconKey?: string | null) {
@@ -80,24 +135,31 @@ export function getCategoryIcon(iconKey?: string | null) {
 // Unidades de preço fixo. Serviço por medida (m²/linear) usa saleUnit à parte
 // (mesmo mecanismo de Product) — ver SALE_UNIT_OPTIONS mais abaixo.
 export const SERVICE_UNITS = [
-  { value: "unidade",  label: "Unidade",        abbr: "un"  },
-  { value: "kg",       label: "Quilograma",      abbr: "kg"  },
-  { value: "g",        label: "Grama",           abbr: "g"   },
-  { value: "litro",    label: "Litro",           abbr: "L"   },
-  { value: "ml",       label: "Mililitro",       abbr: "mL"  },
-  { value: "metro",    label: "Metro",           abbr: "m"   },
-  { value: "cm",       label: "Centímetro",      abbr: "cm"  },
-  { value: "hora",     label: "Hora",            abbr: "h"   },
-  { value: "folha",    label: "Folha",           abbr: "fl"  },
-  { value: "cópia",    label: "Cópia",           abbr: "cp"  },
+  { value: "unidade", label: "Unidade", abbr: "un" },
+  { value: "kg", label: "Quilograma", abbr: "kg" },
+  { value: "g", label: "Grama", abbr: "g" },
+  { value: "litro", label: "Litro", abbr: "L" },
+  { value: "ml", label: "Mililitro", abbr: "mL" },
+  { value: "metro", label: "Metro", abbr: "m" },
+  { value: "cm", label: "Centímetro", abbr: "cm" },
+  { value: "hora", label: "Hora", abbr: "h" },
+  { value: "folha", label: "Folha", abbr: "fl" },
+  { value: "cópia", label: "Cópia", abbr: "cp" },
 ] as const;
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 const EMPTY_FORM = () => ({
-  name: "", description: "", price: "", unit: "unidade", category_id: null as number | null, is_active: true, image_url: "",
+  name: "",
+  description: "",
+  price: "",
+  unit: "unidade",
+  category_id: null as number | null,
+  is_active: true,
+  image_url: "",
   sale_unit: "unidade" as "unidade" | "m2" | "linear",
-  price_per_measure: "", min_billable_quantity: "",
+  price_per_measure: "",
+  min_billable_quantity: "",
 });
 
 const MAX_IMAGE_SIZE = 2 * 1024 * 1024; // 2 MB
@@ -115,7 +177,10 @@ function applyMoneyMask(raw: string) {
   const digits = raw.replace(/\D/g, "");
   if (!digits) return "";
   const num = parseInt(digits, 10) / 100;
-  return num.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  return num.toLocaleString("pt-BR", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
 }
 
 function parseMaskedPrice(masked: string) {
@@ -129,9 +194,17 @@ function getUnitAbbr(value: string) {
 // Preço de exibição: serviço por medida mostra o valor por m²/m linear
 // (price_per_measure), não o "price" vitrine que é sempre 0 nesse caso.
 function displayPrice(svc: Service): { value: string; suffix: string } {
-  if (svc.sale_unit === "m2") return { value: fmt(Number(svc.price_per_measure ?? 0)), suffix: "/m²" };
-  if (svc.sale_unit === "linear") return { value: fmt(Number(svc.price_per_measure ?? 0)), suffix: "/m linear" };
-  return { value: fmt(Number(svc.price)), suffix: `/${getUnitAbbr(svc.unit ?? "unidade")}` };
+  if (svc.sale_unit === "m2")
+    return { value: fmt(Number(svc.price_per_measure ?? 0)), suffix: "/m²" };
+  if (svc.sale_unit === "linear")
+    return {
+      value: fmt(Number(svc.price_per_measure ?? 0)),
+      suffix: "/m linear",
+    };
+  return {
+    value: fmt(Number(svc.price)),
+    suffix: `/${getUnitAbbr(svc.unit ?? "unidade")}`,
+  };
 }
 
 type ViewMode = "grid" | "list";
@@ -139,33 +212,40 @@ type ViewMode = "grid" | "list";
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export default function Services() {
-  const [services, setServices]   = useState<Service[]>([]);
+  const [services, setServices] = useState<Service[]>([]);
   const [categories, setCategories] = useState<ServiceCategory[]>([]);
-  const [loading, setLoading]     = useState(true);
-  const [search, setSearch]       = useState("");
-  const [viewMode, setViewMode]   = useState<ViewMode>("grid");
-  const [filterActive, setFilterActive] = useState<"all" | "active" | "inactive">("all");
+  const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState("");
+  const [viewMode, setViewMode] = useState<ViewMode>("grid");
+  const [filterActive, setFilterActive] = useState<
+    "all" | "active" | "inactive"
+  >("all");
   const [filterCategory, setFilterCategory] = useState<number | "all">("all");
 
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [editing, setEditing]         = useState<Service | null>(null);
-  const [form, setForm]               = useState(EMPTY_FORM());
-  const [saving, setSaving]           = useState(false);
+  const [editing, setEditing] = useState<Service | null>(null);
+  const [form, setForm] = useState(EMPTY_FORM());
+  const [saving, setSaving] = useState(false);
 
   const [deleteTarget, setDeleteTarget] = useState<Service | null>(null);
-  const [deleting, setDeleting]         = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
-  const [imagePreview, setImagePreview]   = useState<string>("");
-  const [uploadingImg, setUploadingImg]   = useState(false);
-  const [imgToast, setImgToast]           = useState<string>("");
-  const fileInputRef                      = useRef<HTMLInputElement>(null);
+  const [imagePreview, setImagePreview] = useState<string>("");
+  const [uploadingImg, setUploadingImg] = useState(false);
+  const [imgToast, setImgToast] = useState<string>("");
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // ── Gerenciar categorias (modal integrado, sem sair da tela de Serviços) ──
   const [showManageCategories, setShowManageCategories] = useState(false);
-  const [catEditing, setCatEditing]       = useState<ServiceCategory | null>(null);
-  const [catForm, setCatForm]             = useState({ name: "", icon: "wrench", color: "#2563eb" });
+  const [catEditing, setCatEditing] = useState<ServiceCategory | null>(null);
+  const [catForm, setCatForm] = useState({
+    name: "",
+    icon: "wrench",
+    color: "#2563eb",
+  });
   const [savingCategory, setSavingCategory] = useState(false);
-  const [catDeleteTarget, setCatDeleteTarget] = useState<ServiceCategory | null>(null);
+  const [catDeleteTarget, setCatDeleteTarget] =
+    useState<ServiceCategory | null>(null);
 
   const servicesPageTourRef = useRef<ServicesPageTourHandle>(null);
 
@@ -186,8 +266,17 @@ export default function Services() {
     setCategories(Array.isArray(d) ? d : []);
   }, []);
 
-  useEffect(() => { fetchServices(); fetchCategories(); }, [fetchServices, fetchCategories]);
-  useEffect(() => onRealtime("service-category:changed", () => { fetchCategories(); }), [fetchCategories]);
+  useEffect(() => {
+    fetchServices();
+    fetchCategories();
+  }, [fetchServices, fetchCategories]);
+  useEffect(
+    () =>
+      onRealtime("service-category:changed", () => {
+        fetchCategories();
+      }),
+    [fetchCategories],
+  );
 
   const openNew = () => {
     setEditing(null);
@@ -199,10 +288,17 @@ export default function Services() {
 
   const openEdit = (s: Service) => {
     setEditing(s);
-    const masked = Number(s.price).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-    const measureMasked = s.price_per_measure != null
-      ? Number(s.price_per_measure).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-      : "";
+    const masked = Number(s.price).toLocaleString("pt-BR", {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    });
+    const measureMasked =
+      s.price_per_measure != null
+        ? Number(s.price_per_measure).toLocaleString("pt-BR", {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2,
+          })
+        : "";
     setForm({
       name: s.name,
       description: s.description ?? "",
@@ -213,14 +309,20 @@ export default function Services() {
       image_url: s.image_url ?? "",
       sale_unit: s.sale_unit ?? "unidade",
       price_per_measure: measureMasked,
-      min_billable_quantity: s.min_billable_quantity != null ? String(s.min_billable_quantity) : "",
+      min_billable_quantity:
+        s.min_billable_quantity != null ? String(s.min_billable_quantity) : "",
     });
     setImagePreview(s.image_url ?? "");
     setImgToast("");
     setIsModalOpen(true);
   };
 
-  const closeModal = () => { setIsModalOpen(false); setEditing(null); setImagePreview(""); setImgToast(""); };
+  const closeModal = () => {
+    setIsModalOpen(false);
+    setEditing(null);
+    setImagePreview("");
+    setImgToast("");
+  };
 
   // ── Canal de comunicação do TOUR DE PÁGINA (ServicesPageTour) ─────────────
   // Abre o modal "Novo Serviço" de verdade via openNew (ou openEdit com o
@@ -242,15 +344,39 @@ export default function Services() {
       if (list.length > 0) openEdit(list[0]);
     };
 
-    window.addEventListener(SERVICES_PAGE_TOUR_EVENTS.openNewService, onOpenNewService);
-    window.addEventListener(SERVICES_PAGE_TOUR_EVENTS.fillService, onFillService);
-    window.addEventListener(SERVICES_PAGE_TOUR_EVENTS.closeServiceModal, onCloseServiceModal);
-    window.addEventListener(SERVICES_PAGE_TOUR_EVENTS.openEditService, onOpenEditService);
+    window.addEventListener(
+      SERVICES_PAGE_TOUR_EVENTS.openNewService,
+      onOpenNewService,
+    );
+    window.addEventListener(
+      SERVICES_PAGE_TOUR_EVENTS.fillService,
+      onFillService,
+    );
+    window.addEventListener(
+      SERVICES_PAGE_TOUR_EVENTS.closeServiceModal,
+      onCloseServiceModal,
+    );
+    window.addEventListener(
+      SERVICES_PAGE_TOUR_EVENTS.openEditService,
+      onOpenEditService,
+    );
     return () => {
-      window.removeEventListener(SERVICES_PAGE_TOUR_EVENTS.openNewService, onOpenNewService);
-      window.removeEventListener(SERVICES_PAGE_TOUR_EVENTS.fillService, onFillService);
-      window.removeEventListener(SERVICES_PAGE_TOUR_EVENTS.closeServiceModal, onCloseServiceModal);
-      window.removeEventListener(SERVICES_PAGE_TOUR_EVENTS.openEditService, onOpenEditService);
+      window.removeEventListener(
+        SERVICES_PAGE_TOUR_EVENTS.openNewService,
+        onOpenNewService,
+      );
+      window.removeEventListener(
+        SERVICES_PAGE_TOUR_EVENTS.fillService,
+        onFillService,
+      );
+      window.removeEventListener(
+        SERVICES_PAGE_TOUR_EVENTS.closeServiceModal,
+        onCloseServiceModal,
+      );
+      window.removeEventListener(
+        SERVICES_PAGE_TOUR_EVENTS.openEditService,
+        onOpenEditService,
+      );
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [services]);
@@ -261,7 +387,9 @@ export default function Services() {
       return;
     }
     if (file.size > MAX_IMAGE_SIZE) {
-      setImgToast(`Imagem muito grande (${(file.size / 1024 / 1024).toFixed(1)} MB). Limite: 2 MB.`);
+      setImgToast(
+        `Imagem muito grande (${(file.size / 1024 / 1024).toFixed(1)} MB). Limite: 2 MB.`,
+      );
       return;
     }
     setImgToast("");
@@ -294,15 +422,20 @@ export default function Services() {
     if (isMeasuredForm ? !form.price_per_measure : !form.price) return;
     setSaving(true);
     try {
-      const url    = editing ? `/api/services/${editing.id}` : "/api/services";
+      const url = editing ? `/api/services/${editing.id}` : "/api/services";
       const method = editing ? "PUT" : "POST";
       await fetch(url, {
-        method, headers: authH(),
+        method,
+        headers: authH(),
         body: JSON.stringify({
           ...form,
           price: parseMaskedPrice(form.price),
-          price_per_measure: form.price_per_measure ? parseMaskedPrice(form.price_per_measure) : null,
-          min_billable_quantity: form.min_billable_quantity ? Number(form.min_billable_quantity) : null,
+          price_per_measure: form.price_per_measure
+            ? parseMaskedPrice(form.price_per_measure)
+            : null,
+          min_billable_quantity: form.min_billable_quantity
+            ? Number(form.min_billable_quantity)
+            : null,
           image_url: form.image_url || null,
         }),
       });
@@ -317,7 +450,10 @@ export default function Services() {
     if (!deleteTarget) return;
     setDeleting(true);
     try {
-      await fetch(`/api/services/${deleteTarget.id}`, { method: "DELETE", headers: authH() });
+      await fetch(`/api/services/${deleteTarget.id}`, {
+        method: "DELETE",
+        headers: authH(),
+      });
       setDeleteTarget(null);
       fetchServices();
     } finally {
@@ -327,10 +463,18 @@ export default function Services() {
 
   const handleToggle = async (s: Service) => {
     await fetch(`/api/services/${s.id}`, {
-      method: "PUT", headers: authH(),
+      method: "PUT",
+      headers: authH(),
       body: JSON.stringify({
-        name: s.name, description: s.description, price: Number(s.price), unit: s.unit, category_id: s.category_id,
-        is_active: !s.is_active, sale_unit: s.sale_unit, price_per_measure: s.price_per_measure, min_billable_quantity: s.min_billable_quantity,
+        name: s.name,
+        description: s.description,
+        price: Number(s.price),
+        unit: s.unit,
+        category_id: s.category_id,
+        is_active: !s.is_active,
+        sale_unit: s.sale_unit,
+        price_per_measure: s.price_per_measure,
+        min_billable_quantity: s.min_billable_quantity,
       }),
     });
     fetchServices();
@@ -338,32 +482,49 @@ export default function Services() {
 
   // Metadados de exibição (ícone/cor) de uma categoria, com fallback pra
   // "Sem categoria" quando o serviço não tem category_id (ou a categoria foi excluída).
-  const getCategoryMeta = useCallback((categoryId: number | null): ServiceCategory => {
-    if (!categoryId) return UNCATEGORIZED;
-    return categories.find((c) => c.id === categoryId) ?? UNCATEGORIZED;
-  }, [categories]);
+  const getCategoryMeta = useCallback(
+    (categoryId: number | null): ServiceCategory => {
+      if (!categoryId) return UNCATEGORIZED;
+      return categories.find((c) => c.id === categoryId) ?? UNCATEGORIZED;
+    },
+    [categories],
+  );
 
   // derived categories present in data (para os pills de filtro)
   const presentCategoryIds = useMemo(() => {
-    const ids = [...new Set(services.map((s) => s.category_id).filter((id): id is number => !!id))];
-    return ids.sort((a, b) => (getCategoryMeta(a).name).localeCompare(getCategoryMeta(b).name));
+    const ids = [
+      ...new Set(
+        services.map((s) => s.category_id).filter((id): id is number => !!id),
+      ),
+    ];
+    return ids.sort((a, b) =>
+      getCategoryMeta(a).name.localeCompare(getCategoryMeta(b).name),
+    );
   }, [services, getCategoryMeta]);
 
-  const filtered = useMemo(() => services.filter((s) => {
-    const catName = getCategoryMeta(s.category_id).name;
-    const matchSearch = !search
-      || s.name.toLowerCase().includes(search.toLowerCase())
-      || (s.description ?? "").toLowerCase().includes(search.toLowerCase())
-      || catName.toLowerCase().includes(search.toLowerCase());
-    const matchStatus =
-      filterActive === "all"      ? true :
-      filterActive === "active"   ? s.is_active :
-      !s.is_active;
-    const matchCat = filterCategory === "all" || s.category_id === filterCategory;
-    return matchSearch && matchStatus && matchCat;
-  }), [services, search, filterActive, filterCategory, getCategoryMeta]);
+  const filtered = useMemo(
+    () =>
+      services.filter((s) => {
+        const catName = getCategoryMeta(s.category_id).name;
+        const matchSearch =
+          !search ||
+          s.name.toLowerCase().includes(search.toLowerCase()) ||
+          (s.description ?? "").toLowerCase().includes(search.toLowerCase()) ||
+          catName.toLowerCase().includes(search.toLowerCase());
+        const matchStatus =
+          filterActive === "all"
+            ? true
+            : filterActive === "active"
+              ? s.is_active
+              : !s.is_active;
+        const matchCat =
+          filterCategory === "all" || s.category_id === filterCategory;
+        return matchSearch && matchStatus && matchCat;
+      }),
+    [services, search, filterActive, filterCategory, getCategoryMeta],
+  );
 
-  const activeCount   = services.filter((s) => s.is_active).length;
+  const activeCount = services.filter((s) => s.is_active).length;
   const inactiveCount = services.filter((s) => !s.is_active).length;
 
   // group filtered by category for grid
@@ -392,17 +553,33 @@ export default function Services() {
   }));
 
   // ── CRUD de categoria de serviço (modal "Gerenciar categorias") ──────────
-  const openNewCategory = () => { setCatEditing(null); setCatForm({ name: "", icon: "wrench", color: "#2563eb" }); };
-  const openEditCategory = (c: ServiceCategory) => { setCatEditing(c); setCatForm({ name: c.name, icon: c.icon || "wrench", color: c.color || "#2563eb" }); };
+  const openNewCategory = () => {
+    setCatEditing(null);
+    setCatForm({ name: "", icon: "wrench", color: "#2563eb" });
+  };
+  const openEditCategory = (c: ServiceCategory) => {
+    setCatEditing(c);
+    setCatForm({
+      name: c.name,
+      icon: c.icon || "wrench",
+      color: c.color || "#2563eb",
+    });
+  };
 
   const handleSaveCategory = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!catForm.name.trim()) return;
     setSavingCategory(true);
     try {
-      const url    = catEditing ? `/api/services/categories/${catEditing.id}` : "/api/services/categories";
+      const url = catEditing
+        ? `/api/services/categories/${catEditing.id}`
+        : "/api/services/categories";
       const method = catEditing ? "PUT" : "POST";
-      await fetch(url, { method, headers: authH(), body: JSON.stringify(catForm) });
+      await fetch(url, {
+        method,
+        headers: authH(),
+        body: JSON.stringify(catForm),
+      });
       openNewCategory();
       fetchCategories();
     } finally {
@@ -412,7 +589,10 @@ export default function Services() {
 
   const handleDeleteCategory = async () => {
     if (!catDeleteTarget) return;
-    await fetch(`/api/services/categories/${catDeleteTarget.id}`, { method: "DELETE", headers: authH() });
+    await fetch(`/api/services/categories/${catDeleteTarget.id}`, {
+      method: "DELETE",
+      headers: authH(),
+    });
     setCatDeleteTarget(null);
     fetchCategories();
     fetchServices();
@@ -425,14 +605,21 @@ export default function Services() {
         subtitle="Gerencie os serviços oferecidos — impressão, cartão de visita, xerox e mais"
         action={
           <div className="flex gap-2 items-center flex-wrap">
-            <Button data-tour="services-new-btn" icon={<Plus size={15} />} onClick={openNew}>
+            <Button
+              data-tour="services-new-btn"
+              icon={<Plus size={15} />}
+              onClick={openNew}
+            >
               Novo Serviço
             </Button>
             <Button
               variant="secondary"
               className="text-slate-400 hover:text-blue-600 hover:bg-blue-50 border-slate-200 hover:border-blue-300"
               icon={<FolderOpen size={14} />}
-              onClick={() => { openNewCategory(); setShowManageCategories(true); }}
+              onClick={() => {
+                openNewCategory();
+                setShowManageCategories(true);
+              }}
               title="Gerenciar categorias de serviço"
             >
               <span className="sr-only sm:not-sr-only">Categorias</span>
@@ -454,9 +641,24 @@ export default function Services() {
 
       {/* Stats */}
       <div className="grid grid-cols-3 gap-3">
-        <StatCard label="Total" value={services.length} icon={<Wrench />} accent="blue" />
-        <StatCard label="Ativos" value={activeCount} icon={<CheckCircle />} accent="blue" />
-        <StatCard label="Inativos" value={inactiveCount} icon={<XCircle />} accent="slate" />
+        <StatCard
+          label="Total"
+          value={services.length}
+          icon={<Wrench />}
+          accent="blue"
+        />
+        <StatCard
+          label="Ativos"
+          value={activeCount}
+          icon={<CheckCircle />}
+          accent="blue"
+        />
+        <StatCard
+          label="Inativos"
+          value={inactiveCount}
+          icon={<XCircle />}
+          accent="slate"
+        />
       </div>
 
       {/* Toolbar */}
@@ -464,7 +666,10 @@ export default function Services() {
         {/* Search + view toggle */}
         <div className="flex gap-2">
           <div className="relative flex-1">
-            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+            <Search
+              size={14}
+              className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"
+            />
             <input
               type="text"
               value={search}
@@ -473,7 +678,10 @@ export default function Services() {
               className="w-full pl-9 pr-9 py-2.5 text-sm border border-slate-200 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400 transition-all"
             />
             {search && (
-              <button onClick={() => setSearch("")} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
+              <button
+                onClick={() => setSearch("")}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+              >
                 <X size={14} />
               </button>
             )}
@@ -550,20 +758,38 @@ export default function Services() {
       ) : filtered.length === 0 ? (
         <EmptyState
           icon={<Wrench size={32} strokeWidth={1} />}
-          title={search || filterActive !== "all" || filterCategory !== "all" ? "Nenhum serviço encontrado" : "Nenhum serviço cadastrado"}
+          title={
+            search || filterActive !== "all" || filterCategory !== "all"
+              ? "Nenhum serviço encontrado"
+              : "Nenhum serviço cadastrado"
+          }
           description="Cadastre serviços como impressão, cartão de visita, xerox e mais para usar no PDV."
-          action={!search && filterActive === "all" && filterCategory === "all" && (
-            <Button icon={<Plus size={14} />} onClick={openNew}>Cadastrar Serviço</Button>
-          )}
+          action={
+            !search &&
+            filterActive === "all" &&
+            filterCategory === "all" && (
+              <Button icon={<Plus size={14} />} onClick={openNew}>
+                Cadastrar Serviço
+              </Button>
+            )
+          }
         />
       ) : viewMode === "list" ? (
         /* ── LIST VIEW ── */
         <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm">
           <div className="hidden sm:grid grid-cols-[1fr_1.5fr_auto_auto_auto] gap-4 px-5 py-2.5 bg-slate-50 border-b border-slate-200">
-            <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Serviço</span>
-            <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Descrição</span>
-            <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Unidade</span>
-            <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Preço</span>
+            <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">
+              Serviço
+            </span>
+            <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">
+              Descrição
+            </span>
+            <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">
+              Unidade
+            </span>
+            <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">
+              Preço
+            </span>
             <span />
           </div>
           <div className="divide-y divide-slate-50">
@@ -583,23 +809,43 @@ export default function Services() {
                   <div className="flex items-center gap-3 min-w-0">
                     {svc.image_url ? (
                       <div className="w-9 h-9 rounded-xl overflow-hidden shrink-0 border border-slate-100">
-                        <img src={svc.image_url} alt={svc.name} className="w-full h-full object-cover" />
+                        <img
+                          src={svc.image_url}
+                          alt={svc.name}
+                          className="w-full h-full object-cover"
+                        />
                       </div>
                     ) : (
                       <div
                         className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0"
-                        style={svc.is_active ? { background: `${color}1a`, color } : undefined}
+                        style={
+                          svc.is_active
+                            ? { background: `${color}1a`, color }
+                            : undefined
+                        }
                       >
-                        <Icon size={15} className={!svc.is_active ? "text-slate-400" : undefined} />
+                        <Icon
+                          size={15}
+                          className={
+                            !svc.is_active ? "text-slate-400" : undefined
+                          }
+                        />
                       </div>
                     )}
                     <div className="min-w-0">
-                      <p className="text-[12px] font-bold text-slate-900 truncate">{svc.name}</p>
+                      <p className="text-[12px] font-bold text-slate-900 truncate">
+                        {svc.name}
+                      </p>
                       <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
-                        <span className={`text-[9px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded-full ${svc.is_active ? "bg-emerald-50 text-emerald-600" : "bg-slate-100 text-slate-400"}`}>
+                        <span
+                          className={`text-[9px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded-full ${svc.is_active ? "bg-emerald-50 text-emerald-600" : "bg-slate-100 text-slate-400"}`}
+                        >
                           {svc.is_active ? "Ativo" : "Inativo"}
                         </span>
-                        <span className="text-[9px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded-full" style={{ background: `${color}1a`, color }}>
+                        <span
+                          className="text-[9px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded-full"
+                          style={{ background: `${color}1a`, color }}
+                        >
                           {meta.name}
                         </span>
                         <span className="flex items-center gap-0.5 text-[9px] text-slate-400">
@@ -612,7 +858,11 @@ export default function Services() {
 
                   {/* Descrição */}
                   <p className="hidden sm:block text-[11px] text-slate-500 truncate">
-                    {svc.description || <span className="text-slate-300 italic">Sem descrição</span>}
+                    {svc.description || (
+                      <span className="text-slate-300 italic">
+                        Sem descrição
+                      </span>
+                    )}
                   </p>
 
                   {/* Unidade */}
@@ -623,8 +873,12 @@ export default function Services() {
 
                   {/* Preço */}
                   <div className="text-right shrink-0">
-                    <p className="text-[14px] font-mono font-black text-blue-600">{displayPrice(svc).value}</p>
-                    <p className="text-[9px] text-slate-400">{displayPrice(svc).suffix}</p>
+                    <p className="text-[14px] font-mono font-black text-blue-600">
+                      {displayPrice(svc).value}
+                    </p>
+                    <p className="text-[9px] text-slate-400">
+                      {displayPrice(svc).suffix}
+                    </p>
                   </div>
 
                   {/* Ações */}
@@ -634,9 +888,11 @@ export default function Services() {
                       title={svc.is_active ? "Desativar" : "Ativar"}
                       className="w-8 h-8 flex items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 transition-all"
                     >
-                      {svc.is_active
-                        ? <ToggleRight size={18} className="text-emerald-500" />
-                        : <ToggleLeft size={18} />}
+                      {svc.is_active ? (
+                        <ToggleRight size={18} className="text-emerald-500" />
+                      ) : (
+                        <ToggleLeft size={18} />
+                      )}
                     </button>
                     <button
                       onClick={() => openEdit(svc)}
@@ -673,11 +929,18 @@ export default function Services() {
                 >
                   {/* Category header */}
                   <div className="flex items-center gap-2 mb-3">
-                    <div className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ background: `${color}1a`, color }}>
+                    <div
+                      className="w-7 h-7 rounded-lg flex items-center justify-center"
+                      style={{ background: `${color}1a`, color }}
+                    >
                       <CatIcon size={13} />
                     </div>
-                    <span className="text-[10px] font-black uppercase tracking-widest text-slate-600">{meta.name}</span>
-                    <span className="text-[9px] text-slate-400 font-bold">{items.length} serviço{items.length !== 1 ? "s" : ""}</span>
+                    <span className="text-[10px] font-black uppercase tracking-widest text-slate-600">
+                      {meta.name}
+                    </span>
+                    <span className="text-[9px] text-slate-400 font-bold">
+                      {items.length} serviço{items.length !== 1 ? "s" : ""}
+                    </span>
                     <div className="flex-1 h-px bg-slate-100" />
                   </div>
 
@@ -696,21 +959,41 @@ export default function Services() {
                           <div className="flex items-start justify-between gap-2">
                             {svc.image_url ? (
                               <div className="w-10 h-10 rounded-xl overflow-hidden shrink-0 border border-slate-100">
-                                <img src={svc.image_url} alt={svc.name} className="w-full h-full object-cover" />
+                                <img
+                                  src={svc.image_url}
+                                  alt={svc.name}
+                                  className="w-full h-full object-cover"
+                                />
                               </div>
                             ) : (
                               <div
                                 className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
-                                style={svc.is_active ? { background: `${c}1a`, color: c } : undefined}
+                                style={
+                                  svc.is_active
+                                    ? { background: `${c}1a`, color: c }
+                                    : undefined
+                                }
                               >
-                                <Ic size={16} className={!svc.is_active ? "text-slate-400" : undefined} />
+                                <Ic
+                                  size={16}
+                                  className={
+                                    !svc.is_active
+                                      ? "text-slate-400"
+                                      : undefined
+                                  }
+                                />
                               </div>
                             )}
                             <div className="flex flex-col items-end gap-1">
-                              <span className={`text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full ${svc.is_active ? "bg-emerald-50 text-emerald-600" : "bg-slate-100 text-slate-400"}`}>
+                              <span
+                                className={`text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full ${svc.is_active ? "bg-emerald-50 text-emerald-600" : "bg-slate-100 text-slate-400"}`}
+                              >
                                 {svc.is_active ? "Ativo" : "Inativo"}
                               </span>
-                              <span className="text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full" style={{ background: `${c}1a`, color: c }}>
+                              <span
+                                className="text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full"
+                                style={{ background: `${c}1a`, color: c }}
+                              >
                                 {m.name}
                               </span>
                             </div>
@@ -718,16 +1001,22 @@ export default function Services() {
 
                           {/* Name + description */}
                           <div className="flex-1 min-w-0">
-                            <p className="text-xs font-black text-slate-900 uppercase tracking-tight leading-tight">{svc.name}</p>
+                            <p className="text-xs font-black text-slate-900 uppercase tracking-tight leading-tight">
+                              {svc.name}
+                            </p>
                             {svc.description && (
-                              <p className="text-[10px] text-slate-400 mt-1 line-clamp-2 leading-relaxed">{svc.description}</p>
+                              <p className="text-[10px] text-slate-400 mt-1 line-clamp-2 leading-relaxed">
+                                {svc.description}
+                              </p>
                             )}
                           </div>
 
                           {/* Price + unit */}
                           <div className="flex items-end justify-between">
                             <div>
-                              <p className="text-[18px] font-mono font-black text-blue-600 leading-none">{displayPrice(svc).value}</p>
+                              <p className="text-[18px] font-mono font-black text-blue-600 leading-none">
+                                {displayPrice(svc).value}
+                              </p>
                               <p className="text-[9px] text-slate-400 mt-0.5 flex items-center gap-1">
                                 <Ruler size={8} />
                                 {displayPrice(svc).suffix}
@@ -741,9 +1030,15 @@ export default function Services() {
                               onClick={() => handleToggle(svc)}
                               className="flex-1 h-7 flex items-center justify-center gap-1 bg-slate-50 hover:bg-emerald-50 hover:text-emerald-600 text-slate-400 rounded-lg transition-all border border-slate-200 hover:border-emerald-200 text-[9px] font-black uppercase"
                             >
-                              {svc.is_active
-                                ? <><ToggleRight size={11} /> Ativo</>
-                                : <><ToggleLeft size={11} /> Inativo</>}
+                              {svc.is_active ? (
+                                <>
+                                  <ToggleRight size={11} /> Ativo
+                                </>
+                              ) : (
+                                <>
+                                  <ToggleLeft size={11} /> Inativo
+                                </>
+                              )}
                             </button>
                             <button
                               onClick={() => openEdit(svc)}
@@ -774,7 +1069,9 @@ export default function Services() {
             className="w-full bg-white border-2 border-dashed border-slate-200 rounded-2xl p-4 hover:border-blue-400 hover:bg-blue-50/30 transition-all flex items-center justify-center gap-2 text-slate-400 hover:text-blue-600 h-16"
           >
             <Plus size={18} strokeWidth={1.5} />
-            <span className="text-[10px] font-black uppercase tracking-widest">Novo Serviço</span>
+            <span className="text-[10px] font-black uppercase tracking-widest">
+              Novo Serviço
+            </span>
           </motion.button>
         </div>
       )}
@@ -785,32 +1082,53 @@ export default function Services() {
         onClose={closeModal}
         title={editing ? "Editar Serviço" : "Novo Serviço"}
         subtitle={editing ? editing.name : "Preencha os dados do serviço"}
-        size="md"
+        size="xl"
         footer={
           <>
-            <Button variant="secondary" onClick={closeModal}>Cancelar</Button>
-            <Button form="service-form" type="submit" loading={saving} icon={<Save size={13} />}>
+            <Button variant="secondary" onClick={closeModal}>
+              Cancelar
+            </Button>
+            <Button
+              form="service-form"
+              type="submit"
+              loading={saving}
+              icon={<Save size={13} />}
+            >
               {editing ? "Salvar" : "Cadastrar"}
             </Button>
           </>
         }
       >
-        <form id="service-form" onSubmit={handleSave} className="space-y-5">
+        <form id="service-form" onSubmit={handleSave} className="space-y-6">
           {/* Identificação: imagem + nome/categoria lado a lado */}
-          <div className="flex gap-3">
+          <div className="grid gap-5 lg:grid-cols-[150px_minmax(0,1fr)] lg:items-start">
             <input
               ref={fileInputRef}
               type="file"
               accept="image/jpeg,image/png"
               className="hidden"
-              onChange={(e) => { const f = e.target.files?.[0]; if (f) handleImageFile(f); e.target.value = ""; }}
+              onChange={(e) => {
+                const f = e.target.files?.[0];
+                if (f) handleImageFile(f);
+                e.target.value = "";
+              }}
             />
             {imagePreview ? (
-              <div data-tour="service-form-image" className="relative w-20 h-20 rounded-2xl overflow-hidden border border-slate-200 bg-slate-50 shrink-0">
-                <img src={imagePreview} alt="preview" className="w-full h-full object-cover" />
+              <div
+                data-tour="service-form-image"
+                className="relative h-32 w-full max-w-[150px] overflow-hidden rounded-2xl border border-slate-200 bg-slate-50"
+              >
+                <img
+                  src={imagePreview}
+                  alt="preview"
+                  className="w-full h-full object-cover"
+                />
                 <button
                   type="button"
-                  onClick={() => { setImagePreview(""); setForm((f) => ({ ...f, image_url: "" })); }}
+                  onClick={() => {
+                    setImagePreview("");
+                    setForm((f) => ({ ...f, image_url: "" }));
+                  }}
                   className="absolute top-1 right-1 w-5 h-5 bg-white/90 rounded-full flex items-center justify-center text-slate-500 hover:text-red-500 shadow-sm border border-slate-200"
                 >
                   <X size={10} />
@@ -823,15 +1141,20 @@ export default function Services() {
                 disabled={uploadingImg}
                 onClick={() => fileInputRef.current?.click()}
                 title="JPG ou PNG, máx. 2 MB"
-                className="w-20 h-20 shrink-0 border-2 border-dashed border-slate-200 rounded-2xl flex flex-col items-center justify-center gap-1 text-slate-300 hover:border-blue-400 hover:text-blue-500 hover:bg-blue-50/30 transition-all disabled:opacity-50"
+                className="h-32 w-full max-w-[150px] border-2 border-dashed border-slate-200 rounded-2xl flex flex-col items-center justify-center gap-2 text-slate-300 hover:border-blue-400 hover:text-blue-500 hover:bg-blue-50/30 transition-all disabled:opacity-50"
               >
-                {uploadingImg ? <span className="text-[8px] font-bold">Enviando</span> : <Upload size={16} strokeWidth={1.5} />}
+                {uploadingImg ? (
+                  <span className="text-[8px] font-bold">Enviando</span>
+                ) : (
+                  <Upload size={16} strokeWidth={1.5} />
+                )}
               </button>
             )}
 
-            <div className="flex-1 min-w-0 space-y-3">
+            <div className="grid min-w-0 grid-cols-1 gap-4 sm:grid-cols-2">
               <Input
                 data-tour="service-form-name"
+                className="sm:col-span-2"
                 label="Nome do Serviço *"
                 required
                 autoFocus
@@ -839,7 +1162,7 @@ export default function Services() {
                 value={form.name}
                 onChange={(e) => setForm({ ...form, name: e.target.value })}
               />
-              <div className="flex gap-2 items-end">
+              <div className="flex gap-2 items-end sm:col-span-2">
                 <div className="flex-1 min-w-0">
                   <Combobox
                     label="Categoria"
@@ -847,14 +1170,21 @@ export default function Services() {
                     searchPlaceholder="Buscar categoria..."
                     clearable
                     options={allCategoryOptions}
-                    value={form.category_id != null ? String(form.category_id) : ""}
-                    onChange={(v) => setForm({ ...form, category_id: v ? Number(v) : null })}
+                    value={
+                      form.category_id != null ? String(form.category_id) : ""
+                    }
+                    onChange={(v) =>
+                      setForm({ ...form, category_id: v ? Number(v) : null })
+                    }
                   />
                 </div>
                 <button
                   type="button"
                   title="Nova categoria"
-                  onClick={() => { openNewCategory(); setShowManageCategories(true); }}
+                  onClick={() => {
+                    openNewCategory();
+                    setShowManageCategories(true);
+                  }}
                   className="h-10 w-10 shrink-0 flex items-center justify-center rounded-xl border border-slate-200 text-slate-400 hover:text-blue-600 hover:border-blue-300 hover:bg-blue-50 transition-all"
                 >
                   <Plus size={16} />
@@ -870,17 +1200,31 @@ export default function Services() {
           )}
 
           {/* Precificação */}
-          <div data-tour="service-form-pricing" className="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-3">
-            <div className="flex items-center justify-between">
-              <label className="text-[10px] font-black text-slate-600 uppercase tracking-wider">Como este serviço é cobrado</label>
-              <div className="flex bg-white rounded-lg border border-slate-200 p-0.5">
+          <div
+            data-tour="service-form-pricing"
+            className="rounded-2xl border border-slate-200 bg-slate-50 p-5 space-y-4"
+          >
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <label className="text-[10px] font-black text-slate-600 uppercase tracking-wider">
+                  Como este serviço é cobrado
+                </label>
+                <p className="mt-1 text-[11px] text-slate-400">
+                  Defina o valor fixo ou a cobrança por medida.
+                </p>
+              </div>
+              <div className="grid grid-cols-3 bg-white rounded-xl border border-slate-200 p-1">
                 {SALE_UNIT_OPTIONS.map((opt) => (
                   <button
                     key={opt.value}
                     type="button"
-                    onClick={() => setForm((f) => ({ ...f, sale_unit: opt.value }))}
-                    className={`px-2.5 h-7 rounded-md text-[10px] font-bold transition-all ${
-                      form.sale_unit === opt.value ? "bg-blue-600 text-white" : "text-slate-500 hover:bg-slate-100"
+                    onClick={() =>
+                      setForm((f) => ({ ...f, sale_unit: opt.value }))
+                    }
+                    className={`min-h-9 px-3 rounded-lg text-[10px] font-bold transition-all ${
+                      form.sale_unit === opt.value
+                        ? "bg-blue-600 text-white"
+                        : "text-slate-500 hover:bg-slate-100"
                     }`}
                   >
                     {opt.label}
@@ -892,16 +1236,25 @@ export default function Services() {
             {!isMeasuredForm ? (
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-[10px] font-black text-slate-600 uppercase tracking-wider mb-1.5">Preço *</label>
+                  <label className="block text-[10px] font-black text-slate-600 uppercase tracking-wider mb-1.5">
+                    Preço *
+                  </label>
                   <div className="relative">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-[11px] font-bold pointer-events-none select-none">R$</span>
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-[11px] font-bold pointer-events-none select-none">
+                      R$
+                    </span>
                     <input
                       required
                       inputMode="numeric"
                       placeholder="0,00"
                       className="w-full pl-9 pr-4 h-10 text-sm border border-slate-200 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400 transition-all text-slate-800 font-mono"
                       value={form.price}
-                      onChange={(e) => setForm({ ...form, price: applyMoneyMask(e.target.value) })}
+                      onChange={(e) =>
+                        setForm({
+                          ...form,
+                          price: applyMoneyMask(e.target.value),
+                        })
+                      }
                     />
                   </div>
                 </div>
@@ -921,14 +1274,21 @@ export default function Services() {
                     Preço / {form.sale_unit === "m2" ? "m²" : "metro linear"} *
                   </label>
                   <div className="relative">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-[11px] font-bold pointer-events-none select-none">R$</span>
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-[11px] font-bold pointer-events-none select-none">
+                      R$
+                    </span>
                     <input
                       required
                       inputMode="numeric"
                       placeholder="0,00"
                       className="w-full pl-9 pr-4 h-10 text-sm border border-slate-200 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400 transition-all text-slate-800 font-mono"
                       value={form.price_per_measure}
-                      onChange={(e) => setForm({ ...form, price_per_measure: applyMoneyMask(e.target.value) })}
+                      onChange={(e) =>
+                        setForm({
+                          ...form,
+                          price_per_measure: applyMoneyMask(e.target.value),
+                        })
+                      }
                     />
                   </div>
                 </div>
@@ -937,11 +1297,18 @@ export default function Services() {
                     Mínimo faturável ({form.sale_unit === "m2" ? "m²" : "m"})
                   </label>
                   <input
-                    type="number" min="0" step="0.01"
+                    type="number"
+                    min="0"
+                    step="0.01"
                     placeholder="Opcional"
                     className="w-full px-3 h-10 text-sm border border-slate-200 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400 transition-all text-slate-800 font-mono"
                     value={form.min_billable_quantity}
-                    onChange={(e) => setForm({ ...form, min_billable_quantity: e.target.value })}
+                    onChange={(e) =>
+                      setForm({
+                        ...form,
+                        min_billable_quantity: e.target.value,
+                      })
+                    }
                   />
                 </div>
               </div>
@@ -949,9 +1316,14 @@ export default function Services() {
 
             {!isMeasuredForm && parseMaskedPrice(form.price) > 0 && (
               <div className="flex items-center gap-2 flex-wrap">
-                <span className="text-[9px] font-black uppercase tracking-widest text-slate-400">Exemplos:</span>
+                <span className="text-[9px] font-black uppercase tracking-widest text-slate-400">
+                  Exemplos:
+                </span>
                 {[2, 5, 10, 50].map((qty) => (
-                  <span key={qty} className="text-[9px] font-mono font-black text-blue-600 bg-blue-100 px-1.5 py-0.5 rounded-md">
+                  <span
+                    key={qty}
+                    className="text-[9px] font-mono font-black text-blue-600 bg-blue-100 px-1.5 py-0.5 rounded-md"
+                  >
                     {qty}× = {fmt(parseMaskedPrice(form.price) * qty)}
                   </span>
                 ))}
@@ -959,10 +1331,25 @@ export default function Services() {
             )}
             {isMeasuredForm && parseMaskedPrice(form.price_per_measure) > 0 && (
               <div className="flex items-center gap-2 flex-wrap">
-                <span className="text-[9px] font-black uppercase tracking-widest text-slate-400">Exemplo:</span>
-                <span className="text-[9px] font-mono font-black text-blue-600 bg-blue-100 px-1.5 py-0.5 rounded-md">
-                  1,20{form.sale_unit === "m2" ? "m × 2,00m" : "m"} = {fmt(parseMaskedPrice(form.price_per_measure) * (form.sale_unit === "m2" ? 2.4 : 1.2))}
+                <span className="text-[9px] font-black uppercase tracking-widest text-slate-400">
+                  Simulação:
                 </span>
+                {form.sale_unit === "linear" ? (
+                  [0.5, 1, 2].map((meters) => (
+                    <span
+                      key={meters}
+                      className="text-[9px] font-mono font-black text-blue-600 bg-blue-100 px-1.5 py-0.5 rounded-md"
+                    >
+                      {meters === 0.5 ? "50 cm" : `${meters} m`} ={" "}
+                      {fmt(parseMaskedPrice(form.price_per_measure) * meters)}
+                    </span>
+                  ))
+                ) : (
+                  <span className="text-[9px] font-mono font-black text-blue-600 bg-blue-100 px-1.5 py-0.5 rounded-md">
+                    1,20 m × 2,00 m ={" "}
+                    {fmt(parseMaskedPrice(form.price_per_measure) * 2.4)}
+                  </span>
+                )}
               </div>
             )}
           </div>
@@ -978,15 +1365,19 @@ export default function Services() {
 
           {/* Ativo */}
           <div className="flex items-center justify-between bg-slate-50 border border-slate-200 rounded-xl px-4 h-11">
-            <span className="text-[11px] font-bold text-slate-600">Serviço Ativo</span>
+            <span className="text-[11px] font-bold text-slate-600">
+              Serviço Ativo
+            </span>
             <button
               type="button"
               onClick={() => setForm({ ...form, is_active: !form.is_active })}
               className="transition-colors"
             >
-              {form.is_active
-                ? <ToggleRight size={22} className="text-emerald-500" />
-                : <ToggleLeft size={22} className="text-slate-400" />}
+              {form.is_active ? (
+                <ToggleRight size={22} className="text-emerald-500" />
+              ) : (
+                <ToggleLeft size={22} className="text-slate-400" />
+              )}
             </button>
           </div>
         </form>
@@ -1001,8 +1392,15 @@ export default function Services() {
         size="sm"
         footer={
           <>
-            <Button variant="secondary" onClick={() => setDeleteTarget(null)}>Cancelar</Button>
-            <Button variant="danger" loading={deleting} icon={<Trash2 size={13} />} onClick={handleDelete}>
+            <Button variant="secondary" onClick={() => setDeleteTarget(null)}>
+              Cancelar
+            </Button>
+            <Button
+              variant="danger"
+              loading={deleting}
+              icon={<Trash2 size={13} />}
+              onClick={handleDelete}
+            >
               Excluir
             </Button>
           </>
@@ -1014,10 +1412,12 @@ export default function Services() {
           </div>
           <div>
             <p className="text-sm font-semibold text-slate-800">
-              Excluir <span className="text-red-600">"{deleteTarget?.name}"</span>?
+              Excluir{" "}
+              <span className="text-red-600">"{deleteTarget?.name}"</span>?
             </p>
             <p className="text-xs text-slate-500 mt-1">
-              Este serviço será removido permanentemente do sistema e não poderá mais ser usado no PDV.
+              Este serviço será removido permanentemente do sistema e não poderá
+              mais ser usado no PDV.
             </p>
           </div>
         </div>
@@ -1026,14 +1426,20 @@ export default function Services() {
       {/* ── Modal Gerenciar Categorias (integrado à tela de Serviços) ── */}
       <Modal
         open={showManageCategories}
-        onClose={() => { setShowManageCategories(false); setCatDeleteTarget(null); }}
+        onClose={() => {
+          setShowManageCategories(false);
+          setCatDeleteTarget(null);
+        }}
         title="Gerenciar Categorias"
         subtitle="Categorias de serviço desta loja"
         size="md"
       >
         <div className="space-y-5">
           {/* Mini-formulário de criar/editar */}
-          <form onSubmit={handleSaveCategory} className="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-3">
+          <form
+            onSubmit={handleSaveCategory}
+            className="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-3"
+          >
             <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">
               {catEditing ? `Editando "${catEditing.name}"` : "Nova categoria"}
             </p>
@@ -1041,20 +1447,28 @@ export default function Services() {
               <input
                 autoFocus
                 value={catForm.name}
-                onChange={(e) => setCatForm((f) => ({ ...f, name: e.target.value }))}
+                onChange={(e) =>
+                  setCatForm((f) => ({ ...f, name: e.target.value }))
+                }
                 placeholder="Nome da categoria (ex: Vidros, Instalação...)"
                 className="flex-1 h-10 px-3 rounded-xl border border-slate-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400"
               />
               {catEditing && (
-                <button type="button" onClick={openNewCategory} title="Cancelar edição"
-                  className="h-10 w-10 shrink-0 flex items-center justify-center rounded-xl border border-slate-200 text-slate-400 hover:text-slate-600 hover:bg-white transition-all">
+                <button
+                  type="button"
+                  onClick={openNewCategory}
+                  title="Cancelar edição"
+                  className="h-10 w-10 shrink-0 flex items-center justify-center rounded-xl border border-slate-200 text-slate-400 hover:text-slate-600 hover:bg-white transition-all"
+                >
                   <X size={14} />
                 </button>
               )}
             </div>
 
             <div>
-              <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-1.5">Ícone</p>
+              <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-1.5">
+                Ícone
+              </p>
               <div className="grid grid-cols-6 gap-1.5">
                 {SERVICE_ICON_OPTIONS.map(({ value, Icon }) => (
                   <button
@@ -1062,7 +1476,9 @@ export default function Services() {
                     key={value}
                     onClick={() => setCatForm((f) => ({ ...f, icon: value }))}
                     className={`h-9 rounded-lg border flex items-center justify-center transition-all ${
-                      catForm.icon === value ? "border-blue-500 bg-blue-50 text-blue-600" : "border-slate-200 bg-white text-slate-500 hover:border-blue-200"
+                      catForm.icon === value
+                        ? "border-blue-500 bg-blue-50 text-blue-600"
+                        : "border-slate-200 bg-white text-slate-500 hover:border-blue-200"
                     }`}
                   >
                     <Icon size={14} />
@@ -1072,7 +1488,9 @@ export default function Services() {
             </div>
 
             <div>
-              <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-1.5">Cor</p>
+              <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-1.5">
+                Cor
+              </p>
               <div className="flex gap-1.5 items-center">
                 {SERVICE_CATEGORY_COLORS.map((color) => (
                   <button
@@ -1085,12 +1503,25 @@ export default function Services() {
                   />
                 ))}
                 <label className="w-7 h-7 rounded-full border border-slate-200 overflow-hidden cursor-pointer shrink-0">
-                  <input type="color" value={catForm.color} onChange={(e) => setCatForm((f) => ({ ...f, color: e.target.value }))} className="w-9 h-9 -m-1 cursor-pointer" />
+                  <input
+                    type="color"
+                    value={catForm.color}
+                    onChange={(e) =>
+                      setCatForm((f) => ({ ...f, color: e.target.value }))
+                    }
+                    className="w-9 h-9 -m-1 cursor-pointer"
+                  />
                 </label>
               </div>
             </div>
 
-            <Button type="submit" size="sm" loading={savingCategory} icon={<Save size={12} />} disabled={!catForm.name.trim()}>
+            <Button
+              type="submit"
+              size="sm"
+              loading={savingCategory}
+              icon={<Save size={12} />}
+              disabled={!catForm.name.trim()}
+            >
               {catEditing ? "Salvar alterações" : "Criar categoria"}
             </Button>
           </form>
@@ -1098,28 +1529,49 @@ export default function Services() {
           {/* Lista de categorias existentes */}
           <div className="space-y-1.5 max-h-64 overflow-y-auto">
             {categories.length === 0 ? (
-              <p className="text-center text-xs text-slate-400 py-6">Nenhuma categoria criada ainda.</p>
-            ) : categories.map((c) => {
-              const Icon = getCategoryIcon(c.icon);
-              const color = c.color || "#2563eb";
-              return (
-                <div key={c.id} className="flex items-center gap-3 px-3 py-2 rounded-xl border border-slate-200 bg-white">
-                  <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0" style={{ background: `${color}1a`, color }}>
-                    <Icon size={14} />
+              <p className="text-center text-xs text-slate-400 py-6">
+                Nenhuma categoria criada ainda.
+              </p>
+            ) : (
+              categories.map((c) => {
+                const Icon = getCategoryIcon(c.icon);
+                const color = c.color || "#2563eb";
+                return (
+                  <div
+                    key={c.id}
+                    className="flex items-center gap-3 px-3 py-2 rounded-xl border border-slate-200 bg-white"
+                  >
+                    <div
+                      className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0"
+                      style={{ background: `${color}1a`, color }}
+                    >
+                      <Icon size={14} />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-bold text-slate-800 truncate">
+                        {c.name}
+                      </p>
+                      <p className="text-[10px] text-slate-400">
+                        {c._count?.services ?? 0} serviço
+                        {(c._count?.services ?? 0) !== 1 ? "s" : ""}
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => openEditCategory(c)}
+                      className="w-7 h-7 flex items-center justify-center rounded-lg text-slate-400 hover:bg-blue-50 hover:text-blue-600 transition-all"
+                    >
+                      <Edit2 size={12} />
+                    </button>
+                    <button
+                      onClick={() => setCatDeleteTarget(c)}
+                      className="w-7 h-7 flex items-center justify-center rounded-lg text-slate-400 hover:bg-rose-50 hover:text-rose-600 transition-all"
+                    >
+                      <Trash2 size={12} />
+                    </button>
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-xs font-bold text-slate-800 truncate">{c.name}</p>
-                    <p className="text-[10px] text-slate-400">{c._count?.services ?? 0} serviço{(c._count?.services ?? 0) !== 1 ? "s" : ""}</p>
-                  </div>
-                  <button onClick={() => openEditCategory(c)} className="w-7 h-7 flex items-center justify-center rounded-lg text-slate-400 hover:bg-blue-50 hover:text-blue-600 transition-all">
-                    <Edit2 size={12} />
-                  </button>
-                  <button onClick={() => setCatDeleteTarget(c)} className="w-7 h-7 flex items-center justify-center rounded-lg text-slate-400 hover:bg-rose-50 hover:text-rose-600 transition-all">
-                    <Trash2 size={12} />
-                  </button>
-                </div>
-              );
-            })}
+                );
+              })
+            )}
           </div>
         </div>
       </Modal>
@@ -1133,8 +1585,17 @@ export default function Services() {
         size="sm"
         footer={
           <>
-            <Button variant="secondary" onClick={() => setCatDeleteTarget(null)}>Cancelar</Button>
-            <Button variant="danger" icon={<Trash2 size={13} />} onClick={handleDeleteCategory}>
+            <Button
+              variant="secondary"
+              onClick={() => setCatDeleteTarget(null)}
+            >
+              Cancelar
+            </Button>
+            <Button
+              variant="danger"
+              icon={<Trash2 size={13} />}
+              onClick={handleDeleteCategory}
+            >
               Excluir
             </Button>
           </>
@@ -1146,10 +1607,12 @@ export default function Services() {
           </div>
           <div>
             <p className="text-sm font-semibold text-slate-800">
-              Excluir <span className="text-red-600">"{catDeleteTarget?.name}"</span>?
+              Excluir{" "}
+              <span className="text-red-600">"{catDeleteTarget?.name}"</span>?
             </p>
             <p className="text-xs text-slate-500 mt-1">
-              Serviços vinculados a esta categoria ficarão sem categoria — eles não são excluídos.
+              Serviços vinculados a esta categoria ficarão sem categoria — eles
+              não são excluídos.
             </p>
           </div>
         </div>
