@@ -295,32 +295,14 @@ function SaveButton({
 
 const NAV = [
   {
-    group: "Loja Pública",
-    desc: "Visível para os seus clientes",
-    color: "text-blue-600",
-    items: [
-      { id: "identity", icon: Store, label: "Identidade & Dados" },
-      { id: "design", icon: Palette, label: "Design e Modelos" },
-      { id: "social", icon: Share2, label: "Canais Sociais" },
-      { id: "hours", icon: Clock, label: "Horário de Funcionamento" },
-      { id: "payments", icon: CreditCard, label: "Pagamentos & Políticas" },
-      { id: "card_fees", icon: Landmark, label: "Maquininha & Taxas" },
-      { id: "crediario", icon: Percent, label: "Crediário & Juros" },
-      { id: "warranty", icon: FileCheck, label: "Termos de Garantia" },
-      {
-        id: "service_checklists",
-        icon: ClipboardList,
-        label: "Checklists de OS",
-      },
-      { id: "fiscal", icon: FileCheck, label: "Dados Fiscais" },
-    ],
-  },
-  {
     group: "Sistema",
     desc: "Configurações do painel admin",
     color: "text-slate-400",
     items: [
       { id: "terminal", icon: Terminal, label: "Maquininha (API)" },
+      { id: "card_fees", icon: Landmark, label: "Maquininha & Taxas" },
+      { id: "crediario", icon: Percent, label: "Crediário & Juros" },
+      { id: "service_checklists", icon: ClipboardList, label: "Checklists de OS" },
       { id: "cash_session", icon: Wallet, label: "Controle de Caixa" },
       { id: "preferences", icon: Settings2, label: "Preferências do Painel" },
       { id: "security", icon: Shield, label: "Segurança" },
@@ -330,6 +312,17 @@ const NAV = [
       { id: "email_reports", icon: Mail, label: "Relatórios por Email" },
     ],
   },
+];
+
+const STORE_CONFIGURATION_ITEMS = [
+  { id: "identity", icon: Store, label: "Identidade & Dados" },
+  { id: "design", icon: Palette, label: "Layout, Tema & Modelos" },
+  { id: "storefront", icon: ShoppingCart, label: "Checkout, Entrega & Integrações" },
+  { id: "social", icon: Share2, label: "Canais Sociais" },
+  { id: "hours", icon: Clock, label: "Horários da Loja" },
+  { id: "payments", icon: CreditCard, label: "Pagamentos & Políticas" },
+  { id: "warranty", icon: FileCheck, label: "Termos de Garantia" },
+  { id: "fiscal", icon: FileCheck, label: "Dados Fiscais" },
 ];
 
 const SETTING_META: Record<
@@ -1167,7 +1160,7 @@ export default function Settings({ storeMode = false }: { storeMode?: boolean })
 
   // tab ativa sincronizada com ?tab=xxx na URL — ausente = mostra a grade de seções
   const requestedTab = searchParams.get("tab");
-  const storeTabs = ["identity", "design", "storefront", "social", "hours", "payments"];
+  const storeTabs = STORE_CONFIGURATION_ITEMS.map((item) => item.id);
   const active = storeMode
     ? (storeTabs.includes(requestedTab || "") ? requestedTab : "storefront")
     : requestedTab;
@@ -1200,8 +1193,8 @@ export default function Settings({ storeMode = false }: { storeMode?: boolean })
   }, [navigate, setSearchParams, storeMode]);
 
   useEffect(() => {
-    if (!storeMode && requestedTab === "storefront") {
-      navigate("/admin/minha-loja/configurar?tab=storefront", { replace: true });
+    if (!storeMode && STORE_CONFIGURATION_ITEMS.some((item) => item.id === requestedTab)) {
+      navigate(`/admin/minha-loja/configurar?tab=${requestedTab}`, { replace: true });
     }
   }, [navigate, requestedTab, storeMode]);
 
@@ -2213,9 +2206,7 @@ export default function Settings({ storeMode = false }: { storeMode?: boolean })
 
   // find active item label
   const allItems = NAV.flatMap((g) => g.items);
-  const activeItem = allItems.find((i) => i.id === active) || (
-    active === "storefront" ? { label: "Loja Online & Checkout" } : undefined
-  );
+  const activeItem = allItems.find((i) => i.id === active) || STORE_CONFIGURATION_ITEMS.find((item) => item.id === active);
 
   return (
     <div className="space-y-6">
@@ -2327,6 +2318,22 @@ export default function Settings({ storeMode = false }: { storeMode?: boolean })
           </div>
 
           <div className="p-4 sm:p-6 lg:p-8">
+            {storeMode && (
+              <div className="mb-7 flex gap-2 overflow-x-auto border-b border-slate-100 pb-4">
+                {STORE_CONFIGURATION_ITEMS.map((item) => (
+                  <button
+                    key={item.id}
+                    onClick={() => setActive(item.id)}
+                    className={cn(
+                      "flex h-9 shrink-0 items-center gap-2 rounded-lg px-3 text-[10px] font-black uppercase tracking-wider transition",
+                      active === item.id ? "bg-blue-600 text-white shadow-sm" : "bg-slate-50 text-slate-500 hover:bg-slate-100",
+                    )}
+                  >
+                    <item.icon size={13} /> {item.label}
+                  </button>
+                ))}
+              </div>
+            )}
             {/* ── Identidade & Dados ──────────────────────────────────── */}
             {active === "identity" && (
               <div className="space-y-8">
