@@ -3777,6 +3777,13 @@ export default function Settings({ storeMode = false }: { storeMode?: boolean })
                     badge: "Disponível agora",
                   },
                   {
+                    id: "order_request" as const,
+                    title: "Encomendas sem estoque",
+                    description:
+                      "Ideal para fábrica e doceria: registra a solicitação, gera PDF, avisa por e-mail e abre o WhatsApp para confirmação.",
+                    badge: "Para produção sob demanda",
+                  },
+                  {
                     id: "online" as const,
                     title: "Pagamento online",
                     description:
@@ -3790,7 +3797,7 @@ export default function Settings({ storeMode = false }: { storeMode?: boolean })
                       title="Loja Online & Checkout"
                       subtitle="Defina como cada cliente conclui o pedido no carrinho da sua loja."
                     />
-                    <div className="grid gap-3 lg:grid-cols-3">
+                    <div className="grid gap-3 lg:grid-cols-4">
                       {modes.map((mode) => (
                         <button
                           key={mode.id}
@@ -3843,6 +3850,18 @@ export default function Settings({ storeMode = false }: { storeMode?: boolean })
                             className="h-11 w-32 rounded-xl border border-amber-200 bg-white px-3 text-xs font-bold outline-none focus:border-amber-500"
                           />
                         </Field>
+                      </div>
+                    )}
+                    {storefront.checkout_mode === "order_request" && (
+                      <div className="rounded-2xl border border-pink-200 bg-pink-50 p-5">
+                        <p className="text-xs font-black text-pink-950">Automação da solicitação de encomenda</p>
+                        <p className="mt-1 text-[11px] leading-relaxed text-pink-800">Não baixa nem exige estoque. Ao enviar, a fábrica recebe um PDF com os itens e o cliente é levado ao WhatsApp com o número do pedido para confirmar prazo e produção.</p>
+                        <div className="mt-4 grid gap-4 md:grid-cols-2">
+                          <Field label="E-mails que recebem os pedidos em PDF" hint="Separe vários e-mails por vírgula. A BoxSys faz o envio institucional, sem precisar conectar SMTP da loja.">
+                            <TextInput value={storefront.order_notification_emails || ""} onChange={(value) => setStorefront({ order_notification_emails: value.toLowerCase() })} placeholder="producao@sualoja.com.br, pedidos@sualoja.com.br" />
+                          </Field>
+                          <div className="rounded-xl border border-pink-100 bg-white p-4 text-[11px] leading-relaxed text-slate-600"><strong className="block text-slate-800">Fluxo automático</strong><span className="mt-1 block">1. Cliente seleciona os itens.<br />2. Pedido é registrado sem mexer no estoque.<br />3. PDF chega no e-mail da fábrica.<br />4. WhatsApp abre com o pedido numerado.</span></div>
+                        </div>
                       </div>
                     )}
                     <div className="rounded-2xl border border-slate-200 bg-white p-5 space-y-4">

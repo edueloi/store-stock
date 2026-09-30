@@ -139,3 +139,16 @@ export async function sendReportEmail(to: string[], subject: string, html: strin
     html,
   });
 }
+
+/** Envio institucional da BoxSys para automações das lojas, inclusive com PDF. */
+export async function sendPlatformEmail(message: {
+  to: string | string[];
+  subject: string;
+  html: string;
+  attachments?: { filename: string; content: Buffer; contentType?: string }[];
+}) {
+  await transporter.sendMail({
+    from: `"BoxSys Store" <${env.smtpUser}>`,
+    ...message,
+  });
+}

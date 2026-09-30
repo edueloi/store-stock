@@ -24,7 +24,7 @@ export interface StorePolicies {
   warranty_clauses?: string[];
   service_order_checklists?: Record<string, { label: string }[]>;
   storefront?: {
-    checkout_mode?: "whatsapp" | "reservation" | "online";
+    checkout_mode?: "whatsapp" | "reservation" | "online" | "order_request";
     reservation_minutes?: number;
     shipping_status?: "disabled" | "coming_soon" | "enabled";
     payment_status?: "disabled" | "coming_soon" | "enabled";
@@ -33,6 +33,8 @@ export interface StorePolicies {
     home_categories_title?: string;
     home_featured_title?: string;
     show_whatsapp_widget?: boolean;
+    /** E-mails da fábrica/equipe que recebem o PDF das solicitações de encomenda. */
+    order_notification_emails?: string;
     /** Meios manuais e provedores habilitados na vitrine; nenhum token fica aqui. */
     checkout_payment_methods?: {
       pix?: boolean;

@@ -15,6 +15,7 @@ import { getVariationImages } from "../../../../utils/variationImages";
 export default function StoreProduct() {
   const { slug: routeSlug, productId } = useParams();
   const { products, categories, addToCart, style, openCart, tenant } = useStore();
+  const isMadeToOrder = tenant.policies?.storefront?.checkout_mode === "order_request";
   const slug = resolveStoreSlug(routeSlug);
 
   const product = products.find(p => p.id === parseProductIdFromRoute(productId));
@@ -105,7 +106,7 @@ export default function StoreProduct() {
     const opt = v.options.find(o => o.value === selectedOptions[v.name]);
     return opt?.stock ?? 0;
   });
-  const minStock = product && product.sale_unit && product.sale_unit !== "unidade"
+  const minStock = isMadeToOrder ? 999 : product && product.sale_unit && product.sale_unit !== "unidade"
     ? 99
     : selectedStocks.length > 0
     ? (allVariationsSelected ? Math.min(...selectedStocks) : 99)
@@ -395,7 +396,7 @@ export default function StoreProduct() {
                       <div className="flex flex-wrap gap-2">
                         {v.options.map((opt, oi) => {
                           const isSelected = selectedOptions[v.name] === opt.value;
-                          const outOfStock = opt.stock === 0;
+                          const outOfStock = !isMadeToOrder && opt.stock === 0;
                           if (isColor) {
                             const COMMON_COLORS: Record<string, string> = {
                               vermelho: "#e53e3e", red: "#e53e3e", azul: "#3182ce", blue: "#3182ce",

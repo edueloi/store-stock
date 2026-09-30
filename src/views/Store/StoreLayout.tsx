@@ -282,7 +282,7 @@ function StoreLayoutInner() {
     payment_methods: Record<string, boolean>;
     delivery: { pickup_available: boolean; delivery_available: boolean; delivery_fee: number | null; delivery_zone: string | null };
   } | null>(null);
-  const [checkoutForm, setCheckoutForm] = useState({ name: "", phone: "", document: "", cep: "", address: "", deliveryType: "pickup" as "pickup" | "delivery", paymentMethod: "pix" });
+  const [checkoutForm, setCheckoutForm] = useState({ name: "", phone: "", email: "", document: "", cep: "", address: "", deliveryType: "pickup" as "pickup" | "delivery", paymentMethod: "pix" });
   const megaMenuCloseTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const navigate = useNavigate();
   const storeSlug = resolveStoreSlug(routeSlug);
@@ -410,6 +410,7 @@ function StoreLayoutInner() {
   const cartCount = cart.reduce((acc, i) => acc + i.quantity, 0);
   const storefront = storeData?.tenant.policies?.storefront || {};
   const checkoutMode = storefront.checkout_mode || "whatsapp";
+  const isOrderRequest = checkoutMode === "order_request";
 
   const handleWhatsAppCheckout = () => {
     const lines = cart.map((i) => {
@@ -531,6 +532,33 @@ function StoreLayoutInner() {
       setCheckoutMessage(`Pedido #${data.orderId} recebido. A loja confirmará o pagamento e a entrega.`);
     } catch (error) {
       setCheckoutMessage(error instanceof Error ? error.message : "Não foi possível criar o pedido.");
+    } finally {
+      setCheckoutLoading(false);
+    }
+  };
+
+  const handleOrderRequest = async () => {
+    if (!storeData || checkoutLoading) return;
+    setCheckoutLoading(true);
+    setCheckoutMessage(null);
+    try {
+      const response = await fetch("/api/public/order-request", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          tenantId: storeData.tenant.id,
+          items: cart.map((item) => ({ id: item.id, quantity: item.quantity })),
+          customerInfo: { name: checkoutForm.name, phone: checkoutForm.phone, email: checkoutForm.email },
+        }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Não foi possível enviar a solicitação.");
+      setCart([]);
+      setCheckoutOpen(false);
+      setCheckoutMessage(`Solicitação #${String(data.orderId).padStart(6, "0")} registrada. Vamos abrir o WhatsApp para confirmar prazo e produção.`);
+      if (data.whatsapp_url) window.open(data.whatsapp_url, "_blank", "noopener,noreferrer");
+    } catch (error) {
+      setCheckoutMessage(error instanceof Error ? error.message : "Não foi possível enviar a solicitação.");
     } finally {
       setCheckoutLoading(false);
     }
@@ -1635,15 +1663,18 @@ function StoreLayoutInner() {
                   )}
                   {checkoutOpen && cart.length > 0 && (
                     <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm space-y-3">
-                      <div className="flex items-center justify-between"><div><p className="text-xs font-black text-slate-900">Dados para fechar o pedido</p><p className="text-[10px] text-slate-500">A loja confirmará pagamento e entrega.</p></div><button onClick={() => setCheckoutOpen(false)} className="text-slate-400 hover:text-slate-700"><X size={16} /></button></div>
+                      <div className="flex items-center justify-between"><div><p className="text-xs font-black text-slate-900">{isOrderRequest ? "Dados da solicitação" : "Dados para fechar o pedido"}</p><p className="text-[10px] text-slate-500">{isOrderRequest ? "A fábrica confirmará prazo, produção e pagamento pelo WhatsApp." : "A loja confirmará pagamento e entrega."}</p></div><button onClick={() => setCheckoutOpen(false)} className="text-slate-400 hover:text-slate-700"><X size={16} /></button></div>
                       <div className="grid grid-cols-2 gap-2">
                         <input value={checkoutForm.name} onChange={(e) => setCheckoutForm((current) => ({ ...current, name: e.target.value }))} className="col-span-2 h-10 rounded-lg border border-slate-200 px-3 text-xs" placeholder="Seu nome *" />
                         <input value={checkoutForm.phone} onChange={(e) => setCheckoutForm((current) => ({ ...current, phone: formatStorePhone(e.target.value) }))} inputMode="tel" className="h-10 rounded-lg border border-slate-200 px-3 text-xs" placeholder="WhatsApp *" />
+                        {isOrderRequest && <input value={checkoutForm.email} onChange={(e) => setCheckoutForm((current) => ({ ...current, email: e.target.value }))} type="email" className="h-10 rounded-lg border border-slate-200 px-3 text-xs" placeholder="E-mail (opcional)" />}
+                        {!isOrderRequest && <>
                         <input value={checkoutForm.document} onBlur={lookupCompanyDocument} onChange={(e) => setCheckoutForm((current) => ({ ...current, document: formatStoreDocument(e.target.value) }))} inputMode="numeric" className="h-10 rounded-lg border border-slate-200 px-3 text-xs" placeholder="CPF ou CNPJ" />
                         <input value={checkoutForm.cep} onBlur={() => loadCheckoutOptions()} onChange={(e) => setCheckoutForm((current) => ({ ...current, cep: formatStoreCep(e.target.value) }))} inputMode="numeric" className="h-10 rounded-lg border border-slate-200 px-3 text-xs" placeholder="CEP para entrega" />
                         <input value={checkoutForm.address} onChange={(e) => setCheckoutForm((current) => ({ ...current, address: e.target.value }))} className="h-10 rounded-lg border border-slate-200 px-3 text-xs" placeholder="Endereço / referência" />
+                        </>}
                       </div>
-                      <div className="grid grid-cols-2 gap-2">
+                      {!isOrderRequest && <><div className="grid grid-cols-2 gap-2">
                         {checkoutOptions?.delivery.pickup_available && <button type="button" onClick={() => setCheckoutForm((current) => ({ ...current, deliveryType: "pickup" }))} className={cn("rounded-lg border px-3 py-2 text-[10px] font-bold", checkoutForm.deliveryType === "pickup" ? "border-blue-600 bg-blue-50 text-blue-700" : "border-slate-200 text-slate-600")}>Retirar na loja</button>}
                         {checkoutOptions?.delivery.delivery_available && <button type="button" onClick={() => setCheckoutForm((current) => ({ ...current, deliveryType: "delivery" }))} className={cn("rounded-lg border px-3 py-2 text-[10px] font-bold", checkoutForm.deliveryType === "delivery" ? "border-blue-600 bg-blue-50 text-blue-700" : "border-slate-200 text-slate-600")}>Entrega {checkoutOptions.delivery.delivery_fee ? `R$ ${Number(checkoutOptions.delivery.delivery_fee).toFixed(2)}` : "grátis"}</button>}
                       </div>
@@ -1652,7 +1683,7 @@ function StoreLayoutInner() {
                         {checkoutOptions?.payment_methods.cash_on_delivery && <option value="cash_on_delivery">Dinheiro na entrega</option>}
                         {checkoutOptions?.payment_methods.card_on_delivery && <option value="card_on_delivery">Cartão na entrega</option>}
                       </select>
-                      <button onClick={handleOnlineCheckout} disabled={checkoutLoading} style={{ backgroundColor: style.accent }} className="h-11 w-full rounded-xl text-xs font-black uppercase tracking-wider text-white disabled:opacity-60">{checkoutLoading ? "Enviando pedido..." : "Confirmar pedido"}</button>
+                      </>}<button onClick={isOrderRequest ? handleOrderRequest : handleOnlineCheckout} disabled={checkoutLoading} style={{ backgroundColor: style.accent }} className="h-11 w-full rounded-xl text-xs font-black uppercase tracking-wider text-white disabled:opacity-60">{checkoutLoading ? "Enviando solicitação..." : isOrderRequest ? "Enviar solicitação de encomenda" : "Confirmar pedido"}</button>
                     </div>
                   )}
                 </div>
@@ -1685,7 +1716,7 @@ function StoreLayoutInner() {
                                 : "text-slate-400",
                         )}
                       >
-                        {isUrban ? "Resumo do pedido" : "Total"}
+                        {isOrderRequest ? "Estimativa da encomenda" : isUrban ? "Resumo do pedido" : "Total"}
                       </p>
                       <p
                         className={cn(
@@ -1720,7 +1751,7 @@ function StoreLayoutInner() {
                       </p>
                     )}
                     <button
-                      onClick={checkoutMode === "reservation" ? handleReserveCart : checkoutMode === "online" ? openCheckout : handleWhatsAppCheckout}
+                      onClick={checkoutMode === "reservation" ? handleReserveCart : checkoutMode === "online" || isOrderRequest ? openCheckout : handleWhatsAppCheckout}
                       disabled={reservationState.loading}
                       style={
                         isUrban ? { backgroundColor: style.accent } : undefined
@@ -1743,7 +1774,7 @@ function StoreLayoutInner() {
                         ? "Reservando itens..."
                         : checkoutMode === "reservation"
                           ? "Reservar itens agora"
-                          : checkoutMode === "online" ? "Continuar para checkout" : "Fechar pedido via WhatsApp"}
+                          : checkoutMode === "online" ? "Continuar para checkout" : isOrderRequest ? "Enviar solicitação" : "Fechar pedido via WhatsApp"}
                     </button>
                     <p
                       className={cn(
@@ -1757,7 +1788,7 @@ function StoreLayoutInner() {
                     >
                       {checkoutMode === "reservation"
                         ? "Reserva de estoque segura. Frete e pagamento serão definidos com a loja."
-                        : checkoutMode === "online" ? "Informe entrega e pagamento para enviar o pedido à loja." : "Você revisa tudo com a equipe antes de confirmar o pedido."}
+                        : checkoutMode === "online" ? "Informe entrega e pagamento para enviar o pedido à loja." : isOrderRequest ? "Não reservamos nem baixamos estoque: a fábrica confirma produção e prazo após receber sua solicitação." : "Você revisa tudo com a equipe antes de confirmar o pedido."}
                     </p>
                   </div>
                 )}

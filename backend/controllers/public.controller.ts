@@ -3,6 +3,9 @@ import type { Request, Response } from "express";
 import { prisma } from "../config/prisma";
 import { decrementProductStock, returnProductStock } from "../utils/stock-adjust";
 import { getTenantAccessState } from "../utils/tenant-access";
+import { createStoreOrderPdf } from "../services/store-order-pdf.service";
+import { baseTemplate, sendPlatformEmail } from "../services/mailer.service";
+import { escapeHtml } from "../utils/html-escape";
 import {
   buildTenantAccessUrl,
   resolveTenantLookupFromRequest,
@@ -21,10 +24,11 @@ interface CheckoutOrderItem {
 
 type CepZone = { name?: string; from?: string; to?: string; fee?: number };
 type StorefrontSettings = {
-  checkout_mode?: "whatsapp" | "reservation" | "online";
+  checkout_mode?: "whatsapp" | "reservation" | "online" | "order_request";
   reservation_minutes?: number;
   checkout_payment_methods?: { pix?: boolean; cash_on_delivery?: boolean; card_on_delivery?: boolean; mercadopago?: boolean; asaas?: boolean };
   delivery?: { pickup_enabled?: boolean; delivery_enabled?: boolean; cep_zones?: CepZone[] };
+  order_notification_emails?: string;
 };
 
 function digits(value: unknown) {
@@ -239,6 +243,108 @@ export async function reserveStoreCart(req: Request, res: Response) {
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: "Não foi possível reservar os itens agora." });
+  }
+}
+
+/**
+ * Solicitação para catálogos de fabricação/encomenda. Não consulta, reserva ou
+ * baixa estoque: o catálogo representa o que a fábrica produz sob demanda.
+ */
+export async function requestStoreOrder(req: Request, res: Response) {
+  const { tenantId, items, customerInfo } = req.body as {
+    tenantId: number;
+    items: CheckoutItemInput[];
+    customerInfo: { name?: string; phone?: string; email?: string };
+  };
+  try {
+    const tenant = await prisma.tenant.findUnique({ where: { id: Number(tenantId) } });
+    if (!tenant || !getTenantAccessState(tenant).allowed) {
+      res.status(404).json({ error: "Loja não encontrada." });
+      return;
+    }
+    const settings = checkoutSettings(tenant);
+    if (settings.checkout_mode !== "order_request") {
+      res.status(400).json({ error: "Esta loja não recebe solicitações de encomenda pela vitrine." });
+      return;
+    }
+    if (!Array.isArray(items) || !items.length || !customerInfo?.name?.trim() || !customerInfo?.phone?.trim()) {
+      res.status(422).json({ error: "Informe nome, WhatsApp e os itens da solicitação." });
+      return;
+    }
+    const cleanEmail = String(customerInfo.email || "").trim().toLowerCase();
+    if (cleanEmail && !/^\S+@\S+\.\S+$/.test(cleanEmail)) {
+      res.status(422).json({ error: "Informe um e-mail válido ou deixe o campo em branco." });
+      return;
+    }
+
+    const orderItems: Array<{ product_id: number; quantity: number; unit_price: number; name: string; sku: string | null }> = [];
+    let total = 0;
+    for (const item of items) {
+      if (!Number.isInteger(item.quantity) || item.quantity < 1) {
+        res.status(422).json({ error: "A quantidade de cada item precisa ser maior que zero." });
+        return;
+      }
+      const product = await prisma.product.findFirst({ where: { id: Number(item.id), tenant_id: tenant.id, is_active: true } });
+      if (!product) {
+        res.status(409).json({ error: "Um dos itens não está mais disponível no catálogo." });
+        return;
+      }
+      const unitPrice = Number(product.discount_price ?? product.price);
+      total += unitPrice * item.quantity;
+      orderItems.push({ product_id: product.id, quantity: item.quantity, unit_price: unitPrice, name: product.name, sku: product.sku });
+    }
+
+    const order = await prisma.order.create({
+      data: {
+        tenant_id: tenant.id,
+        customer_name: customerInfo.name.trim(),
+        customer_phone: customerInfo.phone.trim(),
+        customer_address: cleanEmail ? `E-mail: ${cleanEmail}` : null,
+        total_amount: total,
+        gross_amount: total,
+        discount_amount: 0,
+        status: "pending",
+        sales_channel: "storefront",
+        delivery_method: "to_confirm",
+        shipping_amount: 0,
+        payment_method: "to_confirm",
+        items: { create: orderItems.map(({ product_id, quantity, unit_price }) => ({ product_id, quantity, unit_price })) },
+      },
+    });
+
+    const recipients = String(settings.order_notification_emails || "").split(/[,;\n]/).map((email) => email.trim().toLowerCase()).filter((email) => /^\S+@\S+\.\S+$/.test(email));
+    let emailSent = false;
+    if (recipients.length) {
+      try {
+        const pdf = await createStoreOrderPdf({
+          storeName: tenant.name,
+          orderNumber: order.id,
+          customerName: order.customer_name || "Cliente",
+          customerPhone: order.customer_phone || "Não informado",
+          customerEmail: cleanEmail || undefined,
+          createdAt: order.created_at,
+          total,
+          items: orderItems.map((item) => ({ name: item.name, sku: item.sku, quantity: item.quantity, unitPrice: item.unit_price })),
+        });
+        const itemLines = orderItems.map((item) => `<tr><td style="padding:7px 0;color:#334155">${escapeHtml(item.name)} × ${item.quantity}</td><td align="right" style="padding:7px 0;font-weight:700;color:#0f172a">R$ ${(item.unit_price * item.quantity).toFixed(2).replace(".", ",")}</td></tr>`).join("");
+        await sendPlatformEmail({
+          to: recipients,
+          subject: `Nova encomenda #${String(order.id).padStart(6, "0")} · ${tenant.name}`,
+          html: baseTemplate(`<p style="margin:0 0 8px;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:2px;color:#db2777">Nova solicitação de encomenda</p><h1 style="margin:0 0 14px;font-size:24px;color:#0f172a">Pedido #${String(order.id).padStart(6, "0")}</h1><p style="color:#475569;line-height:1.6">Cliente: <strong>${escapeHtml(order.customer_name || "Cliente")}</strong><br/>WhatsApp: <strong>${escapeHtml(order.customer_phone || "Não informado")}</strong></p><table width="100%" cellspacing="0" cellpadding="0" style="margin:18px 0;border-top:1px solid #e2e8f0">${itemLines}</table><p style="margin:16px 0 0;text-align:right;font-size:18px;font-weight:900;color:#0f172a">Total estimado: R$ ${total.toFixed(2).replace(".", ",")}</p><p style="margin-top:18px;color:#64748b;font-size:12px">O PDF completo está anexado para separação e confirmação.</p>`),
+          attachments: [{ filename: `encomenda-${String(order.id).padStart(6, "0")}.pdf`, content: pdf, contentType: "application/pdf" }],
+        });
+        emailSent = true;
+      } catch (error) {
+        console.error(`Falha ao notificar encomenda #${order.id} por e-mail`, error);
+      }
+    }
+
+    const whatsapp = digits(tenant.whatsapp);
+    const whatsappText = [`Olá! Acabei de enviar a solicitação de encomenda *#${String(order.id).padStart(6, "0")}* pela loja ${tenant.name}.`, "", ...orderItems.map((item) => `• ${item.quantity}x ${item.name}`), "", `Total estimado: R$ ${total.toFixed(2).replace(".", ",")}`, "", "Gostaria de confirmar disponibilidade e prazo de produção."].join("\n");
+    res.status(201).json({ success: true, orderId: order.id, email_sent: emailSent, whatsapp_url: whatsapp ? `https://wa.me/${whatsapp}?text=${encodeURIComponent(whatsappText)}` : null });
+  } catch (error) {
+    console.error("Falha ao receber solicitação de encomenda", error);
+    res.status(500).json({ error: "Não foi possível enviar a solicitação agora." });
   }
 }
 

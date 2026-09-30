@@ -147,6 +147,7 @@ export default function StoreFront() {
   const slug = resolveStoreSlug(routeSlug);
   const storePath = (suffix = "") => buildStorePath(slug, suffix);
   const isDoceria = templateId === "doceria";
+  const isMadeToOrder = tenant.policies?.storefront?.checkout_mode === "order_request";
   const defaultTagline = isDoceria
     ? "Doces feitos com carinho para celebrar os pequenos e grandes momentos."
     : "Produtos naturais e artesanais selecionados com cuidado para você.";
@@ -155,7 +156,7 @@ export default function StoreFront() {
   const bestsellerLimit = tenant.bestseller_limit ?? 8;
   const CATEGORY_DISPLAY_LIMIT = 6;
 
-  const allActive = products.filter(p => p.is_active && productHasStock(p));
+  const allActive = products.filter(p => p.is_active && (isMadeToOrder || productHasStock(p)));
   const featured = allActive.filter(p => p.is_featured).slice(0, featuredLimit);
   const onSale = allActive.filter(p => p.discount_price);
 

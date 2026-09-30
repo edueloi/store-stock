@@ -1,6 +1,6 @@
 import { Router } from "express";
 
-import { checkout, getPublicCheckoutOptions, getPublicStore, lookupPublicCompany, reserveStoreCart } from "../controllers/public.controller";
+import { checkout, getPublicCheckoutOptions, getPublicStore, lookupPublicCompany, requestStoreOrder, reserveStoreCart } from "../controllers/public.controller";
 import { approveQuoteByToken, getQuoteByApprovalToken } from "../controllers/quote-approval.controller";
 
 const router = Router();
@@ -11,6 +11,7 @@ router.post("/checkout", checkout);
 router.post("/checkout-options", getPublicCheckoutOptions);
 router.post("/company", lookupPublicCompany);
 router.post("/reservations", reserveStoreCart);
+router.post("/order-request", requestStoreOrder);
 
 router.get("/quotes/:token", getQuoteByApprovalToken);
 router.post("/quotes/:token/approve", approveQuoteByToken);
