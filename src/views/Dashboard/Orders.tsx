@@ -72,6 +72,12 @@ interface OrderDetail extends Order {
     unit_price: number;
     returned_quantity?: number;
   }>;
+  services?: Array<{
+    id: number;
+    name: string;
+    quantity: number;
+    unit_price: number;
+  }>;
 }
 
 interface TenantBasic {
@@ -898,7 +904,19 @@ export default function Orders() {
 
   // Mesmo certificado enviado pelo PDV: uma única versão visual para baixar,
   // imprimir ou mandar ao cliente depois pela tela de Pedidos.
-  const buildWarrantyHtml = (order: OrderDetail) => buildWarrantyDocumentHtml(tenant ?? {}, order);
+  const buildWarrantyHtml = (order: OrderDetail) => buildWarrantyDocumentHtml(tenant ?? {}, {
+    ...order,
+    // Pedidos podem ter produtos, serviços ou ambos. A garantia precisa listar todos
+    // os itens que foram vendidos — não só as linhas do catálogo.
+    items: [
+      ...(order.items ?? []),
+      ...(order.services ?? []).map((service) => ({
+        name: service.name,
+        quantity: service.quantity,
+        unit_price: service.unit_price,
+      })),
+    ],
+  });
 
   const buildReceiptHtml = (order: OrderDetail) => {
     const storeName = tenant?.name ?? "Estabelecimento";
