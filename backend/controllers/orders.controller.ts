@@ -219,11 +219,14 @@ export async function updateOrderStatus(req: Request, res: Response) {
     const tenantId = getTenantId(req);
     const orderId  = Number(req.params.id);
     const newStatus: string = req.body.status;
+    const requestedPaymentMethod = typeof req.body.payment_method === "string" ? req.body.payment_method.trim() : "";
 
     const order = await prisma.order.findFirst({ where: { id: orderId, tenant_id: tenantId } });
     if (!order) { res.status(404).json({ error: "Order not found" }); return; }
 
-    await prisma.order.update({ where: { id: orderId }, data: { status: newStatus } });
+    const allowedPaymentMethods = new Set(["pix", "money", "debit", "credit", "cash_on_delivery", "card_on_delivery", "to_confirm"]);
+    const paymentMethod = allowedPaymentMethods.has(requestedPaymentMethod) ? requestedPaymentMethod : null;
+    await prisma.order.update({ where: { id: orderId }, data: { status: newStatus, ...(paymentMethod ? { payment_method: paymentMethod } : {}) } });
 
     // Log the status change
     await logAction(tenantId, orderId, "status_change", getActor(req), `Status alterado: ${order.status} → ${newStatus}`);
@@ -236,7 +239,7 @@ export async function updateOrderStatus(req: Request, res: Response) {
       const gross    = Number(order.gross_amount ?? total);
       const net      = Math.round((total - fee) * 100) / 100;
 
-      const pm = order.payment_method ?? "money";
+      const pm = paymentMethod ?? order.payment_method ?? "money";
       const methodLabel: Record<string, string> = { money: "Dinheiro", pix: "PIX", debit: "Débito", credit: "Crédito" };
       const methodSummary = pm.split("|").map(seg => {
         const method = seg.split(":")[0].split("-")[0];

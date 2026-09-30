@@ -36,9 +36,9 @@ type StoreData = {
 
 const authHeaders = () => ({ Authorization: `Bearer ${localStorage.getItem("token")}` });
 const money = (value: number) => value.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
-const statusLabel: Record<string, string> = { completed: "Confirmado", pending: "Aguardando", cancelled: "Cancelado", canceled: "Cancelado" };
-const paymentLabel: Record<string, string> = { pix: "PIX", cash_on_delivery: "Dinheiro na entrega", card_on_delivery: "Cartão na entrega" };
-const deliveryLabel: Record<string, string> = { pickup: "Retirada na loja", delivery: "Entrega no endereço" };
+const statusLabel: Record<string, string> = { completed: "Faturado", confirmed: "Confirmado", pending: "Aguardando confirmação", cancelled: "Cancelado", canceled: "Cancelado" };
+const paymentLabel: Record<string, string> = { pix: "PIX", money: "Dinheiro", debit: "Cartão de débito", credit: "Cartão de crédito", cash_on_delivery: "Dinheiro na entrega", card_on_delivery: "Cartão na entrega", to_confirm: "A confirmar" };
+const deliveryLabel: Record<string, string> = { pickup: "Retirada na loja", delivery: "Entrega no endereço", to_confirm: "A combinar" };
 
 export default function MinhaLoja() {
   const navigate = useNavigate();
@@ -119,9 +119,22 @@ function Metric({ label, value }: { label: string; value: string }) { return <di
 function Info({ label, value }: { label: string; value: string }) { return <div className="rounded-xl bg-slate-50 p-4"><p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">{label}</p><p className="mt-2 text-lg font-black text-slate-900">{value}</p></div>; }
 function Empty({ text }: { text: string }) { return <p className="py-10 text-center text-sm text-slate-400">{text}</p>; }
 function ConfigCard({ icon: Icon, title, text, action, onClick }: { icon: typeof Store; title: string; text: string; action: string; onClick: () => void }) { return <button onClick={onClick} className="group rounded-2xl border border-slate-200 bg-white p-6 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-blue-300 hover:shadow-md"><div className="flex h-11 w-11 items-center justify-center rounded-xl bg-blue-50 text-blue-600"><Icon size={20} /></div><h2 className="mt-5 text-base font-black text-slate-900">{title}</h2><p className="mt-2 min-h-10 text-sm leading-relaxed text-slate-500">{text}</p><span className="mt-5 inline-flex items-center gap-2 text-[10px] font-black uppercase tracking-wider text-blue-600">{action}<ArrowUpRight size={14} /></span></button>; }
-function OnlineOrders({ orders }: { orders: StoreData["recent_orders"] }) {
+function OnlineOrders({ orders, onChanged }: { orders: StoreData["recent_orders"]; onChanged?: () => Promise<void> }) {
   const [selectedId, setSelectedId] = useState<number | null>(orders[0]?.id ?? null);
   const selected = orders.find((order) => order.id === selectedId) || orders[0];
+  const [paymentMethod, setPaymentMethod] = useState("pix");
+  const [actionLoading, setActionLoading] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const updateOrder = async (status: "confirmed" | "completed") => {
+    if (!selected) return;
+    setActionLoading(true); setActionError(null);
+    try {
+      const response = await fetch(`/api/orders/${selected.id}/status`, { method: "PUT", headers: { ...authHeaders(), "Content-Type": "application/json" }, body: JSON.stringify({ status, ...(status === "completed" ? { payment_method: paymentMethod } : {}) }) });
+      if (!response.ok) throw new Error((await response.json().catch(() => ({}))).error || "Não foi possível atualizar o pedido.");
+      if (onChanged) await onChanged(); else window.location.reload();
+    } catch (error) { setActionError(error instanceof Error ? error.message : "Não foi possível atualizar o pedido."); }
+    finally { setActionLoading(false); }
+  };
 
   return <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
     <div className="flex flex-col justify-between gap-4 border-b border-slate-100 p-5 sm:flex-row sm:items-center sm:p-6">
@@ -138,6 +151,7 @@ function OnlineOrders({ orders }: { orders: StoreData["recent_orders"] }) {
         <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-1"><DetailCard icon={UserRound} label="Cliente" value={selected.customer_name || "Não informado"} detail={[selected.customer_phone, selected.customer_document ? `Documento: ${selected.customer_document}` : null].filter(Boolean).join(" · ") || "Sem contato informado"} /><DetailCard icon={Truck} label="Entrega" value={deliveryLabel[selected.delivery_method || ""] || "A combinar"} detail={selected.customer_address || "Endereço não informado"} /><DetailCard icon={ShoppingCart} label="Pagamento" value={paymentLabel[selected.payment_method || ""] || selected.payment_method || "Não informado"} detail={`Pedido feito em ${new Date(selected.created_at).toLocaleString("pt-BR")}`} /><DetailCard icon={MapPin} label="Situação da entrega" value={selected.delivery_method === "delivery" ? "Entregar no endereço" : "Retirada na loja"} detail={selected.delivery_method === "delivery" ? "Confira o endereço antes de separar o pedido." : "Separe o pedido para retirada do cliente."} /></div>
         <div className="mt-5 rounded-xl border border-slate-200 bg-white p-4"><div className="flex items-center justify-between"><p className="text-[10px] font-black uppercase tracking-wider text-slate-500">Itens do pedido</p><p className="text-xs font-bold text-slate-500">{selected.items.length} produto(s)</p></div><div className="mt-3 divide-y divide-slate-100">{selected.items.map((item, index) => <div key={`${item.product?.sku || item.name || "item"}-${index}`} className="py-3 first:pt-0 last:pb-0"><div className="flex items-start justify-between gap-3"><div><p className="text-sm font-bold text-slate-800">{item.product?.name || item.name || "Produto removido"}</p><p className="mt-1 text-[10px] text-slate-400">{item.product?.sku ? `SKU ${item.product.sku} · ` : ""}{item.quantity} × {money(item.unit_price)}</p></div><p className="shrink-0 text-sm font-black text-slate-900">{money(item.quantity * item.unit_price)}</p></div></div>)}</div></div>
         <div className="mt-5 rounded-xl bg-slate-950 p-4 text-white"><p className="text-[10px] font-black uppercase tracking-wider text-slate-400">Resumo financeiro</p><div className="mt-3 space-y-2 text-sm"><div className="flex justify-between text-slate-300"><span>Produtos</span><span>{money(selected.items.reduce((sum, item) => sum + item.quantity * item.unit_price, 0))}</span></div><div className="flex justify-between text-slate-300"><span>Frete</span><span>{selected.shipping_amount ? money(selected.shipping_amount) : "Grátis / não informado"}</span></div>{selected.discount_amount ? <div className="flex justify-between text-emerald-300"><span>Desconto</span><span>− {money(selected.discount_amount)}</span></div> : null}<div className="flex justify-between border-t border-white/10 pt-3 text-base font-black"><span>Total do pedido</span><span>{money(selected.total_amount)}</span></div></div></div>
+        {!['completed', 'cancelled', 'canceled'].includes(selected.status) && <div className="mt-4 rounded-xl border border-blue-100 bg-blue-50 p-4"><p className="text-[10px] font-black uppercase tracking-wider text-blue-700">Conferir e finalizar</p><p className="mt-2 text-xs leading-relaxed text-slate-600">Confirme a solicitação antes de produzir. Quando receber o pagamento, fature aqui para criar a entrada financeira.</p>{selected.status === 'pending' && <button disabled={actionLoading} onClick={() => updateOrder('confirmed')} className="mt-4 h-10 w-full rounded-lg border border-blue-200 bg-white text-[10px] font-black uppercase tracking-wider text-blue-700 disabled:opacity-60">{actionLoading ? 'Atualizando...' : 'Confirmar pedido'}</button>}<div className="mt-3 grid grid-cols-[1fr_auto] gap-2"><select value={paymentMethod} onChange={(event) => setPaymentMethod(event.target.value)} className="h-10 rounded-lg border border-blue-200 bg-white px-3 text-xs font-bold text-slate-700"><option value="pix">PIX</option><option value="money">Dinheiro</option><option value="debit">Cartão de débito</option><option value="credit">Cartão de crédito</option></select><button disabled={actionLoading} onClick={() => updateOrder('completed')} className="h-10 rounded-lg bg-blue-600 px-4 text-[10px] font-black uppercase tracking-wider text-white disabled:opacity-60">Faturar agora</button></div>{actionError && <p className="mt-3 text-xs font-semibold text-red-600">{actionError}</p>}</div>}
       </aside>}
     </div>}
   </section>;
