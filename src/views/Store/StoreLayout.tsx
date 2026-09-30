@@ -65,6 +65,13 @@ function themePages(templateId: string | undefined) {
       Product: lazy(() => import("./themes/urban/StoreProduct")),
       About: lazy(() => import("./themes/urban/StoreAbout")),
     };
+  if (t === "doceria")
+    return {
+      Front: lazy(() => import("./themes/doceria/StoreFront")),
+      Catalog: lazy(() => import("./themes/doceria/StoreCatalog")),
+      Product: lazy(() => import("./themes/doceria/StoreProduct")),
+      About: lazy(() => import("./themes/doceria/StoreAbout")),
+    };
   if (t === "nexus_tech")
     return {
       Front: lazy(() => import("./themes/nexus-tech/StoreFront")),
