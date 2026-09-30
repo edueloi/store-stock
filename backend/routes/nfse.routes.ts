@@ -12,6 +12,7 @@ import {
   downloadNfsePdf,
   listNfse,
   sendNfseWhatsapp,
+  sendNfseEmail,
 } from "../controllers/nfse.controller";
 import { authenticateToken } from "../middlewares/auth.middleware";
 
@@ -30,5 +31,6 @@ router.post("/:serviceOrderId/cancel", cancelNfse);
 router.get("/:serviceOrderId/xml", downloadNfseXml);
 router.get("/:serviceOrderId/pdf", downloadNfsePdf);
 router.post("/:serviceOrderId/send-whatsapp", sendNfseWhatsapp);
+router.post("/:serviceOrderId/send-email", sendNfseEmail);
 
 export default router;

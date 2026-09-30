@@ -54,17 +54,23 @@ export async function verifyStoreEmailConfig(value: unknown) {
 
 export async function sendStoreEmail(
   tenantId: number,
-  message: { to: string | string[]; subject: string; html: string; attachments?: { filename: string; content: Buffer; contentType?: string }[] },
+  message: {
+    to: string | string[];
+    subject: string;
+    text?: string;
+    html?: string;
+    attachments?: { filename: string; content: Buffer; contentType?: string }[];
+  },
 ) {
   const tenant = await (prisma.tenant as any).findUnique({
     where: { id: tenantId },
-    select: { email_config: true },
+    select: { name: true, email_config: true },
   });
   const config = getUsableConfig(tenant?.email_config);
   if (!config) throw new Error("A loja ainda não conectou um e-mail para envios aos clientes.");
 
   await createTransport(config).sendMail({
-    from: `"${config.from_name || config.email}" <${config.email}>`,
+    from: `"${config.from_name && config.from_name !== config.email ? config.from_name : tenant.name || config.email}" <${config.email}>`,
     ...message,
   });
 }

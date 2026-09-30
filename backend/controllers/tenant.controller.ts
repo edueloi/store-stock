@@ -38,7 +38,7 @@ const EMAIL_PROVIDER_DEFAULTS: Record<string, { host: string; port: number; secu
 
 class EmailConnectionValidationError extends Error {}
 
-function prepareEmailConnection(input: EmailConnectionInput, currentValue: unknown) {
+function prepareEmailConnection(input: EmailConnectionInput, currentValue: unknown, storeName = "") {
   const provider = String(input.provider || "custom").trim().toLowerCase();
   const email = String(input.email || "").trim().toLowerCase();
   const current = currentValue && typeof currentValue === "object" ? currentValue as Record<string, unknown> : {};
@@ -63,7 +63,7 @@ function prepareEmailConnection(input: EmailConnectionInput, currentValue: unkno
     host,
     port,
     secure,
-    from_name: String(input.from_name || "").trim() || email,
+    from_name: String(input.from_name || "").trim() || String(current.from_name || "").trim() || storeName || email,
     password: rawPassword ? encryptSecret(rawPassword) : storedPassword,
   };
 }
@@ -269,9 +269,9 @@ export async function updateTenant(req: Request, res: Response) {
       } else if (typeof b.email_connection === "object") {
         const current = await (prisma.tenant as any).findUnique({
           where: { id: getTenantId(req) },
-          select: { email_config: true },
+          select: { name: true, email_config: true },
         });
-        data.email_config = prepareEmailConnection(b.email_connection as EmailConnectionInput, current?.email_config);
+        data.email_config = prepareEmailConnection(b.email_connection as EmailConnectionInput, current?.email_config, current?.name);
       } else {
         res.status(422).json({ error: "Configuração de e-mail inválida." });
         return;

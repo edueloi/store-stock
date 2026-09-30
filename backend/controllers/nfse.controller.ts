@@ -8,6 +8,7 @@ import { cancelarNfse } from "../services/nfse/cancelar";
 import type { MotivoCancelamentoNfse } from "../services/nfse/eventoXmlBuilder";
 import { emitToTenant } from "../services/realtime.service";
 import { sendWhatsappDocument } from "../services/whatsapp.service";
+import { sendStoreEmail } from "../services/store-email.service";
 
 function getTenantId(req: Request) {
   return (req as AuthenticatedRequest).user.tenantId;
@@ -479,6 +480,64 @@ export async function sendNfseWhatsapp(req: Request, res: Response) {
     console.error("sendNfseWhatsapp error:", err);
     const message = err instanceof Error ? err.message : "Falha ao enviar NFS-e pelo WhatsApp";
     res.status(500).json({ error: message });
+  }
+}
+
+// Envia a representação em PDF da NFS-e por e-mail. O corpo é propositalmente
+// em texto simples: a mensagem fica leve, legível em qualquer cliente de e-mail
+// e o PDF continua sendo o documento completo.
+export async function sendNfseEmail(req: Request, res: Response) {
+  try {
+    const serviceOrderId = Number(req.params.serviceOrderId);
+    const tenantId = getTenantId(req);
+    const requestedEmail = String(req.body?.email || "").trim().toLowerCase();
+
+    const invoice = await prisma.nfseInvoice.findFirst({
+      where: { service_order_id: serviceOrderId, tenant_id: tenantId, status: "authorized" },
+    });
+    if (!invoice?.nfse_pdf_path || !fs.existsSync(invoice.nfse_pdf_path)) {
+      res.status(404).json({ error: "PDF da NFS-e não disponível" });
+      return;
+    }
+
+    const serviceOrder = await prisma.serviceOrder.findFirst({
+      where: { id: serviceOrderId, tenant_id: tenantId },
+      select: { customer_id: true, customer_name: true },
+    });
+    const customer = serviceOrder?.customer_id
+      ? await prisma.customer.findFirst({
+          where: { id: serviceOrder.customer_id, tenant_id: tenantId },
+          select: { email: true, nfe_email: true },
+        })
+      : null;
+    const recipient = requestedEmail || customer?.nfe_email?.trim() || customer?.email?.trim() || "";
+    if (!/^\S+@\S+\.\S+$/.test(recipient)) {
+      res.status(422).json({ error: "Informe um e-mail válido — esta OS não tem e-mail fiscal de cliente cadastrado." });
+      return;
+    }
+
+    const tenant = await prisma.tenant.findUnique({ where: { id: tenantId }, select: { name: true } });
+    const storeName = tenant?.name || "Sua loja";
+    const customerName = serviceOrder?.customer_name?.trim() || "cliente";
+    const pdfBuffer = fs.readFileSync(invoice.nfse_pdf_path);
+    const invoiceLabel = `NFS-e nº ${invoice.numero} — série ${invoice.serie}`;
+
+    await sendStoreEmail(tenantId, {
+      to: recipient,
+      subject: `${invoiceLabel} · ${storeName}`,
+      text: `Olá, ${customerName}.\n\nA ${storeName} enviou a sua ${invoiceLabel}.\nO PDF da nota fiscal está anexado a esta mensagem.\n\nAtenciosamente,\n${storeName}`,
+      attachments: [{
+        filename: `nfse-${invoice.chave_acesso ?? serviceOrderId}.pdf`,
+        content: pdfBuffer,
+        contentType: "application/pdf",
+      }],
+    });
+
+    res.json({ success: true, recipient });
+  } catch (err) {
+    console.error("sendNfseEmail error:", err);
+    const message = err instanceof Error ? err.message : "Falha ao enviar NFS-e por e-mail";
+    res.status(422).json({ error: message });
   }
 }
 

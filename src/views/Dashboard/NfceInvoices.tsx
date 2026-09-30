@@ -5,6 +5,7 @@ import {
   FileCheck, Search, Download, RefreshCw, FileText, AlertTriangle,
   CheckCircle2, Loader2, Clock, XCircle, Ban, Archive, Calendar, Trash2, Plus,
   MessageCircle,
+  Mail,
   Info,
 } from "lucide-react";
 import PageHeader from "../../components/layout/PageHeader";
@@ -631,6 +632,10 @@ function NfceTabContent() {
                               className="h-8 px-3 bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 rounded-lg text-[9px] font-black uppercase tracking-widest flex items-center gap-1.5 transition-all">
                               <FileCheck size={12} /> XML
                             </button>
+                            <button onClick={() => handleSendEmail(inv)} disabled={sendingEmail === inv.service_order_id}
+                              className="h-8 px-3 bg-blue-50 border border-blue-200 hover:bg-blue-100 text-blue-700 rounded-lg text-[9px] font-black uppercase tracking-widest flex items-center gap-1.5 transition-all disabled:opacity-60">
+                              {sendingEmail === inv.service_order_id ? <Loader2 size={12} className="animate-spin" /> : <Mail size={12} />} E-mail
+                            </button>
                             {whatsappConnected && (
                               <button onClick={() => handleSendWhatsapp(inv)} disabled={sendingWhatsapp === inv.order_id}
                                 className="h-8 px-3 bg-emerald-50 border border-emerald-200 hover:bg-emerald-100 text-emerald-700 rounded-lg text-[9px] font-black uppercase tracking-widest flex items-center gap-1.5 transition-all disabled:opacity-60">
@@ -756,6 +761,10 @@ function NfceTabContent() {
                         <button onClick={() => handleDownloadXml(inv)}
                           className="h-8 px-3 bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 rounded-lg text-[9px] font-black uppercase tracking-widest flex items-center gap-1.5 transition-all">
                           <FileCheck size={12} /> XML
+                        </button>
+                        <button onClick={() => handleSendEmail(inv)} disabled={sendingEmail === inv.service_order_id}
+                          className="h-8 px-3 bg-blue-50 border border-blue-200 hover:bg-blue-100 text-blue-700 rounded-lg text-[9px] font-black uppercase tracking-widest flex items-center gap-1.5 transition-all disabled:opacity-60">
+                          {sendingEmail === inv.service_order_id ? <Loader2 size={12} className="animate-spin" /> : <Mail size={12} />} E-mail
                         </button>
                         {whatsappConnected && (
                           <button onClick={() => handleSendWhatsapp(inv)} disabled={sendingWhatsapp === inv.order_id}
@@ -887,6 +896,7 @@ function NfceTabContent() {
         </div>
       </Modal>
 
+
       <Modal
         open={!!errorDetailTarget}
         onClose={() => setErrorDetailTarget(null)}
@@ -1016,6 +1026,9 @@ function NfseTabContent() {
   const [sendingWhatsapp, setSendingWhatsapp] = useState<number | null>(null);
   const [whatsappNumberTarget, setWhatsappNumberTarget] = useState<NfseInvoice | null>(null);
   const [whatsappNumberInput, setWhatsappNumberInput] = useState("");
+  const [emailTarget, setEmailTarget] = useState<NfseInvoice | null>(null);
+  const [emailInput, setEmailInput] = useState("");
+  const [sendingEmail, setSendingEmail] = useState<number | null>(null);
   const [errorDetailTarget, setErrorDetailTarget] = useState<NfseInvoice | null>(null);
   const notify = useToast();
   const token = localStorage.getItem("token");
@@ -1078,6 +1091,33 @@ function NfseTabContent() {
       notify.error("Erro de conexão ao enviar pelo WhatsApp.");
     } finally {
       setSendingWhatsapp(null);
+    }
+  };
+
+  const handleSendEmail = async (inv: NfseInvoice, emailOverride?: string) => {
+    setSendingEmail(inv.service_order_id);
+    try {
+      const res = await fetch(`/api/nfse/${inv.service_order_id}/send-email`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify(emailOverride ? { email: emailOverride } : {}),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        if (res.status === 422 && !emailOverride) {
+          setEmailTarget(inv);
+          setEmailInput("");
+          return;
+        }
+        notify.error(data.error || "Falha ao enviar a NFS-e por e-mail.");
+        return;
+      }
+      notify.success(`NFS-e enviada para ${data.recipient}.`);
+      setEmailTarget(null);
+    } catch {
+      notify.error("Erro de conexão ao enviar a NFS-e por e-mail.");
+    } finally {
+      setSendingEmail(null);
     }
   };
 
@@ -1691,6 +1731,38 @@ function NfseTabContent() {
             value={whatsappNumberInput}
             onChange={(e) => setWhatsappNumberInput(e.target.value)}
             className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-sm font-medium outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-500/10 transition-all"
+          />
+        </div>
+      </Modal>
+
+      <Modal
+        open={!!emailTarget}
+        onClose={() => setEmailTarget(null)}
+        title="Enviar NFS-e por e-mail"
+        subtitle="Cliente sem e-mail fiscal cadastrado"
+        size="sm"
+        footer={
+          <>
+            <Button variant="secondary" onClick={() => setEmailTarget(null)} disabled={sendingEmail !== null}>Voltar</Button>
+            <Button
+              onClick={() => emailTarget && handleSendEmail(emailTarget, emailInput.trim())}
+              disabled={sendingEmail !== null || !/^\S+@\S+\.\S+$/.test(emailInput.trim())}
+              loading={sendingEmail !== null}
+            >
+              Enviar PDF
+            </Button>
+          </>
+        }
+      >
+        <div className="space-y-3">
+          <p className="text-xs text-slate-500">O cliente receberá uma mensagem em texto simples, enviada em nome da loja, com o PDF da NFS-e anexado.</p>
+          <input
+            type="email"
+            autoFocus
+            placeholder="cliente@exemplo.com"
+            value={emailInput}
+            onChange={(e) => setEmailInput(e.target.value)}
+            className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-sm font-medium outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-500/10 transition-all"
           />
         </div>
       </Modal>
