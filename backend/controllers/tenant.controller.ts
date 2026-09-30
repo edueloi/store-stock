@@ -9,7 +9,7 @@ import { prisma } from "../config/prisma";
 import { env } from "../config/env";
 import type { AuthenticatedRequest } from "../types/auth";
 import { buildTenantAccessUrl, normalizeSubdomain } from "../utils/tenant-domain";
-import { encryptSecret } from "../utils/secretCrypto";
+import { decryptSecret, encryptSecret } from "../utils/secretCrypto";
 import { parsePfx } from "../services/nfce/signer";
 import { sendReportNow } from "../services/email-reports.service";
 import { sendStoreEmailConnectionTest } from "../services/store-email.service";
@@ -129,6 +129,84 @@ export async function getTenant(req: Request, res: Response) {
     });
   } catch {
     res.status(500).json({ error: "Failed to fetch tenant" });
+  }
+}
+
+type StoreGatewayProvider = "mercadopago" | "asaas";
+
+function gatewayProvider(value: unknown): StoreGatewayProvider | null {
+  return value === "mercadopago" || value === "asaas" ? value : null;
+}
+
+/**
+ * Lista somente o estado da integração. Tokens de Mercado Pago/Asaas são
+ * segredos de cada loja e nunca saem do servidor, nem mascarados.
+ */
+export async function getStorePaymentGateways(req: Request, res: Response) {
+  try {
+    const gateways = await (prisma as any).storePaymentGateway.findMany({
+      where: { tenant_id: getTenantId(req) },
+      orderBy: { provider: "asc" },
+      select: { provider: true, enabled: true, environment: true, credentials: true, updated_at: true },
+    });
+
+    res.json(gateways.map((gateway: any) => {
+      const credentials = gateway.credentials && typeof gateway.credentials === "object"
+        ? gateway.credentials as Record<string, unknown>
+        : {};
+      return {
+        provider: gateway.provider,
+        enabled: gateway.enabled,
+        environment: gateway.environment,
+        connected: Boolean(credentials.access_token),
+        updated_at: gateway.updated_at,
+      };
+    }));
+  } catch (error) {
+    console.error("Falha ao listar gateways da loja", error);
+    res.status(500).json({ error: "Não foi possível consultar as integrações de pagamento." });
+  }
+}
+
+/** Salva uma conta recebedora que pertence exclusivamente ao tenant autenticado. */
+export async function saveStorePaymentGateway(req: Request, res: Response) {
+  try {
+    const provider = gatewayProvider(req.params.provider);
+    if (!provider) {
+      res.status(422).json({ error: "Gateway de pagamento inválido." });
+      return;
+    }
+
+    const body = req.body as { enabled?: unknown; environment?: unknown; access_token?: unknown; webhook_token?: unknown };
+    const environment = body.environment === "production" ? "production" : "sandbox";
+    const existing = await (prisma as any).storePaymentGateway.findUnique({
+      where: { tenant_id_provider: { tenant_id: getTenantId(req), provider } },
+      select: { credentials: true },
+    });
+    const previous = existing?.credentials && typeof existing.credentials === "object"
+      ? existing.credentials as Record<string, unknown>
+      : {};
+    const suppliedToken = typeof body.access_token === "string" ? body.access_token.trim() : "";
+    const suppliedWebhookToken = typeof body.webhook_token === "string" ? body.webhook_token.trim() : "";
+    const credentials = {
+      ...previous,
+      ...(suppliedToken ? { access_token: encryptSecret(suppliedToken) } : {}),
+      ...(suppliedWebhookToken ? { webhook_token: encryptSecret(suppliedWebhookToken) } : {}),
+    };
+    const connected = Boolean(credentials.access_token && decryptSecret(String(credentials.access_token)));
+    const enabled = Boolean(body.enabled) && connected;
+
+    const gateway = await (prisma as any).storePaymentGateway.upsert({
+      where: { tenant_id_provider: { tenant_id: getTenantId(req), provider } },
+      create: { tenant_id: getTenantId(req), provider, enabled, environment, credentials },
+      update: { enabled, environment, credentials },
+      select: { provider: true, enabled: true, environment: true, updated_at: true },
+    });
+
+    res.json({ ...gateway, connected });
+  } catch (error) {
+    console.error("Falha ao salvar gateway da loja", error);
+    res.status(500).json({ error: "Não foi possível salvar a integração de pagamento." });
   }
 }
 

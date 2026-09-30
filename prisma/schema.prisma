@@ -164,8 +164,29 @@ model Tenant {
   automated_message_logs AutomatedMessageLog[]
   plan                   SubscriptionPlan?     @relation(fields: [plan_id], references: [id], onDelete: SetNull)
   platform_subscription  PlatformSubscription?
+  store_payment_gateways StorePaymentGateway[]
 
   @@map("tenants")
+}
+
+// Credenciais de checkout da própria loja. Cada registro pertence a somente um
+// tenant; os tokens ficam cifrados em credentials e nunca são enviados à vitrine
+// nem ao painel depois de gravados.
+model StorePaymentGateway {
+  id          Int      @id @default(autoincrement())
+  tenant_id   Int
+  provider    String   // mercadopago | asaas
+  enabled     Boolean  @default(false)
+  environment String   @default("sandbox") // sandbox | production
+  credentials Json?
+  created_at  DateTime @default(now())
+  updated_at  DateTime @updatedAt
+
+  tenant Tenant @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+
+  @@unique([tenant_id, provider])
+  @@index([tenant_id, enabled])
+  @@map("store_payment_gateways")
 }
 
 // Uma instalação do app desktop (BoxSys PDV) pareada com este tenant — vinculada

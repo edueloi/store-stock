@@ -225,6 +225,18 @@ const templates: Record<string, StoreStyle> = {
   },
 };
 
+const formatStorePhone = (value: string) => {
+  const digits = value.replace(/\D/g, "").slice(0, 11);
+  return digits.replace(/(\d{2})(\d)/, "($1) $2").replace(/(\d{5})(\d{1,4})$/, "$1-$2");
+};
+const formatStoreDocument = (value: string) => {
+  const digits = value.replace(/\D/g, "").slice(0, 14);
+  return digits.length <= 11
+    ? digits.replace(/(\d{3})(\d)/, "$1.$2").replace(/(\d{3})(\d)/, "$1.$2").replace(/(\d{3})(\d{1,2})$/, "$1-$2")
+    : digits.replace(/(\d{2})(\d)/, "$1.$2").replace(/(\d{3})(\d)/, "$1.$2").replace(/(\d{3})(\d)/, "$1/$2").replace(/(\d{4})(\d{1,2})$/, "$1-$2");
+};
+const formatStoreCep = (value: string) => value.replace(/\D/g, "").slice(0, 8).replace(/(\d{5})(\d)/, "$1-$2");
+
 // ── Main Layout ────────────────────────────────────────────────────────────
 
 function StoreLayoutInner() {
@@ -254,6 +266,14 @@ function StoreLayoutInner() {
     loading: boolean;
     message: string | null;
   }>({ loading: false, message: null });
+  const [checkoutOpen, setCheckoutOpen] = useState(false);
+  const [checkoutLoading, setCheckoutLoading] = useState(false);
+  const [checkoutMessage, setCheckoutMessage] = useState<string | null>(null);
+  const [checkoutOptions, setCheckoutOptions] = useState<{
+    payment_methods: Record<string, boolean>;
+    delivery: { pickup_available: boolean; delivery_available: boolean; delivery_fee: number | null; delivery_zone: string | null };
+  } | null>(null);
+  const [checkoutForm, setCheckoutForm] = useState({ name: "", phone: "", document: "", cep: "", address: "", deliveryType: "pickup" as "pickup" | "delivery", paymentMethod: "pix" });
   const megaMenuCloseTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const navigate = useNavigate();
   const storeSlug = resolveStoreSlug(routeSlug);
@@ -433,6 +453,77 @@ function StoreLayoutInner() {
             ? error.message
             : "Não foi possível reservar os itens.",
       });
+    }
+  };
+
+  const loadCheckoutOptions = async (cep = checkoutForm.cep) => {
+    if (!storeData) return;
+    const response = await fetch("/api/public/checkout-options", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ tenantId: storeData.tenant.id, cep }),
+    });
+    const data = await response.json();
+    if (response.ok) {
+      setCheckoutOptions(data);
+      if (!data.delivery.delivery_available && checkoutForm.deliveryType === "delivery") {
+        setCheckoutForm((current) => ({ ...current, deliveryType: "pickup" }));
+      }
+    }
+  };
+
+  const openCheckout = async () => {
+    setCheckoutMessage(null);
+    setCheckoutOpen(true);
+    await loadCheckoutOptions();
+  };
+
+  const lookupCompanyDocument = async () => {
+    const documentDigits = checkoutForm.document.replace(/\D/g, "");
+    if (documentDigits.length !== 14) return;
+    try {
+      const response = await fetch("/api/public/company", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ cnpj: documentDigits }),
+      });
+      const company = await response.json();
+      if (response.ok) {
+        setCheckoutForm((current) => ({
+          ...current,
+          name: current.name || company.trade_name || company.legal_name || "",
+          cep: current.cep || formatStoreCep(company.cep || ""),
+          address: current.address || company.address || "",
+        }));
+      }
+    } catch {
+      /* o cliente ainda pode preencher os dados manualmente */
+    }
+  };
+
+  const handleOnlineCheckout = async () => {
+    if (!storeData || checkoutLoading) return;
+    setCheckoutLoading(true);
+    setCheckoutMessage(null);
+    try {
+      const response = await fetch("/api/public/checkout", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          tenantId: storeData.tenant.id,
+          items: cart.map((item) => ({ id: item.id, quantity: item.quantity })),
+          customerInfo: checkoutForm,
+        }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Não foi possível criar o pedido.");
+      setCart([]);
+      setCheckoutOpen(false);
+      setCheckoutMessage(`Pedido #${data.orderId} recebido. A loja confirmará o pagamento e a entrega.`);
+    } catch (error) {
+      setCheckoutMessage(error instanceof Error ? error.message : "Não foi possível criar o pedido.");
+    } finally {
+      setCheckoutLoading(false);
     }
   };
 
@@ -1532,6 +1623,28 @@ function StoreLayoutInner() {
                       </div>
                     ))
                   )}
+                  {checkoutOpen && cart.length > 0 && (
+                    <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm space-y-3">
+                      <div className="flex items-center justify-between"><div><p className="text-xs font-black text-slate-900">Dados para fechar o pedido</p><p className="text-[10px] text-slate-500">A loja confirmará pagamento e entrega.</p></div><button onClick={() => setCheckoutOpen(false)} className="text-slate-400 hover:text-slate-700"><X size={16} /></button></div>
+                      <div className="grid grid-cols-2 gap-2">
+                        <input value={checkoutForm.name} onChange={(e) => setCheckoutForm((current) => ({ ...current, name: e.target.value }))} className="col-span-2 h-10 rounded-lg border border-slate-200 px-3 text-xs" placeholder="Seu nome *" />
+                        <input value={checkoutForm.phone} onChange={(e) => setCheckoutForm((current) => ({ ...current, phone: formatStorePhone(e.target.value) }))} inputMode="tel" className="h-10 rounded-lg border border-slate-200 px-3 text-xs" placeholder="WhatsApp *" />
+                        <input value={checkoutForm.document} onBlur={lookupCompanyDocument} onChange={(e) => setCheckoutForm((current) => ({ ...current, document: formatStoreDocument(e.target.value) }))} inputMode="numeric" className="h-10 rounded-lg border border-slate-200 px-3 text-xs" placeholder="CPF ou CNPJ" />
+                        <input value={checkoutForm.cep} onBlur={() => loadCheckoutOptions()} onChange={(e) => setCheckoutForm((current) => ({ ...current, cep: formatStoreCep(e.target.value) }))} inputMode="numeric" className="h-10 rounded-lg border border-slate-200 px-3 text-xs" placeholder="CEP para entrega" />
+                        <input value={checkoutForm.address} onChange={(e) => setCheckoutForm((current) => ({ ...current, address: e.target.value }))} className="h-10 rounded-lg border border-slate-200 px-3 text-xs" placeholder="Endereço / referência" />
+                      </div>
+                      <div className="grid grid-cols-2 gap-2">
+                        {checkoutOptions?.delivery.pickup_available && <button type="button" onClick={() => setCheckoutForm((current) => ({ ...current, deliveryType: "pickup" }))} className={cn("rounded-lg border px-3 py-2 text-[10px] font-bold", checkoutForm.deliveryType === "pickup" ? "border-blue-600 bg-blue-50 text-blue-700" : "border-slate-200 text-slate-600")}>Retirar na loja</button>}
+                        {checkoutOptions?.delivery.delivery_available && <button type="button" onClick={() => setCheckoutForm((current) => ({ ...current, deliveryType: "delivery" }))} className={cn("rounded-lg border px-3 py-2 text-[10px] font-bold", checkoutForm.deliveryType === "delivery" ? "border-blue-600 bg-blue-50 text-blue-700" : "border-slate-200 text-slate-600")}>Entrega {checkoutOptions.delivery.delivery_fee ? `R$ ${Number(checkoutOptions.delivery.delivery_fee).toFixed(2)}` : "grátis"}</button>}
+                      </div>
+                      <select value={checkoutForm.paymentMethod} onChange={(e) => setCheckoutForm((current) => ({ ...current, paymentMethod: e.target.value }))} className="h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-xs">
+                        {checkoutOptions?.payment_methods.pix && <option value="pix">PIX — confirmar com a loja</option>}
+                        {checkoutOptions?.payment_methods.cash_on_delivery && <option value="cash_on_delivery">Dinheiro na entrega</option>}
+                        {checkoutOptions?.payment_methods.card_on_delivery && <option value="card_on_delivery">Cartão na entrega</option>}
+                      </select>
+                      <button onClick={handleOnlineCheckout} disabled={checkoutLoading} style={{ backgroundColor: style.accent }} className="h-11 w-full rounded-xl text-xs font-black uppercase tracking-wider text-white disabled:opacity-60">{checkoutLoading ? "Enviando pedido..." : "Confirmar pedido"}</button>
+                    </div>
+                  )}
                 </div>
 
                 {cart.length > 0 && (
@@ -1597,11 +1710,7 @@ function StoreLayoutInner() {
                       </p>
                     )}
                     <button
-                      onClick={
-                        checkoutMode === "reservation"
-                          ? handleReserveCart
-                          : handleWhatsAppCheckout
-                      }
+                      onClick={checkoutMode === "reservation" ? handleReserveCart : checkoutMode === "online" ? openCheckout : handleWhatsAppCheckout}
                       disabled={reservationState.loading}
                       style={
                         isUrban ? { backgroundColor: style.accent } : undefined
@@ -1624,7 +1733,7 @@ function StoreLayoutInner() {
                         ? "Reservando itens..."
                         : checkoutMode === "reservation"
                           ? "Reservar itens agora"
-                          : "Fechar pedido via WhatsApp"}
+                          : checkoutMode === "online" ? "Continuar para checkout" : "Fechar pedido via WhatsApp"}
                     </button>
                     <p
                       className={cn(
@@ -1638,7 +1747,7 @@ function StoreLayoutInner() {
                     >
                       {checkoutMode === "reservation"
                         ? "Reserva de estoque segura. Frete e pagamento serão definidos com a loja."
-                        : "Você revisa tudo com a equipe antes de confirmar o pedido."}
+                        : checkoutMode === "online" ? "Informe entrega e pagamento para enviar o pedido à loja." : "Você revisa tudo com a equipe antes de confirmar o pedido."}
                     </p>
                   </div>
                 )}
@@ -1647,6 +1756,7 @@ function StoreLayoutInner() {
                     {reservationState.message}
                   </div>
                 )}
+                {checkoutMessage && <div className="mx-4 mb-4 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-center text-[11px] font-semibold leading-relaxed text-emerald-800">{checkoutMessage}</div>}
               </motion.div>
             </>
           )}

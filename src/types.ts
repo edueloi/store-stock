@@ -33,6 +33,20 @@ export interface StorePolicies {
     home_categories_title?: string;
     home_featured_title?: string;
     show_whatsapp_widget?: boolean;
+    /** Meios manuais e provedores habilitados na vitrine; nenhum token fica aqui. */
+    checkout_payment_methods?: {
+      pix?: boolean;
+      cash_on_delivery?: boolean;
+      card_on_delivery?: boolean;
+      mercadopago?: boolean;
+      asaas?: boolean;
+    };
+    /** Entrega por faixas de CEP. Distância real em km exige um provedor de rotas. */
+    delivery?: {
+      pickup_enabled?: boolean;
+      delivery_enabled?: boolean;
+      cep_zones?: Array<{ name: string; from: string; to: string; fee?: number }>;
+    };
   };
 }
 
