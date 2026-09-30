@@ -137,9 +137,9 @@ body {
 }
 
 .font-doceria .store-display {
-  font-family: "Cormorant Garamond", serif;
-  font-weight: 700;
-  letter-spacing: -0.045em;
+  font-family: "Poppins", sans-serif;
+  font-weight: 800;
+  letter-spacing: -0.05em;
 }
 
 .font-doceria .store-kicker {
@@ -148,11 +148,8 @@ body {
 }
 
 .candy-shell {
-  --doceria-accent: #db2777;
-  background-image:
-    radial-gradient(circle at 10% 5%, rgba(251, 113, 133, 0.15), transparent 25%),
-    radial-gradient(circle at 88% 12%, rgba(251, 191, 36, 0.16), transparent 22%),
-    linear-gradient(180deg, #fff7fb 0%, #fffaf6 46%, #ffffff 100%);
+  --doceria-accent: #bd3437;
+  background: #f7f6ed;
 }
 
 /* A cor principal vem da configuração da loja, não do modelo pronto. */
@@ -166,6 +163,59 @@ body {
 
 .candy-shell .border-pink-600 {
   border-color: var(--doceria-accent) !important;
+}
+
+/* Paleta institucional da doceria: vermelho, creme e marrom-dourado. */
+.candy-shell .bg-pink-50 { background-color: #f7f6ed !important; }
+.candy-shell .bg-pink-100 { background-color: #eee7d7 !important; }
+.candy-shell .bg-pink-200 { background-color: #e8d8bf !important; }
+.candy-shell .bg-pink-300 { background-color: #dcc69f !important; }
+.candy-shell .bg-pink-500,
+.candy-shell .bg-pink-600 { background-color: var(--doceria-accent) !important; }
+.candy-shell .text-pink-200 { color: #f2dfaa !important; }
+.candy-shell .text-pink-300 { color: #dfc27b !important; }
+.candy-shell .text-pink-400 { color: #af8540 !important; }
+.candy-shell .text-pink-500 { color: #9a6a1e !important; }
+.candy-shell .text-pink-600,
+.candy-shell .text-pink-700 { color: var(--doceria-accent) !important; }
+.candy-shell .border-pink-100 { border-color: #e5d9c1 !important; }
+.candy-shell .border-pink-200 { border-color: #dcc69f !important; }
+.candy-shell .border-pink-300,
+.candy-shell .border-pink-400 { border-color: #bd3437 !important; }
+
+.font-doceria .font-\[Cormorant_Garamond\] {
+  font-family: "Poppins", sans-serif !important;
+}
+
+.candy-shell .doceria-hero {
+  background: #f7f6ed;
+}
+
+.candy-shell .bg-\[\#54243c\],
+.candy-shell .bg-\[\#4a2135\] {
+  background-color: #bd3437 !important;
+}
+
+.candy-shell .bg-\[\#fff8fb\],
+.candy-shell .bg-\[\#fff9fb\],
+.candy-shell .bg-\[\#fffafd\],
+.candy-shell .bg-\[\#fff6f8\],
+.candy-shell .bg-\[\#fff1f6\] {
+  background-color: #f7f6ed !important;
+}
+
+.candy-shell .text-\[\#4a2135\],
+.candy-shell .text-\[\#3d2431\] {
+  color: #6e541e !important;
+}
+
+.candy-shell article.group {
+  border-radius: 10px !important;
+  box-shadow: none !important;
+}
+
+.candy-shell article.group .rounded-xl {
+  border-radius: 7px !important;
 }
 
 .fashion-shell {

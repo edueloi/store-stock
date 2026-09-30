@@ -19,10 +19,10 @@ export default function StoreFront() {
   const isMadeToOrder = tenant.policies?.storefront?.checkout_mode === "order_request";
   const tagline = tenant.hero_tagline || "Doces caseiros preparados com carinho para deixar qualquer momento mais especial.";
 
-  return <main className="min-h-screen overflow-hidden bg-[#fff8fb] text-[#3d2431]">
+  return <main className="min-h-screen overflow-hidden bg-[#f7f6ed] text-[#4d371d]">
     <StoreSEO title={`${tenant.name} | Doces e encomendas`} description={tenant.about_text || `${tenant.name}: doces caseiros e encomendas feitos com carinho.`} image={tenant.banner_url || tenant.logo_url} url={typeof window !== "undefined" ? window.location.href : ""} siteName={tenant.name} keywords={`${tenant.name}, doceria, doces caseiros, encomendas, Tatuí`} />
 
-    <section className="border-b border-pink-100 bg-[radial-gradient(circle_at_12%_16%,#fecdd3_0,transparent_24%),radial-gradient(circle_at_84%_18%,#fde68a_0,transparent_18%),linear-gradient(135deg,#fff1f6_0%,#fffaf7_52%,#fdf2f8_100%)]">
+    <section className="doceria-hero border-b border-[#e5d9c1]">
       <div className="mx-auto grid max-w-[1440px] items-center gap-8 px-5 py-10 md:px-8 lg:grid-cols-[1.05fr_.95fr] lg:py-14">
         <div className="max-w-xl">
           <span className="inline-flex items-center gap-2 rounded-full border border-pink-200 bg-white/80 px-4 py-2 text-[10px] font-extrabold uppercase tracking-[.18em] text-pink-700"><Sparkles size={13} /> Doces feitos para celebrar</span>

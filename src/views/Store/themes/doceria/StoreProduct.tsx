@@ -26,7 +26,7 @@ export default function StoreProduct() {
     return [];
   }, [product]);
 
-  if (!product) return <main className="grid min-h-[60vh] place-items-center bg-[#fff9fb] p-6 text-center"><div><CakeSlice size={44} className="mx-auto text-pink-300" /><h1 className="mt-4 text-xl font-extrabold">Doce não encontrado</h1><Link to={path("/catalogo")} className="mt-4 inline-flex rounded-full bg-pink-600 px-5 py-3 text-xs font-bold text-white">Voltar ao cardápio</Link></div></main>;
+  if (!product) return <main className="grid min-h-[60vh] place-items-center bg-[#f7f6ed] p-6 text-center"><div><CakeSlice size={44} className="mx-auto text-pink-300" /><h1 className="mt-4 text-xl font-extrabold">Doce não encontrado</h1><Link to={path("/catalogo")} className="mt-4 inline-flex rounded-full bg-pink-600 px-5 py-3 text-xs font-bold text-white">Voltar ao cardápio</Link></div></main>;
 
   const price = Number(product.discount_price || product.price);
   const category = categories.find((item) => item.id === product.category_id)?.name || "Doceria";
@@ -38,7 +38,7 @@ export default function StoreProduct() {
     setAdded(true);
   };
 
-  return <main className="min-h-screen bg-[#fff9fb] pb-14"><StoreSEO title={`${product.name} | ${tenant.name}`} description={product.description || `${product.name} por encomenda na ${tenant.name}.`} image={imageOf(product)} url={typeof window !== "undefined" ? window.location.href : ""} siteName={tenant.name} keywords={`${product.name}, doces, encomenda, ${tenant.name}`} />
+  return <main className="min-h-screen bg-[#f7f6ed] pb-14"><StoreSEO title={`${product.name} | ${tenant.name}`} description={product.description || `${product.name} por encomenda na ${tenant.name}.`} image={imageOf(product)} url={typeof window !== "undefined" ? window.location.href : ""} siteName={tenant.name} keywords={`${product.name}, doces, encomenda, ${tenant.name}`} />
     <div className="mx-auto max-w-6xl px-5 py-7 md:px-8"><Link to={path("/catalogo")} className="inline-flex items-center gap-2 text-[11px] font-extrabold uppercase tracking-wider text-pink-700"><ArrowLeft size={15} /> Voltar ao cardápio</Link>
       <div className="mt-6 grid overflow-hidden rounded-[2rem] border border-pink-100 bg-white shadow-[0_20px_60px_rgba(110,47,76,.1)] lg:grid-cols-[1fr_460px]">
         <div className="grid min-h-[320px] place-items-center bg-pink-50 p-5 lg:min-h-[580px] lg:p-8">{imageOf(product) ? <img src={imageOf(product)!} alt={product.name} className="h-full max-h-[580px] w-full object-contain" /> : <div className="grid h-full place-items-center text-pink-300"><CakeSlice size={60} /></div>}</div>

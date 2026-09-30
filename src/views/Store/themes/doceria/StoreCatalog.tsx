@@ -32,9 +32,9 @@ export default function StoreCatalog() {
   const selectedName = categories.find((category) => category.id === categoryId)?.name;
   const ranges: [string, number, number][] = [["Até R$ 50", 0, 50], ["R$ 50 a R$ 100", 50, 100], ["R$ 100 a R$ 200", 100, 200], ["Acima de R$ 200", 200, Infinity]];
 
-  return <main className="min-h-screen bg-[#fff9fb] text-[#3d2431]">
+  return <main className="min-h-screen bg-[#f7f6ed] text-[#4d371d]">
     <StoreSEO title={`Cardápio | ${tenant.name}`} description={`Cardápio de doces e encomendas da ${tenant.name}.`} image={tenant.banner_url || tenant.logo_url} url={typeof window !== "undefined" ? window.location.href : ""} siteName={tenant.name} keywords={`${tenant.name}, doceria, cardápio, doces, bolos, encomendas`} />
-    <section className="border-b border-pink-100 bg-[#54243c] text-white">
+    <section className="border-b border-[#9e282c] bg-[#bd3437] text-white">
       <div className="mx-auto max-w-7xl px-5 py-12 md:px-8 md:py-16">
         <p className="text-[10px] font-extrabold uppercase tracking-[.22em] text-pink-200">Cardápio da casa</p>
         <div className="mt-3 flex flex-col justify-between gap-6 md:flex-row md:items-end">

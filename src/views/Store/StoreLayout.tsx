@@ -216,10 +216,10 @@ const templates: Record<string, StoreStyle> = {
     radius: "rounded-xl",
   },
   doceria: {
-    bg: "candy-shell bg-[#fff7fb]",
-    card: "bg-white border-pink-100",
-    accent: "#db2777",
-    text: "text-[#3b1d2c]",
+    bg: "candy-shell bg-[#f7f6ed]",
+    card: "bg-white border-[#e5d9c1]",
+    accent: "#bd3437",
+    text: "text-[#4d371d]",
     font: "font-doceria",
     radius: "rounded-2xl",
   },
@@ -763,7 +763,7 @@ function StoreLayoutInner() {
                       isDark || isElectronics || isElectric
                         ? "#fff"
                          : isDoceria
-                           ? "#4a2135"
+                           ? "#6e541e"
                          : isFashion
                           ? "#2d221f"
                           : isTechNova
