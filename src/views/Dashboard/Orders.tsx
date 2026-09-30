@@ -2128,7 +2128,9 @@ ${
                 {/* Subtotal / desconto / acréscimo / taxa / total */}
                 {(() => {
                   const passedFee = Number(selectedOrder.passed_fee_amount ?? 0);
-                  const hasGross = selectedOrder.gross_amount != null && Number(selectedOrder.gross_amount) !== Number(selectedOrder.total_amount);
+                  const hasGross = selectedOrder.gross_amount != null && (
+                    Number(selectedOrder.gross_amount) !== Number(selectedOrder.total_amount) || passedFee > 0
+                  );
                   const hasDisc  = selectedOrder.discount_amount != null && Number(selectedOrder.discount_amount) > 0;
                   const hasFee   = passedFee > 0;
                   const surchargeRaw = selectedOrder.surcharge_amount != null
