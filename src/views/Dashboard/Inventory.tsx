@@ -58,6 +58,55 @@ const VARIATION_PRESETS: { label: string; icon: string; variations: { name: stri
     ],
   },
   {
+    label: "Moda íntima", icon: "🩲",
+    variations: [
+      { name: "Tamanho", options: ["PP", "P", "M", "G", "GG", "XGG"] },
+      { name: "Cor", options: ["Preto", "Branco", "Nude", "Vermelho"] },
+    ],
+  },
+  {
+    label: "Moda infantil", icon: "🧒",
+    variations: [
+      { name: "Idade", options: ["0–3 meses", "3–6 meses", "1 ano", "2 anos", "4 anos", "6 anos", "8 anos"] },
+      { name: "Cor", options: ["Azul", "Rosa", "Amarelo", "Verde"] },
+    ],
+  },
+  {
+    label: "Jeans", icon: "👖",
+    variations: [
+      { name: "Tamanho", options: ["34", "36", "38", "40", "42", "44", "46", "48"] },
+      { name: "Lavagem", options: ["Claro", "Médio", "Escuro"] },
+    ],
+  },
+  {
+    label: "Bolsas", icon: "👜",
+    variations: [
+      { name: "Cor", options: ["Preto", "Caramelo", "Marrom", "Bege", "Vinho"] },
+      { name: "Material", options: ["Couro", "Sintético", "Lona"] },
+    ],
+  },
+  {
+    label: "Joias", icon: "💎",
+    variations: [
+      { name: "Banho", options: ["Dourado", "Prateado", "Rosé"] },
+      { name: "Tamanho", options: ["P", "M", "G", "Único"] },
+    ],
+  },
+  {
+    label: "Óculos", icon: "🕶️",
+    variations: [
+      { name: "Cor da armação", options: ["Preto", "Tartaruga", "Dourado", "Prata"] },
+      { name: "Lente", options: ["Preta", "Marrom", "Degradê"] },
+    ],
+  },
+  {
+    label: "Relógios", icon: "⌚",
+    variations: [
+      { name: "Cor", options: ["Preto", "Prata", "Dourado", "Rosé"] },
+      { name: "Pulseira", options: ["Metal", "Couro", "Silicone"] },
+    ],
+  },
+  {
     label: "Perfumaria", icon: "🌸",
     variations: [
       { name: "Volume", options: ["30ml", "50ml", "75ml", "100ml", "150ml"] },
@@ -82,6 +131,48 @@ const VARIATION_PRESETS: { label: string; icon: string; variations: { name: stri
     variations: [
       { name: "Volume", options: ["200ml", "400ml", "1L"] },
       { name: "Tipo", options: ["Normal", "Seco", "Oleoso", "Misto"] },
+    ],
+  },
+  {
+    label: "Cosméticos", icon: "💄",
+    variations: [
+      { name: "Cor", options: ["Claro", "Médio", "Escuro", "Vermelho", "Rosa"] },
+      { name: "Volume", options: ["10ml", "30ml", "50ml"] },
+    ],
+  },
+  {
+    label: "Casa & decoração", icon: "🏠",
+    variations: [
+      { name: "Tamanho", options: ["P", "M", "G", "Único"] },
+      { name: "Cor", options: ["Branco", "Preto", "Bege", "Cinza"] },
+    ],
+  },
+  {
+    label: "Pet", icon: "🐾",
+    variations: [
+      { name: "Porte", options: ["Pequeno", "Médio", "Grande"] },
+      { name: "Cor", options: ["Azul", "Rosa", "Preto", "Vermelho"] },
+    ],
+  },
+  {
+    label: "Ferramentas", icon: "🛠️",
+    variations: [
+      { name: "Voltagem", options: ["110V", "220V", "Bivolt"] },
+      { name: "Kit", options: ["Individual", "Kit 2", "Kit 5"] },
+    ],
+  },
+  {
+    label: "Games", icon: "🎮",
+    variations: [
+      { name: "Plataforma", options: ["PS5", "Xbox", "Nintendo", "PC"] },
+      { name: "Edição", options: ["Padrão", "Deluxe", "Colecionador"] },
+    ],
+  },
+  {
+    label: "Papelaria", icon: "✏️",
+    variations: [
+      { name: "Formato", options: ["A4", "A5", "Universitário"] },
+      { name: "Cor", options: ["Azul", "Rosa", "Preto", "Verde"] },
     ],
   },
 ];
@@ -1354,10 +1445,16 @@ export default function Inventory() {
                   onChange={e => setEditingProduct(prev => ({ ...prev!, expiry_date: e.target.value }))} />
               </div>
             </div>
-            <div className="space-y-1">
-              <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest px-1">Descrição</label>
-              <textarea rows={3} placeholder="Descreva o produto, materiais, como usar..."
-                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs font-medium outline-none resize-none focus:border-blue-400 focus:ring-2 focus:ring-blue-500/10 transition-all"
+            <div className="rounded-xl border border-blue-100 bg-blue-50/40 p-3 space-y-2">
+              <div className="flex items-center justify-between gap-3 px-1">
+                <div>
+                  <label className="text-[10px] font-black text-blue-700 uppercase tracking-widest">Descrição pública do produto</label>
+                  <p className="text-[9px] text-blue-600/80 mt-0.5">Aparece na página deste produto na sua loja online.</p>
+                </div>
+                <span className="shrink-0 text-[9px] font-mono font-bold text-blue-500">{(editingProduct?.description || "").length}/2000</span>
+              </div>
+              <textarea rows={4} maxLength={2000} placeholder="Ex.: Camiseta em algodão premium, modelagem confortável e acabamento reforçado."
+                className="w-full bg-white border border-blue-100 rounded-xl px-3 py-2.5 text-xs font-medium leading-relaxed outline-none resize-y focus:border-blue-400 focus:ring-2 focus:ring-blue-500/10 transition-all"
                 value={editingProduct?.description || ""}
                 onChange={e => setEditingProduct(prev => ({ ...prev!, description: e.target.value }))} />
             </div>
