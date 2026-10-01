@@ -43,6 +43,7 @@ import pushRoutes from "./push.routes";
 import billingWebhookRoutes from "./billing-webhook.routes";
 import externalApiRoutes from "./external-api.routes";
 import storeDashboardRoutes from "./store-dashboard.routes";
+import fiscalCodesRoutes from "./fiscal-codes.routes";
 
 export function registerRoutes(app: Express) {
   // Serve uploaded images
@@ -91,4 +92,5 @@ export function registerRoutes(app: Express) {
   app.use("/api/billing", billingWebhookRoutes);
   app.use("/api/external", externalApiRoutes);
   app.use("/api/store-dashboard", storeDashboardRoutes);
+  app.use("/api/fiscal-codes", fiscalCodesRoutes);
 }

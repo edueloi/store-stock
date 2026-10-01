@@ -21,6 +21,7 @@ import PdfImportModal from "../../components/ui/PdfImportModal";
 import XmlImportModal from "../../components/ui/XmlImportModal";
 import { useToast } from "../../components/ui/Toast";
 import InventoryPageTour, { INVENTORY_PAGE_TOUR_EVENTS, type InventoryPageTourHandle } from "../../components/onboarding/InventoryPageTour";
+import FiscalCodeLookup from "../../components/fiscal/FiscalCodeLookup";
 
 // ── helpers ────────────────────────────────────────────────────────────────
 function toSlug(name: string) {
@@ -1530,6 +1531,7 @@ export default function Inventory() {
                   className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs font-mono font-bold outline-none h-10 focus:border-blue-400 focus:ring-2 focus:ring-blue-500/10 transition-all"
                   value={editingProduct?.ncm || ""}
                   onChange={e => setEditingProduct(prev => ({ ...prev!, ncm: e.target.value.replace(/\D/g, "") }))} />
+                <div className="mt-1.5"><FiscalCodeLookup kind="ncm" token={localStorage.getItem("token")} onSelect={(item) => setEditingProduct(prev => ({ ...prev!, ncm: item.code }))} /></div>
               </div>
               <div className="space-y-1">
                 <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest px-1">CEST</label>

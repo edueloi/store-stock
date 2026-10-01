@@ -15,6 +15,7 @@ import Modal from "../../components/ui/Modal";
 import Button from "../../components/ui/Button";
 import { useToast } from "../../components/ui/Toast";
 import { onRealtime } from "../../lib/realtime";
+import FiscalCodeLookup from "../../components/fiscal/FiscalCodeLookup";
 
 const PRAZO_CANCELAMENTO_MINUTOS = 30;
 
@@ -1903,6 +1904,9 @@ function NfseTabContent() {
               <input value={avulsaCodigo} onChange={(e) => setAvulsaCodigo(e.target.value.replace(/\D/g, "").slice(0, 6))}
                 placeholder="140601"
                 className="w-full h-9 px-3 rounded-lg border border-slate-200 text-xs font-mono outline-none focus:border-violet-400 transition-all" />
+              <div className="mt-1.5">
+                <FiscalCodeLookup kind="nfse-service" token={token} onSelect={(item) => { setAvulsaCodigo(item.code); setAvulsaDescricao((current) => current || item.description); }} />
+              </div>
             </div>
             <div>
               <label className="text-[9px] font-black text-slate-400 uppercase tracking-wide block mb-1">Valor (R$)</label>

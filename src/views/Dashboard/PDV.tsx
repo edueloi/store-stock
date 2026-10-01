@@ -29,6 +29,7 @@ import { onRealtimeAny } from "../../lib/realtime";
 import { fetchRemotePrintTerminals, requestRemotePrint, type RemotePrintTerminal } from "../../lib/remotePrint";
 import { getStoredUser } from "../../lib/session";
 import { CategoryGlyph } from "../../components/categories/CategoryGlyph";
+import FiscalCodeLookup from "../../components/fiscal/FiscalCodeLookup";
 
 function maskPhone(v: string) {
   const d = v.replace(/\D/g, "").slice(0, 11);
@@ -3230,6 +3231,7 @@ export default function PDV() {
                     onChange={(e) => setAvulsoNcm(e.target.value)}
                     placeholder="Deixe em branco se não souber"
                     className="w-full h-11 px-3 rounded-xl border border-slate-200 text-sm font-mono focus:outline-none focus:border-emerald-400" />
+                  <div className="mt-1.5"><FiscalCodeLookup kind="ncm" token={token} onSelect={(item) => setAvulsoNcm(item.code)} /></div>
                 </div>
               </div>
 

@@ -40,6 +40,7 @@ import Combobox from "../../components/ui/Combobox";
 import { useToast } from "../../components/ui/Toast";
 import { computeMeasuredPrice } from "../../utils/measurePricing";
 import { onRealtimeAny } from "../../lib/realtime";
+import FiscalCodeLookup from "../../components/fiscal/FiscalCodeLookup";
 import {
   ServiceOrder,
   ChecklistItem,
@@ -1438,6 +1439,9 @@ export default function ServiceOrderDetail() {
                       <input value={nfseCodigoServico} onChange={(e) => setNfseCodigoServico(e.target.value.replace(/\D/g, "").slice(0, 6))}
                         placeholder="140601"
                         className="w-full h-9 px-2 rounded-lg border border-slate-200 text-[12px] font-mono focus:outline-none focus:border-blue-400" />
+                      <div className="mt-1.5">
+                        <FiscalCodeLookup kind="nfse-service" token={localStorage.getItem("token")} onSelect={(item) => { setNfseCodigoServico(item.code); setNfseDescricao((current) => current || item.description); }} />
+                      </div>
                     </div>
                     <div>
                       <label className="text-[9px] font-black text-slate-400 uppercase tracking-wide block mb-1">Descrição do Serviço</label>
