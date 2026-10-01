@@ -317,6 +317,7 @@ function NfceTabContent() {
     authorized: invoices.filter((i) => i.status === "authorized").length,
     pending: invoices.filter((i) => i.status === "pending" || i.status === "processing").length,
     error: invoices.filter((i) => i.status === "error" || i.status === "rejected").length,
+    amount: invoices.filter((i) => i.status === "authorized").reduce((sum, i) => sum + Number(i.order?.total_amount || 0), 0),
   }), [invoices]);
 
   const toggleSelected = (orderId: number) => {
@@ -406,12 +407,13 @@ function NfceTabContent() {
       </div>
 
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm">
-        <div className="grid grid-cols-2 sm:grid-cols-4 border-b border-slate-100 divide-x divide-y sm:divide-y-0 divide-slate-100">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 border-b border-slate-100 divide-x divide-y sm:divide-y-0 lg:divide-y-0 divide-slate-100">
           {[
             { label: "Total",       value: counts.total,      color: "text-slate-900" },
             { label: "Autorizadas", value: counts.authorized, color: "text-emerald-500" },
             { label: "Em processo", value: counts.pending,    color: "text-blue-500" },
             { label: "Com erro",    value: counts.error,      color: "text-rose-500" },
+            { label: "Valor emitido", value: counts.amount.toLocaleString("pt-BR", { style: "currency", currency: "BRL" }), color: "text-slate-900" },
           ].map((k) => (
             <div key={k.label} className="px-4 sm:px-5 py-3 sm:py-4 flex flex-col gap-0.5">
               <span className={cn("text-xl sm:text-2xl font-black tracking-tight font-mono leading-none", k.color)}>{k.value}</span>
@@ -507,8 +509,8 @@ function NfceTabContent() {
           </div>
         )}
 
-        <div className="hidden xl:block overflow-auto max-h-[70vh]">
-          <table className="w-full min-w-[1280px] text-left border-collapse table-fixed">
+        <div className="hidden xl:block h-[calc(100vh-390px)] min-h-[320px] max-h-[680px] overflow-auto overscroll-contain">
+          <table className="w-full min-w-[1420px] text-left border-collapse table-fixed [&_thead_th:last-child]:sticky [&_thead_th:last-child]:right-0 [&_thead_th:last-child]:z-30 [&_thead_th:last-child]:bg-slate-50">
             <colgroup>
               <col className="w-8" />
               <col className="w-14" />
@@ -517,11 +519,12 @@ function NfceTabContent() {
               <col className="w-24" />
               <col className="w-[16%]" />
               <col className="w-44" />
+              <col className="w-28" />
               <col className="w-36" />
               <col className="w-72" />
             </colgroup>
             <thead>
-              <tr className="sticky top-0 z-10 border-t border-slate-100 bg-slate-50">
+              <tr className="sticky top-0 z-20 border-t border-slate-100 bg-slate-50 shadow-sm">
                 <th className="px-4 py-2.5 w-8">
                   <input
                     type="checkbox"
@@ -530,17 +533,17 @@ function NfceTabContent() {
                     className="rounded border-slate-300"
                   />
                 </th>
-                {["Nº", "Série", "Pedido", "Cliente", "Chave de Acesso", "Status", "Emitida em", ""].map((h) => (
+                {["Nº", "Série", "Pedido", "Cliente", "Chave de Acesso", "Status", "Valor", "Emitida em", ""].map((h) => (
                   <th key={h} className="px-4 py-2.5 text-[9px] font-black text-slate-400 uppercase tracking-widest whitespace-nowrap">{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
               {loading && (
-                <tr><td colSpan={9} className="px-4 py-10 text-center text-slate-400 text-xs">Carregando...</td></tr>
+                <tr><td colSpan={10} className="px-4 py-10 text-center text-slate-400 text-xs">Carregando...</td></tr>
               )}
               {!loading && filtered.length === 0 && (
-                <tr><td colSpan={9} className="px-4 py-10 text-center text-slate-400 text-xs">Nenhuma nota fiscal encontrada</td></tr>
+                <tr><td colSpan={10} className="px-4 py-10 text-center text-slate-400 text-xs">Nenhuma nota fiscal encontrada</td></tr>
               )}
               {!loading && filtered.map((inv) => {
                 const meta = STATUS_META[inv.status];
@@ -591,11 +594,14 @@ function NfceTabContent() {
                         </span>
                       )}
                     </td>
+                    <td className="px-4 py-2.5 text-xs font-mono font-bold text-slate-700 whitespace-nowrap">
+                      {Number(inv.order?.total_amount || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
+                    </td>
                     <td className="px-4 py-2.5 text-xs text-slate-500 whitespace-nowrap">
                       {inv.authorized_at ? new Date(inv.authorized_at).toLocaleString("pt-BR") : "—"}
                     </td>
-                    <td className="px-4 py-2.5 pr-5">
-                      <div className="flex items-center gap-2 justify-end flex-wrap shrink-0">
+                    <td className="sticky right-0 z-10 bg-white px-4 py-2.5 pr-5 shadow-[-6px_0_10px_-8px_rgba(15,23,42,.35)]">
+                      <div className="flex items-center gap-2 justify-end flex-nowrap shrink-0">
                         {(inv.status === "error" || inv.status === "rejected") && (
                           <>
                             <button
@@ -719,6 +725,9 @@ function NfceTabContent() {
                 )}
 
                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 pl-7">
+                  <span className="text-xs font-mono font-black text-slate-700">
+                    {Number(inv.order?.total_amount || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
+                  </span>
                   <span className="text-[10px] text-slate-400 font-medium">
                     {inv.authorized_at ? new Date(inv.authorized_at).toLocaleString("pt-BR") : "—"}
                   </span>
@@ -1277,6 +1286,7 @@ function NfseTabContent() {
     authorized: invoices.filter((i) => i.status === "authorized").length,
     pending: invoices.filter((i) => i.status === "pending" || i.status === "processing").length,
     error: invoices.filter((i) => i.status === "error" || i.status === "rejected").length,
+    amount: invoices.filter((i) => i.status === "authorized").reduce((sum, i) => sum + Number(i.service_order?.service_value || 0), 0),
   }), [invoices]);
 
   const toggleSelected = (serviceOrderId: number) => {
@@ -1333,12 +1343,13 @@ function NfseTabContent() {
       </div>
 
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm">
-        <div className="grid grid-cols-2 sm:grid-cols-4 border-b border-slate-100 divide-x divide-y sm:divide-y-0 divide-slate-100">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 border-b border-slate-100 divide-x divide-y sm:divide-y-0 lg:divide-y-0 divide-slate-100">
           {[
             { label: "Total",       value: counts.total,      color: "text-slate-900" },
             { label: "Autorizadas", value: counts.authorized, color: "text-emerald-500" },
             { label: "Em processo", value: counts.pending,    color: "text-blue-500" },
             { label: "Com erro",    value: counts.error,      color: "text-rose-500" },
+            { label: "Valor emitido", value: counts.amount.toLocaleString("pt-BR", { style: "currency", currency: "BRL" }), color: "text-slate-900" },
           ].map((k) => (
             <div key={k.label} className="px-4 sm:px-5 py-3 sm:py-4 flex flex-col gap-0.5">
               <span className={cn("text-xl sm:text-2xl font-black tracking-tight font-mono leading-none", k.color)}>{k.value}</span>
@@ -1386,8 +1397,8 @@ function NfseTabContent() {
           </div>
         )}
 
-        <div className="hidden xl:block overflow-auto max-h-[70vh]">
-          <table className="w-full min-w-[1280px] text-left border-collapse table-fixed">
+        <div className="hidden xl:block h-[calc(100vh-390px)] min-h-[320px] max-h-[680px] overflow-auto overscroll-contain">
+          <table className="w-full min-w-[1420px] text-left border-collapse table-fixed [&_thead_th:last-child]:sticky [&_thead_th:last-child]:right-0 [&_thead_th:last-child]:z-30 [&_thead_th:last-child]:bg-slate-50">
             <colgroup>
               <col className="w-8" />
               <col className="w-14" />
@@ -1396,11 +1407,12 @@ function NfseTabContent() {
               <col className="w-32" />
               <col className="w-[16%]" />
               <col className="w-44" />
+              <col className="w-28" />
               <col className="w-36" />
               <col className="w-72" />
             </colgroup>
             <thead>
-              <tr className="sticky top-0 z-10 border-t border-slate-100 bg-slate-50">
+              <tr className="sticky top-0 z-20 border-t border-slate-100 bg-slate-50 shadow-sm">
                 <th className="px-4 py-2.5 w-8">
                   <input
                     type="checkbox"
@@ -1409,17 +1421,17 @@ function NfseTabContent() {
                     className="rounded border-slate-300"
                   />
                 </th>
-                {["Nº", "Série", "O.S.", "Cliente", "Chave de Acesso", "Status", "Emitida em", ""].map((h) => (
+                {["Nº", "Série", "O.S.", "Cliente", "Chave de Acesso", "Status", "Valor", "Emitida em", ""].map((h) => (
                   <th key={h} className="px-4 py-2.5 text-[9px] font-black text-slate-400 uppercase tracking-widest whitespace-nowrap">{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
               {loading && (
-                <tr><td colSpan={9} className="px-4 py-10 text-center text-slate-400 text-xs">Carregando...</td></tr>
+                <tr><td colSpan={10} className="px-4 py-10 text-center text-slate-400 text-xs">Carregando...</td></tr>
               )}
               {!loading && filtered.length === 0 && (
-                <tr><td colSpan={9} className="px-4 py-10 text-center text-slate-400 text-xs">Nenhuma nota fiscal de serviço encontrada</td></tr>
+                <tr><td colSpan={10} className="px-4 py-10 text-center text-slate-400 text-xs">Nenhuma nota fiscal de serviço encontrada</td></tr>
               )}
               {!loading && filtered.map((inv) => {
                 const meta = NFSE_STATUS_META[inv.status];
@@ -1465,11 +1477,14 @@ function NfseTabContent() {
                         </button>
                       )}
                     </td>
+                    <td className="px-4 py-2.5 text-xs font-mono font-bold text-slate-700 whitespace-nowrap">
+                      {Number(inv.service_order?.service_value || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
+                    </td>
                     <td className="px-4 py-2.5 text-xs text-slate-500 whitespace-nowrap">
                       {inv.authorized_at ? new Date(inv.authorized_at).toLocaleString("pt-BR") : "—"}
                     </td>
-                    <td className="px-4 py-2.5 pr-5">
-                      <div className="flex items-center gap-2 justify-end flex-wrap shrink-0">
+                    <td className="sticky right-0 z-10 bg-white px-4 py-2.5 pr-5 shadow-[-6px_0_10px_-8px_rgba(15,23,42,.35)]">
+                      <div className="flex items-center gap-2 justify-end flex-nowrap shrink-0">
                         {(inv.status === "error" || inv.status === "rejected") && (
                           <>
                             <button
@@ -1577,6 +1592,9 @@ function NfseTabContent() {
                 )}
 
                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 pl-7">
+                  <span className="text-xs font-mono font-black text-slate-700">
+                    {Number(inv.service_order?.service_value || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
+                  </span>
                   <span className="text-[10px] text-slate-400 font-medium">
                     {inv.authorized_at ? new Date(inv.authorized_at).toLocaleString("pt-BR") : "—"}
                   </span>
