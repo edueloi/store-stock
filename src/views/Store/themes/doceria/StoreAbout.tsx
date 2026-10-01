@@ -1,1 +1,40 @@
-export { default } from "../default/StoreAbout";
+import { Link, useParams } from "react-router-dom";
+import { ArrowRight, Check, Factory, Leaf, MapPin, MessageCircle, Package, Phone } from "lucide-react";
+import StoreSEO from "../../../../components/store/StoreSEO";
+import { useStore } from "../../StoreLayout";
+import { buildStorePath, resolveStoreSlug } from "../../store-routing";
+
+const imageOf = (product: { image_url?: string | null; images?: unknown }) =>
+  (Array.isArray(product.images) && typeof product.images[0] === "string" ? product.images[0] : product.image_url) || null;
+
+export default function StoreAbout() {
+  const { slug: routeSlug } = useParams();
+  const { tenant, products, categories } = useStore();
+  const slug = resolveStoreSlug(routeSlug);
+  const path = (suffix = "") => buildStorePath(slug, suffix);
+  const activeProducts = products.filter((product) => product.is_active);
+  const productImages = activeProducts.map(imageOf).filter(Boolean).slice(0, 2) as string[];
+  const about = tenant.about_text || "Tradicional de Tatuí, a Moça Reis mantém viva a essência do doce caseiro brasileiro. Com ingredientes selecionados e produção própria, cada receita leva sabor, cuidado e o carinho de gerações.";
+
+  return (
+    <main className="min-h-screen bg-[#f7f6ed] pb-14 text-[#59451f]">
+      <StoreSEO title={`Sobre | ${tenant.name}`} description={about} image={tenant.banner_url || tenant.logo_url} url={typeof window !== "undefined" ? window.location.href : ""} siteName={tenant.name} keywords={`${tenant.name}, doces caseiros, Tatuí, fábrica de doces, encomendas`} />
+
+      <div className="border-b border-[#e5d9c1] bg-[#bd3437] text-[#fff7e6]"><div className="mx-auto flex max-w-[1280px] items-center gap-5 px-5 py-3 md:px-8"><Factory size={15} className="shrink-0" /><p className="text-[10px] font-extrabold uppercase tracking-[.2em]">Produção própria · Tatuí, São Paulo</p><span className="hidden h-px flex-1 bg-[#f2dfaa]/70 sm:block" /><p className="hidden text-[10px] font-semibold text-[#fff0c2] sm:block">O melhor do doce caseiro.</p></div></div>
+
+      <div className="mx-auto max-w-[1280px] px-5 py-7 md:px-8 md:py-10">
+        <nav className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-wider text-[#9c8558]"><Link to={path()} className="transition hover:text-[#bd3437]">Início</Link><span>/</span><span className="text-[#70541c]">Sobre nós</span></nav>
+
+        <section className="mt-7 grid gap-8 lg:grid-cols-[minmax(0,1.08fr)_minmax(360px,.92fr)] lg:items-stretch">
+          <div className="py-3 lg:py-7"><p className="flex items-center gap-2 text-[10px] font-extrabold uppercase tracking-[.22em] text-[#bd3437]"><span className="h-2 w-2 rounded-full bg-[#d8ae52]" /> Desde Tatuí para todo o Brasil</p><h1 className="mt-4 max-w-2xl text-4xl font-extrabold leading-[1.02] tracking-[-.055em] text-[#70541c] sm:text-5xl">O sabor do doce caseiro que atravessa gerações.</h1><p className="mt-6 max-w-2xl text-[15px] leading-7 text-[#765e33]">{about}</p><div className="mt-8 flex flex-wrap gap-3"><Link to={path("/catalogo")} className="inline-flex h-11 items-center gap-2 rounded-md bg-[#bd3437] px-5 text-[10px] font-extrabold uppercase tracking-[.14em] text-white transition hover:bg-[#9f292d]"><Package size={15} /> Ver catálogo <ArrowRight size={14} /></Link>{tenant.whatsapp && <a href={`https://wa.me/${tenant.whatsapp.replace(/\D/g, "")}`} target="_blank" rel="noreferrer" className="inline-flex h-11 items-center gap-2 rounded-md border border-[#cba95d] bg-transparent px-5 text-[10px] font-extrabold uppercase tracking-[.14em] text-[#70541c] transition hover:bg-white"><MessageCircle size={15} /> Falar conosco</a>}</div></div>
+
+          <aside className="overflow-hidden border border-[#e0c77d] bg-[#fffdf4] shadow-[0_18px_45px_rgba(94,69,31,.09)]"><div className="flex min-h-[300px] flex-col bg-[#bd3437] p-6 text-[#fff7e6] sm:p-8"><div className="flex items-start justify-between gap-5"><div><p className="text-[10px] font-extrabold uppercase tracking-[.22em] text-[#f2d68c]">Moça Reis</p><p className="mt-2 text-2xl font-extrabold leading-tight">Doces feitos com história, afeto e qualidade.</p></div>{tenant.logo_url ? <img src={tenant.logo_url} alt={`Logo ${tenant.name}`} className="h-14 w-14 shrink-0 rounded-full border border-[#f2d68c]/70 bg-white object-contain p-1" /> : <div className="grid h-14 w-14 shrink-0 place-items-center rounded-full border border-[#f2d68c]/70 text-2xl font-black">M</div>}</div><div className="mt-auto grid grid-cols-2 gap-3 pt-9"><div className="border-t border-[#f2d68c]/55 pt-3"><p className="text-xl font-extrabold">Produção</p><p className="mt-1 text-[10px] font-semibold uppercase tracking-wider text-[#fff0c2]">própria</p></div><div className="border-t border-[#f2d68c]/55 pt-3"><p className="text-xl font-extrabold">Nacional</p><p className="mt-1 text-[10px] font-semibold uppercase tracking-wider text-[#fff0c2]">distribuição</p></div></div></div>{productImages.length > 0 && <div className="grid grid-cols-2 gap-px bg-[#e0c77d]">{productImages.map((image, index) => <div key={`${image}-${index}`} className="grid h-36 place-items-center bg-[#f7f6ed] p-3"><img src={image} alt="Doce Moça Reis" className="h-full w-full object-contain" /></div>)}</div>}</aside>
+        </section>
+
+        <section className="mt-12 border-y border-[#e5d9c1] py-9"><div className="grid gap-7 md:grid-cols-3">{[{ icon: <Leaf size={20} />, title: "Receitas tradicionais", text: "Sabores brasileiros preparados com cuidado e ingredientes selecionados." }, { icon: <Factory size={20} />, title: "Produção própria", text: "Acompanhamos cada etapa para entregar doces sempre frescos." }, { icon: <Check size={20} />, title: "Qualidade que chega", text: "Compromisso com sabor, textura e atendimento em cada pedido." }].map((item) => <div key={item.title} className="flex gap-4"><div className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-[#fff4d7] text-[#bd3437]">{item.icon}</div><div><h2 className="text-[15px] font-extrabold text-[#70541c]">{item.title}</h2><p className="mt-1 text-sm leading-6 text-[#765e33]">{item.text}</p></div></div>)}</div></section>
+
+        <section className="mt-10 grid gap-5 lg:grid-cols-[.9fr_1.1fr]"><div className="border border-[#e5d9c1] bg-white p-6 sm:p-7"><p className="text-[10px] font-extrabold uppercase tracking-[.2em] text-[#bd3437]">Contato e localização</p>{tenant.whatsapp && <a href={`https://wa.me/${tenant.whatsapp.replace(/\D/g, "")}`} target="_blank" rel="noreferrer" className="mt-5 flex items-center gap-3 text-[#70541c] transition hover:text-[#bd3437]"><span className="grid h-10 w-10 place-items-center rounded-full bg-[#25D366] text-white"><Phone size={17} /></span><span><span className="block text-[10px] font-bold uppercase tracking-wider text-[#9c8558]">WhatsApp</span><span className="text-sm font-extrabold">+{tenant.whatsapp}</span></span></a>}{tenant.address && <div className="mt-5 flex items-start gap-3"><span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-[#fff4d7] text-[#bd3437]"><MapPin size={17} /></span><span><span className="block text-[10px] font-bold uppercase tracking-wider text-[#9c8558]">Endereço</span><span className="mt-1 block text-sm leading-6 text-[#765e33]">{tenant.address}</span></span></div>}</div><div className="border border-[#e5d9c1] bg-[#fffdf4] p-6 sm:p-7"><p className="text-[10px] font-extrabold uppercase tracking-[.2em] text-[#bd3437]">Nossa fábrica em números</p><div className="mt-6 grid grid-cols-3 divide-x divide-[#e5d9c1]"><div className="pr-4"><p className="text-3xl font-extrabold tracking-[-.05em] text-[#70541c]">{activeProducts.length}</p><p className="mt-1 text-[10px] font-bold uppercase tracking-wider text-[#9c8558]">Produtos</p></div><div className="px-4"><p className="text-3xl font-extrabold tracking-[-.05em] text-[#70541c]">{categories.length}</p><p className="mt-1 text-[10px] font-bold uppercase tracking-wider text-[#9c8558]">Linhas</p></div><div className="pl-4"><p className="text-3xl font-extrabold tracking-[-.05em] text-[#70541c]">100%</p><p className="mt-1 text-[10px] font-bold uppercase tracking-wider text-[#9c8558]">Artesanal</p></div></div></div></section>
+      </div>
+    </main>
+  );
+}
