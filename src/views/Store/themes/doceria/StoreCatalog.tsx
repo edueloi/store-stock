@@ -53,7 +53,25 @@ export default function StoreCatalog() {
 
 function ProductCard({ product, categoryName, saved, onFavorite, onAdd, path, isMadeToOrder }: { product: any; categoryName: string; saved: boolean; onFavorite: () => void; onAdd: () => void; path: (suffix: string) => string; isMadeToOrder: boolean }) {
   const price = Number(product.discount_price || product.price);
-  return <article className="group rounded-2xl bg-white p-3 shadow-sm ring-1 ring-pink-100"><Link to={path(`/produto/${productRouteSegment(product)}`)} className="relative grid h-52 place-items-center overflow-hidden rounded-xl bg-pink-50 p-3 sm:h-56 2xl:h-60">{imageOf(product) ? <img src={imageOf(product)!} alt={product.name} className="h-full w-full object-contain transition duration-500 group-hover:scale-[1.03]" /> : <div className="grid h-full place-items-center text-pink-300"><CakeSlice size={38} /></div>}{product.is_featured && <span className="absolute left-3 top-3 rounded-full bg-white px-3 py-1 text-[9px] font-extrabold uppercase tracking-wider text-pink-600">Mais pedido</span>}</Link><div className="px-1 pt-3"><p className="text-[9px] font-extrabold uppercase tracking-[.17em] text-pink-500">{categoryName}</p><div className="mt-1 flex items-start justify-between gap-3"><Link to={path(`/produto/${productRouteSegment(product)}`)} className="text-[15px] font-extrabold leading-snug text-[#4a2135] hover:text-pink-600">{product.name}</Link><button aria-label="Favoritar" onClick={onFavorite} className={`grid h-8 w-8 shrink-0 place-items-center rounded-full border ${saved ? "border-pink-500 bg-pink-500 text-white" : "border-pink-100 bg-white text-pink-400"}`}><Heart size={15} fill={saved ? "currentColor" : "none"} /></button></div><div className="mt-3 flex items-center justify-between gap-2"><strong className="text-[10px] font-extrabold uppercase tracking-wide text-pink-600">{isMadeToOrder ? "Sob encomenda" : money(price)}</strong><button onClick={onAdd} className="rounded-full bg-[#54243c] px-3 py-2 text-[9px] font-extrabold uppercase tracking-wider text-white transition hover:bg-pink-600">Adicionar</button></div></div></article>;
+  return (
+    <article className="group flex gap-3 rounded-xl bg-white p-2.5 shadow-sm ring-1 ring-pink-100 sm:block sm:rounded-2xl sm:p-3">
+      <Link to={path(`/produto/${productRouteSegment(product)}`)} className="relative grid h-[116px] w-[116px] shrink-0 place-items-center overflow-hidden rounded-lg bg-pink-50 p-2 sm:h-56 sm:w-auto sm:rounded-xl sm:p-3 2xl:h-60">
+        {imageOf(product) ? <img src={imageOf(product)!} alt={product.name} className="block h-full w-full object-contain transition duration-500 group-hover:scale-[1.03]" /> : <div className="grid h-full w-full place-items-center text-pink-300"><CakeSlice size={32} /></div>}
+        {product.is_featured && <span className="absolute left-2 top-2 hidden rounded-full bg-white px-2 py-1 text-[8px] font-extrabold uppercase tracking-wider text-pink-600 sm:block">Mais pedido</span>}
+      </Link>
+      <div className="flex min-w-0 flex-1 flex-col py-1 sm:block sm:px-1 sm:pt-3">
+        <p className="text-[8px] font-extrabold uppercase tracking-[.17em] text-pink-500 sm:text-[9px]">{categoryName}</p>
+        <div className="mt-1 flex items-start justify-between gap-2">
+          <Link to={path(`/produto/${productRouteSegment(product)}`)} className="line-clamp-2 text-[14px] font-extrabold leading-snug text-[#4a2135] hover:text-pink-600 sm:text-[15px]">{product.name}</Link>
+          <button aria-label="Favoritar" onClick={onFavorite} className={`grid h-7 w-7 shrink-0 place-items-center rounded-full border sm:h-8 sm:w-8 ${saved ? "border-pink-500 bg-pink-500 text-white" : "border-pink-100 bg-white text-pink-400"}`}><Heart size={14} fill={saved ? "currentColor" : "none"} /></button>
+        </div>
+        <div className="mt-auto flex items-center justify-between gap-2 pt-3 sm:mt-3 sm:pt-0">
+          <strong className="text-[9px] font-extrabold uppercase tracking-wide text-pink-600 sm:text-[10px]">{isMadeToOrder ? "Sob encomenda" : money(price)}</strong>
+          <button onClick={onAdd} className="rounded-lg bg-[#bd3437] px-3 py-2 text-[8px] font-extrabold uppercase tracking-wider text-white transition hover:bg-[#9f292d] sm:text-[9px]">Adicionar</button>
+        </div>
+      </div>
+    </article>
+  );
 }
 
 function EmptyState({ onClear }: { onClear: () => void }) {

@@ -115,7 +115,9 @@ function renderSeoPage(res: Response, options: {
     .replace("</head>", `${metaBlock}\n  </head>`);
 
   res.setHeader("Content-Type", "text/html; charset=utf-8");
-  res.setHeader("Cache-Control", "public, max-age=300");
+  // A página pública aponta para arquivos JS/CSS com hash do build atual.
+  // Cachear o HTML aqui faz o cliente abrir uma vitrine antiga mesmo depois do deploy.
+  res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
   res.send(html);
 }
 
