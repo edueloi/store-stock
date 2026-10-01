@@ -881,7 +881,7 @@ function StoreLayoutInner() {
                               isElectronics
                                 ? "bg-[#0b1220] border-[#1e2d4a]"
                      : isDoceria
-                       ? "w-10 h-10 rounded-full border-pink-100 bg-white text-pink-500 hover:text-pink-700 hover:border-pink-300"
+                       ? "bg-[#fffdf8] border-[#e5d9c1]"
                      : isFashion
                                   ? "bg-white border-[#ead7cc]"
                                   : isTechNova
@@ -934,7 +934,7 @@ function StoreLayoutInner() {
                                         isElectronics
                                           ? "text-slate-200"
                      : isDoceria
-                       ? "h-10 px-4 md:px-5 rounded-full shadow-[0_12px_28px_rgba(219,39,119,0.24)]"
+                       ? "text-[#70541c]"
                      : isFashion
                                             ? "text-[#2d221f]"
                                             : isTechNova
