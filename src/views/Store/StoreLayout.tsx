@@ -299,6 +299,20 @@ function StoreLayoutInner() {
     window.scrollTo(0, 0);
   }, [location.pathname]);
 
+  // O carrinho é uma camada modal. Sem este bloqueio, a roda do mouse/trackpad
+  // atravessa o overlay e move a vitrine que está por trás dele.
+  useEffect(() => {
+    if (!isCartOpen) return;
+    const bodyOverflow = document.body.style.overflow;
+    const htmlOverflow = document.documentElement.style.overflow;
+    document.body.style.overflow = "hidden";
+    document.documentElement.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = bodyOverflow;
+      document.documentElement.style.overflow = htmlOverflow;
+    };
+  }, [isCartOpen]);
+
   useEffect(() => setMegaMenuOpen(false), [location.pathname]);
 
   const openMegaMenu = () => {
@@ -1576,6 +1590,8 @@ function StoreLayoutInner() {
                             ? "rounded-xl bg-slate-50 border-slate-200"
                             : isElectronics
                               ? "bg-[#0e1525] border-[#1e2d4a]"
+                              : isDoceria
+                                ? "rounded-xl bg-white border-[#ead8ba]"
                               : "bg-slate-50 border-slate-100",
                         )}
                       >
@@ -1584,13 +1600,15 @@ function StoreLayoutInner() {
                             "w-20 h-20 rounded-xl overflow-hidden border shrink-0 flex items-center justify-center",
                             isElectronics
                               ? "bg-[#070b12] border-[#1e2d4a]"
+                              : isDoceria
+                                ? "w-[72px] h-[72px] rounded-lg bg-[#fff8eb] border-[#ead8ba]"
                               : "bg-white border-slate-100",
                           )}
                         >
                           {item.image_url ? (
                             <img
                               src={item.image_url}
-                              className="w-full h-full object-cover"
+                              className={isDoceria ? "w-full h-full object-contain p-1" : "w-full h-full object-cover"}
                               alt={item.name}
                             />
                           ) : (
@@ -1604,12 +1622,12 @@ function StoreLayoutInner() {
                           <h4
                             className={cn(
                               "text-xs font-bold leading-snug line-clamp-2",
-                              isElectronics ? "text-white" : "text-slate-800",
+                              isElectronics ? "text-white" : isDoceria ? "text-[#59451f]" : "text-slate-800",
                             )}
                           >
                             {item.name}
                           </h4>
-                          {item.sku && (
+                          {item.sku && !isOrderRequest && (
                             <p
                               className={cn(
                                 "text-[9px] mt-0.5 font-mono uppercase tracking-widest",
@@ -1633,7 +1651,9 @@ function StoreLayoutInner() {
                               {item.variationLabel}
                             </p>
                           )}
-                          <div className="flex items-center gap-2 mt-1">
+                          {isOrderRequest ? (
+                            <p className="mt-1 text-[9px] font-extrabold uppercase tracking-wide text-[#bd3437]">Sob encomenda · valor a confirmar</p>
+                          ) : <div className="flex items-center gap-2 mt-1">
                             <p
                               className={cn(
                                 "text-[10px] font-mono",
@@ -1664,14 +1684,16 @@ function StoreLayoutInner() {
                               R${" "}
                               {(Number(item.price) * item.quantity).toFixed(2)}
                             </p>
-                          </div>
+                          </div>}
                           <div className="flex items-center gap-2 mt-2">
                             <div
                               className={cn(
                                 "flex items-center gap-2 border rounded-lg px-2 py-1",
                                 isElectronics
                                   ? "bg-[#070b12] border-[#1e2d4a]"
-                                  : "bg-white border-slate-200",
+                                  : isDoceria
+                                    ? "bg-[#fff8eb] border-[#ead8ba]"
+                                    : "bg-white border-slate-200",
                               )}
                             >
                               <button
@@ -1681,7 +1703,9 @@ function StoreLayoutInner() {
                                 className={cn(
                                   isElectronics
                                     ? "text-slate-500 hover:text-white"
-                                    : "text-slate-400 hover:text-slate-700",
+                                    : isDoceria
+                                      ? "text-[#bd3437] hover:text-[#9f292d]"
+                                      : "text-slate-400 hover:text-slate-700",
                                 )}
                               >
                                 <span className="text-sm font-black">−</span>
@@ -1701,7 +1725,9 @@ function StoreLayoutInner() {
                                 className={cn(
                                   isElectronics
                                     ? "text-slate-500 hover:text-white"
-                                    : "text-slate-400 hover:text-slate-700",
+                                    : isDoceria
+                                      ? "text-[#bd3437] hover:text-[#9f292d]"
+                                      : "text-slate-400 hover:text-slate-700",
                                 )}
                               >
                                 <span className="text-sm font-black">+</span>
@@ -1709,7 +1735,7 @@ function StoreLayoutInner() {
                             </div>
                             <button
                               onClick={() => removeFromCart(item.cartItemId)}
-                              className="text-slate-500 hover:text-red-500 transition-colors"
+                              className={isDoceria ? "text-[#a56e1e] hover:text-red-600 transition-colors" : "text-slate-500 hover:text-red-500 transition-colors"}
                             >
                               <X size={14} />
                             </button>
