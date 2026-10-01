@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { ListFilter, Loader2, Search } from "lucide-react";
+import { Building2, ListFilter, Loader2, Search } from "lucide-react";
 import Modal from "../ui/Modal";
 import { cn } from "../../lib/utils";
 
@@ -18,6 +18,9 @@ export default function FiscalCodeLookup({ kind, token, onSelect, className }: F
   const [items, setItems] = useState<CodeItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [issuerActivity, setIssuerActivity] = useState<{ document?: string; cnae_code?: string; cnae_description?: string } | null>(null);
+  const [issuerLoading, setIssuerLoading] = useState(false);
+  const [issuerChecked, setIssuerChecked] = useState(false);
   const isService = kind === "nfse-service";
 
   useEffect(() => {
@@ -42,6 +45,17 @@ export default function FiscalCodeLookup({ kind, token, onSelect, className }: F
     return () => window.clearTimeout(timer);
   }, [open, search, isService, token]);
 
+  useEffect(() => {
+    if (!open || !isService || issuerChecked) return;
+    setIssuerChecked(true);
+    setIssuerLoading(true);
+    fetch("/api/fiscal-codes/nfse-issuer-activity", { headers: { Authorization: `Bearer ${token}` } })
+      .then(async (response) => response.ok ? response.json() : null)
+      .then((data) => setIssuerActivity(data))
+      .catch(() => setIssuerActivity(null))
+      .finally(() => setIssuerLoading(false));
+  }, [open, isService, issuerChecked, token]);
+
   const title = isService ? "Lista oficial de serviços NFS-e" : "Consultar NCM";
   const hint = isService ? "Pesquise por código ou atividade. A escolha deve corresponder ao serviço efetivamente prestado." : "Pesquise por código ou descrição do produto antes de emitir a NFC-e.";
 
@@ -51,6 +65,17 @@ export default function FiscalCodeLookup({ kind, token, onSelect, className }: F
     </button>
     <Modal open={open} onClose={() => setOpen(false)} title={title} subtitle={isService ? "Fonte: Portal Nacional NFS-e · LC 116" : "Catálogo NCM vigente"} size="lg">
       <p className="text-xs leading-relaxed text-slate-500">{hint}</p>
+      {isService && <div className="rounded-xl border border-blue-100 bg-blue-50 px-3 py-2.5">
+        <div className="flex items-start gap-2"><Building2 size={15} className="mt-0.5 shrink-0 text-blue-600" />
+          <div className="min-w-0 flex-1">
+            <p className="text-[10px] font-black uppercase tracking-wide text-blue-700">Atividade da empresa emissora</p>
+            {issuerLoading ? <p className="mt-0.5 text-[11px] text-blue-600">Consultando CNPJ cadastrado...</p> : issuerActivity?.cnae_description ? <>
+              <p className="mt-0.5 text-xs font-semibold text-slate-700">{issuerActivity.cnae_code} — {issuerActivity.cnae_description}</p>
+              <button type="button" onClick={() => setSearch(issuerActivity.cnae_description || "")} className="mt-1.5 text-[10px] font-black uppercase tracking-wide text-blue-700 hover:text-blue-900">Usar atividade na busca</button>
+            </> : <p className="mt-0.5 text-[11px] text-slate-500">Cadastre o CNPJ e o CNAE em Configurações › Dados fiscais para receber sugestões.</p>}
+          </div>
+        </div>
+      </div>}
       <div className="relative">
         <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
         <input autoFocus value={search} onChange={(event) => setSearch(event.target.value)} placeholder={isService ? "Ex.: manutenção, 1406, informática..." : "Ex.: 8517, chocolate, cabo..."} className="h-11 w-full rounded-xl border border-slate-200 bg-slate-50 pl-10 pr-3 text-sm outline-none transition-colors focus:border-blue-400 focus:bg-white" />

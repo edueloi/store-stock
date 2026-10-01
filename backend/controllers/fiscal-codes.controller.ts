@@ -1,4 +1,6 @@
 import type { Request, Response } from "express";
+import { prisma } from "../config/prisma";
+import type { AuthenticatedRequest } from "../types/auth";
 
 const NFS_E_SERVICE_LIST_URL = "https://www.gov.br/nfse/pt-br/mei-e-demais-empresas/codigos-de-tributacao-nacional-nbs";
 
@@ -74,5 +76,43 @@ export async function searchNcmCodes(req: Request, res: Response) {
   } catch (error) {
     console.error("Falha ao consultar NCM", error);
     res.status(502).json({ error: "A consulta de NCM está indisponível agora." });
+  }
+}
+
+/** Atividade do CNPJ do emissor para orientar a busca do código de serviço. */
+export async function getNfseIssuerActivity(req: Request, res: Response) {
+  try {
+    const tenantId = (req as AuthenticatedRequest).user.tenantId;
+    if (!tenantId) {
+      res.status(403).json({ error: "Empresa emissora não identificada." });
+      return;
+    }
+    const tenant = await prisma.tenant.findUnique({
+      where: { id: tenantId },
+      select: { document: true, cnae_fiscal: true },
+    });
+    const document = String(tenant?.document || "").replace(/\D/g, "");
+    let cnaeCode = tenant?.cnae_fiscal || "";
+    let cnaeDescription = "";
+
+    if (document.length === 14) {
+      try {
+        const response = await fetch(`https://brasilapi.com.br/api/cnpj/v1/${document}`, {
+          headers: { Accept: "application/json" }, signal: AbortSignal.timeout(7_000),
+        });
+        if (response.ok) {
+          const company = await response.json() as Record<string, unknown>;
+          cnaeCode = String(company.cnae_fiscal || cnaeCode || "");
+          cnaeDescription = String(company.cnae_fiscal_descricao || "");
+        }
+      } catch {
+        // O cadastro local continua disponível mesmo quando a BrasilAPI oscilar.
+      }
+    }
+
+    res.json({ document, cnae_code: cnaeCode, cnae_description: cnaeDescription });
+  } catch (error) {
+    console.error("Falha ao consultar atividade fiscal do emissor", error);
+    res.status(500).json({ error: "Não foi possível consultar a atividade do CNPJ." });
   }
 }
