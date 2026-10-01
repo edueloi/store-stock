@@ -3772,6 +3772,7 @@ export default function Settings({
                   reservation_minutes: 20,
                   shipping_status: "coming_soon" as const,
                   payment_status: "coming_soon" as const,
+                  hide_prices: false,
                   ...(policies.storefront || {}),
                 };
                 const setStorefront = (patch: Partial<typeof storefront>) =>
@@ -3991,6 +3992,16 @@ export default function Settings({
                           }
                           label="Exibir botão flutuante do WhatsApp na loja"
                         />
+                        <div className="mt-4 border-t border-slate-100 pt-4">
+                          <Toggle
+                            checked={storefront.hide_prices === true}
+                            onChange={(value) => setStorefront({ hide_prices: value })}
+                            label="Ocultar preços na vitrine pública"
+                          />
+                          <p className="ml-11 mt-1 text-[10px] leading-relaxed text-slate-500">
+                            Os preços continuam cadastrados para o PDV e a gestão. No site, o cliente verá “Sob encomenda” e solicitará a confirmação com a equipe.
+                          </p>
+                        </div>
                       </div>
                     </div>
                     <div className="grid gap-5 xl:grid-cols-2">

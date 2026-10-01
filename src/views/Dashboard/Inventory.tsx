@@ -120,6 +120,13 @@ const VARIATION_PRESETS: { label: string; icon: string; variations: { name: stri
     ],
   },
   {
+    label: "Doceria", icon: "🍬",
+    variations: [
+      { name: "Apresentação", options: ["A granel", "Pote", "Caixa"] },
+      { name: "Peso", options: ["500g", "800g", "1kg", "1,1kg", "1,2kg", "1,5kg"] },
+    ],
+  },
+  {
     label: "Agro", icon: "🌱",
     variations: [
       { name: "Embalagem", options: ["1L", "5L", "10L", "20L", "50L"] },

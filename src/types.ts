@@ -33,6 +33,8 @@ export interface StorePolicies {
     home_categories_title?: string;
     home_featured_title?: string;
     show_whatsapp_widget?: boolean;
+    /** Mantém os preços internos no sistema, mas os oculta na vitrine pública. */
+    hide_prices?: boolean;
     /** E-mails da fábrica/equipe que recebem o PDF das solicitações de encomenda. */
     order_notification_emails?: string;
     /** Meios manuais e provedores habilitados na vitrine; nenhum token fica aqui. */
