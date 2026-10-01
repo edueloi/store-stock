@@ -509,16 +509,15 @@ function NfceTabContent() {
           </div>
         )}
 
-        <div className="hidden xl:block h-[calc(100vh-390px)] min-h-[320px] max-h-[680px] overflow-auto overscroll-contain">
-          <table className="w-full min-w-[1760px] text-left border-collapse table-fixed">
+        <div className="hidden xl:block max-h-[calc(100vh-390px)] overflow-auto overscroll-contain">
+          <table className="w-full min-w-[1480px] text-left border-collapse table-fixed">
             <colgroup>
               <col className="w-8" />
               <col className="w-14" />
               <col className="w-12" />
               <col className="w-24" />
-              <col className="w-24" />
-              <col className="w-[16%]" />
               <col className="w-44" />
+              <col className="w-36" />
               <col className="w-28" />
               <col className="w-36" />
               <col className="w-[38rem]" />
@@ -533,17 +532,17 @@ function NfceTabContent() {
                     className="rounded border-slate-300"
                   />
                 </th>
-                {["Nº", "Série", "Pedido", "Cliente", "Chave de Acesso", "Status", "Valor", "Emitida em", ""].map((h) => (
+                {["Nº", "Série", "Pedido", "Cliente", "Status", "Valor", "Emitida em", ""].map((h) => (
                   <th key={h} className="px-4 py-2.5 text-[9px] font-black text-slate-400 uppercase tracking-widest whitespace-nowrap">{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
               {loading && (
-                <tr><td colSpan={10} className="px-4 py-10 text-center text-slate-400 text-xs">Carregando...</td></tr>
+                <tr><td colSpan={9} className="px-4 py-10 text-center text-slate-400 text-xs">Carregando...</td></tr>
               )}
               {!loading && filtered.length === 0 && (
-                <tr><td colSpan={10} className="px-4 py-10 text-center text-slate-400 text-xs">Nenhuma nota fiscal encontrada</td></tr>
+                <tr><td colSpan={9} className="px-4 py-10 text-center text-slate-400 text-xs">Nenhuma nota fiscal encontrada</td></tr>
               )}
               {!loading && filtered.map((inv) => {
                 const meta = STATUS_META[inv.status];
@@ -564,9 +563,6 @@ function NfceTabContent() {
                     </td>
                     <td className="px-4 py-2.5 text-xs font-bold text-slate-700 truncate" title={inv.order?.customer_name || "Consumidor Final"}>
                       {inv.order?.customer_name || "Consumidor Final"}
-                    </td>
-                    <td className="px-4 py-2.5 text-[10px] font-mono text-slate-400 truncate" title={inv.access_key || undefined}>
-                      {inv.access_key ? `${inv.access_key.slice(0, 8)}…${inv.access_key.slice(-6)}` : "—"}
                     </td>
                     <td className="px-4 py-2.5 whitespace-normal">
                       <span
@@ -692,9 +688,6 @@ function NfceTabContent() {
                     </div>
                     <p className="text-xs font-bold text-slate-700 truncate mt-0.5">
                       {inv.order?.customer_name || "Consumidor Final"}
-                    </p>
-                    <p className="text-[10px] font-mono text-slate-400 truncate mt-0.5">
-                      {inv.access_key ? `${inv.access_key.slice(0, 8)}…${inv.access_key.slice(-6)}` : "Sem chave de acesso"}
                     </p>
                   </div>
                   <span
@@ -1032,6 +1025,14 @@ function NfseTabContent() {
   const [sendingEmail, setSendingEmail] = useState<number | null>(null);
   const [errorDetailTarget, setErrorDetailTarget] = useState<NfseInvoice | null>(null);
   const notify = useToast();
+  const todayStr = () => new Date().toISOString().slice(0, 10);
+  const firstOfMonthStr = (d = new Date()) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-01`;
+  const lastOfMonthStr = (d = new Date()) => {
+    const last = new Date(d.getFullYear(), d.getMonth() + 1, 0);
+    return `${last.getFullYear()}-${String(last.getMonth() + 1).padStart(2, "0")}-${String(last.getDate()).padStart(2, "0")}`;
+  };
+  const [dateFrom, setDateFrom] = useState(firstOfMonthStr());
+  const [dateTo, setDateTo] = useState(lastOfMonthStr());
   const token = localStorage.getItem("token");
 
   const [showAvulsaModal, setShowAvulsaModal] = useState(false);
@@ -1272,6 +1273,10 @@ function NfseTabContent() {
   const filtered = useMemo(() => {
     return invoices.filter((inv) => {
       if (statusFilter !== "all" && inv.status !== statusFilter) return false;
+      const d = new Date(inv.created_at);
+      const invDate = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+      if (dateFrom && invDate < dateFrom) return false;
+      if (dateTo && invDate > dateTo) return false;
       if (searchTerm) {
         const term = searchTerm.toLowerCase();
         const haystack = `${inv.numero} ${inv.chave_acesso ?? ""} ${inv.service_order?.customer_name ?? ""}`.toLowerCase();
@@ -1279,7 +1284,7 @@ function NfseTabContent() {
       }
       return true;
     });
-  }, [invoices, statusFilter, searchTerm]);
+  }, [invoices, statusFilter, searchTerm, dateFrom, dateTo]);
 
   const counts = useMemo(() => ({
     total: invoices.length,
@@ -1379,6 +1384,18 @@ function NfseTabContent() {
               <option key={key} value={key}>{meta.label}</option>
             ))}
           </select>
+          <div className="grid h-10 min-w-[280px] flex-1 grid-cols-[auto_minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50 px-3 min-[480px]:h-9">
+            <Calendar size={12} className="shrink-0 text-slate-400" />
+            <input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} className="w-full min-w-0 cursor-pointer bg-transparent text-[11px] font-medium text-slate-700 outline-none" />
+            <span className="text-[10px] font-bold text-slate-300">—</span>
+            <input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} className="w-full min-w-0 cursor-pointer bg-transparent text-[11px] font-medium text-slate-700 outline-none" />
+          </div>
+          <div className="flex items-center gap-1">
+            {[{ label: "Hoje", from: todayStr(), to: todayStr() }, { label: "7d", from: (() => { const d = new Date(); d.setDate(d.getDate() - 6); return d.toISOString().slice(0, 10); })(), to: todayStr() }, { label: "Mês", from: firstOfMonthStr(), to: lastOfMonthStr() }, { label: "Tudo", from: "", to: "" }].map((preset) => {
+              const active = dateFrom === preset.from && dateTo === preset.to;
+              return <button key={preset.label} onClick={() => { setDateFrom(preset.from); setDateTo(preset.to); }} className={cn("h-7 rounded-lg px-2 text-[9px] font-black uppercase tracking-widest transition-all", active ? "bg-violet-600 text-white" : "bg-slate-100 text-slate-500 hover:bg-slate-200")}>{preset.label}</button>;
+            })}
+          </div>
         </div>
 
         {selected.size > 0 && (
@@ -1397,16 +1414,15 @@ function NfseTabContent() {
           </div>
         )}
 
-        <div className="hidden xl:block h-[calc(100vh-390px)] min-h-[320px] max-h-[680px] overflow-auto overscroll-contain">
-          <table className="w-full min-w-[1760px] text-left border-collapse table-fixed">
+        <div className="hidden xl:block max-h-[calc(100vh-390px)] overflow-auto overscroll-contain">
+          <table className="w-full min-w-[1480px] text-left border-collapse table-fixed">
             <colgroup>
               <col className="w-8" />
               <col className="w-14" />
               <col className="w-12" />
               <col className="w-24" />
-              <col className="w-32" />
-              <col className="w-[16%]" />
               <col className="w-44" />
+              <col className="w-36" />
               <col className="w-28" />
               <col className="w-36" />
               <col className="w-[38rem]" />
@@ -1421,17 +1437,17 @@ function NfseTabContent() {
                     className="rounded border-slate-300"
                   />
                 </th>
-                {["Nº", "Série", "O.S.", "Cliente", "Chave de Acesso", "Status", "Valor", "Emitida em", ""].map((h) => (
+                {["Nº", "Série", "O.S.", "Cliente", "Status", "Valor", "Emitida em", ""].map((h) => (
                   <th key={h} className="px-4 py-2.5 text-[9px] font-black text-slate-400 uppercase tracking-widest whitespace-nowrap">{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
               {loading && (
-                <tr><td colSpan={10} className="px-4 py-10 text-center text-slate-400 text-xs">Carregando...</td></tr>
+                <tr><td colSpan={9} className="px-4 py-10 text-center text-slate-400 text-xs">Carregando...</td></tr>
               )}
               {!loading && filtered.length === 0 && (
-                <tr><td colSpan={10} className="px-4 py-10 text-center text-slate-400 text-xs">Nenhuma nota fiscal de serviço encontrada</td></tr>
+                <tr><td colSpan={9} className="px-4 py-10 text-center text-slate-400 text-xs">Nenhuma nota fiscal de serviço encontrada</td></tr>
               )}
               {!loading && filtered.map((inv) => {
                 const meta = NFSE_STATUS_META[inv.status];
@@ -1452,9 +1468,6 @@ function NfseTabContent() {
                     </td>
                     <td className="px-4 py-2.5 text-xs font-bold text-slate-700 truncate" title={inv.service_order?.customer_name || "Consumidor Final"}>
                       {inv.service_order?.customer_name || "Consumidor Final"}
-                    </td>
-                    <td className="px-4 py-2.5 text-[10px] font-mono text-slate-400 truncate" title={inv.chave_acesso || undefined}>
-                      {inv.chave_acesso ? `${inv.chave_acesso.slice(0, 8)}…${inv.chave_acesso.slice(-6)}` : "—"}
                     </td>
                     <td className="px-4 py-2.5 whitespace-normal">
                       <span
@@ -1566,9 +1579,6 @@ function NfseTabContent() {
                     </div>
                     <p className="text-xs font-bold text-slate-700 truncate mt-0.5">
                       {inv.service_order?.customer_name || "Consumidor Final"}
-                    </p>
-                    <p className="text-[10px] font-mono text-slate-400 truncate mt-0.5">
-                      {inv.chave_acesso ? `${inv.chave_acesso.slice(0, 8)}…${inv.chave_acesso.slice(-6)}` : "Sem chave de acesso"}
                     </p>
                   </div>
                   <span
