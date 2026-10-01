@@ -1,6 +1,6 @@
 import { Router } from "express";
 
-import { checkout, getPublicCheckoutOptions, getPublicStore, lookupPublicCompany, requestStoreOrder, reserveStoreCart } from "../controllers/public.controller";
+import { checkout, getPublicCheckoutOptions, getPublicStore, lookupPublicCompany, lookupPublicCustomerRecognition, requestStoreOrder, reserveStoreCart } from "../controllers/public.controller";
 import { approveQuoteByToken, getQuoteByApprovalToken } from "../controllers/quote-approval.controller";
 
 const router = Router();
@@ -10,6 +10,7 @@ router.get("/store/:slug", getPublicStore);
 router.post("/checkout", checkout);
 router.post("/checkout-options", getPublicCheckoutOptions);
 router.post("/company", lookupPublicCompany);
+router.post("/customer-recognition", lookupPublicCustomerRecognition);
 router.post("/reservations", reserveStoreCart);
 router.post("/order-request", requestStoreOrder);
 

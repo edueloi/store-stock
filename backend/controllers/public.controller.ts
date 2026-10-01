@@ -35,6 +35,14 @@ function digits(value: unknown) {
   return String(value || "").replace(/\D/g, "");
 }
 
+/** Compara telefones brasileiros mesmo quando um deles foi salvo com DDI. */
+function comparablePhone(value: unknown) {
+  const valueDigits = digits(value);
+  return valueDigits.startsWith("55") && valueDigits.length >= 12
+    ? valueDigits.slice(2)
+    : valueDigits;
+}
+
 function checkoutSettings(tenant: { policies: unknown }) {
   return ((tenant.policies as Record<string, unknown> | null)?.storefront || {}) as StorefrontSettings;
 }
@@ -216,6 +224,68 @@ export async function lookupPublicCompany(req: Request, res: Response) {
   }
 }
 
+/**
+ * Identifica um cliente pelo WhatsApp e devolve somente os descontos de
+ * fidelidade que ele pode usar. A validade é conferida novamente no pedido.
+ */
+export async function lookupPublicCustomerRecognition(req: Request, res: Response) {
+  try {
+    const tenantId = Number(req.body?.tenantId);
+    const phone = comparablePhone(req.body?.phone);
+    if (!tenantId || phone.length < 10) {
+      res.status(422).json({ error: "Informe um WhatsApp válido." });
+      return;
+    }
+
+    const tenant = await prisma.tenant.findUnique({ where: { id: tenantId } });
+    if (!tenant || !getTenantAccessState(tenant).allowed) {
+      res.status(404).json({ error: "Loja não encontrada." });
+      return;
+    }
+
+    const candidates = await prisma.customer.findMany({
+      where: { tenant_id: tenant.id, status: "active", phone: { not: null } },
+      select: { id: true, name: true, phone: true },
+    });
+    const customer = candidates.find((candidate) => comparablePhone(candidate.phone) === phone);
+    if (!customer) {
+      res.json({ recognized: false, rewards: [] });
+      return;
+    }
+
+    const [program, latestPoints] = await Promise.all([
+      prisma.loyaltyProgram.findFirst({
+        where: { tenant_id: tenant.id, is_active: true },
+        include: { rewards: { where: { is_active: true }, orderBy: { points_cost: "asc" } } },
+      }),
+      prisma.customerPoint.findFirst({
+        where: { tenant_id: tenant.id, customer_id: customer.id },
+        orderBy: { created_at: "desc" },
+        select: { balance_after: true },
+      }),
+    ]);
+    const balance = Number(latestPoints?.balance_after || 0);
+    const rewards = (program?.rewards || [])
+      .filter((reward) => reward.type === "discount" && reward.discount_value && reward.points_cost <= balance)
+      .map((reward) => ({
+        id: reward.id,
+        name: reward.name,
+        points_cost: reward.points_cost,
+        discount_type: reward.discount_type === "fixed" ? "fixed" : "percent",
+        discount_value: Number(reward.discount_value),
+      }));
+
+    res.json({
+      recognized: true,
+      customer: { first_name: customer.name.trim().split(/\s+/)[0] || "Cliente" },
+      rewards,
+    });
+  } catch (error) {
+    console.error("Falha ao reconhecer cliente da vitrine", error);
+    res.status(500).json({ error: "Não foi possível reconhecer o cliente agora." });
+  }
+}
+
 export async function reserveStoreCart(req: Request, res: Response) {
   try {
     await releaseExpiredStoreReservations();
@@ -251,10 +321,11 @@ export async function reserveStoreCart(req: Request, res: Response) {
  * baixa estoque: o catálogo representa o que a fábrica produz sob demanda.
  */
 export async function requestStoreOrder(req: Request, res: Response) {
-  const { tenantId, items, customerInfo } = req.body as {
+  const { tenantId, items, customerInfo, loyaltyRewardId } = req.body as {
     tenantId: number;
     items: CheckoutItemInput[];
     customerInfo: { name?: string; phone?: string; email?: string };
+    loyaltyRewardId?: number;
   };
   try {
     const tenant = await prisma.tenant.findUnique({ where: { id: Number(tenantId) } });
@@ -294,21 +365,62 @@ export async function requestStoreOrder(req: Request, res: Response) {
       orderItems.push({ product_id: product.id, quantity: item.quantity, unit_price: unitPrice, name: product.name, sku: product.sku });
     }
 
+    const phone = comparablePhone(customerInfo.phone);
+    const customerCandidates = await prisma.customer.findMany({
+      where: { tenant_id: tenant.id, status: "active", phone: { not: null } },
+      select: { id: true, phone: true },
+    });
+    const recognizedCustomer = customerCandidates.find((candidate) => comparablePhone(candidate.phone) === phone);
+    let appliedReward: { id: number; name: string; points_cost: number; discount_type: string | null; discount_value: number | null } | null = null;
+    let discount = 0;
+
+    if (recognizedCustomer && Number.isInteger(Number(loyaltyRewardId))) {
+      const reward = await prisma.loyaltyReward.findFirst({
+        where: { id: Number(loyaltyRewardId), tenant_id: tenant.id, is_active: true, type: "discount" },
+        select: { id: true, name: true, points_cost: true, discount_type: true, discount_value: true },
+      });
+      const latestPoints = reward
+        ? await prisma.customerPoint.findFirst({
+            where: { tenant_id: tenant.id, customer_id: recognizedCustomer.id },
+            orderBy: { created_at: "desc" },
+            select: { balance_after: true },
+          })
+        : null;
+      if (reward && Number(latestPoints?.balance_after || 0) >= reward.points_cost && Number(reward.discount_value || 0) > 0) {
+        appliedReward = reward;
+        discount = reward.discount_type === "fixed"
+          ? Math.min(total, Number(reward.discount_value))
+          : Math.min(total, total * (Number(reward.discount_value) / 100));
+        discount = Math.round(discount * 100) / 100;
+      }
+    }
+    const orderTotal = Math.max(0, total - discount);
+
     const order = await prisma.order.create({
       data: {
         tenant_id: tenant.id,
+        customer_id: recognizedCustomer?.id || null,
         customer_name: customerInfo.name.trim(),
         customer_phone: customerInfo.phone.trim(),
         customer_address: cleanEmail ? `E-mail: ${cleanEmail}` : null,
-        total_amount: total,
+        total_amount: orderTotal,
         gross_amount: total,
-        discount_amount: 0,
+        discount_amount: discount,
         status: "pending",
         sales_channel: "storefront",
         delivery_method: "to_confirm",
         shipping_amount: 0,
         payment_method: "to_confirm",
         items: { create: orderItems.map(({ product_id, quantity, unit_price }) => ({ product_id, quantity, unit_price })) },
+        actions: appliedReward ? {
+          create: {
+            tenant_id: tenant.id,
+            action: "storefront_loyalty_reward",
+            actor: "Vitrine pública",
+            note: `Benefício solicitado: ${appliedReward.name}`,
+            meta: { reward_id: appliedReward.id, points_cost: appliedReward.points_cost, discount_amount: discount },
+          },
+        } : undefined,
       },
     });
 
@@ -323,7 +435,7 @@ export async function requestStoreOrder(req: Request, res: Response) {
           customerPhone: order.customer_phone || "Não informado",
           customerEmail: cleanEmail || undefined,
           createdAt: order.created_at,
-          total,
+          total: orderTotal,
           items: orderItems.map((item) => ({ name: item.name, sku: item.sku, quantity: item.quantity, unitPrice: item.unit_price })),
         });
         const itemLines = orderItems.map((item) => `<tr><td style="padding:7px 0;color:#334155">${escapeHtml(item.name)} × ${item.quantity}</td><td align="right" style="padding:7px 0;font-weight:700;color:#0f172a">R$ ${(item.unit_price * item.quantity).toFixed(2).replace(".", ",")}</td></tr>`).join("");

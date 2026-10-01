@@ -290,6 +290,12 @@ function StoreLayoutInner() {
     delivery: { pickup_available: boolean; delivery_available: boolean; delivery_fee: number | null; delivery_zone: string | null };
   } | null>(null);
   const [checkoutForm, setCheckoutForm] = useState({ name: "", phone: "", email: "", document: "", cep: "", address: "", deliveryType: "pickup" as "pickup" | "delivery", paymentMethod: "pix" });
+  const [customerRecognition, setCustomerRecognition] = useState<{
+    status: "idle" | "loading" | "recognized" | "not_found" | "error";
+    firstName?: string;
+    rewards: Array<{ id: number; name: string; points_cost: number; discount_type: "fixed" | "percent"; discount_value: number }>;
+  }>({ status: "idle", rewards: [] });
+  const [selectedLoyaltyRewardId, setSelectedLoyaltyRewardId] = useState<number | null>(null);
   const megaMenuCloseTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const navigate = useNavigate();
   const storeSlug = resolveStoreSlug(routeSlug);
@@ -532,6 +538,32 @@ function StoreLayoutInner() {
     }
   };
 
+  const lookupCustomerRecognition = async () => {
+    if (!storeData || !isOrderRequest) return;
+    const phone = checkoutForm.phone.replace(/\D/g, "");
+    if (phone.length < 10) return;
+    setCustomerRecognition({ status: "loading", rewards: [] });
+    setSelectedLoyaltyRewardId(null);
+    try {
+      const response = await fetch("/api/public/customer-recognition", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tenantId: storeData.tenant.id, phone }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Falha ao identificar cliente.");
+      const rewards = Array.isArray(data.rewards) ? data.rewards : [];
+      setCustomerRecognition({
+        status: data.recognized ? "recognized" : "not_found",
+        firstName: data.customer?.first_name,
+        rewards,
+      });
+      if (rewards.length === 1) setSelectedLoyaltyRewardId(Number(rewards[0].id));
+    } catch {
+      setCustomerRecognition({ status: "error", rewards: [] });
+    }
+  };
+
   const handleOnlineCheckout = async () => {
     if (!storeData || checkoutLoading) return;
     setCheckoutLoading(true);
@@ -570,6 +602,7 @@ function StoreLayoutInner() {
           tenantId: storeData.tenant.id,
           items: cart.map((item) => ({ id: item.id, quantity: item.quantity })),
           customerInfo: { name: checkoutForm.name, phone: checkoutForm.phone, email: checkoutForm.email },
+          loyaltyRewardId: selectedLoyaltyRewardId || undefined,
         }),
       });
       const data = await response.json();
@@ -1749,7 +1782,7 @@ function StoreLayoutInner() {
                       <div className="flex items-center justify-between"><div><p className="text-xs font-black text-slate-900">{isOrderRequest ? "Dados da solicitação" : "Dados para fechar o pedido"}</p><p className="text-[10px] text-slate-500">{isOrderRequest ? "A fábrica confirmará prazo, produção e pagamento pelo WhatsApp." : "A loja confirmará pagamento e entrega."}</p></div><button onClick={() => setCheckoutOpen(false)} className="text-slate-400 hover:text-slate-700"><X size={16} /></button></div>
                       <div className="grid grid-cols-2 gap-2">
                         <input value={checkoutForm.name} onChange={(e) => setCheckoutForm((current) => ({ ...current, name: e.target.value }))} className="col-span-2 h-10 rounded-lg border border-slate-200 px-3 text-xs" placeholder="Seu nome *" />
-                        <input value={checkoutForm.phone} onChange={(e) => setCheckoutForm((current) => ({ ...current, phone: formatStorePhone(e.target.value) }))} inputMode="tel" className="h-10 rounded-lg border border-slate-200 px-3 text-xs" placeholder="WhatsApp *" />
+                        <input value={checkoutForm.phone} onBlur={lookupCustomerRecognition} onChange={(e) => { setCheckoutForm((current) => ({ ...current, phone: formatStorePhone(e.target.value) })); setCustomerRecognition({ status: "idle", rewards: [] }); setSelectedLoyaltyRewardId(null); }} inputMode="tel" className="h-10 rounded-lg border border-slate-200 px-3 text-xs" placeholder="WhatsApp *" />
                         {isOrderRequest && <input value={checkoutForm.email} onChange={(e) => setCheckoutForm((current) => ({ ...current, email: e.target.value }))} type="email" className="h-10 rounded-lg border border-slate-200 px-3 text-xs" placeholder="E-mail (opcional)" />}
                         {!isOrderRequest && <>
                         <input value={checkoutForm.document} onBlur={lookupCompanyDocument} onChange={(e) => setCheckoutForm((current) => ({ ...current, document: formatStoreDocument(e.target.value) }))} inputMode="numeric" className="h-10 rounded-lg border border-slate-200 px-3 text-xs" placeholder="CPF ou CNPJ" />
@@ -1757,6 +1790,29 @@ function StoreLayoutInner() {
                         <input value={checkoutForm.address} onChange={(e) => setCheckoutForm((current) => ({ ...current, address: e.target.value }))} className="h-10 rounded-lg border border-slate-200 px-3 text-xs" placeholder="Endereço / referência" />
                         </>}
                       </div>
+                      {isOrderRequest && customerRecognition.status !== "idle" && (
+                        <div className={cn("rounded-xl border px-3 py-2.5", customerRecognition.status === "recognized" ? "border-emerald-200 bg-emerald-50" : customerRecognition.status === "loading" ? "border-amber-200 bg-amber-50" : "border-slate-200 bg-slate-50")}>
+                          {customerRecognition.status === "loading" && <p className="text-[10px] font-bold text-amber-700">Consultando benefícios do seu cadastro...</p>}
+                          {customerRecognition.status === "not_found" && <p className="text-[10px] font-medium text-slate-500">Ainda não encontramos um cadastro com este WhatsApp.</p>}
+                          {customerRecognition.status === "error" && <p className="text-[10px] font-medium text-slate-500">Não foi possível consultar os benefícios agora. Você pode seguir com a solicitação.</p>}
+                          {customerRecognition.status === "recognized" && <>
+                            <p className="text-[11px] font-black text-emerald-800">Olá, {customerRecognition.firstName || "cliente"}! Cadastro reconhecido.</p>
+                            {customerRecognition.rewards.length > 0 ? <>
+                              <p className="mt-0.5 text-[10px] leading-relaxed text-emerald-700">Escolha um benefício para vincular à encomenda. A fábrica confere o resgate ao confirmar o pedido.</p>
+                              <div className="mt-2 space-y-1.5">
+                                {customerRecognition.rewards.map((reward) => {
+                                  const selected = selectedLoyaltyRewardId === reward.id;
+                                  const value = reward.discount_type === "percent" ? `${reward.discount_value}%` : `R$ ${reward.discount_value.toFixed(2).replace(".", ",")}`;
+                                  return <button key={reward.id} type="button" onClick={() => setSelectedLoyaltyRewardId(selected ? null : reward.id)} className={cn("flex w-full items-center justify-between rounded-lg border px-2.5 py-2 text-left transition-colors", selected ? "border-emerald-600 bg-white text-emerald-900" : "border-emerald-200 bg-white/70 text-emerald-800")}>
+                                    <span className="text-[10px] font-bold">{reward.name}</span>
+                                    <span className="text-[10px] font-black">{value} de desconto</span>
+                                  </button>;
+                                })}
+                              </div>
+                            </> : <p className="mt-0.5 text-[10px] text-emerald-700">Seu cadastro foi reconhecido. Não há desconto disponível neste momento.</p>}
+                          </>}
+                        </div>
+                      )}
                       {!isOrderRequest && <><div className="grid grid-cols-2 gap-2">
                         {checkoutOptions?.delivery.pickup_available && <button type="button" onClick={() => setCheckoutForm((current) => ({ ...current, deliveryType: "pickup" }))} className={cn("rounded-lg border px-3 py-2 text-[10px] font-bold", checkoutForm.deliveryType === "pickup" ? "border-blue-600 bg-blue-50 text-blue-700" : "border-slate-200 text-slate-600")}>Retirar na loja</button>}
                         {checkoutOptions?.delivery.delivery_available && <button type="button" onClick={() => setCheckoutForm((current) => ({ ...current, deliveryType: "delivery" }))} className={cn("rounded-lg border px-3 py-2 text-[10px] font-bold", checkoutForm.deliveryType === "delivery" ? "border-blue-600 bg-blue-50 text-blue-700" : "border-slate-200 text-slate-600")}>Entrega {checkoutOptions.delivery.delivery_fee ? `R$ ${Number(checkoutOptions.delivery.delivery_fee).toFixed(2)}` : "grátis"}</button>}
