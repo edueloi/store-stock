@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { ListSearch, Loader2, Search } from "lucide-react";
+import { ListFilter, Loader2, Search } from "lucide-react";
 import Modal from "../ui/Modal";
 import { cn } from "../../lib/utils";
 
@@ -47,7 +47,7 @@ export default function FiscalCodeLookup({ kind, token, onSelect, className }: F
 
   return <>
     <button type="button" onClick={() => setOpen(true)} className={cn("inline-flex h-9 shrink-0 items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 text-[9px] font-black uppercase tracking-wide text-slate-600 transition-colors hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700", className)}>
-      <ListSearch size={14} /> Consultar
+      <ListFilter size={14} /> Consultar
     </button>
     <Modal open={open} onClose={() => setOpen(false)} title={title} subtitle={isService ? "Fonte: Portal Nacional NFS-e · LC 116" : "Catálogo NCM vigente"} size="lg">
       <p className="text-xs leading-relaxed text-slate-500">{hint}</p>
