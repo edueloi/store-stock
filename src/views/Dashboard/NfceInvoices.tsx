@@ -510,7 +510,7 @@ function NfceTabContent() {
         )}
 
         <div className="hidden xl:block h-[calc(100vh-390px)] min-h-[320px] max-h-[680px] overflow-auto overscroll-contain">
-          <table className="w-full min-w-[1420px] text-left border-collapse table-fixed [&_thead_th:last-child]:sticky [&_thead_th:last-child]:right-0 [&_thead_th:last-child]:z-30 [&_thead_th:last-child]:bg-slate-50">
+          <table className="w-full min-w-[1760px] text-left border-collapse table-fixed">
             <colgroup>
               <col className="w-8" />
               <col className="w-14" />
@@ -521,7 +521,7 @@ function NfceTabContent() {
               <col className="w-44" />
               <col className="w-28" />
               <col className="w-36" />
-              <col className="w-72" />
+              <col className="w-[38rem]" />
             </colgroup>
             <thead>
               <tr className="sticky top-0 z-20 border-t border-slate-100 bg-slate-50 shadow-sm">
@@ -600,8 +600,8 @@ function NfceTabContent() {
                     <td className="px-4 py-2.5 text-xs text-slate-500 whitespace-nowrap">
                       {inv.authorized_at ? new Date(inv.authorized_at).toLocaleString("pt-BR") : "—"}
                     </td>
-                    <td className="sticky right-0 z-10 bg-white px-4 py-2.5 pr-5 shadow-[-6px_0_10px_-8px_rgba(15,23,42,.35)]">
-                      <div className="flex items-center gap-2 justify-end flex-nowrap shrink-0">
+                    <td className="px-4 py-2.5 pr-5">
+                      <div className="flex items-center gap-2 justify-end flex-nowrap whitespace-nowrap shrink-0">
                         {(inv.status === "error" || inv.status === "rejected") && (
                           <>
                             <button
@@ -1398,7 +1398,7 @@ function NfseTabContent() {
         )}
 
         <div className="hidden xl:block h-[calc(100vh-390px)] min-h-[320px] max-h-[680px] overflow-auto overscroll-contain">
-          <table className="w-full min-w-[1420px] text-left border-collapse table-fixed [&_thead_th:last-child]:sticky [&_thead_th:last-child]:right-0 [&_thead_th:last-child]:z-30 [&_thead_th:last-child]:bg-slate-50">
+          <table className="w-full min-w-[1760px] text-left border-collapse table-fixed">
             <colgroup>
               <col className="w-8" />
               <col className="w-14" />
@@ -1409,7 +1409,7 @@ function NfseTabContent() {
               <col className="w-44" />
               <col className="w-28" />
               <col className="w-36" />
-              <col className="w-72" />
+              <col className="w-[38rem]" />
             </colgroup>
             <thead>
               <tr className="sticky top-0 z-20 border-t border-slate-100 bg-slate-50 shadow-sm">
@@ -1483,8 +1483,8 @@ function NfseTabContent() {
                     <td className="px-4 py-2.5 text-xs text-slate-500 whitespace-nowrap">
                       {inv.authorized_at ? new Date(inv.authorized_at).toLocaleString("pt-BR") : "—"}
                     </td>
-                    <td className="sticky right-0 z-10 bg-white px-4 py-2.5 pr-5 shadow-[-6px_0_10px_-8px_rgba(15,23,42,.35)]">
-                      <div className="flex items-center gap-2 justify-end flex-nowrap shrink-0">
+                    <td className="px-4 py-2.5 pr-5">
+                      <div className="flex items-center gap-2 justify-end flex-nowrap whitespace-nowrap shrink-0">
                         {(inv.status === "error" || inv.status === "rejected") && (
                           <>
                             <button
