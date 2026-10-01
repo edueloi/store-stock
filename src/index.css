@@ -221,10 +221,10 @@ body {
 /* Fotos de produtos nunca podem aumentar o card: cada imagem se limita ao
    espaço reservado, independente da resolução ou proporção do arquivo. */
 .candy-shell article img.object-contain {
-  width: auto !important;
-  height: auto !important;
-  max-width: 100% !important;
-  max-height: 100% !important;
+  display: block;
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
 }
 
 /* A faixa de produtos da home fica leve como o catálogo impresso; o vermelho

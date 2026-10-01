@@ -1209,7 +1209,7 @@ function StoreLayoutInner() {
             isUrban
               ? "bg-slate-950 text-slate-100 border-slate-800"
               : isDoceria
-                ? "bg-[#54243c] text-pink-100 border-pink-900"
+                ? "bg-[#54291f] text-[#fff9ec] border-[#d7ad57]"
               : isElectronics
                 ? "bg-[#050810] text-slate-400 border-[#1a2540]"
                 : isFashion
@@ -1221,8 +1221,8 @@ function StoreLayoutInner() {
         >
           <div
             className={cn(
-              "max-w-7xl mx-auto px-6 py-12 grid grid-cols-1 gap-10",
-               isUrban ? "sm:grid-cols-[1.5fr_1fr_1fr]" : isDoceria ? "sm:grid-cols-[1.4fr_1fr_1fr]" : "sm:grid-cols-3",
+              "max-w-7xl mx-auto px-6 py-11 grid grid-cols-1 gap-9",
+               isUrban ? "sm:grid-cols-[1.5fr_1fr_1fr]" : isDoceria ? "sm:grid-cols-[1.5fr_.8fr_1.2fr]" : "sm:grid-cols-3",
             )}
           >
             <div>
@@ -1241,7 +1241,7 @@ function StoreLayoutInner() {
                     isElectronics || isUrban
                       ? "text-white font-black text-xl tracking-tight"
                       : isDoceria
-                        ? "store-display text-3xl font-bold tracking-[-0.04em] text-white"
+                        ? "store-display text-2xl font-bold tracking-[-0.04em] text-[#fff9ec]"
                       : isFashion || isTechNova
                         ? "store-display text-3xl font-semibold"
                         : "font-black uppercase tracking-wider text-white",
@@ -1264,6 +1264,8 @@ function StoreLayoutInner() {
                       ? "text-slate-500"
                       : isFashion
                         ? "text-[#7d6259]"
+                        : isDoceria
+                          ? "text-[#fff0c2]"
                         : isTechNova
                           ? "text-[#5d7698]"
                           : "text-slate-500",
@@ -1288,7 +1290,7 @@ function StoreLayoutInner() {
                   isElectronics
                     ? "text-[10px] font-black uppercase tracking-widest text-blue-400/70"
                     : isDoceria
-                      ? "text-[10px] font-extrabold uppercase tracking-[.2em] text-pink-300"
+                      ? "text-[10px] font-extrabold uppercase tracking-[.2em] text-[#f2d68c]"
                     : isFashion
                       ? "store-kicker text-[10px] font-semibold text-[#9a7d73]"
                       : isTechNova
@@ -1310,7 +1312,7 @@ function StoreLayoutInner() {
                           : isElectronics
                             ? "text-slate-500 hover:text-blue-400"
                             : isDoceria
-                              ? "text-pink-100 hover:text-white"
+                              ? "text-[#fff0c2] hover:text-white"
                             : isFashion
                               ? "text-[#6b5149] hover:text-[#2d221f]"
                               : isTechNova
@@ -1331,7 +1333,7 @@ function StoreLayoutInner() {
                   isElectronics
                     ? "text-[10px] font-black uppercase tracking-widest text-blue-400/70"
                     : isDoceria
-                      ? "text-[10px] font-extrabold uppercase tracking-[.2em] text-pink-300"
+                      ? "text-[10px] font-extrabold uppercase tracking-[.2em] text-[#f2d68c]"
                     : isFashion
                       ? "store-kicker text-[10px] font-semibold text-[#9a7d73]"
                       : isTechNova
@@ -1353,7 +1355,7 @@ function StoreLayoutInner() {
                       : isElectronics
                         ? "text-slate-400 hover:text-white"
                         : isDoceria
-                          ? "text-pink-100 hover:text-white"
+                          ? "text-[#fff0c2] hover:text-white"
                         : isFashion
                           ? "text-[#6b5149] hover:text-[#2d221f]"
                           : isTechNova
@@ -1375,6 +1377,8 @@ function StoreLayoutInner() {
                           ? "text-[#8d7068]"
                           : isTechNova
                             ? "text-[#7b95ba]"
+                          : isDoceria
+                            ? "text-[#fff0c2]"
                             : "text-slate-500",
                       )}
                     >
@@ -1401,9 +1405,11 @@ function StoreLayoutInner() {
                     "text-xs mt-4",
                     isFashion
                       ? "text-[#7d6259]"
-                      : isTechNova
-                        ? "text-[#5d7698]"
-                        : "text-slate-500",
+                      : isDoceria
+                        ? "text-[#fff0c2]"
+                        : isTechNova
+                          ? "text-[#5d7698]"
+                          : "text-slate-500",
                   )}
                 >
                   {storeData.tenant.address}
@@ -1420,7 +1426,9 @@ function StoreLayoutInner() {
                   ? "border-t border-[#e4cfc4]"
                   : isTechNova
                     ? "border-t border-[#dbe6ff]"
-                    : "border-t border-slate-800",
+                    : isDoceria
+                      ? "border-t border-[#7c3926] bg-[#482019]"
+                      : "border-t border-slate-800",
             )}
           >
             <p
@@ -1430,6 +1438,8 @@ function StoreLayoutInner() {
                   ? "text-slate-600"
                   : isFashion
                     ? "text-[#9a7d73]"
+                    : isDoceria
+                      ? "text-[#f2dfaa]"
                     : isTechNova
                       ? "text-[#7b95ba]"
                       : "text-slate-600",
@@ -1504,7 +1514,7 @@ function StoreLayoutInner() {
                         isUrban
                           ? "text-slate-400"
                       : isDoceria
-                        ? "text-pink-200"
+                        ? "text-[#a56e1e]"
                           : isElectronics
                             ? "text-blue-400/70"
                             : "text-slate-400",
@@ -1743,6 +1753,8 @@ function StoreLayoutInner() {
                         ? "bg-white border-t border-slate-200 p-5 shadow-[0_-12px_32px_rgba(15,23,42,.06)]"
                         : isElectronics
                           ? "bg-[#050810] border-t border-[#1a2540]"
+                          : isDoceria
+                            ? "bg-[#fff8eb] border-t border-[#ead8ba]"
                           : isFashion
                             ? "bg-[#2d221f] border-t border-[#4f3831]"
                             : isTechNova
@@ -1758,6 +1770,8 @@ function StoreLayoutInner() {
                             ? "text-slate-500"
                             : isElectronics
                               ? "text-blue-400/70"
+                              : isDoceria
+                                ? "text-[#70541c]"
                               : isTechNova
                                 ? "text-[#7b95ba]"
                                 : "text-slate-400",
@@ -1765,20 +1779,24 @@ function StoreLayoutInner() {
                       >
                         {isOrderRequest ? "Estimativa da encomenda" : isUrban ? "Resumo do pedido" : "Total"}
                       </p>
-                      <p
-                        className={cn(
-                          "text-2xl font-black font-mono",
-                          isElectronics
-                            ? "text-white"
-                            : isUrban
-                              ? "text-slate-950"
-                              : isTechNova
-                                ? "text-[#071426]"
-                                : "text-white",
-                        )}
-                      >
-                        R$ {total.toFixed(2)}
-                      </p>
+                      {isOrderRequest ? (
+                        <p className="text-right text-[10px] font-bold leading-snug text-[#70541c]">Valores e prazo<br />confirmados pela fábrica</p>
+                      ) : (
+                        <p
+                          className={cn(
+                            "text-2xl font-black font-mono",
+                            isElectronics
+                              ? "text-white"
+                              : isUrban
+                                ? "text-slate-950"
+                                : isDoceria || isTechNova
+                                  ? "text-[#70541c]"
+                                  : "text-white",
+                          )}
+                        >
+                          R$ {total.toFixed(2)}
+                        </p>
+                      )}
                     </div>
                     {checkoutMode === "reservation" && (
                       <p
@@ -1807,6 +1825,8 @@ function StoreLayoutInner() {
                         "w-full text-white h-12 font-black text-xs uppercase tracking-widest flex items-center justify-center gap-3 transition-all",
                         isUrban
                           ? "rounded-xl hover:brightness-110 shadow-lg shadow-slate-900/10"
+                          : isDoceria
+                            ? "bg-[#bd3437] rounded-lg hover:bg-[#9f292d] shadow-sm"
                           : "bg-[#25D366] rounded-2xl hover:bg-[#1db954]",
                       )}
                     >
@@ -1830,7 +1850,9 @@ function StoreLayoutInner() {
                           ? "text-slate-500"
                           : isElectronics
                             ? "text-slate-500"
-                            : "text-slate-400",
+                            : isDoceria
+                              ? "text-[#765e33]"
+                              : "text-slate-400",
                       )}
                     >
                       {checkoutMode === "reservation"
@@ -1866,7 +1888,7 @@ function StoreLayoutInner() {
               )}
             >
               <ShoppingCart size={16} />
-              {cartCount} itens · R$ {total.toFixed(2)}
+              {cartCount} {cartCount === 1 ? "item" : "itens"}{isOrderRequest ? " no pedido" : ` · R$ ${total.toFixed(2)}`}
             </button>
           </motion.div>
         )}
