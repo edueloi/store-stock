@@ -4,7 +4,7 @@ import {
   TrendingUp, Upload, LayoutGrid, List, Tag, Search, AlertTriangle,
   Star, ChevronLeft, ChevronRight, GripVertical, Zap, ArrowUpDown, FileUp, CheckSquare,
   History, ArrowRight, Loader2, ArrowUp, ArrowDown, SlidersHorizontal, Camera, FileCode,
-  HelpCircle,
+  HelpCircle, FolderTree, Fingerprint, Receipt, DollarSign, Boxes, Palette,
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { cn } from "../../lib/utils";
@@ -1441,17 +1441,27 @@ export default function Inventory() {
           <TabPanel id="identificacao">
           <div className="grid grid-cols-1 xl:grid-cols-2 gap-5 items-start">
 
-          <section data-tour="product-gallery" className="bg-white border border-slate-200 rounded-2xl p-4 space-y-3">
-            <p className="text-[10px] font-black uppercase tracking-widest text-slate-700 border-l-4 border-blue-500 pl-3">
-              Galeria
-            </p>
+          <section data-tour="product-gallery" className="bg-white border border-slate-200/80 rounded-2xl p-5 space-y-4 shadow-sm transition-all hover:shadow-md">
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center shrink-0">
+                <Camera size={15} />
+              </div>
+              <p className="text-[11px] font-black uppercase tracking-widest text-slate-700">
+                Galeria
+              </p>
+            </div>
             <GalleryUploader images={editingImages} onChange={setEditingImages} />
           </section>
 
-          <section className="bg-white border border-slate-200 rounded-2xl p-4 space-y-4">
-            <p className="text-[10px] font-black uppercase tracking-widest text-slate-700 border-l-4 border-blue-500 pl-3">
-              Organização
-            </p>
+          <section className="bg-white border border-slate-200/80 rounded-2xl p-5 space-y-4 shadow-sm transition-all hover:shadow-md">
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center shrink-0">
+                <FolderTree size={15} />
+              </div>
+              <p className="text-[11px] font-black uppercase tracking-widest text-slate-700">
+                Organização
+              </p>
+            </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-1">
                 <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest px-1">Categoria</label>
@@ -1517,10 +1527,15 @@ export default function Inventory() {
             </div>
           </section>
 
-          <section className="bg-white border border-slate-200 rounded-2xl p-4 space-y-4">
-            <p className="text-[10px] font-black uppercase tracking-widest text-slate-700 border-l-4 border-blue-500 pl-3">
-              Identificação
-            </p>
+          <section className="bg-white border border-slate-200/80 rounded-2xl p-5 space-y-4 shadow-sm transition-all hover:shadow-md">
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center shrink-0">
+                <Fingerprint size={15} />
+              </div>
+              <p className="text-[11px] font-black uppercase tracking-widest text-slate-700">
+                Identificação
+              </p>
+            </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div data-tour="product-name-field" className="space-y-1">
               <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest px-1">Nome do Produto *</label>
@@ -1568,10 +1583,15 @@ export default function Inventory() {
           <TabPanel id="fiscal">
           <div className="grid grid-cols-1 xl:grid-cols-2 gap-5 items-start">
           {/* ── DADOS FISCAIS (NFC-e) ── */}
-          <section className="bg-white border border-slate-200 rounded-2xl p-4 space-y-3 xl:col-span-2">
-            <p className="text-[10px] font-black uppercase tracking-widest text-slate-700 border-l-4 border-blue-500 pl-3">
-              Dados Fiscais
-            </p>
+          <section className="bg-white border border-slate-200/80 rounded-2xl p-5 space-y-4 shadow-sm transition-all hover:shadow-md xl:col-span-2">
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-xl bg-slate-100 text-slate-700 flex items-center justify-center shrink-0">
+                <Receipt size={15} />
+              </div>
+              <p className="text-[11px] font-black uppercase tracking-widest text-slate-700">
+                Dados Fiscais
+              </p>
+            </div>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div className="space-y-1">
                 <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest px-1">NCM</label>
@@ -1691,10 +1711,15 @@ export default function Inventory() {
           <TabPanel id="estoque">
           <div className="grid grid-cols-1 xl:grid-cols-2 gap-5 items-start">
 
-          <section className="bg-white border border-slate-200 rounded-2xl p-4 space-y-3">
-            <p className="text-[10px] font-black uppercase tracking-widest text-slate-700 border-l-4 border-orange-500 pl-3">
-              Preços
-            </p>
+          <section className="bg-white border border-slate-200/80 rounded-2xl p-5 space-y-4 shadow-sm transition-all hover:shadow-md">
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-xl bg-orange-50 text-orange-600 flex items-center justify-center shrink-0">
+                <DollarSign size={15} />
+              </div>
+              <p className="text-[11px] font-black uppercase tracking-widest text-slate-700">
+                Preços
+              </p>
+            </div>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div className="space-y-1">
               <label className="text-[10px] font-bold text-orange-500 uppercase tracking-widest px-1">Custo Un. (R$)</label>
@@ -1748,10 +1773,15 @@ export default function Inventory() {
           </div>
           </section>
 
-          <section className="bg-white border border-slate-200 rounded-2xl p-4 space-y-3">
-            <p className="text-[10px] font-black uppercase tracking-widest text-slate-700 border-l-4 border-emerald-500 pl-3">
-              Estoque
-            </p>
+          <section className="bg-white border border-slate-200/80 rounded-2xl p-5 space-y-4 shadow-sm transition-all hover:shadow-md">
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
+                <Boxes size={15} />
+              </div>
+              <p className="text-[11px] font-black uppercase tracking-widest text-slate-700">
+                Estoque
+              </p>
+            </div>
           <div className="space-y-1">
             <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest px-1">Tipo de Venda</label>
             <div className="flex bg-slate-100 border border-slate-200 rounded-xl p-0.5 gap-0.5 w-fit">
@@ -1858,11 +1888,16 @@ export default function Inventory() {
 
           <TabPanel id="variacoes">
           {/* ── VARIAÇÕES ── */}
-          <section className="bg-white border border-slate-200 rounded-2xl p-4 space-y-4">
+          <section className="bg-white border border-slate-200/80 rounded-2xl p-5 space-y-4 shadow-sm transition-all hover:shadow-md">
             <div className="flex items-center justify-between">
-              <div>
-                <h4 className="text-[11px] font-black uppercase tracking-widest text-slate-900 border-l-4 border-blue-600 pl-3">Grades & Variações</h4>
-                <p className="text-[9px] text-slate-400 font-medium pl-4 mt-0.5">Tamanho, cor, voltagem, peso, etc.</p>
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center shrink-0">
+                  <Palette size={15} />
+                </div>
+                <div>
+                  <h4 className="text-[11px] font-black uppercase tracking-widest text-slate-900">Grades & Variações</h4>
+                  <p className="text-[9px] text-slate-400 font-medium mt-0.5">Tamanho, cor, voltagem, peso, etc.</p>
+                </div>
               </div>
                 <div className="flex items-center gap-2">
                 {/* Clear button — only when attributes exist */}
