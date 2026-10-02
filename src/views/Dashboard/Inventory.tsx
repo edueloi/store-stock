@@ -1433,9 +1433,8 @@ export default function Inventory() {
         <Tabs key={productModalTab} defaultTab={productModalTab} onChange={setProductModalTab}>
           <TabList variant="pill">
             <Tab id="identificacao">Identificação</Tab>
-            <Tab id="estoque">Estoque</Tab>
+            <Tab id="estoque">Estoque e Grades</Tab>
             <Tab id="fiscal">Fiscal</Tab>
-            <Tab id="variacoes">Grades e Variações</Tab>
           </TabList>
 
           <TabPanel id="identificacao">
@@ -1577,6 +1576,68 @@ export default function Inventory() {
           </div>
           </section>
 
+          <section className="bg-white border border-slate-200/80 rounded-2xl p-5 space-y-4 shadow-sm transition-all hover:shadow-md xl:col-span-2">
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-xl bg-orange-50 text-orange-600 flex items-center justify-center shrink-0">
+                <DollarSign size={15} />
+              </div>
+              <p className="text-[11px] font-black uppercase tracking-widest text-slate-700">
+                Preços
+              </p>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div className="space-y-1">
+              <label className="text-[10px] font-bold text-orange-500 uppercase tracking-widest px-1">Custo Un. (R$)</label>
+              <input type="number" step="0.01" min="0"
+                className="w-full bg-orange-50 border border-orange-100 rounded-xl px-3 py-2.5 text-xs font-mono font-bold outline-none h-10 focus:border-orange-400 transition-all"
+                value={editingProduct?.cost_price || ""}
+                onChange={e => setEditingProduct(prev => ({ ...prev!, cost_price: Number(e.target.value) }))} />
+            </div>
+            <div className="space-y-1">
+              <label className="text-[10px] font-bold text-purple-500 uppercase tracking-widest px-1">Lucro Estimado (%)</label>
+              <input type="number" step="1" min="0" placeholder="Ex: 60"
+                className="w-full bg-purple-50 border border-purple-100 rounded-xl px-3 py-2.5 text-xs font-mono font-bold outline-none h-10 focus:border-purple-400 transition-all"
+                value={profitMarginInput}
+                onChange={e => {
+                  const v = e.target.value;
+                  setProfitMarginInput(v);
+                  const margin = Number(v);
+                  const cost = Number(editingProduct?.cost_price || 0);
+                  // Markup sobre o custo: preço = custo × (1 + margem/100) — só recalcula com
+                  // custo e margem válidos, senão deixa o Preço Venda como o operador digitou.
+                  if (v !== "" && !Number.isNaN(margin) && cost > 0) {
+                    const price = Math.round(cost * (1 + margin / 100) * 100) / 100;
+                    setEditingProduct(prev => ({ ...prev!, price }));
+                  }
+                }} />
+            </div>
+            <div data-tour="product-price-field" className="space-y-1">
+              <label className="text-[10px] font-bold text-slate-700 uppercase tracking-widest px-1">Preço Venda (R$) *</label>
+              <input type="number" step="0.01" min="0" required
+                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs font-mono font-bold outline-none h-10 focus:border-blue-400 transition-all"
+                value={editingProduct?.price || ""}
+                onChange={e => { setProfitMarginInput(""); setEditingProduct(prev => ({ ...prev!, price: Number(e.target.value) })); }} />
+            </div>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="space-y-1">
+              <label className="text-[10px] font-bold text-emerald-600 uppercase tracking-widest px-1">Promoção (R$)</label>
+              <input type="number" step="0.01" min="0"
+                className="w-full bg-emerald-50 border border-emerald-100 rounded-xl px-3 py-2.5 text-xs font-mono font-bold outline-none h-10 focus:border-emerald-400 transition-all"
+                value={editingProduct?.discount_price || ""}
+                onChange={e => { const v = e.target.value; setEditingProduct(prev => ({ ...prev!, discount_price: v === "" ? undefined : Number(v) })); }} />
+            </div>
+            <div className="space-y-1">
+              <label className="text-[10px] font-bold text-rose-500 uppercase tracking-widest px-1">Desconto Máximo no PDV (%)</label>
+              <input type="number" step="1" min="0" max="100" placeholder="Sem limite"
+                className="w-full bg-rose-50 border border-rose-100 rounded-xl px-3 py-2.5 text-xs font-mono font-bold outline-none h-10 focus:border-rose-400 transition-all"
+                value={editingProduct?.max_discount_pct ?? ""}
+                onChange={e => { const v = e.target.value; setEditingProduct(prev => ({ ...prev!, max_discount_pct: v === "" ? undefined : Number(v) })); }} />
+              <p className="text-[9px] text-slate-400 px-1">Vazio = sem limite. Trava o desconto do carrinho no PDV quando este item estiver nele.</p>
+            </div>
+          </div>
+          </section>
+
           </div>
           </TabPanel>
 
@@ -1709,69 +1770,7 @@ export default function Inventory() {
           </TabPanel>
 
           <TabPanel id="estoque">
-          <div className="grid grid-cols-1 xl:grid-cols-2 gap-5 items-start">
-
-          <section className="bg-white border border-slate-200/80 rounded-2xl p-5 space-y-4 shadow-sm transition-all hover:shadow-md">
-            <div className="flex items-center gap-2.5">
-              <div className="w-8 h-8 rounded-xl bg-orange-50 text-orange-600 flex items-center justify-center shrink-0">
-                <DollarSign size={15} />
-              </div>
-              <p className="text-[11px] font-black uppercase tracking-widest text-slate-700">
-                Preços
-              </p>
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            <div className="space-y-1">
-              <label className="text-[10px] font-bold text-orange-500 uppercase tracking-widest px-1">Custo Un. (R$)</label>
-              <input type="number" step="0.01" min="0"
-                className="w-full bg-orange-50 border border-orange-100 rounded-xl px-3 py-2.5 text-xs font-mono font-bold outline-none h-10 focus:border-orange-400 transition-all"
-                value={editingProduct?.cost_price || ""}
-                onChange={e => setEditingProduct(prev => ({ ...prev!, cost_price: Number(e.target.value) }))} />
-            </div>
-            <div className="space-y-1">
-              <label className="text-[10px] font-bold text-purple-500 uppercase tracking-widest px-1">Lucro Estimado (%)</label>
-              <input type="number" step="1" min="0" placeholder="Ex: 60"
-                className="w-full bg-purple-50 border border-purple-100 rounded-xl px-3 py-2.5 text-xs font-mono font-bold outline-none h-10 focus:border-purple-400 transition-all"
-                value={profitMarginInput}
-                onChange={e => {
-                  const v = e.target.value;
-                  setProfitMarginInput(v);
-                  const margin = Number(v);
-                  const cost = Number(editingProduct?.cost_price || 0);
-                  // Markup sobre o custo: preço = custo × (1 + margem/100) — só recalcula com
-                  // custo e margem válidos, senão deixa o Preço Venda como o operador digitou.
-                  if (v !== "" && !Number.isNaN(margin) && cost > 0) {
-                    const price = Math.round(cost * (1 + margin / 100) * 100) / 100;
-                    setEditingProduct(prev => ({ ...prev!, price }));
-                  }
-                }} />
-            </div>
-            <div data-tour="product-price-field" className="space-y-1">
-              <label className="text-[10px] font-bold text-slate-700 uppercase tracking-widest px-1">Preço Venda (R$) *</label>
-              <input type="number" step="0.01" min="0" required
-                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs font-mono font-bold outline-none h-10 focus:border-blue-400 transition-all"
-                value={editingProduct?.price || ""}
-                onChange={e => { setProfitMarginInput(""); setEditingProduct(prev => ({ ...prev!, price: Number(e.target.value) })); }} />
-            </div>
-          </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div className="space-y-1">
-              <label className="text-[10px] font-bold text-emerald-600 uppercase tracking-widest px-1">Promoção (R$)</label>
-              <input type="number" step="0.01" min="0"
-                className="w-full bg-emerald-50 border border-emerald-100 rounded-xl px-3 py-2.5 text-xs font-mono font-bold outline-none h-10 focus:border-emerald-400 transition-all"
-                value={editingProduct?.discount_price || ""}
-                onChange={e => { const v = e.target.value; setEditingProduct(prev => ({ ...prev!, discount_price: v === "" ? undefined : Number(v) })); }} />
-            </div>
-            <div className="space-y-1">
-              <label className="text-[10px] font-bold text-rose-500 uppercase tracking-widest px-1">Desconto Máximo no PDV (%)</label>
-              <input type="number" step="1" min="0" max="100" placeholder="Sem limite"
-                className="w-full bg-rose-50 border border-rose-100 rounded-xl px-3 py-2.5 text-xs font-mono font-bold outline-none h-10 focus:border-rose-400 transition-all"
-                value={editingProduct?.max_discount_pct ?? ""}
-                onChange={e => { const v = e.target.value; setEditingProduct(prev => ({ ...prev!, max_discount_pct: v === "" ? undefined : Number(v) })); }} />
-              <p className="text-[9px] text-slate-400 px-1">Vazio = sem limite. Trava o desconto do carrinho no PDV quando este item estiver nele.</p>
-            </div>
-          </div>
-          </section>
+          <div className="space-y-5">
 
           <section className="bg-white border border-slate-200/80 rounded-2xl p-5 space-y-4 shadow-sm transition-all hover:shadow-md">
             <div className="flex items-center gap-2.5">
@@ -1883,10 +1882,7 @@ export default function Inventory() {
             </div>
           )}
           </section>
-          </div>
-          </TabPanel>
 
-          <TabPanel id="variacoes">
           {/* ── VARIAÇÕES ── */}
           <section className="bg-white border border-slate-200/80 rounded-2xl p-5 space-y-4 shadow-sm transition-all hover:shadow-md">
             <div className="flex items-center justify-between">
@@ -2073,6 +2069,7 @@ export default function Inventory() {
               </div>
             )}
           </section>
+          </div>
           </TabPanel>
         </Tabs>
         </form>
