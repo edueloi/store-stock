@@ -45,6 +45,7 @@ export default function Login() {
   const [showLoader, setShowLoader] = useState(false);
   const [redirectTo, setRedirectTo] = useState("");
   const [toast, setToast] = useState("");
+  const [blocked, setBlocked] = useState<{ message: string; login: string } | null>(null);
 
   const showToast = (msg: string) => {
     setToast(msg);
@@ -90,6 +91,11 @@ export default function Login() {
       }
 
       if (!response.ok) {
+        if (data.code === "suspended") {
+          setBlocked({ message: data.error, login: trimmedIdentifier });
+          return;
+        }
+        setBlocked(null);
         showToast(data.error || "Não foi possível entrar.");
         return;
       }
@@ -126,6 +132,39 @@ export default function Login() {
     <>
       <AnimatePresence>
         {showLoader && <LoginLoading onDone={handleLoadingDone} />}
+      </AnimatePresence>
+
+      {/* Conta suspensa: aviso fixo com botão direto para o WhatsApp do suporte */}
+      <AnimatePresence>
+        {blocked && (
+          <motion.div
+            initial={{ opacity: 0, y: -16 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -16 }}
+            className="fixed left-1/2 top-5 z-50 w-[calc(100%-2rem)] max-w-sm -translate-x-1/2 rounded-2xl border border-red-200 bg-white p-4 shadow-[0_8px_32px_rgba(0,0,0,0.12)]"
+          >
+            <div className="flex items-start gap-3">
+              <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-red-100">
+                <AlertCircle size={16} className="text-red-500" />
+              </span>
+              <div className="flex-1">
+                <p className="text-sm font-bold text-slate-900">Acesso suspenso</p>
+                <p className="mt-0.5 text-sm text-slate-600">{blocked.message}</p>
+              </div>
+              <button type="button" onClick={() => setBlocked(null)} className="shrink-0 text-slate-400 hover:text-slate-600 transition-colors">
+                <X size={14} />
+              </button>
+            </div>
+            <a
+              href={`https://wa.me/5515992418299?text=${encodeURIComponent(`Olá! O acesso da minha loja no Store BoxSys (login: ${blocked.login}) está suspenso. Quero regularizar o pagamento e liberar o acesso.`)}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl bg-[#25D366] px-4 py-2.5 text-sm font-bold text-white hover:brightness-95 transition"
+            >
+              Falar com o suporte no WhatsApp
+            </a>
+          </motion.div>
+        )}
       </AnimatePresence>
 
       {/* Toast de erro */}

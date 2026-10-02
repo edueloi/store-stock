@@ -154,7 +154,7 @@ export async function login(req: Request, res: Response) {
     const accessState = getTenantAccessState(user.tenant);
 
     if (!accessState.allowed) {
-      res.status(403).json({ error: accessState.reason });
+      res.status(403).json({ error: accessState.reason, code: (accessState as any).code });
       return;
     }
 
