@@ -123,11 +123,24 @@ export async function getDashboardStats(req: Request, res: Response) {
       (acc, p) => acc + p.stock_quantity * Number(p.cost_price), 0
     );
 
+    // Loja vende por encomenda/sem controle de estoque — stock_quantity não é
+    // decrementado no PDV, então "produtos esgotados"/"estoque baixo" não faz
+    // sentido pra ela. Suprime os dois contadores do dashboard.
+    const tenantFlag = await prisma.tenant.findUnique({
+      where: { id: tenantId },
+      select: { sell_without_stock_control: true },
+    });
+    const sellsWithoutStockControl = !!tenantFlag?.sell_without_stock_control;
+
     const lowStockThreshold = await getLowStockThreshold((req as AuthenticatedRequest).user.userId);
-    const outOfStockProducts = products
-      .filter((p) => p.stock_quantity === 0)
-      .map((p) => ({ id: p.id, name: p.name, sku: p.sku }));
-    const lowStockCount = products.filter((p) => p.stock_quantity > 0 && p.stock_quantity <= lowStockThreshold).length;
+    const outOfStockProducts = sellsWithoutStockControl
+      ? []
+      : products
+          .filter((p) => p.stock_quantity === 0)
+          .map((p) => ({ id: p.id, name: p.name, sku: p.sku }));
+    const lowStockCount = sellsWithoutStockControl
+      ? 0
+      : products.filter((p) => p.stock_quantity > 0 && p.stock_quantity <= lowStockThreshold).length;
 
     // Série diária — busca todos os registros do período e agrupa em JS
     // (evita dependência de timezone do MySQL em queries DATE() raw)

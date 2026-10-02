@@ -35,6 +35,19 @@ function validateCfop(cfop: unknown): string | null {
 export async function getLowStockCount(req: Request, res: Response) {
   try {
     const tenantId = getTenantId(req);
+
+    // Loja vende por encomenda/sem controle de estoque — não decrementa
+    // stock_quantity no PDV, então o conceito de "estoque crítico/esgotado"
+    // não se aplica. Retorna vazio pra não gerar badge/alerta na sidebar.
+    const tenantFlag = await prisma.tenant.findUnique({
+      where: { id: tenantId },
+      select: { sell_without_stock_control: true },
+    });
+    if (tenantFlag?.sell_without_stock_control) {
+      res.json({ count: 0, products: [], threshold: 0 });
+      return;
+    }
+
     // min_stock é um valor POR PRODUTO agora (cadastro do produto) — sempre manda sobre
     // o threshold global antigo (preferência por usuário), que fica só como o valor
     // default sugerido no formulário de um produto novo (ver Product model, default 5).

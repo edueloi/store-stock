@@ -115,10 +115,19 @@ async function collectReportData(tenantId: number, from: Date, to: Date, periodL
   });
   const servicesTotal = services.reduce((s, so) => s + Number(so.total_amount ?? 0), 0);
 
-  const products = await prisma.product.findMany({
-    where: { tenant_id: tenantId },
-    select: { name: true, stock_quantity: true, min_stock: true },
+  // Loja vende por encomenda/sem controle de estoque — não decrementa
+  // stock_quantity no PDV, então a seção de "estoque baixo" do relatório
+  // não faz sentido pra ela (ficaria sempre cheia de falsos positivos).
+  const tenantFlag = await prisma.tenant.findUnique({
+    where: { id: tenantId },
+    select: { sell_without_stock_control: true },
   });
+  const products = tenantFlag?.sell_without_stock_control
+    ? []
+    : await prisma.product.findMany({
+        where: { tenant_id: tenantId },
+        select: { name: true, stock_quantity: true, min_stock: true },
+      });
   const lowStockItems = products.filter((p) => p.stock_quantity <= p.min_stock);
 
   const lossMovements = await prisma.stockMovement.findMany({

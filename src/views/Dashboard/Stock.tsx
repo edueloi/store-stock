@@ -95,6 +95,10 @@ export default function Stock() {
   const [activeView, setActiveView] = useState<'inventory' | 'history'>('inventory');
   const [stockFilter, setStockFilter] = useState<'all' | 'out' | 'low' | 'expiring'>('all');
   const [lowStockThreshold, setLowStockThreshold] = useState(5);
+  // Loja vende por encomenda/sem controle de estoque (Settings > Controle de
+  // Caixa) — quando ligado, suprime cards/badges/filtros de "estoque crítico/
+  // esgotado" porque a loja deliberadamente não controla estoque.
+  const [sellWithoutStockControl, setSellWithoutStockControl] = useState(false);
   const [inventoryPage, setInventoryPage] = useState(1);
   const [historyPage, setHistoryPage] = useState(1);
   const PAGE_SIZE = 20;
@@ -129,6 +133,15 @@ export default function Stock() {
     })
       .then((r) => (r.ok ? r.json() : null))
       .then((value) => { if (value !== null && Number(value) > 0) setLowStockThreshold(Number(value)); })
+      .catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    fetch("/api/tenant", {
+      headers: { "Authorization": `Bearer ${localStorage.getItem("token")}` }
+    })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => { if (data) setSellWithoutStockControl(!!data.sell_without_stock_control); })
       .catch(() => {});
   }, []);
 
@@ -194,9 +207,15 @@ export default function Stock() {
 
   const expirySoonCutoff = new Date(Date.now() + 30 * 86400000);
   const isExpiringSoon = (p: Product) => !!p.expiry_date && new Date(p.expiry_date) <= expirySoonCutoff;
+  // Loja vende por encomenda/sem controle de estoque — nunca marca um produto
+  // como "estoque baixo" nos badges/indicadores visuais da linha/card.
+  const isLowStock = (p: Product) => !sellWithoutStockControl && p.stock_quantity <= lowStockThreshold;
 
-  const outCount = searchedProducts.filter(p => p.stock_quantity === 0).length;
-  const lowOnlyCount = searchedProducts.filter(p => p.stock_quantity > 0 && p.stock_quantity <= lowStockThreshold).length;
+  // Loja vende por encomenda/sem controle de estoque — zera os contadores de
+  // "esgotado"/"baixo estoque" (ela deliberadamente não controla estoque, não
+  // faz sentido alertar sobre isso).
+  const outCount = sellWithoutStockControl ? 0 : searchedProducts.filter(p => p.stock_quantity === 0).length;
+  const lowOnlyCount = sellWithoutStockControl ? 0 : searchedProducts.filter(p => p.stock_quantity > 0 && p.stock_quantity <= lowStockThreshold).length;
   const expiringCount = searchedProducts.filter(isExpiringSoon).length;
   const lowStockCount = outCount + lowOnlyCount;
   const totalItems = searchedProducts.reduce((acc, p) => acc + p.stock_quantity, 0);
@@ -204,14 +223,16 @@ export default function Stock() {
 
   const STOCK_FILTERS = [
     { v: "all" as const, label: "Todos", count: searchedProducts.length },
-    { v: "out" as const, label: "Esgotado", count: outCount },
-    { v: "low" as const, label: "Baixo estoque", count: lowOnlyCount },
+    ...(sellWithoutStockControl ? [] : [
+      { v: "out" as const, label: "Esgotado", count: outCount },
+      { v: "low" as const, label: "Baixo estoque", count: lowOnlyCount },
+    ]),
     { v: "expiring" as const, label: "Vencimento", count: expiringCount },
   ];
 
   const filteredProducts = searchedProducts.filter(p => {
-    if (stockFilter === "out") return p.stock_quantity === 0;
-    if (stockFilter === "low") return p.stock_quantity > 0 && p.stock_quantity <= lowStockThreshold;
+    if (stockFilter === "out") return !sellWithoutStockControl && p.stock_quantity === 0;
+    if (stockFilter === "low") return !sellWithoutStockControl && p.stock_quantity > 0 && p.stock_quantity <= lowStockThreshold;
     if (stockFilter === "expiring") return isExpiringSoon(p);
     return true;
   });
@@ -275,7 +296,7 @@ export default function Stock() {
       <StockPageTour ref={stockPageTourRef} />
 
       {/* KPI Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className={cn("grid grid-cols-2 gap-4", sellWithoutStockControl ? "lg:grid-cols-3" : "lg:grid-cols-4")}>
         <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm">
           <div className="flex items-center justify-between mb-2 text-slate-400">
             <Layers size={16} />
@@ -291,6 +312,8 @@ export default function Stock() {
           <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Capital</p>
           <h3 className="text-xl font-black text-blue-600 tracking-tighter font-mono">R${totalCost.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</h3>
         </div>
+        {/* Loja vende por encomenda/sem controle de estoque — card de "Críticos" não se aplica */}
+        {!sellWithoutStockControl && (
         <div className={cn(
           "bg-white p-4 rounded-2xl border border-slate-100 shadow-sm",
           lowStockCount > 0 ? "border-l-4 border-l-red-500" : ""
@@ -303,6 +326,7 @@ export default function Stock() {
             {lowStockCount} <span className="text-xs font-bold text-slate-300">ITENS</span>
           </h3>
         </div>
+        )}
         <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm">
           <div className="flex items-center justify-between mb-2 text-slate-400">
             <ClipboardList size={16} />
@@ -386,10 +410,10 @@ export default function Stock() {
                     <td className="px-6 py-4 text-[11px] font-mono font-bold text-slate-500">R$ {Number(p.cost_price || 0).toFixed(2)}</td>
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-2">
-                        <span className={cn("text-xs font-mono font-bold", p.stock_quantity <= lowStockThreshold ? "text-red-500" : "text-slate-900")}>
+                        <span className={cn("text-xs font-mono font-bold", isLowStock(p) ? "text-red-500" : "text-slate-900")}>
                           {String(p.stock_quantity).padStart(3, '0')}
                         </span>
-                        {p.stock_quantity <= lowStockThreshold && <AlertTriangle size={12} className="text-red-500" />}
+                        {isLowStock(p) && <AlertTriangle size={12} className="text-red-500" />}
                       </div>
                     </td>
                     <td className="px-6 py-4 text-[11px] font-mono font-bold text-slate-900">R$ {(Number(p.cost_price || 0) * p.stock_quantity).toFixed(2)}</td>
@@ -432,12 +456,12 @@ export default function Stock() {
                   <div className="flex items-center gap-2">
                     <span className={cn(
                       "text-lg font-mono font-black tracking-tighter",
-                      p.stock_quantity <= lowStockThreshold ? "text-red-500" : "text-slate-900"
+                      isLowStock(p) ? "text-red-500" : "text-slate-900"
                     )}>
                       {p.stock_quantity}
                     </span>
                     <span className="text-[9px] font-bold text-slate-400 uppercase">un</span>
-                    {p.stock_quantity <= lowStockThreshold && <AlertTriangle size={12} className="text-red-500" />}
+                    {isLowStock(p) && <AlertTriangle size={12} className="text-red-500" />}
                   </div>
                   <div className="text-right">
                     <p className="text-[9px] font-bold text-slate-400 uppercase">Custo unit.</p>

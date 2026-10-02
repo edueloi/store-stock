@@ -22,6 +22,7 @@ import XmlImportModal from "../../components/ui/XmlImportModal";
 import { useToast } from "../../components/ui/Toast";
 import InventoryPageTour, { INVENTORY_PAGE_TOUR_EVENTS, type InventoryPageTourHandle } from "../../components/onboarding/InventoryPageTour";
 import FiscalCodeLookup from "../../components/fiscal/FiscalCodeLookup";
+import { useBarcodeScanner } from "../../hooks/useBarcodeScanner";
 
 // ── helpers ────────────────────────────────────────────────────────────────
 function toSlug(name: string) {
@@ -404,6 +405,10 @@ export default function Inventory() {
   const [newCategoryName, setNewCategoryName] = useState("");
   const [savingCategory, setSavingCategory] = useState(false);
   const [taxRegime, setTaxRegime] = useState<string>("simples_nacional");
+  // Loja vende por encomenda/sem controle de estoque (Settings > Controle de
+  // Caixa) — quando ligado, suprime cards/filtros de "Estoque Crítico" porque
+  // a loja deliberadamente não controla estoque e não deveria ser incomodada.
+  const [sellWithoutStockControl, setSellWithoutStockControl] = useState(false);
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Partial<Product> | null>(null);
@@ -487,6 +492,7 @@ export default function Inventory() {
       setProducts(Array.isArray(pData) ? pData : []);
       setCategories(Array.isArray(cData) ? cData : []);
       if (tData?.tax_regime) setTaxRegime(tData.tax_regime);
+      setSellWithoutStockControl(!!tData?.sell_without_stock_control);
     } catch { /* noop */ }
     finally { setLoading(false); }
   };
@@ -523,8 +529,10 @@ export default function Inventory() {
 
   // Bipar um produto no Catálogo abre direto a tela de edição — mesmo padrão de
   // captura de leitor de código de barras usado no PDV (sequência de teclas
-  // rápida demais pra ser digitação humana). Ignorado com o modal já aberto,
-  // pra não atrapalhar quem está digitando no formulário de edição.
+  // rápida demais pra ser digitação humana), via hook compartilhado
+  // useBarcodeScanner. Desligado com o modal já aberto, pra não atrapalhar
+  // quem está digitando no formulário de edição (que tem seu próprio campo
+  // de barcode).
   const handleCatalogScan = useCallback(async (code: string) => {
     const trimmed = code.trim();
     if (!trimmed) return;
@@ -541,39 +549,13 @@ export default function Inventory() {
     }
   }, [products]);
 
-  useEffect(() => {
-    let lastKeyTime = 0;
-    let buffer = "";
-    let timer: ReturnType<typeof setTimeout> | null = null;
-
-    const onKeyDown = (e: KeyboardEvent) => {
-      if (isModalOpen) return;
-      const tag = (document.activeElement?.tagName ?? "").toLowerCase();
-      const isEditable = tag === "input" || tag === "textarea" || tag === "select";
-      const now = Date.now();
-      const gap = now - lastKeyTime;
-      lastKeyTime = now;
-
-      if (e.key === "Enter") {
-        if (buffer.length >= 3) { e.preventDefault(); const b = buffer; buffer = ""; if (timer) clearTimeout(timer); handleCatalogScan(b); }
-        return;
-      }
-      if (e.key.length !== 1) return;
-      if (gap > 80 && isEditable) return;
-
-      e.preventDefault();
-      buffer += e.key;
-
-      if (timer) clearTimeout(timer);
-      timer = setTimeout(() => {
-        const b = buffer; buffer = "";
-        if (b.trim().length >= 3) handleCatalogScan(b);
-      }, 300);
-    };
-
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, [handleCatalogScan, isModalOpen]);
+  useBarcodeScanner({
+    onScan: handleCatalogScan,
+    enabled: !isModalOpen,
+    searchFields: [
+      { id: "catalog-search-input", getValue: () => searchTerm, setValue: setSearchTerm },
+    ],
+  });
 
   const openNew = () => {
     setEditingProduct({ type: "sale", is_active: false, is_featured: false, stock_quantity: 0, attributes: [], skus: [] });
@@ -903,6 +885,9 @@ export default function Inventory() {
   const isMeasuredProduct = (p: Product) => p.sale_unit === "m2" || p.sale_unit === "linear";
   const stockValue = (p: Product) => isMeasuredProduct(p) ? Number(p.measure_stock_quantity ?? 0) : p.stock_quantity;
   const minStockValue = (p: Product) => isMeasuredProduct(p) ? Number(p.measure_min_stock ?? 0) : (p.min_stock ?? 5);
+  // Loja vende por encomenda/sem controle de estoque — nunca marca um produto como
+  // "estoque crítico" nos badges/indicadores visuais da linha/card.
+  const isLowStock = (p: Product) => !sellWithoutStockControl && stockValue(p) <= minStockValue(p);
   const stockUnit = (p: Product) => ({
     m: "m", cm: "cm", mm: "mm", km: "km", m2: "m²", cm2: "cm²", mm2: "mm²", km2: "km²",
   }[p.measure_unit ?? (p.sale_unit === "m2" ? "m2" : "m")] ?? "un");
@@ -935,7 +920,7 @@ export default function Inventory() {
       if (filterCategory && p.category_id !== filterCategory) return false;
       if (filterStatus === "active" && !p.is_active) return false;
       if (filterStatus === "inactive" && p.is_active) return false;
-      if (filterLowStock && stockValue(p) > minStockValue(p)) return false;
+      if (filterLowStock && !sellWithoutStockControl && stockValue(p) > minStockValue(p)) return false;
       return true;
     })
     .sort((a, b) => {
@@ -1017,7 +1002,9 @@ export default function Inventory() {
       <StatsGrid columns={4} stats={[
         { label: "Capital Imobilizado", value: `R$ ${totalCost.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`, icon: <Package size={18} />, accent: "blue" },
         { label: "Potencial Faturamento", value: `R$ ${totalRevenue.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`, icon: <TrendingUp size={18} />, accent: "emerald" },
-        { label: "Estoque Crítico", value: lowStock, icon: <AlertTriangle size={18} />, accent: lowStock > 0 ? "red" : "slate" },
+        // Loja vende por encomenda/sem controle de estoque — não faz sentido mostrar
+        // "Estoque Crítico" pra quem deliberadamente não controla estoque.
+        ...(sellWithoutStockControl ? [] : [{ label: "Estoque Crítico", value: lowStock, icon: <AlertTriangle size={18} />, accent: lowStock > 0 ? ("red" as const) : ("slate" as const) }]),
         { label: "Destaques Ativos", value: featured, icon: <Star size={18} />, accent: "amber" },
       ]} />
 
@@ -1027,7 +1014,7 @@ export default function Inventory() {
         <div className="flex gap-2 items-center">
           <div className="relative flex-1 min-w-0">
             <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-            <input type="text" placeholder="Buscar por nome ou SKU..." value={searchTerm}
+            <input id="catalog-search-input" type="text" placeholder="Buscar por nome ou SKU..." value={searchTerm}
               onChange={e => { setSearchTerm(e.target.value); setCurrentPage(1); }}
               className="w-full pl-9 pr-4 h-9 rounded-xl border border-slate-200 bg-white text-xs font-medium outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-500/10 transition-all" />
           </div>
@@ -1068,14 +1055,16 @@ export default function Inventory() {
             </button>
           ))}
 
-          {/* Low stock chip */}
-          <button onClick={() => { setFilterLowStock(v => !v); setCurrentPage(1); }}
-            className={cn(
-              "h-7 px-3 rounded-lg border text-[11px] font-bold transition-all flex items-center gap-1",
-              filterLowStock ? "bg-red-600 text-white border-red-600" : "bg-white text-slate-500 border-slate-200 hover:border-red-300"
-            )}>
-            <AlertTriangle size={10} /> Estoque crítico
-          </button>
+          {/* Low stock chip — oculto quando a loja vende por encomenda/sem controle de estoque */}
+          {!sellWithoutStockControl && (
+            <button onClick={() => { setFilterLowStock(v => !v); setCurrentPage(1); }}
+              className={cn(
+                "h-7 px-3 rounded-lg border text-[11px] font-bold transition-all flex items-center gap-1",
+                filterLowStock ? "bg-red-600 text-white border-red-600" : "bg-white text-slate-500 border-slate-200 hover:border-red-300"
+              )}>
+              <AlertTriangle size={10} /> Estoque crítico
+            </button>
+          )}
 
           <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-auto">
             {filteredProducts.length} produto{filteredProducts.length !== 1 ? "s" : ""}
@@ -1145,8 +1134,8 @@ export default function Inventory() {
                           R$ {Number(p.discount_price || p.price).toFixed(2)}
                         </span>
                         <div className="flex items-center gap-1">
-                          <div className={cn("w-1.5 h-1.5 rounded-full", stockValue(p) <= minStockValue(p) ? "bg-red-500" : stockValue(p) <= minStockValue(p) * 3 ? "bg-amber-400" : "bg-emerald-500")} />
-                          <span className={cn("text-xs font-mono font-bold", stockValue(p) <= minStockValue(p) ? "text-red-600" : "text-slate-600")}>
+                          <div className={cn("w-1.5 h-1.5 rounded-full", isLowStock(p) ? "bg-red-500" : !sellWithoutStockControl && stockValue(p) <= minStockValue(p) * 3 ? "bg-amber-400" : "bg-emerald-500")} />
+                          <span className={cn("text-xs font-mono font-bold", isLowStock(p) ? "text-red-600" : "text-slate-600")}>
                             {formatStock(p)} {stockUnit(p)}
                           </span>
                         </div>
@@ -1273,8 +1262,8 @@ export default function Inventory() {
                       </td>
                       <td className="px-3 py-2.5">
                         <div className="flex items-center gap-1.5">
-                          <div className={cn("w-1.5 h-1.5 rounded-full shrink-0", stockValue(p) <= minStockValue(p) ? "bg-red-500 animate-pulse" : stockValue(p) <= minStockValue(p) * 3 ? "bg-amber-400" : "bg-emerald-500")} />
-                          <span className={cn("text-xs font-mono font-bold", stockValue(p) <= minStockValue(p) ? "text-red-600" : "text-slate-900")}>
+                          <div className={cn("w-1.5 h-1.5 rounded-full shrink-0", isLowStock(p) ? "bg-red-500 animate-pulse" : !sellWithoutStockControl && stockValue(p) <= minStockValue(p) * 3 ? "bg-amber-400" : "bg-emerald-500")} />
+                          <span className={cn("text-xs font-mono font-bold", isLowStock(p) ? "text-red-600" : "text-slate-900")}>
                             {formatStock(p)} <span className="text-[9px] text-slate-400 font-normal">{stockUnit(p)}</span>
                           </span>
                         </div>
@@ -1371,7 +1360,7 @@ export default function Inventory() {
                   <p className="text-[9px] font-mono text-slate-400 uppercase truncate">{displaySku(p)}</p>
                   <div className="flex items-center justify-between pt-1">
                     <span className="text-sm font-bold font-mono text-blue-600">R$ {Number(p.discount_price || p.price).toFixed(2)}</span>
-                    <span className={cn("text-[9px] font-bold px-1.5 py-0.5 rounded-full", stockValue(p) <= minStockValue(p) ? "bg-red-100 text-red-600" : "bg-emerald-100 text-emerald-700")}>
+                    <span className={cn("text-[9px] font-bold px-1.5 py-0.5 rounded-full", isLowStock(p) ? "bg-red-100 text-red-600" : "bg-emerald-100 text-emerald-700")}>
                       {formatStock(p)} {stockUnit(p)}
                     </span>
                   </div>

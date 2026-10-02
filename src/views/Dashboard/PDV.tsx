@@ -30,6 +30,7 @@ import { fetchRemotePrintTerminals, requestRemotePrint, type RemotePrintTerminal
 import { getStoredUser } from "../../lib/session";
 import { CategoryGlyph } from "../../components/categories/CategoryGlyph";
 import FiscalCodeLookup from "../../components/fiscal/FiscalCodeLookup";
+import { useBarcodeScanner } from "../../hooks/useBarcodeScanner";
 
 function maskPhone(v: string) {
   const d = v.replace(/\D/g, "").slice(0, 11);
@@ -638,159 +639,22 @@ export default function PDV() {
   };
 
   // ── Captura global do leitor de código de barras ─────────────────────────────
-  // Leitores USB HID simulam teclado: digitam os chars rápido + Enter. Capturamos
-  // essa digitação e redirecionamos pro campo de scan quando nenhum outro campo
-  // editável estiver em foco — assim funciona "solto" na tela sem atrapalhar
-  // quem está digitando de propósito em outro campo (ver comentário abaixo).
-  //
-  // Refs (não state) pra ler o valor atual de searchTerm/addProductSearch de
-  // dentro do efeito sem precisar deles no array de dependências. Tê-los como
-  // dependência fazia o efeito inteiro desmontar/remontar a CADA tecla digitada
-  // (porque a própria captura chama setSearchTerm a cada tecla) — isso recriava
-  // buffer/timer do zero no meio de uma leitura em andamento, deixando o timer
-  // antigo (não cancelado pelo cleanup) pendente e disparando handleScan uma
-  // segunda vez além do Enter que finaliza a leitura, duplicando o produto.
-  const searchTermRef = useRef(searchTerm);
-  searchTermRef.current = searchTerm;
-  const addProductSearchRef = useRef(addProductSearch);
-  addProductSearchRef.current = addProductSearch;
-  // Mesma lógica pra handleScan: ele é recriado (useCallback com deps
-  // [products, token, addToCartDirect]) toda vez que um scan bem-sucedido muda
-  // `products` — se handleScan estivesse no array de dependências do efeito,
-  // bipar rápido o suficiente pra um re-render de "products" cair no meio da
-  // digitação de uma bipada seguinte remontava o efeito e deixava o timer da
-  // montagem antiga pendente, disparando handleScan uma segunda vez pro mesmo
-  // código (produto duplicado no carrinho). A ref garante que o efeito sempre
-  // chama a versão mais recente de handleScan sem precisar remontar por causa
-  // dela.
-  const handleScanRef = useRef(handleScan);
-  handleScanRef.current = handleScan;
-
-  useEffect(() => {
-    let lastKeyTime = 0;
-    let buffer = "";
-    let timer: ReturnType<typeof setTimeout> | null = null;
-    // Guarda em qual campo de busca de produto a sequência de SCANNER atual
-    // começou (não usado pra digitação humana normal, que o próprio onChange
-    // do input já resolve sozinho) — precisa limpar esse mesmo campo ao
-    // concluir o scan (Enter ou timeout), senão o código digitado fica preso
-    // ali em vez do produto ir direto pro carrinho.
-    //
-    // "pending" = ainda não decidiu pra onde vai a sequência atual (nenhuma
-    // tecla de scanner capturada ainda); null = decidiu que vai pro buffer
-    // solto (campo de scan oculto), não pra um campo de busca visível.
-    let activeSearchField: "main" | "addModal" | null | "pending" = "pending";
-
-    const clearActiveSearchField = () => {
-      if (activeSearchField === "main") setSearchTerm("");
-      else if (activeSearchField === "addModal") setAddProductSearch("");
-      activeSearchField = "pending";
-    };
-
-    const flush = (code: string) => {
-      buffer = "";
-      if (timer) { clearTimeout(timer); timer = null; }
-      clearActiveSearchField();
-      if (code.trim().length >= 3) handleScanRef.current(code.trim());
-    };
-
-    const onKeyDown = (e: KeyboardEvent) => {
-      const active = document.activeElement;
-      const tag = (active?.tagName ?? "").toLowerCase();
-      const isEditable = tag === "input" || tag === "textarea" || tag === "select";
-      const activeId = active instanceof HTMLElement ? active.id : "";
-      const searchFieldKind = activeId === "pdv-search-input" ? "main"
-        : activeId === "pdv-add-product-search" ? "addModal"
-        : null;
-
-      const now = Date.now();
-      const gap = now - lastKeyTime;
-      lastKeyTime = now;
-
-      if (e.key === "Enter") {
-        if (buffer.length >= 3) {
-          e.preventDefault();
-          flush(buffer);
-        }
-        return;
-      }
-
-      if (e.key.length !== 1) return;
-
-      // Campo de scan ja focado ANTES da sequencia atual comecar (nao foi
-      // este handler quem deu o .focus() nele) -> deixa o onChange nativo
-      // dele cuidar sozinho, como sempre foi.
-      if (active === scanInputRef.current && activeSearchField === "pending") return;
-
-      // Só intercepta teclas rápidas demais pra serem digitação humana
-      // (leitor físico) — isso vale TANTO dentro quanto fora dos campos de
-      // busca de produto. Sem essa checagem de velocidade, digitar
-      // normalmente (devagar) no campo de busca era sequestrado tecla a
-      // tecla por este handler (com preventDefault, então o onChange nativo
-      // nunca rodava) e todo texto digitado sumia sozinho 300ms depois de
-      // qualquer pausa — o timer de flush limpava o campo achando que era um
-      // código de barras incompleto.
-      //
-      // Mas se não há nenhum campo editável em foco (clicou em botão, área
-      // neutra da tela, ou nada mesmo) e ainda não decidimos o destino, não
-      // existe digitação humana pra proteger ali — captura a sequência
-      // inteira desde a 1ª tecla, senão o primeiro dígito bipado
-      // (frequentemente "7", prefixo comum de EAN-13 brasileiro) vaza solto.
-      //
-      // Uma vez que a sequência já decidiu pra onde vai (activeSearchField
-      // != "pending"), essa checagem não pode mais barrar as teclas
-      // seguintes, senão o foco mudando no meio (ex.: o .focus() do campo de
-      // scan oculto, logo abaixo) faz a leitura ser cortada pela metade.
-      if (activeSearchField === "pending" && isEditable && gap > 80) return;
-
-      // A PRIMEIRA tecla da sequência decide o destino (campo de busca visível
-      // vs. buffer solto) e essa decisão fica fixa até o flush — reavaliar
-      // "onde focar" tecla a tecla é frágil: o .focus() programático do campo
-      // de scan oculto (usado quando não há campo de busca) muda
-      // document.activeElement no meio da sequência, fazendo o resto do
-      // código cair no branch errado e a leitura ser cortada pela metade.
-      if (activeSearchField === "pending") activeSearchField = searchFieldKind;
-
-      // Leitor detectado → captura e redireciona. Dentro de um campo de busca,
-      // o buffer parte do valor atual do campo (não de ""), porque a(s)
-      // tecla(s) anterior(es) da mesma sequência podem já ter passado pelo
-      // onChange nativo antes da velocidade ficar rápida o bastante pra ser
-      // reconhecida como scanner.
-      e.preventDefault();
-      if (buffer === "") {
-        buffer = activeSearchField === "main" ? searchTermRef.current
-          : activeSearchField === "addModal" ? addProductSearchRef.current
-          : "";
-      }
-      buffer += e.key;
-      if (activeSearchField === "main") setSearchTerm(buffer);
-      else if (activeSearchField === "addModal") setAddProductSearch(buffer);
-      else scanInputRef.current?.focus();
-      setScanCode(buffer);
-
-      if (timer) clearTimeout(timer);
-      timer = setTimeout(() => {
-        const b = buffer;
-        buffer = "";
-        clearActiveSearchField();
-        if (b.trim().length >= 3) handleScanRef.current(b.trim());
-      }, 300);
-    };
-
-    window.addEventListener("keydown", onKeyDown);
-    return () => {
-      window.removeEventListener("keydown", onKeyDown);
-      // Cancela qualquer timer de flush pendente desta montagem — sem isso, se
-      // o efeito remontar por qualquer outro motivo no meio de uma leitura, o
-      // timer da montagem antiga ainda dispararia handleScan mais tarde,
-      // duplicando o produto no carrinho.
-      if (timer) clearTimeout(timer);
-    };
-    // Monta uma única vez — handleScan/searchTerm/addProductSearch são lidos
-    // via ref (handleScanRef/searchTermRef/addProductSearchRef) de propósito,
-    // pra nunca remontar este efeito no meio de uma leitura do scanner.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  // Leitores USB HID simulam teclado: digitam os chars rápido + Enter. O hook
+  // detecta essa digitação e redireciona pro campo de busca certo (principal
+  // ou do modal de adicionar produto) quando um deles está em foco, ou pro
+  // buffer solto (campo de scan oculto) quando nenhum está — assim funciona
+  // "solto" na tela sem atrapalhar quem está digitando de propósito em outro
+  // campo. Lógica de detecção/buffer vive em useBarcodeScanner (extraída daqui
+  // pra ser reaproveitada em outras telas, ex. Catálogo).
+  useBarcodeScanner({
+    onScan: handleScan,
+    searchFields: [
+      { id: "pdv-search-input", getValue: () => searchTerm, setValue: setSearchTerm },
+      { id: "pdv-add-product-search", getValue: () => addProductSearch, setValue: setAddProductSearch },
+    ],
+    hiddenInputRef: scanInputRef,
+    setHiddenValue: setScanCode,
+  });
 
   // ── cart helpers ──────────────────────────────────────────────────────────────
   const addToCart = (product: Product, options?: Record<string, string>) => {

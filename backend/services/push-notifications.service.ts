@@ -48,20 +48,25 @@ export async function runPushNotificationsJob() {
   if (!ensureVapidConfigured()) return;
 
   const tenants = await prisma.tenant.findMany({
-    select: { id: true, status: true, trial_ends_at: true },
+    select: { id: true, status: true, trial_ends_at: true, sell_without_stock_control: true },
   });
 
   for (const tenant of tenants) {
     if (!getTenantAccessState(tenant).allowed) continue;
 
     const dueSoonCount = await countDueSoonPayables(tenant.id);
-    // Prisma não compara duas colunas da mesma tabela direto no where — filtra em
-    // memória (mesmo padrão de getLowStockCount, volume baixo, roda 1x/dia).
-    const activeProducts = await prisma.product.findMany({
-      where: { tenant_id: tenant.id, is_active: true },
-      select: { stock_quantity: true, min_stock: true },
-    });
-    const lowStockCount = activeProducts.filter((p) => p.stock_quantity <= p.min_stock).length;
+    // Loja vende por encomenda/sem controle de estoque — não faz sentido
+    // notificar sobre "estoque crítico" que ela deliberadamente não controla.
+    let lowStockCount = 0;
+    if (!tenant.sell_without_stock_control) {
+      // Prisma não compara duas colunas da mesma tabela direto no where — filtra em
+      // memória (mesmo padrão de getLowStockCount, volume baixo, roda 1x/dia).
+      const activeProducts = await prisma.product.findMany({
+        where: { tenant_id: tenant.id, is_active: true },
+        select: { stock_quantity: true, min_stock: true },
+      });
+      lowStockCount = activeProducts.filter((p) => p.stock_quantity <= p.min_stock).length;
+    }
 
     if (dueSoonCount === 0 && lowStockCount === 0) continue;
 
