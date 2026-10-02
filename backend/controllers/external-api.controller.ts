@@ -147,10 +147,14 @@ export async function createTenant(req: Request, res: Response) {
 // ── EDITAR ───────────────────────────────────────────────────────────────────
 
 export async function updateTenant(req: Request, res: Response) {
-  const { name, whatsapp, subscriptionAmount, planId, trialDays } = req.body;
+  const { name, whatsapp, subscriptionAmount, planId, trialDays, trialEndsAt } = req.body;
   try {
     const tenant = await prisma.tenant.findUnique({ where: { id: Number(req.params.id) } });
     if (!tenant) return res.status(404).json({ error: "Estabelecimento não encontrado." });
+
+    // trialEndsAt: vencimento informado por quem cobra (ex.: Develoi) — aparece como "Vence" no painel
+    const endsAt = trialEndsAt ? new Date(trialEndsAt) : null;
+    if (endsAt && Number.isNaN(endsAt.getTime())) return res.status(400).json({ error: "trialEndsAt inválido." });
 
     const updated = await prisma.tenant.update({
       where: { id: tenant.id },
@@ -160,6 +164,7 @@ export async function updateTenant(req: Request, res: Response) {
         subscription_amount: subscriptionAmount !== undefined ? Number(subscriptionAmount) : undefined,
         plan_id: planId !== undefined ? Number(planId) : undefined,
         trial_days: trialDays !== undefined ? Math.max(1, Number(trialDays)) : undefined,
+        trial_ends_at: endsAt ?? undefined,
       },
       include: tenantWithOwnerInclude,
     });
