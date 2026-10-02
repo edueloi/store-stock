@@ -21,6 +21,8 @@ function serializeTenant(tenant: any) {
     name: tenant.name,
     slug: tenant.slug,
     subdomain: tenant.subdomain,
+    whatsapp: tenant.whatsapp ?? null,
+    document: tenant.document ?? null,
     accessUrl: buildTenantAccessUrl(tenant.subdomain || tenant.slug),
     status: tenant.status,
     trialDays: tenant.trial_days,
@@ -29,7 +31,7 @@ function serializeTenant(tenant: any) {
     planId: tenant.plan_id,
     planName: tenant.plan?.name ?? null,
     createdAt: tenant.created_at,
-    owner: owner ? { id: owner.id, name: owner.name, email: owner.email } : null,
+    owner: owner ? { id: owner.id, name: owner.name, email: owner.email, phone: owner.phone ?? null } : null,
   };
 }
 
@@ -39,7 +41,7 @@ const tenantWithOwnerInclude = {
     where: { role: "admin" },
     orderBy: { id: "asc" as const },
     take: 1,
-    select: { id: true, name: true, email: true },
+    select: { id: true, name: true, email: true, phone: true },
   },
 };
 
