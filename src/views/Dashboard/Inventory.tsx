@@ -23,6 +23,7 @@ import { useToast } from "../../components/ui/Toast";
 import InventoryPageTour, { INVENTORY_PAGE_TOUR_EVENTS, type InventoryPageTourHandle } from "../../components/onboarding/InventoryPageTour";
 import FiscalCodeLookup from "../../components/fiscal/FiscalCodeLookup";
 import { useBarcodeScanner } from "../../hooks/useBarcodeScanner";
+import { Tabs, TabList, Tab, TabPanel } from "../../components/ui/Tabs";
 
 // ── helpers ────────────────────────────────────────────────────────────────
 function toSlug(name: string) {
@@ -412,6 +413,10 @@ export default function Inventory() {
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Partial<Product> | null>(null);
+  // Aba ativa do modal de produto. Como TabPanel desmonta abas inativas, os campos
+  // required de uma aba fora da visível não existem no DOM no momento do submit —
+  // o browser não os valida. handleSave checa manualmente e troca pra aba certa.
+  const [productModalTab, setProductModalTab] = useState("identificacao");
   // Campo auxiliar de UI (não é salvo no produto) — % de lucro desejada sobre o custo,
   // usada só pra calcular e preencher automaticamente o Preço Venda. String pra permitir
   // digitar livremente (ex.: apagar tudo, digitar "6", depois "60") sem o input travar em 0.
@@ -565,6 +570,7 @@ export default function Inventory() {
     resetVarState();
     setCreatingCategory(false);
     setNewCategoryName("");
+    setProductModalTab("identificacao");
     setIsModalOpen(true);
   };
 
@@ -586,6 +592,7 @@ export default function Inventory() {
     resetVarState();
     setCreatingCategory(false);
     setNewCategoryName("");
+    setProductModalTab("identificacao");
     setIsModalOpen(true);
   };
 
@@ -689,6 +696,41 @@ export default function Inventory() {
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    // Campos required ficam espalhados entre abas que desmontam quando inativas
+    // (TabPanel retorna null), então a validação HTML5 nativa não os enxerga se o
+    // usuário tentar salvar numa aba diferente. Valida manualmente aqui e troca
+    // pra aba certa antes de abortar o submit.
+    if (!editingProduct?.name?.trim()) {
+      setProductModalTab("identificacao");
+      toast.error("Preencha o nome do produto.");
+      return;
+    }
+    const saleUnit = editingProduct?.sale_unit ?? "unidade";
+    if (saleUnit === "unidade") {
+      if (!editingProduct?.price || Number(editingProduct.price) <= 0) {
+        setProductModalTab("estoque");
+        toast.error("Preencha o preço de venda.");
+        return;
+      }
+      if ((editingProduct?.skus || []).length === 0 && (editingProduct?.stock_quantity == null)) {
+        setProductModalTab("estoque");
+        toast.error("Preencha o estoque atual.");
+        return;
+      }
+    } else {
+      if (!editingProduct?.price_per_measure || Number(editingProduct.price_per_measure) <= 0) {
+        setProductModalTab("estoque");
+        toast.error(`Preencha o preço por ${saleUnit === "m2" ? "m²" : "metro linear"}.`);
+        return;
+      }
+      if (editingProduct?.measure_stock_quantity == null) {
+        setProductModalTab("estoque");
+        toast.error("Preencha o estoque disponível.");
+        return;
+      }
+    }
+
     setSaving(true);
     const method = editingProduct?.id ? "PUT" : "POST";
     const url = editingProduct?.id ? `/api/products/${editingProduct.id}` : "/api/products";
@@ -1385,7 +1427,19 @@ export default function Inventory() {
           </>
         }
       >
-        <form id="product-form" onSubmit={handleSave} className="grid grid-cols-1 xl:grid-cols-2 gap-5 items-start">
+        <form id="product-form" onSubmit={handleSave} className="space-y-4">
+        {/* key força remontar o Tabs (não-controlado) quando handleSave precisa
+            pular pra aba de um campo obrigatório vazio que estava fora de vista */}
+        <Tabs key={productModalTab} defaultTab={productModalTab} onChange={setProductModalTab}>
+          <TabList variant="pill">
+            <Tab id="identificacao">Identificação</Tab>
+            <Tab id="estoque">Estoque</Tab>
+            <Tab id="fiscal">Fiscal</Tab>
+            <Tab id="variacoes">Grades e Variações</Tab>
+          </TabList>
+
+          <TabPanel id="identificacao">
+          <div className="grid grid-cols-1 xl:grid-cols-2 gap-5 items-start">
 
           <section data-tour="product-gallery" className="bg-white border border-slate-200 rounded-2xl p-4 space-y-3">
             <p className="text-[10px] font-black uppercase tracking-widest text-slate-700 border-l-4 border-blue-500 pl-3">
@@ -1508,8 +1562,13 @@ export default function Inventory() {
           </div>
           </section>
 
+          </div>
+          </TabPanel>
+
+          <TabPanel id="fiscal">
+          <div className="grid grid-cols-1 xl:grid-cols-2 gap-5 items-start">
           {/* ── DADOS FISCAIS (NFC-e) ── */}
-          <section className="bg-white border border-slate-200 rounded-2xl p-4 space-y-3">
+          <section className="bg-white border border-slate-200 rounded-2xl p-4 space-y-3 xl:col-span-2">
             <p className="text-[10px] font-black uppercase tracking-widest text-slate-700 border-l-4 border-blue-500 pl-3">
               Dados Fiscais
             </p>
@@ -1626,6 +1685,11 @@ export default function Inventory() {
               </div>
             )}
           </section>
+          </div>
+          </TabPanel>
+
+          <TabPanel id="estoque">
+          <div className="grid grid-cols-1 xl:grid-cols-2 gap-5 items-start">
 
           <section className="bg-white border border-slate-200 rounded-2xl p-4 space-y-3">
             <p className="text-[10px] font-black uppercase tracking-widest text-slate-700 border-l-4 border-orange-500 pl-3">
@@ -1789,9 +1853,12 @@ export default function Inventory() {
             </div>
           )}
           </section>
+          </div>
+          </TabPanel>
 
+          <TabPanel id="variacoes">
           {/* ── VARIAÇÕES ── */}
-          <section className="bg-white border border-slate-200 rounded-2xl p-4 space-y-4 xl:col-span-2">
+          <section className="bg-white border border-slate-200 rounded-2xl p-4 space-y-4">
             <div className="flex items-center justify-between">
               <div>
                 <h4 className="text-[11px] font-black uppercase tracking-widest text-slate-900 border-l-4 border-blue-600 pl-3">Grades & Variações</h4>
@@ -1971,6 +2038,8 @@ export default function Inventory() {
               </div>
             )}
           </section>
+          </TabPanel>
+        </Tabs>
         </form>
       </Modal>
 
