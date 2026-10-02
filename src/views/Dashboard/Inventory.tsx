@@ -1438,9 +1438,9 @@ export default function Inventory() {
           </TabList>
 
           <TabPanel id="identificacao">
-          <div className="grid grid-cols-1 xl:grid-cols-2 gap-5 items-start">
+          <div className="grid grid-cols-1 xl:grid-cols-[320px_1fr] gap-4 items-start">
 
-          <section data-tour="product-gallery" className="bg-white border border-slate-200/80 rounded-2xl p-5 space-y-4 shadow-sm transition-all hover:shadow-md">
+          <section data-tour="product-gallery" className="bg-white border border-slate-200/80 rounded-2xl p-4 space-y-3 shadow-sm transition-all hover:shadow-md">
             <div className="flex items-center gap-2.5">
               <div className="w-8 h-8 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center shrink-0">
                 <Camera size={15} />
@@ -1452,81 +1452,9 @@ export default function Inventory() {
             <GalleryUploader images={editingImages} onChange={setEditingImages} />
           </section>
 
-          <section className="bg-white border border-slate-200/80 rounded-2xl p-5 space-y-4 shadow-sm transition-all hover:shadow-md">
-            <div className="flex items-center gap-2.5">
-              <div className="w-8 h-8 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center shrink-0">
-                <FolderTree size={15} />
-              </div>
-              <p className="text-[11px] font-black uppercase tracking-widest text-slate-700">
-                Organização
-              </p>
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="space-y-1">
-                <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest px-1">Categoria</label>
-                {creatingCategory ? (
-                  <div className="flex gap-1.5">
-                    <input
-                      autoFocus type="text" placeholder="Nome da categoria"
-                      value={newCategoryName}
-                      onChange={(e) => setNewCategoryName(e.target.value)}
-                      onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); handleCreateCategory(); } if (e.key === "Escape") { setCreatingCategory(false); setNewCategoryName(""); } }}
-                      className="flex-1 bg-slate-50 border border-blue-300 rounded-xl px-3 py-2.5 text-xs font-bold outline-none h-10 focus:border-blue-500 transition-all"
-                    />
-                    <button type="button" onClick={handleCreateCategory} disabled={savingCategory || !newCategoryName.trim()}
-                      className="h-10 px-3 rounded-xl bg-blue-600 hover:bg-blue-700 disabled:opacity-40 text-white flex items-center justify-center transition-all shrink-0">
-                      {savingCategory ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
-                    </button>
-                    <button type="button" onClick={() => { setCreatingCategory(false); setNewCategoryName(""); }}
-                      className="h-10 w-10 rounded-xl border border-slate-200 text-slate-400 hover:bg-slate-50 flex items-center justify-center transition-all shrink-0">
-                      <X size={14} />
-                    </button>
-                  </div>
-                ) : (
-                  <div className="flex gap-1.5">
-                    <select className="flex-1 min-w-0 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs font-bold outline-none h-10 focus:border-blue-400 transition-all"
-                      value={editingProduct?.category_id || ""}
-                      onChange={e => setEditingProduct(prev => ({ ...prev!, category_id: Number(e.target.value) }))}>
-                      <option value="">Sem categoria</option>
-                      {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                    </select>
-                    <button type="button" onClick={() => setCreatingCategory(true)} title="Criar nova categoria"
-                      className="h-10 w-10 rounded-xl border border-slate-200 text-slate-500 hover:bg-blue-50 hover:border-blue-300 hover:text-blue-600 flex items-center justify-center transition-all shrink-0">
-                      <Plus size={14} />
-                    </button>
-                  </div>
-                )}
-              </div>
-              <div className="space-y-1">
-                <label className="text-[10px] font-bold text-blue-500 uppercase tracking-widest px-1">Data de Validade</label>
-                <input type="date"
-                  className="w-full bg-blue-50 border border-blue-100 rounded-xl px-3 py-2.5 text-xs font-bold outline-none h-10 focus:border-blue-400 transition-all"
-                  value={editingProduct?.expiry_date || ""}
-                  onChange={e => setEditingProduct(prev => ({ ...prev!, expiry_date: e.target.value }))} />
-              </div>
-            </div>
-            <div className="rounded-xl border border-blue-100 bg-blue-50/40 p-3 space-y-2">
-              <div className="flex items-center justify-between gap-3 px-1">
-                <div>
-                  <label className="text-[10px] font-black text-blue-700 uppercase tracking-widest">Descrição pública do produto</label>
-                  <p className="text-[9px] text-blue-600/80 mt-0.5">Aparece na página deste produto na sua loja online.</p>
-                </div>
-                <span className="shrink-0 text-[9px] font-mono font-bold text-blue-500">{(editingProduct?.description || "").length}/2000</span>
-              </div>
-              <textarea rows={4} maxLength={2000} placeholder="Ex.: Camiseta em algodão premium, modelagem confortável e acabamento reforçado."
-                className="w-full bg-white border border-blue-100 rounded-xl px-3 py-2.5 text-xs font-medium leading-relaxed outline-none resize-y focus:border-blue-400 focus:ring-2 focus:ring-blue-500/10 transition-all"
-                value={editingProduct?.description || ""}
-                onChange={e => setEditingProduct(prev => ({ ...prev!, description: e.target.value }))} />
-            </div>
-            <div className="flex flex-wrap gap-6 border-t border-slate-100 pt-4">
-              <Switch label="Ativo no site" checked={editingProduct?.is_active ?? true}
-                onChange={v => setEditingProduct(prev => ({ ...prev!, is_active: v }))} accent="emerald" />
-              <Switch label="Destaque na home" checked={editingProduct?.is_featured ?? false}
-                onChange={v => setEditingProduct(prev => ({ ...prev!, is_featured: v }))} accent="amber" />
-            </div>
-          </section>
+          <div className="space-y-4">
 
-          <section className="bg-white border border-slate-200/80 rounded-2xl p-5 space-y-4 shadow-sm transition-all hover:shadow-md">
+          <section className="bg-white border border-slate-200/80 rounded-2xl p-4 space-y-3 shadow-sm transition-all hover:shadow-md">
             <div className="flex items-center gap-2.5">
               <div className="w-8 h-8 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center shrink-0">
                 <Fingerprint size={15} />
@@ -1535,18 +1463,18 @@ export default function Inventory() {
                 Identificação
               </p>
             </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div data-tour="product-name-field" className="space-y-1">
               <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest px-1">Nome do Produto *</label>
               <input type="text" required placeholder="Ex: Camiseta Básica Preta"
-                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs font-bold uppercase outline-none h-10 focus:border-blue-400 focus:ring-2 focus:ring-blue-500/10 transition-all"
+                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold uppercase outline-none h-9 focus:border-blue-400 focus:ring-2 focus:ring-blue-500/10 transition-all"
                 value={editingProduct?.name || ""}
                 onChange={e => handleUppercaseChange(e, (upper) => setEditingProduct(prev => ({ ...prev!, name: upper })))} />
             </div>
             <div className="space-y-1">
               <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest px-1">SKU / Identificador</label>
               <input type="text" placeholder={editingProduct?.name ? toSlug(editingProduct.name) : "auto-gerado do nome"}
-                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs font-mono font-bold uppercase outline-none h-10 focus:border-blue-400 focus:ring-2 focus:ring-blue-500/10 transition-all"
+                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-mono font-bold uppercase outline-none h-9 focus:border-blue-400 focus:ring-2 focus:ring-blue-500/10 transition-all"
                 value={editingProduct?.sku || ""}
                 onChange={e => setEditingProduct(prev => ({ ...prev!, sku: e.target.value }))} />
               <p className="text-[9px] text-slate-400 px-1">Vazio = gerado do nome automaticamente</p>
@@ -1558,11 +1486,11 @@ export default function Inventory() {
             <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest px-1">Código de Barras (EAN / ISBN / Interno)</label>
             <div className="flex gap-2">
               <input type="text" placeholder="Ex: 7891234567890 — deixe vazio para gerar automaticamente"
-                className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs font-mono font-bold outline-none h-10 focus:border-blue-400 focus:ring-2 focus:ring-blue-500/10 transition-all"
+                className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-mono font-bold outline-none h-9 focus:border-blue-400 focus:ring-2 focus:ring-blue-500/10 transition-all"
                 value={editingProduct?.barcode || ""}
                 onChange={e => setEditingProduct(prev => ({ ...prev!, barcode: e.target.value }))} />
               <button type="button"
-                className="h-10 px-4 bg-slate-900 text-white rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-slate-700 transition-all shrink-0"
+                className="h-9 px-4 bg-slate-900 text-white rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-slate-700 transition-all shrink-0"
                 onClick={() => {
                   const code = String(Date.now()).slice(-12).padStart(12, "0");
                   const digits = code.split("").map(Number);
@@ -1576,7 +1504,81 @@ export default function Inventory() {
           </div>
           </section>
 
-          <section className="bg-white border border-slate-200/80 rounded-2xl p-5 space-y-4 shadow-sm transition-all hover:shadow-md xl:col-span-2">
+          <section className="bg-white border border-slate-200/80 rounded-2xl p-4 space-y-3 shadow-sm transition-all hover:shadow-md">
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center shrink-0">
+                <FolderTree size={15} />
+              </div>
+              <p className="text-[11px] font-black uppercase tracking-widest text-slate-700">
+                Organização
+              </p>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest px-1">Categoria</label>
+                {creatingCategory ? (
+                  <div className="flex gap-1.5">
+                    <input
+                      autoFocus type="text" placeholder="Nome da categoria"
+                      value={newCategoryName}
+                      onChange={(e) => setNewCategoryName(e.target.value)}
+                      onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); handleCreateCategory(); } if (e.key === "Escape") { setCreatingCategory(false); setNewCategoryName(""); } }}
+                      className="flex-1 bg-slate-50 border border-blue-300 rounded-xl px-3 py-2 text-xs font-bold outline-none h-9 focus:border-blue-500 transition-all"
+                    />
+                    <button type="button" onClick={handleCreateCategory} disabled={savingCategory || !newCategoryName.trim()}
+                      className="h-9 px-3 rounded-xl bg-blue-600 hover:bg-blue-700 disabled:opacity-40 text-white flex items-center justify-center transition-all shrink-0">
+                      {savingCategory ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
+                    </button>
+                    <button type="button" onClick={() => { setCreatingCategory(false); setNewCategoryName(""); }}
+                      className="h-9 w-9 rounded-xl border border-slate-200 text-slate-400 hover:bg-slate-50 flex items-center justify-center transition-all shrink-0">
+                      <X size={14} />
+                    </button>
+                  </div>
+                ) : (
+                  <div className="flex gap-1.5">
+                    <select className="flex-1 min-w-0 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold outline-none h-9 focus:border-blue-400 transition-all"
+                      value={editingProduct?.category_id || ""}
+                      onChange={e => setEditingProduct(prev => ({ ...prev!, category_id: Number(e.target.value) }))}>
+                      <option value="">Sem categoria</option>
+                      {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                    </select>
+                    <button type="button" onClick={() => setCreatingCategory(true)} title="Criar nova categoria"
+                      className="h-9 w-9 rounded-xl border border-slate-200 text-slate-500 hover:bg-blue-50 hover:border-blue-300 hover:text-blue-600 flex items-center justify-center transition-all shrink-0">
+                      <Plus size={14} />
+                    </button>
+                  </div>
+                )}
+              </div>
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold text-blue-500 uppercase tracking-widest px-1">Data de Validade</label>
+                <input type="date"
+                  className="w-full bg-blue-50 border border-blue-100 rounded-xl px-3 py-2 text-xs font-bold outline-none h-9 focus:border-blue-400 transition-all"
+                  value={editingProduct?.expiry_date || ""}
+                  onChange={e => setEditingProduct(prev => ({ ...prev!, expiry_date: e.target.value }))} />
+              </div>
+            </div>
+            <div className="rounded-xl border border-blue-100 bg-blue-50/40 p-3 space-y-2">
+              <div className="flex items-center justify-between gap-3 px-1">
+                <div>
+                  <label className="text-[10px] font-black text-blue-700 uppercase tracking-widest">Descrição pública do produto</label>
+                  <p className="text-[9px] text-blue-600/80 mt-0.5">Aparece na página deste produto na sua loja online.</p>
+                </div>
+                <span className="shrink-0 text-[9px] font-mono font-bold text-blue-500">{(editingProduct?.description || "").length}/2000</span>
+              </div>
+              <textarea rows={3} maxLength={2000} placeholder="Ex.: Camiseta em algodão premium, modelagem confortável e acabamento reforçado."
+                className="w-full bg-white border border-blue-100 rounded-xl px-3 py-2 text-xs font-medium leading-relaxed outline-none resize-y focus:border-blue-400 focus:ring-2 focus:ring-blue-500/10 transition-all"
+                value={editingProduct?.description || ""}
+                onChange={e => setEditingProduct(prev => ({ ...prev!, description: e.target.value }))} />
+            </div>
+            <div className="flex flex-wrap gap-6 border-t border-slate-100 pt-3">
+              <Switch label="Ativo no site" checked={editingProduct?.is_active ?? true}
+                onChange={v => setEditingProduct(prev => ({ ...prev!, is_active: v }))} accent="emerald" />
+              <Switch label="Destaque na home" checked={editingProduct?.is_featured ?? false}
+                onChange={v => setEditingProduct(prev => ({ ...prev!, is_featured: v }))} accent="amber" />
+            </div>
+          </section>
+
+          <section className="bg-white border border-slate-200/80 rounded-2xl p-4 space-y-3 shadow-sm transition-all hover:shadow-md">
             <div className="flex items-center gap-2.5">
               <div className="w-8 h-8 rounded-xl bg-orange-50 text-orange-600 flex items-center justify-center shrink-0">
                 <DollarSign size={15} />
@@ -1589,14 +1591,14 @@ export default function Inventory() {
             <div className="space-y-1">
               <label className="text-[10px] font-bold text-orange-500 uppercase tracking-widest px-1">Custo Un. (R$)</label>
               <input type="number" step="0.01" min="0"
-                className="w-full bg-orange-50 border border-orange-100 rounded-xl px-3 py-2.5 text-xs font-mono font-bold outline-none h-10 focus:border-orange-400 transition-all"
+                className="w-full bg-orange-50 border border-orange-100 rounded-xl px-3 py-2 text-xs font-mono font-bold outline-none h-9 focus:border-orange-400 transition-all"
                 value={editingProduct?.cost_price || ""}
                 onChange={e => setEditingProduct(prev => ({ ...prev!, cost_price: Number(e.target.value) }))} />
             </div>
             <div className="space-y-1">
               <label className="text-[10px] font-bold text-purple-500 uppercase tracking-widest px-1">Lucro Estimado (%)</label>
               <input type="number" step="1" min="0" placeholder="Ex: 60"
-                className="w-full bg-purple-50 border border-purple-100 rounded-xl px-3 py-2.5 text-xs font-mono font-bold outline-none h-10 focus:border-purple-400 transition-all"
+                className="w-full bg-purple-50 border border-purple-100 rounded-xl px-3 py-2 text-xs font-mono font-bold outline-none h-9 focus:border-purple-400 transition-all"
                 value={profitMarginInput}
                 onChange={e => {
                   const v = e.target.value;
@@ -1614,7 +1616,7 @@ export default function Inventory() {
             <div data-tour="product-price-field" className="space-y-1">
               <label className="text-[10px] font-bold text-slate-700 uppercase tracking-widest px-1">Preço Venda (R$) *</label>
               <input type="number" step="0.01" min="0" required
-                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs font-mono font-bold outline-none h-10 focus:border-blue-400 transition-all"
+                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-mono font-bold outline-none h-9 focus:border-blue-400 transition-all"
                 value={editingProduct?.price || ""}
                 onChange={e => { setProfitMarginInput(""); setEditingProduct(prev => ({ ...prev!, price: Number(e.target.value) })); }} />
             </div>
@@ -1623,14 +1625,14 @@ export default function Inventory() {
             <div className="space-y-1">
               <label className="text-[10px] font-bold text-emerald-600 uppercase tracking-widest px-1">Promoção (R$)</label>
               <input type="number" step="0.01" min="0"
-                className="w-full bg-emerald-50 border border-emerald-100 rounded-xl px-3 py-2.5 text-xs font-mono font-bold outline-none h-10 focus:border-emerald-400 transition-all"
+                className="w-full bg-emerald-50 border border-emerald-100 rounded-xl px-3 py-2 text-xs font-mono font-bold outline-none h-9 focus:border-emerald-400 transition-all"
                 value={editingProduct?.discount_price || ""}
                 onChange={e => { const v = e.target.value; setEditingProduct(prev => ({ ...prev!, discount_price: v === "" ? undefined : Number(v) })); }} />
             </div>
             <div className="space-y-1">
               <label className="text-[10px] font-bold text-rose-500 uppercase tracking-widest px-1">Desconto Máximo no PDV (%)</label>
               <input type="number" step="1" min="0" max="100" placeholder="Sem limite"
-                className="w-full bg-rose-50 border border-rose-100 rounded-xl px-3 py-2.5 text-xs font-mono font-bold outline-none h-10 focus:border-rose-400 transition-all"
+                className="w-full bg-rose-50 border border-rose-100 rounded-xl px-3 py-2 text-xs font-mono font-bold outline-none h-9 focus:border-rose-400 transition-all"
                 value={editingProduct?.max_discount_pct ?? ""}
                 onChange={e => { const v = e.target.value; setEditingProduct(prev => ({ ...prev!, max_discount_pct: v === "" ? undefined : Number(v) })); }} />
               <p className="text-[9px] text-slate-400 px-1">Vazio = sem limite. Trava o desconto do carrinho no PDV quando este item estiver nele.</p>
@@ -1639,12 +1641,13 @@ export default function Inventory() {
           </section>
 
           </div>
+          </div>
           </TabPanel>
 
           <TabPanel id="fiscal">
-          <div className="grid grid-cols-1 xl:grid-cols-2 gap-5 items-start">
+          <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 items-start">
           {/* ── DADOS FISCAIS (NFC-e) ── */}
-          <section className="bg-white border border-slate-200/80 rounded-2xl p-5 space-y-4 shadow-sm transition-all hover:shadow-md xl:col-span-2">
+          <section className="bg-white border border-slate-200/80 rounded-2xl p-4 space-y-3 shadow-sm transition-all hover:shadow-md xl:col-span-2">
             <div className="flex items-center gap-2.5">
               <div className="w-8 h-8 rounded-xl bg-slate-100 text-slate-700 flex items-center justify-center shrink-0">
                 <Receipt size={15} />
@@ -1657,7 +1660,7 @@ export default function Inventory() {
               <div className="space-y-1">
                 <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest px-1">NCM</label>
                 <input type="text" maxLength={8} placeholder="00000000"
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs font-mono font-bold outline-none h-10 focus:border-blue-400 focus:ring-2 focus:ring-blue-500/10 transition-all"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-mono font-bold outline-none h-9 focus:border-blue-400 focus:ring-2 focus:ring-blue-500/10 transition-all"
                   value={editingProduct?.ncm || ""}
                   onChange={e => setEditingProduct(prev => ({ ...prev!, ncm: e.target.value.replace(/\D/g, "") }))} />
                 <div className="mt-1.5"><FiscalCodeLookup kind="ncm" token={localStorage.getItem("token")} onSelect={(item) => setEditingProduct(prev => ({ ...prev!, ncm: item.code }))} /></div>
@@ -1665,20 +1668,20 @@ export default function Inventory() {
               <div className="space-y-1">
                 <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest px-1">CEST</label>
                 <input type="text" maxLength={7} placeholder="Se aplicável"
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs font-mono font-bold outline-none h-10 focus:border-blue-400 focus:ring-2 focus:ring-blue-500/10 transition-all"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-mono font-bold outline-none h-9 focus:border-blue-400 focus:ring-2 focus:ring-blue-500/10 transition-all"
                   value={editingProduct?.cest || ""}
                   onChange={e => setEditingProduct(prev => ({ ...prev!, cest: e.target.value.replace(/\D/g, "") }))} />
               </div>
               <div className="space-y-1">
                 <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest px-1">CFOP</label>
                 <input type="text" maxLength={4} placeholder="5102"
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs font-mono font-bold outline-none h-10 focus:border-blue-400 focus:ring-2 focus:ring-blue-500/10 transition-all"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-mono font-bold outline-none h-9 focus:border-blue-400 focus:ring-2 focus:ring-blue-500/10 transition-all"
                   value={editingProduct?.cfop ?? "5102"}
                   onChange={e => setEditingProduct(prev => ({ ...prev!, cfop: e.target.value.replace(/\D/g, "") }))} />
               </div>
               <div className="space-y-1">
                 <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest px-1">Origem da Mercadoria</label>
-                <select className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs font-bold outline-none h-10 focus:border-blue-400 transition-all"
+                <select className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold outline-none h-9 focus:border-blue-400 transition-all"
                   value={editingProduct?.origem ?? 0}
                   onChange={e => setEditingProduct(prev => ({ ...prev!, origem: Number(e.target.value) }))}>
                   <option value={0}>0 — Nacional</option>
@@ -1695,14 +1698,14 @@ export default function Inventory() {
               <div className="space-y-1">
                 <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest px-1">Unidade Comercial</label>
                 <input type="text" placeholder="UN"
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs font-mono font-bold uppercase outline-none h-10 focus:border-blue-400 focus:ring-2 focus:ring-blue-500/10 transition-all"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-mono font-bold uppercase outline-none h-9 focus:border-blue-400 focus:ring-2 focus:ring-blue-500/10 transition-all"
                   value={editingProduct?.unidade_comercial ?? "UN"}
                   onChange={e => handleUppercaseChange(e, (upper) => setEditingProduct(prev => ({ ...prev!, unidade_comercial: upper })))} />
               </div>
               <div className="space-y-1">
                 <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest px-1">Unidade Tributável</label>
                 <input type="text" placeholder="UN"
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs font-mono font-bold uppercase outline-none h-10 focus:border-blue-400 focus:ring-2 focus:ring-blue-500/10 transition-all"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-mono font-bold uppercase outline-none h-9 focus:border-blue-400 focus:ring-2 focus:ring-blue-500/10 transition-all"
                   value={editingProduct?.unidade_tributavel ?? "UN"}
                   onChange={e => handleUppercaseChange(e, (upper) => setEditingProduct(prev => ({ ...prev!, unidade_tributavel: upper })))} />
               </div>
@@ -1712,7 +1715,7 @@ export default function Inventory() {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div className="space-y-1">
                   <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest px-1">CSOSN</label>
-                  <select className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs font-bold outline-none h-10 focus:border-blue-400 transition-all"
+                  <select className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold outline-none h-9 focus:border-blue-400 transition-all"
                     value={editingProduct?.csosn ?? "102"}
                     onChange={e => setEditingProduct(prev => ({ ...prev!, csosn: e.target.value }))}>
                     <option value="101">101 — Tributada com permissão de crédito</option>
@@ -1729,7 +1732,7 @@ export default function Inventory() {
               <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
                 <div className="space-y-1">
                   <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest px-1">CST ICMS</label>
-                  <select className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs font-bold outline-none h-10 focus:border-blue-400 transition-all"
+                  <select className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold outline-none h-9 focus:border-blue-400 transition-all"
                     value={editingProduct?.cst_icms ?? "00"}
                     onChange={e => setEditingProduct(prev => ({ ...prev!, cst_icms: e.target.value }))}>
                     <option value="00">00 — Tributada integralmente</option>
@@ -1745,21 +1748,21 @@ export default function Inventory() {
                 <div className="space-y-1">
                   <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest px-1">Alíquota ICMS (%)</label>
                   <input type="number" step="0.01" min="0"
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs font-mono font-bold outline-none h-10 focus:border-blue-400 transition-all"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-mono font-bold outline-none h-9 focus:border-blue-400 transition-all"
                     value={editingProduct?.icms_aliquota ?? ""}
                     onChange={e => { const v = e.target.value; setEditingProduct(prev => ({ ...prev!, icms_aliquota: v === "" ? undefined : Number(v) })); }} />
                 </div>
                 <div className="space-y-1">
                   <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest px-1">PIS CST</label>
                   <input type="text" maxLength={2}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs font-mono font-bold outline-none h-10 focus:border-blue-400 transition-all"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-mono font-bold outline-none h-9 focus:border-blue-400 transition-all"
                     value={editingProduct?.pis_cst || ""}
                     onChange={e => setEditingProduct(prev => ({ ...prev!, pis_cst: e.target.value.replace(/\D/g, "") }))} />
                 </div>
                 <div className="space-y-1">
                   <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest px-1">COFINS CST</label>
                   <input type="text" maxLength={2}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs font-mono font-bold outline-none h-10 focus:border-blue-400 transition-all"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-mono font-bold outline-none h-9 focus:border-blue-400 transition-all"
                     value={editingProduct?.cofins_cst || ""}
                     onChange={e => setEditingProduct(prev => ({ ...prev!, cofins_cst: e.target.value.replace(/\D/g, "") }))} />
                 </div>
@@ -1770,9 +1773,9 @@ export default function Inventory() {
           </TabPanel>
 
           <TabPanel id="estoque">
-          <div className="space-y-5">
+          <div className="space-y-4">
 
-          <section className="bg-white border border-slate-200/80 rounded-2xl p-5 space-y-4 shadow-sm transition-all hover:shadow-md">
+          <section className="bg-white border border-slate-200/80 rounded-2xl p-4 space-y-3 shadow-sm transition-all hover:shadow-md">
             <div className="flex items-center gap-2.5">
               <div className="w-8 h-8 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
                 <Boxes size={15} />
@@ -1809,14 +1812,14 @@ export default function Inventory() {
                 <div data-tour="product-stock-field" className="space-y-1">
                   <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest px-1">Estoque Atual</label>
                   <input type="number" min="0" required
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs font-mono font-bold outline-none h-10 focus:border-blue-400 transition-all"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-mono font-bold outline-none h-9 focus:border-blue-400 transition-all"
                     value={editingProduct?.stock_quantity ?? 0}
                     onChange={e => setEditingProduct(prev => ({ ...prev!, stock_quantity: Number(e.target.value) }))} />
                 </div>
                 <div className="space-y-1">
                   <label className="text-[10px] font-bold text-rose-500 uppercase tracking-widest px-1">Estoque Mínimo</label>
                   <input type="number" min="0"
-                    className="w-full bg-rose-50 border border-rose-100 rounded-xl px-3 py-2.5 text-xs font-mono font-bold outline-none h-10 focus:border-rose-400 transition-all"
+                    className="w-full bg-rose-50 border border-rose-100 rounded-xl px-3 py-2 text-xs font-mono font-bold outline-none h-9 focus:border-rose-400 transition-all"
                     value={editingProduct?.min_stock ?? 5}
                     onChange={e => setEditingProduct(prev => ({ ...prev!, min_stock: Number(e.target.value) }))} />
                   <p className="text-[9px] text-slate-400 px-1">Abaixo disso, o produto entra no alerta de Estoque Crítico</p>
@@ -1828,7 +1831,7 @@ export default function Inventory() {
               <div className="space-y-1">
                 <label className="text-[10px] font-bold text-slate-700 uppercase tracking-widest px-1">Unidade de medida</label>
                 <select
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs font-bold outline-none h-10 focus:border-blue-400 transition-all"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold outline-none h-9 focus:border-blue-400 transition-all"
                   value={editingProduct?.measure_unit ?? (editingProduct?.sale_unit === "m2" ? "m2" : "m")}
                   onChange={e => changeMeasureUnit(e.target.value)}
                 >
@@ -1844,7 +1847,7 @@ export default function Inventory() {
                   Preço por {editingProduct?.sale_unit === "m2" ? "m²" : "metro linear"} (R$) *
                 </label>
                 <input type="number" step="0.01" min="0" required
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs font-mono font-bold outline-none h-10 focus:border-blue-400 transition-all"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-mono font-bold outline-none h-9 focus:border-blue-400 transition-all"
                   value={editingProduct?.price_per_measure ?? ""}
                   onChange={e => { const v = e.target.value; setEditingProduct(prev => ({ ...prev!, price_per_measure: v === "" ? undefined : Number(v) })); }} />
               </div>
@@ -1853,7 +1856,7 @@ export default function Inventory() {
                   Estoque disponível ({editingProduct?.sale_unit === "m2" ? "m²" : "m"}) *
                 </label>
                 <input type="number" step="0.001" min="0" required
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs font-mono font-bold outline-none h-10 focus:border-blue-400 transition-all"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-mono font-bold outline-none h-9 focus:border-blue-400 transition-all"
                   value={editingProduct?.measure_stock_quantity ?? 0}
                   onChange={e => setEditingProduct(prev => ({ ...prev!, measure_stock_quantity: Number(e.target.value) }))} />
                 <p className="text-[9px] text-slate-400 px-1">Ex.: 10 m; vender 0,50 m deixa 9,50 m.</p>
@@ -1863,7 +1866,7 @@ export default function Inventory() {
                   Mínimo faturável ({editingProduct?.sale_unit === "m2" ? "m²" : "m"}) — opcional
                 </label>
                 <input type="number" step="0.01" min="0"
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs font-mono font-bold outline-none h-10 focus:border-blue-400 transition-all"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-mono font-bold outline-none h-9 focus:border-blue-400 transition-all"
                   value={editingProduct?.min_billable_quantity ?? ""}
                   onChange={e => { const v = e.target.value; setEditingProduct(prev => ({ ...prev!, min_billable_quantity: v === "" ? undefined : Number(v) })); }} />
               </div>
@@ -1872,7 +1875,7 @@ export default function Inventory() {
                   Estoque mínimo ({editingProduct?.sale_unit === "m2" ? "m²" : "m"})
                 </label>
                 <input type="number" step="0.001" min="0"
-                  className="w-full bg-rose-50 border border-rose-100 rounded-xl px-3 py-2.5 text-xs font-mono font-bold outline-none h-10 focus:border-rose-400 transition-all"
+                  className="w-full bg-rose-50 border border-rose-100 rounded-xl px-3 py-2 text-xs font-mono font-bold outline-none h-9 focus:border-rose-400 transition-all"
                   value={editingProduct?.measure_min_stock ?? 0}
                   onChange={e => setEditingProduct(prev => ({ ...prev!, measure_min_stock: Number(e.target.value) }))} />
               </div>
@@ -1884,7 +1887,7 @@ export default function Inventory() {
           </section>
 
           {/* ── VARIAÇÕES ── */}
-          <section className="bg-white border border-slate-200/80 rounded-2xl p-5 space-y-4 shadow-sm transition-all hover:shadow-md">
+          <section className="bg-white border border-slate-200/80 rounded-2xl p-4 space-y-3 shadow-sm transition-all hover:shadow-md">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2.5">
                 <div className="w-8 h-8 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center shrink-0">
