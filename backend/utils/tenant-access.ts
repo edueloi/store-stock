@@ -20,7 +20,7 @@ export function getTenantAccessState(tenant: TenantAccessInput) {
     if (sub && (sub.status === "overdue" || sub.status === "suspended")) {
       return { allowed: false, reason: "Assinatura em atraso. Regularize o pagamento para continuar." };
     }
-    return { allowed: false, reason: "Conta suspensa pelo super admin." };
+    return { allowed: false, reason: "Acesso suspenso por pendência de pagamento. Regularize sua assinatura e o acesso é liberado em seguida. Dúvidas? Fale com o suporte pelo WhatsApp (15) 99241-8299." };
   }
 
   if (status === "trial" && tenant.trial_ends_at) {
