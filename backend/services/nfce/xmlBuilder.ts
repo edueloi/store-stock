@@ -39,6 +39,21 @@ function trimText(v: string | null | undefined): string {
   return (v ?? "").trim();
 }
 
+// O XSD exige NCM com exatamente 8 dígitos. Produtos cadastrados a partir do
+// código resumido de 6 dígitos (a posição/subposição da tabela da Receita,
+// sem completar com a 2ª parte do item) quebram a validação estrutural da
+// SEFAZ com "Falha no Schema XML do lote de NFe" — um erro genérico que não
+// aponta o campo culpado. Completa com zeros à direita até 8 dígitos como
+// rede de segurança: se o NCM completado não for exatamente o correto pra
+// aquele produto, a rejeição seguinte (se houver) vem como erro de NEGÓCIO
+// (NCM inexistente/incompatível), bem mais fácil de diagnosticar do que esse
+// erro de schema genérico.
+function normalizeNcm(v: string | null | undefined): string {
+  const digits = onlyDigits(v);
+  if (!digits) return "00000000";
+  return digits.length >= 8 ? digits.slice(0, 8) : digits.padEnd(8, "0");
+}
+
 // A SEFAZ valida cEAN/cEANTrib como um GTIN estrutural real (8/12/13/14 dígitos com
 // dígito verificador correto), não como "qualquer texto no campo código de barras" —
 // um código interno/errado cadastrado no produto (ex: menos dígitos, prefixo fora da
@@ -200,7 +215,7 @@ export function buildNfceXml(input: BuildNfceInput): BuildNfceResult {
         ? "NOTA FISCAL EMITIDA EM AMBIENTE DE HOMOLOGACAO - SEM VALOR FISCAL"
         : trimText(item.product.name),
     );
-    prod.ele("NCM").txt(item.product.ncm || "00000000");
+    prod.ele("NCM").txt(normalizeNcm(item.product.ncm));
     if (item.product.cest) prod.ele("CEST").txt(item.product.cest);
     prod.ele("CFOP").txt(item.product.cfop || "5102");
     prod.ele("uCom").txt(item.product.unidade_comercial);
