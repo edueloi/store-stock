@@ -5939,6 +5939,27 @@ export default function Settings({
                   </div>
                 </div>
 
+                <div className="bg-slate-50 border border-slate-100 rounded-2xl p-5 space-y-4 max-w-lg">
+                  <div className="flex items-center justify-between gap-4">
+                    <div>
+                      <p className="text-[11px] font-black uppercase tracking-widest text-slate-700">
+                        Imprimir cupom automaticamente
+                      </p>
+                      <p className="text-[10px] text-slate-400 font-medium mt-1 leading-relaxed">
+                        Ao concluir a venda, imprime o cupom não fiscal sem
+                        precisar clicar em nada — funciona apenas no
+                        aplicativo desktop (Electron) com impressora térmica
+                        configurada. Nunca afeta a emissão de NFC-e, que
+                        continua manual.
+                      </p>
+                    </div>
+                    <Toggle
+                      checked={!!tenant?.auto_print_receipt}
+                      onChange={(v) => setT({ auto_print_receipt: v })}
+                    />
+                  </div>
+                </div>
+
                 <SaveButton
                   onClick={handleSaveTenant}
                   label={saving ? "Salvando..." : "Salvar Configuração"}

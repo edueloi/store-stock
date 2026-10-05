@@ -253,6 +253,7 @@ export async function updateTenant(req: Request, res: Response) {
     if (b.print_cash_close_receipt !== undefined) data.print_cash_close_receipt = Boolean(b.print_cash_close_receipt);
     if (b.logout_on_cash_close !== undefined) data.logout_on_cash_close = Boolean(b.logout_on_cash_close);
     if (b.sell_without_stock_control !== undefined) data.sell_without_stock_control = Boolean(b.sell_without_stock_control);
+    if (b.auto_print_receipt !== undefined) data.auto_print_receipt = Boolean(b.auto_print_receipt);
     if (b.crediario_interest_rate !== undefined) data.crediario_interest_rate = Math.min(30, Math.max(0, Number(b.crediario_interest_rate) || 0));
     if (b.crediario_grace_days !== undefined)    data.crediario_grace_days    = Math.min(90, Math.max(0, Number(b.crediario_grace_days) || 0));
     if (b.return_deadline_days !== undefined)    data.return_deadline_days    = b.return_deadline_days === null ? null : Math.min(365, Math.max(0, Number(b.return_deadline_days) || 0));

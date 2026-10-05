@@ -330,6 +330,10 @@ export default function PDVStandalone() {
   const [printCashCloseReceipt, setPrintCashCloseReceipt] = useState(false);
   const [logoutOnCashClose, setLogoutOnCashClose] = useState(false);
   const [sellWithoutStockControl, setSellWithoutStockControl] = useState(false);
+  // Quando ligado e rodando no app desktop (Electron) com impressora configurada,
+  // imprime o cupom não fiscal automaticamente ao concluir a venda — nunca afeta
+  // a emissão de NFC-e, que continua manual. Em navegador comum não tem efeito.
+  const [autoPrintReceipt, setAutoPrintReceipt] = useState(false);
   const [cashSession, setCashSession] = useState<CashSessionInfo | null>(null);
   const [cashSessionLoading, setCashSessionLoading] = useState(true);
   const [showCloseCashModal, setShowCloseCashModal] = useState(false);
@@ -830,6 +834,7 @@ export default function PDVStandalone() {
       if (t.print_cash_close_receipt !== undefined) setPrintCashCloseReceipt(Boolean(t.print_cash_close_receipt));
       if (t.logout_on_cash_close !== undefined) setLogoutOnCashClose(Boolean(t.logout_on_cash_close));
       if (t.sell_without_stock_control !== undefined) setSellWithoutStockControl(Boolean(t.sell_without_stock_control));
+      if (t.auto_print_receipt !== undefined) setAutoPrintReceipt(Boolean(t.auto_print_receipt));
     };
 
     Promise.all([
@@ -982,14 +987,22 @@ export default function PDVStandalone() {
     return () => { cancelled = true; };
   }, [showReceipt, completedSale?.orderId, completedSale?.offline, nfceInvoice?.id]);
 
+  // Coordena os DOIS gatilhos de auto-print do cupom não fiscal que podem disparar
+  // pra uma mesma venda — "venda concluída" (autoPrintReceipt, abaixo em completeSale)
+  // e "NFC-e autorizada" (useEffect logo abaixo). Guarda o orderId já impresso
+  // automaticamente, independente de qual gatilho chegou primeiro, pra nunca
+  // imprimir o mesmo cupom duas vezes quando o tenant tem os dois ativos ao mesmo tempo.
+  const autoprintedSaleIdRef = useRef<number | null>(null);
+
   // Assim que a NFC-e é autorizada, aciona a impressora térmica automaticamente — sem
   // isso o operador precisava lembrar de clicar em "Nota Térmica" toda vez. O ref evita
-  // reimprimir se o componente re-renderizar com o mesmo invoice já autorizado.
-  const autoprintedInvoiceIdRef = useRef<number | null>(null);
+  // reimprimir se o componente re-renderizar com o mesmo invoice já autorizado, e
+  // também evita reimprimir se o gatilho "venda concluída" (autoPrintReceipt) já
+  // imprimiu este mesmo cupom antes da NFC-e ser autorizada.
   useEffect(() => {
     if (nfceInvoice?.status !== "authorized" || !completedSale) return;
-    if (autoprintedInvoiceIdRef.current === nfceInvoice.id) return;
-    autoprintedInvoiceIdRef.current = nfceInvoice.id;
+    if (autoprintedSaleIdRef.current === completedSale.orderId) return;
+    autoprintedSaleIdRef.current = completedSale.orderId;
     printThermalReceipt(completedSale);
   }, [nfceInvoice?.status, nfceInvoice?.id, completedSale]);
 
@@ -2288,6 +2301,17 @@ ${nfceInvoice.protocol ? `<div class="row"><span class="bold">Protocolo:</span><
         offline,
       };
       setCompletedSale(sale);
+      // Imprime o cupom não fiscal automaticamente ao concluir a venda, só quando
+      // rodando no app desktop (Electron) com impressora configurada — em
+      // navegador comum o toggle não tem efeito, nunca abre diálogo sozinho.
+      // Marca o orderId como já impresso ANTES de chamar printThermalReceipt pra
+      // coordenar com o outro gatilho (NFC-e autorizada, acima) — se a NFC-e for
+      // autorizada logo em seguida pra essa mesma venda, aquele efeito vê o ref já
+      // setado e não reimprime o cupom.
+      if (autoPrintReceipt && window.boxsysDesktop?.printReceipt) {
+        autoprintedSaleIdRef.current = orderId;
+        printThermalReceipt(sale);
+      }
       setNfceInvoice(null);
       setCart([]); setCartServices([]); setCustomerName(""); setSelectedCustomerId(null); setCustomerPoints(0); setAppliedReward(null);
       setDiscount(""); setSurcharge(""); setSelectedSellerId(null);
@@ -4586,64 +4610,6 @@ ${nfceInvoice.protocol ? `<div class="row"><span class="bold">Protocolo:</span><
 
               {/* Receipt actions */}
               <div className="flex-1 overflow-y-auto overscroll-contain p-4 space-y-2">
-                {!completedSale.offline && !nfceInvoice && (
-                  <button onClick={handleEmitNfce} disabled={nfceRetrying}
-                    className="w-full h-10 bg-blue-600 hover:bg-blue-700 disabled:opacity-60 text-white rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-all">
-                    {nfceRetrying ? <Loader2 size={14} className="animate-spin" /> : <FileText size={14} />}
-                    {nfceRetrying ? "Iniciando emissão..." : "Emitir Nota Fiscal (NFC-e)"}
-                  </button>
-                )}
-                {!completedSale.offline && nfceInvoice && (
-                  <div className={cn(
-                    "w-full flex items-center gap-3.5 rounded-2xl px-4 py-3 border",
-                    nfceInvoice?.status === "authorized" ? "bg-emerald-50 border-emerald-200"
-                      : nfceInvoice?.status === "rejected" || nfceInvoice?.status === "error" ? "bg-rose-50 border-rose-200"
-                      : "bg-blue-50 border-blue-200",
-                  )}>
-                    {(nfceInvoice.status === "pending" || nfceInvoice.status === "processing") && (
-                      <>
-                        <Loader2 size={18} className="text-blue-500 animate-spin shrink-0" />
-                        <div className="flex-1 min-w-0">
-                          <p className="text-[11px] font-black text-blue-700 uppercase tracking-wide">Emitindo nota fiscal...</p>
-                          <p className="text-[10px] text-blue-500 font-medium">Aguardando autorização da SEFAZ-SP</p>
-                        </div>
-                      </>
-                    )}
-                    {nfceInvoice?.status === "authorized" && (
-                      <>
-                        <CheckCircle2 size={18} className="text-emerald-600 shrink-0" />
-                        <div className="flex-1 min-w-0">
-                          <p className="text-[11px] font-black text-emerald-700 uppercase tracking-wide">NFC-e autorizada</p>
-                          <p className="text-[10px] text-emerald-600 font-medium truncate">Protocolo {nfceInvoice.protocol}</p>
-                        </div>
-                        <a
-                          href={`/api/nfce/${completedSale.orderId}/danfe`}
-                          target="_blank" rel="noopener noreferrer"
-                          className="shrink-0 h-9 px-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center gap-1.5 transition-all"
-                        >
-                          <FileText size={13} /> DANFE
-                        </a>
-                      </>
-                    )}
-                    {(nfceInvoice?.status === "rejected" || nfceInvoice?.status === "error") && (
-                      <>
-                        <X size={18} className="text-rose-600 shrink-0" />
-                        <div className="flex-1 min-w-0">
-                          <p className="text-[11px] font-black text-rose-700 uppercase tracking-wide">Falha na emissão</p>
-                          <p className="text-[10px] text-rose-500 font-medium truncate">{nfceInvoice.rejection_reason || "Erro desconhecido"}</p>
-                        </div>
-                        <button
-                          onClick={handleRetryNfce}
-                          disabled={nfceRetrying}
-                          className="shrink-0 h-9 px-3 bg-rose-600 hover:bg-rose-700 disabled:opacity-50 text-white rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center gap-1.5 transition-all"
-                        >
-                          {nfceRetrying ? <Loader2 size={13} className="animate-spin" /> : <RefreshCw size={13} />} Tentar de novo
-                        </button>
-                      </>
-                    )}
-                  </div>
-                )}
-
                 <p className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] pb-1">Emitir Comprovante</p>
 
                 <button onClick={() => { setPrintError(null); printThermalReceipt(completedSale); }}
@@ -4781,6 +4747,68 @@ ${nfceInvoice.protocol ? `<div class="row"><span class="bold">Protocolo:</span><
                     </motion.div>
                   )}
                 </AnimatePresence>
+
+                {/* NFC-e — opcional, por isso fica por último: a emissão fiscal não é parte
+                    do fluxo principal de comprovante (cupom/PDF/WhatsApp acima) */}
+                <div className="border-t border-slate-100 pt-3 mt-1">
+                  {!completedSale.offline && !nfceInvoice && (
+                    <button onClick={handleEmitNfce} disabled={nfceRetrying}
+                      className="w-full h-10 bg-blue-600 hover:bg-blue-700 disabled:opacity-60 text-white rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-all">
+                      {nfceRetrying ? <Loader2 size={14} className="animate-spin" /> : <FileText size={14} />}
+                      {nfceRetrying ? "Iniciando emissão..." : "Emitir Nota Fiscal (NFC-e)"}
+                    </button>
+                  )}
+                  {!completedSale.offline && nfceInvoice && (
+                    <div className={cn(
+                      "w-full flex items-center gap-3.5 rounded-2xl px-4 py-3 border",
+                      nfceInvoice?.status === "authorized" ? "bg-emerald-50 border-emerald-200"
+                        : nfceInvoice?.status === "rejected" || nfceInvoice?.status === "error" ? "bg-rose-50 border-rose-200"
+                        : "bg-blue-50 border-blue-200",
+                    )}>
+                      {(nfceInvoice.status === "pending" || nfceInvoice.status === "processing") && (
+                        <>
+                          <Loader2 size={18} className="text-blue-500 animate-spin shrink-0" />
+                          <div className="flex-1 min-w-0">
+                            <p className="text-[11px] font-black text-blue-700 uppercase tracking-wide">Emitindo nota fiscal...</p>
+                            <p className="text-[10px] text-blue-500 font-medium">Aguardando autorização da SEFAZ-SP</p>
+                          </div>
+                        </>
+                      )}
+                      {nfceInvoice?.status === "authorized" && (
+                        <>
+                          <CheckCircle2 size={18} className="text-emerald-600 shrink-0" />
+                          <div className="flex-1 min-w-0">
+                            <p className="text-[11px] font-black text-emerald-700 uppercase tracking-wide">NFC-e autorizada</p>
+                            <p className="text-[10px] text-emerald-600 font-medium truncate">Protocolo {nfceInvoice.protocol}</p>
+                          </div>
+                          <a
+                            href={`/api/nfce/${completedSale.orderId}/danfe`}
+                            target="_blank" rel="noopener noreferrer"
+                            className="shrink-0 h-9 px-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center gap-1.5 transition-all"
+                          >
+                            <FileText size={13} /> DANFE
+                          </a>
+                        </>
+                      )}
+                      {(nfceInvoice?.status === "rejected" || nfceInvoice?.status === "error") && (
+                        <>
+                          <X size={18} className="text-rose-600 shrink-0" />
+                          <div className="flex-1 min-w-0">
+                            <p className="text-[11px] font-black text-rose-700 uppercase tracking-wide">Falha na emissão</p>
+                            <p className="text-[10px] text-rose-500 font-medium truncate">{nfceInvoice.rejection_reason || "Erro desconhecido"}</p>
+                          </div>
+                          <button
+                            onClick={handleRetryNfce}
+                            disabled={nfceRetrying}
+                            className="shrink-0 h-9 px-3 bg-rose-600 hover:bg-rose-700 disabled:opacity-50 text-white rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center gap-1.5 transition-all"
+                          >
+                            {nfceRetrying ? <Loader2 size={13} className="animate-spin" /> : <RefreshCw size={13} />} Tentar de novo
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  )}
+                </div>
               </div>
 
               <div className="shrink-0 p-4 pt-2 border-t border-slate-100">

@@ -50,6 +50,12 @@ model Tenant {
   // decrementa stock_quantity do produto — usado por lojas que não controlam
   // estoque via sistema (ex: revenda por encomenda, serviço).
   sell_without_stock_control Boolean @default(false)
+  // Quando ligado e o PDV estiver rodando no app desktop (Electron) com
+  // impressora térmica configurada, imprime o cupom não fiscal automaticamente
+  // ao concluir a venda, sem precisar clicar em "Nota Térmica" — nunca afeta
+  // NFC-e/emissão fiscal, que continua sempre manual. Em navegador comum (sem
+  // Electron) este toggle não tem efeito algum.
+  auto_print_receipt Boolean @default(false)
 
   // --- Crediário: juros configurável sobre parcela em atraso (aplicado manualmente) ---
   crediario_interest_rate Decimal @default(0) @db.Decimal(5, 2) // % ao mês
