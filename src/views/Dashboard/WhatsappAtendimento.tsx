@@ -224,7 +224,7 @@ export default function WhatsappAtendimento({ view }: { view: AtendimentoView })
         toast.success("Atendimento iniciado.");
         if (view !== "assigned") navigate("/admin/atendimento/em-andamento");
       } else {
-        toast.info("O atendente ficou indisponível; a conversa foi direcionada para a fila.");
+        toast.info(agentId ? "Pedido enviado ao atendente para aceite." : "Pedido enviado ao setor; o primeiro atendente a aceitar assume.");
         if (view !== "queued") navigate("/admin/atendimento/fila");
       }
     } catch (error) {

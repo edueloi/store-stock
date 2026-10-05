@@ -67,6 +67,12 @@ interface ConversationMetadata {
   pending_choices?: PendingChoice[];
   agent_list_department?: string | null;
   registered_customer_id?: number | null;
+  handoff?: {
+    department: string;
+    candidate_agent_ids: number[];
+    declined_agent_ids?: number[];
+    requested_at: string;
+  } | null;
 }
 
 interface IncomingMessageContent {
@@ -355,6 +361,19 @@ function parseMetadata(value: unknown): ConversationMetadata {
   return {
     pending_choices: pendingChoices,
     agent_list_department: value.agent_list_department ? String(value.agent_list_department) : null,
+    registered_customer_id: value.registered_customer_id ? Number(value.registered_customer_id) : null,
+    handoff: isRecord(value.handoff) && value.handoff.department
+      ? {
+          department: String(value.handoff.department),
+          candidate_agent_ids: Array.isArray(value.handoff.candidate_agent_ids)
+            ? value.handoff.candidate_agent_ids.map(Number).filter(Number.isFinite)
+            : [],
+          declined_agent_ids: Array.isArray(value.handoff.declined_agent_ids)
+            ? value.handoff.declined_agent_ids.map(Number).filter(Number.isFinite)
+            : [],
+          requested_at: String(value.handoff.requested_at ?? new Date().toISOString()),
+        }
+      : null,
   };
 }
 
@@ -1944,6 +1963,107 @@ async function tryAssignSpecificAgent(
   return { assigned: false, department: agent.department };
 }
 
+async function requestHandoffAcceptance(
+  workspaceId: number,
+  conversationId: number,
+  department: string,
+  onlyAgentId?: number,
+) {
+  const [conversation, agents] = await Promise.all([
+    prisma.whatsappConversation.findUnique({ where: { id: conversationId } }),
+    prisma.whatsappAgent.findMany({
+      where: {
+        workspace_id: workspaceId,
+        department,
+        is_active: true,
+        is_online: true,
+        can_receive_transfer: true,
+        ...(onlyAgentId ? { id: onlyAgentId } : {}),
+      },
+      orderBy: [{ priority: "desc" }, { name: "asc" }],
+    }),
+  ]);
+  if (!conversation) return;
+
+  const candidates = agents.filter((agent) => normalizePhone(agent.phone).length >= 10);
+  if (candidates.length === 0) {
+    await queueConversation(workspaceId, conversationId, department);
+    return;
+  }
+
+  await queueConversation(workspaceId, conversationId, department);
+  const queued = await prisma.whatsappConversation.findUnique({ where: { id: conversationId } });
+  if (!queued) return;
+  await updateConversationState(conversationId, {
+    metadata: asJson({
+      ...parseMetadata(queued.metadata),
+      handoff: {
+        department,
+        candidate_agent_ids: candidates.map((agent) => agent.id),
+        declined_agent_ids: [],
+        requested_at: new Date().toISOString(),
+      },
+    }),
+  });
+
+  const departmentLabel = await getSectorLabel(workspaceId, department);
+  const customer = conversation.customer_name || conversation.phone;
+  const notice = `Novo atendimento de ${customer} para ${departmentLabel}. Responda 1 para aceitar ou 2 para recusar.`;
+  await Promise.all(candidates.map(async (agent) => {
+    try {
+      await sendTextMessage(workspaceId, normalizePhone(agent.phone), notice);
+    } catch (error) {
+      console.warn("Não foi possível avisar atendente do handoff:", agent.id, error instanceof Error ? error.message : error);
+    }
+  }));
+}
+
+async function tryHandleAgentHandoffReply(
+  workspaceId: number,
+  senderPhone: string,
+  command: string,
+) {
+  const normalized = command.trim();
+  if (normalized !== "1" && normalized !== "2") return false;
+
+  const agents = await prisma.whatsappAgent.findMany({
+    where: { workspace_id: workspaceId, is_active: true, phone: { not: null } },
+  });
+  const agent = agents.find((item) => {
+    const candidate = normalizePhone(item.phone);
+    return candidate.length >= 8 && (candidate.endsWith(senderPhone.slice(-10)) || senderPhone.endsWith(candidate.slice(-10)));
+  });
+  if (!agent) return false;
+
+  const queued = await prisma.whatsappConversation.findMany({
+    where: { workspace_id: workspaceId, status: "queued" },
+    orderBy: [{ updated_at: "asc" }, { id: "asc" }],
+    take: 100,
+  });
+  const conversation = queued.find((item) => {
+    const handoff = parseMetadata(item.metadata).handoff;
+    return handoff?.candidate_agent_ids.includes(agent.id) && !handoff.declined_agent_ids?.includes(agent.id);
+  });
+  if (!conversation) return false;
+
+  if (normalized === "1") {
+    await assignConversationToAgent(workspaceId, conversation.id, agent.id);
+    await sendTextMessage(workspaceId, senderPhone, `Atendimento aceito: ${conversation.customer_name || conversation.phone}. A conversa já está atribuída a você no painel.`);
+    return true;
+  }
+
+  const metadata = parseMetadata(conversation.metadata);
+  const declined = [...new Set([...(metadata.handoff?.declined_agent_ids ?? []), agent.id])];
+  await updateConversationState(conversation.id, {
+    metadata: asJson({
+      ...metadata,
+      handoff: metadata.handoff ? { ...metadata.handoff, declined_agent_ids: declined } : null,
+    }),
+  });
+  await sendTextMessage(workspaceId, senderPhone, "Recusa registrada. Obrigado por avisar.");
+  return true;
+}
+
 async function handleDepartmentRequest(
   workspace: { id: number; settings: unknown; templates: unknown },
   tenantName: string,
@@ -1955,21 +2075,7 @@ async function handleDepartmentRequest(
   },
   department: string,
 ) {
-  const settings = parseSettings(workspace.settings);
-
-  if (settings.show_agent_list_before_transfer) {
-    await sendAgentDirectory(workspace, conversation, department);
-    return;
-  }
-
-  const bestAgent = await chooseBestAvailableAgent(workspace.id, department);
-
-  if (bestAgent) {
-    await assignConversationToAgent(workspace.id, conversation.id, bestAgent.id);
-    return;
-  }
-
-  await queueConversation(workspace.id, conversation.id, department);
+  await requestHandoffAcceptance(workspace.id, conversation.id, department);
   void tenantName;
 }
 
@@ -2277,14 +2383,12 @@ export async function transferWhatsappConversation(
     const agent = await prisma.whatsappAgent.findFirst({ where: { id: agentId, workspace_id: workspace.id } });
     if (!agent) throw new Error("Atendente não encontrado.");
     if (department && agent.department !== department) throw new Error("O atendente não pertence ao setor escolhido.");
-    await tryAssignSpecificAgent(workspace.id, conversation.id, agent.id);
+    await requestHandoffAcceptance(workspace.id, conversation.id, agent.department, agent.id);
   } else {
     if (!department) throw new Error("Selecione um setor ou um atendente.");
     const sector = await whatsappSector.findFirst({ where: { workspace_id: workspace.id, key: department, is_active: true } });
     if (!sector) throw new Error("Setor não encontrado ou inativo.");
-    const bestAgent = await chooseBestAvailableAgent(workspace.id, department);
-    if (bestAgent) await assignConversationToAgent(workspace.id, conversation.id, bestAgent.id);
-    else await queueConversation(workspace.id, conversation.id, department);
+    await requestHandoffAcceptance(workspace.id, conversation.id, department);
   }
 
   return getWhatsappConversationMessages(tenantId, conversationId);
@@ -2596,6 +2700,12 @@ export async function processWhatsappWebhook(
 
   if (!incoming.text && !incoming.command) {
     return { ok: true, ignored: true, reason: "empty-message" };
+  }
+
+  // Atendentes recebem o aviso de handoff no próprio WhatsApp e podem aceitar
+  // ou recusar sem criar uma conversa de cliente para o número deles.
+  if (await tryHandleAgentHandoffReply(workspaceRecord.id, phone, incoming.command || incoming.text)) {
+    return { ok: true, handled: true, action: "agent-handoff-reply" };
   }
 
   let conversation = await createOrUpdateConversationFromWebhook(
