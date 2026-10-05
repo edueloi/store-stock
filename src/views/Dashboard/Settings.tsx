@@ -301,6 +301,7 @@ const NAV = [
     items: [
       { id: "terminal", icon: Terminal, label: "Maquininha (API)" },
       { id: "card_fees", icon: Landmark, label: "Maquininha & Taxas" },
+      { id: "fiscal", icon: FileCheck, label: "Dados Fiscais" },
       { id: "crediario", icon: Percent, label: "Crediário & Juros" },
       {
         id: "service_checklists",
@@ -2296,10 +2297,23 @@ export default function Settings({
                     iconBg: "bg-slate-50",
                     border: "hover:border-slate-300",
                   };
+                  // "Dados Fiscais" mora dentro de Minha Loja (STORE_CONFIGURATION_ITEMS) —
+                  // o card aqui em Configurações é só um atalho de navegação direto pra lá,
+                  // em vez de usar setActive (que acionaria o redirect automático do
+                  // useEffect acima de um jeito mais abrupto/indireto).
+                  const isStoreShortcut = STORE_CONFIGURATION_ITEMS.some(
+                    (s) => s.id === item.id,
+                  );
                   return (
                     <button
                       key={item.id}
-                      onClick={() => setActive(item.id)}
+                      onClick={() =>
+                        isStoreShortcut
+                          ? navigate(
+                              `/admin/minha-loja/configurar?tab=${item.id}`,
+                            )
+                          : setActive(item.id)
+                      }
                       className={cn(
                         "group relative flex min-h-[112px] cursor-pointer items-center gap-4 rounded-2xl border border-slate-200/80 bg-white p-4 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md sm:min-h-[124px] sm:p-5",
                         meta.border,
