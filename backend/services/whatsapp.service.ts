@@ -5,6 +5,11 @@ import { Prisma } from "@prisma/client";
 import { env } from "../config/env";
 import { prisma } from "../config/prisma";
 
+// A propriedade passa a existir no Prisma Client após a migration/generate no
+// deploy. Mantemos esta referência isolada para a versão local do client não
+// bloquear a compilação antes de a migration ser aplicada.
+const whatsappSector = (prisma as any).whatsappSector;
+
 type ConversationStatus = "bot" | "queued" | "assigned" | "closed";
 type PendingChoiceKind = "menu" | "agent" | "action";
 
@@ -15,6 +20,12 @@ interface WhatsappWorkspaceSettings {
   allow_numeric_fallback: boolean;
   show_agent_list_before_transfer: boolean;
   auto_close_on_inactivity: boolean;
+  smart_bot_enabled: boolean;
+  bot_name: string;
+  ai_provider: "rules" | "gemini" | "openai";
+  ai_api_key: string;
+  ai_model: string;
+  ai_system_prompt: string;
 }
 
 interface WhatsappMenuOption {
@@ -55,6 +66,7 @@ interface PendingChoice {
 interface ConversationMetadata {
   pending_choices?: PendingChoice[];
   agent_list_department?: string | null;
+  registered_customer_id?: number | null;
 }
 
 interface IncomingMessageContent {
@@ -69,6 +81,12 @@ const DEFAULT_SETTINGS: WhatsappWorkspaceSettings = {
   allow_numeric_fallback: true,
   show_agent_list_before_transfer: true,
   auto_close_on_inactivity: true,
+  smart_bot_enabled: false,
+  bot_name: "Zé",
+  ai_provider: "rules",
+  ai_api_key: "",
+  ai_model: "",
+  ai_system_prompt: "Seja cordial, objetivo e fale em português do Brasil. Nunca invente pedidos, preços, prazos, pagamentos ou políticas da loja. Quando faltar informação ou o cliente pedir uma pessoa, encaminhe para a equipe.",
 };
 
 const DEFAULT_MENUS: WhatsappMenuOption[] = [
@@ -132,6 +150,12 @@ const DEFAULT_MENUS: WhatsappMenuOption[] = [
     order: 7,
   },
 ];
+
+const DEFAULT_SECTORS = [
+  { key: "sales", name: "Vendas", description: "Comercial, pedidos e orçamentos", sort_order: 1 },
+  { key: "support", name: "Atendimento", description: "Dúvidas, suporte e pós-venda", sort_order: 2 },
+  { key: "finance", name: "Financeiro", description: "Boletos, crediário e pagamentos", sort_order: 3 },
+] as const;
 
 const DEFAULT_TEMPLATES: WhatsappTemplates = {
   welcome:
@@ -246,6 +270,15 @@ function parseSettings(value: unknown): WhatsappWorkspaceSettings {
     auto_close_on_inactivity: Boolean(
       value.auto_close_on_inactivity ?? DEFAULT_SETTINGS.auto_close_on_inactivity,
     ),
+    smart_bot_enabled: Boolean(value.smart_bot_enabled ?? DEFAULT_SETTINGS.smart_bot_enabled),
+    bot_name: String(value.bot_name ?? DEFAULT_SETTINGS.bot_name).trim().slice(0, 40) || DEFAULT_SETTINGS.bot_name,
+    ai_provider:
+      value.ai_provider === "gemini" || value.ai_provider === "openai"
+        ? value.ai_provider
+        : "rules",
+    ai_api_key: String(value.ai_api_key ?? "").trim(),
+    ai_model: String(value.ai_model ?? "").trim().slice(0, 120),
+    ai_system_prompt: String(value.ai_system_prompt ?? DEFAULT_SETTINGS.ai_system_prompt).trim().slice(0, 4_000) || DEFAULT_SETTINGS.ai_system_prompt,
   };
 }
 
@@ -420,6 +453,32 @@ async function ensureWorkspace(tenantId: number) {
   });
 }
 
+function normalizeSectorKey(value: string) {
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 60);
+}
+
+async function ensureDefaultSectors(workspaceId: number) {
+  await whatsappSector.createMany({
+    data: DEFAULT_SECTORS.map((sector) => ({ workspace_id: workspaceId, ...sector })),
+    skipDuplicates: true,
+  });
+}
+
+async function getSectorLabel(workspaceId: number, department?: string | null) {
+  if (!department) return "atendimento";
+  const sector = await whatsappSector.findFirst({
+    where: { workspace_id: workspaceId, key: department },
+    select: { name: true },
+  });
+  return sector?.name || getDepartmentLabel(department);
+}
+
 export async function getWorkspaceWithTenantByTenantId(tenantId: number) {
   const [tenant, workspace] = await Promise.all([
     prisma.tenant.findUnique({
@@ -473,6 +532,7 @@ function getWebhookUrl(tenantSlug: string) {
 
 async function getWorkspacePayload(tenantId: number) {
   const { tenant, workspace } = await getWorkspaceWithTenantByTenantId(tenantId);
+  const privateSettings = parseSettings(workspace.settings);
 
   return {
     id: workspace.id,
@@ -486,7 +546,13 @@ async function getWorkspacePayload(tenantId: number) {
     fallback_phone: workspace.fallback_phone ?? tenant.whatsapp ?? "",
     finance_alerts_phone: workspace.finance_alerts_phone ?? "",
     finance_alerts_enabled: workspace.finance_alerts_enabled,
-    settings: parseSettings(workspace.settings),
+    settings: {
+      ...privateSettings,
+      // A chave nunca volta para o navegador. O painel recebe só a indicação de
+      // que há uma chave guardada e pode substituí-la por uma nova.
+      ai_api_key: "",
+      ai_api_key_configured: Boolean(privateSettings.ai_api_key),
+    },
     menus: parseMenus(workspace.menus),
     templates: parseTemplates(workspace.templates),
     webhook_url: getWebhookUrl(tenant.slug),
@@ -567,6 +633,13 @@ export async function getWhatsappOverview(tenantId: number) {
     getAgentLoadMap(workspace.id),
   ]);
 
+  await ensureDefaultSectors(workspace.id);
+  const sectors = await whatsappSector.findMany({
+    where: { workspace_id: workspace.id },
+    orderBy: [{ sort_order: "asc" }, { name: "asc" }],
+  });
+  const sectorLabels = new Map(sectors.map((sector) => [sector.key, sector.name]));
+
   const mappedAgents = agents.map((agent) => ({
     ...agent,
     current_load: loadMap.get(agent.id) ?? 0,
@@ -577,7 +650,10 @@ export async function getWhatsappOverview(tenantId: number) {
       (loadMap.get(agent.id) ?? 0) < agent.max_concurrent_chats,
   }));
 
-  const mappedConversations = conversations.map(mapConversationForUi);
+  const mappedConversations = conversations.map((conversation) => ({
+    ...mapConversationForUi(conversation),
+    department_label: sectorLabels.get(conversation.department || "") || getDepartmentLabel(conversation.department),
+  }));
 
   return {
     workspace: workspacePayload,
@@ -592,8 +668,82 @@ export async function getWhatsappOverview(tenantId: number) {
       closed_conversations: mappedConversations.filter((item) => item.status === "closed").length,
     },
     agents: mappedAgents,
+    sectors,
     conversations: mappedConversations,
   };
+}
+
+export async function createWhatsappSector(tenantId: number, payload: Record<string, unknown>) {
+  const workspace = await ensureWorkspace(tenantId);
+  await ensureDefaultSectors(workspace.id);
+  const name = String(payload.name ?? "").trim().slice(0, 80);
+  const key = normalizeSectorKey(String(payload.key ?? name));
+
+  if (!name || !key) throw new Error("Informe o nome do setor.");
+
+  const exists = await whatsappSector.findFirst({ where: { workspace_id: workspace.id, key } });
+  if (exists) throw new Error("Já existe um setor com este nome.");
+
+  const sector = await whatsappSector.create({
+    data: {
+      workspace_id: workspace.id,
+      key,
+      name,
+      description: String(payload.description ?? "").trim().slice(0, 500) || null,
+      is_active: payload.is_active === undefined ? true : Boolean(payload.is_active),
+      sort_order: Number(payload.sort_order ?? 99),
+    },
+  });
+
+  const workspaceMenus = parseMenus(workspace.menus);
+  if (!workspaceMenus.some((menu) => menu.action === "department" && menu.department === key)) {
+    await prisma.whatsappWorkspace.update({
+      where: { id: workspace.id },
+      data: {
+        menus: asJson([
+          ...workspaceMenus,
+          { id: `department:${key}`, label: `Falar com ${name}`, description: sector.description || `Atendimento ${name}`, action: "department", department: key, enabled: true, order: workspaceMenus.length + 1 },
+        ]),
+      },
+    });
+  }
+
+  return sector;
+}
+
+export async function updateWhatsappSector(tenantId: number, sectorId: number, payload: Record<string, unknown>) {
+  const workspace = await ensureWorkspace(tenantId);
+  const existing = await whatsappSector.findFirst({ where: { id: sectorId, workspace_id: workspace.id } });
+  if (!existing) throw new Error("Setor não encontrado.");
+
+  const name = String(payload.name ?? existing.name).trim().slice(0, 80);
+  if (!name) throw new Error("Informe o nome do setor.");
+
+  return whatsappSector.update({
+    where: { id: existing.id },
+    data: {
+      name,
+      description: payload.description === undefined ? existing.description : String(payload.description ?? "").trim().slice(0, 500) || null,
+      is_active: payload.is_active === undefined ? existing.is_active : Boolean(payload.is_active),
+      sort_order: payload.sort_order === undefined ? existing.sort_order : Number(payload.sort_order),
+    },
+  });
+}
+
+export async function deleteWhatsappSector(tenantId: number, sectorId: number) {
+  const workspace = await ensureWorkspace(tenantId);
+  const existing = await whatsappSector.findFirst({ where: { id: sectorId, workspace_id: workspace.id } });
+  if (!existing) throw new Error("Setor não encontrado.");
+
+  const [agentCount, openCount] = await Promise.all([
+    prisma.whatsappAgent.count({ where: { workspace_id: workspace.id, department: existing.key } }),
+    prisma.whatsappConversation.count({ where: { workspace_id: workspace.id, department: existing.key, status: { not: "closed" } } }),
+  ]);
+  if (agentCount || openCount) throw new Error("Transfira ou finalize os atendimentos e atendentes deste setor antes de removê-lo.");
+
+  await whatsappSector.delete({ where: { id: existing.id } });
+  const menus = parseMenus(workspace.menus).filter((menu) => menu.department !== existing.key);
+  await prisma.whatsappWorkspace.update({ where: { id: workspace.id }, data: { menus: asJson(menus) } });
 }
 
 export async function updateWhatsappWorkspace(
@@ -616,6 +766,15 @@ export async function updateWhatsappWorkspace(
 ) {
   const workspace = await ensureWorkspace(tenantId);
   const currentSettings = parseSettings(workspace.settings);
+  const requestedSettings = payload.settings ?? {};
+  const requestedApiKey = String(requestedSettings.ai_api_key ?? "").trim();
+  const nextSettings: WhatsappWorkspaceSettings = {
+    ...currentSettings,
+    ...requestedSettings,
+    // Uma chave vazia é o estado normal do formulário depois que ela foi
+    // mascarada na leitura. Só substitui a chave já salva quando o gestor digita outra.
+    ai_api_key: requestedApiKey || currentSettings.ai_api_key,
+  };
   const currentMenus = parseMenus(workspace.menus);
   const currentTemplates = parseTemplates(workspace.templates);
 
@@ -657,9 +816,7 @@ export async function updateWhatsappWorkspace(
         payload.finance_alerts_enabled === undefined
           ? workspace.finance_alerts_enabled
           : Boolean(payload.finance_alerts_enabled),
-      settings: payload.settings
-        ? asJson({ ...currentSettings, ...payload.settings })
-        : asJson(currentSettings),
+      settings: asJson(nextSettings),
       menus: payload.menus ? asJson(parseMenus(payload.menus)) : asJson(currentMenus),
       templates: payload.templates
         ? asJson({ ...currentTemplates, ...payload.templates })
@@ -694,7 +851,12 @@ function validateAgentPayload(payload: Record<string, unknown>) {
 
 export async function createWhatsappAgent(tenantId: number, payload: Record<string, unknown>) {
   const workspace = await ensureWorkspace(tenantId);
+  await ensureDefaultSectors(workspace.id);
   const data = validateAgentPayload(payload);
+  const sector = await whatsappSector.findFirst({
+    where: { workspace_id: workspace.id, key: data.department, is_active: true },
+  });
+  if (!sector) throw new Error("Selecione um setor ativo para o atendente.");
 
   const created = await prisma.whatsappAgent.create({
     data: {
@@ -714,6 +876,7 @@ export async function updateWhatsappAgent(
   payload: Record<string, unknown>,
 ) {
   const workspace = await ensureWorkspace(tenantId);
+  await ensureDefaultSectors(workspace.id);
 
   const existing = await prisma.whatsappAgent.findFirst({
     where: { id: agentId, workspace_id: workspace.id },
@@ -724,6 +887,10 @@ export async function updateWhatsappAgent(
   }
 
   const data = validateAgentPayload(payload);
+  const sector = await whatsappSector.findFirst({
+    where: { workspace_id: workspace.id, key: data.department, is_active: true },
+  });
+  if (!sector) throw new Error("Selecione um setor ativo para o atendente.");
 
   const updated = await prisma.whatsappAgent.update({
     where: { id: agentId },
@@ -1125,6 +1292,7 @@ async function sendAgentDirectory(
   const metadata = parseMetadata(conversation.metadata);
   const preview =
     "Escolha quem deve assumir seu atendimento. Se o atendente estiver ocupado, a fila anda automaticamente.";
+  const departmentLabel = await getSectorLabel(workspace.id, department);
 
   if (settings.prefer_buttons && options.length <= 2) {
     await sendMessageAndTrack(
@@ -1133,7 +1301,7 @@ async function sendAgentDirectory(
       conversation.phone,
       "buttons",
       {
-        title: `Equipe de ${getDepartmentLabel(department)}`,
+        title: `Equipe de ${departmentLabel}`,
         description: preview,
         footer: "MENU para voltar",
         buttons: [
@@ -1158,7 +1326,7 @@ async function sendAgentDirectory(
       conversation.phone,
       "list",
       {
-        title: `Equipe de ${getDepartmentLabel(department)}`,
+        title: `Equipe de ${departmentLabel}`,
         description: preview,
         buttonText: "Escolher atendente",
         footerText: "MENU para voltar",
@@ -1391,6 +1559,236 @@ async function sendPromotionsSummary(
   );
 }
 
+type RegisteredCustomer = { id: number; name: string; phone: string | null };
+
+function normalizeBotText(value: string) {
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+async function findRegisteredCustomer(tenantId: number, phone: string): Promise<RegisteredCustomer | null> {
+  const target = normalizePhone(phone);
+  if (target.length < 8) return null;
+
+  const customers = await prisma.customer.findMany({
+    where: { tenant_id: tenantId, phone: { not: null }, status: "active" },
+    select: { id: true, name: true, phone: true },
+    take: 2_000,
+  });
+
+  return customers.find((customer) => {
+    const candidate = normalizePhone(customer.phone);
+    return candidate.length >= 8 && (candidate.endsWith(target.slice(-10)) || target.endsWith(candidate.slice(-10)));
+  }) ?? null;
+}
+
+function buildZeWelcome(
+  settings: WhatsappWorkspaceSettings,
+  tenantName: string,
+  customerName: string | null | undefined,
+  registeredCustomer: RegisteredCustomer | null,
+) {
+  const name = registeredCustomer?.name || customerName || "cliente";
+  const recognition = registeredCustomer ? " Encontrei seu cadastro por este número." : "";
+  return `Olá, ${name}! Eu sou ${settings.bot_name}, assistente virtual da ${tenantName}.${recognition} Posso consultar pedidos, orçamentos, notas, promoções ou chamar nossa equipe.`;
+}
+
+function extractAiText(payload: unknown, provider: WhatsappWorkspaceSettings["ai_provider"]) {
+  if (!isRecord(payload)) return "";
+
+  if (provider === "openai") {
+    if (typeof payload.output_text === "string") return payload.output_text.trim();
+    const output = Array.isArray(payload.output) ? payload.output : [];
+    return output
+      .flatMap((item) => isRecord(item) && Array.isArray(item.content) ? item.content : [])
+      .map((item) => isRecord(item) && typeof item.text === "string" ? item.text : "")
+      .join("\n")
+      .trim();
+  }
+
+  const candidates = Array.isArray(payload.candidates) ? payload.candidates : [];
+  const content = candidates[0] && isRecord(candidates[0]) && isRecord(candidates[0].content)
+    ? candidates[0].content
+    : null;
+  const parts = content && Array.isArray(content.parts) ? content.parts : [];
+  return parts
+    .map((part) => isRecord(part) && typeof part.text === "string" ? part.text : "")
+    .join("\n")
+    .trim();
+}
+
+async function generateZeAiReply(
+  settings: WhatsappWorkspaceSettings,
+  tenantName: string,
+  message: string,
+  registeredCustomer: RegisteredCustomer | null,
+) {
+  if (settings.ai_provider === "rules" || !settings.ai_api_key) return null;
+
+  const customerContext = registeredCustomer
+    ? `O telefone pertence ao cliente cadastrado ${registeredCustomer.name}.`
+    : "Não há cliente cadastrado confirmado por este telefone.";
+  const instructions = [
+    `Você é ${settings.bot_name}, assistente virtual da loja ${tenantName}.`,
+    settings.ai_system_prompt,
+    "Nunca invente dados do sistema, preços, estoque, pedidos, pagamentos ou prazos. Não peça senha, dados de cartão ou códigos de confirmação.",
+    "Quando o cliente precisar de uma pessoa, responda somente com [[TRANSFERIR:sales]], [[TRANSFERIR:support]] ou [[TRANSFERIR:finance]].",
+    "Responda em português do Brasil, de forma breve e útil, em no máximo 700 caracteres.",
+  ].join("\n");
+  const input = `${customerContext}\n\nMensagem do cliente: ${message}`;
+
+  try {
+    if (settings.ai_provider === "openai") {
+      const response = await axios.post(
+        "https://api.openai.com/v1/responses",
+        {
+          model: settings.ai_model || "gpt-4o-mini",
+          instructions,
+          input,
+          max_output_tokens: 250,
+          store: false,
+        },
+        {
+          headers: { Authorization: `Bearer ${settings.ai_api_key}`, "Content-Type": "application/json" },
+          timeout: 20_000,
+        },
+      );
+      return extractAiText(response.data, "openai").slice(0, 700) || null;
+    }
+
+    const model = encodeURIComponent(settings.ai_model || "gemini-2.0-flash");
+    const response = await axios.post(
+      `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
+      {
+        systemInstruction: { parts: [{ text: instructions }] },
+        contents: [{ role: "user", parts: [{ text: input }] }],
+        generationConfig: { temperature: 0.35, maxOutputTokens: 250 },
+      },
+      {
+        headers: { "x-goog-api-key": settings.ai_api_key, "Content-Type": "application/json" },
+        timeout: 20_000,
+      },
+    );
+    return extractAiText(response.data, "gemini").slice(0, 700) || null;
+  } catch (error) {
+    const reason = axios.isAxiosError(error)
+      ? String(error.response?.data && isRecord(error.response.data) ? error.response.data.error?.message ?? error.message : error.message)
+      : error instanceof Error ? error.message : "erro desconhecido";
+    console.error(`[whatsapp] IA do Zé indisponível: ${reason}`);
+    return null;
+  }
+}
+
+async function tryHandleZeAiMessage(
+  workspace: { id: number; tenant_id: number; settings: unknown; templates: unknown; menus: unknown },
+  tenantName: string,
+  conversation: { id: number; phone: string; customer_name: string | null },
+  message: string,
+  registeredCustomer: RegisteredCustomer | null,
+) {
+  const settings = parseSettings(workspace.settings);
+  if (!settings.smart_bot_enabled) return false;
+
+  const reply = await generateZeAiReply(settings, tenantName, message, registeredCustomer);
+  if (!reply) return false;
+
+  const transfer = reply.match(/^\s*\[\[TRANSFERIR:(sales|support|finance)\]\]\s*$/i);
+  if (transfer) {
+    await handleDepartmentRequest(workspace, tenantName, conversation, transfer[1].toLowerCase());
+    return true;
+  }
+
+  await sendMessageAndTrack(workspace.id, conversation.id, conversation.phone, "text", { text: reply }, reply);
+  return true;
+}
+
+export async function testWhatsappAi(tenantId: number) {
+  const workspace = await ensureWorkspace(tenantId);
+  const settings = parseSettings(workspace.settings);
+  if (settings.ai_provider === "rules" || !settings.ai_api_key) {
+    throw new Error("Escolha Gemini ou OpenAI e informe a chave da API antes de testar.");
+  }
+  const { tenant } = await getWorkspaceWithTenantByTenantId(tenantId);
+  const reply = await generateZeAiReply(settings, tenant.name, "Responda apenas: integração pronta.", null);
+  if (!reply) throw new Error("A API não retornou uma resposta. Confira a chave, o modelo e o acesso à API.");
+  return { ok: true, reply };
+}
+
+async function tryHandleZeMessage(
+  workspace: { id: number; tenant_id: number; settings: unknown; templates: unknown; menus: unknown },
+  tenantName: string,
+  conversation: { id: number; phone: string; customer_name: string | null },
+  message: string,
+  registeredCustomer: RegisteredCustomer | null,
+) {
+  const settings = parseSettings(workspace.settings);
+  if (!settings.smart_bot_enabled) return false;
+
+  const text = normalizeBotText(message);
+  const say = async (body: string) => {
+    await sendMessageAndTrack(workspace.id, conversation.id, conversation.phone, "text", { text: body }, body);
+  };
+  const isAny = (...terms: string[]) => terms.some((term) => text.includes(term));
+
+  if (isAny("quem e voce", "quem e vc", "seu nome", "voce e robo", "voce e bot")) {
+    await say(`Eu sou ${settings.bot_name}, o assistente virtual da ${tenantName}. Posso resolver consultas rápidas e, quando precisar, encaminhar você para uma pessoa da equipe.`);
+    return true;
+  }
+
+  if (isAny("pedido", "entrega", "rastreio", "rastrear", "minha compra", "minhas compras")) {
+    await sendOrdersSummary(workspace, conversation);
+    return true;
+  }
+
+  if (isAny("orcamento", "cotacao", "preco", "valor", "proposta")) {
+    await sendQuotesSummary(workspace, conversation);
+    return true;
+  }
+
+  if (isAny("nota", "nfce", "boleto", "pagamento", "pagar", "cobranca", "financeiro")) {
+    await sendInvoicesSummary(workspace, conversation);
+    return true;
+  }
+
+  if (isAny("promocao", "oferta", "desconto", "novidade")) {
+    await sendPromotionsSummary(workspace, conversation);
+    return true;
+  }
+
+  if (isAny("atendente", "humano", "pessoa", "vendedor", "vendedora", "falar com alguem", "falar com alguém", "suporte")) {
+    const department = isAny("vendedor", "vendedora", "comprar", "preco", "preço")
+      ? "sales"
+      : isAny("boleto", "pagamento", "cobranca", "cobrança", "financeiro")
+        ? "finance"
+        : "support";
+    await handleDepartmentRequest(workspace, tenantName, conversation, department);
+    return true;
+  }
+
+  if (isAny("cadastro", "sou cliente", "ja sou cliente", "já sou cliente")) {
+    const response = registeredCustomer
+      ? `Sim, ${registeredCustomer.name}! Encontrei seu cadastro vinculado a este número. Posso consultar seus pedidos, orçamentos e notas ou chamar um atendente.`
+      : "Ainda não localizei um cadastro ativo por este número. Posso ajudar pelo menu ou chamar um atendente para você.";
+    await say(response);
+    await sendMenuToConversation(workspace, tenantName, conversation);
+    return true;
+  }
+
+  if (/^(oi|ola|olá|bom dia|boa tarde|boa noite|tudo bem|obrigado|obrigada|valeu)/.test(text)) {
+    const name = registeredCustomer?.name || conversation.customer_name || "";
+    await say(`${name ? `${name}, ` : ""}como posso ajudar? Você pode escrever do seu jeito ou escolher uma opção do menu.`);
+    await sendMenuToConversation(workspace, tenantName, conversation);
+    return true;
+  }
+
+  return false;
+}
+
 async function normalizeQueuePositions(workspaceId: number, department: string) {
   const queued = await prisma.whatsappConversation.findMany({
     where: {
@@ -1444,7 +1842,7 @@ async function queueConversation(workspaceId: number, conversationId: number, de
 
   const text = renderTemplate(templates.queue_wait, {
     position,
-    departmentLabel: getDepartmentLabel(department),
+    departmentLabel: await getSectorLabel(workspaceId, department),
   });
 
   await sendMessageAndTrack(workspaceId, conversationId, conversation.phone, "text", { text }, text, "system");
@@ -1485,7 +1883,7 @@ async function assignConversationToAgent(
     takeoverMessage ||
     renderTemplate(templates.transferred, {
       agentName: agent.name,
-      departmentLabel: getDepartmentLabel(department),
+      departmentLabel: await getSectorLabel(workspaceId, department),
     });
 
   await sendMessageAndTrack(workspaceId, conversationId, conversation.phone, "text", { text }, text, "system");
@@ -1781,6 +2179,77 @@ export async function getWhatsappConversationMessages(tenantId: number, conversa
   };
 }
 
+// Permite que a loja inicie proativamente uma conversa já apresentando o Zé e
+// seu menu. Não simula uma mensagem do cliente: o primeiro registro é sempre
+// uma saída legítima do canal configurado.
+export async function startWhatsappConversation(tenantId: number, payload: Record<string, unknown>) {
+  const workspace = await ensureWorkspace(tenantId);
+  const phone = normalizePhone(String(payload.phone ?? ""));
+  if (phone.length < 10) throw new Error("Informe um WhatsApp válido com DDD.");
+  if (!workspace.is_enabled) throw new Error("Ative o canal do WhatsApp antes de iniciar uma conversa.");
+
+  const tenant = await prisma.tenant.findUnique({
+    where: { id: tenantId },
+    select: { name: true },
+  });
+  if (!tenant) throw new Error("Loja não encontrada.");
+
+  const registeredCustomer = await findRegisteredCustomer(tenantId, phone);
+  const suppliedName = String(payload.customer_name ?? payload.name ?? "").trim().slice(0, 120);
+  const customerName = registeredCustomer?.name || suppliedName || null;
+  const remoteJid = normalizeJid(phone);
+  const existing = await prisma.whatsappConversation.findUnique({
+    where: { workspace_id_remote_jid: { workspace_id: workspace.id, remote_jid: remoteJid } },
+    include: { assigned_agent: { select: { id: true, name: true, department: true } } },
+  });
+
+  if (existing && existing.status !== "closed") {
+    throw new Error("Já existe um atendimento aberto para este número.");
+  }
+
+  const metadata = {
+    ...(existing ? parseMetadata(existing.metadata) : {}),
+    registered_customer_id: registeredCustomer?.id ?? null,
+  };
+  const conversation = existing
+    ? await prisma.whatsappConversation.update({
+        where: { id: existing.id },
+        data: {
+          phone,
+          customer_name: customerName,
+          status: "bot",
+          department: null,
+          assigned_agent_id: null,
+          queue_position: null,
+          closed_reason: null,
+          current_menu: "main",
+          metadata: asJson(metadata),
+        },
+      })
+    : await prisma.whatsappConversation.create({
+        data: {
+          workspace_id: workspace.id,
+          remote_jid: remoteJid,
+          phone,
+          customer_name: customerName,
+          status: "bot",
+          current_menu: "main",
+          metadata: asJson(metadata),
+        },
+      });
+
+  const settings = parseSettings(workspace.settings);
+  const templates = parseTemplates(workspace.templates);
+  const welcome = settings.smart_bot_enabled
+    ? buildZeWelcome(settings, tenant.name, customerName, registeredCustomer)
+    : renderTemplate(templates.welcome, { customerName: customerName || "cliente", storeName: tenant.name });
+
+  await sendMessageAndTrack(workspace.id, conversation.id, phone, "text", { text: welcome }, welcome, "bot");
+  await sendMenuToConversation(workspace, tenant.name, conversation);
+
+  return getWhatsappConversationMessages(tenantId, conversation.id);
+}
+
 export async function assignWhatsappConversation(
   tenantId: number,
   conversationId: number,
@@ -1789,6 +2258,34 @@ export async function assignWhatsappConversation(
   const { workspace, conversation } = await findConversationOrThrow(tenantId, conversationId);
 
   await tryAssignSpecificAgent(workspace.id, conversation.id, agentId);
+
+  return getWhatsappConversationMessages(tenantId, conversationId);
+}
+
+// Transferência manual: o gestor pode escolher apenas o setor (distribuição
+// automática) ou apontar uma pessoa específica do setor.
+export async function transferWhatsappConversation(
+  tenantId: number,
+  conversationId: number,
+  payload: { department?: string; agent_id?: number },
+) {
+  const { workspace, conversation } = await findConversationOrThrow(tenantId, conversationId);
+  const department = String(payload.department ?? "").trim();
+  const agentId = Number(payload.agent_id ?? 0);
+
+  if (agentId) {
+    const agent = await prisma.whatsappAgent.findFirst({ where: { id: agentId, workspace_id: workspace.id } });
+    if (!agent) throw new Error("Atendente não encontrado.");
+    if (department && agent.department !== department) throw new Error("O atendente não pertence ao setor escolhido.");
+    await tryAssignSpecificAgent(workspace.id, conversation.id, agent.id);
+  } else {
+    if (!department) throw new Error("Selecione um setor ou um atendente.");
+    const sector = await whatsappSector.findFirst({ where: { workspace_id: workspace.id, key: department, is_active: true } });
+    if (!sector) throw new Error("Setor não encontrado ou inativo.");
+    const bestAgent = await chooseBestAvailableAgent(workspace.id, department);
+    if (bestAgent) await assignConversationToAgent(workspace.id, conversation.id, bestAgent.id);
+    else await queueConversation(workspace.id, conversation.id, department);
+  }
 
   return getWhatsappConversationMessages(tenantId, conversationId);
 }
@@ -2101,7 +2598,7 @@ export async function processWhatsappWebhook(
     return { ok: true, ignored: true, reason: "empty-message" };
   }
 
-  const conversation = await createOrUpdateConversationFromWebhook(
+  let conversation = await createOrUpdateConversationFromWebhook(
     workspaceRecord.id,
     normalizeJid(remoteJid),
     phone,
@@ -2112,6 +2609,25 @@ export async function processWhatsappWebhook(
   );
 
   const tenantName = workspaceRecord.tenant.name;
+  const settings = parseSettings(workspaceRecord.settings);
+  const registeredCustomer = settings.smart_bot_enabled
+    ? await findRegisteredCustomer(workspaceRecord.tenant_id, phone)
+    : null;
+
+  if (registeredCustomer) {
+    const metadata = parseMetadata(conversation.metadata);
+    conversation = await prisma.whatsappConversation.update({
+      where: { id: conversation.id },
+      data: {
+        customer_name: registeredCustomer.name,
+        metadata: asJson({ ...metadata, registered_customer_id: registeredCustomer.id }),
+      },
+      include: {
+        assigned_agent: { select: { id: true, name: true, department: true } },
+      },
+    });
+  }
+
   const metadata = parseMetadata(conversation.metadata);
   const normalizedCommand = (incoming.command || incoming.text).trim();
 
@@ -2122,10 +2638,12 @@ export async function processWhatsappWebhook(
 
   if (isMenuCommand(normalizedCommand) || !conversation.last_outbound_at) {
     const templates = parseTemplates(workspaceRecord.templates);
-    const welcome = renderTemplate(templates.welcome, {
-      customerName: conversation.customer_name || "cliente",
-      storeName: tenantName,
-    });
+    const welcome = settings.smart_bot_enabled
+      ? buildZeWelcome(settings, tenantName, conversation.customer_name, registeredCustomer)
+      : renderTemplate(templates.welcome, {
+          customerName: conversation.customer_name || "cliente",
+          storeName: tenantName,
+        });
 
     await sendMessageAndTrack(
       workspaceRecord.id,
@@ -2155,6 +2673,26 @@ export async function processWhatsappWebhook(
     const agentId = Number(selection.replace("agent:", ""));
     await tryAssignSpecificAgent(workspaceRecord.id, conversation.id, agentId);
     return { ok: true, handled: true, action: "agent-selection" };
+  }
+
+  if (!resolvedChoice && await tryHandleZeMessage(
+    workspaceRecord,
+    tenantName,
+    conversation,
+    normalizedCommand,
+    registeredCustomer,
+  )) {
+    return { ok: true, handled: true, action: "ze-smart-reply" };
+  }
+
+  if (!resolvedChoice && await tryHandleZeAiMessage(
+    workspaceRecord,
+    tenantName,
+    conversation,
+    normalizedCommand,
+    registeredCustomer,
+  )) {
+    return { ok: true, handled: true, action: "ze-ai-reply" };
   }
 
   await handleMenuSelection(workspaceRecord, tenantName, conversation, selection);

@@ -5,7 +5,9 @@ import {
   assignWhatsappConversation,
   closeWhatsappConversation,
   createWhatsappAgent,
+  createWhatsappSector,
   deleteWhatsappAgent,
+  deleteWhatsappSector,
   getWhatsappConnectionStatus,
   getWhatsappConversationMessages,
   getWhatsappOverview,
@@ -13,9 +15,13 @@ import {
   processWhatsappWebhook,
   sendWhatsappDocument,
   sendWhatsappManualMessage,
+  startWhatsappConversation,
   sendWhatsappTestMenu,
   sendFinanceAlertsNow,
+  testWhatsappAi,
+  transferWhatsappConversation,
   updateWhatsappAgent,
+  updateWhatsappSector,
   updateWhatsappWorkspace,
 } from "../services/whatsapp.service";
 
@@ -54,7 +60,9 @@ export async function saveWhatsappWorkspace(req: Request, res: Response) {
 
   try {
     const workspace = await updateWhatsappWorkspace(tenantId, req.body ?? {});
-    res.json(workspace);
+    // Não devolve as configurações completas: elas podem conter a chave privada
+    // da IA configurada pela loja.
+    res.json({ ok: true, webhook_secret: workspace.webhook_secret });
   } catch (error) {
     res.status(400).json({ error: getErrorMessage(error) });
   }
@@ -73,6 +81,20 @@ export async function pingWhatsappProvider(req: Request, res: Response) {
     res.json({ ok: true, data });
   } catch (error) {
     res.status(400).json({ ok: false, error: getErrorMessage(error) });
+  }
+}
+
+export async function testWhatsappAiHandler(req: Request, res: Response) {
+  const tenantId = getTenantId(req);
+  if (!tenantId) {
+    res.sendStatus(403);
+    return;
+  }
+
+  try {
+    res.json(await testWhatsappAi(tenantId));
+  } catch (error) {
+    res.status(400).json({ error: getErrorMessage(error) });
   }
 }
 
@@ -216,6 +238,37 @@ export async function deleteWhatsappAgentHandler(req: Request, res: Response) {
   }
 }
 
+export async function createWhatsappSectorHandler(req: Request, res: Response) {
+  const tenantId = getTenantId(req);
+  if (!tenantId) { res.sendStatus(403); return; }
+  try {
+    res.status(201).json(await createWhatsappSector(tenantId, req.body ?? {}));
+  } catch (error) {
+    res.status(400).json({ error: getErrorMessage(error) });
+  }
+}
+
+export async function updateWhatsappSectorHandler(req: Request, res: Response) {
+  const tenantId = getTenantId(req);
+  if (!tenantId) { res.sendStatus(403); return; }
+  try {
+    res.json(await updateWhatsappSector(tenantId, Number(req.params.id), req.body ?? {}));
+  } catch (error) {
+    res.status(400).json({ error: getErrorMessage(error) });
+  }
+}
+
+export async function deleteWhatsappSectorHandler(req: Request, res: Response) {
+  const tenantId = getTenantId(req);
+  if (!tenantId) { res.sendStatus(403); return; }
+  try {
+    await deleteWhatsappSector(tenantId, Number(req.params.id));
+    res.json({ ok: true });
+  } catch (error) {
+    res.status(400).json({ error: getErrorMessage(error) });
+  }
+}
+
 export async function getWhatsappConversationMessagesHandler(req: Request, res: Response) {
   const tenantId = getTenantId(req);
   const conversationId = Number(req.params.id);
@@ -233,6 +286,16 @@ export async function getWhatsappConversationMessagesHandler(req: Request, res: 
   }
 }
 
+export async function startWhatsappConversationHandler(req: Request, res: Response) {
+  const tenantId = getTenantId(req);
+  if (!tenantId) { res.sendStatus(403); return; }
+  try {
+    res.status(201).json(await startWhatsappConversation(tenantId, req.body ?? {}));
+  } catch (error) {
+    res.status(400).json({ error: getErrorMessage(error) });
+  }
+}
+
 export async function assignWhatsappConversationHandler(req: Request, res: Response) {
   const tenantId = getTenantId(req);
   const conversationId = Number(req.params.id);
@@ -246,6 +309,17 @@ export async function assignWhatsappConversationHandler(req: Request, res: Respo
   try {
     const payload = await assignWhatsappConversation(tenantId, conversationId, agentId);
     res.json(payload);
+  } catch (error) {
+    res.status(400).json({ error: getErrorMessage(error) });
+  }
+}
+
+export async function transferWhatsappConversationHandler(req: Request, res: Response) {
+  const tenantId = getTenantId(req);
+  const conversationId = Number(req.params.id);
+  if (!tenantId) { res.sendStatus(403); return; }
+  try {
+    res.json(await transferWhatsappConversation(tenantId, conversationId, req.body ?? {}));
   } catch (error) {
     res.status(400).json({ error: getErrorMessage(error) });
   }

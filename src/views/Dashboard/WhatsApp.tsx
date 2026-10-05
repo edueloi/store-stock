@@ -40,6 +40,13 @@ interface WorkspaceSettings {
   allow_numeric_fallback: boolean;
   show_agent_list_before_transfer: boolean;
   auto_close_on_inactivity: boolean;
+  smart_bot_enabled: boolean;
+  bot_name: string;
+  ai_provider: "rules" | "gemini" | "openai";
+  ai_api_key: string;
+  ai_api_key_configured: boolean;
+  ai_model: string;
+  ai_system_prompt: string;
 }
 
 interface MenuOption {
@@ -334,6 +341,8 @@ export default function WhatsApp() {
   const [loadingConnection, setLoadingConnection] = useState(false);
   const [connectionError, setConnectionError] = useState<string | null>(null);
   const [sendingTest, setSendingTest] = useState(false);
+  const [testingAi, setTestingAi] = useState(false);
+  const [aiTestReply, setAiTestReply] = useState("");
   const [testPhone, setTestPhone] = useState("");
   const [regenerateSecret, setRegenerateSecret] = useState(false);
   const [filter, setFilter] = useState<"all" | ConversationStatus>("all");
@@ -540,6 +549,13 @@ export default function WhatsApp() {
       setWorkspace({
         ...workspace,
         webhook_secret: data.webhook_secret ?? workspace.webhook_secret,
+        settings: {
+          ...workspace.settings,
+          ai_api_key: "",
+          ai_api_key_configured: Boolean(
+            workspace.settings.ai_api_key || workspace.settings.ai_api_key_configured,
+          ),
+        },
       });
       toast.success("Configuração do WhatsApp salva.");
       await loadOverview(true);
@@ -573,6 +589,28 @@ export default function WhatsApp() {
     } catch {
       toast.error("Erro de conexão ao salvar.");
       setWorkspace({ ...workspace, is_enabled: !next });
+    }
+  };
+
+  const toggleSmartBot = async () => {
+    if (!workspace) return;
+    const next = !workspace.settings.smart_bot_enabled;
+    const nextSettings = { ...workspace.settings, smart_bot_enabled: next };
+    setWorkspace({ ...workspace, settings: nextSettings });
+    try {
+      const response = await fetch("/api/whatsapp/workspace", {
+        method: "PUT",
+        headers: authHeaders(),
+        body: JSON.stringify({ settings: nextSettings }),
+      });
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        throw new Error(data.error || "Falha ao salvar o modo inteligente.");
+      }
+      toast.success(next ? "Modo inteligente Zé ativado." : "Modo inteligente Zé desativado.");
+    } catch (error) {
+      setWorkspace({ ...workspace, settings: workspace.settings });
+      toast.error(error instanceof Error ? error.message : "Falha ao salvar o modo inteligente.");
     }
   };
 
@@ -642,6 +680,25 @@ export default function WhatsApp() {
       toast.error("Erro de conexão ao enviar o teste.");
     } finally {
       setSendingTest(false);
+    }
+  };
+
+  const testAi = async () => {
+    setTestingAi(true);
+    setAiTestReply("");
+    try {
+      const response = await fetch("/api/whatsapp/test-ai", {
+        method: "POST",
+        headers: authHeaders(),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Não foi possível testar a IA.");
+      setAiTestReply(data.reply || "Integração pronta.");
+      toast.success("IA respondeu corretamente.");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Não foi possível testar a IA.");
+    } finally {
+      setTestingAi(false);
     }
   };
 
@@ -1221,6 +1278,105 @@ export default function WhatsApp() {
                   )}
                 />
               </button>
+            </div>
+            <div className="rounded-2xl border border-violet-100 bg-violet-50/60 p-4">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <p className="text-sm font-bold text-slate-700">Modo inteligente Zé</p>
+                  <p className="mt-0.5 text-xs leading-relaxed text-slate-500">
+                    O Zé entende mensagens sobre pedidos, orçamentos, pagamentos, promoções e pedidos por atendente. Ele também reconhece clientes cadastrados pelo telefone e usa o nome do cadastro na conversa.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => handleSettingsField("smart_bot_enabled", !workspace.settings.smart_bot_enabled)}
+                  className={cn(
+                    "w-11 h-6 rounded-full relative transition-all shrink-0",
+                    workspace.settings.smart_bot_enabled ? "bg-violet-600" : "bg-slate-300",
+                  )}
+                  aria-label={workspace.settings.smart_bot_enabled ? "Desativar modo inteligente Zé" : "Ativar modo inteligente Zé"}
+                >
+                  <span className={cn("absolute top-1 h-4 w-4 rounded-full bg-white shadow-sm transition-all", workspace.settings.smart_bot_enabled ? "left-6" : "left-1")} />
+                </button>
+              </div>
+              <div className="mt-4 max-w-sm">
+                <Label>Nome do assistente</Label>
+                <input
+                  value={workspace.settings.bot_name}
+                  onChange={(e) => handleSettingsField("bot_name", e.target.value)}
+                  maxLength={40}
+                  placeholder="Zé"
+                  className="w-full h-10 rounded-xl border border-violet-200 bg-white px-3 text-sm font-semibold text-slate-700"
+                />
+                <p className="mt-1 text-[10px] font-medium text-slate-400">Clique em “Salvar módulo” no topo para aplicar esta configuração.</p>
+              </div>
+              <div className="mt-5 border-t border-violet-100 pt-5">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <p className="text-xs font-black uppercase tracking-wider text-violet-800">IA generativa opcional</p>
+                    <p className="mt-1 text-xs text-slate-500">Para respostas livres, sem perder as consultas seguras de pedidos, notas e orçamentos.</p>
+                  </div>
+                  {workspace.settings.ai_api_key_configured && <span className="rounded-full bg-emerald-100 px-2.5 py-1 text-[9px] font-black uppercase tracking-wider text-emerald-700">Chave salva</span>}
+                </div>
+                <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2">
+                  <div>
+                    <Label>Provedor</Label>
+                    <select
+                      value={workspace.settings.ai_provider}
+                      onChange={(e) => handleSettingsField("ai_provider", e.target.value as WorkspaceSettings["ai_provider"])}
+                      className="w-full h-10 rounded-xl border border-violet-200 bg-white px-3 text-sm font-semibold text-slate-700"
+                    >
+                      <option value="rules">Somente regras inteligentes</option>
+                      <option value="gemini">Google Gemini</option>
+                      <option value="openai">OpenAI GPT</option>
+                    </select>
+                  </div>
+                  <div>
+                    <Label>Modelo</Label>
+                    <input
+                      value={workspace.settings.ai_model}
+                      onChange={(e) => handleSettingsField("ai_model", e.target.value)}
+                      placeholder={workspace.settings.ai_provider === "openai" ? "gpt-4o-mini" : "gemini-2.0-flash"}
+                      disabled={workspace.settings.ai_provider === "rules"}
+                      className="w-full h-10 rounded-xl border border-violet-200 bg-white px-3 text-sm font-semibold text-slate-700 disabled:bg-slate-100"
+                    />
+                  </div>
+                  <div className="md:col-span-2">
+                    <Label>Chave da API</Label>
+                    <input
+                      type="password"
+                      autoComplete="new-password"
+                      value={workspace.settings.ai_api_key}
+                      onChange={(e) => handleSettingsField("ai_api_key", e.target.value)}
+                      placeholder={workspace.settings.ai_api_key_configured ? "Deixe em branco para manter a chave salva" : "Cole a chave da API aqui"}
+                      disabled={workspace.settings.ai_provider === "rules"}
+                      className="w-full h-10 rounded-xl border border-violet-200 bg-white px-3 text-sm text-slate-700 disabled:bg-slate-100"
+                    />
+                    <p className="mt-1 text-[10px] font-medium text-slate-400">A chave é enviada ao servidor para uso do bot e não é exibida novamente no painel.</p>
+                  </div>
+                  <div className="md:col-span-2">
+                    <Label>Como o {workspace.settings.bot_name || "Zé"} deve falar e atuar</Label>
+                    <textarea
+                      rows={4}
+                      value={workspace.settings.ai_system_prompt}
+                      onChange={(e) => handleSettingsField("ai_system_prompt", e.target.value)}
+                      disabled={workspace.settings.ai_provider === "rules"}
+                      className="w-full resize-none rounded-xl border border-violet-200 bg-white px-3 py-2.5 text-sm text-slate-700 disabled:bg-slate-100"
+                    />
+                  </div>
+                </div>
+                <div className="mt-3 flex flex-wrap items-center gap-3">
+                  <button
+                    type="button"
+                    onClick={testAi}
+                    disabled={testingAi || workspace.settings.ai_provider === "rules" || (!workspace.settings.ai_api_key && !workspace.settings.ai_api_key_configured)}
+                    className="h-9 rounded-xl border border-violet-200 bg-white px-3 text-[10px] font-black uppercase tracking-wider text-violet-700 hover:bg-violet-100 disabled:opacity-50 inline-flex items-center gap-2"
+                  >
+                    {testingAi ? <Loader2 size={13} className="animate-spin" /> : <Bot size={13} />} Testar IA
+                  </button>
+                  {aiTestReply && <span className="text-xs font-semibold text-emerald-700">Resposta: {aiTestReply}</span>}
+                </div>
+              </div>
             </div>
           </div>
         </SectionCard>

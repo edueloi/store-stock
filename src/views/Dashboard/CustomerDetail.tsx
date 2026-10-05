@@ -118,6 +118,11 @@ interface CustomerDetailData extends Customer {
 
 const fmt = (v: number) => v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 const fmtDate = (s: string) => new Date(s).toLocaleDateString("pt-BR");
+const todayInputDate = () => {
+  const date = new Date();
+  const offset = date.getTimezoneOffset() * 60_000;
+  return new Date(date.getTime() - offset).toISOString().slice(0, 10);
+};
 
 const authH = () => ({
   Authorization: `Bearer ${localStorage.getItem("token")}`,
@@ -259,6 +264,7 @@ export default function CustomerDetail() {
   const [selectedDebtIds, setSelectedDebtIds] = useState<Set<number>>(new Set());
   const [payAmounts, setPayAmounts] = useState<Record<number, string>>({});
   const [paySegments, setPaySegments] = useState<PaymentSegment[]>([newPaymentSegment()]);
+  const [debtPaymentDate, setDebtPaymentDate] = useState(todayInputDate);
   const [payingDebts, setPayingDebts] = useState(false);
   const [payDebtsError, setPayDebtsError] = useState<string | null>(null);
 
@@ -513,6 +519,7 @@ export default function CustomerDetail() {
     setSelectedDebtIds(new Set([debtId]));
     setPayAmounts({ [debtId]: remaining.toFixed(2) });
     setPaySegments([newPaymentSegment(remaining.toFixed(2))]);
+    setDebtPaymentDate(todayInputDate());
     setPayDebtsError(null);
   }
 
@@ -573,7 +580,7 @@ export default function CustomerDetail() {
         // a escala podia transformar R$ 500 recebidos em baixa de R$ 1.000.
         const res = await fetch(`/api/customers/${detail.id}/debts/${debtId}/pay-multi`, {
           method: "POST", headers: authH(),
-          body: JSON.stringify({ payments: debtPayments }),
+          body: JSON.stringify({ payments: debtPayments, paid_at: debtPaymentDate }),
         });
         if (!res.ok) {
           const data = await res.json().catch(() => ({}));
@@ -600,6 +607,7 @@ export default function CustomerDetail() {
     });
     if (checked) {
       setInstallmentPayAmounts((prev) => ({ ...prev, [installmentId]: prev[installmentId] ?? remaining.toFixed(2) }));
+      setDebtPaymentDate(todayInputDate());
     }
   }
 
@@ -618,7 +626,7 @@ export default function CustomerDetail() {
       }
       const res = await fetch(`/api/customers/${detail.id}/debts/${debtId}/pay-multi`, {
         method: "POST", headers: authH(),
-        body: JSON.stringify({ payments, installment_id: installmentId }),
+        body: JSON.stringify({ payments, installment_id: installmentId, paid_at: debtPaymentDate }),
       });
       if (res.ok) {
         const methodLabel = payments.length > 1 ? "Múltiplas formas" : PM_LABELS[payments[0].method] ?? payments[0].method;
@@ -634,7 +642,7 @@ export default function CustomerDetail() {
           amount,
           paymentMethod: methodLabel,
           remainingBalance: totalOpenBeforePayment - amount,
-          paidAt: new Date(),
+          paidAt: new Date(`${debtPaymentDate}T12:00:00`),
         });
         await printThermalText(receipt, `Pagamento de parcela — ${detail.name}`);
       } else {
@@ -1244,6 +1252,17 @@ export default function CustomerDetail() {
                               </div>
                               {inst.status === "open" && selectedInstallmentIds.has(inst.id) && (
                                 <div className="pt-1 space-y-2">
+                                  <div className="rounded-lg border border-slate-200 bg-white px-2.5 py-2">
+                                    <label className="block text-[9px] font-black uppercase tracking-widest text-slate-500">Data do recebimento</label>
+                                    <input
+                                      type="date"
+                                      value={debtPaymentDate}
+                                      max={todayInputDate()}
+                                      onChange={(event) => setDebtPaymentDate(event.target.value)}
+                                      className="mt-1 h-8 rounded-md border border-slate-200 bg-white px-2 text-[11px] font-semibold text-slate-700"
+                                    />
+                                    {debtPaymentDate !== todayInputDate() && <p className="mt-1 text-[9px] leading-snug text-amber-700">O histórico e o financeiro usam esta data; caixa fechado não é alterado.</p>}
+                                  </div>
                                   <PaymentSegmentsEditor
                                     segments={installmentPaySegments[inst.id] ?? [newPaymentSegment((installmentPayAmounts[inst.id] ?? instRemaining.toFixed(2)))]}
                                     onChange={(segs) => setInstallmentPaySegments((prev) => ({ ...prev, [inst.id]: segs }))}
@@ -1331,6 +1350,17 @@ export default function CustomerDetail() {
                     </div>
                   );
                 })()}
+                <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5">
+                  <label className="block text-[9px] font-black uppercase tracking-widest text-slate-500">Data em que o pagamento foi recebido</label>
+                  <input
+                    type="date"
+                    value={debtPaymentDate}
+                    max={todayInputDate()}
+                    onChange={(event) => setDebtPaymentDate(event.target.value)}
+                    className="mt-1.5 h-9 rounded-lg border border-slate-200 bg-white px-2.5 text-xs font-semibold text-slate-700"
+                  />
+                  {debtPaymentDate !== todayInputDate() && <p className="mt-1.5 text-[10px] leading-snug text-amber-700">Lançamento retroativo: ficará no histórico do crediário e no financeiro da data informada. Um caixa já fechado não será alterado automaticamente.</p>}
+                </div>
                 <PaymentSegmentsEditor
                   segments={paySegments}
                   onChange={setPaySegments}

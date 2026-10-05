@@ -1937,9 +1937,30 @@ model WhatsappWorkspace {
 
   tenant        Tenant                 @relation(fields: [tenant_id], references: [id])
   agents        WhatsappAgent[]
+  sectors       WhatsappSector[]
   conversations WhatsappConversation[]
 
   @@map("whatsapp_workspaces")
+}
+
+// Setores de atendimento configuráveis por loja. Os atendentes continuam
+// vinculados pelo campo department, que guarda a chave estável do setor.
+model WhatsappSector {
+  id          Int      @id @default(autoincrement())
+  workspace_id Int
+  key         String
+  name        String
+  description String?  @db.Text
+  is_active   Boolean  @default(true)
+  sort_order  Int      @default(0)
+  created_at  DateTime @default(now())
+  updated_at  DateTime @updatedAt
+
+  workspace WhatsappWorkspace @relation(fields: [workspace_id], references: [id], onDelete: Cascade)
+
+  @@unique([workspace_id, key])
+  @@index([workspace_id, is_active, sort_order])
+  @@map("whatsapp_sectors")
 }
 
 model WhatsappAgent {

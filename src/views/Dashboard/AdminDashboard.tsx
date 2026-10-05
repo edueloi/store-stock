@@ -20,7 +20,9 @@ import {
   Truck,
   FolderOpen,
   Settings as SettingsIcon,
-  MessageSquare,
+  Bot,
+  Clock3,
+  CheckCircle2,
   LineChart,
   ArrowDownCircle,
   ArrowUpCircle,
@@ -40,6 +42,7 @@ import {
   Kanban,
   HelpCircle,
   Store,
+  Send,
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { cn } from "../../lib/utils";
@@ -83,7 +86,8 @@ import ServiceOrders from "./ServiceOrders";
 import ServiceOrderNew from "./ServiceOrderNew";
 import ServiceOrderDetail from "./ServiceOrderDetail";
 import WorkflowBoard from "./WorkflowBoard";
-import WhatsApp from "./WhatsApp";
+import WhatsappChannelConfig from "./WhatsappChannelConfig";
+import WhatsappAtendimento from "./WhatsappAtendimento";
 import Consignments from "./Consignments";
 import Assinatura from "./Assinatura";
 import MinhaLoja from "./MinhaLoja";
@@ -758,7 +762,17 @@ export default function AdminDashboard() {
         { icon: HardHat,     label: "Técnicos",        path: "/admin/tecnicos",   key: "tecnicos" },
         { icon: Wrench,      label: "Serviços",        path: "/admin/servicos",   key: "servicos" },
         { icon: UserCheck,   label: "Fidelidade",      path: "/admin/loyalty",    key: "loyalty" },
-        { icon: MessageSquare, label: "WhatsApp",      path: "/admin/whatsapp",   key: "whatsapp" },
+      ],
+    },
+    {
+      label: "Atendimento WhatsApp",
+      items: [
+        { icon: Bot,           label: "Bot de atendimento",   path: "/admin/atendimento/bot",          key: "whatsapp" },
+        { icon: Clock3,        label: "Fila de espera",       path: "/admin/atendimento/fila",         key: "whatsapp" },
+        { icon: UserCheck,     label: "Em atendimento",       path: "/admin/atendimento/em-andamento", key: "whatsapp" },
+        { icon: CheckCircle2,  label: "Finalizados",           path: "/admin/atendimento/finalizados",  key: "whatsapp" },
+        { icon: Send,          label: "Iniciar conversa",      path: "/admin/whatsapp?acao=iniciar",   key: "whatsapp" },
+        { icon: SettingsIcon,  label: "Configurar bot",         path: "/admin/whatsapp",                key: "whatsapp" },
       ],
     },
     {
@@ -1129,7 +1143,11 @@ export default function AdminDashboard() {
               <Route path="vendedores" element={<Sellers />} />
               <Route path="tecnicos" element={<Technicians />} />
               <Route path="servicos"   element={<Services />} />
-              <Route path="whatsapp"   element={<WhatsApp />} />
+              <Route path="whatsapp"   element={<WhatsappChannelConfig />} />
+              <Route path="atendimento/bot" element={<WhatsappAtendimento view="bot" />} />
+              <Route path="atendimento/fila" element={<WhatsappAtendimento view="queued" />} />
+              <Route path="atendimento/em-andamento" element={<WhatsappAtendimento view="assigned" />} />
+              <Route path="atendimento/finalizados" element={<WhatsappAtendimento view="closed" />} />
               <Route path="metas"      element={<Goals />} />
               <Route path="markup"     element={<Markup />} />
               <Route path="etiquetas"  element={<Barcodes />} />

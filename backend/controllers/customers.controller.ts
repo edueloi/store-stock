@@ -15,6 +15,27 @@ function getUserId(req: Request) {
   return (req as AuthenticatedRequest).user.userId;
 }
 
+/** Converte YYYY-MM-DD em meio-dia UTC para manter a data civil correta no Brasil. */
+function parseDebtPaymentDate(value?: unknown) {
+  if (!value) return new Date();
+  const raw = String(value);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(raw)) throw new Error("INVALID_PAYMENT_DATE");
+  const [year, month, day] = raw.split("-").map(Number);
+  const date = new Date(Date.UTC(year, month - 1, day, 12));
+  if (date.getUTCFullYear() !== year || date.getUTCMonth() !== month - 1 || date.getUTCDate() !== day) {
+    throw new Error("INVALID_PAYMENT_DATE");
+  }
+  if (date.getTime() > Date.now() + 24 * 60 * 60 * 1000) throw new Error("INVALID_PAYMENT_DATE");
+  return date;
+}
+
+function isPaymentToday(paymentDate: Date) {
+  const today = localDateString();
+  return paymentDate.getUTCFullYear() === today.getUTCFullYear()
+    && paymentDate.getUTCMonth() === today.getUTCMonth()
+    && paymentDate.getUTCDate() === today.getUTCDate();
+}
+
 // ─── Customers ────────────────────────────────────────────────────────────────
 
 export async function listCustomers(req: Request, res: Response) {
@@ -369,6 +390,7 @@ async function registerDebtPayment(
   amount: number,
   paymentMethod?: string | null,
   installmentId?: number | null,
+  paymentDate = new Date(),
 ) {
   const debt = await prisma.customerDebt.findFirst({ where: { id: debtId, tenant_id: tenantId } });
   if (!debt) throw new Error("NOT_FOUND");
@@ -398,6 +420,7 @@ async function registerDebtPayment(
         installment_id: installmentId || null,
         amount,
         payment_method: paymentMethod || null,
+        paid_at: paymentDate,
       },
     });
 
@@ -409,7 +432,7 @@ async function registerDebtPayment(
         data: {
           amount_paid: installmentAmountPaid,
           status: installmentFullyPaid ? "paid" : "open",
-          paid_at: installmentFullyPaid ? new Date() : installment.paid_at,
+          paid_at: installmentFullyPaid ? paymentDate : installment.paid_at,
         },
       });
     }
@@ -428,7 +451,7 @@ async function registerDebtPayment(
       for (const inst of pendingInstallments) {
         await tx.customerDebtInstallment.update({
           where: { id: inst.id },
-          data: { amount_paid: inst.amount, status: "paid", paid_at: new Date() },
+          data: { amount_paid: inst.amount, status: "paid", paid_at: paymentDate },
         });
       }
     }
@@ -438,7 +461,7 @@ async function registerDebtPayment(
       data: {
         amount_paid: newAmountPaid,
         status: isFullyPaid ? "paid" : "open",
-        paid_at: isFullyPaid ? new Date() : debt.paid_at,
+        paid_at: isFullyPaid ? paymentDate : debt.paid_at,
       },
       include: { installments: { orderBy: { number: "asc" } } },
     });
@@ -450,7 +473,7 @@ async function registerDebtPayment(
         description: `Pagamento fiado — ${customer?.name ?? "Cliente"}: ${debt.description}`,
         amount,
         payment_method: paymentMethod || null,
-        date: localDateString(),
+        date: paymentDate,
       },
     });
 
@@ -476,6 +499,7 @@ async function registerDebtPaymentMulti(
   debtId: number,
   segments: DebtPaymentSegmentInput[],
   installmentId?: number | null,
+  paymentDate = new Date(),
 ) {
   const totalAmount = Math.round(segments.reduce((s, p) => s + (Number(p.amount) || 0), 0) * 100) / 100;
   if (segments.length === 0 || totalAmount <= 0) throw new Error("INVALID_AMOUNT");
@@ -510,11 +534,18 @@ async function registerDebtPaymentMulti(
   // Sessão de caixa aberta do operador — mesmo padrão de sales.controller.ts. Quando a
   // loja exige caixa aberto, bloqueia igual à venda normal; caso contrário, o pagamento
   // segue permitido mesmo sem sessão (só fica de fora do fechamento daquele dia).
-  const openSession = await prisma.cashSession.findFirst({
-    where: { tenant_id: tenantId, opened_by_id: userId, status: "open" },
-    select: { id: true },
-  });
-  if (tenantData?.require_cash_session && !openSession) throw new Error("CASH_SESSION_REQUIRED");
+  // Um pagamento lançado com data passada fica registrado no crediário e no
+  // financeiro daquela data, mas nunca altera de surpresa um caixa que já foi
+  // fechado. Só o recebimento do dia entra na sessão de caixa aberta do operador.
+  const openSession = isPaymentToday(paymentDate)
+    ? await prisma.cashSession.findFirst({
+        where: { tenant_id: tenantId, opened_by_id: userId, status: "open" },
+        select: { id: true },
+      })
+    : null;
+  if (tenantData?.require_cash_session && isPaymentToday(paymentDate) && !openSession) {
+    throw new Error("CASH_SESSION_REQUIRED");
+  }
   const cashSessionId = openSession?.id ?? null;
 
   return prisma.$transaction(async (tx) => {
@@ -540,6 +571,7 @@ async function registerDebtPaymentMulti(
           fee_amount: fee > 0 ? fee : null,
           net_amount: net,
           cash_session_id: cashSessionId,
+          paid_at: paymentDate,
         },
       });
       createdPayments.push(payment);
@@ -553,7 +585,7 @@ async function registerDebtPaymentMulti(
         data: {
           amount_paid: installmentAmountPaid,
           status: installmentFullyPaid ? "paid" : "open",
-          paid_at: installmentFullyPaid ? new Date() : installment.paid_at,
+          paid_at: installmentFullyPaid ? paymentDate : installment.paid_at,
         },
       });
     }
@@ -574,7 +606,7 @@ async function registerDebtPaymentMulti(
       for (const inst of pendingInstallments) {
         await tx.customerDebtInstallment.update({
           where: { id: inst.id },
-          data: { amount_paid: inst.amount, status: "paid", paid_at: new Date() },
+          data: { amount_paid: inst.amount, status: "paid", paid_at: paymentDate },
         });
       }
     }
@@ -584,7 +616,7 @@ async function registerDebtPaymentMulti(
       data: {
         amount_paid: newAmountPaid,
         status: isFullyPaid ? "paid" : "open",
-        paid_at: isFullyPaid ? new Date() : debt.paid_at,
+        paid_at: isFullyPaid ? paymentDate : debt.paid_at,
       },
       include: { installments: { orderBy: { number: "asc" } } },
     });
@@ -604,7 +636,7 @@ async function registerDebtPaymentMulti(
           fee_amount: p.fee_amount ? Number(p.fee_amount) : null,
           payment_method: p.payment_method,
           source: "debt_payment",
-          date: localDateString(),
+          date: paymentDate,
         },
       });
     }
@@ -618,9 +650,10 @@ export async function payDebtMulti(req: Request, res: Response) {
     const tenantId = getTenantId(req);
     const userId = getUserId(req);
     const debtId = Number(req.params.debtId);
-    const { payments, installment_id } = req.body as {
+    const { payments, installment_id, paid_at } = req.body as {
       payments: DebtPaymentSegmentInput[];
       installment_id?: number;
+      paid_at?: string;
     };
 
     if (!Array.isArray(payments) || payments.length === 0) {
@@ -629,7 +662,7 @@ export async function payDebtMulti(req: Request, res: Response) {
     }
 
     const { debt: updated, payments: createdPayments } = await registerDebtPaymentMulti(
-      tenantId, userId, debtId, payments, installment_id,
+      tenantId, userId, debtId, payments, installment_id, parseDebtPaymentDate(paid_at),
     );
 
     emitToTenant(tenantId, "finance:changed", { debtId });
@@ -647,6 +680,7 @@ export async function payDebtMulti(req: Request, res: Response) {
       INSTALLMENT_NOT_FOUND: [404, "Parcela não encontrada"],
       INSTALLMENT_ALREADY_PAID: [422, "Parcela já está paga"],
       CASH_SESSION_REQUIRED: [409, "Abra o caixa antes de registrar este pagamento"],
+      INVALID_PAYMENT_DATE: [422, "Informe uma data de recebimento válida"],
     };
     const [status, error] = map[msg] ?? [500, "Falha ao registrar pagamento"];
     if (status === 500) console.error(err);
@@ -748,8 +782,10 @@ export async function payDebt(req: Request, res: Response) {
     if (!debt) return res.status(404).json({ error: "Dívida não encontrada" });
 
     const remaining = Number(debt.amount) - Number(debt.amount_paid);
-    const { payment_method } = req.body as { payment_method?: string };
-    const { debt: updated, payment } = await registerDebtPayment(tenantId, debtId, remaining, payment_method);
+    const { payment_method, paid_at } = req.body as { payment_method?: string; paid_at?: string };
+    const { debt: updated, payment } = await registerDebtPayment(
+      tenantId, debtId, remaining, payment_method, undefined, parseDebtPaymentDate(paid_at),
+    );
 
     res.json({ success: true, debt: updated, payment });
   } catch (err) {
@@ -758,6 +794,9 @@ export async function payDebt(req: Request, res: Response) {
     }
     if (err instanceof Error && err.message === "ALREADY_PAID") {
       return res.status(422).json({ error: "Dívida já está quitada" });
+    }
+    if (err instanceof Error && err.message === "INVALID_PAYMENT_DATE") {
+      return res.status(422).json({ error: "Informe uma data de recebimento válida" });
     }
     console.error(err);
     res.status(500).json({ error: "Falha ao registrar pagamento" });
@@ -768,10 +807,11 @@ export async function payDebtPartial(req: Request, res: Response) {
   try {
     const tenantId = getTenantId(req);
     const debtId = Number(req.params.debtId);
-    const { amount, payment_method, installment_id } = req.body as {
+    const { amount, payment_method, installment_id, paid_at } = req.body as {
       amount: number;
       payment_method?: string;
       installment_id?: number;
+      paid_at?: string;
     };
 
     if (!amount || amount <= 0) {
@@ -779,7 +819,7 @@ export async function payDebtPartial(req: Request, res: Response) {
     }
 
     const { debt: updated, payment } = await registerDebtPayment(
-      tenantId, debtId, Number(amount), payment_method, installment_id,
+      tenantId, debtId, Number(amount), payment_method, installment_id, parseDebtPaymentDate(paid_at),
     );
     res.json({ success: true, debt: updated, payment });
   } catch (err) {
@@ -791,6 +831,9 @@ export async function payDebtPartial(req: Request, res: Response) {
     }
     if (err instanceof Error && err.message === "INVALID_AMOUNT") {
       return res.status(422).json({ error: "Valor maior que o saldo devedor ou inválido" });
+    }
+    if (err instanceof Error && err.message === "INVALID_PAYMENT_DATE") {
+      return res.status(422).json({ error: "Informe uma data de recebimento válida" });
     }
     if (err instanceof Error && err.message === "INSTALLMENT_NOT_FOUND") {
       return res.status(404).json({ error: "Parcela não encontrada" });
