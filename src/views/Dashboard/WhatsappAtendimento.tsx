@@ -204,24 +204,24 @@ export default function WhatsappAtendimento({ view }: { view: AtendimentoView })
     }
   }, [conversations, selectedId]);
 
-  const assign = async () => {
-    if (!selectedId || (!agentId && !department)) {
+  const assign = async (assumeNow = false) => {
+    if (!selectedId || (assumeNow ? !agentId : (!agentId && !department))) {
       toast.warning("Selecione um atendente disponível.");
       return;
     }
     setSaving(true);
     try {
-      const response = await fetch(`/api/whatsapp/conversations/${selectedId}/transfer`, {
+      const response = await fetch(`/api/whatsapp/conversations/${selectedId}/${assumeNow ? "assign" : "transfer"}`, {
         method: "POST",
         headers: authHeaders(),
-        body: JSON.stringify({ department, agent_id: agentId || undefined }),
+        body: JSON.stringify(assumeNow ? { agent_id: agentId } : { department, agent_id: agentId || undefined }),
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || "Não foi possível iniciar o atendimento.");
       setDetail(data);
       await loadOverview(true);
       if (data.conversation?.status === "assigned") {
-        toast.success("Atendimento iniciado.");
+        toast.success(assumeNow ? "Conversa assumida." : "Atendimento iniciado.");
         if (view !== "assigned") navigate("/admin/atendimento/em-andamento");
       } else {
         toast.info(agentId ? "Pedido enviado ao atendente para aceite." : "Pedido enviado ao setor; o primeiro atendente a aceitar assume.");
@@ -348,12 +348,12 @@ export default function WhatsappAtendimento({ view }: { view: AtendimentoView })
                   <p className="mt-1 flex items-center gap-1.5 text-xs text-slate-500"><Phone size={12} /> {selected.phone}</p>
                 </div>
                 <div className="flex items-center gap-2">
-                  {selected.status !== "closed" && <button disabled={saving} onClick={() => void close()} className="h-9 rounded-xl border border-red-200 bg-red-50 px-3 text-[10px] font-black uppercase tracking-wider text-red-700 hover:bg-red-100 disabled:opacity-50 inline-flex items-center gap-1.5"><XCircle size={13} /> Finalizar</button>}
+                  {selected.status !== "closed" && <button disabled={saving} onClick={() => void close()} className="h-9 rounded-xl border border-red-200 bg-red-50 px-3 text-[10px] font-black uppercase tracking-wider text-red-700 hover:bg-red-100 disabled:opacity-50 inline-flex items-center gap-1.5"><XCircle size={13} /> Encerrar conversa</button>}
                 </div>
               </div>
 
               {selected.status !== "assigned" && selected.status !== "closed" && (
-                <div className="grid gap-2 border-b border-amber-100 bg-amber-50 px-5 py-3 md:grid-cols-[180px_minmax(0,1fr)_auto]">
+                <div className="grid gap-2 border-b border-amber-100 bg-amber-50 px-5 py-3 md:grid-cols-[180px_minmax(0,1fr)_auto_auto]">
                   <select value={department} onChange={(event) => { setDepartment(event.target.value); setAgentId(""); }} className="h-10 rounded-xl border border-amber-200 bg-white px-3 text-xs font-semibold text-slate-700">
                     <option value="">Selecionar setor</option>
                     {activeSectors.map((sector) => <option key={sector.id} value={sector.key}>{sector.name}</option>)}
@@ -363,6 +363,7 @@ export default function WhatsappAtendimento({ view }: { view: AtendimentoView })
                     {availableAgents.map((agent) => <option key={agent.id} value={agent.id} disabled={!agent.is_available}>{agent.name} · {sectorNames.get(agent.department) || DEPARTMENT_LABELS[agent.department] || agent.department} ({agent.current_load}/{agent.max_concurrent_chats}){agent.is_available ? "" : " — indisponível"}</option>)}
                   </select>
                   <button disabled={saving || (!agentId && !department)} onClick={() => void assign()} className="h-10 rounded-xl bg-amber-500 px-4 text-[10px] font-black uppercase tracking-wider text-white hover:bg-amber-600 disabled:opacity-50 inline-flex items-center justify-center gap-1.5"><UserCheck size={14} /> {agentId ? "Enviar para pessoa" : "Distribuir no setor"}</button>
+                  <button disabled={saving || !agentId} onClick={() => void assign(true)} className="h-10 rounded-xl bg-blue-600 px-4 text-[10px] font-black uppercase tracking-wider text-white hover:bg-blue-700 disabled:opacity-50 inline-flex items-center justify-center gap-1.5"><UserCheck size={14} /> Assumir agora</button>
                 </div>
               )}
 
