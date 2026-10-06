@@ -128,7 +128,7 @@ function SidebarTooltip({ anchorRef, label }: { anchorRef: RefObject<HTMLElement
 
 // ── Item de nav com tooltip quando a sidebar está recolhida ──────────────────
 function SidebarNavItem({
-  to, icon: Icon, label, isActive, isSidebarOpen, badge, badgeLabel, dataTour,
+  to, icon: Icon, label, isActive, isSidebarOpen, badge, badgeLabel, badgeTone, showZeroBadge, dataTour,
 }: {
   to: string;
   icon: ComponentType<{ size?: number; className?: string }>;
@@ -137,9 +137,13 @@ function SidebarNavItem({
   isSidebarOpen: boolean;
   badge?: number;
   badgeLabel?: string;
+  badgeTone?: "gold";
+  showZeroBadge?: boolean;
   dataTour?: string;
 }) {
   const ref = useRef<HTMLAnchorElement>(null);
+  const hasBadge = Boolean(badge) || (showZeroBadge && badge === 0);
+  const badgeClass = badgeTone === "gold" ? "bg-[#d3a21a] text-slate-950" : "bg-red-500 text-white";
   return (
     <>
       <Link
@@ -155,20 +159,20 @@ function SidebarNavItem({
       >
         <span className="relative shrink-0">
           <Icon size={16} />
-          {!!badge && !isSidebarOpen && (
-            <span className="absolute -top-1.5 -right-1.5 min-w-[14px] h-[14px] px-0.5 rounded-full bg-red-500 text-white text-[8px] font-black flex items-center justify-center leading-none">
+          {hasBadge && !isSidebarOpen && (
+            <span className={cn("absolute -top-1.5 -right-1.5 min-w-[14px] h-[14px] px-0.5 rounded-full text-[8px] font-black flex items-center justify-center leading-none", badgeClass)}>
               {badge > 9 ? "9+" : badge}
             </span>
           )}
         </span>
         {isSidebarOpen && <span className="truncate flex-1">{label}</span>}
-        {!!badge && isSidebarOpen && (
-          <span className="shrink-0 min-w-[18px] h-[18px] px-1 rounded-full bg-red-500 text-white text-[9px] font-black flex items-center justify-center leading-none">
+        {hasBadge && isSidebarOpen && (
+          <span className={cn("shrink-0 min-w-[18px] h-[18px] px-1 rounded-full text-[9px] font-black flex items-center justify-center leading-none", badgeClass)}>
             {badge > 99 ? "99+" : badge}
           </span>
         )}
       </Link>
-      {!isSidebarOpen && <SidebarTooltip anchorRef={ref} label={badge ? `${label} (${badge} ${badgeLabel ?? "em atraso"})` : label} />}
+      {!isSidebarOpen && <SidebarTooltip anchorRef={ref} label={hasBadge ? `${label} (${badge} ${badgeLabel ?? "em atraso"})` : label} />}
     </>
   );
 }
@@ -544,6 +548,7 @@ export default function AdminDashboard() {
   const [overdueInstallments, setOverdueInstallments] = useState<OverdueInstallment[]>([]);
   const [dueSoonInstallments, setDueSoonInstallments] = useState<OverdueInstallment[]>([]);
   const [subscriptionOverdue, setSubscriptionOverdue] = useState(false);
+  const [whatsappCounts, setWhatsappCounts] = useState({ bot: 0, queued: 0, assigned: 0, closed: 0 });
   const location = useLocation();
   const navigate = useNavigate();
   const onboardingTourRef = useRef<OnboardingTourHandle>(null);
@@ -565,6 +570,31 @@ export default function AdminDashboard() {
     };
     fetchOverdue();
     const interval = setInterval(fetchOverdue, 60000);
+    return () => { cancelled = true; clearInterval(interval); };
+  }, []);
+
+  // Contadores do atendimento ficam no menu para que as quatro telas possam
+  // focar apenas nas conversas, sem cartões repetidos no topo.
+  useEffect(() => {
+    let cancelled = false;
+    const fetchWhatsappCounts = async () => {
+      try {
+        const res = await fetch("/api/whatsapp/overview", {
+          headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
+        });
+        if (!res.ok || cancelled) return;
+        const data = await res.json();
+        const stats = data?.stats ?? {};
+        if (!cancelled) setWhatsappCounts({
+          bot: Number(stats.bot_conversations) || 0,
+          queued: Number(stats.queued_conversations) || 0,
+          assigned: Number(stats.assigned_conversations) || 0,
+          closed: Number(stats.closed_conversations) || 0,
+        });
+      } catch { /* silencioso — contador apenas não atualiza nesta rodada */ }
+    };
+    fetchWhatsappCounts();
+    const interval = setInterval(fetchWhatsappCounts, 15_000);
     return () => { cancelled = true; clearInterval(interval); };
   }, []);
 
@@ -939,6 +969,10 @@ export default function AdminDashboard() {
                           : item.path === "/admin/contas-pagar" ? dueSoonBills.length
                           : item.path === "/admin/contas-receber" ? overdueInstallments.length + dueSoonInstallments.length
                           : item.path === "/admin/assinatura" ? (subscriptionOverdue ? 1 : 0)
+                          : item.path === "/admin/atendimento/bot" ? whatsappCounts.bot
+                          : item.path === "/admin/atendimento/fila" ? whatsappCounts.queued
+                          : item.path === "/admin/atendimento/em-andamento" ? whatsappCounts.assigned
+                          : item.path === "/admin/atendimento/finalizados" ? whatsappCounts.closed
                           : undefined
                       }
                       badgeLabel={
@@ -946,8 +980,11 @@ export default function AdminDashboard() {
                           : item.path === "/admin/contas-pagar" ? "vencendo em breve"
                           : item.path === "/admin/contas-receber" ? "parcelas de crediário vencidas ou vencendo em breve"
                           : item.path === "/admin/assinatura" ? "em atraso"
+                          : item.path.startsWith("/admin/atendimento/") ? "atendimentos"
                           : undefined
                       }
+                      badgeTone={item.path.startsWith("/admin/atendimento/") ? "gold" : undefined}
+                      showZeroBadge={item.path.startsWith("/admin/atendimento/")}
                     />
                   );
                 })}
@@ -1018,6 +1055,10 @@ export default function AdminDashboard() {
                           : item.path === "/admin/contas-pagar" ? dueSoonBills.length
                           : item.path === "/admin/contas-receber" ? overdueInstallments.length + dueSoonInstallments.length
                           : item.path === "/admin/assinatura" ? (subscriptionOverdue ? 1 : 0)
+                          : item.path === "/admin/atendimento/bot" ? whatsappCounts.bot
+                          : item.path === "/admin/atendimento/fila" ? whatsappCounts.queued
+                          : item.path === "/admin/atendimento/em-andamento" ? whatsappCounts.assigned
+                          : item.path === "/admin/atendimento/finalizados" ? whatsappCounts.closed
                           : 0;
                       return (
                         <Link key={item.path} to={item.path} onClick={() => setIsSidebarOpen(false)}
@@ -1030,8 +1071,8 @@ export default function AdminDashboard() {
                           )}>
                           <item.icon size={16} />
                           <span className="flex-1">{item.label}</span>
-                          {!!badge && (
-                            <span className="shrink-0 min-w-[18px] h-[18px] px-1 rounded-full bg-red-500 text-white text-[9px] font-black flex items-center justify-center leading-none">
+                          {(!!badge || item.path.startsWith("/admin/atendimento/")) && (
+                            <span className={cn("shrink-0 min-w-[18px] h-[18px] px-1 rounded-full text-[9px] font-black flex items-center justify-center leading-none", item.path.startsWith("/admin/atendimento/") ? "bg-[#d3a21a] text-slate-950" : "bg-red-500 text-white")}>
                               {badge > 99 ? "99+" : badge}
                             </span>
                           )}

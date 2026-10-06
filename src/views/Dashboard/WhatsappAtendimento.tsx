@@ -296,24 +296,6 @@ export default function WhatsappAtendimento({ view }: { view: AtendimentoView })
         }
       />
 
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        {[
-          { label: "No bot", value: overview?.stats.bot_conversations ?? 0, icon: Bot, path: "/admin/atendimento/bot", tone: "text-violet-700 bg-violet-50 border-violet-100" },
-          { label: "Na fila", value: overview?.stats.queued_conversations ?? 0, icon: Clock3, path: "/admin/atendimento/fila", tone: "text-amber-700 bg-amber-50 border-amber-100" },
-          { label: "Em atendimento", value: overview?.stats.assigned_conversations ?? 0, icon: UserCheck, path: "/admin/atendimento/em-andamento", tone: "text-emerald-700 bg-emerald-50 border-emerald-100" },
-          { label: "Finalizados", value: overview?.stats.closed_conversations ?? 0, icon: Check, path: "/admin/atendimento/finalizados", tone: "text-slate-700 bg-slate-100 border-slate-200" },
-        ].map((item) => {
-          const CardIcon = item.icon;
-          return (
-            <button key={item.label} onClick={() => navigate(item.path)} className={cn("rounded-2xl border p-4 text-left transition hover:-translate-y-0.5 hover:shadow-sm", item.tone, view === (item.label === "No bot" ? "bot" : item.label === "Na fila" ? "queued" : item.label === "Em atendimento" ? "assigned" : "closed") && "ring-2 ring-offset-1 ring-blue-500") }>
-              <CardIcon size={16} />
-              <p className="mt-3 text-2xl font-black">{item.value}</p>
-              <p className="text-[10px] font-black uppercase tracking-wider opacity-75">{item.label}</p>
-            </button>
-          );
-        })}
-      </div>
-
       <div className="min-h-[580px] overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm grid grid-cols-1 xl:grid-cols-[360px_minmax(0,1fr)]">
         <aside className="border-b border-slate-200 xl:border-b-0 xl:border-r overflow-y-auto max-h-[360px] xl:max-h-[680px]">
           <div className="sticky top-0 z-10 flex items-center justify-between border-b border-slate-100 bg-white px-4 py-3">

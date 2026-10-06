@@ -88,7 +88,7 @@ const DEFAULT_SETTINGS: WhatsappWorkspaceSettings = {
   show_agent_list_before_transfer: true,
   auto_close_on_inactivity: true,
   smart_bot_enabled: false,
-  bot_name: "Zé",
+  bot_name: "Assistente virtual",
   ai_provider: "rules",
   ai_api_key: "",
   ai_model: "",

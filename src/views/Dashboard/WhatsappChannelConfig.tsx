@@ -29,7 +29,7 @@ type Log = { id: number; channel: string; status: string; recipient: string; sum
 
 const tabs: Array<{ id: Tab; label: string; icon: typeof Settings2 }> = [
   { id: "canal", label: "Canal", icon: CircleDot },
-  { id: "ze", label: "Zé", icon: Sparkles },
+  { id: "ze", label: "Assistente", icon: Sparkles },
   { id: "equipe", label: "Setores e equipe", icon: UsersRound },
   { id: "experiencia", label: "Experiência", icon: Bot },
 ];
@@ -78,6 +78,9 @@ export default function WhatsappChannelConfig() {
   }, [toast]);
 
   useEffect(() => { void load(); void refreshConnection(); }, [load, refreshConnection]);
+  useEffect(() => {
+    if (new URLSearchParams(location.search).get("acao") === "iniciar") setDrawer("start");
+  }, [location.search]);
 
   const workspace = data?.workspace;
   const settings = workspace?.settings;
@@ -135,7 +138,7 @@ export default function WhatsappChannelConfig() {
     try {
       const response = await fetch("/api/whatsapp/conversations/start", { method: "POST", headers: headers(), body: JSON.stringify(startForm) });
       const result = await response.json(); if (!response.ok) throw new Error(result.error || "Não foi possível iniciar a conversa.");
-      toast.success("O Zé enviou a abertura da conversa."); setDrawer(null); setStartForm({ customer_name: "", phone: "" }); await load();
+      toast.success("O bot enviou a abertura da conversa."); setDrawer(null); setStartForm({ customer_name: "", phone: "" }); await load();
     } catch (error) { toast.error(error instanceof Error ? error.message : "Falha ao iniciar a conversa."); }
   }
 
@@ -143,10 +146,10 @@ export default function WhatsappChannelConfig() {
   const online = Boolean(connection?.connected);
 
   return <div className="space-y-6 pb-12">
-    <PageHeader title="Canal do WhatsApp" subtitle="Configure o Zé, organize setores e entregue cada conversa à pessoa certa." />
+    <PageHeader title="Canal do WhatsApp" subtitle="Configure seu assistente, organize setores e entregue cada conversa à pessoa certa." />
     <section className="rounded-2xl border border-slate-200 bg-gradient-to-r from-slate-950 via-slate-900 to-blue-950 p-5 text-white shadow-sm">
       <div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-center">
-        <div className="flex items-center gap-4"><div className="rounded-2xl bg-white/10 p-3"><Bot className="h-7 w-7 text-blue-200" /></div><div><p className="text-xs font-bold uppercase tracking-[.18em] text-blue-200">Central de atendimento</p><h2 className="mt-1 text-xl font-bold">{settings.bot_name || "Zé"} está {workspace.is_enabled ? "ativo" : "desativado"}</h2><p className="mt-1 text-sm text-slate-300">{data.stats.bot_conversations} no bot · {data.stats.queued_conversations} na fila · {data.stats.assigned_conversations} em atendimento</p></div></div>
+      <div className="flex items-center gap-4"><div className="rounded-2xl bg-white/10 p-3"><Bot className="h-7 w-7 text-blue-200" /></div><div><p className="text-xs font-bold uppercase tracking-[.18em] text-blue-200">Central de atendimento</p><h2 className="mt-1 text-xl font-bold">Bot de atendimento {workspace.is_enabled ? "ativo" : "desativado"}</h2><p className="mt-1 text-sm text-slate-300">{data.stats.bot_conversations} no bot · {data.stats.queued_conversations} na fila · {data.stats.assigned_conversations} em atendimento</p></div></div>
         <div className="flex flex-wrap gap-2"><button onClick={() => setDrawer("start")} className="inline-flex items-center gap-2 rounded-xl bg-white px-4 py-2.5 text-sm font-bold text-slate-900"><MessageCirclePlus className="h-4 w-4" />Iniciar conversa</button><button onClick={() => void openLogs()} className="rounded-xl border border-white/20 px-4 py-2.5 text-sm font-bold text-white">Ver logs</button><button onClick={() => void saveWorkspace()} disabled={saving} className="inline-flex items-center gap-2 rounded-xl bg-blue-500 px-4 py-2.5 text-sm font-bold text-white disabled:opacity-60"><Save className="h-4 w-4" />{saving ? "Salvando" : "Salvar"}</button></div>
       </div>
     </section>
@@ -163,10 +166,11 @@ export default function WhatsappChannelConfig() {
     <Drawer open={logsOpen} title="Logs de automações" onClose={() => setLogsOpen(false)}><p className="mb-5 text-sm text-slate-500">Envios automáticos do canal e alertas financeiros. As conversas ficam nas telas de atendimento.</p><div className="space-y-3">{logs.map((log) => <article key={log.id} className="rounded-xl border border-slate-200 p-4"><div className="flex justify-between gap-3"><p className="font-semibold text-slate-800">{log.recipient}</p><span className="text-xs font-bold uppercase text-slate-500">{log.status}</span></div><p className="mt-1 text-sm text-slate-500">{log.summary || log.error || log.channel}</p><p className="mt-2 text-xs text-slate-400">{new Intl.DateTimeFormat("pt-BR", { dateStyle: "short", timeStyle: "short" }).format(new Date(log.created_at))}</p></article>)}{logs.length === 0 && <p className="rounded-xl bg-slate-50 p-5 text-sm text-slate-500">Ainda não há envios automáticos registrados.</p>}</div></Drawer>
     <Drawer open={drawer === "sector"} title="Novo setor" onClose={() => setDrawer(null)}><form className="space-y-5" onSubmit={submitSector}><Field label="Nome do setor"><input autoFocus required className={inputStyle} value={sectorForm.name} onChange={(e) => setSectorForm({ ...sectorForm, name: e.target.value })} placeholder="Ex.: Assistência técnica" /></Field><Field label="Descrição curta"><textarea className={cn(inputStyle, "min-h-28")} value={sectorForm.description} onChange={(e) => setSectorForm({ ...sectorForm, description: e.target.value })} placeholder="Para quais assuntos este setor recebe conversas?" /></Field><button className="w-full rounded-xl bg-blue-600 px-4 py-3 font-bold text-white">Criar setor</button></form></Drawer>
     <Drawer open={drawer === "agent"} title="Novo atendente" onClose={() => setDrawer(null)}><form className="space-y-5" onSubmit={submitAgent}><Field label="Nome"><input autoFocus required className={inputStyle} value={agentForm.name} onChange={(e) => setAgentForm({ ...agentForm, name: e.target.value })} /></Field><Field label="Setor"><select className={inputStyle} value={agentForm.department} onChange={(e) => setAgentForm({ ...agentForm, department: e.target.value })}>{activeSectors.map((sector) => <option key={sector.id} value={sector.key}>{sector.name}</option>)}</select></Field><Field label="WhatsApp com DDD"><input required className={inputStyle} value={agentForm.phone} onChange={(e) => setAgentForm({ ...agentForm, phone: e.target.value })} placeholder="11999999999" /></Field><Field label="E-mail (opcional)"><input type="email" className={inputStyle} value={agentForm.email} onChange={(e) => setAgentForm({ ...agentForm, email: e.target.value })} /></Field><Field label="Máximo de conversas"><input type="number" min="1" className={inputStyle} value={agentForm.max_concurrent_chats} onChange={(e) => setAgentForm({ ...agentForm, max_concurrent_chats: e.target.value })} /></Field><button className="w-full rounded-xl bg-blue-600 px-4 py-3 font-bold text-white">Cadastrar atendente</button></form></Drawer>
-    <Drawer open={drawer === "start"} title="Iniciar conversa pelo Zé" onClose={() => setDrawer(null)}><p className="mb-5 text-sm leading-6 text-slate-500">O Zé envia a apresentação e o menu para este número. O cliente pode seguir pelo bot ou ser transferido a um setor.</p><form className="space-y-5" onSubmit={submitStart}><Field label="Nome do cliente (opcional)"><input autoFocus className={inputStyle} value={startForm.customer_name} onChange={(e) => setStartForm({ ...startForm, customer_name: e.target.value })} /></Field><Field label="WhatsApp com DDD"><input required className={inputStyle} value={startForm.phone} onChange={(e) => setStartForm({ ...startForm, phone: e.target.value })} placeholder="11999999999" /></Field><button className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 py-3 font-bold text-white"><Send className="h-4 w-4" />Iniciar pelo bot</button></form></Drawer>
+    <Drawer open={drawer === "start"} title="Iniciar conversa pelo bot" onClose={() => setDrawer(null)}><p className="mb-5 text-sm leading-6 text-slate-500">O assistente envia a apresentação e o menu para este número. O cliente pode seguir pelo bot ou ser transferido a um setor.</p><form className="space-y-5" onSubmit={submitStart}><Field label="Nome do cliente (opcional)"><input autoFocus className={inputStyle} value={startForm.customer_name} onChange={(e) => setStartForm({ ...startForm, customer_name: e.target.value })} /></Field><Field label="WhatsApp com DDD"><input required className={inputStyle} value={startForm.phone} onChange={(e) => setStartForm({ ...startForm, phone: e.target.value })} placeholder="11999999999" /></Field><button className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 py-3 font-bold text-white"><Send className="h-4 w-4" />Iniciar pelo bot</button></form></Drawer>
   </div>;
 }
 
 function Drawer({ open, title, onClose, children }: { open: boolean; title: string; onClose: () => void; children: ReactNode }) {
-  return <div className={cn("fixed inset-0 z-[80] transition", open ? "pointer-events-auto" : "pointer-events-none")} aria-hidden={!open}><button className={cn("absolute inset-0 bg-slate-950/35 transition-opacity", open ? "opacity-100" : "opacity-0")} onClick={onClose} aria-label="Fechar" /><aside className={cn("absolute inset-y-0 right-0 flex w-full max-w-md flex-col bg-white shadow-2xl transition-transform duration-300", open ? "translate-x-0" : "translate-x-full")}><header className="flex items-center justify-between border-b border-slate-200 px-6 py-5"><h2 className="font-bold text-slate-950">{title}</h2><button onClick={onClose} className="rounded-lg p-2 text-slate-500 hover:bg-slate-100"><X className="h-5 w-5" /></button></header><div className="flex-1 overflow-y-auto p-6">{children}</div></aside></div>;
+  if (!open) return null;
+  return <div className="fixed inset-0 z-[80]"><button className="absolute inset-0 bg-slate-950/35" onClick={onClose} aria-label="Fechar" /><aside role="dialog" aria-modal="true" aria-label={title} className="absolute inset-y-0 right-0 flex w-full max-w-md flex-col bg-white shadow-2xl"><header className="flex items-center justify-between border-b border-slate-200 px-6 py-5"><h2 className="font-bold text-slate-950">{title}</h2><button onClick={onClose} className="rounded-lg p-2 text-slate-500 hover:bg-slate-100"><X className="h-5 w-5" /></button></header><div className="flex-1 overflow-y-auto p-6">{children}</div></aside></div>;
 }
