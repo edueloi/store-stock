@@ -1912,11 +1912,8 @@ model WhatsappWorkspace {
   id                 Int      @id @default(autoincrement())
   tenant_id          Int      @unique
   is_enabled         Boolean  @default(false)
-  // Vira true na primeira vez que o lojista muda `is_enabled` manualmente (via
-  // toggle na tela) OU na primeira auto-ativação por conexão bem-sucedida —
-  // depois disso, getWhatsappConnectionStatus nunca mais sobrescreve
-  // `is_enabled` sozinho, senão desativar o bot de atendimento não "pegava"
-  // (a próxima checagem de status religava automaticamente).
+  // Marca uma escolha manual de ativação ou desativação. A conexão do aparelho
+  // nunca altera o estado do assistente.
   is_enabled_touched Boolean  @default(false)
   provider           String   @default("evolution")
   evolution_base_url String?

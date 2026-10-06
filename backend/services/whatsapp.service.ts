@@ -2516,19 +2516,8 @@ export async function getWhatsappConnectionStatus(tenantId: number) {
 
   const status = await getBaileysConnectionStatus(tenantId, tenant.slug, workspace.webhook_secret ?? "");
 
-  // Assim que a sessão conecta de verdade PELA PRIMEIRA VEZ, ativa o módulo
-  // automaticamente — o lojista não deveria precisar entender "provider" nem
-  // clicar em "Salvar módulo" separadamente só para o bot passar a responder.
-  // Só roda enquanto `is_enabled_touched` for false: depois que o lojista toma
-  // qualquer decisão manual (ativar OU desativar), essa auto-ativação nunca
-  // mais sobrescreve a escolha dele a cada checagem de status.
-  if (status.connected && !workspace.is_enabled_touched) {
-    await prisma.whatsappWorkspace.update({
-      where: { id: workspace.id },
-      data: { is_enabled: true, is_enabled_touched: true, provider: "baileys" },
-    });
-  }
-
+  // A conexão só informa disponibilidade. Ela nunca ativa o assistente nem
+  // altera a escolha da loja; ativação exige toggle e salvamento explícitos.
   return status;
 }
 
@@ -2540,6 +2529,9 @@ export async function sendWhatsappTestMenu(tenantId: number, phone: string) {
   }
 
   const { workspace, tenant } = await getWorkspaceWithTenantByTenantId(tenantId);
+  if (!workspace.is_enabled) {
+    throw new Error("Ative e salve o bot antes de enviar um menu de teste.");
+  }
   const templates = parseTemplates(workspace.templates);
   const welcome = renderTemplate(templates.welcome, {
     customerName: "cliente teste",
