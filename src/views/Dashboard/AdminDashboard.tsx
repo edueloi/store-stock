@@ -128,7 +128,7 @@ function SidebarTooltip({ anchorRef, label }: { anchorRef: RefObject<HTMLElement
 
 // ── Item de nav com tooltip quando a sidebar está recolhida ──────────────────
 function SidebarNavItem({
-  to, icon: Icon, label, isActive, isSidebarOpen, badge, badgeLabel, badgeTone, showZeroBadge, dataTour,
+  to, icon: Icon, label, isActive, isSidebarOpen, badge, badgeLabel, badgeTone, dataTour,
 }: {
   to: string;
   icon: ComponentType<{ size?: number; className?: string }>;
@@ -138,11 +138,10 @@ function SidebarNavItem({
   badge?: number;
   badgeLabel?: string;
   badgeTone?: "gold";
-  showZeroBadge?: boolean;
   dataTour?: string;
 }) {
   const ref = useRef<HTMLAnchorElement>(null);
-  const hasBadge = Boolean(badge) || (showZeroBadge && badge === 0);
+  const hasBadge = Boolean(badge);
   const badgeClass = badgeTone === "gold" ? "bg-[#d3a21a] text-slate-950" : "bg-red-500 text-white";
   return (
     <>
@@ -984,7 +983,6 @@ export default function AdminDashboard() {
                           : undefined
                       }
                       badgeTone={item.path.startsWith("/admin/atendimento/") ? "gold" : undefined}
-                      showZeroBadge={item.path.startsWith("/admin/atendimento/")}
                     />
                   );
                 })}
@@ -1071,7 +1069,7 @@ export default function AdminDashboard() {
                           )}>
                           <item.icon size={16} />
                           <span className="flex-1">{item.label}</span>
-                          {(!!badge || item.path.startsWith("/admin/atendimento/")) && (
+                          {!!badge && (
                             <span className={cn("shrink-0 min-w-[18px] h-[18px] px-1 rounded-full text-[9px] font-black flex items-center justify-center leading-none", item.path.startsWith("/admin/atendimento/") ? "bg-[#d3a21a] text-slate-950" : "bg-red-500 text-white")}>
                               {badge > 99 ? "99+" : badge}
                             </span>
