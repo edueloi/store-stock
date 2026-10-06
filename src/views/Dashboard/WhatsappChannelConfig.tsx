@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react";
-import { useLocation } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { Bot, CircleDot, Clock3, MessageCirclePlus, Plus, RefreshCw, Save, Send, Settings2, Sparkles, UsersRound, X } from "lucide-react";
 import PageHeader from "../../components/layout/PageHeader";
 import { useToast } from "../../components/ui/Toast";
@@ -44,6 +44,7 @@ const inputStyle = "w-full rounded-xl border border-slate-200 bg-white px-3 py-2
 export default function WhatsappChannelConfig() {
   const toast = useToast();
   const location = useLocation();
+  const navigate = useNavigate();
   const [data, setData] = useState<Overview | null>(null);
   const [tab, setTab] = useState<Tab>("canal");
   const [connection, setConnection] = useState<Connection | null>(null);
@@ -84,6 +85,11 @@ export default function WhatsappChannelConfig() {
 
   const workspace = data?.workspace;
   const settings = workspace?.settings;
+  const startRequested = new URLSearchParams(location.search).get("acao") === "iniciar";
+  const closeStartDrawer = () => {
+    setDrawer(null);
+    if (startRequested) navigate("/admin/whatsapp", { replace: true });
+  };
   const activeSectors = useMemo(() => (data?.sectors ?? []).filter((sector) => sector.is_active), [data?.sectors]);
   const setSettings = (patch: Partial<Settings>) => setData((current) => current ? { ...current, workspace: { ...current.workspace, settings: { ...current.workspace.settings, ...patch } } } : current);
   const setWorkspace = (patch: Partial<Workspace>) => setData((current) => current ? { ...current, workspace: { ...current.workspace, ...patch } } : current);
@@ -138,7 +144,7 @@ export default function WhatsappChannelConfig() {
     try {
       const response = await fetch("/api/whatsapp/conversations/start", { method: "POST", headers: headers(), body: JSON.stringify(startForm) });
       const result = await response.json(); if (!response.ok) throw new Error(result.error || "Não foi possível iniciar a conversa.");
-      toast.success("O bot enviou a abertura da conversa."); setDrawer(null); setStartForm({ customer_name: "", phone: "" }); await load();
+      toast.success("O bot enviou a abertura da conversa."); closeStartDrawer(); setStartForm({ customer_name: "", phone: "" }); await load();
     } catch (error) { toast.error(error instanceof Error ? error.message : "Falha ao iniciar a conversa."); }
   }
 
@@ -212,7 +218,7 @@ export default function WhatsappChannelConfig() {
     <Drawer open={logsOpen} title="Logs de automações" onClose={() => setLogsOpen(false)}><p className="mb-5 text-sm text-slate-500">Envios automáticos do canal e alertas financeiros. As conversas ficam nas telas de atendimento.</p><div className="space-y-3">{logs.map((log) => <article key={log.id} className="rounded-xl border border-slate-200 p-4"><div className="flex justify-between gap-3"><p className="font-semibold text-slate-800">{log.recipient}</p><span className="text-xs font-bold uppercase text-slate-500">{log.status}</span></div><p className="mt-1 text-sm text-slate-500">{log.summary || log.error || log.channel}</p><p className="mt-2 text-xs text-slate-400">{new Intl.DateTimeFormat("pt-BR", { dateStyle: "short", timeStyle: "short" }).format(new Date(log.created_at))}</p></article>)}{logs.length === 0 && <p className="rounded-xl bg-slate-50 p-5 text-sm text-slate-500">Ainda não há envios automáticos registrados.</p>}</div></Drawer>
     <Drawer open={drawer === "sector"} title="Novo setor" onClose={() => setDrawer(null)}><form className="space-y-5" onSubmit={submitSector}><Field label="Nome do setor"><input autoFocus required className={inputStyle} value={sectorForm.name} onChange={(e) => setSectorForm({ ...sectorForm, name: e.target.value })} placeholder="Ex.: Assistência técnica" /></Field><Field label="Descrição curta"><textarea className={cn(inputStyle, "min-h-28")} value={sectorForm.description} onChange={(e) => setSectorForm({ ...sectorForm, description: e.target.value })} placeholder="Para quais assuntos este setor recebe conversas?" /></Field><button className="w-full rounded-xl bg-blue-600 px-4 py-3 font-bold text-white">Criar setor</button></form></Drawer>
     <Drawer open={drawer === "agent"} title="Novo atendente" onClose={() => setDrawer(null)}><form className="space-y-5" onSubmit={submitAgent}><Field label="Nome"><input autoFocus required className={inputStyle} value={agentForm.name} onChange={(e) => setAgentForm({ ...agentForm, name: e.target.value })} /></Field><Field label="Setor"><select className={inputStyle} value={agentForm.department} onChange={(e) => setAgentForm({ ...agentForm, department: e.target.value })}>{activeSectors.map((sector) => <option key={sector.id} value={sector.key}>{sector.name}</option>)}</select></Field><Field label="WhatsApp com DDD"><input required className={inputStyle} value={agentForm.phone} onChange={(e) => setAgentForm({ ...agentForm, phone: e.target.value })} placeholder="11999999999" /></Field><Field label="E-mail (opcional)"><input type="email" className={inputStyle} value={agentForm.email} onChange={(e) => setAgentForm({ ...agentForm, email: e.target.value })} /></Field><Field label="Máximo de conversas"><input type="number" min="1" className={inputStyle} value={agentForm.max_concurrent_chats} onChange={(e) => setAgentForm({ ...agentForm, max_concurrent_chats: e.target.value })} /></Field><button className="w-full rounded-xl bg-blue-600 px-4 py-3 font-bold text-white">Cadastrar atendente</button></form></Drawer>
-    <Drawer open={drawer === "start"} title="Iniciar conversa pelo bot" onClose={() => setDrawer(null)}><p className="mb-5 text-sm leading-6 text-slate-500">O assistente envia a apresentação e o menu para este número. O cliente pode seguir pelo bot ou ser transferido a um setor.</p><form className="space-y-5" onSubmit={submitStart}><Field label="Nome do cliente (opcional)"><input autoFocus className={inputStyle} value={startForm.customer_name} onChange={(e) => setStartForm({ ...startForm, customer_name: e.target.value })} /></Field><Field label="WhatsApp com DDD"><input required className={inputStyle} value={startForm.phone} onChange={(e) => setStartForm({ ...startForm, phone: e.target.value })} placeholder="11999999999" /></Field><button className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 py-3 font-bold text-white"><Send className="h-4 w-4" />Iniciar pelo bot</button></form></Drawer>
+    <Drawer open={drawer === "start" || startRequested} title="Iniciar conversa pelo bot" onClose={closeStartDrawer}><p className="mb-5 text-sm leading-6 text-slate-500">O assistente envia a apresentação e o menu para este número. O cliente pode seguir pelo bot ou ser transferido a um setor.</p><form className="space-y-5" onSubmit={submitStart}><Field label="Nome do cliente (opcional)"><input autoFocus className={inputStyle} value={startForm.customer_name} onChange={(e) => setStartForm({ ...startForm, customer_name: e.target.value })} /></Field><Field label="WhatsApp com DDD"><input required className={inputStyle} value={startForm.phone} onChange={(e) => setStartForm({ ...startForm, phone: e.target.value })} placeholder="11999999999" /></Field><button className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 py-3 font-bold text-white"><Send className="h-4 w-4" />Iniciar pelo bot</button></form></Drawer>
   </div>;
 }
 
