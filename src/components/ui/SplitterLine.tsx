@@ -66,7 +66,7 @@ function SplitBtn({ btn }: { key?: React.Key; btn: SplitterButton }) {
       onClick={btn.onClick}
       disabled={btn.disabled}
       className={cn(
-        "flex items-center gap-1.5 px-3 h-7 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all",
+        "flex items-center gap-1.5 px-3 h-7 rounded-lg text-[11px] font-semibold transition-all",
         colorClass,
         btn.disabled && "opacity-40 cursor-not-allowed"
       )}
@@ -104,10 +104,10 @@ export default function SplitterLine({
       {/* Title */}
       {title && (
         <span className={cn(
-          "shrink-0 font-bold leading-none whitespace-nowrap",
+          "shrink-0 font-semibold leading-none whitespace-nowrap",
           subtitle
-            ? "text-[11px] text-slate-400 uppercase tracking-wider ml-2"
-            : "text-[13px] text-blue-900 uppercase tracking-tight"
+            ? "text-[11px] text-slate-400 ml-2"
+            : "text-[13px] text-blue-900"
         )}>
           {icon && <span className="inline-flex items-center mr-1.5 align-middle opacity-70">{icon}</span>}
           {title}
@@ -141,7 +141,7 @@ export default function SplitterLine({
               key={opt.value}
               onClick={() => onSwitchSelect?.(opt.value)}
               className={cn(
-                "px-3 h-6 rounded-md text-[10px] font-black uppercase tracking-wider transition-all",
+                "px-3 h-6 rounded-md text-[11px] font-semibold transition-all",
                 selectedSwitch === opt.value
                   ? "bg-white text-blue-700 shadow-sm border border-slate-200"
                   : "text-slate-500 hover:text-slate-800"
@@ -160,7 +160,7 @@ export default function SplitterLine({
       {info && (
         <Tooltip content={info} placement="top">
           <div className="shrink-0 w-5 h-5 rounded-full bg-slate-300 hover:bg-slate-400 flex items-center justify-center cursor-default transition-colors">
-            <span className="text-white text-[10px] font-bold leading-none">i</span>
+            <span className="text-white text-[11px] font-semibold leading-none">i</span>
           </div>
         </Tooltip>
       )}

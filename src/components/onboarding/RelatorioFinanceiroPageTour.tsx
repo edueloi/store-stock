@@ -81,7 +81,7 @@ function buildSteps(): DriveStep[] {
       element: tourElement("relatorio-summary-cards"),
       popover: {
         title: "Entradas, Custos e Resultado",
-        description: "\"Entradas\" é tudo que a loja faturou no mês. \"Custos\" soma o custo fixo (aluguel, salários) e variável (mercadoria, comissão). \"Resultado\" é a diferença entre os dois: o que sobrou (ou faltou) no mês.",
+        description: "\"Entradas\" é tudo que a loja faturou no mês. \"Custos\" soma o custo fixo (aluguel, salários) e variável (mercadoria, comissão). \"Resultado\"é a diferença entre os dois: o que sobrou (ou faltou) no mês.",
         side: "top",
         align: "start",
       },

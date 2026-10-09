@@ -5,7 +5,9 @@ import { AlertTriangle, ChevronDown, ChevronRight, Clock, Loader2, Search, X } f
 import { cancelHeldSale, listHeldSales, resumeHeldSale, type HeldSale } from "../../lib/heldSales";
 import { cn } from "../../lib/utils";
 import Modal from "../ui/Modal";
-import Button from "../ui/Button";
+import Button, { IconButton } from "../ui/Button";
+import { Input } from "../ui/Input";
+import { Badge } from "../ui/Badge";
 import { useToast } from "../ui/Toast";
 
 interface HeldSalesDrawerProps {
@@ -96,27 +98,25 @@ export default function HeldSalesDrawer({ open, onClose, token, onResume }: Held
             className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[500]" />
           <motion.div initial={{ x: "100%" }} animate={{ x: 0 }} exit={{ x: "100%" }}
             transition={{ type: "spring", damping: 26, stiffness: 200 }}
-            className="fixed inset-y-0 right-0 w-full max-w-sm bg-white z-[510] shadow-2xl flex flex-col">
+            className="fixed inset-y-0 right-0 w-full max-w-sm bg-white z-[510] shadow-sm flex flex-col">
             <div className="flex items-center justify-between px-5 py-4 border-b border-slate-200 shrink-0">
               <div>
-                <h2 className="font-black text-slate-900 text-[15px]">Vendas Abertas</h2>
+                <h2 className="font-semibold text-slate-900 text-[15px]">Vendas Abertas</h2>
                 <p className="text-[11px] text-slate-500">Retome ou cancele uma venda em espera</p>
               </div>
-              <button onClick={onClose} className="p-2 hover:bg-slate-100 rounded-lg text-slate-500"><X size={18} /></button>
+              <IconButton variant="ghost" size="md" onClick={onClose} aria-label="Fechar" className="h-9 w-9"><X size={18} /></IconButton>
             </div>
             <div className="p-4 border-b border-slate-100 shrink-0">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={13} />
-                <input value={search} onChange={(e) => setSearch(e.target.value)}
-                  placeholder="Buscar por cliente ou número..." autoFocus
-                  className="w-full pl-9 pr-3 h-10 rounded-xl border border-slate-200 text-[12px] font-medium focus:outline-none focus:border-blue-400" />
-              </div>
+              <Input value={search} onChange={(e) => setSearch(e.target.value)}
+                placeholder="Buscar por cliente ou número..." autoFocus
+                aria-label="Buscar venda em espera"
+                iconLeft={<Search size={13} />} />
             </div>
             <div className="flex-1 overflow-y-auto p-3 space-y-2">
               {loading ? (
                 <div className="flex items-center justify-center h-32"><Loader2 size={20} className="animate-spin text-slate-300" /></div>
               ) : filtered.length === 0 ? (
-                <div className="text-center py-10 text-[11px] font-bold text-slate-400">Nenhuma venda em espera</div>
+                <div className="text-center py-10 text-[11px] font-semibold text-slate-400">Nenhuma venda em espera</div>
               ) : (
                 filtered.map((s) => {
                   const isExpanded = expandedId === s.id;
@@ -125,48 +125,41 @@ export default function HeldSalesDrawer({ open, onClose, token, onResume }: Held
                   const elapsed = elapsedLabel(s.created_at);
                   const isStale = elapsed.hours >= STALE_HOURS;
                   return (
-                    <div key={s.id} className={cn("rounded-xl border overflow-hidden", isStale ? "border-amber-300" : "border-slate-200")}>
+                    <div key={s.id} className={cn("rounded-lg border overflow-hidden", isStale ? "border-amber-300" : "border-slate-200")}>
                       <button onClick={() => setExpandedId(isExpanded ? null : s.id)}
                         className="w-full flex items-center justify-between gap-2 px-3 py-2.5 hover:bg-slate-50 transition-colors text-left">
                         <div className="flex items-center gap-1.5 min-w-0">
                           {isExpanded ? <ChevronDown size={13} className="text-slate-400 shrink-0" /> : <ChevronRight size={13} className="text-slate-400 shrink-0" />}
                           <div className="min-w-0">
-                            <p className="text-[12px] font-bold text-slate-700 truncate">
+                            <p className="text-[12px] font-semibold text-slate-700 truncate">
                               #{String(s.number).padStart(4, "0")} · {s.customer_name || "Sem cliente"}
                             </p>
-                            <p className="text-[10px] text-slate-400 flex items-center gap-1">
+                            <p className="text-[11px] text-slate-400 flex items-center gap-1">
                               {s.items.length} {s.items.length === 1 ? "item" : "itens"} · R$ {total.toFixed(2)}
                             </p>
-                            <p className={cn("text-[9px] font-bold flex items-center gap-1 mt-0.5", isStale ? "text-amber-600" : "text-slate-400")}>
+                            <p className={cn("text-[10px] font-semibold flex items-center gap-1 mt-0.5", isStale ? "text-amber-600" : "text-slate-400")}>
                               {isStale ? <AlertTriangle size={10} /> : <Clock size={10} />} {elapsed.text}
                             </p>
                           </div>
                         </div>
-                        <span className={cn("text-[9px] font-black uppercase tracking-wider px-2 py-1 rounded-lg shrink-0",
-                          s.status === "resumed" ? "text-amber-600 bg-amber-50" : "text-blue-600 bg-blue-50")}>
+                        <Badge size="sm" color={s.status === "resumed" ? "warning" : "info"} className="shrink-0">
                           {s.status === "resumed" ? "Retomada" : "Em espera"}
-                        </span>
+                        </Badge>
                       </button>
                       {isExpanded && (
                         <div className="px-3 pb-3 pt-0 space-y-1 bg-slate-50 border-t border-slate-100">
                           {s.items.map((it) => (
-                            <div key={it.id} className="flex justify-between text-[10px] text-slate-600 pt-2">
+                            <div key={it.id} className="flex justify-between text-[11px] text-slate-600 pt-2">
                               <span>{it.name} × {it.quantity}</span>
                               <span className="font-mono">R$ {(Number(it.unit_price) * it.quantity).toFixed(2)}</span>
                             </div>
                           ))}
                           {s.resumed_by && (
-                            <p className="text-[9px] text-amber-600 pt-1">Também retomada por {s.resumed_by}</p>
+                            <p className="text-[10px] text-amber-600 pt-1">Também retomada por {s.resumed_by}</p>
                           )}
                           <div className="flex gap-2 pt-2">
-                            <button onClick={() => handleResume(s)} disabled={isBusy}
-                              className="flex-1 h-8 rounded-lg bg-blue-600 text-white text-[10px] font-black uppercase tracking-wider hover:bg-blue-700 transition-colors disabled:opacity-50 flex items-center justify-center gap-1.5">
-                              {isBusy ? <Loader2 size={12} className="animate-spin" /> : "Retomar"}
-                            </button>
-                            <button onClick={() => setCancelTarget(s)} disabled={isBusy}
-                              className="h-8 px-3 rounded-lg border border-red-200 text-red-600 text-[10px] font-black uppercase tracking-wider hover:bg-red-50 transition-colors disabled:opacity-50">
-                              Cancelar
-                            </button>
+                            <Button size="lg" className="flex-1" onClick={() => handleResume(s)} disabled={isBusy} loading={isBusy}>Retomar</Button>
+                            <Button size="lg" variant="danger" onClick={() => setCancelTarget(s)} disabled={isBusy}>Cancelar</Button>
                           </div>
                         </div>
                       )}

@@ -29,7 +29,7 @@ function buildSteps(): DriveStep[] {
       element: tourElement("calendario-totais"),
       popover: {
         title: "Totais do mês",
-        description: "\"A Pagar no Mês\" e \"A Receber no Mês\" somam os lançamentos visíveis no calendário atual. \"Saldo Projetado\" é a diferença entre os dois: quanto sobraria (ou faltaria) se tudo fosse pago e recebido no prazo.",
+        description: "\"A Pagar no Mês\" e \"A Receber no Mês\" somam os lançamentos visíveis no calendário atual. \"Saldo Projetado\"é a diferença entre os dois: quanto sobraria (ou faltaria) se tudo fosse pago e recebido no prazo.",
         side: "bottom",
         align: "start",
       },

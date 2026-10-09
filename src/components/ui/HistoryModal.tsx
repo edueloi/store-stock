@@ -82,7 +82,7 @@ export default function HistoryModal({
       ) : entries.length === 0 ? (
         <div className="text-center py-10 text-slate-400">
           <Clock size={32} strokeWidth={1} className="mx-auto mb-3 opacity-50" />
-          <p className="text-xs font-bold uppercase tracking-wider">Nenhum registro encontrado</p>
+          <p className="text-xs font-semibold">Nenhum registro encontrado</p>
         </div>
       ) : (
         <ol className="relative border-l border-slate-200 ml-3 space-y-6">
@@ -98,24 +98,24 @@ export default function HistoryModal({
                   {icon}
                 </span>
 
-                <div className={cn("p-3 bg-slate-50 border border-slate-200 rounded-xl", idx === 0 && "border-blue-200 bg-blue-50/50")}>
+                <div className={cn("p-3 bg-slate-50 border border-slate-200 rounded-lg", idx === 0 && "border-blue-200 bg-blue-50/50")}>
                   <div className="flex items-start justify-between gap-2 flex-wrap">
-                    <p className="text-xs font-black text-slate-800 uppercase tracking-tight leading-snug">
+                    <p className="text-xs font-semibold text-slate-800 leading-snug">
                       {entry.title}
                     </p>
-                    <time className="text-[10px] text-slate-400 font-mono shrink-0">
+                    <time className="text-[11px] text-slate-400 font-mono shrink-0">
                       {formatDate(entry.date)}
                     </time>
                   </div>
 
                   {entry.description && (
-                    <p className="text-[10px] text-slate-500 mt-1 leading-relaxed">{entry.description}</p>
+                    <p className="text-[11px] text-slate-500 mt-1 leading-relaxed">{entry.description}</p>
                   )}
 
                   {entry.meta && (
                     <div className="flex flex-wrap gap-2 mt-2">
                       {Object.entries(entry.meta).map(([k, v]) => (
-                        <span key={k} className="text-[9px] font-bold uppercase px-2 py-0.5 bg-white border border-slate-200 rounded-full text-slate-500">
+                        <span key={k} className="text-[11px] font-semibold px-2 py-0.5 bg-white border border-slate-200 rounded-full text-slate-500">
                           {k}: {v}
                         </span>
                       ))}
@@ -123,7 +123,7 @@ export default function HistoryModal({
                   )}
 
                   {entry.user && (
-                    <div className="flex items-center gap-1 mt-2 text-[10px] text-slate-400">
+                    <div className="flex items-center gap-1 mt-2 text-[11px] text-slate-400">
                       <User size={10} />
                       <span>{entry.user}</span>
                     </div>

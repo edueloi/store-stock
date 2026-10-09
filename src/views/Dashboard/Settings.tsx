@@ -57,12 +57,27 @@ import {
   Mail,
   Send,
 } from "lucide-react";
-import PageHeader from "../../components/layout/PageHeader";
 import DesktopTerminalsSection from "./DesktopTerminalsSection";
 import { cn } from "../../lib/utils";
 import { useToast } from "../../components/ui/Toast";
-import Modal from "../../components/ui/Modal";
-import Button from "../../components/ui/Button";
+import {
+  Alert,
+  Badge,
+  Button,
+  ConfirmModal,
+  ContentCard,
+  EmptyState,
+  IconButton,
+  Input,
+  Select,
+  Textarea,
+  Modal,
+  ModalFooter,
+  PageWrapper,
+  SectionTitle,
+  Switch,
+  Tabs,
+} from "../../components/ui";
 import type {
   Tenant,
   BusinessHours,
@@ -157,15 +172,9 @@ function SectionHeader({
   subtitle?: string;
 }) {
   return (
-    <div className="pb-4 border-b border-slate-100 mb-6">
-      <h3 className="text-sm font-black uppercase tracking-widest text-slate-900">
-        {title}
-      </h3>
-      {subtitle && (
-        <p className="text-[10px] text-slate-400 font-medium mt-1">
-          {subtitle}
-        </p>
-      )}
+    <div className="pb-3 border-b border-slate-100 mb-4">
+      <h3 className="text-sm font-semibold text-slate-900">{title}</h3>
+      {subtitle && <p className="text-[11px] text-slate-500 mt-1">{subtitle}</p>}
     </div>
   );
 }
@@ -180,14 +189,10 @@ function Field({
   children: React.ReactNode;
 }) {
   return (
-    <div className="space-y-1.5">
-      <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.18em] px-1 block">
-        {label}
-      </label>
+    <div className="flex min-w-0 flex-col gap-1">
+      <label className="ds-label">{label}</label>
       {children}
-      {hint && (
-        <p className="text-[9px] text-slate-400 font-medium px-1">{hint}</p>
-      )}
+      {hint && <p className="text-[11px] text-slate-500">{hint}</p>}
     </div>
   );
 }
@@ -210,7 +215,7 @@ function TextInput({
   autoComplete?: string;
 }) {
   return (
-    <input
+    <Input
       type={type}
       value={value}
       onChange={(e) => onChange(e.target.value)}
@@ -221,12 +226,7 @@ function TextInput({
       spellCheck={false}
       data-lpignore="true"
       data-1p-ignore="true"
-      className={cn(
-        "w-full bg-slate-50 border border-slate-200 rounded-xl px-4 h-11 text-xs font-bold outline-none",
-        "focus:ring-4 focus:ring-blue-500/8 focus:border-blue-500 transition-all",
-        mono ? "font-mono" : "font-sans",
-        className,
-      )}
+      className={cn(mono && "font-mono", className)}
     />
   );
 }
@@ -240,29 +240,7 @@ function Toggle({
   onChange: (v: boolean) => void;
   label?: string;
 }) {
-  return (
-    <div className="flex items-center gap-3">
-      <button
-        onClick={() => onChange(!checked)}
-        className={cn(
-          "w-10 h-5 rounded-full transition-all relative shadow-inner shrink-0",
-          checked ? "bg-emerald-500" : "bg-slate-200",
-        )}
-      >
-        <div
-          className={cn(
-            "absolute top-1 w-3 h-3 bg-white rounded-full transition-all shadow-sm",
-            checked ? "left-6" : "left-1",
-          )}
-        />
-      </button>
-      {label && (
-        <span className="text-[10px] font-bold text-slate-600 uppercase tracking-widest">
-          {label}
-        </span>
-      )}
-    </div>
-  );
+  return <Switch checked={checked} onCheckedChange={onChange} label={label} />;
 }
 
 function SaveButton({
@@ -277,17 +255,42 @@ function SaveButton({
   return (
     <div
       className={cn(
-        "pt-6 border-t border-slate-100 flex justify-end",
+        "pt-4 border-t border-slate-100 flex flex-wrap justify-end gap-2",
         className,
       )}
     >
-      <button
-        onClick={onClick}
-        className="bg-blue-600 text-white px-8 h-12 rounded-xl text-[10px] font-black uppercase tracking-[0.2em] shadow-xl shadow-blue-500/20 flex items-center gap-3 hover:bg-blue-700 transition-all active:scale-95"
-      >
-        <Save size={15} strokeWidth={2.5} /> {label}
-      </button>
+      <Button onClick={onClick} iconLeft={<Save size={14} />}>
+        {label}
+      </Button>
     </div>
+  );
+}
+
+/** Aba por segmento: só envolve em Tabs quando `enabled` (modo Minha Loja). */
+function StoreTabsFrame({
+  enabled,
+  items,
+  value,
+  onChange,
+  children,
+}: {
+  enabled: boolean;
+  items: readonly { id: string; icon: React.ElementType; label: string }[];
+  value: string;
+  onChange: (id: string) => void;
+  children: React.ReactNode;
+}) {
+  if (!enabled) return <>{children}</>;
+  return (
+    <Tabs<string>
+      items={items}
+      value={value}
+      onChange={onChange}
+      label="Configuração da loja"
+      className="space-y-4"
+    >
+      {children}
+    </Tabs>
   );
 }
 
@@ -318,6 +321,13 @@ const NAV = [
     ],
   },
 ];
+
+const PAY_TYPE_TABS = [
+  { id: "credit", label: "Crédito", icon: CreditCard },
+  { id: "debit", label: "Débito", icon: Smartphone },
+  { id: "pix", label: "PIX", icon: Zap },
+] as const;
+type PayType = (typeof PAY_TYPE_TABS)[number]["id"];
 
 const STORE_CONFIGURATION_ITEMS = [
   { id: "identity", icon: Store, label: "Identidade & Dados" },
@@ -581,11 +591,18 @@ const ROLE_META: Record<
   },
 };
 
+const TEAM_FORM_TABS = [
+  { id: "dados", label: "Dados", icon: User },
+  { id: "acesso", label: "Acesso", icon: Shield },
+] as const;
+type TeamFormTab = (typeof TEAM_FORM_TABS)[number]["id"];
+
 function TeamSection() {
   const toast = useToast();
   const [members, setMembers] = useState<TeamMember[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
+  const [formTab, setFormTab] = useState<TeamFormTab>("dados");
   const [saving, setSaving] = useState(false);
   const [editId, setEditId] = useState<number | null>(null);
   const [deletingId, setDeletingId] = useState<number | null>(null);
@@ -641,6 +658,7 @@ function TeamSection() {
   }, [token]);
 
   const openCreate = () => {
+    setFormTab("dados");
     setEditId(null);
     setForm({
       name: "",
@@ -657,6 +675,7 @@ function TeamSection() {
   };
 
   const openEdit = async (m: TeamMember) => {
+    setFormTab("dados");
     setEditId(m.id);
     setForm({
       name: m.name,
@@ -775,7 +794,7 @@ function TeamSection() {
   };
 
   return (
-    <div className="mx-auto w-full max-w-[1600px] space-y-4 sm:space-y-6">
+    <div className="space-y-4">
       <SectionHeader
         title="Time & Acessos"
         subtitle="Gerencie quem tem acesso ao painel e ao PDV"
@@ -786,22 +805,22 @@ function TeamSection() {
         {Object.entries(ROLE_META).map(([key, meta]) => (
           <div
             key={key}
-            className="flex items-start gap-3 p-4 rounded-2xl border border-slate-100 bg-white"
+            className="flex items-start gap-3 p-3 rounded-lg border border-slate-200 bg-white"
           >
             <div
-              className="w-8 h-8 rounded-xl flex items-center justify-center shrink-0"
+              className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0"
               style={{ backgroundColor: meta.bg, color: meta.color }}
             >
               {meta.icon}
             </div>
             <div>
               <p
-                className="text-[11px] font-black uppercase tracking-wider"
+                className="text-[11px] font-semibold"
                 style={{ color: meta.color }}
               >
                 {meta.label}
               </p>
-              <p className="text-[10px] text-slate-400 mt-0.5 font-medium leading-relaxed">
+              <p className="text-[11px] text-slate-400 mt-0.5 font-medium leading-relaxed">
                 {meta.desc}
               </p>
             </div>
@@ -810,23 +829,18 @@ function TeamSection() {
       </div>
 
       {/* Members list */}
-      <div className="bg-white rounded-2xl border border-slate-100 overflow-hidden">
-        <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100">
+      <ContentCard padding="none" className="overflow-hidden">
+        <div className="flex flex-wrap items-center justify-between gap-2 px-3 py-3 border-b border-slate-100">
           <div className="flex flex-wrap items-center gap-2">
             <Users size={15} className="text-slate-400" />
-            <p className="text-[11px] font-black uppercase tracking-widest text-slate-700">
+            <p className="text-[11px] font-semibold text-slate-700">
               Membros
             </p>
-            <span className="bg-slate-100 text-slate-500 text-[9px] font-black px-2 py-0.5 rounded-full">
-              {members.length}
-            </span>
+            <Badge size="sm">{members.length}</Badge>
           </div>
-          <button
-            onClick={openCreate}
-            className="flex items-center gap-2 h-8 px-4 bg-blue-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-blue-700 transition-all active:scale-95 shadow-sm shadow-blue-500/25"
-          >
-            <UserPlus size={12} /> Adicionar
-          </button>
+          <Button onClick={openCreate} size="sm" iconLeft={<UserPlus size={14} />}>
+            Adicionar
+          </Button>
         </div>
 
         {loading ? (
@@ -834,12 +848,7 @@ function TeamSection() {
             <Loader2 size={20} className="animate-spin text-slate-300" />
           </div>
         ) : members.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-12 gap-2 text-slate-300">
-            <Users size={32} strokeWidth={1} />
-            <p className="text-[10px] font-black uppercase tracking-wider">
-              Nenhum membro cadastrado
-            </p>
-          </div>
+          <EmptyState icon={Users} title="Nenhum membro cadastrado" />
         ) : (
           <div className="divide-y divide-slate-50">
             {members.map((m) => {
@@ -847,68 +856,53 @@ function TeamSection() {
               return (
                 <div
                   key={m.id}
-                  className="flex items-center gap-4 px-5 py-3.5 hover:bg-slate-50/60 transition-colors"
+                  className="flex flex-wrap items-center gap-3 px-3 py-2.5 hover:bg-slate-50/60 transition-colors"
                 >
                   <div
-                    className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0 text-sm font-black"
+                    className="w-9 h-9 rounded-lg flex items-center justify-center shrink-0 text-sm font-semibold"
                     style={{ backgroundColor: meta.bg, color: meta.color }}
                   >
                     {m.name.charAt(0).toUpperCase()}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-[12px] font-bold text-slate-800 leading-tight truncate">
+                    <p className="text-[12px] font-semibold text-slate-800 leading-tight truncate">
                       {m.name}
                     </p>
-                    <p className="text-[10px] text-slate-400 font-medium truncate">
+                    <p className="text-[11px] text-slate-400 font-medium truncate">
                       {m.email}
                     </p>
                   </div>
                   <span
-                    className="shrink-0 inline-flex items-center gap-1.5 text-[9px] font-black uppercase tracking-wider px-2.5 py-1 rounded-full"
+                    className="shrink-0 inline-flex items-center gap-1.5 text-[11px] font-semibold px-2.5 py-1 rounded-full"
                     style={{ backgroundColor: meta.bg, color: meta.color }}
                   >
                     {meta.icon} {meta.label}
                   </span>
                   <div className="flex items-center gap-1 shrink-0">
-                    <button
-                      onClick={() => openEdit(m)}
-                      className="p-1.5 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-all"
-                    >
+                    <IconButton onClick={() => openEdit(m)} aria-label="Editar usuário" variant="ghost" size="xs">
                       <Edit2 size={13} />
-                    </button>
-                    <button
-                      onClick={() => setDeleteTarget(m)}
-                      disabled={deletingId === m.id}
-                      className="p-1.5 rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 transition-all disabled:opacity-40"
-                    >
+                    </IconButton>
+                    <IconButton onClick={() => setDeleteTarget(m)} disabled={deletingId === m.id} aria-label="Remover usuário" variant="danger" size="xs">
                       {deletingId === m.id ? (
                         <Loader2 size={13} className="animate-spin" />
                       ) : (
                         <Trash2 size={13} />
                       )}
-                    </button>
+                    </IconButton>
                   </div>
                 </div>
               );
             })}
           </div>
         )}
-      </div>
+      </ContentCard>
 
       {/* PDV info banner */}
-      <div className="flex items-start gap-3 p-4 rounded-2xl border border-amber-200 bg-amber-50">
-        <ShoppingCart size={16} className="text-amber-600 mt-0.5 shrink-0" />
-        <div>
-          <p className="text-[11px] font-black text-amber-700 uppercase tracking-wider">
-            Operadores PDV
-          </p>
-          <p className="text-[10px] text-amber-600 font-medium leading-relaxed mt-0.5">
-            Usuários com perfil <strong>Operador PDV</strong> são direcionados
-            automaticamente para o terminal de vendas ao fazer login. Eles não
-            têm acesso ao painel administrativo.
-          </p>
-        </div>
-      </div>
+      <Alert variant="warning" title="Operadores PDV">
+        Usuários com perfil <strong>Operador PDV</strong> são direcionados
+        automaticamente para o terminal de vendas ao fazer login. Eles não têm
+        acesso ao painel administrativo.
+      </Alert>
 
       {/* Modal: criar/editar membro */}
       <Modal
@@ -918,239 +912,200 @@ function TeamSection() {
         subtitle={editId ? "Atualizar dados de acesso" : "Adicionar ao time"}
         size="md"
         footer={
-          <>
-            <Button variant="secondary" onClick={() => setShowForm(false)}>
+          <ModalFooter>
+            <Button variant="ghost" size="sm" onClick={() => setShowForm(false)}>
               Cancelar
             </Button>
             <Button
+              size="sm"
               onClick={handleSave}
               loading={saving || savingPerms}
-              icon={<Save size={13} />}
+              iconLeft={<Save size={14} />}
             >
               {editId ? "Salvar" : "Criar"}
             </Button>
-          </>
+          </ModalFooter>
         }
       >
-        {/* Name */}
-        <div>
-          <label className="text-[10px] font-black uppercase tracking-widest text-slate-500 block mb-1.5">
-            Nome
-          </label>
-          <input
-            type="text"
-            value={form.name}
-            onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
-            placeholder="Nome completo"
-            className="w-full h-10 px-3 border border-slate-200 rounded-xl text-sm font-medium text-slate-800 placeholder:text-slate-300 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition-all"
-          />
-        </div>
-
-        {/* Email */}
-        <div>
-          <label className="text-[10px] font-black uppercase tracking-widest text-slate-500 block mb-1.5">
-            E-mail
-          </label>
-          <input
-            type="email"
-            value={form.email}
-            onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
-            placeholder="email@exemplo.com"
-            className="w-full h-10 px-3 border border-slate-200 rounded-xl text-sm font-medium text-slate-800 placeholder:text-slate-300 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition-all"
-          />
-        </div>
-
-        {/* Telefone + Nick */}
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <label className="text-[10px] font-black uppercase tracking-widest text-slate-500 block mb-1.5">
-              Telefone
-            </label>
-            <input
-              type="text"
-              value={form.phone}
-              onChange={(e) =>
-                setForm((f) => ({ ...f, phone: e.target.value }))
-              }
-              placeholder="(00) 00000-0000"
-              className="w-full h-10 px-3 border border-slate-200 rounded-xl text-sm font-medium text-slate-800 placeholder:text-slate-300 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition-all"
-            />
-          </div>
-          <div>
-            <label className="text-[10px] font-black uppercase tracking-widest text-slate-500 block mb-1.5">
-              Nick{" "}
-              <span className="normal-case font-medium text-slate-400">
-                (login alternativo)
-              </span>
-            </label>
-            <input
-              type="text"
-              value={form.nickname}
-              onChange={(e) =>
-                setForm((f) => ({ ...f, nickname: e.target.value }))
-              }
-              placeholder="Ex: eduardo"
-              className="w-full h-10 px-3 border border-slate-200 rounded-xl text-sm font-medium text-slate-800 placeholder:text-slate-300 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition-all"
-            />
-          </div>
-        </div>
-
-        {/* Password */}
-        <div>
-          <label className="text-[10px] font-black uppercase tracking-widest text-slate-500 block mb-1.5">
-            Senha{" "}
-            {editId && (
-              <span className="normal-case font-medium text-slate-400">
-                (deixe em branco para manter)
-              </span>
-            )}
-          </label>
-          <div className="relative">
-            <input
-              type={form.showPass ? "text" : "password"}
-              value={form.password}
-              onChange={(e) =>
-                setForm((f) => ({ ...f, password: e.target.value }))
-              }
-              placeholder={editId ? "Nova senha (opcional)" : "Senha de acesso"}
-              className="w-full h-10 px-3 pr-10 border border-slate-200 rounded-xl text-sm font-medium text-slate-800 placeholder:text-slate-300 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition-all"
-            />
-            <button
-              type="button"
-              onClick={() => setForm((f) => ({ ...f, showPass: !f.showPass }))}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700"
-            >
-              {form.showPass ? <EyeOff size={14} /> : <Eye size={14} />}
-            </button>
-          </div>
-        </div>
-
-        {/* Role */}
-        <div>
-          <label className="text-[10px] font-black uppercase tracking-widest text-slate-500 block mb-2">
-            Perfil de acesso
-          </label>
-          <div className="grid grid-cols-3 gap-2">
-            {Object.entries(ROLE_META).map(([key, meta]) => (
-              <button
-                key={key}
-                type="button"
-                onClick={() => setForm((f) => ({ ...f, role: key }))}
-                className={cn(
-                  "flex flex-col items-center gap-1.5 p-3 rounded-xl border-2 transition-all text-center",
-                  form.role === key
-                    ? "border-current shadow-sm"
-                    : "border-slate-100 hover:border-slate-200 bg-white",
-                )}
-                style={
-                  form.role === key
-                    ? { borderColor: meta.color, backgroundColor: meta.bg }
-                    : {}
+        <Tabs<TeamFormTab>
+          items={TEAM_FORM_TABS}
+          value={formTab}
+          onChange={setFormTab}
+          label="Cadastro do membro"
+        >
+          {formTab === "dados" && (
+            <div className="space-y-3">
+              <Input
+                label="Nome"
+                type="text"
+                value={form.name}
+                onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
+                placeholder="Nome completo"
+              />
+              <Input
+                label="E-mail"
+                type="email"
+                value={form.email}
+                onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
+                placeholder="email@exemplo.com"
+              />
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <Input
+                  label="Telefone"
+                  type="text"
+                  value={form.phone}
+                  onChange={(e) =>
+                    setForm((f) => ({ ...f, phone: e.target.value }))
+                  }
+                  placeholder="(00) 00000-0000"
+                />
+                <Input
+                  label="Nick (login alternativo)"
+                  type="text"
+                  value={form.nickname}
+                  onChange={(e) =>
+                    setForm((f) => ({ ...f, nickname: e.target.value }))
+                  }
+                  placeholder="Ex: eduardo"
+                />
+              </div>
+              <Input
+                label={editId ? "Senha (deixe em branco para manter)" : "Senha"}
+                type={form.showPass ? "text" : "password"}
+                value={form.password}
+                onChange={(e) =>
+                  setForm((f) => ({ ...f, password: e.target.value }))
                 }
-              >
-                <div
-                  className="w-7 h-7 rounded-lg flex items-center justify-center"
-                  style={{ backgroundColor: meta.bg, color: meta.color }}
-                >
-                  {meta.icon}
+                placeholder={editId ? "Nova senha (opcional)" : "Senha de acesso"}
+                iconRight={
+                  <IconButton
+                    type="button"
+                    onClick={() =>
+                      setForm((f) => ({ ...f, showPass: !f.showPass }))
+                    }
+                    aria-label="Mostrar ou ocultar senha"
+                    variant="ghost"
+                    size="xs"
+                  >
+                    {form.showPass ? <EyeOff size={14} /> : <Eye size={14} />}
+                  </IconButton>
+                }
+              />
+            </div>
+          )}
+
+          {formTab === "acesso" && (
+            <div className="space-y-4">
+              <div>
+                <label className="ds-label block mb-2">Perfil de acesso</label>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                  {Object.entries(ROLE_META).map(([key, meta]) => (
+                    <button
+                      key={key}
+                      type="button"
+                      onClick={() => setForm((f) => ({ ...f, role: key }))}
+                      className={cn(
+                        "flex flex-col items-center gap-1.5 p-3 rounded-lg border transition-all text-center",
+                        form.role === key
+                          ? "border-current"
+                          : "border-slate-200 hover:border-slate-300 bg-white",
+                      )}
+                      style={
+                        form.role === key
+                          ? { borderColor: meta.color, backgroundColor: meta.bg }
+                          : {}
+                      }
+                    >
+                      <div
+                        className="w-7 h-7 rounded-lg flex items-center justify-center"
+                        style={{ backgroundColor: meta.bg, color: meta.color }}
+                      >
+                        {meta.icon}
+                      </div>
+                      <p
+                        className="text-[11px] font-medium leading-tight"
+                        style={{
+                          color: form.role === key ? meta.color : undefined,
+                        }}
+                      >
+                        {meta.label}
+                      </p>
+                    </button>
+                  ))}
                 </div>
-                <p
-                  className="text-[9px] font-black uppercase tracking-wider leading-tight"
-                  style={{ color: form.role === key ? meta.color : undefined }}
-                >
-                  {meta.label}
+                <p className="text-[11px] text-slate-500 mt-2">
+                  {ROLE_META[form.role]?.desc}
                 </p>
-              </button>
-            ))}
-          </div>
-          <p className="text-[10px] text-slate-400 mt-2 font-medium">
-            {ROLE_META[form.role]?.desc}
-          </p>
-        </div>
-
-        {/* Permissões individuais — admin já tem acesso total, não precisa marcar nada */}
-        {form.role !== "admin" && (
-          <div className="border-t border-slate-100 pt-4 space-y-4">
-            <div>
-              <label className="text-[10px] font-black uppercase tracking-widest text-slate-500 block mb-2">
-                Menus que este usuário pode acessar
-              </label>
-              <div className="grid grid-cols-2 gap-1.5">
-                {permOptions.menus.map((opt) => (
-                  <label
-                    key={opt.key}
-                    className="flex items-center gap-2 text-[11px] font-medium text-slate-600 px-2 py-1.5 rounded-lg hover:bg-slate-50 cursor-pointer"
-                  >
-                    <input
-                      type="checkbox"
-                      checked={selectedMenus.includes(opt.key)}
-                      onChange={() => toggleMenu(opt.key)}
-                      className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
-                    />
-                    {opt.label}
-                  </label>
-                ))}
               </div>
-            </div>
 
-            <div>
-              <label className="text-[10px] font-black uppercase tracking-widest text-slate-500 block mb-2">
-                Etapas de Orçamento/OS que pode mover
-              </label>
-              <div className="grid grid-cols-2 gap-1.5">
-                {permOptions.stages.map((opt) => (
-                  <label
-                    key={opt.key}
-                    className="flex items-center gap-2 text-[11px] font-medium text-slate-600 px-2 py-1.5 rounded-lg hover:bg-slate-50 cursor-pointer"
-                  >
-                    <input
-                      type="checkbox"
-                      checked={selectedStages.includes(opt.key)}
-                      onChange={() => toggleStage(opt.key)}
-                      className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
-                    />
-                    {opt.label}
-                  </label>
-                ))}
-              </div>
+              {/* Permissões individuais — admin já tem acesso total, não precisa marcar nada */}
+              {form.role !== "admin" ? (
+                <div className="border-t border-slate-100 pt-3 space-y-4">
+                  <div>
+                    <label className="ds-label block mb-2">
+                      Menus que este usuário pode acessar
+                    </label>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+                      {permOptions.menus.map((opt) => (
+                        <label
+                          key={opt.key}
+                          className="flex items-center gap-2 text-xs text-slate-600 px-2 py-1.5 rounded-lg hover:bg-slate-50 cursor-pointer"
+                        >
+                          <input
+                            type="checkbox"
+                            checked={selectedMenus.includes(opt.key)}
+                            onChange={() => toggleMenu(opt.key)}
+                            className="h-4 w-4 accent-blue-600"
+                          />
+                          {opt.label}
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="ds-label block mb-2">
+                      Etapas de Orçamento/OS que pode mover
+                    </label>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+                      {permOptions.stages.map((opt) => (
+                        <label
+                          key={opt.key}
+                          className="flex items-center gap-2 text-xs text-slate-600 px-2 py-1.5 rounded-lg hover:bg-slate-50 cursor-pointer"
+                        >
+                          <input
+                            type="checkbox"
+                            checked={selectedStages.includes(opt.key)}
+                            onChange={() => toggleStage(opt.key)}
+                            className="h-4 w-4 accent-blue-600"
+                          />
+                          {opt.label}
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <Alert variant="info">
+                  Administradores têm acesso total ao painel.
+                </Alert>
+              )}
             </div>
-          </div>
-        )}
+          )}
+        </Tabs>
       </Modal>
 
       {/* Modal: confirmar exclusão */}
-      <Modal
-        open={!!deleteTarget}
+      <ConfirmModal
+        isOpen={!!deleteTarget}
         onClose={() => setDeleteTarget(null)}
-        title="Remover membro"
-        subtitle="Esta ação não pode ser desfeita"
-        size="sm"
-        footer={
-          <>
-            <Button variant="secondary" onClick={() => setDeleteTarget(null)}>
-              Cancelar
-            </Button>
-            <Button
-              variant="danger"
-              loading={deletingId === deleteTarget?.id}
-              icon={<Trash2 size={13} />}
-              onClick={handleDelete}
-            >
-              Remover
-            </Button>
-          </>
-        }
-      >
-        <div className="flex gap-3 items-start">
-          <div className="w-10 h-10 bg-red-50 rounded-xl flex items-center justify-center text-red-500 shrink-0">
-            <AlertTriangle size={18} />
-          </div>
-          <p className="text-sm font-semibold text-slate-800">
-            Remover <span className="text-red-600">"{deleteTarget?.name}"</span>{" "}
-            do time? Este usuário perderá o acesso ao painel imediatamente.
-          </p>
-        </div>
-      </Modal>
+        onConfirm={handleDelete}
+        variant="danger"
+        loading={deletingId === deleteTarget?.id}
+        title="Remover membro?"
+        message={`Remover "${deleteTarget?.name ?? ""}" do time? Este usuário perderá o acesso ao painel imediatamente. Esta ação não pode ser desfeita.`}
+        confirmLabel="Remover membro"
+      />
     </div>
   );
 }
@@ -1214,10 +1169,9 @@ export default function Settings({
   }, [navigate, requestedTab, storeMode]);
 
   // sub-tab de maquininha sincronizada com ?payType=xxx
-  const activePayType = (searchParams.get("payType") ?? "credit") as
-    "credit" | "debit" | "pix";
+  const activePayType = (searchParams.get("payType") ?? "credit") as PayType;
   const setActivePayType = useCallback(
-    (id: "credit" | "debit" | "pix") => {
+    (id: PayType) => {
       setSearchParams(
         (prev) => {
           const n = new URLSearchParams(prev);
@@ -1346,6 +1300,8 @@ export default function Settings({
   const [emailSmtpSecure, setEmailSmtpSecure] = useState(true);
   const [emailConnectionConfigured, setEmailConnectionConfigured] =
     useState(false);
+  const [emailSenderMode, setEmailSenderMode] = useState<"own" | "system">("own");
+  const [savingEmailSenderMode, setSavingEmailSenderMode] = useState(false);
   const [savingEmailConnection, setSavingEmailConnection] = useState(false);
   const [testingEmailConnection, setTestingEmailConnection] = useState(false);
 
@@ -1481,6 +1437,7 @@ export default function Settings({
           setReportRecipientEmails(d.report_recipient_emails);
           setSavedReportRecipientEmails(d.report_recipient_emails);
         }
+        setEmailSenderMode(d?.email_sender_mode === "system" ? "system" : "own");
         if (d?.email_connection) {
           const connection = d.email_connection;
           const provider = EMAIL_PROVIDERS.some(
@@ -1926,7 +1883,7 @@ export default function Settings({
         toast.success("Taxas salvas com sucesso!");
       } else {
         const err = await res.json().catch(() => ({}));
-        toast.error("Erro ao salvar: " + (err?.error ?? res.status));
+        toast.error("Erro ao salvar:" + (err?.error ?? res.status));
       }
     } catch {
       toast.error("Erro de conexão ao salvar taxas.");
@@ -1951,7 +1908,7 @@ export default function Settings({
         toast.success("Configurações de crediário salvas!");
       } else {
         const err = await res.json().catch(() => ({}));
-        toast.error("Erro ao salvar: " + (err?.error ?? res.status));
+        toast.error("Erro ao salvar:" + (err?.error ?? res.status));
       }
     } catch {
       toast.error("Erro de conexão ao salvar configurações de crediário.");
@@ -1977,7 +1934,7 @@ export default function Settings({
         setSavedReportRecipientEmails(reportRecipientEmails);
       } else {
         const err = await res.json().catch(() => ({}));
-        toast.error("Erro ao salvar: " + (err?.error ?? res.status));
+        toast.error("Erro ao salvar:" + (err?.error ?? res.status));
       }
     } catch {
       toast.error("Erro de conexão ao salvar configurações de relatórios.");
@@ -2004,7 +1961,7 @@ export default function Settings({
         );
       } else {
         const err = await res.json().catch(() => ({}));
-        toast.error("Erro ao enviar: " + (err?.error ?? res.status));
+        toast.error("Erro ao enviar:" + (err?.error ?? res.status));
       }
     } catch {
       toast.error("Erro de conexão ao enviar relatório.");
@@ -2074,6 +2031,8 @@ export default function Settings({
             port: Number(emailSmtpPort),
             secure: emailSmtpSecure,
           },
+          // Conta própria e envio pelo sistema são exclusivos: salvar a conta ativa o modo "own".
+          email_sender_mode: "own",
         }),
       });
       if (!res.ok) {
@@ -2084,12 +2043,42 @@ export default function Settings({
         return;
       }
       setEmailConnectionConfigured(true);
+      setEmailSenderMode("own");
       setEmailAppPassword("");
       toast.success("E-mail da loja salvo. Agora faça o teste de envio.");
     } catch {
       toast.error("Erro de conexão ao salvar o e-mail da loja.");
     } finally {
       setSavingEmailConnection(false);
+    }
+  };
+
+  const handleToggleSystemEmail = async (enabled: boolean) => {
+    const mode = enabled ? "system" : "own";
+    setSavingEmailSenderMode(true);
+    try {
+      const res = await fetch("/api/tenant", {
+        method: "PUT",
+        headers: API_HEADERS(),
+        body: JSON.stringify({ email_sender_mode: mode }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        toast.error(data?.error || "Não foi possível alterar a forma de envio dos e-mails.");
+        return;
+      }
+      setEmailSenderMode(mode);
+      toast.success(
+        enabled
+          ? "Os e-mails passarão a ser enviados pelo sistema (contato@boxsys.com.br)."
+          : emailConnectionConfigured
+            ? "Os e-mails voltarão a ser enviados pela conta de e-mail da loja."
+            : "Envio pelo sistema desativado. Conecte um e-mail da loja para continuar enviando documentos.",
+      );
+    } catch {
+      toast.error("Erro de conexão ao alterar a forma de envio dos e-mails.");
+    } finally {
+      setSavingEmailSenderMode(false);
     }
   };
 
@@ -2235,10 +2224,12 @@ export default function Settings({
     STORE_CONFIGURATION_ITEMS.find((item) => item.id === active);
 
   return (
-    <div className="space-y-6">
-      <PageHeader
+    <PageWrapper>
+    <div className="space-y-4">
+      <SectionTitle
+        icon={storeMode ? Store : Settings2}
         title={storeMode ? "Minha Loja" : "Configurações"}
-        subtitle={
+        description={
           storeMode
             ? "Vitrine, catálogo, checkout e canais de venda"
             : active
@@ -2246,32 +2237,34 @@ export default function Settings({
               : "Loja pública e sistema interno"
         }
         action={
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             {(active || storeMode) && (
-              <button
+              <Button
+                variant="outline"
+                size="sm"
                 onClick={goToGrid}
-                className="h-9 px-4 bg-slate-100 hover:bg-slate-200 rounded-lg flex items-center gap-2 text-[12px] font-bold text-slate-600 transition-all"
+                iconLeft={<ChevronLeft size={14} />}
               >
-                <ChevronLeft size={15} /> Voltar
-              </button>
+                Voltar
+              </Button>
             )}
             {saved && (
-              <div className="flex items-center gap-2 bg-emerald-50 border border-emerald-200 text-emerald-700 px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest">
-                <Check size={13} strokeWidth={3} /> Salvo com sucesso
-              </div>
+              <Badge color="success" dot>
+                Salvo com sucesso
+              </Badge>
             )}
           </div>
         }
       />
 
       {!active && (
-        <div className="space-y-6 sm:space-y-8">
+        <div className="space-y-4">
           {NAV.map((group) => (
             <div key={group.group}>
-              <div className="mb-3 flex flex-wrap items-center gap-x-2 gap-y-1 sm:mb-4">
+              <div className="mb-3 flex flex-wrap items-center gap-x-2 gap-y-1">
                 <div
                   className={cn(
-                    "flex h-7 w-7 items-center justify-center rounded-lg bg-white shadow-sm ring-1 ring-slate-100",
+                    "flex h-7 w-7 items-center justify-center rounded-lg border border-slate-200 bg-white",
                     group.color,
                   )}
                 >
@@ -2279,13 +2272,13 @@ export default function Settings({
                 </div>
                 <span
                   className={cn(
-                    "text-[10px] font-black uppercase tracking-[0.2em]",
+                    "text-[11px] font-semibold",
                     group.color,
                   )}
                 >
                   {group.group}
                 </span>
-                <span className="text-[10px] text-slate-400 font-medium normal-case tracking-normal">
+                <span className="text-[11px] text-slate-400 font-medium normal-case tracking-normal">
                   · {group.desc}
                 </span>
               </div>
@@ -2315,13 +2308,13 @@ export default function Settings({
                           : setActive(item.id)
                       }
                       className={cn(
-                        "group relative flex min-h-[112px] cursor-pointer items-center gap-4 rounded-2xl border border-slate-200/80 bg-white p-4 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md sm:min-h-[124px] sm:p-5",
+                        "group relative flex min-h-[88px] cursor-pointer items-center gap-3 rounded-lg border border-slate-200 bg-white p-3 text-left transition-all",
                         meta.border,
                       )}
                     >
                       <div
                         className={cn(
-                          "flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl transition-transform group-hover:scale-105",
+                          "flex h-10 w-10 shrink-0 items-center justify-center rounded-lg",
                           meta.iconBg,
                         )}
                       >
@@ -2332,10 +2325,10 @@ export default function Settings({
                         />
                       </div>
                       <div className="min-w-0 pr-5">
-                        <span className="block text-[13px] font-black leading-tight text-slate-800 sm:text-sm">
+                        <span className="block text-[13px] font-semibold leading-tight text-slate-800">
                           {item.label}
                         </span>
-                        <span className="mt-1.5 block text-[10px] font-medium leading-relaxed text-slate-400">
+                        <span className="mt-1 block text-[11px] leading-relaxed text-slate-500">
                           {meta.description}
                         </span>
                       </div>
@@ -2353,34 +2346,14 @@ export default function Settings({
       )}
 
       {active && (
-        <div className="overflow-hidden rounded-2xl border border-slate-100 bg-white shadow-sm">
-          {/* breadcrumb strip */}
-          <div className="flex items-center gap-2 overflow-x-auto border-b border-slate-50 px-4 py-3 text-[9px] font-black uppercase tracking-widest text-slate-300 sm:px-6">
-            <Settings2 size={10} />
-            <span>{storeMode ? "Minha Loja" : "Configurações"}</span>
-            <ChevronRight size={9} />
-            <span className="text-slate-600">{activeItem?.label}</span>
-          </div>
-
-          <div className="p-4 sm:p-6 lg:p-8">
-            {storeMode && (
-              <div className="mb-7 flex gap-2 overflow-x-auto border-b border-slate-100 pb-4">
-                {STORE_CONFIGURATION_ITEMS.map((item) => (
-                  <button
-                    key={item.id}
-                    onClick={() => setActive(item.id)}
-                    className={cn(
-                      "flex h-9 shrink-0 items-center gap-2 rounded-lg px-3 text-[10px] font-black uppercase tracking-wider transition",
-                      active === item.id
-                        ? "bg-blue-600 text-white shadow-sm"
-                        : "bg-slate-50 text-slate-500 hover:bg-slate-100",
-                    )}
-                  >
-                    <item.icon size={13} /> {item.label}
-                  </button>
-                ))}
-              </div>
-            )}
+        <div className="overflow-hidden rounded-lg border border-slate-200 bg-white">
+          <div className="p-3 sm:p-4">
+            <StoreTabsFrame
+              enabled={storeMode}
+              items={STORE_CONFIGURATION_ITEMS}
+              value={active || ""}
+              onChange={setActive}
+            >
             {/* ── Identidade & Dados ──────────────────────────────────── */}
             {active === "identity" && (
               <div className="space-y-8">
@@ -2391,13 +2364,13 @@ export default function Settings({
 
                 {/* Logo */}
                 <div className="space-y-3">
-                  <p className="text-[10px] font-black uppercase tracking-widest text-slate-700 border-l-4 border-blue-500 pl-3">
+                  <p className="text-[11px] font-semibold text-slate-700 border-l-4 border-blue-500 pl-3">
                     Logo do Estabelecimento
                   </p>
                   <div className="flex items-start gap-5">
                     {/* preview */}
                     <div
-                      className="w-24 h-24 rounded-2xl border-2 border-dashed border-slate-200 bg-slate-50 flex items-center justify-center shrink-0 overflow-hidden cursor-pointer hover:border-blue-400 transition-colors relative group"
+                      className="w-24 h-24 rounded-lg border border-dashed border-slate-200 bg-slate-50 flex items-center justify-center shrink-0 overflow-hidden cursor-pointer hover:border-blue-400 transition-colors relative group"
                       onClick={() => logoInputRef.current?.click()}
                     >
                       {tenant?.logo_url ? (
@@ -2407,7 +2380,7 @@ export default function Settings({
                             alt="Logo"
                             className="w-full h-full object-contain p-1"
                           />
-                          <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center rounded-2xl">
+                          <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center rounded-lg">
                             <Upload size={20} className="text-white" />
                           </div>
                         </>
@@ -2418,7 +2391,7 @@ export default function Settings({
                           ) : (
                             <>
                               <Image size={24} />
-                              <span className="text-[8px] font-black uppercase tracking-widest">
+                              <span className="text-[11px] font-semibold">
                                 Clique
                               </span>
                             </>
@@ -2430,14 +2403,10 @@ export default function Settings({
                     {/* ações */}
                     <div className="flex-1 space-y-3">
                       <div>
-                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.18em] px-1 mb-2">
+                        <p className="text-[11px] font-semibold text-slate-400 px-1 mb-2">
                           Arquivo de Imagem
                         </p>
-                        <button
-                          onClick={() => logoInputRef.current?.click()}
-                          disabled={logoUploading}
-                          className="h-11 px-5 bg-slate-900 text-white rounded-xl text-[9px] font-black uppercase tracking-[0.2em] hover:bg-slate-800 transition-all flex items-center gap-2 disabled:opacity-50"
-                        >
+                        <Button onClick={() => logoInputRef.current?.click()} disabled={logoUploading} variant="primary" size="sm">
                           {logoUploading ? (
                             <>
                               <Loader2 size={13} className="animate-spin" />{" "}
@@ -2449,18 +2418,15 @@ export default function Settings({
                               arquivo
                             </>
                           )}
-                        </button>
-                        <p className="text-[9px] text-slate-400 font-medium px-1 mt-1.5">
+                        </Button>
+                        <p className="text-[11px] text-slate-400 font-medium px-1 mt-1.5">
                           PNG transparente recomendado · máx. 2 MB
                         </p>
                       </div>
                       {tenant?.logo_url && (
-                        <button
-                          onClick={() => setT({ logo_url: "" })}
-                          className="flex items-center gap-1.5 text-[9px] font-black uppercase tracking-widest text-rose-400 hover:text-rose-600 transition-colors"
-                        >
+                        <Button onClick={() => setT({ logo_url: "" })} variant="ghost" size="xs" className="text-rose-600">
                           <X size={11} /> Remover logo
-                        </button>
+                        </Button>
                       )}
                     </div>
 
@@ -2481,7 +2447,7 @@ export default function Settings({
 
                 {/* Dados básicos */}
                 <div className="space-y-3">
-                  <p className="text-[10px] font-black uppercase tracking-widest text-slate-700 border-l-4 border-blue-500 pl-3">
+                  <p className="text-[11px] font-semibold text-slate-700 border-l-4 border-blue-500 pl-3">
                     Dados da Empresa
                   </p>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
@@ -2514,17 +2480,13 @@ export default function Settings({
                       />
                     </Field>
                     <Field label="Identificador Público (Slug)">
-                      <div className="flex items-center border border-slate-200 rounded-xl overflow-hidden focus-within:ring-4 focus-within:ring-blue-500/8 focus-within:border-blue-500 transition-all bg-slate-50">
-                        <span className="bg-slate-100 border-r border-slate-200 px-3 h-11 flex items-center text-[10px] font-mono text-slate-400 shrink-0">
-                          /s/
-                        </span>
-                        <input
-                          type="text"
-                          className="flex-1 bg-transparent px-4 h-11 text-xs font-bold uppercase outline-none font-mono"
-                          value={tenant?.slug ?? ""}
-                          onChange={(e) => setT({ slug: e.target.value })}
-                        />
-                      </div>
+                      <Input
+                        type="text"
+                        addonLeft="/s/"
+                        className="font-mono"
+                        value={tenant?.slug ?? ""}
+                        onChange={(e) => setT({ slug: e.target.value })}
+                      />
                     </Field>
                   </div>
                 </div>
@@ -2532,11 +2494,11 @@ export default function Settings({
                 {/* Endereço estruturado */}
                 <div className="space-y-3">
                   <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
-                    <p className="text-[10px] font-black uppercase tracking-widest text-slate-700 border-l-4 border-blue-500 pl-3">
+                    <p className="text-[11px] font-semibold text-slate-700 border-l-4 border-blue-500 pl-3">
                       Endereço / Sede
                     </p>
                     <div className="flex items-center gap-3 bg-slate-50 px-3 py-1.5 rounded-full border border-slate-100">
-                      <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">
+                      <span className="text-[11px] font-semibold text-slate-400">
                         Exibir no Site
                       </span>
                       <Toggle
@@ -2548,7 +2510,7 @@ export default function Settings({
 
                   {/* CEP lookup */}
                   <div className="space-y-1.5">
-                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.18em] px-1 block">
+                    <label className="ds-label">
                       CEP
                     </label>
                     <div className="flex gap-2">
@@ -2560,20 +2522,16 @@ export default function Settings({
                           mono
                         />
                       </div>
-                      <button
-                        onClick={handleLookupCEP}
-                        disabled={cepLoading}
-                        className="h-11 px-5 bg-slate-900 text-white rounded-xl text-[9px] font-black uppercase tracking-[0.2em] hover:bg-slate-800 transition-all flex items-center gap-2 disabled:opacity-50 shrink-0"
-                      >
+                      <Button onClick={handleLookupCEP} disabled={cepLoading} variant="primary" size="sm">
                         {cepLoading ? (
                           <Loader2 size={13} className="animate-spin" />
                         ) : (
                           <Search size={13} strokeWidth={3} />
                         )}
                         Buscar CEP
-                      </button>
+                      </Button>
                     </div>
-                    <p className="text-[9px] text-slate-400 font-medium px-1">
+                    <p className="text-[11px] text-slate-400 font-medium px-1">
                       Digite o CEP para preencher o endereço automaticamente
                     </p>
                   </div>
@@ -2617,13 +2575,9 @@ export default function Settings({
                       />
                     </Field>
                     <Field label="Estado (UF)">
-                      <select
-                        value={tenant?.address_state ?? ""}
-                        onChange={(e) =>
+                      <Select value={tenant?.address_state ?? ""} onChange={(e) =>
                           setT({ address_state: e.target.value })
-                        }
-                        className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 h-11 text-xs font-bold outline-none focus:ring-4 focus:ring-blue-500/8 focus:border-blue-500 transition-all appearance-none"
-                      >
+                        }>
                         <option value="">UF</option>
                         {[
                           "AC",
@@ -2658,7 +2612,7 @@ export default function Settings({
                             {uf}
                           </option>
                         ))}
-                      </select>
+                      </Select>
                     </Field>
                   </div>
                 </div>
@@ -2669,12 +2623,7 @@ export default function Settings({
                     label="Frase de Destaque (Home)"
                     hint="Subtítulo curto exibido logo abaixo do nome da loja na página inicial pública — sem preencher, aparece um texto genérico de exemplo do tema escolhido"
                   >
-                    <textarea
-                      className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-5 py-4 text-xs font-medium outline-none h-20 resize-none focus:ring-4 focus:ring-blue-500/8 focus:border-blue-500 transition-all"
-                      value={tenant?.hero_tagline ?? ""}
-                      onChange={(e) => setT({ hero_tagline: e.target.value })}
-                      placeholder="Ex: Peças e acessórios automotivos com entrega rápida e os melhores preços."
-                    />
+                    <Textarea value={tenant?.hero_tagline ?? ""} onChange={(e) => setT({ hero_tagline: e.target.value })} placeholder="Ex: Peças e acessórios automotivos com entrega rápida e os melhores preços." className="h-20" />
                   </Field>
                 </div>
 
@@ -2684,12 +2633,7 @@ export default function Settings({
                     label="Manifesto da Marca (About)"
                     hint="Texto mais longo exibido na página Sobre da loja pública — diferente da Frase de Destaque, que aparece na Home"
                   >
-                    <textarea
-                      className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-5 py-4 text-xs font-medium outline-none h-36 resize-none focus:ring-4 focus:ring-blue-500/8 focus:border-blue-500 transition-all"
-                      value={tenant?.about_text ?? ""}
-                      onChange={(e) => setT({ about_text: e.target.value })}
-                      placeholder="Descreva a essência do seu negócio..."
-                    />
+                    <Textarea value={tenant?.about_text ?? ""} onChange={(e) => setT({ about_text: e.target.value })} placeholder="Descreva a essência do seu negócio..." className="h-36" />
                   </Field>
                 </div>
 
@@ -2707,7 +2651,7 @@ export default function Settings({
 
                 {/* Dados da empresa */}
                 <div className="space-y-3">
-                  <p className="text-[10px] font-black uppercase tracking-widest text-slate-700 border-l-4 border-blue-500 pl-3">
+                  <p className="text-[11px] font-semibold text-slate-700 border-l-4 border-blue-500 pl-3">
                     Dados da Empresa
                   </p>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
@@ -2760,7 +2704,7 @@ export default function Settings({
 
                 {/* Regime tributário */}
                 <div className="space-y-3">
-                  <p className="text-[10px] font-black uppercase tracking-widest text-slate-700 border-l-4 border-blue-500 pl-3">
+                  <p className="text-[11px] font-semibold text-slate-700 border-l-4 border-blue-500 pl-3">
                     Regime Tributário
                   </p>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
@@ -2768,9 +2712,7 @@ export default function Settings({
                       label="Regime"
                       hint="Define CRT no XML e se produtos usam CSOSN ou CST"
                     >
-                      <select
-                        value={tenant?.tax_regime ?? "simples_nacional"}
-                        onChange={(e) => {
+                      <Select value={tenant?.tax_regime ?? "simples_nacional"} onChange={(e) => {
                           const regime = e.target.value;
                           const crtByRegime: Record<string, number> = {
                             simples_nacional: 1,
@@ -2782,9 +2724,7 @@ export default function Settings({
                             tax_regime: regime as Tenant["tax_regime"],
                             crt: crtByRegime[regime] ?? 1,
                           });
-                        }}
-                        className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 h-11 text-xs font-bold outline-none focus:ring-4 focus:ring-blue-500/8 focus:border-blue-500 transition-all appearance-none"
-                      >
+                        }}>
                         <option value="simples_nacional">
                           Simples Nacional
                         </option>
@@ -2793,7 +2733,7 @@ export default function Settings({
                         </option>
                         <option value="lucro_presumido">Lucro Presumido</option>
                         <option value="lucro_real">Lucro Real</option>
-                      </select>
+                      </Select>
                     </Field>
                     <Field
                       label="CRT (Código de Regime Tributário)"
@@ -2813,52 +2753,48 @@ export default function Settings({
 
                 {/* NFC-e */}
                 <div className="space-y-3">
-                  <p className="text-[10px] font-black uppercase tracking-widest text-slate-700 border-l-4 border-amber-500 pl-3">
+                  <p className="text-[11px] font-semibold text-slate-700 border-l-4 border-amber-500 pl-3">
                     NFC-e — Emissão
                   </p>
-                  <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 flex items-start gap-2.5">
+                  <div className="bg-amber-50 border border-amber-200 rounded-lg px-4 py-3 flex items-start gap-2.5">
                     <AlertTriangle
                       size={15}
                       className="text-amber-500 shrink-0 mt-0.5"
                     />
-                    <p className="text-[10px] font-bold text-amber-700 leading-relaxed">
+                    <p className="text-[11px] font-semibold text-amber-700 leading-relaxed">
                       Ambiente "Homologação" emite notas de teste, sem validade
                       fiscal. Só troque para "Produção" quando tiver certificado
                       digital A1 e CSC de produção configurados.
                     </p>
                   </div>
 
-                  <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-3">
-                    <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">
+                  <div className="bg-slate-50 border border-slate-200 rounded-lg p-4 space-y-3">
+                    <p className="text-[11px] font-semibold text-slate-500">
                       Certificado Digital A1
                     </p>
                     {tenant?.nfce_cert_configured ? (
                       <div className="flex items-center justify-between gap-3">
                         <div className="flex items-center gap-2 text-emerald-700">
                           <ShieldCheck size={15} />
-                          <span className="text-[11px] font-bold">
+                          <span className="text-[11px] font-semibold">
                             Certificado configurado
                             {certInfo ? ` — ${certInfo.subjectName}` : ""}
                           </span>
                         </div>
-                        <button
-                          onClick={handleCertRemove}
-                          disabled={certUploading}
-                          className="h-8 px-3 rounded-lg border border-red-200 text-red-600 text-[10px] font-black uppercase tracking-wide hover:bg-red-50 transition-all disabled:opacity-50"
-                        >
+                        <Button onClick={handleCertRemove} disabled={certUploading} variant="outline" size="sm" className="text-red-600 border-red-200 hover:bg-red-50">
                           {certUploading ? "Removendo…" : "Remover"}
-                        </button>
+                        </Button>
                       </div>
                     ) : (
                       <div className="space-y-2.5">
-                        <p className="text-[10px] text-slate-500">
+                        <p className="text-[11px] text-slate-500">
                           Envie o arquivo .pfx/.p12 do certificado A1 da loja e
                           a senha dele. É necessário para emitir NFC-e em
                           produção.
                         </p>
 
                         <div>
-                          <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.18em] px-1 block mb-1.5">
+                          <label className="ds-label">
                             Arquivo do certificado
                           </label>
                           <input
@@ -2876,18 +2812,14 @@ export default function Settings({
                             }}
                           />
                           <div className="flex items-center gap-2">
-                            <button
-                              onClick={() => certInputRef.current?.click()}
-                              disabled={certUploading}
-                              className="h-11 px-4 rounded-xl bg-white border border-slate-200 text-slate-700 text-[10px] font-black uppercase tracking-wide hover:bg-slate-50 transition-all disabled:opacity-50 shrink-0 flex items-center gap-2"
-                            >
+                            <Button onClick={() => certInputRef.current?.click()} disabled={certUploading} variant="outline" size="sm">
                               <Upload size={13} /> Selecionar Arquivo
-                            </button>
+                            </Button>
                             <span
                               className={cn(
                                 "text-[11px] truncate",
                                 certFile
-                                  ? "text-slate-700 font-bold"
+                                  ? "text-slate-700 font-semibold"
                                   : "text-slate-400",
                               )}
                             >
@@ -2899,33 +2831,23 @@ export default function Settings({
                         </div>
 
                         <div>
-                          <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.18em] px-1 block mb-1.5">
+                          <label className="ds-label">
                             Senha do certificado
                           </label>
                           <div className="flex gap-2">
-                            <input
-                              type="password"
-                              value={certPassword}
-                              onChange={(e) => setCertPassword(e.target.value)}
-                              placeholder="Senha do certificado"
-                              className="flex-1 bg-white border border-slate-200 rounded-xl px-4 h-11 text-xs font-bold outline-none focus:ring-4 focus:ring-blue-500/8 focus:border-blue-500 transition-all"
-                            />
-                            <button
-                              onClick={handleCertUpload}
-                              disabled={
+                            <Input type="password" value={certPassword} onChange={(e) => setCertPassword(e.target.value)} placeholder="Senha do certificado" wrapperClassName="flex-1" />
+                            <Button onClick={handleCertUpload} disabled={
                                 certUploading || !certPassword || !certFile
-                              }
-                              className="h-11 px-4 rounded-xl bg-slate-800 text-white text-[10px] font-black uppercase tracking-wide hover:bg-slate-700 transition-all disabled:opacity-50 shrink-0"
-                            >
+                              } variant="primary" size="md" className="shrink-0">
                               {certUploading
                                 ? "Enviando…"
                                 : "Enviar Certificado"}
-                            </button>
+                            </Button>
                           </div>
                         </div>
 
                         {certError && (
-                          <p className="text-[10px] font-bold text-red-600">
+                          <p className="text-[11px] font-semibold text-red-600">
                             {certError}
                           </p>
                         )}
@@ -2935,19 +2857,15 @@ export default function Settings({
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                     <Field label="Ambiente NFC-e">
-                      <select
-                        value={tenant?.nfce_environment ?? "homologacao"}
-                        onChange={(e) =>
+                      <Select value={tenant?.nfce_environment ?? "homologacao"} onChange={(e) =>
                           setT({
                             nfce_environment: e.target
                               .value as Tenant["nfce_environment"],
                           })
-                        }
-                        className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 h-11 text-xs font-bold outline-none focus:ring-4 focus:ring-blue-500/8 focus:border-blue-500 transition-all appearance-none"
-                      >
+                        }>
                         <option value="homologacao">Homologação (teste)</option>
                         <option value="producao">Produção</option>
-                      </select>
+                      </Select>
                     </Field>
                     <div />
                     <Field label="Série">
@@ -3000,15 +2918,15 @@ export default function Settings({
 
                 {/* NFS-e */}
                 <div className="space-y-3">
-                  <p className="text-[10px] font-black uppercase tracking-widest text-slate-700 border-l-4 border-violet-500 pl-3">
+                  <p className="text-[11px] font-semibold text-slate-700 border-l-4 border-violet-500 pl-3">
                     NFS-e — Emissão (Sistema Nacional)
                   </p>
-                  <div className="bg-violet-50 border border-violet-200 rounded-xl px-4 py-3 flex items-start gap-2.5">
+                  <div className="bg-violet-50 border border-violet-200 rounded-lg px-4 py-3 flex items-start gap-2.5">
                     <AlertTriangle
                       size={15}
                       className="text-violet-500 shrink-0 mt-0.5"
                     />
-                    <p className="text-[10px] font-bold text-violet-700 leading-relaxed">
+                    <p className="text-[11px] font-semibold text-violet-700 leading-relaxed">
                       Emitida a partir da mão de obra/serviço de uma Ordem de
                       Serviço (peças continuam gerando NFC-e). Reaproveita o
                       mesmo certificado digital A1 configurado acima. Consulte o
@@ -3017,19 +2935,15 @@ export default function Settings({
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                     <Field label="Ambiente NFS-e">
-                      <select
-                        value={tenant?.nfse_environment ?? "homologacao"}
-                        onChange={(e) =>
+                      <Select value={tenant?.nfse_environment ?? "homologacao"} onChange={(e) =>
                           setT({
                             nfse_environment: e.target
                               .value as Tenant["nfse_environment"],
                           })
-                        }
-                        className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 h-11 text-xs font-bold outline-none focus:ring-4 focus:ring-blue-500/8 focus:border-blue-500 transition-all appearance-none"
-                      >
+                        }>
                         <option value="homologacao">Homologação (teste)</option>
                         <option value="producao">Produção</option>
-                      </select>
+                      </Select>
                     </Field>
                     <div />
                     <Field
@@ -3085,34 +2999,30 @@ export default function Settings({
                     </Field>
                   </div>
 
-                  <div className="flex items-center justify-between gap-3 bg-slate-50 border border-slate-200 rounded-xl px-4 py-3">
+                  <div className="flex items-center justify-between gap-3 bg-slate-50 border border-slate-200 rounded-lg px-4 py-3">
                     <div>
-                      <p className="text-[11px] font-bold text-slate-700">
+                      <p className="text-[11px] font-semibold text-slate-700">
                         Testar emissão em homologação
                       </p>
-                      <p className="text-[10px] text-slate-400 mt-0.5">
+                      <p className="text-[11px] text-slate-400 mt-0.5">
                         Gera uma nota de teste de R$ 1,00 sempre em homologação
                         (nunca em produção), pra validar certificado, código do
                         município e comunicação com o governo sem precisar de
                         uma Ordem de Serviço real.
                       </p>
                     </div>
-                    <button
-                      onClick={handleTestNfse}
-                      disabled={testingNfse}
-                      className="shrink-0 h-10 px-4 rounded-xl bg-violet-600 text-white text-[10px] font-black uppercase tracking-widest hover:bg-violet-700 disabled:opacity-50 transition-all flex items-center gap-2"
-                    >
+                    <Button onClick={handleTestNfse} disabled={testingNfse} variant="primary" size="sm">
                       {testingNfse ? (
                         <Loader2 size={14} className="animate-spin" />
                       ) : null}
                       {testingNfse ? "Testando..." : "Testar Emissão"}
-                    </button>
+                    </Button>
                   </div>
 
                   {nfseTestResult && (
                     <div
                       className={cn(
-                        "rounded-xl border px-4 py-3",
+                        "rounded-lg border px-4 py-3",
                         nfseTestResult.success
                           ? "bg-emerald-50 border-emerald-200"
                           : "bg-red-50 border-red-200",
@@ -3120,7 +3030,7 @@ export default function Settings({
                     >
                       <p
                         className={cn(
-                          "text-[11px] font-black uppercase tracking-wide",
+                          "text-[11px] font-semibold",
                           nfseTestResult.success
                             ? "text-emerald-700"
                             : "text-red-700",
@@ -3131,12 +3041,12 @@ export default function Settings({
                           : `Falhou (${nfseTestResult.status ?? "erro"})`}
                       </p>
                       {nfseTestResult.chave_acesso && (
-                        <p className="text-[10px] text-emerald-600 font-mono mt-1">
+                        <p className="text-[11px] text-emerald-600 font-mono mt-1">
                           Chave: {nfseTestResult.chave_acesso}
                         </p>
                       )}
                       {nfseTestResult.rejection_reason && (
-                        <p className="text-[10px] text-red-600 mt-1">
+                        <p className="text-[11px] text-red-600 mt-1">
                           {nfseTestResult.rejection_reason}
                         </p>
                       )}
@@ -3161,7 +3071,7 @@ export default function Settings({
 
                 {/* templates */}
                 <div className="space-y-3">
-                  <p className="text-[10px] font-black uppercase tracking-widest text-slate-700 border-l-4 border-blue-500 pl-3">
+                  <p className="text-[11px] font-semibold text-slate-700 border-l-4 border-blue-500 pl-3">
                     Aplicar Modelo Pronto
                   </p>
                   <p className="text-xs text-slate-500">
@@ -3299,10 +3209,10 @@ export default function Settings({
                               setT({ template_id: t.id });
                           }}
                           className={cn(
-                            "min-w-[200px] sm:min-w-0 rounded-2xl border-2 text-left transition-all relative overflow-hidden group shrink-0 flex flex-col cursor-pointer",
+                            "min-w-[200px] sm:min-w-0 rounded-lg border text-left transition-all relative overflow-hidden group shrink-0 flex flex-col cursor-pointer",
                             isActive
-                              ? "border-blue-600 shadow-lg shadow-blue-500/10 ring-2 ring-blue-200"
-                              : "border-slate-100 hover:border-slate-300 hover:shadow-lg bg-white",
+                              ? "border-blue-600 ring-2 ring-blue-200"
+                              : "border-slate-100 hover:border-slate-300 bg-white",
                           )}
                         >
                           {/* Preview real: a mesma loja, com produtos e o tema aplicado temporariamente. */}
@@ -3326,7 +3236,7 @@ export default function Settings({
                           {/* Card footer */}
                           <div className="p-3 flex flex-col gap-1 bg-white flex-1">
                             <div className="flex items-center justify-between">
-                              <p className="text-[11px] font-black uppercase tracking-wider text-slate-800 group-hover:text-blue-600 transition-colors leading-none">
+                              <p className="text-[11px] font-semibold text-slate-800 group-hover:text-blue-600 transition-colors leading-none">
                                 {t.name}
                               </p>
                               {isActive && (
@@ -3338,7 +3248,7 @@ export default function Settings({
                               )}
                             </div>
                             <span
-                              className="inline-block self-start text-[8px] font-bold uppercase tracking-widest px-1.5 py-0.5 rounded-full"
+                              className="inline-block self-start text-[11px] font-semibold px-1.5 py-0.5 rounded-full"
                               style={{
                                 backgroundColor: t.badge.bg,
                                 color: t.badge.text,
@@ -3346,23 +3256,19 @@ export default function Settings({
                             >
                               {t.tag}
                             </span>
-                            <p className="text-[10px] text-slate-400 leading-relaxed mt-0.5">
+                            <p className="text-[11px] text-slate-400 leading-relaxed mt-0.5">
                               {t.desc}
                             </p>
-                            <button
-                              type="button"
-                              onClick={(event) => {
+                            <Button type="button" onClick={(event) => {
                                 event.stopPropagation();
                                 window.open(
                                   previewUrl,
                                   "_blank",
                                   "noopener,noreferrer",
                                 );
-                              }}
-                              className="mt-2 self-start text-[9px] font-black uppercase tracking-[.14em] text-blue-600 hover:text-blue-800"
-                            >
+                              }} variant="ghost" size="xs" className="self-start text-blue-600">
                               Ver demonstração real ↗
-                            </button>
+                            </Button>
                           </div>
                         </div>
                       );
@@ -3376,7 +3282,7 @@ export default function Settings({
                     <div className="flex gap-3">
                       <input
                         type="color"
-                        className="w-11 h-11 rounded-xl cursor-pointer border-2 border-slate-100 shadow-sm shrink-0"
+                        className="w-9 h-9 rounded-lg cursor-pointer border border-slate-200 shrink-0"
                         value={tenant?.primary_color ?? "#000000"}
                         onChange={(e) =>
                           setT({ primary_color: e.target.value })
@@ -3391,7 +3297,7 @@ export default function Settings({
                   </Field>
                   <Field label="Logo (PNG/SVG)">
                     <div className="flex items-center gap-3">
-                      <div className="w-14 h-14 rounded-xl border-2 border-dashed border-slate-200 bg-slate-50 flex items-center justify-center shrink-0 overflow-hidden">
+                      <div className="w-14 h-14 rounded-lg border border-dashed border-slate-200 bg-slate-50 flex items-center justify-center shrink-0 overflow-hidden">
                         {tenant?.logo_url ? (
                           <img
                             src={tenant.logo_url}
@@ -3402,12 +3308,7 @@ export default function Settings({
                           <Image size={18} className="text-slate-300" />
                         )}
                       </div>
-                      <button
-                        type="button"
-                        onClick={() => logoInputRef.current?.click()}
-                        disabled={logoUploading}
-                        className="h-10 px-4 bg-slate-900 text-white rounded-xl text-[9px] font-black uppercase tracking-[0.2em] hover:bg-slate-800 transition-all flex items-center gap-2 disabled:opacity-50"
-                      >
+                      <Button type="button" onClick={() => logoInputRef.current?.click()} disabled={logoUploading} variant="primary" size="sm">
                         {logoUploading ? (
                           <>
                             <Loader2 size={12} className="animate-spin" />{" "}
@@ -3419,13 +3320,13 @@ export default function Settings({
                             {tenant?.logo_url ? "Trocar" : "Selecionar"} imagem
                           </>
                         )}
-                      </button>
+                      </Button>
                     </div>
                   </Field>
                   <div className="md:col-span-2">
                     <Field label="Banner Principal (imagem do topo da vitrine)">
                       <div className="flex items-center gap-3">
-                        <div className="w-24 h-14 rounded-xl border-2 border-dashed border-slate-200 bg-slate-50 flex items-center justify-center shrink-0 overflow-hidden">
+                        <div className="w-24 h-14 rounded-lg border border-dashed border-slate-200 bg-slate-50 flex items-center justify-center shrink-0 overflow-hidden">
                           {tenant?.banner_url ? (
                             <img
                               src={tenant.banner_url}
@@ -3436,12 +3337,7 @@ export default function Settings({
                             <Image size={18} className="text-slate-300" />
                           )}
                         </div>
-                        <button
-                          type="button"
-                          onClick={() => bannerInputRef.current?.click()}
-                          disabled={bannerUploading}
-                          className="h-10 px-4 bg-slate-900 text-white rounded-xl text-[9px] font-black uppercase tracking-[0.2em] hover:bg-slate-800 transition-all flex items-center gap-2 disabled:opacity-50"
-                        >
+                        <Button type="button" onClick={() => bannerInputRef.current?.click()} disabled={bannerUploading} variant="primary" size="sm">
                           {bannerUploading ? (
                             <>
                               <Loader2 size={12} className="animate-spin" />{" "}
@@ -3454,15 +3350,11 @@ export default function Settings({
                               imagem
                             </>
                           )}
-                        </button>
+                        </Button>
                         {tenant?.banner_url && (
-                          <button
-                            type="button"
-                            onClick={() => setT({ banner_url: "" })}
-                            className="flex items-center gap-1.5 text-[9px] font-black uppercase tracking-widest text-rose-400 hover:text-rose-600 transition-colors"
-                          >
+                          <Button type="button" onClick={() => setT({ banner_url: "" })} variant="ghost" size="xs" className="text-rose-600">
                             <X size={11} /> Remover
-                          </button>
+                          </Button>
                         )}
                       </div>
                       <input
@@ -3491,7 +3383,7 @@ export default function Settings({
 
                 {/* vitrine sliders */}
                 <div className="space-y-3">
-                  <p className="text-[10px] font-black uppercase tracking-widest text-slate-700 border-l-4 border-blue-500 pl-3">
+                  <p className="text-[11px] font-semibold text-slate-700 border-l-4 border-blue-500 pl-3">
                     Vitrine — Limites de Exibição
                   </p>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -3513,13 +3405,13 @@ export default function Settings({
                     ].map(({ key, label, min, max, desc }) => (
                       <div
                         key={key}
-                        className="bg-slate-50 border border-slate-100 rounded-2xl p-5 space-y-3"
+                        className="bg-slate-50 border border-slate-100 rounded-lg p-5 space-y-3"
                       >
                         <div>
-                          <p className="text-[10px] font-black uppercase tracking-widest text-slate-700">
+                          <p className="text-[11px] font-semibold text-slate-700">
                             {label}
                           </p>
-                          <p className="text-[9px] text-slate-400 mt-0.5 font-medium">
+                          <p className="text-[11px] text-slate-400 mt-0.5 font-medium">
                             {desc}
                           </p>
                         </div>
@@ -3537,7 +3429,7 @@ export default function Settings({
                             }
                             className="flex-1 accent-blue-600"
                           />
-                          <span className="text-xl font-black text-slate-900 w-8 text-center tabular-nums">
+                          <span className="text-xl font-semibold text-slate-900 w-8 text-center tabular-nums">
                             {(tenant?.[key] as number) ??
                               (key === "featured_limit" ? 4 : 8)}
                           </span>
@@ -3575,21 +3467,18 @@ export default function Settings({
                   </Field>
                 </div>
 
-                <div className="p-5 bg-blue-50 border border-blue-100 rounded-2xl space-y-2">
-                  <p className="text-[9px] font-black text-blue-600 uppercase tracking-widest">
+                <div className="p-5 bg-blue-50 border border-blue-100 rounded-lg space-y-2">
+                  <p className="text-[11px] font-semibold text-blue-600">
                     Integração WhatsApp
                   </p>
-                  <p className="text-[10px] text-blue-800 leading-relaxed font-medium">
+                  <p className="text-[11px] text-blue-800 leading-relaxed font-medium">
                     Pedidos realizados na loja pública disparam notificação
                     automática para o número configurado em{" "}
-                    <button
-                      onClick={() => setActive("identity")}
-                      className="underline font-black hover:no-underline"
-                    >
+                    <Button onClick={() => setActive("identity")} variant="ghost" size="xs" className="underline px-0 h-auto">
                       Identidade &amp; Dados
-                    </button>
+                    </Button>
                     . Use o formato internacional:{" "}
-                    <span className="font-mono font-bold">
+                    <span className="font-mono font-semibold">
                       55 + DDD + Número
                     </span>
                     .
@@ -3620,40 +3509,30 @@ export default function Settings({
                       <div
                         key={key}
                         className={cn(
-                          "flex flex-col sm:flex-row items-start sm:items-center gap-3 p-4 rounded-xl border transition-all",
+                          "flex flex-col sm:flex-row items-start sm:items-center gap-3 p-4 rounded-lg border transition-all",
                           day.closed
                             ? "bg-slate-50 border-slate-100"
                             : "bg-white border-slate-100",
                         )}
                       >
-                        <span className="text-[10px] font-black uppercase tracking-widest text-slate-700 w-20 shrink-0">
+                        <span className="text-[11px] font-semibold text-slate-700 w-20 shrink-0">
                           {label}
                         </span>
                         {day.closed ? (
-                          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest flex-1">
+                          <span className="text-[11px] font-semibold text-slate-400 flex-1">
                             Fechado
                           </span>
                         ) : (
                           <div className="flex items-center gap-2 flex-1">
-                            <input
-                              type="time"
-                              value={day.open}
-                              onChange={(e) =>
+                            <Input type="time" value={day.open} onChange={(e) =>
                                 setHours(key, { open: e.target.value })
-                              }
-                              className="bg-slate-50 border border-slate-200 rounded-lg px-3 h-9 text-xs font-mono font-bold outline-none focus:border-blue-500 transition-all"
-                            />
-                            <span className="text-[10px] text-slate-300 font-bold">
+                              } className="font-mono" />
+                            <span className="text-[11px] text-slate-300 font-semibold">
                               até
                             </span>
-                            <input
-                              type="time"
-                              value={day.close}
-                              onChange={(e) =>
+                            <Input type="time" value={day.close} onChange={(e) =>
                                 setHours(key, { close: e.target.value })
-                              }
-                              className="bg-slate-50 border border-slate-200 rounded-lg px-3 h-9 text-xs font-mono font-bold outline-none focus:border-blue-500 transition-all"
-                            />
+                              } className="font-mono" />
                           </div>
                         )}
                         <Toggle
@@ -3682,7 +3561,7 @@ export default function Settings({
 
                 {/* payment methods */}
                 <div className="space-y-3">
-                  <p className="text-[10px] font-black uppercase tracking-widest text-slate-700 border-l-4 border-blue-500 pl-3">
+                  <p className="text-[11px] font-semibold text-slate-700 border-l-4 border-blue-500 pl-3">
                     Métodos de Pagamento Aceitos
                   </p>
                   <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
@@ -3703,14 +3582,14 @@ export default function Settings({
                         key={key}
                         onClick={() => setPayment(key, !payments[key])}
                         className={cn(
-                          "flex flex-col items-center justify-center gap-2 p-4 rounded-2xl border-2 transition-all",
+                          "flex flex-col items-center justify-center gap-2 p-4 rounded-lg border transition-all",
                           payments[key]
                             ? "border-emerald-500 bg-emerald-50 text-emerald-800"
                             : "border-slate-100 bg-white text-slate-400 hover:border-slate-200",
                         )}
                       >
                         <span className="text-xl">{emoji}</span>
-                        <span className="text-[9px] font-black uppercase tracking-widest">
+                        <span className="text-[11px] font-semibold">
                           {label}
                         </span>
                         {payments[key] && (
@@ -3727,7 +3606,7 @@ export default function Settings({
 
                 {/* policies */}
                 <div className="space-y-4">
-                  <p className="text-[10px] font-black uppercase tracking-widest text-slate-700 border-l-4 border-blue-500 pl-3">
+                  <p className="text-[11px] font-semibold text-slate-700 border-l-4 border-blue-500 pl-3">
                     Políticas da Loja
                   </p>
                   {(
@@ -3758,14 +3637,9 @@ export default function Settings({
                   ).map(({ policyKey, label, placeholder }) => (
                     <div key={policyKey}>
                       <Field label={label}>
-                        <textarea
-                          className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-xs font-medium outline-none h-24 resize-none focus:ring-4 focus:ring-blue-500/8 focus:border-blue-500 transition-all"
-                          value={policies[policyKey]}
-                          onChange={(e) =>
+                        <Textarea value={policies[policyKey]} onChange={(e) =>
                             setPolicies({ [policyKey]: e.target.value })
-                          }
-                          placeholder={placeholder}
-                        />
+                          } placeholder={placeholder} className="h-24" />
                       </Field>
                     </div>
                   ))}
@@ -3862,21 +3736,21 @@ export default function Settings({
                             setStorefront({ checkout_mode: mode.id })
                           }
                           className={cn(
-                            "min-h-44 rounded-2xl border-2 p-5 text-left transition-all",
+                            "min-h-44 rounded-lg border p-5 text-left transition-all",
                             storefront.checkout_mode === mode.id
-                              ? "border-blue-600 bg-blue-50 shadow-lg shadow-blue-500/10"
+                              ? "border-blue-600 bg-blue-50"
                               : "border-slate-100 bg-white hover:border-slate-300",
                           )}
                         >
                           <div className="flex items-center justify-between gap-2">
-                            <span className="text-[9px] font-black uppercase tracking-widest text-blue-600">
+                            <span className="text-[11px] font-semibold text-blue-600">
                               {mode.badge}
                             </span>
                             {storefront.checkout_mode === mode.id && (
                               <Check size={15} className="text-blue-600" />
                             )}
                           </div>
-                          <p className="mt-5 text-sm font-black text-slate-900">
+                          <p className="mt-5 text-sm font-semibold text-slate-900">
                             {mode.title}
                           </p>
                           <p className="mt-2 text-[11px] leading-relaxed text-slate-500">
@@ -3886,32 +3760,25 @@ export default function Settings({
                       ))}
                     </div>
                     {storefront.checkout_mode === "reservation" && (
-                      <div className="rounded-2xl border border-amber-200 bg-amber-50 p-5">
+                      <div className="rounded-lg border border-amber-200 bg-amber-50 p-5">
                         <Field
                           label="Tempo da reserva (minutos)"
                           hint="Após esse período, a reserva fica disponível para a equipe cancelar e devolver os itens ao estoque."
                         >
-                          <input
-                            type="number"
-                            min="5"
-                            max="120"
-                            value={storefront.reservation_minutes}
-                            onChange={(e) =>
+                          <Input type="number" min="5" max="120" value={storefront.reservation_minutes} onChange={(e) =>
                               setStorefront({
                                 reservation_minutes: Math.max(
                                   5,
                                   Math.min(120, Number(e.target.value) || 20),
                                 ),
                               })
-                            }
-                            className="h-11 w-32 rounded-xl border border-amber-200 bg-white px-3 text-xs font-bold outline-none focus:border-amber-500"
-                          />
+                            } wrapperClassName="w-32" />
                         </Field>
                       </div>
                     )}
                     {storefront.checkout_mode === "order_request" && (
-                      <div className="rounded-2xl border border-pink-200 bg-pink-50 p-5">
-                        <p className="text-xs font-black text-pink-950">
+                      <div className="rounded-lg border border-pink-200 bg-pink-50 p-5">
+                        <p className="text-xs font-semibold text-pink-950">
                           Automação da solicitação de encomenda
                         </p>
                         <p className="mt-1 text-[11px] leading-relaxed text-pink-800">
@@ -3936,7 +3803,7 @@ export default function Settings({
                               placeholder="producao@sualoja.com.br, pedidos@sualoja.com.br"
                             />
                           </Field>
-                          <div className="rounded-xl border border-pink-100 bg-white p-4 text-[11px] leading-relaxed text-slate-600">
+                          <div className="rounded-lg border border-pink-100 bg-white p-4 text-[11px] leading-relaxed text-slate-600">
                             <strong className="block text-slate-800">
                               Fluxo automático
                             </strong>
@@ -3953,8 +3820,8 @@ export default function Settings({
                         </div>
                       </div>
                     )}
-                    <div className="rounded-2xl border border-slate-200 bg-white p-5 space-y-4">
-                      <p className="text-xs font-black text-slate-800">
+                    <div className="rounded-lg border border-slate-200 bg-white p-5 space-y-4">
+                      <p className="text-xs font-semibold text-slate-800">
                         Textos da vitrine
                       </p>
                       <p className="text-[11px] text-slate-500">
@@ -4012,16 +3879,16 @@ export default function Settings({
                             onChange={(value) => setStorefront({ hide_prices: value })}
                             label="Ocultar preços na vitrine pública"
                           />
-                          <p className="ml-11 mt-1 text-[10px] leading-relaxed text-slate-500">
+                          <p className="ml-11 mt-1 text-[11px] leading-relaxed text-slate-500">
                             Os preços continuam cadastrados para o PDV e a gestão. No site, o cliente verá “Sob encomenda” e solicitará a confirmação com a equipe.
                           </p>
                         </div>
                       </div>
                     </div>
                     <div className="grid gap-5 xl:grid-cols-2">
-                      <div className="rounded-2xl border border-slate-200 bg-white p-5 space-y-4">
+                      <div className="rounded-lg border border-slate-200 bg-white p-5 space-y-4">
                         <div>
-                          <p className="text-xs font-black text-slate-800">
+                          <p className="text-xs font-semibold text-slate-800">
                             Entrega e retirada
                           </p>
                           <p className="mt-1 text-[11px] leading-relaxed text-slate-500">
@@ -4048,7 +3915,7 @@ export default function Settings({
                         </div>
                         {delivery.delivery_enabled && (
                           <div className="space-y-3 border-t border-slate-100 pt-4">
-                            <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">
+                            <p className="text-[11px] font-semibold text-slate-500">
                               Faixas atendidas
                             </p>
                             {delivery.cep_zones.map((zone, index) => (
@@ -4056,9 +3923,7 @@ export default function Settings({
                                 key={index}
                                 className="grid grid-cols-[1.3fr_1fr_1fr_100px_32px] gap-2 items-center"
                               >
-                                <input
-                                  value={zone.name}
-                                  onChange={(e) =>
+                                <Input value={zone.name} onChange={(e) =>
                                     setDelivery({
                                       cep_zones: delivery.cep_zones.map(
                                         (item, i) =>
@@ -4067,14 +3932,8 @@ export default function Settings({
                                             : item,
                                       ),
                                     })
-                                  }
-                                  className="h-10 rounded-lg border border-slate-200 px-3 text-xs"
-                                  placeholder="Nome da região"
-                                />
-                                <input
-                                  value={zone.from}
-                                  inputMode="numeric"
-                                  onChange={(e) =>
+                                  } placeholder="Nome da região" />
+                                <Input value={zone.from} inputMode="numeric" onChange={(e) =>
                                     setDelivery({
                                       cep_zones: delivery.cep_zones.map(
                                         (item, i) =>
@@ -4088,14 +3947,8 @@ export default function Settings({
                                             : item,
                                       ),
                                     })
-                                  }
-                                  className="h-10 rounded-lg border border-slate-200 px-3 text-xs"
-                                  placeholder="CEP inicial"
-                                />
-                                <input
-                                  value={zone.to}
-                                  inputMode="numeric"
-                                  onChange={(e) =>
+                                  } placeholder="CEP inicial" />
+                                <Input value={zone.to} inputMode="numeric" onChange={(e) =>
                                     setDelivery({
                                       cep_zones: delivery.cep_zones.map(
                                         (item, i) =>
@@ -4109,16 +3962,8 @@ export default function Settings({
                                             : item,
                                       ),
                                     })
-                                  }
-                                  className="h-10 rounded-lg border border-slate-200 px-3 text-xs"
-                                  placeholder="CEP final"
-                                />
-                                <input
-                                  type="number"
-                                  min="0"
-                                  step="0.01"
-                                  value={zone.fee ?? ""}
-                                  onChange={(e) =>
+                                  } placeholder="CEP final" />
+                                <Input type="number" min="0" step="0.01" value={zone.fee ?? ""} onChange={(e) =>
                                     setDelivery({
                                       cep_zones: delivery.cep_zones.map(
                                         (item, i) =>
@@ -4131,40 +3976,29 @@ export default function Settings({
                                             : item,
                                       ),
                                     })
-                                  }
-                                  className="h-10 rounded-lg border border-slate-200 px-3 text-xs"
-                                  placeholder="Frete R$"
-                                />
-                                <button
-                                  type="button"
-                                  onClick={() =>
+                                  } placeholder="Frete R$" />
+                                <IconButton type="button" onClick={() =>
                                     setDelivery({
                                       cep_zones: delivery.cep_zones.filter(
                                         (_, i) => i !== index,
                                       ),
                                     })
-                                  }
-                                  className="text-slate-400 hover:text-red-600"
-                                >
+                                  } aria-label="Remover faixa de CEP" variant="ghost" size="xs" className="hover:text-red-600">
                                   <Trash2 size={16} />
-                                </button>
+                                </IconButton>
                               </div>
                             ))}
-                            <button
-                              type="button"
-                              onClick={() =>
+                            <Button type="button" onClick={() =>
                                 setDelivery({
                                   cep_zones: [
                                     ...delivery.cep_zones,
                                     { name: "", from: "", to: "", fee: 0 },
                                   ],
                                 })
-                              }
-                              className="text-xs font-bold text-blue-600 hover:text-blue-700"
-                            >
+                              } variant="ghost" size="sm" className="text-blue-600">
                               + Adicionar faixa de CEP
-                            </button>
-                            <p className="text-[10px] leading-relaxed text-slate-400">
+                            </Button>
+                            <p className="text-[11px] leading-relaxed text-slate-400">
                               Para entrega por quilômetros, conectaremos um
                               provedor de rotas depois. CEP não informa
                               distância geográfica por si só.
@@ -4172,9 +4006,9 @@ export default function Settings({
                           </div>
                         )}
                       </div>
-                      <div className="rounded-2xl border border-slate-200 bg-white p-5 space-y-4">
+                      <div className="rounded-lg border border-slate-200 bg-white p-5 space-y-4">
                         <div>
-                          <p className="text-xs font-black text-slate-800">
+                          <p className="text-xs font-semibold text-slate-800">
                             Formas de pagamento do checkout
                           </p>
                           <p className="mt-1 text-[11px] leading-relaxed text-slate-500">
@@ -4212,16 +4046,16 @@ export default function Settings({
                           return (
                             <div
                               key={provider}
-                              className="rounded-xl border border-slate-200 bg-slate-50 p-4"
+                              className="rounded-lg border border-slate-200 bg-slate-50 p-4"
                             >
                               <div className="flex flex-wrap items-center justify-between gap-3">
                                 <div>
-                                  <p className="text-xs font-black text-slate-900">
+                                  <p className="text-xs font-semibold text-slate-900">
                                     {provider === "mercadopago"
                                       ? "Mercado Pago"
                                       : "Asaas"}
                                   </p>
-                                  <p className="mt-1 text-[10px] text-slate-500">
+                                  <p className="mt-1 text-[11px] text-slate-500">
                                     {gateway?.connected
                                       ? "Conta da loja conectada"
                                       : "Nenhuma conta conectada"}
@@ -4236,25 +4070,17 @@ export default function Settings({
                                 />
                               </div>
                               <div className="mt-3 grid gap-2 sm:grid-cols-[1fr_130px_auto]">
-                                <input
-                                  value={gatewayTokens[provider] || ""}
-                                  onChange={(e) =>
+                                <Input value={gatewayTokens[provider] || ""} onChange={(e) =>
                                     setGatewayTokens((current) => ({
                                       ...current,
                                       [provider]: e.target.value,
                                     }))
-                                  }
-                                  type="password"
-                                  className="h-10 rounded-lg border border-slate-200 bg-white px-3 text-xs"
-                                  placeholder={
+                                  } type="password" placeholder={
                                     gateway?.connected
                                       ? "Cole outro token para substituir"
                                       : "Access token da conta desta loja"
-                                  }
-                                />
-                                <select
-                                  value={environment}
-                                  onChange={(e) =>
+                                  } />
+                                <Select value={environment} onChange={(e) =>
                                     setStorePaymentGateways((current) => [
                                       ...current.filter(
                                         (item) => item.provider !== provider,
@@ -4267,16 +4093,11 @@ export default function Settings({
                                           "sandbox" | "production",
                                       },
                                     ])
-                                  }
-                                  className="h-10 rounded-lg border border-slate-200 bg-white px-2 text-xs"
-                                >
+                                  }>
                                   <option value="sandbox">Teste</option>
                                   <option value="production">Produção</option>
-                                </select>
-                                <button
-                                  type="button"
-                                  disabled={gatewaySaving === provider}
-                                  onClick={() =>
+                                </Select>
+                                <Button type="button" disabled={gatewaySaving === provider} onClick={() =>
                                     saveStorePaymentGateway(
                                       provider,
                                       true,
@@ -4285,15 +4106,13 @@ export default function Settings({
                                       )?.environment || "sandbox") as
                                         "sandbox" | "production",
                                     )
-                                  }
-                                  className="h-10 rounded-lg bg-slate-950 px-4 text-[10px] font-black uppercase tracking-wider text-white disabled:opacity-60"
-                                >
+                                  } variant="primary" size="md">
                                   {gatewaySaving === provider
                                     ? "Salvando"
                                     : gateway?.connected
                                       ? "Atualizar"
                                       : "Conectar"}
-                                </button>
+                                </Button>
                               </div>
                             </div>
                           );
@@ -4339,38 +4158,7 @@ export default function Settings({
                 }: {
                   on: boolean;
                   onChange: () => void;
-                }) => (
-                  <button
-                    onClick={onChange}
-                    className={`relative shrink-0 flex items-center rounded-full transition-all duration-200 border ${on ? "bg-blue-600 border-blue-600" : "bg-white border-slate-300"}`}
-                    style={{ width: 72, height: 32 }}
-                  >
-                    {/* label Não */}
-                    <span
-                      className={`absolute right-2 text-[9px] font-black uppercase tracking-wider transition-opacity duration-150 ${on ? "opacity-0" : "opacity-100 text-slate-400"}`}
-                    >
-                      Não
-                    </span>
-                    {/* label Sim */}
-                    <span
-                      className={`absolute left-2 text-[9px] font-black uppercase tracking-wider transition-opacity duration-150 ${on ? "opacity-100 text-white" : "opacity-0"}`}
-                    >
-                      Sim
-                    </span>
-                    {/* knob */}
-                    <span
-                      className="absolute bg-white rounded-full shadow-md transition-transform duration-200"
-                      style={{
-                        width: 24,
-                        height: 24,
-                        top: 3,
-                        left: 4,
-                        transform: on ? "translateX(40px)" : "translateX(0px)",
-                        boxShadow: "0 1px 4px rgba(0,0,0,0.18)",
-                      }}
-                    />
-                  </button>
-                );
+                }) => <Switch checked={on} onCheckedChange={() => onChange()} />;
 
                 return (
                   <div className="space-y-6">
@@ -4380,12 +4168,12 @@ export default function Settings({
                     />
 
                     {/* ── Bandeiras ativas ── */}
-                    <div className="border border-slate-100 rounded-2xl overflow-hidden">
+                    <div className="border border-slate-100 rounded-lg overflow-hidden">
                       <div className="px-5 py-3 bg-slate-50 border-b border-slate-100 flex items-center justify-between">
-                        <span className="text-[10px] font-black uppercase tracking-widest text-slate-600">
+                        <span className="text-[11px] font-semibold text-slate-600">
                           Bandeiras Ativas
                         </span>
-                        <span className="text-[9px] text-slate-400 font-medium">
+                        <span className="text-[11px] text-slate-400 font-medium">
                           {activeBrands.length} de {BRANDS.length} ativas
                         </span>
                       </div>
@@ -4397,9 +4185,9 @@ export default function Settings({
                               key={key}
                               onClick={() => toggleBrand(key)}
                               className={cn(
-                                "flex items-center gap-3 px-4 py-3 rounded-xl border transition-all",
+                                "flex items-center gap-3 px-4 py-3 rounded-lg border transition-all",
                                 on
-                                  ? "border-transparent shadow-sm"
+                                  ? "border-transparent"
                                   : "bg-slate-50 border-slate-200 opacity-50",
                               )}
                               style={
@@ -4418,13 +4206,13 @@ export default function Settings({
                                 }}
                               />
                               <span
-                                className="text-[11px] font-black uppercase tracking-widest flex-1 text-left"
+                                className="text-[11px] font-semibold flex-1 text-left"
                                 style={{ color: on ? color : "#94a3b8" }}
                               >
                                 {label}
                               </span>
                               <div
-                                className={`w-4 h-4 rounded-full border-2 flex items-center justify-center shrink-0 transition-all ${on ? "bg-white border-white" : "bg-transparent border-slate-300"}`}
+                                className={`w-4 h-4 rounded-full border flex items-center justify-center shrink-0 transition-all ${on ? "bg-white border-white" : "bg-transparent border-slate-300"}`}
                                 style={
                                   on
                                     ? { boxShadow: `0 0 0 3px ${color}40` }
@@ -4445,49 +4233,28 @@ export default function Settings({
                     </div>
 
                     {/* Payment type tabs */}
-                    <div className="flex gap-2 p-1 bg-slate-100 rounded-2xl w-fit">
-                      {(
-                        [
-                          { id: "credit", label: "Crédito", icon: CreditCard },
-                          { id: "debit", label: "Débito", icon: Smartphone },
-                          { id: "pix", label: "PIX", icon: Zap },
-                        ] as {
-                          id: "credit" | "debit" | "pix";
-                          label: string;
-                          icon: React.ElementType;
-                        }[]
-                      ).map(({ id, label, icon: Icon }) => (
-                        <button
-                          key={id}
-                          onClick={() => setActivePayType(id)}
-                          className={cn(
-                            "flex items-center gap-2 px-4 py-2 rounded-xl text-[11px] font-black uppercase tracking-widest transition-all",
-                            activePayType === id
-                              ? "bg-white shadow text-slate-900"
-                              : "text-slate-500 hover:text-slate-700",
-                          )}
-                        >
-                          <Icon size={13} />
-                          {label}
-                        </button>
-                      ))}
-                    </div>
+                    <Tabs<PayType>
+                      items={PAY_TYPE_TABS}
+                      value={activePayType}
+                      onChange={setActivePayType}
+                      label="Tipo de pagamento"
+                    >
 
                     {/* ── Crédito ── */}
                     {activePayType === "credit" && (
                       <div className="space-y-5">
                         {/* Repassar taxa — crédito */}
-                        <div className="flex items-center justify-between gap-4 p-4 bg-amber-50 border border-amber-100 rounded-xl">
+                        <div className="flex items-center justify-between gap-4 p-4 bg-amber-50 border border-amber-100 rounded-lg">
                           <div className="flex items-start gap-3">
                             <CreditCard
                               size={16}
                               className="text-amber-600 shrink-0 mt-0.5"
                             />
                             <div>
-                              <p className="text-[11px] font-black text-amber-800 uppercase tracking-wider">
+                              <p className="text-[11px] font-semibold text-amber-800">
                                 Repassar taxa ao cliente — Crédito
                               </p>
-                              <p className="text-[10px] text-amber-700 mt-0.5 leading-relaxed">
+                              <p className="text-[11px] text-amber-700 mt-0.5 leading-relaxed">
                                 Ativo: taxa somada ao total cobrado. Ex: R$ 30 +
                                 2,5% → R$ 30,75 para o cliente.
                               </p>
@@ -4500,35 +4267,29 @@ export default function Settings({
                         </div>
 
                         {/* Máximo de parcelas */}
-                        <div className="flex items-center justify-between gap-4 p-4 bg-white border border-slate-200 rounded-xl">
+                        <div className="flex items-center justify-between gap-4 p-4 bg-white border border-slate-200 rounded-lg">
                           <div>
-                            <p className="text-[12px] font-bold text-slate-700">
+                            <p className="text-[12px] font-semibold text-slate-700">
                               Máximo de parcelas
                             </p>
-                            <p className="text-[10px] text-slate-400 mt-0.5">
+                            <p className="text-[11px] text-slate-400 mt-0.5">
                               Quantas opções aparecem no PDV (1 a 12).
                             </p>
                           </div>
                           <div className="flex items-center gap-2 shrink-0">
-                            <button
-                              onClick={() =>
+                            <Button onClick={() =>
                                 setMaxInstallments((v) => Math.max(1, v - 1))
-                              }
-                              className="w-8 h-8 rounded-lg bg-slate-100 hover:bg-slate-200 border border-slate-200 text-slate-600 font-black text-lg flex items-center justify-center transition-all"
-                            >
+                              } variant="outline" size="sm" className="px-0 w-8">
                               −
-                            </button>
-                            <span className="w-10 text-center font-mono font-black text-[16px] text-slate-800">
+                            </Button>
+                            <span className="w-10 text-center font-mono font-semibold text-[16px] text-slate-800">
                               {maxInstallments}×
                             </span>
-                            <button
-                              onClick={() =>
+                            <Button onClick={() =>
                                 setMaxInstallments((v) => Math.min(24, v + 1))
-                              }
-                              className="w-8 h-8 rounded-lg bg-slate-100 hover:bg-slate-200 border border-slate-200 text-slate-600 font-black text-lg flex items-center justify-center transition-all"
-                            >
+                              } variant="outline" size="sm" className="px-0 w-8">
                               +
-                            </button>
+                            </Button>
                           </div>
                         </div>
 
@@ -4539,7 +4300,7 @@ export default function Settings({
                               <span
                                 key={n}
                                 className={cn(
-                                  "px-3 py-1 rounded-lg text-[10px] font-black border transition-all",
+                                  "px-3 py-1 rounded-lg text-[11px] font-semibold border transition-all",
                                   n <= maxInstallments
                                     ? "bg-blue-50 border-blue-200 text-blue-700"
                                     : "bg-slate-50 border-slate-200 text-slate-300 line-through",
@@ -4558,7 +4319,7 @@ export default function Settings({
                           return (
                             <div
                               key={key}
-                              className="border border-slate-100 rounded-2xl overflow-hidden"
+                              className="border border-slate-100 rounded-lg overflow-hidden"
                             >
                               <div
                                 className="flex items-center gap-3 px-5 py-3"
@@ -4572,7 +4333,7 @@ export default function Settings({
                                   style={{ backgroundColor: color }}
                                 />
                                 <span
-                                  className="text-[10px] font-black uppercase tracking-widest"
+                                  className="text-[11px] font-semibold"
                                   style={{ color }}
                                 >
                                   {label}
@@ -4586,29 +4347,16 @@ export default function Settings({
                                   const idx = n - 1;
                                   return (
                                     <div key={n} className="space-y-1">
-                                      <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest px-1 block">
+                                      <label className="ds-label">
                                         {n === 1 ? "À Vista" : `${n}× parcelas`}
                                       </label>
-                                      <div className="flex items-center border border-slate-200 rounded-xl overflow-hidden focus-within:ring-2 focus-within:ring-blue-500/10 focus-within:border-blue-500 bg-slate-50 transition-all">
-                                        <input
-                                          type="number"
-                                          min="0"
-                                          max="30"
-                                          step="0.1"
-                                          value={fees[idx] ?? 0}
-                                          onChange={(e) =>
+                                      <Input type="number" min="0" max="30" step="0.1" value={fees[idx] ?? 0} onChange={(e) =>
                                             setFeeRate(
                                               key,
                                               idx,
                                               parseFloat(e.target.value) || 0,
                                             )
-                                          }
-                                          className="flex-1 bg-transparent px-2 h-9 text-xs font-mono font-bold outline-none w-0 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none"
-                                        />
-                                        <span className="bg-slate-100 border-l border-slate-200 px-2 h-9 flex items-center text-[10px] font-black text-slate-400 shrink-0">
-                                          %
-                                        </span>
-                                      </div>
+                                          } className="font-mono" addonRight="%" />
                                     </div>
                                   );
                                 })}
@@ -4623,17 +4371,17 @@ export default function Settings({
                     {activePayType === "debit" && (
                       <div className="space-y-5">
                         {/* Repassar taxa — débito */}
-                        <div className="flex items-center justify-between gap-4 p-4 bg-blue-50 border border-blue-100 rounded-xl">
+                        <div className="flex items-center justify-between gap-4 p-4 bg-blue-50 border border-blue-100 rounded-lg">
                           <div className="flex items-start gap-3">
                             <Smartphone
                               size={16}
                               className="text-blue-600 shrink-0 mt-0.5"
                             />
                             <div>
-                              <p className="text-[11px] font-black text-blue-800 uppercase tracking-wider">
+                              <p className="text-[11px] font-semibold text-blue-800">
                                 Repassar taxa ao cliente — Débito
                               </p>
-                              <p className="text-[10px] text-blue-700 mt-0.5 leading-relaxed">
+                              <p className="text-[11px] text-blue-700 mt-0.5 leading-relaxed">
                                 Ativo: taxa somada ao total cobrado no débito.
                               </p>
                             </div>
@@ -4650,7 +4398,7 @@ export default function Settings({
                             return (
                               <div
                                 key={key}
-                                className="border border-slate-100 rounded-2xl overflow-hidden"
+                                className="border border-slate-100 rounded-lg overflow-hidden"
                               >
                                 <div
                                   className="flex items-center gap-3 px-5 py-3"
@@ -4664,35 +4412,22 @@ export default function Settings({
                                     style={{ backgroundColor: color }}
                                   />
                                   <span
-                                    className="text-[10px] font-black uppercase tracking-widest"
+                                    className="text-[11px] font-semibold"
                                     style={{ color }}
                                   >
                                     {label}
                                   </span>
                                 </div>
                                 <div className="p-4">
-                                  <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest px-1 block mb-1">
+                                  <label className="ds-label">
                                     Taxa Débito
                                   </label>
-                                  <div className="flex items-center border border-slate-200 rounded-xl overflow-hidden focus-within:ring-2 focus-within:ring-blue-500/10 focus-within:border-blue-500 bg-slate-50 transition-all">
-                                    <input
-                                      type="number"
-                                      min="0"
-                                      max="30"
-                                      step="0.1"
-                                      value={rate}
-                                      onChange={(e) =>
+                                  <Input type="number" min="0" max="30" step="0.1" value={rate} onChange={(e) =>
                                         setDebitRate(
                                           key,
                                           parseFloat(e.target.value) || 0,
                                         )
-                                      }
-                                      className="flex-1 bg-transparent px-2 h-9 text-xs font-mono font-bold outline-none w-0 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none"
-                                    />
-                                    <span className="bg-slate-100 border-l border-slate-200 px-2 h-9 flex items-center text-[10px] font-black text-slate-400 shrink-0">
-                                      %
-                                    </span>
-                                  </div>
+                                      } className="font-mono" addonRight="%" />
                                 </div>
                               </div>
                             );
@@ -4705,17 +4440,17 @@ export default function Settings({
                     {activePayType === "pix" && (
                       <div className="space-y-5">
                         {/* Repassar taxa — PIX */}
-                        <div className="flex items-center justify-between gap-4 p-4 bg-emerald-50 border border-emerald-100 rounded-xl">
+                        <div className="flex items-center justify-between gap-4 p-4 bg-emerald-50 border border-emerald-100 rounded-lg">
                           <div className="flex items-start gap-3">
                             <Zap
                               size={16}
                               className="text-emerald-600 shrink-0 mt-0.5"
                             />
                             <div>
-                              <p className="text-[11px] font-black text-emerald-800 uppercase tracking-wider">
+                              <p className="text-[11px] font-semibold text-emerald-800">
                                 Repassar taxa ao cliente — PIX
                               </p>
-                              <p className="text-[10px] text-emerald-700 mt-0.5 leading-relaxed">
+                              <p className="text-[11px] text-emerald-700 mt-0.5 leading-relaxed">
                                 Ativo: taxa PIX somada ao total cobrado. Muitas
                                 maquininhas cobram 0% no PIX.
                               </p>
@@ -4727,34 +4462,22 @@ export default function Settings({
                           />
                         </div>
 
-                        <div className="border border-slate-100 rounded-2xl overflow-hidden max-w-xs">
+                        <div className="border border-slate-100 rounded-lg overflow-hidden max-w-xs">
                           <div className="flex items-center gap-3 px-5 py-3 bg-emerald-50 border-b-2 border-emerald-100">
                             <Zap size={14} className="text-emerald-600" />
-                            <span className="text-[10px] font-black uppercase tracking-widest text-emerald-700">
+                            <span className="text-[11px] font-semibold text-emerald-700">
                               Taxa PIX
                             </span>
                           </div>
                           <div className="p-4">
-                            <div className="flex items-center border border-slate-200 rounded-xl overflow-hidden focus-within:ring-2 focus-within:ring-emerald-500/10 focus-within:border-emerald-500 bg-slate-50 transition-all">
-                              <input
-                                type="number"
-                                min="0"
-                                max="30"
-                                step="0.01"
-                                value={(cardFees["pix"] ?? [0])[0]}
-                                onChange={(e) =>
+                            <Input type="number" min="0" max="30" step="0.01" value={(cardFees["pix"] ?? [0])[0]} onChange={(e) =>
                                   setPixRate(parseFloat(e.target.value) || 0)
-                                }
-                                className="flex-1 bg-transparent px-2 h-9 text-xs font-mono font-bold outline-none w-0 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none"
-                              />
-                              <span className="bg-slate-100 border-l border-slate-200 px-2 h-9 flex items-center text-[10px] font-black text-slate-400 shrink-0">
-                                %
-                              </span>
-                            </div>
+                                } className="font-mono" addonRight="%" />
                           </div>
                         </div>
                       </div>
                     )}
+                    </Tabs>
 
                     <SaveButton
                       onClick={handleSaveCardFees}
@@ -4772,116 +4495,91 @@ export default function Settings({
                   subtitle="Taxa de juros aplicável manualmente a parcelas em atraso — nunca cobrada automaticamente."
                 />
 
-                <div className="flex items-center justify-between gap-4 p-4 bg-white border border-slate-200 rounded-xl">
+                <div className="flex items-center justify-between gap-4 p-4 bg-white border border-slate-200 rounded-lg">
                   <div>
-                    <p className="text-[12px] font-bold text-slate-700">
+                    <p className="text-[12px] font-semibold text-slate-700">
                       Taxa de juros por atraso
                     </p>
-                    <p className="text-[10px] text-slate-400 mt-0.5">
+                    <p className="text-[11px] text-slate-400 mt-0.5">
                       % ao mês, aplicado pro-rata sobre os dias de atraso.
                     </p>
                   </div>
-                  <div className="flex items-center border border-slate-200 rounded-xl overflow-hidden focus-within:ring-2 focus-within:ring-blue-500/10 focus-within:border-blue-500 bg-slate-50 transition-all shrink-0 w-32">
-                    <input
-                      type="number"
-                      min="0"
-                      max="30"
-                      step="0.1"
-                      value={crediarioInterestRate}
-                      onChange={(e) =>
+                  <Input type="number" min="0" max="30" step="0.1" value={crediarioInterestRate} onChange={(e) =>
                         setCrediarioInterestRate(
                           Math.min(
                             30,
                             Math.max(0, parseFloat(e.target.value) || 0),
                           ),
                         )
-                      }
-                      className="flex-1 bg-transparent px-2 h-9 text-xs font-mono font-bold outline-none w-0 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none"
-                    />
-                    <span className="bg-slate-100 border-l border-slate-200 px-2 h-9 flex items-center text-[10px] font-black text-slate-400 shrink-0">
-                      %/mês
-                    </span>
-                  </div>
+                      } className="font-mono" addonRight="%/mês" />
                 </div>
 
-                <div className="flex items-center justify-between gap-4 p-4 bg-white border border-slate-200 rounded-xl">
+                <div className="flex items-center justify-between gap-4 p-4 bg-white border border-slate-200 rounded-lg">
                   <div>
-                    <p className="text-[12px] font-bold text-slate-700">
+                    <p className="text-[12px] font-semibold text-slate-700">
                       Dias de carência
                     </p>
-                    <p className="text-[10px] text-slate-400 mt-0.5">
+                    <p className="text-[11px] text-slate-400 mt-0.5">
                       Nº de dias após o vencimento antes de sugerir juros.
                     </p>
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
-                    <button
-                      onClick={() =>
+                    <Button onClick={() =>
                         setCrediarioGraceDays((v) => Math.max(0, v - 1))
-                      }
-                      className="w-8 h-8 rounded-lg bg-slate-100 hover:bg-slate-200 border border-slate-200 text-slate-600 font-black text-lg flex items-center justify-center transition-all"
-                    >
+                      } variant="outline" size="sm" className="px-0 w-8">
                       −
-                    </button>
-                    <span className="w-10 text-center font-mono font-black text-[16px] text-slate-800">
+                    </Button>
+                    <span className="w-10 text-center font-mono font-semibold text-[16px] text-slate-800">
                       {crediarioGraceDays}d
                     </span>
-                    <button
-                      onClick={() =>
+                    <Button onClick={() =>
                         setCrediarioGraceDays((v) => Math.min(90, v + 1))
-                      }
-                      className="w-8 h-8 rounded-lg bg-slate-100 hover:bg-slate-200 border border-slate-200 text-slate-600 font-black text-lg flex items-center justify-center transition-all"
-                    >
+                      } variant="outline" size="sm" className="px-0 w-8">
                       +
-                    </button>
+                    </Button>
                   </div>
                 </div>
 
-                <div className="flex items-start gap-3 p-4 bg-amber-50 border border-amber-100 rounded-xl">
+                <div className="flex items-start gap-3 p-4 bg-amber-50 border border-amber-100 rounded-lg">
                   <AlertTriangle
                     size={16}
                     className="text-amber-600 shrink-0 mt-0.5"
                   />
-                  <p className="text-[10px] text-amber-700 leading-relaxed">
+                  <p className="text-[11px] text-amber-700 leading-relaxed">
                     Juros nunca é cobrado sozinho: essa taxa só serve de
                     sugestão na tela de crediário (Cliente / PDV). Aplicar o
                     valor a uma parcela é sempre uma ação manual do operador.
                   </p>
                 </div>
 
-                <p className="text-[10px] font-black uppercase tracking-widest text-slate-700 border-l-4 border-blue-500 pl-3">
+                <p className="text-[11px] font-semibold text-slate-700 border-l-4 border-blue-500 pl-3">
                   Devolução & Troca
                 </p>
 
-                <div className="flex items-center justify-between gap-4 p-4 bg-white border border-slate-200 rounded-xl">
+                <div className="flex items-center justify-between gap-4 p-4 bg-white border border-slate-200 rounded-lg">
                   <div>
-                    <p className="text-[12px] font-bold text-slate-700">
+                    <p className="text-[12px] font-semibold text-slate-700">
                       Prazo de devolução
                     </p>
-                    <p className="text-[10px] text-slate-400 mt-0.5">
+                    <p className="text-[11px] text-slate-400 mt-0.5">
                       Dias desde a venda — só um aviso na tela de devolução,
                       nunca bloqueia.
                     </p>
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
-                    <button
-                      onClick={() =>
+                    <Button onClick={() =>
                         setReturnDeadlineDays((v) => Math.max(0, v - 1))
-                      }
-                      className="w-8 h-8 rounded-lg bg-slate-100 hover:bg-slate-200 border border-slate-200 text-slate-600 font-black text-lg flex items-center justify-center transition-all"
-                    >
+                      } variant="outline" size="sm" className="px-0 w-8">
                       −
-                    </button>
-                    <span className="w-10 text-center font-mono font-black text-[16px] text-slate-800">
+                    </Button>
+                    <span className="w-10 text-center font-mono font-semibold text-[16px] text-slate-800">
                       {returnDeadlineDays}d
                     </span>
-                    <button
-                      onClick={() =>
+                    <Button onClick={() =>
                         setReturnDeadlineDays((v) => Math.min(365, v + 1))
-                      }
-                      className="w-8 h-8 rounded-lg bg-slate-100 hover:bg-slate-200 border border-slate-200 text-slate-600 font-black text-lg flex items-center justify-center transition-all"
-                    >
+                      } variant="outline" size="sm" className="px-0 w-8">
                       +
-                    </button>
+                    </Button>
                   </div>
                 </div>
 
@@ -4907,8 +4605,8 @@ export default function Settings({
                       subtitle="Use a conta da sua loja para enviar documentos aos clientes"
                     />
 
-                    <div className="rounded-xl border border-cyan-100 bg-cyan-50 px-4 py-3.5">
-                      <p className="text-[11px] font-black uppercase tracking-widest text-cyan-800">
+                    <div className="rounded-lg border border-cyan-100 bg-cyan-50 px-4 py-3.5">
+                      <p className="text-[11px] font-semibold text-cyan-800">
                         E-mail dos clientes
                       </p>
                       <p className="mt-1 text-[11px] leading-relaxed text-cyan-800">
@@ -4919,9 +4617,46 @@ export default function Settings({
                       </p>
                     </div>
 
+                    <div className="flex items-center justify-between gap-4 rounded-lg border border-slate-200 bg-white p-4">
+                      <div className="min-w-0">
+                        <p className="text-[12px] font-semibold text-slate-700">
+                          Enviar e-mails pelo sistema (contato@boxsys.com.br)
+                        </p>
+                        <p className="mt-0.5 text-[11px] leading-relaxed text-slate-500">
+                          Não precisa configurar nada: os documentos saem em nome da sua
+                          loja pelo e-mail da BoxSys e as respostas dos clientes chegam
+                          até você. Ao ativar, a conexão com o e-mail próprio da loja
+                          fica desativada (só um modo pode ficar ativo por vez).
+                        </p>
+                      </div>
+                      {savingEmailSenderMode ? (
+                        <Loader2 size={18} className="shrink-0 animate-spin text-blue-600" />
+                      ) : (
+                        <Switch
+                          checked={emailSenderMode === "system"}
+                          onCheckedChange={handleToggleSystemEmail}
+                          aria-label="Enviar e-mails pelo sistema"
+                        />
+                      )}
+                    </div>
+
+                    {emailSenderMode === "system" && (
+                      <div className="rounded-lg border border-emerald-100 bg-emerald-50 px-4 py-3 text-[11px] leading-relaxed text-emerald-800">
+                        Envio pelo sistema ativo. Para usar a conta de e-mail da sua loja,
+                        desative a opção acima.
+                      </div>
+                    )}
+
+                    <fieldset
+                      disabled={emailSenderMode === "system"}
+                      className={cn(
+                        "m-0 min-w-0 space-y-6 border-0 p-0",
+                        emailSenderMode === "system" && "pointer-events-none select-none opacity-50",
+                      )}
+                    >
                     <div
                       className={cn(
-                        "flex items-center gap-3 rounded-xl border px-4 py-3",
+                        "flex items-center gap-3 rounded-lg border px-4 py-3",
                         emailConnectionConfigured
                           ? "border-emerald-100 bg-emerald-50"
                           : "border-amber-100 bg-amber-50",
@@ -4941,7 +4676,7 @@ export default function Settings({
                       <div>
                         <p
                           className={cn(
-                            "text-[11px] font-bold",
+                            "text-[11px] font-semibold",
                             emailConnectionConfigured
                               ? "text-emerald-800"
                               : "text-amber-800",
@@ -4953,7 +4688,7 @@ export default function Settings({
                         </p>
                         <p
                           className={cn(
-                            "mt-0.5 text-[10px]",
+                            "mt-0.5 text-[11px]",
                             emailConnectionConfigured
                               ? "text-emerald-700"
                               : "text-amber-700",
@@ -4967,7 +4702,7 @@ export default function Settings({
                     </div>
 
                     <div className="space-y-3">
-                      <p className="border-l-4 border-cyan-500 pl-3 text-[10px] font-black uppercase tracking-widest text-slate-700">
+                      <p className="border-l-4 border-cyan-500 pl-3 text-[11px] font-semibold text-slate-700">
                         1. Escolha seu provedor
                       </p>
                       <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
@@ -4976,7 +4711,7 @@ export default function Settings({
                             key={provider.id}
                             onClick={() => selectEmailProvider(provider.id)}
                             className={cn(
-                              "h-11 rounded-xl border px-3 text-[10px] font-black uppercase tracking-wide transition-all",
+                              "h-9 rounded-lg border px-3 text-[11px] font-semibold transition-all",
                               emailProvider === provider.id
                                 ? "border-cyan-500 bg-cyan-50 text-cyan-700 ring-2 ring-cyan-500/10"
                                 : "border-slate-200 bg-white text-slate-500 hover:bg-slate-50",
@@ -5031,8 +4766,8 @@ export default function Settings({
                     </Field>
 
                     {emailProvider === "gmail" && (
-                      <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3.5 text-[11px] leading-relaxed text-amber-950">
-                        <p className="font-black uppercase tracking-widest text-amber-800">
+                      <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3.5 text-[11px] leading-relaxed text-amber-950">
+                        <p className="font-semibold text-amber-800">
                           O Google informou que “Senhas de app” não está
                           disponível?
                         </p>
@@ -5054,8 +4789,8 @@ export default function Settings({
                     )}
 
                     {emailProvider === "custom" && (
-                      <div className="space-y-4 rounded-xl border border-slate-200 bg-slate-50 p-4">
-                        <p className="text-[10px] font-black uppercase tracking-widest text-slate-600">
+                      <div className="space-y-4 rounded-lg border border-slate-200 bg-slate-50 p-4">
+                        <p className="text-[11px] font-semibold text-slate-600">
                           Dados SMTP do e-mail profissional
                         </p>
                         <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
@@ -5082,7 +4817,7 @@ export default function Settings({
                           onChange={setEmailSmtpSecure}
                           label="Usar SSL/TLS direto"
                         />
-                        <p className="text-[10px] leading-relaxed text-slate-500">
+                        <p className="text-[11px] leading-relaxed text-slate-500">
                           Peça esses dados ao suporte do seu provedor de
                           hospedagem. Em geral, a porta 465 usa SSL/TLS direto;
                           a 587 usa STARTTLS e deve ficar desmarcada aqui.
@@ -5090,8 +4825,8 @@ export default function Settings({
                       </div>
                     )}
 
-                    <div className="rounded-xl border border-slate-200 bg-white p-4">
-                      <p className="text-[10px] font-black uppercase tracking-widest text-slate-700">
+                    <div className="rounded-lg border border-slate-200 bg-white p-4">
+                      <p className="text-[11px] font-semibold text-slate-700">
                         Passo a passo atualizado para {selectedProvider.label}
                       </p>
                       <ol className="mt-3 list-decimal space-y-2 pl-4 text-[11px] leading-relaxed text-slate-600">
@@ -5182,7 +4917,7 @@ export default function Settings({
                           href={selectedProvider.guideUrl}
                           target="_blank"
                           rel="noreferrer"
-                          className="mt-4 inline-flex text-[10px] font-black uppercase tracking-widest text-cyan-700 hover:text-cyan-900 hover:underline"
+                          className="mt-4 inline-flex text-[11px] font-semibold text-cyan-700 hover:text-cyan-900 hover:underline"
                         >
                           {selectedProvider.guideLabel} ↗
                         </a>
@@ -5191,43 +4926,32 @@ export default function Settings({
 
                     <div className="flex flex-col gap-2 border-t border-slate-100 pt-6 sm:flex-row sm:justify-end">
                       {emailConnectionConfigured && (
-                        <button
-                          onClick={handleDisconnectEmail}
-                          disabled={savingEmailConnection}
-                          className="h-11 rounded-xl px-4 text-[10px] font-black uppercase tracking-widest text-rose-600 hover:bg-rose-50 disabled:opacity-60"
-                        >
+                        <Button onClick={handleDisconnectEmail} disabled={savingEmailConnection} variant="ghost" size="md" className="text-rose-600">
                           Desconectar
-                        </button>
+                        </Button>
                       )}
-                      <button
-                        onClick={handleTestEmailConnection}
-                        disabled={
+                      <Button onClick={handleTestEmailConnection} disabled={
                           !emailConnectionConfigured ||
                           testingEmailConnection ||
                           savingEmailConnection
-                        }
-                        className="flex h-11 items-center justify-center gap-2 rounded-xl border border-slate-200 px-5 text-[10px] font-black uppercase tracking-widest text-slate-600 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
-                      >
+                        } variant="outline" size="md">
                         {testingEmailConnection ? (
                           <Loader2 size={13} className="animate-spin" />
                         ) : (
                           <Send size={13} />
                         )}{" "}
                         Enviar teste
-                      </button>
-                      <button
-                        onClick={handleSaveEmailConnection}
-                        disabled={savingEmailConnection}
-                        className="flex h-11 items-center justify-center gap-2 rounded-xl bg-cyan-600 px-5 text-[10px] font-black uppercase tracking-widest text-white shadow-lg shadow-cyan-500/20 hover:bg-cyan-700 disabled:opacity-60"
-                      >
+                      </Button>
+                      <Button onClick={handleSaveEmailConnection} disabled={savingEmailConnection} variant="primary" size="md">
                         {savingEmailConnection ? (
                           <Loader2 size={13} className="animate-spin" />
                         ) : (
                           <Save size={13} />
                         )}{" "}
                         Salvar conexão
-                      </button>
+                      </Button>
                     </div>
+                    </fieldset>
                   </div>
                 );
               })()}
@@ -5240,12 +4964,12 @@ export default function Settings({
                   subtitle="Resumo semanal e mensal de vendas, estoque, contas e crediário — enviado automaticamente"
                 />
 
-                <div className="flex items-center justify-between gap-4 p-4 bg-white border border-slate-200 rounded-xl">
+                <div className="flex items-center justify-between gap-4 p-4 bg-white border border-slate-200 rounded-lg">
                   <div>
-                    <p className="text-[12px] font-bold text-slate-700">
+                    <p className="text-[12px] font-semibold text-slate-700">
                       Relatório semanal
                     </p>
-                    <p className="text-[10px] text-slate-400 mt-0.5">
+                    <p className="text-[11px] text-slate-400 mt-0.5">
                       Toda segunda-feira às 8h, referente à semana anterior.
                     </p>
                   </div>
@@ -5255,12 +4979,12 @@ export default function Settings({
                   />
                 </div>
 
-                <div className="flex items-center justify-between gap-4 p-4 bg-white border border-slate-200 rounded-xl">
+                <div className="flex items-center justify-between gap-4 p-4 bg-white border border-slate-200 rounded-lg">
                   <div>
-                    <p className="text-[12px] font-bold text-slate-700">
+                    <p className="text-[12px] font-semibold text-slate-700">
                       Relatório mensal
                     </p>
-                    <p className="text-[10px] text-slate-400 mt-0.5">
+                    <p className="text-[11px] text-slate-400 mt-0.5">
                       Todo dia 1º do mês, referente ao mês anterior (já
                       fechado).
                     </p>
@@ -5272,17 +4996,17 @@ export default function Settings({
                 </div>
 
                 <div className="space-y-3">
-                  <p className="text-[10px] font-black uppercase tracking-widest text-slate-700 border-l-4 border-blue-500 pl-3">
+                  <p className="text-[11px] font-semibold text-slate-700 border-l-4 border-blue-500 pl-3">
                     Destinatários
                   </p>
-                  <p className="text-[10px] text-slate-400">
+                  <p className="text-[11px] text-slate-400">
                     Emails que recebem os relatórios. Se a lista estiver vazia,
                     é enviado para todos os usuários com acesso de
                     administrador.
                   </p>
                   {adminEmails.length > 0 && (
-                    <div className="px-4 py-2.5 bg-blue-50 border border-blue-100 rounded-xl">
-                      <p className="text-[9px] font-black uppercase tracking-widest text-blue-600 mb-1">
+                    <div className="px-4 py-2.5 bg-blue-50 border border-blue-100 rounded-lg">
+                      <p className="text-[11px] font-semibold text-blue-600 mb-1">
                         {reportRecipientEmails.length === 0
                           ? "Enviando por padrão para os administradores"
                           : "Administradores do sistema"}
@@ -5293,42 +5017,29 @@ export default function Settings({
                     </div>
                   )}
                   <div className="flex gap-2">
-                    <input
-                      type="email"
-                      value={newReportEmail}
-                      onChange={(e) => setNewReportEmail(e.target.value)}
-                      onKeyDown={(e) => {
+                    <Input type="email" value={newReportEmail} onChange={(e) => setNewReportEmail(e.target.value)} onKeyDown={(e) => {
                         if (e.key === "Enter") {
                           e.preventDefault();
                           addReportEmail();
                         }
-                      }}
-                      placeholder="email@exemplo.com"
-                      className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-4 h-11 text-sm font-medium outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-400 transition-all"
-                    />
-                    <button
-                      onClick={addReportEmail}
-                      className="h-11 px-5 bg-slate-900 hover:bg-slate-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all active:scale-95"
-                    >
+                      }} placeholder="email@exemplo.com" wrapperClassName="flex-1" />
+                    <Button onClick={addReportEmail} variant="primary" size="sm">
                       Adicionar
-                    </button>
+                    </Button>
                   </div>
                   {reportRecipientEmails.length > 0 && (
                     <div className="space-y-1.5">
                       {reportRecipientEmails.map((email) => (
                         <div
                           key={email}
-                          className="flex items-center justify-between gap-3 px-4 py-2.5 bg-slate-50 border border-slate-100 rounded-xl"
+                          className="flex items-center justify-between gap-3 px-4 py-2.5 bg-slate-50 border border-slate-100 rounded-lg"
                         >
-                          <span className="text-[12px] font-bold text-slate-700">
+                          <span className="text-[12px] font-semibold text-slate-700">
                             {email}
                           </span>
-                          <button
-                            onClick={() => removeReportEmail(email)}
-                            className="text-slate-400 hover:text-rose-500 transition-colors"
-                          >
+                          <IconButton onClick={() => removeReportEmail(email)} aria-label="Remover e-mail" variant="ghost" size="xs" className="hover:text-rose-500">
                             <X size={14} />
-                          </button>
+                          </IconButton>
                         </div>
                       ))}
                     </div>
@@ -5336,7 +5047,7 @@ export default function Settings({
                 </div>
 
                 {hasUnsavedReportRecipients && (
-                  <p className="text-[10px] font-bold text-amber-600 bg-amber-50 border border-amber-100 rounded-xl px-4 py-2">
+                  <p className="text-[11px] font-semibold text-amber-600 bg-amber-50 border border-amber-100 rounded-lg px-4 py-2">
                     Você tem alterações não salvas na lista de destinatários —
                     clique em "Salvar Configurações" pra confirmar.
                   </p>
@@ -5347,39 +5058,31 @@ export default function Settings({
                 />
 
                 <div className="space-y-3 pt-2">
-                  <p className="text-[10px] font-black uppercase tracking-widest text-slate-700 border-l-4 border-emerald-500 pl-3">
+                  <p className="text-[11px] font-semibold text-slate-700 border-l-4 border-emerald-500 pl-3">
                     Testar envio
                   </p>
-                  <p className="text-[10px] text-slate-400">
+                  <p className="text-[11px] text-slate-400">
                     Envia agora, pro período já fechado mais recente — útil pra
                     conferir o email antes de esperar o próximo disparo
                     automático. Salve os destinatários antes de testar.
                   </p>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <button
-                      onClick={() => handleSendReportNow("weekly")}
-                      disabled={sendingReportNow !== null}
-                      className="h-11 flex items-center justify-center gap-2 rounded-xl border border-slate-200 text-[10px] font-black uppercase tracking-widest text-slate-600 hover:bg-slate-50 transition-all disabled:opacity-60"
-                    >
+                    <Button onClick={() => handleSendReportNow("weekly")} disabled={sendingReportNow !== null} variant="outline" size="md" className="w-full">
                       {sendingReportNow === "weekly" ? (
                         <Loader2 size={13} className="animate-spin" />
                       ) : (
                         <Send size={13} />
                       )}{" "}
                       Enviar Semanal Agora
-                    </button>
-                    <button
-                      onClick={() => handleSendReportNow("monthly")}
-                      disabled={sendingReportNow !== null}
-                      className="h-11 flex items-center justify-center gap-2 rounded-xl border border-slate-200 text-[10px] font-black uppercase tracking-widest text-slate-600 hover:bg-slate-50 transition-all disabled:opacity-60"
-                    >
+                    </Button>
+                    <Button onClick={() => handleSendReportNow("monthly")} disabled={sendingReportNow !== null} variant="outline" size="md" className="w-full">
                       {sendingReportNow === "monthly" ? (
                         <Loader2 size={13} className="animate-spin" />
                       ) : (
                         <Send size={13} />
                       )}{" "}
                       Enviar Mensal Agora
-                    </button>
+                    </Button>
                   </div>
                 </div>
               </div>
@@ -5418,16 +5121,16 @@ export default function Settings({
 
                     {/* Prazos */}
                     <div className="space-y-3">
-                      <p className="text-[10px] font-black uppercase tracking-widest text-slate-700 border-l-4 border-blue-500 pl-3">
+                      <p className="text-[11px] font-semibold text-slate-700 border-l-4 border-blue-500 pl-3">
                         Prazos
                       </p>
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
-                        <div className="bg-slate-50 border border-slate-100 rounded-2xl p-5 space-y-3">
+                        <div className="bg-slate-50 border border-slate-100 rounded-lg p-5 space-y-3">
                           <div>
-                            <p className="text-[10px] font-black uppercase tracking-widest text-slate-700">
+                            <p className="text-[11px] font-semibold text-slate-700">
                               Prazo de Garantia
                             </p>
-                            <p className="text-[9px] text-slate-400 mt-0.5 font-medium">
+                            <p className="text-[11px] text-slate-400 mt-0.5 font-medium">
                               Em dias a partir da emissão
                             </p>
                           </div>
@@ -5445,22 +5148,22 @@ export default function Settings({
                               className="flex-1 accent-blue-600"
                             />
                             <div className="flex items-center gap-1.5">
-                              <span className="text-xl font-black text-slate-900 tabular-nums w-10 text-right">
+                              <span className="text-xl font-semibold text-slate-900 tabular-nums w-10 text-right">
                                 {wp.warranty_days ?? 90}
                               </span>
-                              <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">
+                              <span className="text-[11px] font-semibold text-slate-400">
                                 dias
                               </span>
                             </div>
                           </div>
                         </div>
 
-                        <div className="bg-slate-50 border border-slate-100 rounded-2xl p-5 space-y-3">
+                        <div className="bg-slate-50 border border-slate-100 rounded-lg p-5 space-y-3">
                           <div>
-                            <p className="text-[10px] font-black uppercase tracking-widest text-slate-700">
+                            <p className="text-[11px] font-semibold text-slate-700">
                               Prazo de Atendimento
                             </p>
-                            <p className="text-[9px] text-slate-400 mt-0.5 font-medium">
+                            <p className="text-[11px] text-slate-400 mt-0.5 font-medium">
                               Dias corridos para resolução
                             </p>
                           </div>
@@ -5480,10 +5183,10 @@ export default function Settings({
                               className="flex-1 accent-blue-600"
                             />
                             <div className="flex items-center gap-1.5">
-                              <span className="text-xl font-black text-slate-900 tabular-nums w-10 text-right">
+                              <span className="text-xl font-semibold text-slate-900 tabular-nums w-10 text-right">
                                 {wp.warranty_resolution_days ?? 30}
                               </span>
-                              <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">
+                              <span className="text-[11px] font-semibold text-slate-400">
                                 dias
                               </span>
                             </div>
@@ -5494,7 +5197,7 @@ export default function Settings({
 
                     {/* Título */}
                     <div className="space-y-3">
-                      <p className="text-[10px] font-black uppercase tracking-widest text-slate-700 border-l-4 border-blue-500 pl-3">
+                      <p className="text-[11px] font-semibold text-slate-700 border-l-4 border-blue-500 pl-3">
                         Título do Termo
                       </p>
                       <TextInput
@@ -5509,17 +5212,14 @@ export default function Settings({
                     {/* Cláusulas */}
                     <div className="space-y-3">
                       <div className="flex items-center justify-between">
-                        <p className="text-[10px] font-black uppercase tracking-widest text-slate-700 border-l-4 border-blue-500 pl-3">
+                        <p className="text-[11px] font-semibold text-slate-700 border-l-4 border-blue-500 pl-3">
                           Cláusulas
                         </p>
-                        <button
-                          onClick={addClause}
-                          className="flex items-center gap-2 text-[9px] font-black uppercase tracking-widest text-blue-600 hover:text-blue-800 transition-colors px-3 h-8 rounded-lg border border-blue-200 bg-blue-50 hover:bg-blue-100"
-                        >
+                        <Button onClick={addClause} variant="outline" size="sm">
                           + Adicionar Cláusula
-                        </button>
+                        </Button>
                       </div>
-                      <p className="text-[9px] text-slate-400 font-medium">
+                      <p className="text-[11px] text-slate-400 font-medium">
                         Use{" "}
                         <strong className="text-slate-600">
                           {"{{warranty_days}}"}
@@ -5533,23 +5233,15 @@ export default function Settings({
                       <div className="space-y-3">
                         {clauses.map((clause, idx) => (
                           <div key={idx} className="flex gap-3 items-start">
-                            <div className="w-6 h-6 rounded-full bg-slate-900 text-white flex items-center justify-center text-[9px] font-black shrink-0 mt-3">
+                            <div className="w-6 h-6 rounded-full bg-slate-900 text-white flex items-center justify-center text-[11px] font-semibold shrink-0 mt-3">
                               {idx + 1}
                             </div>
-                            <textarea
-                              className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-xs font-medium outline-none h-20 resize-none focus:ring-4 focus:ring-blue-500/8 focus:border-blue-500 transition-all"
-                              value={clause}
-                              onChange={(e) =>
+                            <Textarea value={clause} onChange={(e) =>
                                 updateClause(idx, e.target.value)
-                              }
-                              placeholder={`Cláusula ${idx + 1}...`}
-                            />
-                            <button
-                              onClick={() => removeClause(idx)}
-                              className="w-6 h-6 rounded-full bg-rose-50 text-rose-400 flex items-center justify-center hover:bg-rose-100 hover:text-rose-600 transition-colors shrink-0 mt-3"
-                            >
+                              } placeholder={`Cláusula ${idx + 1}...`} className="h-20" wrapperClassName="flex-1" />
+                            <Button onClick={() => removeClause(idx)} variant="ghost" size="xs" className="text-rose-600">
                               <X size={11} strokeWidth={3} />
-                            </button>
+                            </Button>
                           </div>
                         ))}
                       </div>
@@ -5557,17 +5249,17 @@ export default function Settings({
 
                     {/* Preview */}
                     <div className="space-y-3">
-                      <p className="text-[10px] font-black uppercase tracking-widest text-slate-700 border-l-4 border-emerald-500 pl-3">
+                      <p className="text-[11px] font-semibold text-slate-700 border-l-4 border-emerald-500 pl-3">
                         Pré-visualização
                       </p>
-                      <div className="border-2 border-slate-200 rounded-2xl p-5 bg-slate-50 font-mono text-[11px] leading-relaxed text-slate-700 space-y-2">
-                        <strong className="text-sm font-sans font-black text-slate-900 uppercase tracking-wide block mb-3">
+                      <div className="border border-slate-200 rounded-lg p-5 bg-slate-50 font-mono text-[11px] leading-relaxed text-slate-700 space-y-2">
+                        <strong className="text-sm font-sans font-semibold text-slate-900 block mb-3">
                           {wp.warranty_title ??
                             "Termos e Condições de Garantia"}
                         </strong>
                         {clauses.map((c, i) => (
                           <div key={i} className="flex gap-2">
-                            <span className="text-emerald-600 font-black shrink-0">
+                            <span className="text-emerald-600 font-semibold shrink-0">
                               ✓
                             </span>
                             <span>
@@ -5656,15 +5348,12 @@ export default function Settings({
                     />
 
                     <div className="flex items-center justify-between">
-                      <p className="text-[10px] font-black uppercase tracking-widest text-slate-700 border-l-4 border-blue-500 pl-3">
+                      <p className="text-[11px] font-semibold text-slate-700 border-l-4 border-blue-500 pl-3">
                         Categorias
                       </p>
-                      <button
-                        onClick={addCategory}
-                        className="flex items-center gap-2 text-[9px] font-black uppercase tracking-widest text-blue-600 hover:text-blue-800 transition-colors px-3 h-8 rounded-lg border border-blue-200 bg-blue-50 hover:bg-blue-100"
-                      >
+                      <Button onClick={addCategory} variant="outline" size="sm">
                         + Nova Categoria
-                      </button>
+                      </Button>
                     </div>
 
                     {categories.length === 0 ? (
@@ -5678,30 +5367,24 @@ export default function Settings({
                         {categories.map((cat) => (
                           <div
                             key={cat}
-                            className="bg-slate-50 border border-slate-100 rounded-2xl p-5 space-y-3"
+                            className="bg-slate-50 border border-slate-100 rounded-lg p-5 space-y-3"
                           >
                             <div className="flex items-center justify-between">
-                              <p className="text-[12px] font-black text-slate-800">
+                              <p className="text-[12px] font-semibold text-slate-800">
                                 {cat}
                               </p>
                               <div className="flex items-center gap-2">
-                                <button
-                                  onClick={() => addItem(cat)}
-                                  className="flex items-center gap-1.5 h-7 px-2.5 rounded-lg text-[9px] font-black uppercase tracking-wider bg-blue-50 border border-blue-200 text-blue-600 hover:bg-blue-100 transition-all"
-                                >
+                                <Button onClick={() => addItem(cat)} variant="outline" size="xs">
                                   + Item
-                                </button>
-                                <button
-                                  onClick={() => removeCategory(cat)}
-                                  className="w-7 h-7 rounded-full bg-rose-50 text-rose-400 flex items-center justify-center hover:bg-rose-100 hover:text-rose-600 transition-colors"
-                                >
+                                </Button>
+                                <Button onClick={() => removeCategory(cat)} variant="ghost" size="xs" className="text-rose-600">
                                   <X size={11} strokeWidth={3} />
-                                </button>
+                                </Button>
                               </div>
                             </div>
                             <div className="space-y-2">
                               {(checklists[cat] ?? []).length === 0 ? (
-                                <p className="text-[10px] text-slate-400">
+                                <p className="text-[11px] text-slate-400">
                                   Nenhum item — clique em "+ Item" para
                                   adicionar (ex: "Liga", "Tela sem trincos",
                                   "Carregador incluso").
@@ -5712,7 +5395,7 @@ export default function Settings({
                                     key={idx}
                                     className="flex gap-2 items-center"
                                   >
-                                    <div className="w-5 h-5 rounded-full bg-slate-900 text-white flex items-center justify-center text-[8px] font-black shrink-0">
+                                    <div className="w-5 h-5 rounded-full bg-slate-900 text-white flex items-center justify-center text-[11px] font-semibold shrink-0">
                                       {idx + 1}
                                     </div>
                                     <TextInput
@@ -5721,12 +5404,9 @@ export default function Settings({
                                       placeholder={`Item ${idx + 1} do checklist...`}
                                       className="h-9"
                                     />
-                                    <button
-                                      onClick={() => removeItem(cat, idx)}
-                                      className="w-6 h-6 rounded-full bg-rose-50 text-rose-400 flex items-center justify-center hover:bg-rose-100 hover:text-rose-600 transition-colors shrink-0"
-                                    >
+                                    <Button onClick={() => removeItem(cat, idx)} variant="ghost" size="xs" className="text-rose-600">
                                       <X size={10} strokeWidth={3} />
-                                    </button>
+                                    </Button>
                                   </div>
                                 ))
                               )}
@@ -5763,9 +5443,9 @@ export default function Settings({
                             setTerminalProvider(p.id);
                             setTerminalPingStatus("idle");
                           }}
-                          className={`flex items-center gap-2 px-3 py-2.5 rounded-xl border text-[11px] font-bold transition-all ${
+                          className={`flex items-center gap-2 px-3 py-2.5 rounded-lg border text-[11px] font-semibold transition-all ${
                             terminalProvider === p.id
-                              ? "border-current bg-slate-50 shadow-sm"
+                              ? "border-current bg-slate-50"
                               : "border-slate-200 text-slate-400 hover:border-slate-300"
                           }`}
                           style={
@@ -5795,7 +5475,7 @@ export default function Settings({
                       <button
                         key={String(val)}
                         onClick={() => setTerminalSandbox(val)}
-                        className={`flex-1 px-3 py-2 rounded-xl border text-[11px] font-bold transition-all ${
+                        className={`flex-1 px-3 py-2 rounded-lg border text-[11px] font-semibold transition-all ${
                           terminalSandbox === val
                             ? val
                               ? "bg-amber-50 border-amber-400 text-amber-700"
@@ -5813,46 +5493,36 @@ export default function Settings({
                 <div className="space-y-4">
                   {TERMINAL_CREDENTIAL_FIELDS[terminalProvider].map((f) => (
                     <Field key={f.key} label={f.label}>
-                      <input
-                        type={f.secret ? "password" : "text"}
-                        value={terminalCredentials[f.key] ?? ""}
-                        onChange={(e) =>
+                      <Input type={f.secret ? "password" : "text"} value={terminalCredentials[f.key] ?? ""} onChange={(e) =>
                           setTerminalCredentials((prev) => ({
                             ...prev,
                             [f.key]: e.target.value,
                           }))
-                        }
-                        placeholder={f.placeholder}
-                        className="w-full px-4 py-3 rounded-xl border border-slate-200 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-slate-300"
-                      />
+                        } placeholder={f.placeholder} className="font-mono" />
                     </Field>
                   ))}
                 </div>
 
                 {/* Ping / Test */}
                 <div className="flex items-center gap-3">
-                  <button
-                    onClick={handlePingTerminal}
-                    disabled={
+                  <Button onClick={handlePingTerminal} disabled={
                       terminalPingStatus === "loading" ||
                       terminalFieldsMissing()
-                    }
-                    className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-slate-300 text-[11px] font-black uppercase tracking-wide text-slate-600 hover:bg-slate-50 disabled:opacity-40 transition-all"
-                  >
+                    } variant="outline" size="md">
                     {terminalPingStatus === "loading" ? (
                       <Loader2 size={13} className="animate-spin" />
                     ) : (
                       <Zap size={13} />
                     )}
                     Testar Conexão
-                  </button>
+                  </Button>
                   {terminalPingStatus === "ok" && (
-                    <span className="flex items-center gap-1.5 text-[11px] font-bold text-emerald-600">
+                    <span className="flex items-center gap-1.5 text-[11px] font-semibold text-emerald-600">
                       <CheckCircle2 size={14} /> Conectado com sucesso
                     </span>
                   )}
                   {terminalPingStatus === "fail" && (
-                    <span className="flex items-center gap-1.5 text-[11px] font-bold text-red-500">
+                    <span className="flex items-center gap-1.5 text-[11px] font-semibold text-red-500">
                       <XCircle size={14} /> Falha na conexão — verifique as
                       credenciais
                     </span>
@@ -5874,13 +5544,13 @@ export default function Settings({
                   subtitle="Exija abertura e fechamento de caixa para operar o PDV"
                 />
 
-                <div className="bg-slate-50 border border-slate-100 rounded-2xl p-5 space-y-4 max-w-lg">
+                <div className="bg-slate-50 border border-slate-100 rounded-lg p-5 space-y-4 max-w-lg">
                   <div className="flex items-center justify-between gap-4">
                     <div>
-                      <p className="text-[11px] font-black uppercase tracking-widest text-slate-700">
+                      <p className="text-[11px] font-semibold text-slate-700">
                         Exigir abertura/fechamento de caixa
                       </p>
-                      <p className="text-[10px] text-slate-400 font-medium mt-1 leading-relaxed">
+                      <p className="text-[11px] text-slate-400 font-medium mt-1 leading-relaxed">
                         Quando ativado, o PDV bloqueia novas vendas até o
                         operador abrir o caixa informando o valor inicial em
                         dinheiro. Ao final do expediente, o fechamento é feito
@@ -5895,13 +5565,13 @@ export default function Settings({
                   </div>
                 </div>
 
-                <div className="bg-slate-50 border border-slate-100 rounded-2xl p-5 space-y-4 max-w-lg">
+                <div className="bg-slate-50 border border-slate-100 rounded-lg p-5 space-y-4 max-w-lg">
                   <div className="flex items-center justify-between gap-4">
                     <div>
-                      <p className="text-[11px] font-black uppercase tracking-widest text-slate-700">
+                      <p className="text-[11px] font-semibold text-slate-700">
                         Imprimir via de fechamento de caixa
                       </p>
-                      <p className="text-[10px] text-slate-400 font-medium mt-1 leading-relaxed">
+                      <p className="text-[11px] text-slate-400 font-medium mt-1 leading-relaxed">
                         Ao confirmar o fechamento, imprime automaticamente um
                         comprovante com o resumo do que entrou e saiu no caixa,
                         detalhado por forma de pagamento (dinheiro, débito,
@@ -5915,13 +5585,13 @@ export default function Settings({
                   </div>
                 </div>
 
-                <div className="bg-slate-50 border border-slate-100 rounded-2xl p-5 space-y-4 max-w-lg">
+                <div className="bg-slate-50 border border-slate-100 rounded-lg p-5 space-y-4 max-w-lg">
                   <div className="flex items-center justify-between gap-4">
                     <div>
-                      <p className="text-[11px] font-black uppercase tracking-widest text-slate-700">
+                      <p className="text-[11px] font-semibold text-slate-700">
                         Deslogar ao fechar o caixa
                       </p>
-                      <p className="text-[10px] text-slate-400 font-medium mt-1 leading-relaxed">
+                      <p className="text-[11px] text-slate-400 font-medium mt-1 leading-relaxed">
                         Ao confirmar o fechamento, encerra a sessão do operador
                         no PDV — útil quando vários operadores revezam o mesmo
                         terminal em turnos diferentes.
@@ -5934,13 +5604,13 @@ export default function Settings({
                   </div>
                 </div>
 
-                <div className="bg-slate-50 border border-slate-100 rounded-2xl p-5 space-y-4 max-w-lg">
+                <div className="bg-slate-50 border border-slate-100 rounded-lg p-5 space-y-4 max-w-lg">
                   <div className="flex items-center justify-between gap-4">
                     <div>
-                      <p className="text-[11px] font-black uppercase tracking-widest text-slate-700">
+                      <p className="text-[11px] font-semibold text-slate-700">
                         Vender sem controle de estoque
                       </p>
-                      <p className="text-[10px] text-slate-400 font-medium mt-1 leading-relaxed">
+                      <p className="text-[11px] text-slate-400 font-medium mt-1 leading-relaxed">
                         Permite finalizar vendas mesmo com estoque zerado ou
                         insuficiente. O estoque do produto não será alterado
                         pela venda.
@@ -5953,13 +5623,13 @@ export default function Settings({
                   </div>
                 </div>
 
-                <div className="bg-slate-50 border border-slate-100 rounded-2xl p-5 space-y-4 max-w-lg">
+                <div className="bg-slate-50 border border-slate-100 rounded-lg p-5 space-y-4 max-w-lg">
                   <div className="flex items-center justify-between gap-4">
                     <div>
-                      <p className="text-[11px] font-black uppercase tracking-widest text-slate-700">
+                      <p className="text-[11px] font-semibold text-slate-700">
                         Imprimir cupom automaticamente
                       </p>
-                      <p className="text-[10px] text-slate-400 font-medium mt-1 leading-relaxed">
+                      <p className="text-[11px] text-slate-400 font-medium mt-1 leading-relaxed">
                         Ao concluir a venda, imprime o cupom não fiscal sem
                         precisar clicar em nada — funciona apenas no
                         aplicativo desktop (Electron) com impressora térmica
@@ -5991,7 +5661,7 @@ export default function Settings({
 
                 {/* theme */}
                 <div className="space-y-3">
-                  <p className="text-[10px] font-black uppercase tracking-widest text-slate-700 border-l-4 border-blue-500 pl-3">
+                  <p className="text-[11px] font-semibold text-slate-700 border-l-4 border-blue-500 pl-3">
                     Tema do Painel
                   </p>
                   <div className="grid grid-cols-2 gap-3 max-w-xs">
@@ -6000,7 +5670,7 @@ export default function Settings({
                         key={t}
                         onClick={() => setPanelTheme(t)}
                         className={cn(
-                          "flex flex-col items-center gap-2 p-5 rounded-2xl border-2 transition-all",
+                          "flex flex-col items-center gap-2 p-5 rounded-lg border transition-all",
                           panelTheme === t
                             ? "border-blue-600 bg-blue-50"
                             : "border-slate-100 hover:border-slate-200 bg-white",
@@ -6025,7 +5695,7 @@ export default function Settings({
                             }
                           />
                         )}
-                        <span className="text-[9px] font-black uppercase tracking-widest text-slate-600">
+                        <span className="text-[11px] font-semibold text-slate-600">
                           {t === "light" ? "Claro" : "Escuro"}
                         </span>
                         {panelTheme === t && (
@@ -6038,26 +5708,26 @@ export default function Settings({
                       </button>
                     ))}
                   </div>
-                  <p className="text-[9px] text-slate-400 font-medium px-1">
+                  <p className="text-[11px] text-slate-400 font-medium px-1">
                     O tema escuro será aplicado no próximo login.
                   </p>
                 </div>
 
                 {/* low stock alert */}
                 <div className="space-y-3">
-                  <p className="text-[10px] font-black uppercase tracking-widest text-slate-700 border-l-4 border-amber-500 pl-3">
+                  <p className="text-[11px] font-semibold text-slate-700 border-l-4 border-amber-500 pl-3">
                     Alerta de Estoque Baixo
                   </p>
-                  <div className="bg-slate-50 border border-slate-100 rounded-2xl p-5 space-y-4 max-w-sm">
+                  <div className="bg-slate-50 border border-slate-100 rounded-lg p-5 space-y-4 max-w-sm">
                     <div className="flex items-center gap-3">
                       <AlertTriangle
                         size={16}
                         className="text-amber-500 shrink-0"
                       />
-                      <p className="text-[10px] text-slate-600 font-medium leading-relaxed">
+                      <p className="text-[11px] text-slate-600 font-medium leading-relaxed">
                         Exibir alerta no painel quando o estoque de um produto
                         ficar abaixo de{" "}
-                        <strong className="text-slate-900 font-black">
+                        <strong className="text-slate-900 font-semibold">
                           {lowStockAlert}
                         </strong>{" "}
                         unidades.
@@ -6075,7 +5745,7 @@ export default function Settings({
                         }
                         className="flex-1 accent-amber-500"
                       />
-                      <span className="text-xl font-black text-slate-900 w-10 text-center tabular-nums">
+                      <span className="text-xl font-semibold text-slate-900 w-10 text-center tabular-nums">
                         {lowStockAlert}
                       </span>
                     </div>
@@ -6084,60 +5754,45 @@ export default function Settings({
 
                 {/* push notifications */}
                 <div className="space-y-3">
-                  <p className="text-[10px] font-black uppercase tracking-widest text-slate-700 border-l-4 border-blue-500 pl-3">
+                  <p className="text-[11px] font-semibold text-slate-700 border-l-4 border-blue-500 pl-3">
                     Notificações Push
                   </p>
-                  <div className="max-w-xl rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
+                  <div className="max-w-xl rounded-lg border border-slate-200 bg-white p-4 sm:p-5">
                     <div className="flex items-center gap-3">
                       <div className="flex shrink-0 -space-x-2">
-                        <div className="flex h-10 w-10 items-center justify-center rounded-xl border-2 border-white bg-blue-50 text-[#297ed1] shadow-sm">
+                        <div className="flex h-10 w-10 items-center justify-center rounded-lg border border-white bg-blue-50 text-[#297ed1]">
                           <Smartphone size={18} />
                         </div>
-                        <div className="flex h-10 w-10 items-center justify-center rounded-xl border-2 border-white bg-orange-50 text-[#e88905] shadow-sm">
+                        <div className="flex h-10 w-10 items-center justify-center rounded-lg border border-white bg-orange-50 text-[#e88905]">
                           <Monitor size={18} />
                         </div>
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className="text-[11px] font-black text-slate-900 uppercase tracking-wide">
+                        <p className="text-[11px] font-semibold text-slate-900">
                           Alertas em todos os dispositivos
                         </p>
-                        <p className="text-[10px] text-slate-500 font-medium leading-relaxed mt-1">
+                        <p className="text-[11px] text-slate-500 font-medium leading-relaxed mt-1">
                           Avisa sobre contas a pagar vencendo e estoque baixo,
                           mesmo com o app fechado.
                         </p>
                         {!isPushSupported() && (
-                          <p className="text-[10px] text-amber-600 font-bold mt-1">
+                          <p className="text-[11px] text-amber-600 font-semibold mt-1">
                             Este navegador não suporta notificações push.
                           </p>
                         )}
                       </div>
-                      <button
-                        type="button"
-                        role="switch"
-                        aria-checked={pushEnabled}
-                        disabled={pushSaving || !isPushSupported()}
-                        onClick={() => handleTogglePush(!pushEnabled)}
-                        className={cn(
-                          "shrink-0 w-12 h-7 rounded-full transition-colors relative disabled:opacity-50",
-                          pushEnabled ? "bg-blue-600" : "bg-slate-300",
-                        )}
-                      >
-                        {pushSaving ? (
-                          <Loader2
-                            size={14}
-                            className="absolute inset-0 m-auto text-white animate-spin"
-                          />
-                        ) : (
-                          <span
-                            className={cn(
-                              "absolute top-1 w-5 h-5 bg-white rounded-full transition-transform",
-                              pushEnabled ? "translate-x-6" : "translate-x-1",
-                            )}
-                          />
-                        )}
-                      </button>
+                      {pushSaving ? (
+                        <Loader2 size={18} className="animate-spin text-blue-600" />
+                      ) : (
+                        <Switch
+                          checked={pushEnabled}
+                          disabled={!isPushSupported()}
+                          onCheckedChange={(checked) => handleTogglePush(checked)}
+                          aria-label="Notificações push"
+                        />
+                      )}
                     </div>
-                    <div className="mt-4 flex items-center gap-2 border-t border-slate-100 pt-3 text-[10px] font-bold text-slate-400">
+                    <div className="mt-4 flex items-center gap-2 border-t border-slate-100 pt-3 text-[11px] font-semibold text-slate-400">
                       <Bell size={13} className="text-[#297ed1]" /> Notificações
                       sincronizadas no celular e no desktop
                     </div>
@@ -6146,7 +5801,7 @@ export default function Settings({
 
                 {/* language */}
                 <div className="space-y-3">
-                  <p className="text-[10px] font-black uppercase tracking-widest text-slate-700 border-l-4 border-blue-500 pl-3">
+                  <p className="text-[11px] font-semibold text-slate-700 border-l-4 border-blue-500 pl-3">
                     Idioma do Painel
                   </p>
                   <div className="flex gap-3 flex-wrap">
@@ -6159,7 +5814,7 @@ export default function Settings({
                         key={code}
                         onClick={() => setPanelLang(code)}
                         className={cn(
-                          "px-5 h-10 rounded-xl text-[10px] font-black uppercase tracking-widest border-2 transition-all",
+                          "px-5 h-10 rounded-lg text-[11px] font-semibold border transition-all",
                           panelLang === code
                             ? "border-blue-600 bg-blue-50 text-blue-700"
                             : "border-slate-100 text-slate-500 hover:border-slate-200 bg-white",
@@ -6169,17 +5824,17 @@ export default function Settings({
                       </button>
                     ))}
                   </div>
-                  <p className="text-[9px] text-slate-400 font-medium px-1">
+                  <p className="text-[11px] text-slate-400 font-medium px-1">
                     Suporte multilíngue completo em breve.
                   </p>
                 </div>
 
                 {/* printer size */}
                 <div className="space-y-3">
-                  <p className="text-[10px] font-black uppercase tracking-widest text-slate-700 border-l-4 border-violet-500 pl-3">
+                  <p className="text-[11px] font-semibold text-slate-700 border-l-4 border-violet-500 pl-3">
                     Impressora de Comprovantes
                   </p>
-                  <p className="text-[9px] text-slate-400 font-medium px-1">
+                  <p className="text-[11px] text-slate-400 font-medium px-1">
                     Selecione o modelo da sua impressora para que o comprovante
                     seja gerado no tamanho correto.
                   </p>
@@ -6210,7 +5865,7 @@ export default function Settings({
                         key={opt.value}
                         onClick={() => setPrinterSize(opt.value)}
                         className={cn(
-                          "flex flex-col items-center gap-1.5 p-4 rounded-2xl border-2 transition-all text-center",
+                          "flex flex-col items-center gap-1.5 p-4 rounded-lg border transition-all text-center",
                           printerSize === opt.value
                             ? "border-violet-600 bg-violet-50"
                             : "border-slate-100 hover:border-slate-200 bg-white",
@@ -6259,7 +5914,7 @@ export default function Settings({
                         </div>
                         <span
                           className={cn(
-                            "text-[11px] font-black",
+                            "text-[11px] font-semibold",
                             printerSize === opt.value
                               ? "text-violet-700"
                               : "text-slate-700",
@@ -6267,7 +5922,7 @@ export default function Settings({
                         >
                           {opt.label}
                         </span>
-                        <span className="text-[8px] font-medium text-slate-400 leading-tight">
+                        <span className="text-[11px] font-medium text-slate-400 leading-tight">
                           {opt.desc}
                         </span>
                         <span className="text-[7.5px] text-slate-300 leading-tight">
@@ -6285,9 +5940,9 @@ export default function Settings({
                   </div>
                 </div>
 
-                <div className="flex items-center gap-3 p-4 bg-amber-50 border border-amber-100 rounded-xl">
+                <div className="flex items-center gap-3 p-4 bg-amber-50 border border-amber-100 rounded-lg">
                   <Bell size={14} className="text-amber-600 shrink-0" />
-                  <p className="text-[10px] text-amber-800 font-medium">
+                  <p className="text-[11px] text-amber-800 font-medium">
                     Notificações por email para alertas de estoque e novos
                     pedidos podem ser configuradas nas preferências avançadas.
                   </p>
@@ -6309,36 +5964,24 @@ export default function Settings({
                 />
                 <div className="max-w-sm space-y-4">
                   <Field label="Nova Senha">
-                    <input
-                      type="password"
-                      value={newPass}
-                      onChange={(e) => setNewPass(e.target.value)}
-                      placeholder="••••••••"
-                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 h-11 text-xs outline-none focus:ring-4 focus:ring-red-500/8 focus:border-red-500 transition-all"
-                    />
+                    <Input type="password" value={newPass} onChange={(e) => setNewPass(e.target.value)} placeholder="••••••••" />
                   </Field>
                   <Field label="Confirme a Nova Senha">
-                    <input
+                    <Input
                       type="password"
                       value={confirmPass}
                       onChange={(e) => setConfirmPass(e.target.value)}
                       placeholder="••••••••"
-                      className={cn(
-                        "w-full bg-slate-50 border rounded-xl px-4 h-11 text-xs outline-none focus:ring-4 transition-all",
+                      error={
                         confirmPass && newPass !== confirmPass
-                          ? "border-red-300 focus:ring-red-500/8 focus:border-red-500"
-                          : "border-slate-200 focus:ring-red-500/8 focus:border-red-500",
-                      )}
+                          ? "As senhas não coincidem"
+                          : undefined
+                      }
                     />
-                    {confirmPass && newPass !== confirmPass && (
-                      <p className="text-[9px] text-red-500 font-bold px-1 mt-1">
-                        As senhas não coincidem
-                      </p>
-                    )}
                   </Field>
 
-                  <div className="p-4 bg-slate-50 border border-slate-100 rounded-xl space-y-1">
-                    <p className="text-[9px] font-black uppercase tracking-widest text-slate-500">
+                  <div className="p-4 bg-slate-50 border border-slate-100 rounded-lg space-y-1">
+                    <p className="text-[11px] font-semibold text-slate-500">
                       Requisitos
                     </p>
                     {[
@@ -6358,7 +6001,7 @@ export default function Settings({
                         />
                         <span
                           className={cn(
-                            "text-[9px] font-bold",
+                            "text-[11px] font-semibold",
                             ok ? "text-emerald-700" : "text-slate-400",
                           )}
                         >
@@ -6370,14 +6013,10 @@ export default function Settings({
                 </div>
 
                 <div className="pt-6 border-t border-slate-100 flex justify-end">
-                  <button
-                    onClick={handleChangePassword}
-                    disabled={saving || !newPass || newPass !== confirmPass}
-                    className="flex items-center gap-3 bg-red-600 text-white px-8 h-12 rounded-xl text-[10px] font-black uppercase tracking-[0.2em] shadow-xl shadow-red-500/20 hover:bg-red-700 transition-all active:scale-95 disabled:opacity-40"
-                  >
+                  <Button onClick={handleChangePassword} disabled={saving || !newPass || newPass !== confirmPass} variant="danger" size="md">
                     <Lock size={14} strokeWidth={2.5} />
                     {saving ? "Alterando..." : "Alterar Credenciais"}
-                  </button>
+                  </Button>
                 </div>
               </div>
             )}
@@ -6394,12 +6033,12 @@ export default function Settings({
                 />
 
                 {/* Offline highlight */}
-                <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 flex items-start gap-3">
-                  <div className="w-9 h-9 rounded-xl bg-amber-100 flex items-center justify-center shrink-0">
+                <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 flex items-start gap-3">
+                  <div className="w-9 h-9 rounded-lg bg-amber-100 flex items-center justify-center shrink-0">
                     <WifiOff size={16} className="text-amber-600" />
                   </div>
                   <div>
-                    <p className="text-[11px] font-black text-amber-800 uppercase tracking-wide">
+                    <p className="text-[11px] font-semibold text-amber-800">
                       Funciona Offline
                     </p>
                     <p className="text-[11px] text-amber-700 mt-1 leading-relaxed">
@@ -6447,21 +6086,21 @@ export default function Settings({
                         link.remove();
                         toast.info(`Baixando BoxSys PDV para ${os}...`);
                       }}
-                      className="group bg-white border border-slate-200 rounded-2xl p-5 flex flex-col items-center text-center hover:border-blue-300 hover:shadow-lg hover:shadow-blue-50 transition-all"
+                      className="group bg-white border border-slate-200 rounded-lg p-5 flex flex-col items-center text-center hover:border-blue-300 hover:shadow-blue-50 transition-all"
                     >
-                      <div className="w-12 h-12 rounded-2xl bg-slate-100 group-hover:bg-blue-50 flex items-center justify-center mb-3 transition-colors">
+                      <div className="w-12 h-12 rounded-lg bg-slate-100 group-hover:bg-blue-50 flex items-center justify-center mb-3 transition-colors">
                         <Monitor
                           size={22}
                           className="text-slate-400 group-hover:text-blue-600 transition-colors"
                         />
                       </div>
-                      <p className="text-[13px] font-black text-slate-900">
+                      <p className="text-[13px] font-semibold text-slate-900">
                         {os}
                       </p>
-                      <p className="text-[10px] text-slate-400 font-bold mt-0.5">
+                      <p className="text-[11px] text-slate-400 font-semibold mt-0.5">
                         {desc}
                       </p>
-                      <span className="mt-4 inline-flex items-center gap-1.5 px-4 h-9 rounded-xl bg-slate-900 group-hover:bg-blue-600 text-white text-[10px] font-black uppercase tracking-widest transition-colors">
+                      <span className="mt-4 inline-flex items-center gap-1.5 px-4 h-9 rounded-lg bg-slate-900 group-hover:bg-blue-600 text-white text-[11px] font-semibold transition-colors">
                         <Download size={12} /> Baixar {ext}
                       </span>
                     </button>
@@ -6469,15 +6108,15 @@ export default function Settings({
                 </div>
 
                 {/* Setup instructions */}
-                <div className="bg-slate-50 border border-slate-100 rounded-2xl p-5">
-                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">
+                <div className="bg-slate-50 border border-slate-100 rounded-lg p-5">
+                  <p className="text-[11px] font-semibold text-slate-400 mb-3">
                     Como configurar
                   </p>
                   <ol className="space-y-2 text-[12px] text-slate-600 font-medium list-decimal list-inside">
                     <li>Baixe e instale o aplicativo no computador do caixa</li>
                     <li>
                       Na primeira abertura, informe o endereço da sua loja (ex:{" "}
-                      <span className="font-mono font-bold text-slate-800">
+                      <span className="font-mono font-semibold text-slate-800">
                         {window.location.hostname}
                       </span>
                       )
@@ -6487,7 +6126,7 @@ export default function Settings({
                       Pronto — o terminal está conectado e preparado para vender
                     </li>
                   </ol>
-                  <p className="text-[10px] text-slate-400 mt-4 leading-relaxed">
+                  <p className="text-[11px] text-slate-400 mt-4 leading-relaxed">
                     💡 No Windows, o aviso "aplicativo não reconhecido" é normal
                     na primeira instalação — clique em "Mais informações" e
                     depois "Executar assim mesmo".
@@ -6495,8 +6134,8 @@ export default function Settings({
                 </div>
 
                 {/* Guia visual: desbloquear o arquivo baixado (alternativa ao aviso do SmartScreen) */}
-                <div className="bg-white border border-slate-200 rounded-2xl p-5">
-                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">
+                <div className="bg-white border border-slate-200 rounded-lg p-5">
+                  <p className="text-[11px] font-semibold text-slate-400 mb-1">
                     Se o Windows continuar bloqueando
                   </p>
                   <p className="text-[11px] text-slate-500 font-medium mb-4">
@@ -6507,16 +6146,16 @@ export default function Settings({
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                     {/* Passo 1 — clicar com o direito e abrir Propriedades */}
                     <div className="space-y-2">
-                      <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 h-32 flex items-center justify-center">
+                      <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 h-32 flex items-center justify-center">
                         <div className="relative">
                           <div className="w-9 h-9 rounded-lg bg-blue-100 flex items-center justify-center">
                             <Monitor size={16} className="text-blue-600" />
                           </div>
-                          <div className="absolute left-6 top-6 w-24 bg-white border border-slate-300 rounded-md shadow-lg overflow-hidden">
+                          <div className="absolute left-6 top-6 w-24 bg-white border border-slate-300 rounded-md overflow-hidden">
                             <div className="px-2 py-1 text-[7px] font-semibold text-slate-500 border-b border-slate-100">
                               Abrir
                             </div>
-                            <div className="px-2 py-1 text-[7px] font-bold text-blue-700 bg-blue-50 flex items-center gap-1">
+                            <div className="px-2 py-1 text-[7px] font-semibold text-blue-700 bg-blue-50 flex items-center gap-1">
                               <Settings2 size={8} /> Propriedades
                             </div>
                           </div>
@@ -6526,7 +6165,7 @@ export default function Settings({
                           />
                         </div>
                       </div>
-                      <p className="text-[10px] font-bold text-slate-700 text-center">
+                      <p className="text-[11px] font-semibold text-slate-700 text-center">
                         1. Clique com o botão direito no instalador e escolha{" "}
                         <span className="text-blue-600">Propriedades</span>
                       </p>
@@ -6534,9 +6173,9 @@ export default function Settings({
 
                     {/* Passo 2 — marcar Desbloquear */}
                     <div className="space-y-2">
-                      <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 h-32 flex items-center justify-center">
-                        <div className="w-28 bg-white border border-slate-300 rounded-md shadow-lg px-2 py-2 space-y-1.5">
-                          <p className="text-[7px] font-black text-slate-500 uppercase tracking-wide border-b border-slate-100 pb-1">
+                      <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 h-32 flex items-center justify-center">
+                        <div className="w-28 bg-white border border-slate-300 rounded-md px-2 py-2 space-y-1.5">
+                          <p className="text-[7px] font-semibold text-slate-500 border-b border-slate-100 pb-1">
                             Segurança
                           </p>
                           <p className="text-[6.5px] text-slate-400 leading-tight">
@@ -6545,13 +6184,13 @@ export default function Settings({
                           </p>
                           <div className="flex items-center gap-1 bg-blue-50 border border-blue-200 rounded px-1.5 py-1">
                             <CheckSquare size={10} className="text-blue-600" />
-                            <span className="text-[7px] font-bold text-blue-700">
+                            <span className="text-[7px] font-semibold text-blue-700">
                               Desbloquear
                             </span>
                           </div>
                         </div>
                       </div>
-                      <p className="text-[10px] font-bold text-slate-700 text-center">
+                      <p className="text-[11px] font-semibold text-slate-700 text-center">
                         2. Na aba <span className="text-blue-600">Geral</span>,
                         marque a caixa{" "}
                         <span className="text-blue-600">Desbloquear</span>
@@ -6560,19 +6199,19 @@ export default function Settings({
 
                     {/* Passo 3 — confirmar em OK */}
                     <div className="space-y-2">
-                      <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 h-32 flex items-center justify-center">
-                        <div className="w-24 bg-white border border-slate-300 rounded-md shadow-lg px-2 py-2 space-y-1.5">
+                      <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 h-32 flex items-center justify-center">
+                        <div className="w-24 bg-white border border-slate-300 rounded-md px-2 py-2 space-y-1.5">
                           <div className="flex items-center gap-1 bg-emerald-50 border border-emerald-200 rounded px-1.5 py-1">
                             <CheckSquare
                               size={10}
                               className="text-emerald-600"
                             />
-                            <span className="text-[7px] font-bold text-emerald-700">
+                            <span className="text-[7px] font-semibold text-emerald-700">
                               Desbloquear
                             </span>
                           </div>
                           <div className="flex justify-end gap-1 pt-0.5">
-                            <span className="text-[7px] font-black text-white bg-blue-600 rounded px-2 py-0.5">
+                            <span className="text-[7px] font-semibold text-white bg-blue-600 rounded px-2 py-0.5">
                               OK
                             </span>
                             <span className="text-[7px] font-semibold text-slate-400 border border-slate-200 rounded px-2 py-0.5">
@@ -6581,7 +6220,7 @@ export default function Settings({
                           </div>
                         </div>
                       </div>
-                      <p className="text-[10px] font-bold text-slate-700 text-center">
+                      <p className="text-[11px] font-semibold text-slate-700 text-center">
                         3. Clique em <span className="text-blue-600">OK</span> e
                         instale o arquivo normalmente
                       </p>
@@ -6592,9 +6231,11 @@ export default function Settings({
                 <DesktopTerminalsSection />
               </div>
             )}
+            </StoreTabsFrame>
           </div>
         </div>
       )}
     </div>
+    </PageWrapper>
   );
 }

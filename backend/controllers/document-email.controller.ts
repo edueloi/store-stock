@@ -2,9 +2,8 @@ import type { Request, Response } from "express";
 
 import { prisma } from "../config/prisma";
 import type { AuthenticatedRequest } from "../types/auth";
-import { escapeHtml } from "../utils/html-escape";
-import { baseTemplate, } from "../services/mailer.service";
-import { sendStoreEmail } from "../services/store-email.service";
+import { getTenantEmailSendingStatus, loadEmailSignature, sendTenantEmail } from "../services/store-email.service";
+import { buildCrediarioEmail, buildQuoteEmail, buildServiceOrderEmail, isValidEmail } from "../utils/document-email-text";
 import { syncLinkedStatus } from "../utils/stage-permissions";
 
 type DocumentKind = "quote" | "service_order";
@@ -20,7 +19,6 @@ async function actor(req: Request) {
   });
   return account ? `${account.name} (${account.email})` : "Sistema";
 }
-function money(value: unknown) { return Number(value || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" }); }
 
 async function status(req: Request, res: Response, kind: DocumentKind) {
   const documentId = Number(req.params.id);
@@ -29,7 +27,12 @@ async function status(req: Request, res: Response, kind: DocumentKind) {
     orderBy: { created_at: "desc" }, take: 10,
   });
   const last = logs[0];
-  res.json({ sent: last?.status === "sent", recipient: last?.recipient ?? null, sent_at: last?.status === "sent" ? last.created_at : null, attempts: logs.length, last_status: last?.status ?? null });
+  const sending = await getTenantEmailSendingStatus(tenantId(req));
+  res.json({
+    sent: last?.status === "sent", recipient: last?.recipient ?? null, sent_at: last?.status === "sent" ? last.created_at : null, attempts: logs.length, last_status: last?.status ?? null,
+    // Envio liberado se o modo "sistema" estiver ativo OU a conta própria estiver conectada.
+    can_send: sending.can_send, sender_mode: sending.mode,
+  });
 }
 
 async function logDelivery(tenant_id: number, kind: DocumentKind, id: number, recipient: string, statusValue: "sent" | "failed", error?: string) {
@@ -84,10 +87,11 @@ export async function sendQuoteEmail(req: Request, res: Response) {
   const recipient = (quote.customer_email || customer?.email || "").trim();
   if (!recipient) { res.status(422).json({ error: "Cadastre o e-mail do cliente antes de enviar o orçamento." }); return; }
 
-  const lines = [...quote.items, ...quote.services].map((item: any) => `<tr><td style="padding:7px 0;color:#334155;">${escapeHtml(item.name)} × ${item.quantity}</td><td align="right" style="padding:7px 0;font-weight:700;color:#0f172a;">${money(item.total)}</td></tr>`).join("");
-  const html = baseTemplate(`<p style="margin:0 0 8px;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:2px;color:#2563eb;">Orçamento #${quote.number}</p><h1 style="margin:0 0 16px;font-size:24px;color:#0f172a;">Olá, ${escapeHtml(quote.customer_name || "cliente")}!</h1><p style="color:#475569;line-height:1.6;">Segue o seu orçamento. Validade: <strong>${quote.validity_days} dias</strong>.</p><table width="100%" cellspacing="0" cellpadding="0" style="margin:18px 0;border-top:1px solid #e2e8f0;">${lines}</table><p style="margin:16px 0 0;font-size:18px;font-weight:900;color:#0f172a;text-align:right;">Total: ${money(quote.total_amount)}</p>${quote.notes ? `<p style="margin-top:20px;color:#475569;line-height:1.5;"><strong>Observações:</strong><br/>${escapeHtml(quote.notes)}</p>` : ""}`);
+  if (!isValidEmail(recipient)) { res.status(422).json({ error: "O e-mail cadastrado para o cliente é inválido. Corrija o cadastro antes de enviar o orçamento." }); return; }
+  const { signature, replyTo } = await loadEmailSignature(currentTenantId, (req as AuthenticatedRequest).user.userId);
+  const email = buildQuoteEmail({ customerName: quote.customer_name, number: quote.number, total: quote.total_amount, validityDays: quote.validity_days, notes: quote.notes, signature });
   try {
-    await sendStoreEmail(currentTenantId, { to: recipient, subject: `Orçamento #${quote.number} · ${money(quote.total_amount)}`, html });
+    await sendTenantEmail(currentTenantId, { to: recipient, subject: email.subject, text: email.text, replyTo });
     await logDelivery(currentTenantId, "quote", quote.id, recipient, "sent");
     await markQuoteAsSent(currentTenantId, quote, await actor(req));
     res.json({ success: true, recipient, sent_at: new Date() });
@@ -109,16 +113,83 @@ export async function sendServiceOrderEmail(req: Request, res: Response) {
   const customer = order.customer_id ? await prisma.customer.findFirst({ where: { id: order.customer_id, tenant_id: currentTenantId }, select: { email: true } }) : null;
   const recipient = customer?.email?.trim() || "";
   if (!recipient) { res.status(422).json({ error: "Cadastre o e-mail do cliente antes de enviar a ordem de serviço." }); return; }
-  const parts = order.parts.map((part: any) => `<tr><td style="padding:7px 0;color:#334155;">${escapeHtml(part.name)} × ${part.quantity}</td><td align="right" style="padding:7px 0;font-weight:700;color:#0f172a;">${money(part.total)}</td></tr>`).join("");
-  const html = baseTemplate(`<p style="margin:0 0 8px;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:2px;color:#2563eb;">Ordem de serviço #${order.number}</p><h1 style="margin:0 0 16px;font-size:24px;color:#0f172a;">Olá, ${escapeHtml(order.customer_name || "cliente")}!</h1><p style="color:#475569;line-height:1.6;">Status atual: <strong>${escapeHtml(order.status.replace(/_/g, " "))}</strong>.</p>${order.service_description ? `<p style="color:#475569;line-height:1.6;"><strong>Serviço:</strong> ${escapeHtml(order.service_description)}</p>` : ""}${parts ? `<table width="100%" cellspacing="0" cellpadding="0" style="margin:18px 0;border-top:1px solid #e2e8f0;">${parts}</table>` : ""}<p style="margin:16px 0 0;font-size:18px;font-weight:900;color:#0f172a;text-align:right;">Total: ${money(order.total_amount)}</p>${order.observations ? `<p style="margin-top:20px;color:#475569;line-height:1.5;"><strong>Observações:</strong><br/>${escapeHtml(order.observations)}</p>` : ""}`);
+  if (!isValidEmail(recipient)) { res.status(422).json({ error: "O e-mail cadastrado para o cliente é inválido. Corrija o cadastro antes de enviar a ordem de serviço." }); return; }
+  const { signature, replyTo } = await loadEmailSignature(currentTenantId, (req as AuthenticatedRequest).user.userId);
+  const email = buildServiceOrderEmail({ customerName: order.customer_name, number: order.number, total: order.total_amount, status: order.status, promisedAt: order.promised_at, serviceDescription: order.service_description, observations: order.observations, signature });
   try {
-    await sendStoreEmail(currentTenantId, { to: recipient, subject: `Ordem de serviço #${order.number} · ${money(order.total_amount)}`, html });
+    await sendTenantEmail(currentTenantId, { to: recipient, subject: email.subject, text: email.text, replyTo });
     await logDelivery(currentTenantId, "service_order", order.id, recipient, "sent");
     await markServiceOrderAsSent(currentTenantId, order, await actor(req));
     res.json({ success: true, recipient, sent_at: new Date() });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Não foi possível enviar o e-mail.";
     await logDelivery(currentTenantId, "service_order", order.id, recipient, "failed", message).catch(() => {});
+    res.status(422).json({ error: message });
+  }
+}
+
+const PAYMENT_METHOD_LABELS: Record<string, string> = {
+  money: "Dinheiro", pix: "PIX", debit: "Débito", credit: "Crédito", crediario: "Crediário", transfer: "Transferência", boleto: "Boleto",
+};
+
+/**
+ * Envia ao cliente o extrato de um crediário ou, informando payment_id, o comprovante
+ * de um pagamento específico. O e-mail do cliente pode ser informado em body.email
+ * quando o cadastro não tiver um.
+ */
+export async function sendCrediarioEmail(req: Request, res: Response) {
+  const currentTenantId = tenantId(req);
+  const customerId = Number(req.params.id);
+  const debtId = Number(req.params.debtId);
+  const requestedEmail = String(req.body?.email || "").trim().toLowerCase();
+  const paymentId = req.body?.payment_id !== undefined && req.body?.payment_id !== null ? Number(req.body.payment_id) : null;
+
+  const debt = await prisma.customerDebt.findFirst({
+    where: { id: debtId, customer_id: customerId, tenant_id: currentTenantId },
+    include: { payments: { orderBy: [{ paid_at: "asc" }, { id: "asc" }] }, installments: { orderBy: { number: "asc" } } },
+  });
+  if (!debt) { res.status(404).json({ error: "Crediário não encontrado." }); return; }
+  const payment = paymentId ? debt.payments.find((p) => p.id === paymentId) : null;
+  if (paymentId && !payment) { res.status(404).json({ error: "Pagamento não encontrado neste crediário." }); return; }
+
+  const customer = await prisma.customer.findFirst({ where: { id: customerId, tenant_id: currentTenantId }, select: { name: true, email: true } });
+  if (!customer) { res.status(404).json({ error: "Cliente não encontrado." }); return; }
+  const recipient = requestedEmail || (customer.email || "").trim();
+  if (!recipient) { res.status(422).json({ code: "recipient_required", error: "Cadastre o e-mail do cliente antes de enviar o crediário." }); return; }
+  if (!isValidEmail(recipient)) { res.status(422).json({ code: "recipient_required", error: "O e-mail informado para o cliente é inválido." }); return; }
+
+  const total = Number(debt.amount);
+  const paidTotal = payment
+    ? debt.payments.slice(0, debt.payments.findIndex((p) => p.id === payment.id) + 1).reduce((sum, p) => sum + Number(p.amount), 0)
+    : Number(debt.amount_paid);
+  const { signature, replyTo } = await loadEmailSignature(currentTenantId, (req as AuthenticatedRequest).user.userId);
+  const email = buildCrediarioEmail({
+    customerName: customer.name,
+    description: debt.description,
+    total,
+    paid: paidTotal,
+    remaining: Math.max(0, total - paidTotal),
+    installments: debt.installments.map((inst) => ({
+      number: inst.number,
+      dueDate: inst.due_date,
+      amount: inst.amount,
+      paid: inst.status === "paid" || Number(inst.amount_paid) >= Number(inst.amount),
+    })),
+    payment: payment ? { amount: payment.amount, paidAt: payment.paid_at, method: payment.payment_method ? PAYMENT_METHOD_LABELS[payment.payment_method] ?? payment.payment_method : null } : null,
+    signature,
+  });
+
+  const summary = `Crediário #${debt.id}`;
+  const log = (statusValue: "sent" | "failed", error?: string) => prisma.automatedMessageLog.create({ data: {
+    tenant_id: currentTenantId, kind: "crediario_email", channel: "email", recipient, status: statusValue, summary, error: error?.slice(0, 1000) || null,
+  } }).catch(() => {});
+  try {
+    await sendTenantEmail(currentTenantId, { to: recipient, subject: email.subject, text: email.text, replyTo });
+    await log("sent");
+    res.json({ success: true, recipient, sent_at: new Date() });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Não foi possível enviar o e-mail.";
+    await log("failed", message);
     res.status(422).json({ error: message });
   }
 }

@@ -1,10 +1,12 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { Plus, Search, Trash2, Loader2, Download, X, HelpCircle } from "lucide-react";
-import { cn } from "../../lib/utils";
-import PageHeader from "../../components/layout/PageHeader";
-import Button from "../../components/ui/Button";
-import Modal from "../../components/ui/Modal";
+import { Plus, Trash2, Download, X, HelpCircle, Wrench } from "lucide-react";
+import {
+  Button, IconButton, Badge, SectionTitle, ContentCard, EmptyState, ConfirmModal,
+  FilterLine, FilterLineSection, FilterLineItem, FilterLineSearch,
+  GridTable, usePagination,
+} from "../../components/ui";
+import type { Column } from "../../components/ui";
 import Combobox, { type ComboboxOption } from "../../components/ui/Combobox";
 import { onRealtime } from "../../lib/realtime";
 import ServiceOrdersPageTour, { type ServiceOrdersPageTourHandle } from "../../components/onboarding/ServiceOrdersPageTour";
@@ -20,6 +22,22 @@ import {
   buildServiceOrderIntakeHtml,
   SOStatus,
 } from "./serviceOrders.shared";
+
+type BadgeColor = "default" | "primary" | "success" | "warning" | "danger" | "info" | "purple" | "orange" | "teal";
+
+const STATUS_BADGE: Record<SOStatus, BadgeColor> = {
+  rascunho: "default",
+  orcamento_enviado: "info",
+  aguardando_aprovacao: "warning",
+  aprovado: "teal",
+  aguardando_arte: "purple",
+  arte_finalizada: "purple",
+  em_producao: "purple",
+  finalizado: "teal",
+  nota_emitida: "primary",
+  entregue: "success",
+  cancelada: "danger",
+};
 
 export default function ServiceOrders() {
   const navigate = useNavigate();
@@ -183,211 +201,157 @@ export default function ServiceOrders() {
     })),
   ];
 
+  const pg = usePagination(filtered, 15);
+
+  const selectedKeys = new Set(Array.from(selectedIds).map(String));
+
+  const columns: Column<ServiceOrder>[] = [
+    { header: "Número", render: (o) => <span className="font-mono text-xs font-medium text-slate-700">#{String(o.number).padStart(4, "0")}</span> },
+    { header: "Cliente", render: (o) => <span className="text-xs font-medium text-slate-800">{o.customer_name || "—"}</span> },
+    {
+      header: "Equipamento",
+      render: (o) => (
+        <span className="text-xs text-slate-500">
+          {o.has_equipment
+            ? `${o.equipment_category}${o.equipment_brand ? ` — ${o.equipment_brand}` : ""}${o.equipment_model ? ` ${o.equipment_model}` : ""}`
+            : <span className="italic text-slate-400">Sem equipamento</span>}
+        </span>
+      ),
+    },
+    { header: "Status", render: (o) => <Badge color={STATUS_BADGE[o.status]} size="sm" icon={STATUS_META[o.status].icon}>{STATUS_META[o.status].label}</Badge> },
+    { header: "Responsável", render: (o) => <span className="text-xs text-slate-500">{o.technician_name || (o.seller_id ? sellers.find((s) => s.id === o.seller_id)?.name : "—") || "—"}</span> },
+    { header: "Valor", className: "text-right", headerClassName: "text-right", render: (o) => <span className="text-xs font-semibold tabular-nums whitespace-nowrap text-slate-800">{fmt(o.total_amount)}</span> },
+    { header: "Data", render: (o) => <span className="text-xs whitespace-nowrap text-slate-500">{new Date(o.created_at).toLocaleDateString("pt-BR")}</span> },
+    {
+      header: "Ações",
+      className: "text-right",
+      headerClassName: "text-right",
+      render: (o) => !o.invoiced_order_id ? (
+        <div className="flex justify-end" onClick={(e) => e.stopPropagation()}>
+          <IconButton size="xs" variant="ghost" aria-label="Excluir ordem de serviço" title="Excluir ordem de serviço" onClick={() => setDeleteTarget(o)}>
+            <Trash2 size={13} />
+          </IconButton>
+        </div>
+      ) : null,
+    },
+  ];
+
   return (
-    <div data-tour="service-orders-page" className="space-y-5">
-      <PageHeader
+    <div data-tour="service-orders-page" className="space-y-4">
+      <SectionTitle
         title="Ordens de Serviço"
-        subtitle="Receba equipamentos para conserto, controle o checklist e fature"
+        description="Receba equipamentos para conserto, controle o checklist e fature"
+        icon={Wrench}
         action={
-          <div className="flex gap-2 items-center flex-wrap">
-            <button
-              data-tour="service-orders-new-btn"
-              onClick={() => navigate("/admin/ordens-servico/novo")}
-              className="h-9 px-4 bg-blue-600 text-white rounded-lg flex items-center gap-2 text-[12px] font-bold hover:bg-blue-700 transition-all shadow-md shadow-blue-500/20"
-            >
-              <Plus size={15} /> Nova Ordem de Serviço
-            </button>
+          <>
             <Button
-              variant="secondary"
-              className="text-slate-400 hover:text-blue-600 hover:bg-blue-50 border-slate-200 hover:border-blue-300"
-              icon={<HelpCircle size={14} />}
+              size="sm"
+              data-tour="service-orders-new-btn"
+              iconLeft={<Plus size={14} />}
+              onClick={() => navigate("/admin/ordens-servico/novo")}
+            >
+              Nova Ordem de Serviço
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              iconLeft={<HelpCircle size={14} />}
               onClick={() => serviceOrdersPageTourRef.current?.start()}
               title="Tour guiado desta página"
             >
               <span className="sr-only sm:not-sr-only">Ajuda</span>
             </Button>
-          </div>
+          </>
         }
       />
 
       <ServiceOrdersPageTour ref={serviceOrdersPageTourRef} />
 
-      {/* Search */}
-      <div className="relative max-w-md">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
-        <input
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          placeholder="Buscar por número, cliente, marca ou modelo..."
-          className="w-full pl-9 pr-4 h-10 bg-white rounded-xl text-[12px] font-medium border border-slate-200 focus:outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 transition-all"
-        />
-      </div>
+      <FilterLine>
+        <FilterLineSection grow>
+          <FilterLineItem grow minWidth={220}>
+            <FilterLineSearch
+              value={searchTerm}
+              onChange={setSearchTerm}
+              placeholder="Buscar por número, cliente, marca ou modelo..."
+              aria-label="Buscar ordens de serviço"
+            />
+          </FilterLineItem>
+          <FilterLineItem minWidth={220}>
+            <Combobox
+              options={statusOptions}
+              value={statusFilter}
+              onChange={(v) => setStatusFilter(v as "all" | SOStatus)}
+            />
+          </FilterLineItem>
+        </FilterLineSection>
+      </FilterLine>
 
-      {/* Status filter */}
-      <Combobox
-        options={statusOptions}
-        value={statusFilter}
-        onChange={(v) => setStatusFilter(v as "all" | SOStatus)}
-        className="max-w-xs"
-      />
-
-      {/* Bulk actions */}
       {selectedIds.size > 0 && (
-        <div className="flex items-center gap-3 rounded-xl border border-blue-200 bg-blue-50 px-4 py-2.5">
-          <span className="text-[11px] font-bold text-blue-700">{selectedIds.size} selecionada(s)</span>
+        <div className="flex flex-wrap items-center gap-2 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2">
+          <span className="text-xs font-medium text-blue-700">{selectedIds.size} selecionada(s)</span>
           <div className="flex-1" />
-          <button
-            onClick={handleDownloadZip}
-            disabled={zipping}
-            className="h-8 px-3 rounded-lg bg-white border border-blue-200 text-blue-700 text-[10px] font-black uppercase tracking-wider flex items-center gap-1.5 hover:bg-blue-100 transition-all disabled:opacity-50"
-          >
-            {zipping ? <Loader2 size={13} className="animate-spin" /> : <Download size={13} />}
+          <Button size="sm" variant="outline" loading={zipping} iconLeft={<Download size={13} />} onClick={handleDownloadZip}>
             Baixar PDFs (.zip)
-          </button>
-          <button
-            onClick={() => setShowBulkDeleteModal(true)}
-            className="h-8 px-3 rounded-lg bg-white border border-red-200 text-red-600 text-[10px] font-black uppercase tracking-wider flex items-center gap-1.5 hover:bg-red-50 transition-all"
-          >
-            <Trash2 size={13} /> Excluir selecionadas
-          </button>
-          <button
-            onClick={() => setSelectedIds(new Set())}
-            className="w-8 h-8 rounded-lg text-blue-400 hover:text-blue-700 hover:bg-blue-100 flex items-center justify-center transition-colors"
-            title="Limpar seleção"
-          >
+          </Button>
+          <Button size="sm" variant="outline" iconLeft={<Trash2 size={13} />} onClick={() => setShowBulkDeleteModal(true)}>
+            Excluir selecionadas
+          </Button>
+          <IconButton size="sm" variant="ghost" aria-label="Limpar seleção" title="Limpar seleção" onClick={() => setSelectedIds(new Set())}>
             <X size={14} />
-          </button>
+          </IconButton>
         </div>
       )}
 
-      {/* List */}
-      <div data-tour="service-orders-table" className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
-        {loading ? (
-          <div className="p-10 text-center text-slate-400 text-[12px] font-bold">Carregando...</div>
-        ) : filtered.length === 0 ? (
-          <div className="p-10 text-center text-slate-400 text-[12px] font-bold">Nenhuma ordem de serviço encontrada</div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-[12px]">
-              <thead>
-                <tr className="border-b border-slate-100 text-left text-[9px] font-black uppercase tracking-widest text-slate-400">
-                  <th className="px-4 py-3 w-8">
-                    <input
-                      type="checkbox"
-                      checked={filtered.length > 0 && filtered.every((o) => selectedIds.has(o.id))}
-                      onChange={toggleSelectAllVisible}
-                      className="w-3.5 h-3.5 rounded border-slate-300 text-blue-600 focus:ring-blue-400"
-                    />
-                  </th>
-                  <th className="px-4 py-3">Número</th>
-                  <th className="px-4 py-3">Cliente</th>
-                  <th className="px-4 py-3">Equipamento</th>
-                  <th className="px-4 py-3">Status</th>
-                  <th className="px-4 py-3">Responsável</th>
-                  <th className="px-4 py-3 text-right">Valor</th>
-                  <th className="px-4 py-3">Data</th>
-                  <th className="px-4 py-3 text-right">Ações</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filtered.map((o) => (
-                  <tr
-                    key={o.id}
-                    onClick={() => navigate(`/admin/ordens-servico/${o.id}`)}
-                    className="border-b border-slate-50 last:border-0 hover:bg-slate-50 cursor-pointer transition-colors"
-                  >
-                    <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
-                      <input
-                        type="checkbox"
-                        checked={selectedIds.has(o.id)}
-                        onChange={() => toggleSelected(o.id)}
-                        className="w-3.5 h-3.5 rounded border-slate-300 text-blue-600 focus:ring-blue-400"
-                      />
-                    </td>
-                    <td className="px-4 py-3 font-mono font-bold text-slate-700">#{String(o.number).padStart(4, "0")}</td>
-                    <td className="px-4 py-3 font-semibold text-slate-700">{o.customer_name || "—"}</td>
-                    <td className="px-4 py-3 text-slate-500">
-                      {o.has_equipment
-                        ? `${o.equipment_category}${o.equipment_brand ? ` — ${o.equipment_brand}` : ""}${o.equipment_model ? ` ${o.equipment_model}` : ""}`
-                        : <span className="italic text-slate-400">Sem equipamento</span>}
-                    </td>
-                    <td className="px-4 py-3">
-                      <span className={cn("inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider", STATUS_META[o.status].color)}>
-                        {STATUS_META[o.status].icon} {STATUS_META[o.status].label}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 text-slate-500">{o.technician_name || (o.seller_id ? sellers.find((s) => s.id === o.seller_id)?.name : "—") || "—"}</td>
-                    <td className="px-4 py-3 text-right font-mono font-bold text-slate-700">{fmt(o.total_amount)}</td>
-                    <td className="px-4 py-3 text-slate-400">{new Date(o.created_at).toLocaleDateString("pt-BR")}</td>
-                    <td className="px-4 py-3 text-right">
-                      {!o.invoiced_order_id && (
-                        <button
-                          onClick={(e) => { e.stopPropagation(); setDeleteTarget(o); }}
-                          className="w-7 h-7 rounded-lg text-slate-300 hover:text-red-500 hover:bg-red-50 flex items-center justify-center transition-colors ml-auto"
-                          title="Excluir ordem de serviço"
-                        >
-                          <Trash2 size={13} />
-                        </button>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
+      <ContentCard padding="none" data-tour="service-orders-table">
+        <GridTable
+          noDesktopCard
+          data={pg.paginatedData}
+          keyExtractor={(o) => o.id}
+          isLoading={loading}
+          columns={columns}
+          selectedIds={selectedKeys}
+          onToggleSelect={(id) => toggleSelected(Number(id))}
+          onToggleSelectAll={toggleSelectAllVisible}
+          onRowClick={(o) => navigate(`/admin/ordens-servico/${o.id}`)}
+          emptyMessage={
+            <EmptyState
+              icon={Wrench}
+              title="Nenhuma ordem de serviço encontrada"
+              description={searchTerm || statusFilter !== "all" ? "Ajuste a busca ou o filtro." : "Crie a primeira ordem de serviço para começar."}
+            />
+          }
+          pagination={{ total: filtered.length, page: pg.page, pageSize: pg.pageSize, onPageChange: pg.setPage, onPageSizeChange: pg.setPageSize }}
+        />
+      </ContentCard>
 
-      <Modal
-        open={!!deleteTarget}
+      <ConfirmModal
+        isOpen={!!deleteTarget}
         onClose={() => setDeleteTarget(null)}
-        title="Excluir Ordem de Serviço"
-        subtitle="Essa ação não pode ser desfeita"
-        footer={
-          <>
-            <button onClick={() => setDeleteTarget(null)} className="flex-1 h-11 rounded-xl border border-slate-200 text-[10px] font-black uppercase tracking-widest text-slate-600 hover:bg-slate-50 transition-colors">
-              Voltar
-            </button>
-            <button onClick={handleDelete} disabled={deleting}
-              className="flex-1 h-11 bg-red-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-red-700 transition-all disabled:opacity-50 flex items-center justify-center gap-2">
-              {deleting ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
-              Excluir
-            </button>
-          </>
-        }
-      >
-        <p className="text-[12px] text-slate-600">
-          {deleteTarget && (
-            <>Tem certeza que deseja excluir a OS #{String(deleteTarget.number).padStart(4, "0")}
-            {deleteTarget.customer_name ? ` de ${deleteTarget.customer_name}` : ""}?
-            {deleteTarget.parts.length > 0 ? " Peças já debitadas do estoque serão devolvidas." : ""}</>
-          )}
-        </p>
-      </Modal>
+        onConfirm={handleDelete}
+        loading={deleting}
+        variant="danger"
+        title="Excluir ordem de serviço?"
+        confirmLabel="Excluir"
+        cancelLabel="Voltar"
+        message={deleteTarget && (
+          <>Tem certeza que deseja excluir a OS #{String(deleteTarget.number).padStart(4, "0")}
+          {deleteTarget.customer_name ? ` de ${deleteTarget.customer_name}` : ""}?
+          {deleteTarget.parts.length > 0 ? " Peças já debitadas do estoque serão devolvidas." : ""} Essa ação não pode ser desfeita.</>
+        )}
+      />
 
-      <Modal
-        open={showBulkDeleteModal}
+      <ConfirmModal
+        isOpen={showBulkDeleteModal}
         onClose={() => setShowBulkDeleteModal(false)}
-        title="Excluir Ordens de Serviço"
-        subtitle="Essa ação não pode ser desfeita"
-        footer={
-          <>
-            <button onClick={() => setShowBulkDeleteModal(false)} className="flex-1 h-11 rounded-xl border border-slate-200 text-[10px] font-black uppercase tracking-widest text-slate-600 hover:bg-slate-50 transition-colors">
-              Voltar
-            </button>
-            <button onClick={handleBulkDelete} disabled={bulkDeleting}
-              className="flex-1 h-11 bg-red-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-red-700 transition-all disabled:opacity-50 flex items-center justify-center gap-2">
-              {bulkDeleting ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
-              Excluir {selectedIds.size}
-            </button>
-          </>
-        }
-      >
-        <p className="text-[12px] text-slate-600">
-          Tem certeza que deseja excluir {selectedIds.size} ordem(ns) de serviço? Peças já debitadas do estoque serão devolvidas.
-          Ordens já faturadas ou com NFS-e autorizada não serão excluídas — cancele-as antes.
-        </p>
-      </Modal>
+        onConfirm={handleBulkDelete}
+        loading={bulkDeleting}
+        variant="danger"
+        title="Excluir ordens de serviço?"
+        confirmLabel={`Excluir ${selectedIds.size}`}
+        cancelLabel="Voltar"
+        message={`Tem certeza que deseja excluir ${selectedIds.size} ordem(ns) de serviço? Peças já debitadas do estoque serão devolvidas. Ordens já faturadas ou com NFS-e autorizada não serão excluídas — cancele-as antes. Essa ação não pode ser desfeita.`}
+      />
     </div>
   );
 }

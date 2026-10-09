@@ -64,8 +64,8 @@ export default function Tooltip({
             role="tooltip"
             className={cn(
               "absolute z-[300] pointer-events-none whitespace-nowrap",
-              "px-2.5 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider",
-              "bg-slate-800 text-white shadow-lg",
+              "px-2.5 py-1.5 rounded-lg text-[11px] font-semibold",
+              "bg-slate-800 text-white shadow-sm",
               container,
               className
             )}

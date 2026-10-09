@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import {
   Phone, Mail, MapPin, AlertTriangle, X, Plus, ChevronRight, Trash2,
@@ -7,13 +7,11 @@ import {
   AlertCircle, ChevronLeft, CreditCard, Search, Calendar, Printer,
 } from "lucide-react";
 import { cn } from "../../lib/utils";
-import PageHeader from "../../components/layout/PageHeader";
-import Modal from "../../components/ui/Modal";
-import Button from "../../components/ui/Button";
-import StatsGrid from "../../components/ui/StatsGrid";
+import { Button, IconButton, Input, Textarea, Select, Modal, ModalFooter, Badge, Alert, EmptyState, ContentCard, PanelCard, DetailField, StatGrid, StatCard, Tabs } from "../../components/ui";
+import { useToast } from "../../components/ui/Toast";
 import { downloadHtmlAsPdf } from "../../lib/pdf";
 import PaymentSegmentsEditor, { PaymentSegment, newPaymentSegment } from "../../components/PaymentSegmentsEditor";
-import { buildDebtPaymentReceiptText, buildInstallmentBookletText, printThermalText } from "../../lib/thermalReceipt";
+import { buildDebtPaymentReceiptText, buildInstallmentBookletText, buildOrderReceiptText, printThermalText } from "../../lib/thermalReceipt";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -199,8 +197,23 @@ function displayZip(v?: string | null): string {
 }
 
 type DetailTab = "summary" | "fiado" | "history" | "notes" | "loyalty";
+type EditTab = "geral" | "endereco";
+
+const DETAIL_TABS = [
+  { id: "summary", label: "Resumo", icon: Users },
+  { id: "fiado", label: "Crediário / Fiado", icon: DollarSign },
+  { id: "history", label: "Compras", icon: ShoppingBag },
+  { id: "notes", label: "Notas", icon: StickyNote },
+  { id: "loyalty", label: "Pontos", icon: Star },
+] as const satisfies readonly { id: DetailTab; label: string; icon: React.ElementType }[];
+
+const EDIT_TABS = [
+  { id: "geral", label: "Geral", icon: Users },
+  { id: "endereco", label: "Endereço", icon: MapPin },
+] as const satisfies readonly { id: EditTab; label: string; icon: React.ElementType }[];
 
 export default function CustomerDetail() {
+  const toast = useToast();
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const customerId = Number(id);
@@ -220,6 +233,7 @@ export default function CustomerDetail() {
 
   // Edit form (reaproveita o mesmo modal simplificado de edição rápida)
   const [showForm, setShowForm] = useState(false);
+  const [editTab, setEditTab] = useState<EditTab>("geral");
   const [fName, setFName] = useState("");
   const [fEmail, setFEmail] = useState("");
   const [fPhone, setFPhone] = useState("");
@@ -285,6 +299,7 @@ export default function CustomerDetail() {
   const [reconfiguring, setReconfiguring] = useState(false);
 
   // Juros de crediário (configurado em Settings, aplicado manualmente por parcela)
+  const [sendingDebtEmailKey, setSendingDebtEmailKey] = useState<string | null>(null);
   const [crediarioInterestRate, setCrediarioInterestRate] = useState(0);
   const [crediarioGraceDays, setCrediarioGraceDays] = useState(0);
   const [applyingInterestId, setApplyingInterestId] = useState<number | null>(null);
@@ -345,6 +360,8 @@ export default function CustomerDetail() {
     setLoyaltyProgram({ spend_per_point: Number(pg.spend_per_point ?? 10), is_active: pg.is_active ?? false });
     setLoyaltyRewards(Array.isArray(rw) ? rw.filter((r: LoyaltyReward) => r.is_active) : []);
   }, []);
+
+  useEffect(() => { if (showForm) setEditTab("geral"); }, [showForm]);
 
   useEffect(() => {
     if (customerId) fetchDetail(customerId);
@@ -698,7 +715,7 @@ export default function CustomerDetail() {
   .sub { font-size: 12px; color: #64748b; margin-bottom: 16px; }
   table { width: 100%; border-collapse: collapse; font-size: 12px; }
   th, td { border: 1px solid #cbd5e1; padding: 6px 8px; text-align: left; }
-  th { background: #f1f5f9; text-transform: uppercase; font-size: 10px; letter-spacing: 0.05em; }
+  th { background: #f1f5f9; text-transform: ; font-size: 10px; letter-spacing: 0.05em; }
   .total { margin-top: 16px; font-size: 13px; font-weight: bold; text-align: right; }
 </style></head>
 <body>
@@ -717,6 +734,73 @@ export default function CustomerDetail() {
   // Imprime o carnê de verdade na impressora térmica — um canhoto por parcela
   // ainda em aberto (reimpressão não repete parcelas já pagas), mesmo template
   // usado no PDV logo após fechar uma venda parcelada.
+  const paymentHistory = (detail?.debts ?? [])
+    .flatMap((debt) => (debt.payments ?? []).map((payment) => ({ debt, payment })))
+    .sort((a, b) => new Date(b.payment.paid_at).getTime() - new Date(a.payment.paid_at).getTime() || b.payment.id - a.payment.id);
+
+  // Reimpressão do comprovante de um pagamento de crediário (mesmo cupom emitido na baixa).
+  async function printDebtPaymentReceipt(debt: Debt, payment: DebtPayment) {
+    if (!detail) return;
+    const ordered = [...(debt.payments ?? [])].sort((a, b) => new Date(a.paid_at).getTime() - new Date(b.paid_at).getTime() || a.id - b.id);
+    const paidUntil = ordered.slice(0, ordered.findIndex((x) => x.id === payment.id) + 1).reduce((sum, x) => sum + Number(x.amount), 0);
+    const receipt = buildDebtPaymentReceiptText(tenantName, {
+      customerName: detail.name,
+      debtDescription: debt.description || "Crediário",
+      installmentNumber: 0,
+      installmentsTotal: debt.installments?.length ?? 0,
+      amount: Number(payment.amount),
+      paymentMethod: payment.payment_method ? PM_LABELS[payment.payment_method] ?? payment.payment_method : "Não informado",
+      remainingBalance: Number(debt.amount) - paidUntil,
+      paidAt: new Date(payment.paid_at),
+    });
+    await printThermalText(receipt, `Recibo de pagamento — ${detail.name}`);
+  }
+
+  // Envio por e-mail (pelo modo de envio configurado na loja) do comprovante de um pagamento
+  // ou, sem payment, do extrato do crediário. Se o cliente não tem e-mail, pede um na hora.
+  async function sendDebtEmail(debt: Debt, payment?: DebtPayment) {
+    if (!detail) return;
+    const key = payment ? `p${payment.id}` : `d${debt.id}`;
+    let email: string | undefined;
+    if (!detail.email?.trim()) {
+      const typed = window.prompt("Este cliente não tem e-mail cadastrado. Informe o e-mail para enviar:");
+      if (!typed) return;
+      email = typed.trim();
+    }
+    setSendingDebtEmailKey(key);
+    try {
+      const res = await fetch(`/api/customers/${detail.id}/debts/${debt.id}/send-email`, {
+        method: "POST",
+        headers: authH(),
+        body: JSON.stringify({ payment_id: payment?.id, email }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) { toast.error(data?.error || "Não foi possível enviar o e-mail."); return; }
+      toast.success(`${payment ? "Comprovante" : "Extrato"} enviado para ${data.recipient}.`);
+    } catch {
+      toast.error("Erro de conexão ao enviar o e-mail.");
+    } finally {
+      setSendingDebtEmailKey(null);
+    }
+  }
+
+  // Reimpressão do cupom de venda — mesmo cupom do PDV (Reimprimir Venda).
+  async function printOrderReceipt(order: Order) {
+    if (!detail) return;
+    await printThermalText(buildOrderReceiptText({ name: tenantName }, {
+      id: order.id,
+      created_at: order.created_at,
+      customer_name: detail.name,
+      items: order.items.map((it) => ({ product_name: it.name ?? `Item #${it.id}`, quantity: it.quantity, unit_price: it.unit_price })),
+      payment_method: order.payment_method,
+      gross_amount: order.gross_amount,
+      discount_amount: order.discount_amount,
+      fee_amount: order.fee_amount,
+      surcharge_amount: order.surcharge_amount,
+      total_amount: order.total_amount,
+    }), "Comprovante");
+  }
+
   async function printInstallmentBooklet(debt: Debt) {
     if (!detail || !debt.installments?.length) return;
     const openInstallments = debt.installments.filter((i) => i.status !== "paid");
@@ -809,289 +893,209 @@ export default function CustomerDetail() {
   }
 
   if (loadingDetail && !detail) {
-    return <div className="flex justify-center py-24 text-slate-400 text-sm">Carregando…</div>;
+    return (
+      <div role="status" className="flex items-center justify-center gap-2 py-12 text-sm text-slate-500">
+        <Loader2 size={18} className="animate-spin" />Carregando cliente…
+      </div>
+    );
   }
 
   if (!detail) {
     return (
-      <div className="flex flex-col items-center py-24 text-slate-400 gap-3">
-        <Users size={40} strokeWidth={1} />
-        <p className="text-sm font-medium">Cliente não encontrado</p>
-        <button onClick={() => navigate("/admin/customers")} className="h-8 px-4 bg-blue-600 text-white rounded-lg text-xs font-bold hover:bg-blue-700">
-          Voltar para Clientes
-        </button>
-      </div>
+      <ContentCard>
+        <EmptyState
+          icon={Users}
+          title="Cliente não encontrado"
+          description="O cadastro pode ter sido removido."
+          action={<Button variant="outline" size="sm" onClick={() => navigate("/admin/customers")}>Voltar para Clientes</Button>}
+        />
+      </ContentCard>
     );
   }
 
   // debts vinculadas a cada order (para o badge de crediário na aba Compras)
   const debtByOrderId = new Map(detail.debts.filter((d) => d.order_id).map((d) => [d.order_id as number, d]));
+  const detailTabItems = DETAIL_TABS.map((t) =>
+    t.id === "fiado" ? { ...t, badge: detail.debts.filter((d) => d.status === "open").length }
+    : t.id === "history" ? { ...t, badge: detail.orders.length }
+    : t.id === "notes" ? { ...t, badge: detail.customer_notes.length }
+    : t
+  );
+  const contactLinkClass = "inline-flex h-8 min-w-0 items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 text-xs font-medium text-slate-700 transition-colors hover:bg-slate-50";
+  const fieldsClass = "grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-x-6";
 
   return (
-    <div className="mx-auto min-w-0 w-full max-w-[1600px] space-y-4 sm:space-y-6">
-      <PageHeader
-        title={detail.name}
-        subtitle="Ficha completa do cliente"
-        action={
-          <div className="flex items-center gap-2 flex-wrap">
-            <Button variant="secondary" icon={<ChevronLeft size={14} />} onClick={() => navigate("/admin/customers")}>
-              <span className="hidden sm:inline">Voltar</span>
-            </Button>
-            <Button variant="secondary" icon={<Edit2 size={13} />} onClick={openEdit}>
-              <span className="hidden sm:inline">Editar</span>
-            </Button>
-            <Button variant="danger" icon={<Trash2 size={13} />} onClick={handleDelete}>
-              <span className="hidden sm:inline">Excluir</span>
-            </Button>
-          </div>
-        }
-      />
+    <div className="mx-auto min-w-0 w-full max-w-[1600px] space-y-4">
+      {/* Barra superior */}
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <Button variant="ghost" size="sm" iconLeft={<ChevronLeft size={14} />} onClick={() => navigate("/admin/customers")}>
+          Voltar para Clientes
+        </Button>
+        <div className="flex flex-wrap items-center gap-2">
+          <Button variant="outline" size="sm" iconLeft={<Edit2 size={13} />} onClick={openEdit}>Editar</Button>
+          <Button variant="danger" size="sm" iconLeft={<Trash2 size={13} />} onClick={handleDelete}>Excluir</Button>
+        </div>
+      </div>
 
-      {/* Customer header card */}
-      <div className={cn("relative overflow-hidden rounded-2xl border p-4 sm:p-6", detail.risk_flag ? "bg-rose-50 border-rose-200" : "bg-white border-slate-200 shadow-sm")}>
-        {!detail.risk_flag && <><div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-[#297ed1] via-[#52a2e8] to-[#f7920c]" /><div className="absolute -right-12 -top-14 h-36 w-36 rounded-full bg-blue-50 blur-3xl" /></>}
-        <div className="relative flex flex-col sm:flex-row items-start gap-4">
-          <div className="flex items-center gap-3 sm:gap-4 min-w-0 w-full sm:w-auto">
-            <div className={cn(
-              "w-12 h-12 sm:w-16 sm:h-16 rounded-2xl flex items-center justify-center font-black text-xl sm:text-3xl uppercase shrink-0",
-              detail.risk_flag ? "bg-rose-100 text-rose-600" : "bg-gradient-to-br from-[#3b91e4] to-[#176fc4] text-white shadow-lg shadow-blue-200"
-            )}>
-              {detail.name[0]}
-            </div>
-            <div className="min-w-0 flex-1 sm:hidden">
-              <div className="flex items-center gap-2 flex-wrap">
-                <h2 className="font-black text-slate-900 text-[16px] leading-tight break-words">{detail.name}</h2>
-                {detail.risk_flag && (
-                  <span className="flex items-center gap-1 text-[9px] font-black text-rose-600 bg-rose-100 px-2 py-0.5 rounded-full uppercase shrink-0">
-                    <AlertTriangle size={9} /> Risco
-                  </span>
-                )}
-              </div>
-            </div>
+      {/* Cabeçalho da entidade */}
+      <ContentCard padding="md">
+        <div className="flex flex-col items-start gap-3 sm:flex-row sm:items-center">
+          <div className={cn(
+            "flex h-14 w-14 shrink-0 items-center justify-center rounded-lg border text-xl font-semibold",
+            detail.risk_flag ? "border-rose-200 bg-rose-50 text-rose-600" : "border-blue-100 bg-blue-50 text-blue-700"
+          )}>
+            {detail.name[0]}
           </div>
-          <div className="flex-1 min-w-0 w-full">
-            <div className="hidden sm:flex items-center gap-2 flex-wrap">
-              <h2 className="font-black text-slate-900 text-[18px] leading-tight break-words">{detail.name}</h2>
-              {detail.risk_flag && (
-                <span className="flex items-center gap-1 text-[9px] font-black text-rose-600 bg-rose-100 px-2 py-0.5 rounded-full uppercase shrink-0">
-                  <AlertTriangle size={9} /> Risco
-                </span>
-              )}
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-center gap-2">
+              <h1 className="break-words text-base font-semibold text-slate-900 sm:text-lg">{detail.name}</h1>
+              {detail.risk_flag && <Badge dot color="danger" icon={<AlertTriangle size={10} />}>Risco</Badge>}
             </div>
-            <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:gap-2">
-              {detail.phone && (
-                <a href={`tel:${detail.phone}`} className="inline-flex min-w-0 items-center gap-1.5 rounded-lg bg-slate-50 px-2.5 py-1.5 text-[12px] font-semibold text-slate-600 transition-colors hover:bg-blue-50 hover:text-blue-600">
-                  <Phone size={11} className="shrink-0" /> <span className="truncate">{displayPhone(detail.phone)}</span>
-                </a>
-              )}
-              {detail.email && (
-                <a href={`mailto:${detail.email}`} className="inline-flex min-w-0 items-center gap-1.5 rounded-lg bg-slate-50 px-2.5 py-1.5 text-[12px] font-semibold text-slate-600 transition-colors hover:bg-blue-50 hover:text-blue-600">
-                  <Mail size={11} className="shrink-0" /> <span className="truncate">{detail.email}</span>
-                </a>
-              )}
-              {detail.address && (
-                <span className="inline-flex min-w-0 items-center gap-1.5 rounded-lg bg-slate-50 px-2.5 py-1.5 text-[12px] font-semibold text-slate-600">
-                  <MapPin size={11} className="shrink-0" /> <span className="truncate">{detail.address}</span>
-                </span>
-              )}
-            </div>
+            <p className="mt-0.5 text-xs text-slate-500">
+              {["Ficha completa do cliente", detail.document ? displayDoc(detail.document) : "", [detail.address_city, detail.address_state].filter(Boolean).join(" / ")].filter(Boolean).join(" · ")}
+            </p>
+          </div>
+          <div className="flex w-full flex-wrap gap-2 sm:w-auto sm:justify-end">
+            {detail.phone && (
+              <a href={`tel:${detail.phone}`} className={contactLinkClass}>
+                <Phone size={12} className="shrink-0" /> <span className="truncate">{displayPhone(detail.phone)}</span>
+              </a>
+            )}
+            {detail.email && (
+              <a href={`mailto:${detail.email}`} className={contactLinkClass}>
+                <Mail size={12} className="shrink-0" /> <span className="truncate">{detail.email}</span>
+              </a>
+            )}
           </div>
         </div>
 
         {(detail.total_debt > 0 || detail.risk_reason) && (
-          <div className="mt-4 space-y-2">
+          <div className="mt-3 space-y-2">
             {detail.total_debt > 0 && (
-              <div className="flex items-start sm:items-center gap-2 bg-red-50 border border-red-200 rounded-xl px-3 py-2.5">
-                <DollarSign size={14} className="text-red-500 shrink-0 mt-0.5 sm:mt-0" />
-                <span className="text-[12px] font-black text-red-600">Deve {fmt(detail.total_debt)} em aberto (Crediário/Fiado)</span>
-              </div>
+              <Alert variant="error">Deve {fmt(detail.total_debt)} em aberto (Crediário/Fiado)</Alert>
             )}
             {detail.risk_reason && (
-              <div className="flex items-start gap-2 bg-rose-50 border border-rose-200 rounded-xl px-3 py-2.5">
-                <Shield size={13} className="text-rose-500 mt-0.5 shrink-0" />
-                <p className="text-[11px] text-rose-700 font-semibold">{detail.risk_reason}</p>
-              </div>
+              <Alert variant="warning" title="Motivo do risco">{detail.risk_reason}</Alert>
             )}
           </div>
         )}
-      </div>
+      </ContentCard>
 
       {/* Detail tabs */}
-      <div className="flex max-w-full gap-1 overflow-x-auto rounded-xl bg-slate-100 p-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-        {([
-          { value: "summary", label: "Resumo", icon: Users },
-          { value: "fiado", label: `Crediário / Fiado (${detail.debts.filter((d) => d.status === "open").length})`, icon: DollarSign },
-          { value: "history", label: `Compras (${detail.orders.length})`, icon: ShoppingBag },
-          { value: "notes", label: `Notas (${detail.customer_notes.length})`, icon: StickyNote },
-          { value: "loyalty", label: "Pontos", icon: Star },
-        ] as { value: DetailTab; label: string; icon: React.FC<{ size: number }> }[]).map((t) => (
-          <button
-            key={t.value}
-            onClick={() => { setDetailTab(t.value); if (t.value === "loyalty") fetchLoyalty(detail.id); }}
-            className={cn(
-              "flex shrink-0 items-center gap-1.5 px-3 py-2 rounded-lg text-[11px] font-bold whitespace-nowrap transition-all sm:px-4 sm:text-[12px]",
-              detailTab === t.value ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"
-            )}
-          >
-            <t.icon size={13} /> {t.label}
-          </button>
-        ))}
-      </div>
-
-      {/* Tab content */}
-        <div className="w-full">
+      <Tabs<DetailTab>
+        items={detailTabItems}
+        value={detailTab}
+        onChange={(t) => { setDetailTab(t); if (t === "loyalty") fetchLoyalty(detail.id); }}
+        label="Detalhes do cliente"
+      >
         {/* ─ SUMMARY ─ */}
         {detailTab === "summary" && (
-          <div className="space-y-4">
-            <StatsGrid
-              stats={[
-                { label: "Total de Compras", value: detail.orders.length, icon: <ShoppingBag size={16} />, accent: "blue" },
-                { label: "Gasto Total", value: fmt(detail.orders.reduce((s, o) => s + Number(o.total_amount), 0)), icon: <DollarSign size={16} />, accent: "emerald" },
-                { label: "Em Aberto", value: fmt(Number(detail.total_debt)), icon: <AlertCircle size={16} />, accent: "red" },
-                { label: "Limite de Crédito", value: detail.credit_limit ? fmt(Number(detail.credit_limit)) : "Não definido", icon: <CreditCard size={16} />, accent: "purple" },
-              ]}
-            />
+          <div className="space-y-3">
+            <StatGrid cols={4}>
+              <StatCard title="Total de Compras" value={detail.orders.length} icon={ShoppingBag} color="info" />
+              <StatCard title="Gasto Total" value={fmt(detail.orders.reduce((s, o) => s + Number(o.total_amount), 0))} icon={DollarSign} color="success" />
+              <StatCard title="Em Aberto" value={fmt(Number(detail.total_debt))} icon={AlertCircle} color="danger" />
+              <StatCard title="Limite de Crédito" value={detail.credit_limit ? fmt(Number(detail.credit_limit)) : "Não definido"} icon={CreditCard} color="purple" />
+            </StatGrid>
 
-            <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
-              <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition-shadow hover:shadow-md sm:p-5 xl:col-span-2">
-                <div className="mb-4 flex items-center justify-between gap-3">
-                  <div>
-                    <p className="text-[11px] font-black uppercase tracking-widest text-slate-700">Dados do cliente</p>
-                    <p className="mt-1 text-[11px] text-slate-400">Informações salvas no cadastro</p>
-                  </div>
-                  <button onClick={openEdit} className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-xl border border-slate-200 px-3 text-[10px] font-black uppercase tracking-wider text-slate-600 transition-colors hover:border-blue-200 hover:bg-blue-50 hover:text-blue-600">
-                    <Edit2 size={12} /> Editar
-                  </button>
-                </div>
+            <PanelCard
+              title="Dados do cliente"
+              description="Informações salvas no cadastro"
+              action={<Button variant="outline" size="xs" iconLeft={<Edit2 size={12} />} onClick={openEdit}>Editar</Button>}
+            >
+              <dl className={fieldsClass}>
+                <DetailField label="Telefone" value={displayPhone(detail.phone)} />
+                <DetailField label="E-mail" value={detail.email} />
+                <DetailField label="CPF/CNPJ" value={displayDoc(detail.document)} />
+                <DetailField label="Aniversário" value={detail.birth_date ? fmtDate(detail.birth_date) : ""} />
+                <DetailField label="Cliente desde" value={fmtDate(detail.created_at)} />
+              </dl>
+              {detail.legal_name && (
+                <>
+                  <h3 className="mb-2 mt-4 text-xs font-semibold text-slate-700">Dados fiscais</h3>
+                  <dl className={fieldsClass}>
+                    <DetailField label="Razão Social" value={detail.legal_name} />
+                    <DetailField label="Situação Cadastral" value={detail.registration_status} />
+                    <DetailField
+                      label="CNAE Principal"
+                      value={detail.cnae_description ? `${detail.cnae_code ? `${detail.cnae_code} — ` : ""}${detail.cnae_description}` : ""}
+                    />
+                  </dl>
+                </>
+              )}
+            </PanelCard>
 
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                  <div className="rounded-xl border border-slate-100 bg-slate-50/70 p-3">
-                    <p className="flex items-center gap-1.5 text-[9px] font-black uppercase tracking-widest text-slate-400"><Phone size={11} /> Telefone</p>
-                    {detail.phone ? <a href={`tel:${detail.phone}`} className="mt-1.5 block truncate text-[13px] font-bold text-slate-800 hover:text-blue-600">{displayPhone(detail.phone)}</a> : <p className="mt-1.5 text-[13px] font-medium text-slate-400">Não informado</p>}
-                  </div>
-                  <div className="rounded-xl border border-slate-100 bg-slate-50/70 p-3">
-                    <p className="flex items-center gap-1.5 text-[9px] font-black uppercase tracking-widest text-slate-400"><Mail size={11} /> E-mail</p>
-                    {detail.email ? <a href={`mailto:${detail.email}`} className="mt-1.5 block truncate text-[13px] font-bold text-slate-800 hover:text-blue-600">{detail.email}</a> : <p className="mt-1.5 text-[13px] font-medium text-slate-400">Não informado</p>}
-                  </div>
-                  <div className="rounded-xl border border-slate-100 bg-slate-50/70 p-3">
-                    <p className="text-[9px] font-black uppercase tracking-widest text-slate-400">CPF/CNPJ</p>
-                    <p className="mt-1.5 break-all text-[13px] font-bold text-slate-800">{displayDoc(detail.document) || "Não informado"}</p>
-                  </div>
-                  <div className="rounded-xl border border-slate-100 bg-slate-50/70 p-3">
-                    <p className="flex items-center gap-1.5 text-[9px] font-black uppercase tracking-widest text-slate-400"><Calendar size={11} /> Aniversário</p>
-                    <p className="mt-1.5 text-[13px] font-bold text-slate-800">{detail.birth_date ? fmtDate(detail.birth_date) : "Não informado"}</p>
-                  </div>
-                </div>
-                {detail.legal_name && (
-                  <div className="mt-3 rounded-xl border border-slate-100 bg-slate-50/70 p-3 space-y-2">
-                    <div className="flex items-center justify-between gap-2">
-                      <p className="text-[9px] font-black uppercase tracking-widest text-slate-400">Razão Social</p>
-                      {detail.registration_status && (
-                        <span className={cn(
-                          "text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full shrink-0",
-                          detail.registration_status === "ATIVA" ? "bg-emerald-50 text-emerald-600" : "bg-amber-50 text-amber-600"
-                        )}>{detail.registration_status}</span>
-                      )}
-                    </div>
-                    <p className="text-[13px] font-bold text-slate-800">{detail.legal_name}</p>
-                    {detail.cnae_description && (
-                      <p className="text-[11px] font-medium text-slate-500">
-                        {detail.cnae_code ? `${detail.cnae_code} — ` : ""}{detail.cnae_description}
-                      </p>
-                    )}
-                  </div>
-                )}
-              </section>
+            <PanelCard title="Limites e situação" icon={CreditCard}>
+              <dl className={fieldsClass}>
+                <DetailField label="Limite de crédito" value={detail.credit_limit ? fmt(Number(detail.credit_limit)) : "Não definido"} />
+                <DetailField label="Limite de consignação" value={detail.consignment_limit ? fmt(Number(detail.consignment_limit)) : "Não definido"} />
+              </dl>
+            </PanelCard>
 
-              <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition-shadow hover:shadow-md sm:p-5">
-                <p className="text-[11px] font-black uppercase tracking-widest text-slate-700">Limites e situação</p>
-                <div className="mt-4 space-y-3">
-                  <div className="rounded-xl border border-blue-100 bg-blue-50/70 p-3">
-                    <p className="text-[9px] font-black uppercase tracking-widest text-blue-500">Limite de crédito</p>
-                    <p className="mt-1 text-lg font-black tracking-tight text-blue-700">{detail.credit_limit ? fmt(Number(detail.credit_limit)) : "Não definido"}</p>
-                  </div>
-                  <div className="rounded-xl border border-violet-100 bg-violet-50/70 p-3">
-                    <p className="text-[9px] font-black uppercase tracking-widest text-violet-500">Limite de consignação</p>
-                    <p className="mt-1 text-lg font-black tracking-tight text-violet-700">{detail.consignment_limit ? fmt(Number(detail.consignment_limit)) : "Não definido"}</p>
-                  </div>
-                  <div className="flex items-center justify-between gap-3 border-t border-slate-100 pt-3">
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Cliente desde</span>
-                    <span className="text-[12px] font-black text-slate-700">{fmtDate(detail.created_at)}</span>
-                  </div>
-                </div>
-              </section>
+            <PanelCard title="Endereço" icon={MapPin}>
+              {(detail.address_street || detail.address) ? (
+                <dl className={fieldsClass}>
+                  <DetailField label="Logradouro" value={detail.address_street || detail.address} />
+                  <DetailField label="Número / complemento" value={[detail.address_number, detail.address_complement].filter(Boolean).join(" · ")} />
+                  <DetailField label="Bairro" value={detail.address_district} />
+                  <DetailField label="Cidade / UF" value={[detail.address_city, detail.address_state].filter(Boolean).join(" / ")} />
+                  <DetailField label="CEP" value={displayZip(detail.address_zip)} />
+                  <DetailField label="País" value={detail.address_country || "Brasil"} />
+                </dl>
+              ) : (
+                <p className="py-2 text-xs text-slate-500">Nenhum endereço cadastrado.</p>
+              )}
+            </PanelCard>
 
-              <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition-shadow hover:shadow-md sm:p-5 xl:col-span-2">
-                <p className="flex items-center gap-1.5 text-[11px] font-black uppercase tracking-widest text-slate-700"><MapPin size={13} className="text-blue-500" /> Endereço</p>
-                {(detail.address_street || detail.address) ? (
-                  <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                    <div className="min-w-0"><p className="text-[9px] font-black uppercase tracking-widest text-slate-400">Logradouro</p><p className="mt-1 break-words text-[13px] font-bold text-slate-800">{detail.address_street || detail.address || "—"}</p></div>
-                    <div><p className="text-[9px] font-black uppercase tracking-widest text-slate-400">Número / complemento</p><p className="mt-1 text-[13px] font-bold text-slate-800">{[detail.address_number, detail.address_complement].filter(Boolean).join(" · ") || "Não informado"}</p></div>
-                    <div><p className="text-[9px] font-black uppercase tracking-widest text-slate-400">Bairro</p><p className="mt-1 text-[13px] font-bold text-slate-800">{detail.address_district || "Não informado"}</p></div>
-                    <div><p className="text-[9px] font-black uppercase tracking-widest text-slate-400">Cidade / UF</p><p className="mt-1 text-[13px] font-bold text-slate-800">{[detail.address_city, detail.address_state].filter(Boolean).join(" / ") || "Não informado"}</p></div>
-                    <div><p className="text-[9px] font-black uppercase tracking-widest text-slate-400">CEP</p><p className="mt-1 text-[13px] font-bold text-slate-800">{displayZip(detail.address_zip) || "Não informado"}</p></div>
-                    <div><p className="text-[9px] font-black uppercase tracking-widest text-slate-400">País</p><p className="mt-1 text-[13px] font-bold text-slate-800">{detail.address_country || "Brasil"}</p></div>
-                  </div>
-                ) : (
-                  <p className="mt-3 text-[13px] text-slate-400">Nenhum endereço cadastrado.</p>
-                )}
-              </section>
-
-              <section className="rounded-2xl border border-amber-200 bg-amber-50/70 p-4 shadow-sm transition-shadow hover:shadow-md sm:p-5">
-                <p className="flex items-center gap-1.5 text-[11px] font-black uppercase tracking-widest text-amber-800"><StickyNote size={13} /> Preferências</p>
-                <p className="mt-3 whitespace-pre-wrap break-words text-[12px] leading-relaxed text-amber-900">{detail.notes?.trim() || "Nenhuma preferência ou observação cadastrada."}</p>
-              </section>
-            </div>
+            <PanelCard title="Preferências" icon={StickyNote}>
+              <p className="whitespace-pre-wrap break-words text-[13px] leading-relaxed text-slate-700">
+                {detail.notes?.trim() || "Nenhuma preferência ou observação cadastrada."}
+              </p>
+            </PanelCard>
           </div>
         )}
 
         {/* ─ FIADO / CREDIÁRIO ─ */}
         {detailTab === "fiado" && (
-          <div className="space-y-4">
-            <section className="overflow-hidden rounded-2xl border border-violet-200 bg-gradient-to-br from-violet-600 to-indigo-700 p-4 text-white shadow-sm sm:p-5">
-              <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-                <div>
-                  <p className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-[0.18em] text-violet-100"><DollarSign size={13} /> Controle de crediário</p>
-                  <h2 className="mt-1 text-lg font-black tracking-tight">Recebimentos e saldo do cliente</h2>
-                  <p className="mt-1 text-[11px] font-medium text-violet-100">Escolha uma dívida para informar valor e forma de pagamento.</p>
-                </div>
-                <div className="rounded-xl border border-white/20 bg-white/10 px-4 py-3 backdrop-blur-sm sm:min-w-40">
-                  <p className="text-[9px] font-black uppercase tracking-widest text-violet-100">Total em aberto</p>
-                  <p className="mt-1 text-xl font-black">{fmt(Number(detail.total_debt))}</p>
-                </div>
-              </div>
-            </section>
+          <div className="space-y-3">
+            <PanelCard
+              title="Controle de crediário"
+              description="Escolha uma dívida para informar valor e forma de pagamento."
+              icon={DollarSign}
+            >
+              <dl className="grid grid-cols-1 gap-x-6">
+                <DetailField label="Total em aberto" value={fmt(Number(detail.total_debt))} />
+              </dl>
+            </PanelCard>
             {!showDebtForm ? (
-              <button onClick={() => setShowDebtForm(true)}
-                className="w-full h-9 border-2 border-dashed border-slate-200 rounded-xl text-[12px] font-bold text-slate-500 hover:border-blue-400 hover:text-blue-600 transition-all flex items-center justify-center gap-1.5">
-                <Plus size={14} /> Adicionar Fiado Manual
-              </button>
+              <Button variant="outline" fullWidth iconLeft={<Plus size={14} />} onClick={() => setShowDebtForm(true)}>
+                Adicionar Fiado Manual
+              </Button>
             ) : (
-              <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 space-y-3">
-                <p className="text-[11px] font-black uppercase tracking-wider text-blue-600">Novo Fiado</p>
-                <input value={dDesc} onChange={(e) => setDDesc(e.target.value)} placeholder="Descrição (ex: 1 kg de frango)"
-                  className="w-full h-9 px-3 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-                <div className="grid grid-cols-2 gap-2">
-                  <div className="relative">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm font-bold">R$</span>
-                    <input type="number" min={0} step="0.01" value={dAmt} onChange={(e) => setDAmt(e.target.value)} placeholder="0,00"
-                      className="w-full h-9 pl-8 pr-3 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+              <PanelCard title="Novo Fiado">
+                <div className="space-y-3">
+                  <Input aria-label="Descrição do fiado" value={dDesc} onChange={(e) => setDDesc(e.target.value)} placeholder="Descrição (ex: 1 kg de frango)" />
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                    <Input
+                      aria-label="Valor do fiado"
+                      type="number" min={0} step="0.01" value={dAmt}
+                      onChange={(e) => setDAmt(e.target.value)} placeholder="0,00"
+                      addonLeft="R$"
+                    />
+                    <Input aria-label="Vencimento do fiado" type="date" value={dDue} onChange={(e) => setDDue(e.target.value)} />
                   </div>
-                  <input type="date" value={dDue} onChange={(e) => setDDue(e.target.value)}
-                    className="w-full h-9 px-3 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                  <div className="flex flex-wrap justify-end gap-2">
+                    <Button variant="outline" size="sm" onClick={() => setShowDebtForm(false)}>Cancelar</Button>
+                    <Button size="sm" onClick={handleAddDebt} loading={savingDebt} disabled={savingDebt || !dDesc.trim() || !dAmt}>
+                      Registrar
+                    </Button>
+                  </div>
                 </div>
-                <div className="flex gap-2">
-                  <button onClick={() => setShowDebtForm(false)} className="flex-1 h-9 rounded-lg border border-slate-200 text-sm font-semibold text-slate-600 hover:bg-slate-100">Cancelar</button>
-                  <button onClick={handleAddDebt} disabled={savingDebt || !dDesc.trim() || !dAmt}
-                    className="flex-1 h-9 bg-blue-600 text-white rounded-lg text-sm font-bold hover:bg-blue-700 disabled:opacity-50">
-                    {savingDebt ? "Salvando…" : "Registrar"}
-                  </button>
-                </div>
-              </div>
+              </PanelCard>
             )}
 
             {detail.debts.length === 0 ? (
-              <p className="text-center text-sm text-slate-400 py-8">Nenhum fiado/crediário registrado</p>
+              <EmptyState icon={DollarSign} title="Nenhum fiado/crediário registrado" />
             ) : (
               <div className="space-y-2">
                 {detail.debts.map((d) => {
@@ -1104,88 +1108,87 @@ export default function CustomerDetail() {
                   const canExpand = hasOrderItems || isInstallmentPlan || hasPayments;
                   return (
                     <div key={d.id} className={cn(
-                      "rounded-2xl border overflow-hidden transition-all",
-                      d.status === "paid" ? "bg-emerald-50 border-emerald-200" : isOverdue(d.due_date) ? "bg-red-50 border-red-200" : "bg-white border-slate-200 shadow-sm",
-                      selectedDebtIds.has(d.id) && "ring-2 ring-violet-400 border-violet-300"
+                      "overflow-hidden rounded-lg border transition-all",
+                      d.status === "paid" ? "border-emerald-200 bg-emerald-50" : isOverdue(d.due_date) ? "border-red-200 bg-red-50" : "border-slate-200 bg-white",
+                      selectedDebtIds.has(d.id) && "border-violet-300 ring-2 ring-violet-400"
                     )}>
                       <div className="flex items-start gap-3 p-3">
-                        <div className={cn("w-8 h-8 rounded-lg flex items-center justify-center shrink-0 mt-0.5", d.status === "paid" ? "bg-emerald-100" : "bg-red-100")}>
+                        <div className={cn("mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg", d.status === "paid" ? "bg-emerald-100" : "bg-red-100")}>
                           {d.status === "paid" ? <CheckCircle2 size={15} className="text-emerald-600" /> : <Clock size={15} className="text-red-500" />}
                         </div>
-                        <div className="flex-1 min-w-0">
+                        <div className="min-w-0 flex-1">
                           <div className="flex items-center gap-1.5">
                             {canExpand && (
-                              <button onClick={() => setExpandedDebtId(isExpanded ? null : d.id)} className="text-slate-400 hover:text-slate-700 shrink-0">
+                              <button
+                                type="button"
+                                aria-label={isExpanded ? "Recolher detalhes" : "Expandir detalhes"}
+                                onClick={() => setExpandedDebtId(isExpanded ? null : d.id)}
+                                className="shrink-0 text-slate-400 hover:text-slate-700"
+                              >
                                 <ChevronRight size={14} className={cn("transition-transform", isExpanded && "rotate-90")} />
                               </button>
                             )}
-                            <p className="font-semibold text-[13px] text-slate-800">{d.description}</p>
-                            {isInstallmentPlan && (
-                              <span className="text-[9px] font-black uppercase tracking-wide bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded">
-                                {d.installments!.length}x
-                              </span>
-                            )}
+                            <p className="break-words text-[13px] font-medium text-slate-800">{d.description}</p>
+                            {isInstallmentPlan && <Badge color="warning">{d.installments!.length}x</Badge>}
                           </div>
-                          <p className="font-black text-[13px] text-red-600">{fmt(remaining)}</p>
+                          <p className="text-[13px] font-semibold tabular-nums text-red-600">{fmt(remaining)}</p>
                           {Number(d.amount_paid) > 0 && (
-                            <p className="text-[10px] text-emerald-600 font-semibold">Pago: {fmt(Number(d.amount_paid))} de {fmt(Number(d.amount))}</p>
+                            <p className="text-[11px] font-medium text-emerald-600">Pago: {fmt(Number(d.amount_paid))} de {fmt(Number(d.amount))}</p>
                           )}
-                          <div className="flex flex-wrap gap-2 mt-0.5">
-                            <span className="text-[10px] text-slate-400">{fmtDate(d.created_at)}</span>
+                          <div className="mt-0.5 flex flex-wrap gap-2">
+                            <span className="text-[11px] text-slate-500">{fmtDate(d.created_at)}</span>
                             {d.due_date && !isInstallmentPlan && (
-                              <span className={cn("text-[10px] font-semibold", isOverdue(d.due_date) && d.status === "open" ? "text-red-500" : "text-slate-400")}>
+                              <span className={cn("text-[11px] font-medium", isOverdue(d.due_date) && d.status === "open" ? "text-red-500" : "text-slate-500")}>
                                 Vence: {fmtDate(d.due_date)}{isOverdue(d.due_date) && d.status === "open" && " (vencido)"}
                               </span>
                             )}
                             {d.status === "paid" && d.paid_at && (
-                              <span className="text-[10px] text-emerald-600 font-semibold">Pago em {fmtDate(d.paid_at)}</span>
+                              <span className="text-[11px] font-medium text-emerald-600">Pago em {fmtDate(d.paid_at)}</span>
                             )}
                           </div>
                         </div>
                         {d.status === "open" && (
-                          <div className="flex flex-col items-end gap-1.5 shrink-0">
-                            <div className="flex gap-1">
-                              {!isInstallmentPlan && (
-                                <button
-                                  onClick={() => selectedDebtIds.has(d.id) ? cancelDebtPayment() : openDebtPayment(d.id, remaining)}
-                                  className={cn(
-                                    "h-7 px-2.5 rounded-lg text-[9px] font-black uppercase tracking-wide transition-colors flex items-center gap-1",
-                                    selectedDebtIds.has(d.id)
-                                      ? "bg-violet-600 text-white hover:bg-violet-700"
-                                      : "bg-emerald-600 text-white hover:bg-emerald-700"
-                                  )}
-                                >
-                                  <DollarSign size={11} /> {selectedDebtIds.has(d.id) ? "Recebendo" : "Receber"}
-                                </button>
-                              )}
-                              {isInstallmentPlan && (
-                                <button onClick={() => printInstallmentBooklet(d)} title="Imprimir carnê (impressora térmica)" className="p-1.5 bg-emerald-100 hover:bg-emerald-200 text-emerald-600 rounded-lg transition-colors">
-                                  <Printer size={13} />
-                                </button>
-                              )}
-                              {isInstallmentPlan && (
-                                <button onClick={() => downloadInstallmentBooklet(d)} title="Gerar carnê (PDF)" className="p-1.5 bg-blue-100 hover:bg-blue-200 text-blue-600 rounded-lg transition-colors">
-                                  <FileText size={13} />
-                                </button>
-                              )}
-                              {isInstallmentPlan && !hasAnyPayment && (
-                                <button onClick={() => openReconfigure(d)} title="Reconfigurar parcelas" className="p-1.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg transition-colors">
-                                  <Edit2 size={13} />
-                                </button>
-                              )}
-                              <button onClick={() => handleDeleteDebt(d.id)} title="Remover" className="p-1.5 hover:bg-red-50 text-slate-300 hover:text-red-400 rounded-lg transition-colors">
-                                <Trash2 size={13} />
-                              </button>
-                            </div>
+                          <div className="flex shrink-0 flex-wrap justify-end gap-1">
+                            {!isInstallmentPlan && (
+                              <Button
+                                size="xs"
+                                variant={selectedDebtIds.has(d.id) ? "primary" : "success"}
+                                iconLeft={<DollarSign size={11} />}
+                                onClick={() => selectedDebtIds.has(d.id) ? cancelDebtPayment() : openDebtPayment(d.id, remaining)}
+                              >
+                                {selectedDebtIds.has(d.id) ? "Recebendo" : "Receber"}
+                              </Button>
+                            )}
+                            {isInstallmentPlan && (
+                              <IconButton size="xs" variant="outline" aria-label="Imprimir carnê" title="Imprimir carnê (impressora térmica)" onClick={() => printInstallmentBooklet(d)}>
+                                <Printer size={13} />
+                              </IconButton>
+                            )}
+                            {isInstallmentPlan && (
+                              <IconButton size="xs" variant="outline" aria-label="Gerar carnê em PDF" title="Gerar carnê (PDF)" onClick={() => downloadInstallmentBooklet(d)}>
+                                <FileText size={13} />
+                              </IconButton>
+                            )}
+                            <IconButton size="xs" variant="outline" aria-label="Enviar extrato por e-mail" title="Enviar extrato do crediário por e-mail" loading={sendingDebtEmailKey === `d${d.id}`} onClick={() => sendDebtEmail(d)}>
+                              <Mail size={13} />
+                            </IconButton>
+                            {isInstallmentPlan && !hasAnyPayment && (
+                              <IconButton size="xs" variant="outline" aria-label="Reconfigurar parcelas" title="Reconfigurar parcelas" onClick={() => openReconfigure(d)}>
+                                <Edit2 size={13} />
+                              </IconButton>
+                            )}
+                            <IconButton size="xs" variant="danger" aria-label="Remover dívida" title="Remover" onClick={() => handleDeleteDebt(d.id)}>
+                              <Trash2 size={13} />
+                            </IconButton>
                           </div>
                         )}
                       </div>
                       {isExpanded && hasOrderItems && (
-                        <div className="px-3 pb-3 pt-0 pl-14 space-y-1 border-t border-slate-100">
+                        <div className="space-y-1 border-t border-slate-100 px-3 pb-3 pt-0 pl-14">
                           {d.order!.items.map((it) => (
-                            <div key={it.id} className="flex justify-between text-[11px] text-slate-600 pt-2">
+                            <div key={it.id} className="flex justify-between pt-2 text-[11px] text-slate-600">
                               <span>{it.name ?? `Item #${it.id}`} × {it.quantity}</span>
-                              <span className="font-mono">{fmt(Number(it.unit_price) * it.quantity)}</span>
+                              <span className="tabular-nums">{fmt(Number(it.unit_price) * it.quantity)}</span>
                             </div>
                           ))}
                           {(() => {
@@ -1198,23 +1201,23 @@ export default function CustomerDetail() {
                               : (gross != null ? Number(o.total_amount) - gross - fee + discount : 0);
                             if (discount <= 0 && fee <= 0 && surcharge <= 0.009) return null;
                             return (
-                              <div className="pt-2 mt-1 border-t border-slate-100 space-y-0.5">
+                              <div className="mt-1 space-y-0.5 border-t border-slate-100 pt-2">
                                 {discount > 0 && (
                                   <div className="flex justify-between text-[11px] text-rose-500">
                                     <span>Desconto</span>
-                                    <span className="font-mono">− {fmt(discount)}</span>
+                                    <span className="tabular-nums">− {fmt(discount)}</span>
                                   </div>
                                 )}
                                 {surcharge > 0.009 && (
                                   <div className="flex justify-between text-[11px] text-amber-600">
                                     <span>Acréscimo</span>
-                                    <span className="font-mono">+ {fmt(surcharge)}</span>
+                                    <span className="tabular-nums">+ {fmt(surcharge)}</span>
                                   </div>
                                 )}
                                 {fee > 0 && (
                                   <div className="flex justify-between text-[11px] text-amber-600">
                                     <span>Taxa Maquininha</span>
-                                    <span className="font-mono">+ {fmt(fee)}</span>
+                                    <span className="tabular-nums">+ {fmt(fee)}</span>
                                   </div>
                                 )}
                               </div>
@@ -1223,7 +1226,7 @@ export default function CustomerDetail() {
                         </div>
                       )}
                       {isExpanded && isInstallmentPlan && (
-                        <div className="px-3 pb-3 pt-2 border-t border-slate-100 space-y-1.5">
+                        <div className="space-y-1.5 border-t border-slate-100 px-3 pb-3 pt-2">
                           {d.installments!.map((inst) => {
                             const instRemaining = Number(inst.amount) - Number(inst.amount_paid ?? 0);
                             const instOverdue = isOverdue(inst.due_date) && inst.status === "open";
@@ -1232,36 +1235,37 @@ export default function CustomerDetail() {
                               : 0;
                             return (
                               <div key={inst.id} className={cn(
-                                "rounded-lg border p-2 space-y-1.5",
-                                inst.status === "paid" ? "bg-emerald-50 border-emerald-200" : instOverdue ? "bg-red-50 border-red-200" : "bg-slate-50 border-slate-200"
+                                "space-y-1.5 rounded-lg border p-2",
+                                inst.status === "paid" ? "border-emerald-200 bg-emerald-50" : instOverdue ? "border-red-200 bg-red-50" : "border-slate-200 bg-slate-50"
                               )}>
                               <div className="flex items-center gap-2">
                                 {inst.status === "open" && (
                                   <input type="checkbox" checked={selectedInstallmentIds.has(inst.id)}
+                                    aria-label={`Selecionar parcela ${inst.number}`}
                                     onChange={(e) => toggleInstallmentSelection(inst.id, e.target.checked, instRemaining)}
-                                    className="w-3.5 h-3.5 accent-blue-600 shrink-0" />
+                                    className="h-4 w-4 shrink-0 accent-blue-600" />
                                 )}
-                                <div className="flex-1 min-w-0">
-                                  <p className="text-[11px] font-bold text-slate-700">Parcela {inst.number}/{d.installments!.length}</p>
-                                  <p className={cn("text-[10px] font-semibold", instOverdue ? "text-red-500" : "text-slate-400")}>
+                                <div className="min-w-0 flex-1">
+                                  <p className="text-[11px] font-medium text-slate-700">Parcela {inst.number}/{d.installments!.length}</p>
+                                  <p className={cn("text-[11px] font-medium", instOverdue ? "text-red-500" : "text-slate-500")}>
                                     Vence {fmtDate(inst.due_date)}{instOverdue && " (vencida)"}
                                   </p>
                                 </div>
-                                <span className="text-[12px] font-mono font-black text-slate-700 shrink-0">{fmt(instRemaining)}</span>
-                                {inst.status !== "open" && <CheckCircle2 size={15} className="text-emerald-600 shrink-0" />}
+                                <span className="shrink-0 text-xs font-semibold tabular-nums text-slate-700">{fmt(instRemaining)}</span>
+                                {inst.status !== "open" && <CheckCircle2 size={15} className="shrink-0 text-emerald-600" />}
                               </div>
                               {inst.status === "open" && selectedInstallmentIds.has(inst.id) && (
-                                <div className="pt-1 space-y-2">
+                                <div className="space-y-2 pt-1">
                                   <div className="rounded-lg border border-slate-200 bg-white px-2.5 py-2">
-                                    <label className="block text-[9px] font-black uppercase tracking-widest text-slate-500">Data do recebimento</label>
-                                    <input
+                                    <Input
+                                      size="sm"
+                                      label="Data do recebimento"
                                       type="date"
                                       value={debtPaymentDate}
                                       max={todayInputDate()}
                                       onChange={(event) => setDebtPaymentDate(event.target.value)}
-                                      className="mt-1 h-8 rounded-md border border-slate-200 bg-white px-2 text-[11px] font-semibold text-slate-700"
                                     />
-                                    {debtPaymentDate !== todayInputDate() && <p className="mt-1 text-[9px] leading-snug text-amber-700">O histórico e o financeiro usam esta data; caixa fechado não é alterado.</p>}
+                                    {debtPaymentDate !== todayInputDate() && <p className="mt-1 text-[11px] leading-snug text-amber-700">O histórico e o financeiro usam esta data; caixa fechado não é alterado.</p>}
                                   </div>
                                   <PaymentSegmentsEditor
                                     segments={installmentPaySegments[inst.id] ?? [newPaymentSegment((installmentPayAmounts[inst.id] ?? instRemaining.toFixed(2)))]}
@@ -1273,26 +1277,33 @@ export default function CustomerDetail() {
                                     allowPartial
                                   />
                                   {payInstallmentError[inst.id] && (
-                                    <p className="text-[10px] font-bold text-red-600">{payInstallmentError[inst.id]}</p>
+                                    <Alert variant="error">{payInstallmentError[inst.id]}</Alert>
                                   )}
-                                  <button
-                                    onClick={() => handlePayInstallment(d.id, inst.id, inst.number, (installmentPaySegments[inst.id] ?? []).reduce((s, seg) => s + (Number(seg.amount) || 0), 0) || instRemaining)}
+                                  <Button
+                                    variant="success"
+                                    size="sm"
+                                    fullWidth
+                                    iconLeft={<CheckCircle2 size={13} />}
+                                    loading={payingInstallmentId === inst.id}
                                     disabled={payingInstallmentId === inst.id}
-                                    className="w-full h-8 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-[11px] font-bold disabled:opacity-50 transition-all flex items-center justify-center gap-1.5">
-                                    {payingInstallmentId === inst.id ? <Loader2 size={13} className="animate-spin" /> : <CheckCircle2 size={13} />}
+                                    onClick={() => handlePayInstallment(d.id, inst.id, inst.number, (installmentPaySegments[inst.id] ?? []).reduce((s, seg) => s + (Number(seg.amount) || 0), 0) || instRemaining)}
+                                  >
                                     Confirmar pagamento
-                                  </button>
+                                  </Button>
                                 </div>
                               )}
                                 {suggested > 0 && (
-                                  <div className="flex items-center justify-between gap-2 pt-1.5 border-t border-red-200">
-                                    <p className="text-[9px] text-red-600 font-semibold">Juros sugerido: {fmt(suggested)}</p>
-                                    <button
-                                      onClick={() => handleApplyInterest(d.id, inst.id, suggested)}
+                                  <div className="flex items-center justify-between gap-2 border-t border-red-200 pt-1.5">
+                                    <p className="text-[11px] font-medium text-red-600">Juros sugerido: {fmt(suggested)}</p>
+                                    <Button
+                                      variant="danger"
+                                      size="xs"
+                                      loading={applyingInterestId === inst.id}
                                       disabled={applyingInterestId === inst.id}
-                                      className="h-6 px-2 rounded-md bg-red-600 text-white text-[9px] font-black uppercase tracking-wide hover:bg-red-700 disabled:opacity-50 transition-colors shrink-0">
-                                      {applyingInterestId === inst.id ? <Loader2 size={10} className="animate-spin" /> : "Aplicar juros"}
-                                    </button>
+                                      onClick={() => handleApplyInterest(d.id, inst.id, suggested)}
+                                    >
+                                      Aplicar juros
+                                    </Button>
                                   </div>
                                 )}
                               </div>
@@ -1301,24 +1312,35 @@ export default function CustomerDetail() {
                         </div>
                       )}
                       {isExpanded && hasPayments && (
-                        <div className="px-3 pb-3 pt-2 border-t border-slate-100 space-y-1.5">
-                          <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Pagamentos registrados</p>
+                        <div className="space-y-1.5 border-t border-slate-100 px-3 pb-3 pt-2">
+                          <p className="text-[11px] text-slate-500">Pagamentos registrados</p>
                           {d.payments!.map((p) => (
-                            <div key={p.id} className="flex items-center justify-between gap-2 bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5">
+                            <div key={p.id} className="flex items-center justify-between gap-2 rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1.5">
                               <div className="min-w-0">
-                                <p className="text-[11px] font-bold text-slate-700">{fmt(Number(p.amount))}</p>
-                                <p className="text-[9px] text-slate-400">
+                                <p className="text-[11px] font-semibold tabular-nums text-slate-700">{fmt(Number(p.amount))}</p>
+                                <p className="text-[11px] text-slate-500">
                                   {p.payment_method ? PM_LABELS[p.payment_method] ?? p.payment_method : "—"} · {fmtDate(p.paid_at)}
                                 </p>
                               </div>
-                              <button
-                                onClick={() => handleReversePayment(d.id, p.id, Number(p.amount))}
-                                disabled={reversingPaymentId === p.id}
+                              <div className="flex shrink-0 items-center gap-1.5">
+                              <Button variant="outline" size="xs" title="Imprimir recibo deste pagamento" iconLeft={<Printer size={11} />} onClick={() => printDebtPaymentReceipt(d, p)}>
+                                Imprimir recibo
+                              </Button>
+                              <Button variant="outline" size="xs" title="Enviar comprovante por e-mail" iconLeft={<Mail size={11} />} loading={sendingDebtEmailKey === `p${p.id}`} onClick={() => sendDebtEmail(d, p)}>
+                                Enviar por e-mail
+                              </Button>
+                              <Button
+                                variant="danger"
+                                size="xs"
                                 title="Estornar pagamento"
-                                className="shrink-0 h-7 px-2.5 rounded-lg border border-red-200 text-red-600 hover:bg-red-50 text-[9px] font-black uppercase tracking-wide disabled:opacity-50 transition-all flex items-center gap-1">
-                                {reversingPaymentId === p.id ? <Loader2 size={11} className="animate-spin" /> : <XCircle size={11} />}
+                                iconLeft={<XCircle size={11} />}
+                                loading={reversingPaymentId === p.id}
+                                disabled={reversingPaymentId === p.id}
+                                onClick={() => handleReversePayment(d.id, p.id, Number(p.amount))}
+                              >
                                 Estornar
-                              </button>
+                              </Button>
+                              </div>
                             </div>
                           ))}
                         </div>
@@ -1329,8 +1351,38 @@ export default function CustomerDetail() {
               </div>
             )}
 
+            {paymentHistory.length > 0 && (
+              <PanelCard
+                title="Histórico de pagamentos"
+                description={`${paymentHistory.length} pagamento${paymentHistory.length !== 1 ? "s" : ""} · total recebido ${fmt(paymentHistory.reduce((sum, h) => sum + Number(h.payment.amount), 0))}`}
+                contentClassName="p-0"
+              >
+                <ul className="divide-y divide-slate-100">
+                  {paymentHistory.map(({ debt, payment }) => (
+                    <li key={`${debt.id}-${payment.id}`} className="flex flex-wrap items-center justify-between gap-2 px-3 py-2">
+                      <div className="min-w-0">
+                        <p className="break-words text-xs font-medium text-slate-800">{debt.description}</p>
+                        <p className="text-[11px] text-slate-500">
+                          {fmtDate(payment.paid_at)} · {payment.payment_method ? PM_LABELS[payment.payment_method] ?? payment.payment_method : "Forma não informada"}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-semibold tabular-nums text-emerald-700">{fmt(Number(payment.amount))}</span>
+                        <Button variant="outline" size="xs" iconLeft={<Printer size={11} />} onClick={() => printDebtPaymentReceipt(debt, payment)}>
+                          Imprimir recibo
+                        </Button>
+                        <Button variant="outline" size="xs" iconLeft={<Mail size={11} />} loading={sendingDebtEmailKey === `p${payment.id}`} onClick={() => sendDebtEmail(debt, payment)}>
+                          Enviar por e-mail
+                        </Button>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              </PanelCard>
+            )}
+
             {selectedDebtIds.size > 0 && (
-              <div className="sticky bottom-0 rounded-2xl border border-violet-200 bg-white p-3 shadow-xl shadow-violet-100/60 sm:p-4 space-y-3">
+              <ContentCard className="sticky bottom-0 space-y-3 border-violet-200">
                 {(() => {
                   const debtId = Array.from(selectedDebtIds)[0];
                   const debt = detail.debts.find((item) => item.id === debtId);
@@ -1338,28 +1390,26 @@ export default function CustomerDetail() {
                   const receiving = paySegments.reduce((sum, segment) => sum + (Number(segment.amount) || 0), 0);
                   const afterPayment = Math.max(0, remaining - receiving);
                   return (
-                    <div className="flex items-start justify-between gap-3 rounded-xl bg-violet-50 border border-violet-100 px-3 py-2.5">
+                    <div className="flex items-start justify-between gap-3 rounded-lg border border-violet-100 bg-violet-50 px-3 py-2.5">
                       <div className="min-w-0">
-                        <p className="text-[9px] font-black uppercase tracking-widest text-violet-500">Receber pagamento</p>
-                        <p className="mt-0.5 truncate text-[12px] font-black text-slate-800">{debt?.description ?? "Dívida selecionada"}</p>
-                        <p className="mt-0.5 text-[10px] font-semibold text-slate-500">Em aberto: {fmt(remaining)} · Após esta baixa: {fmt(afterPayment)}</p>
+                        <p className="text-[11px] font-medium text-violet-500">Receber pagamento</p>
+                        <p className="mt-0.5 truncate text-xs font-semibold text-slate-800">{debt?.description ?? "Dívida selecionada"}</p>
+                        <p className="mt-0.5 text-[11px] text-slate-500">Em aberto: {fmt(remaining)} · Após esta baixa: {fmt(afterPayment)}</p>
                       </div>
-                      <button onClick={cancelDebtPayment} className="h-7 px-2.5 rounded-lg border border-violet-200 bg-white text-[9px] font-black uppercase tracking-wide text-violet-600 hover:bg-violet-100 transition-colors shrink-0">
-                        Cancelar
-                      </button>
+                      <Button variant="outline" size="xs" onClick={cancelDebtPayment}>Cancelar</Button>
                     </div>
                   );
                 })()}
-                <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5">
-                  <label className="block text-[9px] font-black uppercase tracking-widest text-slate-500">Data em que o pagamento foi recebido</label>
-                  <input
+                <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5">
+                  <Input
+                    wrapperClassName="max-w-[200px]"
+                    label="Data em que o pagamento foi recebido"
                     type="date"
                     value={debtPaymentDate}
                     max={todayInputDate()}
                     onChange={(event) => setDebtPaymentDate(event.target.value)}
-                    className="mt-1.5 h-9 rounded-lg border border-slate-200 bg-white px-2.5 text-xs font-semibold text-slate-700"
                   />
-                  {debtPaymentDate !== todayInputDate() && <p className="mt-1.5 text-[10px] leading-snug text-amber-700">Lançamento retroativo: ficará no histórico do crediário e no financeiro da data informada. Um caixa já fechado não será alterado automaticamente.</p>}
+                  {debtPaymentDate !== todayInputDate() && <p className="mt-1.5 text-[11px] leading-snug text-amber-700">Lançamento retroativo: ficará no histórico do crediário e no financeiro da data informada. Um caixa já fechado não será alterado automaticamente.</p>}
                 </div>
                 <PaymentSegmentsEditor
                   segments={paySegments}
@@ -1370,13 +1420,18 @@ export default function CustomerDetail() {
                   totalToPay={Array.from(selectedDebtIds).reduce((s, id) => s + Number(payAmounts[id] ?? 0), 0)}
                   allowPartial
                 />
-                {payDebtsError && <p className="text-[10px] font-bold text-red-600">{payDebtsError}</p>}
-                <button onClick={handlePaySelectedDebts} disabled={payingDebts}
-                  className="w-full h-10 bg-emerald-600 text-white rounded-xl text-[12px] font-black hover:bg-emerald-700 disabled:opacity-50 transition-all flex items-center justify-center gap-1.5">
-                  {payingDebts ? <Loader2 size={14} className="animate-spin" /> : <DollarSign size={14} />}
+                {payDebtsError && <Alert variant="error">{payDebtsError}</Alert>}
+                <Button
+                  variant="success"
+                  fullWidth
+                  iconLeft={<DollarSign size={14} />}
+                  loading={payingDebts}
+                  disabled={payingDebts}
+                  onClick={handlePaySelectedDebts}
+                >
                   {payingDebts ? "Registrando…" : "Confirmar recebimento"}
-                </button>
-              </div>
+                </Button>
+              </ContentCard>
             )}
           </div>
         )}
@@ -1385,31 +1440,29 @@ export default function CustomerDetail() {
         {detailTab === "history" && (
           <div className="space-y-2">
             {detail.orders.length === 0 ? (
-              <p className="text-center text-sm text-slate-400 py-8">Nenhuma compra registrada</p>
+              <EmptyState icon={ShoppingBag} title="Nenhuma compra registrada" />
             ) : (
               detail.orders.map((o) => {
                 const isExpanded = expandedOrderId === o.id;
                 const visibleItems = isExpanded ? o.items : o.items.slice(0, 4);
                 const linkedDebt = debtByOrderId.get(o.id);
                 return (
-                  <div key={o.id} className="bg-white border border-slate-200 rounded-xl p-3 space-y-2">
-                    <div className="flex items-center justify-between">
-                      <span className="text-[11px] text-slate-400">{fmtDate(o.created_at)}</span>
-                      <div className="flex items-center gap-2">
+                  <ContentCard key={o.id} className="space-y-2">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <span className="text-[11px] text-slate-500">{fmtDate(o.created_at)}</span>
+                      <div className="flex flex-wrap items-center gap-2">
                         {linkedDebt && (
-                          <span className={cn(
-                            "flex items-center gap-1 text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full",
-                            linkedDebt.status === "open" ? "text-amber-700 bg-amber-100" : "text-emerald-700 bg-emerald-100"
-                          )} title={linkedDebt.status === "open" ? `Falta pagar ${fmt(Number(linkedDebt.amount) - Number(linkedDebt.amount_paid))}` : "Crediário quitado"}>
-                            <CreditCard size={9} /> Crediário {linkedDebt.status === "open" ? "aberto" : "pago"}
+                          <span title={linkedDebt.status === "open" ? `Falta pagar ${fmt(Number(linkedDebt.amount) - Number(linkedDebt.amount_paid))}` : "Crediário quitado"}>
+                            <Badge color={linkedDebt.status === "open" ? "warning" : "success"} pill icon={<CreditCard size={9} />}>
+                              Crediário {linkedDebt.status === "open" ? "aberto" : "pago"}
+                            </Badge>
                           </span>
                         )}
-                        {o.payment_method && (
-                          <span className="text-[10px] font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full">
-                            {formatPaymentMethod(o.payment_method)}
-                          </span>
-                        )}
-                        <span className="font-black text-emerald-600 text-[13px]">{fmt(Number(o.total_amount))}</span>
+                        {o.payment_method && <Badge pill>{formatPaymentMethod(o.payment_method)}</Badge>}
+                        <span className="text-[13px] font-semibold tabular-nums text-emerald-700">{fmt(Number(o.total_amount))}</span>
+                        <Button variant="outline" size="xs" iconLeft={<Printer size={11} />} onClick={() => printOrderReceipt(o)} title="Imprimir recibo da venda (mesmo cupom do PDV)">
+                          Imprimir recibo
+                        </Button>
                       </div>
                     </div>
                     {o.items.length > 0 && (
@@ -1417,19 +1470,19 @@ export default function CustomerDetail() {
                         {visibleItems.map((it) => (
                           <div key={it.id} className="flex items-center justify-between text-[11px] text-slate-600">
                             <span className="truncate">{it.name ?? `Item #${it.id}`} × {it.quantity}</span>
-                            <span className="font-semibold ml-2 shrink-0">{fmt(Number(it.unit_price) * it.quantity)}</span>
+                            <span className="ml-2 shrink-0 font-medium tabular-nums">{fmt(Number(it.unit_price) * it.quantity)}</span>
                           </div>
                         ))}
                         {o.items.length > 4 && (
-                          <button onClick={() => setExpandedOrderId(isExpanded ? null : o.id)}
-                            className="flex items-center gap-1 text-[10px] font-bold text-blue-500 hover:text-blue-600 transition-colors pt-0.5">
+                          <button type="button" onClick={() => setExpandedOrderId(isExpanded ? null : o.id)}
+                            className="flex items-center gap-1 pt-0.5 text-[11px] font-medium text-blue-600 transition-colors hover:text-blue-700">
                             <ChevronRight size={11} className={cn("transition-transform", isExpanded && "rotate-90")} />
                             {isExpanded ? "Ver menos" : `+${o.items.length - 4} itens`}
                           </button>
                         )}
                       </div>
                     )}
-                  </div>
+                  </ContentCard>
                 );
               })
             )}
@@ -1440,28 +1493,31 @@ export default function CustomerDetail() {
         {detailTab === "notes" && (
           <div className="space-y-3">
             <div className="space-y-2">
-              <textarea value={noteBody} onChange={(e) => setNoteBody(e.target.value)} rows={3}
+              <Textarea
+                aria-label="Nova nota interna"
+                value={noteBody}
+                onChange={(e) => setNoteBody(e.target.value)}
+                rows={3}
                 placeholder="Adicionar nota interna… Ex: cliente costuma atrasar pagamento, cuidado ao fazer fiado."
-                className="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none" />
-              <button onClick={handleAddNote} disabled={savingNote || !noteBody.trim()}
-                className="h-8 px-4 bg-amber-500 text-white rounded-lg text-[12px] font-bold hover:bg-amber-600 disabled:opacity-50 transition-all flex items-center gap-1.5">
-                <Save size={12} /> {savingNote ? "Salvando…" : "Salvar Nota"}
-              </button>
+              />
+              <Button size="sm" iconLeft={<Save size={12} />} onClick={handleAddNote} loading={savingNote} disabled={savingNote || !noteBody.trim()}>
+                {savingNote ? "Salvando…" : "Salvar Nota"}
+              </Button>
             </div>
             {detail.customer_notes.length === 0 ? (
-              <p className="text-center text-sm text-slate-400 py-6">Nenhuma nota ainda</p>
+              <EmptyState icon={StickyNote} title="Nenhuma nota ainda" />
             ) : (
               <div className="space-y-2">
                 {detail.customer_notes.map((n) => (
-                  <div key={n.id} className="bg-amber-50 border border-amber-200 rounded-xl p-3 flex items-start gap-2">
-                    <StickyNote size={13} className="text-amber-500 mt-0.5 shrink-0" />
-                    <div className="flex-1 min-w-0">
-                      <p className="text-[12px] text-amber-900">{n.body}</p>
-                      <p className="text-[10px] text-amber-500 mt-1">{fmtDate(n.created_at)}</p>
+                  <div key={n.id} className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 p-3">
+                    <StickyNote size={13} className="mt-0.5 shrink-0 text-amber-500" />
+                    <div className="min-w-0 flex-1">
+                      <p className="break-words text-xs text-amber-900">{n.body}</p>
+                      <p className="mt-1 text-[11px] text-amber-600">{fmtDate(n.created_at)}</p>
                     </div>
-                    <button onClick={() => handleDeleteNote(n.id)} className="p-1 hover:bg-amber-100 text-amber-300 hover:text-amber-500 rounded-lg transition-colors">
+                    <IconButton size="xs" aria-label="Remover nota" onClick={() => handleDeleteNote(n.id)}>
                       <XCircle size={13} />
-                    </button>
+                    </IconButton>
                   </div>
                 ))}
               </div>
@@ -1471,97 +1527,86 @@ export default function CustomerDetail() {
 
         {/* ─ LOYALTY ─ */}
         {detailTab === "loyalty" && (
-          <div className="space-y-4">
-            <div className="bg-gradient-to-br from-amber-400 to-orange-400 rounded-2xl p-5 text-white">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-[11px] font-bold opacity-80 uppercase tracking-wider">Saldo de Pontos</p>
-                  <p className="text-3xl font-black mt-1">{loyaltyBalance.toLocaleString("pt-BR")} pts</p>
-                  {loyaltyProgram && (
-                    <p className="text-[11px] opacity-70 mt-1">A cada {fmt(loyaltyProgram.spend_per_point)} gastos = 1 ponto</p>
-                  )}
-                </div>
-                <Award size={40} className="opacity-30" />
-              </div>
-            </div>
+          <div className="space-y-3">
+            <PanelCard title="Saldo de Pontos" icon={Award}>
+              <p className="text-2xl font-semibold text-amber-600">{loyaltyBalance.toLocaleString("pt-BR")} pts</p>
+              {loyaltyProgram && (
+                <p className="mt-1 text-[11px] text-slate-500">A cada {fmt(loyaltyProgram.spend_per_point)} gastos = 1 ponto</p>
+              )}
+            </PanelCard>
 
-            <div className="bg-white rounded-xl border border-slate-200 p-4 space-y-3">
-              <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Ajuste Manual de Pontos</p>
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <label className="text-[9px] text-slate-400 block mb-0.5">Delta (+ ou -)</label>
-                  <input type="number" value={pointAdj} onChange={(e) => setPointAdj(e.target.value)} placeholder="Ex: 50 ou -20"
-                    className="w-full h-8 px-2 rounded-lg border border-slate-200 text-[12px] focus:outline-none focus:ring-2 focus:ring-amber-400" />
+            <PanelCard title="Ajuste Manual de Pontos">
+              <div className="space-y-3">
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <Input label="Delta (+ ou -)" type="number" value={pointAdj} onChange={(e) => setPointAdj(e.target.value)} placeholder="Ex: 50 ou -20" />
+                  <Input label="Motivo" value={pointDesc} onChange={(e) => setPointDesc(e.target.value)} placeholder="Ex: Correção" />
                 </div>
-                <div>
-                  <label className="text-[9px] text-slate-400 block mb-0.5">Motivo</label>
-                  <input value={pointDesc} onChange={(e) => setPointDesc(e.target.value)} placeholder="Ex: Correção"
-                    className="w-full h-8 px-2 rounded-lg border border-slate-200 text-[12px] focus:outline-none focus:ring-2 focus:ring-amber-400" />
-                </div>
+                <Button
+                  size="sm"
+                  loading={savingPoints}
+                  disabled={savingPoints || !pointAdj}
+                  onClick={async () => {
+                    if (!pointAdj) return;
+                    setSavingPoints(true);
+                    try {
+                      await fetch(`/api/loyalty/customers/${detail.id}/points`, {
+                        method: "POST", headers: authH(),
+                        body: JSON.stringify({ delta: Number(pointAdj), description: pointDesc || null }),
+                      });
+                      setPointAdj(""); setPointDesc("");
+                      fetchLoyalty(detail.id);
+                    } finally { setSavingPoints(false); }
+                  }}
+                >
+                  {savingPoints ? "Salvando…" : "Aplicar Ajuste"}
+                </Button>
               </div>
-              <button
-                disabled={savingPoints || !pointAdj}
-                onClick={async () => {
-                  if (!pointAdj) return;
-                  setSavingPoints(true);
-                  try {
-                    await fetch(`/api/loyalty/customers/${detail.id}/points`, {
-                      method: "POST", headers: authH(),
-                      body: JSON.stringify({ delta: Number(pointAdj), description: pointDesc || null }),
-                    });
-                    setPointAdj(""); setPointDesc("");
-                    fetchLoyalty(detail.id);
-                  } finally { setSavingPoints(false); }
-                }}
-                className="h-8 px-4 bg-amber-500 text-white rounded-lg text-[12px] font-bold hover:bg-amber-600 disabled:opacity-50 transition-all"
-              >
-                {savingPoints ? "Salvando…" : "Aplicar Ajuste"}
-              </button>
-            </div>
+            </PanelCard>
 
             {loyaltyRewards.length > 0 && (
-              <div className="space-y-2">
-                <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Resgatar Recompensa</p>
-                {loyaltyRewards.map((r) => {
-                  const canRedeem = loyaltyBalance >= r.points_cost;
-                  return (
-                    <div key={r.id} className={cn("flex items-center gap-3 p-3 rounded-xl border transition-all", canRedeem ? "border-amber-200 bg-amber-50" : "border-slate-100 bg-slate-50 opacity-60")}>
-                      <div className="w-8 h-8 bg-white rounded-lg flex items-center justify-center border border-slate-100 shrink-0">
-                        {r.type === "discount" ? <DollarSign size={14} className="text-blue-500" /> : <Gift size={14} className="text-purple-500" />}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-[12px] font-bold text-slate-900">{r.name}</p>
-                        <div className="flex items-center gap-1 mt-0.5">
-                          <Star size={10} className="text-amber-400" fill="currentColor" />
-                          <span className="text-[10px] text-amber-600 font-bold">{r.points_cost} pts</span>
+              <PanelCard title="Resgatar Recompensa" icon={Gift}>
+                <div className="space-y-2">
+                  {loyaltyRewards.map((r) => {
+                    const canRedeem = loyaltyBalance >= r.points_cost;
+                    return (
+                      <div key={r.id} className={cn("flex items-center gap-3 rounded-lg border p-3 transition-all", canRedeem ? "border-amber-200 bg-amber-50" : "border-slate-100 bg-slate-50 opacity-60")}>
+                        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-slate-100 bg-white">
+                          {r.type === "discount" ? <DollarSign size={14} className="text-blue-500" /> : <Gift size={14} className="text-purple-500" />}
                         </div>
+                        <div className="min-w-0 flex-1">
+                          <p className="break-words text-xs font-medium text-slate-900">{r.name}</p>
+                          <div className="mt-0.5 flex items-center gap-1">
+                            <Star size={10} className="text-amber-400" fill="currentColor" />
+                            <span className="text-[11px] font-medium text-amber-600">{r.points_cost} pts</span>
+                          </div>
+                        </div>
+                        <Button
+                          size="xs"
+                          loading={redeemingId === r.id}
+                          disabled={!canRedeem || redeemingId === r.id}
+                          onClick={async () => {
+                            setRedeemingId(r.id);
+                            try {
+                              await fetch(`/api/loyalty/customers/${detail.id}/redeem`, {
+                                method: "POST", headers: authH(),
+                                body: JSON.stringify({ reward_id: r.id }),
+                              });
+                              fetchLoyalty(detail.id);
+                            } finally { setRedeemingId(null); }
+                          }}
+                        >
+                          Resgatar
+                        </Button>
                       </div>
-                      <button
-                        disabled={!canRedeem || redeemingId === r.id}
-                        onClick={async () => {
-                          setRedeemingId(r.id);
-                          try {
-                            await fetch(`/api/loyalty/customers/${detail.id}/redeem`, {
-                              method: "POST", headers: authH(),
-                              body: JSON.stringify({ reward_id: r.id }),
-                            });
-                            fetchLoyalty(detail.id);
-                          } finally { setRedeemingId(null); }
-                        }}
-                        className="h-7 px-3 bg-amber-500 text-white rounded-lg text-[11px] font-bold hover:bg-amber-600 disabled:opacity-40 transition-all"
-                      >
-                        {redeemingId === r.id ? "…" : "Resgatar"}
-                      </button>
-                    </div>
-                  );
-                })}
-              </div>
+                    );
+                  })}
+                </div>
+              </PanelCard>
             )}
 
-            <div className="space-y-2">
-              <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Histórico de Pontos</p>
+            <PanelCard title="Histórico de Pontos">
               {loyaltyEntries.length === 0 ? (
-                <p className="text-center text-sm text-slate-400 py-6">Sem movimentações ainda</p>
+                <p className="py-2 text-xs text-slate-500">Sem movimentações ainda.</p>
               ) : (
                 <div className="space-y-1.5">
                   {loyaltyEntries.map((e) => {
@@ -1569,49 +1614,46 @@ export default function CustomerDetail() {
                     const linkedOrder = orderMatch ? detail.orders.find((o) => o.id === Number(orderMatch[1])) : undefined;
                     return (
                       <button
+                        type="button"
                         key={e.id}
                         onClick={() => linkedOrder && setPointOrderDetail(linkedOrder)}
                         disabled={!linkedOrder}
                         className={cn(
-                          "w-full flex items-center gap-3 p-3 bg-white rounded-xl border border-slate-100 text-left transition-colors",
-                          linkedOrder && "hover:border-blue-200 hover:bg-blue-50/30 cursor-pointer"
+                          "flex w-full items-center gap-3 rounded-lg border border-slate-100 bg-white p-3 text-left transition-colors",
+                          linkedOrder && "cursor-pointer hover:border-blue-200 hover:bg-blue-50/30"
                         )}
                       >
-                        <div className={cn("w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-black shrink-0", e.delta > 0 ? "bg-emerald-100 text-emerald-600" : "bg-rose-100 text-rose-600")}>
-                          {e.delta > 0 ? "+" : ""}{e.delta}
+                        <Badge color={e.delta > 0 ? "success" : "danger"} pill>{e.delta > 0 ? "+" : ""}{e.delta}</Badge>
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-xs font-medium text-slate-700">{e.description ?? "—"}</p>
+                          <p className="text-[11px] text-slate-500">{fmtDate(e.created_at)}</p>
                         </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-[12px] font-medium text-slate-700 truncate">{e.description ?? "—"}</p>
-                          <p className="text-[10px] text-slate-400">{fmtDate(e.created_at)}</p>
-                        </div>
-                        <span className="text-[11px] font-bold text-slate-500 shrink-0">{e.balance_after} pts</span>
-                        {linkedOrder && <ChevronRight size={13} className="text-slate-300 shrink-0" />}
+                        <span className="shrink-0 text-[11px] font-medium text-slate-500">{e.balance_after} pts</span>
+                        {linkedOrder && <ChevronRight size={13} className="shrink-0 text-slate-300" />}
                       </button>
                     );
                   })}
                 </div>
               )}
-            </div>
+            </PanelCard>
           </div>
         )}
-      </div>
+      </Tabs>
 
       {/* Detalhe de compra a partir do histórico de pontos */}
       <Modal open={!!pointOrderDetail} onClose={() => setPointOrderDetail(null)} title={pointOrderDetail ? `Compra #${pointOrderDetail.id}` : ""} size="sm">
         {pointOrderDetail && (
           <div className="space-y-3">
-            <div className="flex items-center justify-between text-sm">
-              <span className="text-slate-500">{fmtDate(pointOrderDetail.created_at)}</span>
-              <span className="font-black text-emerald-600">{fmt(Number(pointOrderDetail.total_amount))}</span>
-            </div>
-            <div className="text-[12px] text-slate-500 bg-slate-50 rounded-lg px-3 py-2">
-              <span className="font-semibold">Forma de pagamento:</span> {formatPaymentMethod(pointOrderDetail.payment_method)}
-            </div>
+            <dl className="grid grid-cols-1 gap-x-6 sm:grid-cols-2">
+              <DetailField label="Data" value={fmtDate(pointOrderDetail.created_at)} />
+              <DetailField label="Total" value={fmt(Number(pointOrderDetail.total_amount))} />
+              <DetailField className="sm:col-span-2" label="Forma de pagamento" value={formatPaymentMethod(pointOrderDetail.payment_method)} />
+            </dl>
             <div className="space-y-1">
               {pointOrderDetail.items.map((it) => (
-                <div key={it.id} className="flex items-center justify-between text-[12px] text-slate-600 border-b border-slate-100 py-1.5 last:border-0">
+                <div key={it.id} className="flex items-center justify-between border-b border-slate-100 py-1.5 text-xs text-slate-600 last:border-0">
                   <span>{it.name ?? `Item #${it.id}`} × {it.quantity}</span>
-                  <span className="font-semibold">{fmt(Number(it.unit_price) * it.quantity)}</span>
+                  <span className="font-medium tabular-nums">{fmt(Number(it.unit_price) * it.quantity)}</span>
                 </div>
               ))}
             </div>
@@ -1626,176 +1668,150 @@ export default function CustomerDetail() {
         title="Reconfigurar Parcelas"
         size="sm"
         footer={
-          <>
-            <Button variant="secondary" onClick={() => setReconfigureDebtId(null)}>Cancelar</Button>
+          <ModalFooter>
+            <Button variant="outline" onClick={() => setReconfigureDebtId(null)}>Cancelar</Button>
             <Button loading={reconfiguring} disabled={!reconfigureFirstDue} onClick={handleReconfigureInstallments}>Salvar</Button>
-          </>
+          </ModalFooter>
         }
       >
         <div className="space-y-3">
-          <div>
-            <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block mb-1">Nº de parcelas</label>
-            <input type="number" min={1} max={24} step={1} value={reconfigureCount}
-              onChange={(e) => setReconfigureCount(e.target.value)}
-              className="w-full h-9 px-3 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-          </div>
-          <div>
-            <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block mb-1">Vencimento da 1ª parcela</label>
-            <input type="date" value={reconfigureFirstDue} onChange={(e) => setReconfigureFirstDue(e.target.value)}
-              className="w-full h-9 px-3 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-          </div>
-          <p className="text-[11px] text-slate-400">As parcelas atuais serão substituídas. Só é possível reconfigurar enquanto nenhum pagamento foi feito.</p>
+          <Input label="Nº de parcelas" type="number" min={1} max={24} step={1} value={reconfigureCount}
+            onChange={(e) => setReconfigureCount(e.target.value)} />
+          <Input label="Vencimento da 1ª parcela" type="date" value={reconfigureFirstDue} onChange={(e) => setReconfigureFirstDue(e.target.value)} />
+          <p className="text-[11px] text-slate-500">As parcelas atuais serão substituídas. Só é possível reconfigurar enquanto nenhum pagamento foi feito.</p>
         </div>
       </Modal>
 
-      {/* Quick edit modal */}
+      {/* Edit modal */}
       <Modal
         open={showForm}
         onClose={() => setShowForm(false)}
         title="Editar Cliente"
-        size="md"
+        size="lg"
         footer={
-          <>
-            <Button variant="secondary" onClick={() => setShowForm(false)}>Cancelar</Button>
+          <ModalFooter>
+            <Button variant="outline" onClick={() => setShowForm(false)}>Cancelar</Button>
             <Button loading={saving} onClick={handleSave}>Salvar</Button>
-          </>
+          </ModalFooter>
         }
       >
-        <div className="space-y-3 max-h-[65vh] overflow-y-auto pr-1">
-          <div>
-            <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block mb-1">Nome *</label>
-            <input value={fName} onChange={(e) => setFName(e.target.value)} className="w-full h-9 px-3 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-          </div>
-          <div className="grid grid-cols-2 gap-2">
-            <div>
-              <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block mb-1">Telefone</label>
-              <input value={fPhone} onChange={(e) => setFPhone(maskPhone(e.target.value))} placeholder="(11) 99999-9999" inputMode="numeric"
-                className="w-full h-9 px-3 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-            </div>
-            <div>
-              <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block mb-1">CPF/CNPJ</label>
-              <div className="flex gap-1.5">
-                <input value={fDoc} onChange={(e) => { setFDoc(maskDoc(e.target.value)); setCnpjError(null); }} placeholder="000.000.000-00" inputMode="numeric"
-                  className="w-full h-9 px-3 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-                {fDoc.replace(/\D/g, "").length === 14 && (
-                  <button type="button" onClick={handleLookupCNPJ} disabled={cnpjLoading}
-                    title="Buscar dados do CNPJ na Receita Federal"
-                    className="h-9 px-2.5 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-50 transition-all flex items-center justify-center shrink-0">
-                    {cnpjLoading ? <Loader2 size={14} className="animate-spin" /> : <Search size={14} />}
-                  </button>
+        <Tabs<EditTab> items={EDIT_TABS} value={editTab} onChange={setEditTab} label="Dados do cliente">
+          {editTab === "geral" && (
+            <div className="space-y-3">
+              <Input label="Nome *" value={fName} onChange={(e) => setFName(e.target.value)} />
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <Input label="Telefone" value={fPhone} onChange={(e) => setFPhone(maskPhone(e.target.value))} placeholder="(11) 99999-9999" inputMode="numeric" />
+                <div className="flex items-end gap-1.5">
+                  <Input
+                    wrapperClassName="flex-1"
+                    label="CPF/CNPJ"
+                    value={fDoc}
+                    onChange={(e) => { setFDoc(maskDoc(e.target.value)); setCnpjError(null); }}
+                    placeholder="000.000.000-00"
+                    inputMode="numeric"
+                  />
+                  {fDoc.replace(/\D/g, "").length === 14 && (
+                    <IconButton
+                      variant="outline"
+                      onClick={handleLookupCNPJ}
+                      loading={cnpjLoading}
+                      disabled={cnpjLoading}
+                      title="Buscar dados do CNPJ na Receita Federal"
+                      aria-label="Buscar dados do CNPJ"
+                    >
+                      <Search size={14} />
+                    </IconButton>
+                  )}
+                </div>
+              </div>
+              {cnpjError && <Alert variant="error">{cnpjError}</Alert>}
+              {fDoc.replace(/\D/g, "").length === 14 && (fLegalName || fCnaeDescription || fRegistrationStatus) && (
+                <PanelCard title="Dados Fiscais (Receita Federal)">
+                  <div className="space-y-3">
+                    {fLegalName && <Input label="Razão Social" value={fLegalName} onChange={(e) => setFLegalName(e.target.value)} />}
+                    <dl className="grid grid-cols-1 gap-x-6 sm:grid-cols-2">
+                      {fLegalNature && <DetailField label="Natureza Jurídica" value={fLegalNature} />}
+                      {fRegistrationStatus && <DetailField label="Situação Cadastral" value={fRegistrationStatus} />}
+                      {fCnaeDescription && (
+                        <DetailField
+                          className="sm:col-span-2"
+                          label="CNAE Principal"
+                          value={`${fCnaeCode ? `${fCnaeCode} — ` : ""}${fCnaeDescription}`}
+                        />
+                      )}
+                    </dl>
+                  </div>
+                </PanelCard>
+              )}
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <Input label="Data de Aniversário" type="date" value={fBirth} onChange={(e) => setFBirth(e.target.value)} />
+                <Input label="E-mail" value={fEmail} onChange={(e) => setFEmail(e.target.value)} />
+              </div>
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <Input label="Limite de Crédito (R$)" type="number" min={0} value={fCredit} onChange={(e) => setFCredit(e.target.value)} />
+                <Input label="Limite de Consignação (R$)" type="number" min={0} value={fConsignmentLimit} onChange={(e) => setFConsignmentLimit(e.target.value)} />
+              </div>
+              <Textarea label="Observações" value={fNotes} onChange={(e) => setFNotes(e.target.value)} rows={2} />
+              <div className={cn("space-y-2 rounded-lg border p-3 transition-colors", fRisk ? "border-rose-200 bg-rose-50" : "border-slate-200 bg-slate-50")}>
+                <label className="flex cursor-pointer items-center gap-2">
+                  <input type="checkbox" checked={fRisk} onChange={(e) => setFRisk(e.target.checked)} className="h-4 w-4 accent-rose-500" />
+                  <span className={cn("text-xs font-medium", fRisk ? "text-rose-600" : "text-slate-600")}>
+                    <AlertTriangle size={12} className="mr-1 inline" /> Marcar como Cliente de Risco
+                  </span>
+                </label>
+                {fRisk && (
+                  <Textarea
+                    aria-label="Motivo do risco"
+                    value={fRiskReason}
+                    onChange={(e) => setFRiskReason(e.target.value)}
+                    rows={2}
+                    placeholder="Motivo do risco (ex: atrasou 3x, cheque sem fundo…)"
+                  />
                 )}
               </div>
             </div>
-          </div>
-          {cnpjError && (
-            <p className="text-[11px] font-semibold text-red-500 bg-red-50 border border-red-100 rounded-lg px-3 py-2">{cnpjError}</p>
           )}
-          {fDoc.replace(/\D/g, "").length === 14 && (fLegalName || fCnaeDescription || fRegistrationStatus) && (
-            <div className="space-y-2 bg-slate-50 border border-slate-100 rounded-lg p-3">
-              <p className="text-[9px] font-black uppercase tracking-widest text-slate-400">Dados Fiscais (Receita Federal)</p>
-              {fLegalName && (
-                <div>
-                  <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block mb-1">Razão Social</label>
-                  <input value={fLegalName} onChange={(e) => setFLegalName(e.target.value)}
-                    className="w-full h-9 px-3 rounded-lg border border-slate-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500" />
-                </div>
-              )}
-              <div className="grid grid-cols-2 gap-2">
-                {fLegalNature && (
-                  <div>
-                    <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block mb-1">Natureza Jurídica</label>
-                    <p className="text-[12px] font-semibold text-slate-700 h-9 px-3 flex items-center rounded-lg border border-slate-200 bg-white truncate">{fLegalNature}</p>
-                  </div>
-                )}
-                {fRegistrationStatus && (
-                  <div>
-                    <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block mb-1">Situação Cadastral</label>
-                    <p className={cn(
-                      "text-[12px] font-bold h-9 px-3 flex items-center rounded-lg border",
-                      fRegistrationStatus === "ATIVA" ? "border-emerald-200 bg-emerald-50 text-emerald-700" : "border-amber-200 bg-amber-50 text-amber-700"
-                    )}>{fRegistrationStatus}</p>
-                  </div>
-                )}
+
+          {editTab === "endereco" && (
+            <div className="space-y-3">
+              <div className="flex items-end gap-2">
+                <Input
+                  wrapperClassName="w-36"
+                  label="CEP"
+                  value={fZip}
+                  onChange={(e) => setFZip(e.target.value.replace(/\D/g, "").slice(0, 8))}
+                  placeholder="CEP"
+                  inputMode="numeric"
+                />
+                <Button
+                  variant="outline"
+                  iconLeft={<Search size={13} />}
+                  onClick={handleLookupCEP}
+                  loading={cepLoading}
+                  disabled={cepLoading || fZip.replace(/\D/g, "").length !== 8}
+                >
+                  Buscar CEP
+                </Button>
               </div>
-              {fCnaeDescription && (
-                <div>
-                  <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block mb-1">CNAE Principal</label>
-                  <p className="text-[12px] font-semibold text-slate-700 px-3 py-2 rounded-lg border border-slate-200 bg-white">
-                    {fCnaeCode ? `${fCnaeCode} — ` : ""}{fCnaeDescription}
-                  </p>
-                </div>
-              )}
+              <Input label="Rua / Logradouro" value={fStreet} onChange={(e) => setFStreet(e.target.value)} placeholder="Rua / Logradouro" />
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <Input label="Número" value={fNumber} onChange={(e) => setFNumber(e.target.value)} placeholder="Número" />
+                <Input label="Complemento" value={fComplement} onChange={(e) => setFComplement(e.target.value)} placeholder="Complemento" />
+              </div>
+              <Input label="Bairro" value={fDistrict} onChange={(e) => setFDistrict(e.target.value)} placeholder="Bairro" />
+              <div className="grid grid-cols-3 gap-3">
+                <Input wrapperClassName="col-span-2" label="Cidade" value={fCity} onChange={(e) => setFCity(e.target.value)} placeholder="Cidade" />
+                <Select label="UF" value={fState} onChange={(e) => setFState(e.target.value)}>
+                  <option value="">UF</option>
+                  {["AC","AL","AP","AM","BA","CE","DF","ES","GO","MA","MT","MS","MG","PA","PB","PR","PE","PI","RJ","RN","RS","RO","RR","SC","SP","SE","TO"].map((uf) => (
+                    <option key={uf} value={uf}>{uf}</option>
+                  ))}
+                </Select>
+              </div>
+              <Input label="País" value={fCountry} onChange={(e) => setFCountry(e.target.value)} placeholder="País" />
             </div>
           )}
-          <div>
-            <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block mb-1">Data de Aniversário</label>
-            <input type="date" value={fBirth} onChange={(e) => setFBirth(e.target.value)} className="w-full h-9 px-3 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-          </div>
-          <div>
-            <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block mb-1">E-mail</label>
-            <input value={fEmail} onChange={(e) => setFEmail(e.target.value)} className="w-full h-9 px-3 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-          </div>
-          <div className="space-y-2">
-            <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block">Endereço</label>
-            <div className="flex gap-2">
-              <input value={fZip} onChange={(e) => setFZip(e.target.value.replace(/\D/g, "").slice(0, 8))} placeholder="CEP" inputMode="numeric"
-                className="w-32 h-9 px-3 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-              <button type="button" onClick={handleLookupCEP} disabled={cepLoading || fZip.replace(/\D/g, "").length !== 8}
-                className="h-9 px-3 rounded-lg border border-slate-200 text-[11px] font-bold text-slate-600 hover:bg-slate-50 disabled:opacity-50 transition-all flex items-center gap-1.5 shrink-0">
-                {cepLoading ? <Loader2 size={13} className="animate-spin" /> : <Search size={13} />}
-                Buscar CEP
-              </button>
-            </div>
-            <input value={fStreet} onChange={(e) => setFStreet(e.target.value)} placeholder="Rua / Logradouro"
-              className="w-full h-9 px-3 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-            <div className="grid grid-cols-2 gap-2">
-              <input value={fNumber} onChange={(e) => setFNumber(e.target.value)} placeholder="Número"
-                className="h-9 px-3 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-              <input value={fComplement} onChange={(e) => setFComplement(e.target.value)} placeholder="Complemento"
-                className="h-9 px-3 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-            </div>
-            <input value={fDistrict} onChange={(e) => setFDistrict(e.target.value)} placeholder="Bairro"
-              className="w-full h-9 px-3 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-            <div className="grid grid-cols-3 gap-2">
-              <input value={fCity} onChange={(e) => setFCity(e.target.value)} placeholder="Cidade"
-                className="col-span-2 h-9 px-3 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-              <select value={fState} onChange={(e) => setFState(e.target.value)}
-                className="h-9 px-2 rounded-lg border border-slate-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500">
-                <option value="">UF</option>
-                {["AC","AL","AP","AM","BA","CE","DF","ES","GO","MA","MT","MS","MG","PA","PB","PR","PE","PI","RJ","RN","RS","RO","RR","SC","SP","SE","TO"].map((uf) => (
-                  <option key={uf} value={uf}>{uf}</option>
-                ))}
-              </select>
-            </div>
-            <input value={fCountry} onChange={(e) => setFCountry(e.target.value)} placeholder="País"
-              className="w-full h-9 px-3 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-          </div>
-          <div>
-            <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block mb-1">Limite de Crédito (R$)</label>
-            <input type="number" min={0} value={fCredit} onChange={(e) => setFCredit(e.target.value)} className="w-full h-9 px-3 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-          </div>
-          <div>
-            <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block mb-1">Limite de Consignação (R$)</label>
-            <input type="number" min={0} value={fConsignmentLimit} onChange={(e) => setFConsignmentLimit(e.target.value)} className="w-full h-9 px-3 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-          </div>
-          <div>
-            <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block mb-1">Observações</label>
-            <textarea value={fNotes} onChange={(e) => setFNotes(e.target.value)} rows={2} className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none" />
-          </div>
-          <div className={cn("rounded-xl border p-3 space-y-2 transition-colors", fRisk ? "bg-rose-50 border-rose-200" : "bg-slate-50 border-slate-200")}>
-            <label className="flex items-center gap-2 cursor-pointer">
-              <input type="checkbox" checked={fRisk} onChange={(e) => setFRisk(e.target.checked)} className="w-4 h-4 accent-rose-500" />
-              <span className={cn("text-[12px] font-black", fRisk ? "text-rose-600" : "text-slate-600")}>
-                <AlertTriangle size={12} className="inline mr-1" /> Marcar como Cliente de Risco
-              </span>
-            </label>
-            {fRisk && (
-              <textarea value={fRiskReason} onChange={(e) => setFRiskReason(e.target.value)} rows={2}
-                placeholder="Motivo do risco (ex: atrasou 3x, cheque sem fundo…)"
-                className="w-full px-3 py-2 rounded-lg border border-rose-200 text-sm focus:outline-none focus:ring-2 focus:ring-rose-400 resize-none bg-white" />
-            )}
-          </div>
-        </div>
+        </Tabs>
       </Modal>
 
       <Modal
@@ -1804,8 +1820,8 @@ export default function CustomerDetail() {
         title={confirmDialog?.title ?? ""}
         size="sm"
         footer={
-          <>
-            <Button variant="secondary" onClick={() => setConfirmDialog(null)} disabled={confirming}>Cancelar</Button>
+          <ModalFooter>
+            <Button variant="outline" onClick={() => setConfirmDialog(null)} disabled={confirming}>Cancelar</Button>
             <Button
               variant="danger"
               loading={confirming}
@@ -1822,10 +1838,10 @@ export default function CustomerDetail() {
             >
               Confirmar
             </Button>
-          </>
+          </ModalFooter>
         }
       >
-        <p className="text-sm text-slate-600">{confirmDialog?.message}</p>
+        <p className="text-[13px] text-slate-600">{confirmDialog?.message}</p>
       </Modal>
     </div>
   );

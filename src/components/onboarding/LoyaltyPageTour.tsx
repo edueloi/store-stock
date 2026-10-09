@@ -101,7 +101,7 @@ function buildSteps(): DriveStep[] {
     {
       popover: {
         title: "Cadastrar uma recompensa",
-        description: "Na aba \"Recompensas\" você define o que o cliente pode resgatar com os pontos: desconto (fixo ou percentual) ou um brinde do estoque. Vamos abrir o formulário e preencher um exemplo (nada será salvo).",
+        description: "Na aba \"Recompensas\"você define o que o cliente pode resgatar com os pontos: desconto (fixo ou percentual) ou um brinde do estoque. Vamos abrir o formulário e preencher um exemplo (nada será salvo).",
         onNextClick: (_el, _step, opts) => goForward(opts.driver, goToRewardsAndOpenForm),
       },
     },
@@ -109,7 +109,7 @@ function buildSteps(): DriveStep[] {
       element: tourElement("loyalty-reward-form-name"),
       popover: {
         title: "Nome e custo em pontos",
-        description: "Preenchemos com \"Recompensa Exemplo\" e 100 pontos só para ilustrar. Acima você escolhe o tipo: Desconto ou Brinde. Vamos fechar este exemplo sem salvar.",
+        description: "Preenchemos com \"Recompensa Exemplo\"e 100 pontos só para ilustrar. Acima você escolhe o tipo: Desconto ou Brinde. Vamos fechar este exemplo sem salvar.",
         side: "bottom",
         align: "start",
         onNextClick: (_el, _step, opts) => {

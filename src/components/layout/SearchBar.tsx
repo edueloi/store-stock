@@ -20,7 +20,7 @@ export default function SearchBar({ value, onChange, placeholder = "Buscar...", 
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
-        className="w-full pl-11 pr-10 h-11 bg-white border border-slate-200 rounded-xl outline-none text-[10px] font-bold uppercase tracking-widest placeholder:text-slate-300 placeholder:normal-case focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 transition-all shadow-sm"
+        className="w-full pl-11 pr-10 h-11 bg-white border border-slate-200 rounded-lg outline-none text-[11px] font-semibold placeholder:text-slate-300 placeholder:normal-case focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 transition-all shadow-sm"
       />
       {value && (
         <button

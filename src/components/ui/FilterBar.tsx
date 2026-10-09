@@ -16,11 +16,11 @@ export function FilterBar({ children, className, activeCount = 0, onClearAll }: 
   return (
     <div
       className={cn(
-        "flex flex-col items-stretch gap-2 bg-slate-50 border border-slate-200 rounded-xl px-3 py-3 sm:flex-row sm:flex-wrap sm:items-center sm:px-4 sm:py-2.5",
+        "flex flex-col items-stretch gap-2 bg-slate-50 border border-slate-200 rounded-lg px-3 py-3 sm:flex-row sm:flex-wrap sm:items-center sm:px-4 sm:py-2.5",
         className
       )}
     >
-      <span className="flex shrink-0 items-center gap-1.5 text-[10px] font-black text-slate-400 uppercase tracking-widest sm:mr-1">
+      <span className="flex shrink-0 items-center gap-1.5 text-[11px] font-semibold text-slate-400 sm:mr-1">
         <Filter size={11} />
         Filtros
       </span>
@@ -30,7 +30,7 @@ export function FilterBar({ children, className, activeCount = 0, onClearAll }: 
       {activeCount > 0 && onClearAll && (
         <button
           onClick={onClearAll}
-          className="flex w-fit items-center gap-1 text-[10px] font-bold text-red-500 hover:text-red-700 uppercase tracking-wider transition-colors sm:ml-auto"
+          className="flex w-fit items-center gap-1 text-[11px] font-semibold text-red-500 hover:text-red-700 transition-colors sm:ml-auto"
         >
           <X size={11} />
           Limpar ({activeCount})
@@ -55,7 +55,7 @@ export function FilterChip({ label, value, active = false, onClick, onRemove }: 
     <button
       onClick={onClick}
       className={cn(
-        "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-[10px] font-bold uppercase tracking-wider transition-all",
+        "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-[11px] font-semibold transition-all",
         active
           ? "bg-blue-600 text-white border-blue-600 shadow-sm"
           : "bg-white text-slate-500 border-slate-200 hover:border-blue-300 hover:text-blue-600"
@@ -63,7 +63,7 @@ export function FilterChip({ label, value, active = false, onClick, onRemove }: 
     >
       {label}
       {value && (
-        <span className={cn("font-black", active ? "text-blue-100" : "text-slate-400")}>
+        <span className={cn("font-semibold", active ? "text-blue-100" : "text-slate-400")}>
           {value}
         </span>
       )}
@@ -94,14 +94,14 @@ export function FilterSelect({ label, value, onChange, options, placeholder = "T
   const active = value !== "";
   return (
     <div className="flex items-center gap-1.5">
-      <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider hidden sm:inline">
+      <span className="text-[11px] font-semibold text-slate-400 hidden sm:inline">
         {label}:
       </span>
       <select
         value={value}
         onChange={(e) => onChange(e.target.value)}
         className={cn(
-          "h-7 pl-2 pr-6 rounded-lg border text-[10px] font-bold uppercase bg-white appearance-none cursor-pointer transition-all outline-none",
+          "h-7 pl-2 pr-6 rounded-lg border text-[11px] font-semibold bg-white appearance-none cursor-pointer transition-all outline-none",
           active
             ? "border-blue-400 text-blue-700 bg-blue-50"
             : "border-slate-200 text-slate-600 hover:border-slate-300"

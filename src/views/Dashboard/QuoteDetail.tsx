@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import {
   ChevronLeft,
+  FileText,
   Search,
   Download,
   CheckCircle2,
@@ -31,7 +32,11 @@ import {
   Send,
   History,
 } from "lucide-react";
-import PageHeader from "../../components/layout/PageHeader";
+import {
+  Button, IconButton, Badge, Input, Textarea, Select, Modal, ModalFooter, Tabs,
+  ContentCard, PanelCard, DetailField, EmptyState,
+} from "../../components/ui";
+import SalePaymentForm, { SalePaymentFormState, newSalePaymentFormState, parseSalePaymentSettings, computeSalePayment, buildSalePayload } from "../../components/SalePaymentForm";
 import Combobox from "../../components/ui/Combobox";
 import ConfirmDialog from "../../components/ui/ConfirmDialog";
 import { useToast } from "../../components/ui/Toast";
@@ -174,14 +179,6 @@ interface Tenant {
 type ConvertMethod = "money" | "debit" | "credit" | "pix";
 type ConvertBrand  = "visa" | "master" | "elo" | "amex" | "hiper" | "other";
 
-interface ConvertPayment {
-  id: string;
-  method: ConvertMethod;
-  cardBrand: ConvertBrand;
-  installments: number;
-  amount: string;
-}
-
 const CONVERT_PM_LABEL: Record<ConvertMethod, string> = {
   money: "Dinheiro", debit: "Débito", credit: "Crédito", pix: "PIX",
 };
@@ -194,21 +191,6 @@ const CONVERT_CARD_BRANDS: { key: ConvertBrand; label: string; color: string }[]
   { key: "hiper",  label: "Hipercard",  color: "#B22222" },
   { key: "other",  label: "Outra",      color: "#64748b" },
 ];
-
-function newConvertPayment(): ConvertPayment {
-  return { id: Math.random().toString(36).slice(2), method: "money", cardBrand: "visa", installments: 1, amount: "" };
-}
-
-function buildConvertPmString(payments: ConvertPayment[]): string {
-  return payments
-    .filter((p) => parseMaskedPrice(p.amount) > 0)
-    .map((p) => {
-      const brand = (p.method === "credit" || p.method === "debit") ? `-${p.cardBrand}` : "";
-      const inst  = p.method === "credit" && p.installments > 1 ? `-${p.installments}x` : "";
-      return `${p.method}${brand}${inst}:${parseMaskedPrice(p.amount).toFixed(2)}`;
-    })
-    .join("|");
-}
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -244,20 +226,30 @@ function maskDoc(v: string) {
   return d.slice(0, 14).replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{0,2})/, "$1.$2.$3/$4-$5").replace(/-$/, "").replace(/\/$/, "");
 }
 
-function statusLabel(s: string) {
-  const map: Record<string, { label: string; color: string; icon: React.ReactNode }> = {
-    rascunho:  { label: "Rascunho",   color: "text-slate-500 bg-slate-100", icon: <Clock size={12} /> },
-    orcamento_enviado: { label: "Aberto", color: "text-blue-600 bg-blue-50",    icon: <Clock size={12} /> },
-    aguardando_aprovacao: { label: "Aguardando Aprovação", color: "text-amber-600 bg-amber-50", icon: <Clock size={12} /> },
-    aprovado: { label: "Aprovado", color: "text-teal-600 bg-teal-50", icon: <CheckCircle2 size={12} /> },
-    aguardando_arte: { label: "Aguardando Arte", color: "text-fuchsia-600 bg-fuchsia-50", icon: <Palette size={12} /> },
-    arte_finalizada: { label: "Arte Finalizada", color: "text-pink-600 bg-pink-50", icon: <PenTool size={12} /> },
-    converted: { label: "Convertido", color: "text-emerald-600 bg-emerald-50", icon: <CheckCircle2 size={12} /> },
-    cancelled: { label: "Cancelado",  color: "text-red-600 bg-red-50",      icon: <XCircle size={12} /> },
-    expired:   { label: "Expirado",   color: "text-orange-600 bg-orange-50",icon: <Clock size={12} /> },
+type BadgeColor = "default" | "primary" | "success" | "warning" | "danger" | "info" | "purple" | "orange" | "teal";
+
+function statusLabel(s: string): { label: string; color: BadgeColor; icon: React.ReactNode } {
+  const map: Record<string, { label: string; color: BadgeColor; icon: React.ReactNode }> = {
+    rascunho:  { label: "Rascunho",   color: "default", icon: <Clock size={12} /> },
+    orcamento_enviado: { label: "Aberto", color: "info",    icon: <Clock size={12} /> },
+    aguardando_aprovacao: { label: "Aguardando Aprovação", color: "warning", icon: <Clock size={12} /> },
+    aprovado: { label: "Aprovado", color: "teal", icon: <CheckCircle2 size={12} /> },
+    aguardando_arte: { label: "Aguardando Arte", color: "purple", icon: <Palette size={12} /> },
+    arte_finalizada: { label: "Arte Finalizada", color: "purple", icon: <PenTool size={12} /> },
+    converted: { label: "Convertido", color: "success", icon: <CheckCircle2 size={12} /> },
+    cancelled: { label: "Cancelado",  color: "danger",      icon: <XCircle size={12} /> },
+    expired:   { label: "Expirado",   color: "orange",icon: <Clock size={12} /> },
   };
   return map[s] ?? map.orcamento_enviado;
 }
+
+const QUOTE_TABS = [
+  { id: "dados", label: "Dados", icon: User },
+  { id: "itens", label: "Itens", icon: Package },
+  { id: "arquivos", label: "Arquivos", icon: Palette },
+  { id: "historico", label: "Histórico", icon: History },
+] as const;
+type QuoteTabId = typeof QUOTE_TABS[number]["id"];
 
 function quoteActionLabel(action: QuoteActionLog) {
   if (action.action === "status_changed" && action.to_status) return `Status alterado para ${statusLabel(action.to_status).label}`;
@@ -330,13 +322,12 @@ export default function QuoteDetail() {
   const [savingDeposit, setSavingDeposit] = useState(false);
 
   const [showConvertModal, setShowConvertModal] = useState(false);
-  const [convertPayments, setConvertPayments] = useState<ConvertPayment[]>([newConvertPayment()]);
-  const [convertSellerId, setConvertSellerId] = useState<number | "">("");
+  const [convertForm, setConvertForm] = useState<SalePaymentFormState>(() => newSalePaymentFormState());
   const [sellers, setSellers] = useState<{ id: number; name: string }[]>([]);
   const [converting, setConverting] = useState(false);
   const [emailDelivery, setEmailDelivery] = useState<EmailDeliveryStatus | null>(null);
   const [sendingEmail, setSendingEmail] = useState(false);
-  const [showHistory, setShowHistory] = useState(false);
+  const [activeTab, setActiveTab] = useState<QuoteTabId>("dados");
 
   const [generatingLink, setGeneratingLink] = useState(false);
   const [linkCopied, setLinkCopied] = useState(false);
@@ -693,32 +684,21 @@ export default function QuoteDetail() {
     if (!quote) return;
     setConverting(true);
     try {
-      const pmString = buildConvertPmString(convertPayments) || "money";
       const res = await fetch(`/api/quotes/${quote.id}/convert`, {
         method: "POST",
         headers: authHeader(),
-        body: JSON.stringify({ payment_method: pmString, seller_id: convertSellerId || undefined }),
+        body: JSON.stringify(buildSalePayload(amountDue, convertForm, convertSettings)),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) { toast.error(data?.error || "Não foi possível converter o orçamento em venda."); return; }
       setShowConvertModal(false);
-      setConvertPayments([newConvertPayment()]);
-      setConvertSellerId("");
+      setConvertForm(newSalePaymentFormState());
       await fetchQuote(true);
       toast.success("Orçamento convertido em venda.");
     } finally {
       setConverting(false);
     }
   };
-
-  const updateConvertPayment = (id: string, patch: Partial<ConvertPayment>) => {
-    setConvertPayments((prev) => prev.map((p) => p.id === id ? { ...p, ...patch } : p));
-  };
-  const addConvertPayment = () => setConvertPayments((prev) => [
-    ...prev,
-    { ...newConvertPayment(), amount: centsToMasked(Math.max(0, amountDue - prev.reduce((sum, payment) => sum + parseMaskedPrice(payment.amount), 0))) },
-  ]);
-  const removeConvertPayment = (id: string) => setConvertPayments((prev) => prev.filter((p) => p.id !== id));
 
   const handleDownloadPDF = async () => {
     if (!quote || !tenant) return;
@@ -769,17 +749,22 @@ export default function QuoteDetail() {
 
   // ── Render ────────────────────────────────────────────────────────────────
   if (loading) {
-    return <div className="flex justify-center py-24 text-slate-400 text-sm">Carregando…</div>;
+    return (
+      <div role="status" className="flex items-center justify-center gap-2 py-12 text-sm text-slate-500">
+        <Loader2 size={18} className="animate-spin" />Carregando orçamento…
+      </div>
+    );
   }
   if (notFound || !quote) {
     return (
-      <div className="flex flex-col items-center justify-center gap-3 py-24">
-        <AlertTriangle className="text-red-500" size={28} />
-        <p className="text-[12px] font-bold text-slate-600">Orçamento não encontrado</p>
-        <button onClick={() => navigate("/admin/orcamentos")} className="h-9 px-4 bg-slate-900 text-white rounded-lg text-[11px] font-black uppercase tracking-wider hover:bg-slate-800 transition-all">
-          Voltar
-        </button>
-      </div>
+      <ContentCard>
+        <EmptyState
+          icon={AlertTriangle}
+          title="Orçamento não encontrado"
+          description="O orçamento pode ter sido removido."
+          action={<Button variant="outline" onClick={() => navigate("/admin/orcamentos")}>Voltar para orçamentos</Button>}
+        />
+      </ContentCard>
     );
   }
 
@@ -789,954 +774,742 @@ export default function QuoteDetail() {
   const quoteTotal = Number(quote.total_amount);
   const depositAlready = Number(quote.deposit_amount ?? 0);
   const amountDue  = Math.max(0, quoteTotal - depositAlready);
-  const paidTotal  = convertPayments.reduce((s, p) => s + parseMaskedPrice(p.amount), 0);
-  const convertRemaining = Math.max(0, amountDue - paidTotal);
+  const convertSettings = parseSalePaymentSettings(tenant);
+  const convertCalc = computeSalePayment(amountDue, convertForm, convertSettings);
+  const convertHasCrediarioWithoutCustomer = convertForm.payments.some((p) => p.method === "crediario") && !quote.customer_id;
 
   return (
-    <div className="space-y-5 pb-10">
-      <PageHeader
-        title={isDraft ? "Novo Orçamento (Rascunho)" : `Orçamento #${String(quote.number).padStart(4, "0")} — ${quote.customer_name}`}
-        subtitle={isDraft ? "Preencha os dados abaixo — tudo é salvo automaticamente" : "Crie orçamentos profissionais e converta em vendas"}
-        action={
-          <button onClick={() => navigate("/admin/orcamentos")} className="h-9 px-4 bg-slate-100 hover:bg-slate-200 rounded-lg flex items-center gap-2 text-[12px] font-bold text-slate-600 transition-all">
-            <ChevronLeft size={15} /> Voltar
-          </button>
-        }
-      />
-
-      {savingField && <p className="text-[10px] font-bold text-slate-400">Salvando…</p>}
-      {!savingField && savedPulse && (
-        <p className="text-[10px] font-bold text-emerald-500 flex items-center gap-1"><CheckCircle2 size={12} /> Salvo</p>
-      )}
-
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5 lg:items-start">
-        <div className="lg:col-span-2 space-y-5">
-          {/* Status */}
-          <div className="bg-white rounded-2xl border border-slate-200 p-5">
-            <div className="flex items-center justify-between mb-1">
-              <span className={cn("inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-wider", st.color)}>
-                {st.icon} {st.label}
-              </span>
-              {quote.converted_order_id && (
-                <span className="text-[10px] font-bold text-emerald-600">Convertido — Pedido #{quote.converted_order_id}</span>
-              )}
-            </div>
-            {isDraft && (
-              <div className="flex items-center gap-3 mt-3 flex-wrap">
-                <button
-                  onClick={handleStart}
-                  disabled={starting || !(selectedCustomer?.name ?? manualCustomer.name).trim() || (formItems.length === 0 && formServices.length === 0)}
-                  className="h-9 px-4 rounded-xl bg-blue-600 hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed text-white text-[10px] font-black uppercase tracking-wider flex items-center gap-1.5 transition-all"
-                >
-                  {starting ? <Loader2 size={13} className="animate-spin" /> : null} Marcar como Enviado <ArrowRight size={13} />
-                </button>
-                <button onClick={() => setShowDiscardConfirm(true)} disabled={deleting} className="text-[10px] font-bold text-slate-400 hover:text-red-500 transition-colors">
-                  Descartar rascunho
-                </button>
-                {!(selectedCustomer?.name ?? manualCustomer.name).trim() && (
-                  <span className="text-[10px] text-slate-400">Preencha cliente e adicione itens/serviços</span>
-                )}
-              </div>
-            )}
-          </div>
-
-          {/* Customer */}
-          <div className="bg-white rounded-2xl border border-slate-200 p-5">
-            <h3 className="text-[11px] font-black uppercase tracking-wider text-slate-500 mb-2 flex items-center gap-1.5">
-              <User size={12} /> Cliente
-            </h3>
-            <div className="flex gap-2">
-              <div className="flex-1 min-w-0">
-                <Combobox
-                  placeholder="Buscar por nome ou telefone..."
-                  searchPlaceholder="Nome ou telefone..."
-                  clearable
-                  freeInput
-                  disabled={!isEditable}
-                  value={selectedCustomer ? String(selectedCustomer.id) : manualCustomer.name}
-                  onChange={(v) => {
-                    if (!v) { handleCustomerChange(null, ""); return; }
-                    const cust = customers.find((c) => String(c.id) === v);
-                    handleCustomerChange(cust ?? null, cust ? undefined : v);
-                  }}
-                  options={customers.map((c) => ({ value: String(c.id), label: c.name, description: c.phone }))}
-                  onAddNew={(q) => { setNcName(q); setNcPhone(""); setNcDoc(""); setNcEmail(""); setShowNewCustomer(true); }}
-                />
-              </div>
-              <button
-                type="button"
-                disabled={!isEditable}
-                onClick={() => { setNcName(""); setNcPhone(""); setNcDoc(""); setNcEmail(""); setShowNewCustomer(true); }}
-                className="h-9 w-9 rounded-lg bg-blue-50 border border-blue-200 text-blue-600 hover:bg-blue-100 disabled:opacity-40 flex items-center justify-center shrink-0 transition-colors"
-                title="Cadastrar novo cliente"
-              >
-                <UserPlus size={15} />
-              </button>
-            </div>
-            {selectedCustomer ? (
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-2">
-                <div className="h-9 px-3 rounded-lg border border-slate-200 bg-slate-50 text-sm text-slate-600 flex items-center truncate">
-                  {(selectedCustomer.phone && maskPhone(selectedCustomer.phone)) || "Não informado"}
-                </div>
-                <div className="h-9 px-3 rounded-lg border border-slate-200 bg-slate-50 text-sm text-slate-600 flex items-center truncate">
-                  {selectedCustomer.email || "Não informado"}
-                </div>
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-2">
-                <input
-                  value={manualCustomer.phone}
-                  disabled={!isEditable}
-                  onChange={(e) => setManualCustomer((m) => ({ ...m, phone: e.target.value }))}
-                  onBlur={() => autosaveField({ customer_phone: manualCustomer.phone }, "customer_phone")}
-                  placeholder="Telefone"
-                  className="h-9 px-3 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-60"
-                />
-                <input
-                  value={manualCustomer.email}
-                  disabled={!isEditable}
-                  onChange={(e) => setManualCustomer((m) => ({ ...m, email: e.target.value }))}
-                  onBlur={() => autosaveField({ customer_email: manualCustomer.email }, "customer_email")}
-                  placeholder="E-mail"
-                  className="h-9 px-3 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-60"
-                />
-              </div>
-            )}
-          </div>
-
-          {/* Products */}
-          {isEditable && (
-            <div className="bg-white rounded-2xl border border-slate-200 p-5">
-              <h3 className="text-[11px] font-black uppercase tracking-wider text-slate-500 mb-2 flex items-center gap-1.5">
-                <Package size={12} /> Adicionar Produtos
-              </h3>
-              <div className="relative">
-                <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                <input
-                  value={productSearch}
-                  onChange={(e) => setProductSearch(e.target.value)}
-                  placeholder="Buscar produto..."
-                  className="w-full pl-9 h-9 pr-3 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-              {productSearch && (
-                <div className="mt-1 border border-slate-200 rounded-lg bg-white shadow-lg max-h-48 overflow-y-auto">
-                  {filteredProducts.length === 0 ? (
-                    <p className="px-3 py-2 text-sm text-slate-400">Nenhum produto encontrado</p>
-                  ) : (
-                    filteredProducts.slice(0, 10).map((p) => (
-                      <button key={p.id} onClick={() => addProduct(p)} className="w-full px-3 py-2 text-left text-sm hover:bg-slate-50 flex items-center justify-between">
-                        <div>
-                          <span className="font-semibold">{p.name}</span>
-                          <span className="ml-2 text-xs text-slate-400">Estoque: {p.stock_quantity}</span>
-                        </div>
-                        <span className="text-blue-600 font-bold">{fmt(Number(p.discount_price ?? p.price))}</span>
-                      </button>
-                    ))
-                  )}
-                </div>
-              )}
-            </div>
+    <div className="space-y-4">
+      {/* Barra superior */}
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <Button variant="ghost" size="sm" iconLeft={<ChevronLeft size={14} />} onClick={() => navigate("/admin/orcamentos")}>
+          Voltar para orçamentos
+        </Button>
+        <div className="text-[11px] text-slate-500" role="status">
+          {savingField && <span>Salvando…</span>}
+          {!savingField && savedPulse && (
+            <span className="flex items-center gap-1 text-emerald-600"><CheckCircle2 size={12} /> Salvo</span>
           )}
-
-          {/* Items list */}
-          {formItems.length > 0 && (
-            <div className="bg-white rounded-2xl border border-slate-200 p-5">
-              <h3 className="text-[11px] font-black uppercase tracking-wider text-slate-500 mb-2">Produtos</h3>
-              <div className="space-y-2">
-                {formItems.map((item, idx) => (
-                  <div key={idx} className="flex flex-wrap items-center gap-2 bg-slate-50 rounded-lg px-3 py-2">
-                    <div className="flex-1 min-w-[120px]">
-                      <p className="text-sm font-medium text-slate-700 truncate">{item.name}</p>
-                      {item.dimensions_label && <p className="text-[10px] text-blue-500 font-mono truncate">{item.dimensions_label}</p>}
-                    </div>
-                    <div className="shrink-0">
-                      <label className="block text-[9px] font-bold uppercase tracking-wider text-slate-400 mb-0.5">Qtd.</label>
-                      <div className="flex items-center gap-1">
-                        <button disabled={!isEditable} onClick={() => updateItemQty(idx, item.quantity - 1)}
-                          className="w-6 h-6 rounded-md bg-white border border-slate-200 text-slate-600 font-bold flex items-center justify-center hover:bg-red-50 hover:text-red-500 shrink-0 disabled:opacity-40">−</button>
-                        <input type="number" min={0} step="any" disabled={!isEditable} value={item.quantity}
-                          onChange={(e) => updateItemQty(idx, Number(e.target.value))}
-                          className="w-12 h-7 px-1 rounded-md border border-slate-200 text-sm text-center font-bold focus:outline-none focus:ring-1 focus:ring-blue-400 disabled:opacity-60" />
-                        <button disabled={!isEditable} onClick={() => updateItemQty(idx, item.quantity + 1)}
-                          className="w-6 h-6 rounded-md bg-white border border-slate-200 text-slate-600 font-bold flex items-center justify-center hover:bg-emerald-50 hover:text-emerald-500 shrink-0 disabled:opacity-40">+</button>
-                      </div>
-                    </div>
-                    <div className="shrink-0">
-                      <label className="block text-[9px] font-bold uppercase tracking-wider text-slate-400 mb-0.5">Preço unitário</label>
-                      <div className="relative">
-                        <span className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-400 text-[10px] font-bold pointer-events-none select-none">R$</span>
-                        <input inputMode="numeric" disabled={!isEditable} placeholder="0,00" value={centsToMasked(item.unit_price)}
-                          onChange={(e) => updateItemPrice(idx, parseMaskedPrice(applyMoneyMask(e.target.value)))}
-                          className="w-28 h-7 pl-7 pr-2 rounded-md border border-slate-200 text-sm text-right font-mono focus:outline-none focus:ring-1 focus:ring-blue-400 disabled:opacity-60" />
-                      </div>
-                    </div>
-                    <span className="w-20 text-right text-sm font-bold text-slate-800 shrink-0">{fmt(item.total)}</span>
-                    {isEditable && (
-                      <button onClick={() => removeItem(idx)} className="text-slate-400 hover:text-red-500"><X size={14} /></button>
-                    )}
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Services */}
-          {isEditable && services.length > 0 && (
-            <div className="bg-white rounded-2xl border border-slate-200 p-5">
-              <h3 className="text-[11px] font-black uppercase tracking-wider text-slate-500 mb-2 flex items-center gap-1.5">
-                <Wrench size={12} /> Adicionar Serviços
-              </h3>
-              <div className="relative">
-                <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                <input value={serviceSearch} onChange={(e) => setServiceSearch(e.target.value)} placeholder="Buscar serviço..."
-                  className="w-full pl-9 h-9 pr-3 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-              </div>
-              {serviceSearch && (
-                <div className="mt-1 border border-slate-200 rounded-lg bg-white shadow-lg max-h-36 overflow-y-auto">
-                  {services.filter((s) => s.name.toLowerCase().includes(serviceSearch.toLowerCase())).length === 0 ? (
-                    <p className="px-3 py-2 text-sm text-slate-400">Nenhum serviço encontrado</p>
-                  ) : (
-                    services.filter((s) => s.name.toLowerCase().includes(serviceSearch.toLowerCase())).slice(0, 8).map((s) => (
-                      <button key={s.id} onClick={() => addService(s)} className="w-full px-3 py-2 text-left text-sm hover:bg-slate-50 flex items-center justify-between">
-                        <div>
-                          <span className="font-semibold">{s.name}</span>
-                          {s.description && <span className="ml-2 text-xs text-slate-400">{s.description}</span>}
-                        </div>
-                        <span className="text-blue-600 font-bold shrink-0">
-                          {s.sale_unit && s.sale_unit !== "unidade"
-                            ? `${fmt(Number(s.price_per_measure ?? 0))}/${s.sale_unit === "m2" ? "m²" : "m"}`
-                            : fmt(Number(s.price))}
-                        </span>
-                      </button>
-                    ))
-                  )}
-                </div>
-              )}
-            </div>
-          )}
-
-          {formServices.length > 0 && (
-            <div className="bg-white rounded-2xl border border-slate-200 p-5">
-              <h3 className="text-[11px] font-black uppercase tracking-wider text-slate-500 mb-2">Serviços</h3>
-              <div className="space-y-2">
-                {formServices.map((svc) => (
-                  <div key={svc.service_id} className="flex flex-wrap items-center gap-2 bg-blue-50 border border-blue-100 rounded-lg px-3 py-2">
-                    <Wrench size={13} className="text-blue-400 shrink-0" />
-                    <div className="flex-1 min-w-[100px] truncate">
-                      <span className="text-sm font-medium text-slate-700">{svc.name}</span>
-                      {svc.dimensions_label && <span className="ml-1.5 text-[10px] font-mono text-blue-400">{svc.dimensions_label}</span>}
-                    </div>
-                    <div className="shrink-0">
-                      <label className="block text-[9px] font-bold uppercase tracking-wider text-blue-400 mb-0.5">Qtd.</label>
-                      <div className="flex items-center gap-1">
-                        <button disabled={!isEditable} onClick={() => updateServiceQty(svc.service_id, svc.quantity - 1)}
-                          className="w-6 h-6 rounded-md bg-white border border-blue-200 text-slate-600 font-bold flex items-center justify-center hover:bg-red-50 hover:text-red-500 shrink-0 disabled:opacity-40">−</button>
-                        <input type="number" min={0} step="any" disabled={!isEditable} value={svc.quantity}
-                          onChange={(e) => updateServiceQty(svc.service_id, Number(e.target.value))}
-                          className="w-12 h-7 px-1 rounded-md border border-blue-200 text-sm text-center font-bold focus:outline-none focus:ring-1 focus:ring-blue-400 disabled:opacity-60" />
-                        <button disabled={!isEditable} onClick={() => updateServiceQty(svc.service_id, svc.quantity + 1)}
-                          className="w-6 h-6 rounded-md bg-white border border-blue-200 text-slate-600 font-bold flex items-center justify-center hover:bg-emerald-50 hover:text-emerald-500 shrink-0 disabled:opacity-40">+</button>
-                      </div>
-                    </div>
-                    <div className="shrink-0">
-                      <label className="block text-[9px] font-bold uppercase tracking-wider text-blue-400 mb-0.5">Preço unitário</label>
-                      <div className="relative">
-                        <span className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-400 text-[10px] font-bold pointer-events-none select-none">R$</span>
-                        <input inputMode="numeric" disabled={!isEditable} placeholder="0,00" value={centsToMasked(svc.price)}
-                          onChange={(e) => updateServicePrice(svc.service_id, parseMaskedPrice(applyMoneyMask(e.target.value)))}
-                          className="w-28 h-7 pl-7 pr-2 rounded-md border border-blue-200 text-sm text-right font-mono focus:outline-none focus:ring-1 focus:ring-blue-400 disabled:opacity-60" />
-                      </div>
-                    </div>
-                    <span className="w-20 text-right text-sm font-bold text-blue-700 shrink-0">{fmt(svc.price * svc.quantity)}</span>
-                    {isEditable && (
-                      <button onClick={() => removeService(svc.service_id)} className="text-slate-400 hover:text-red-500"><X size={14} /></button>
-                    )}
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Discount + Validity + Notes */}
-          <div className="bg-white rounded-2xl border border-slate-200 p-5 space-y-4">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div>
-                <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block mb-1">Desconto</label>
-                <div className="flex gap-1">
-                  <button disabled={!isEditable} onClick={() => { setDiscountType("percent"); autosaveField({ discount_type: "percent" }, "discount"); }}
-                    className={cn("h-9 w-9 rounded-lg border flex items-center justify-center transition-all disabled:opacity-40",
-                      discountType === "percent" ? "bg-blue-600 text-white border-blue-600" : "bg-white border-slate-200 text-slate-500 hover:bg-slate-50")}>
-                    <Percent size={14} />
-                  </button>
-                  <button disabled={!isEditable} onClick={() => { setDiscountType("fixed"); autosaveField({ discount_type: "fixed" }, "discount"); }}
-                    className={cn("h-9 w-9 rounded-lg border flex items-center justify-center transition-all disabled:opacity-40",
-                      discountType === "fixed" ? "bg-blue-600 text-white border-blue-600" : "bg-white border-slate-200 text-slate-500 hover:bg-slate-50")}>
-                    <DollarSign size={14} />
-                  </button>
-                  <input type="number" min={0} disabled={!isEditable} value={discountValue || ""}
-                    onChange={(e) => setDiscountValue(Number(e.target.value))}
-                    onBlur={() => autosaveField({ discount_value: discountValue }, "discount")}
-                    placeholder={discountType === "percent" ? "%" : "R$"}
-                    className="flex-1 h-9 px-3 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-60" />
-                </div>
-              </div>
-              <div>
-                <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block mb-1">Validade (dias)</label>
-                <input type="number" min={1} disabled={!isEditable} value={validityDays}
-                  onChange={(e) => setValidityDays(Number(e.target.value))}
-                  onBlur={() => autosaveField({ validity_days: validityDays }, "validity_days")}
-                  className="w-full h-9 px-3 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-60" />
-              </div>
-            </div>
-            <div>
-              <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block mb-1">Observações / Condições de Pagamento</label>
-              <textarea value={notes} disabled={!isEditable} onChange={(e) => setNotes(e.target.value)}
-                onBlur={() => autosaveField({ notes }, "notes")}
-                rows={3} placeholder="Ex: Pagamento à vista com desconto. Entrega em 5 dias úteis."
-                className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none disabled:opacity-60" />
-            </div>
-          </div>
-
-          {/* Arquivos (referência, arte final, prova de aprovação) */}
-          <div className="bg-white rounded-2xl border border-slate-200 p-5">
-            <div className="flex items-center justify-between mb-2 flex-wrap gap-2">
-              <p className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400">Arquivos</p>
-              <div className="flex gap-1.5 flex-wrap">
-                <button onClick={() => referenciaInputRef.current?.click()} disabled={fileUploading}
-                  className="h-7 px-2.5 rounded-lg bg-slate-100 text-slate-600 text-[9px] font-black uppercase tracking-wider flex items-center gap-1 hover:bg-slate-200 transition-all disabled:opacity-50">
-                  <Package size={11} /> Referência
-                </button>
-                {tenant?.grafica_enabled && (
-                  <>
-                    <button onClick={() => arteInputRef.current?.click()} disabled={fileUploading}
-                      className="h-7 px-2.5 rounded-lg bg-violet-50 text-violet-600 text-[9px] font-black uppercase tracking-wider flex items-center gap-1 hover:bg-violet-100 transition-all disabled:opacity-50">
-                      <Palette size={11} /> Arte final
-                    </button>
-                    <button onClick={() => provaInputRef.current?.click()} disabled={fileUploading}
-                      className="h-7 px-2.5 rounded-lg bg-emerald-50 text-emerald-600 text-[9px] font-black uppercase tracking-wider flex items-center gap-1 hover:bg-emerald-100 transition-all disabled:opacity-50">
-                      <CheckCircle2 size={11} /> Prova
-                    </button>
-                  </>
-                )}
-              </div>
-              <input ref={referenciaInputRef} type="file" accept="image/*,application/pdf" multiple className="hidden"
-                onChange={(e) => { const files = e.target.files; if (files) Array.from(files).forEach((f) => handleQuoteFile(f, "referencia")); e.target.value = ""; }} />
-              <input ref={arteInputRef} type="file" accept="image/*,application/pdf" multiple className="hidden"
-                onChange={(e) => { const files = e.target.files; if (files) Array.from(files).forEach((f) => handleQuoteFile(f, "arte")); e.target.value = ""; }} />
-              <input ref={provaInputRef} type="file" accept="image/*,application/pdf" multiple className="hidden"
-                onChange={(e) => { const files = e.target.files; if (files) Array.from(files).forEach((f) => handleQuoteFile(f, "prova")); e.target.value = ""; }} />
-            </div>
-            {fileUploading && <p className="text-[10px] text-slate-400 mb-2">Enviando arquivo...</p>}
-            {(!quote.files || quote.files.length === 0) ? (
-              <p className="text-[11px] text-slate-400">Nenhum arquivo anexado</p>
-            ) : (
-              <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
-                {quote.files.map((file) => {
-                  const isPdf = file.url.toLowerCase().endsWith(".pdf");
-                  const kindMeta: Record<string, { label: string; className: string }> = {
-                    referencia: { label: "Referência", className: "bg-slate-500 text-white" },
-                    arte: { label: "Arte", className: "bg-violet-500 text-white" },
-                    prova: { label: "Prova", className: "bg-emerald-500 text-white" },
-                  };
-                  const meta = kindMeta[file.kind] ?? kindMeta.referencia;
-                  return (
-                    <a key={file.id} href={file.url} target="_blank" rel="noreferrer"
-                      className="relative group rounded-xl overflow-hidden border border-slate-200 aspect-square block">
-                      {isPdf ? (
-                        <div className="w-full h-full flex flex-col items-center justify-center gap-1 bg-slate-50 text-slate-400">
-                          <Download size={22} />
-                          <span className="text-[8px] font-bold uppercase">PDF</span>
-                        </div>
-                      ) : (
-                        <img src={file.url} alt={file.caption ?? ""} className="w-full h-full object-cover" />
-                      )}
-                      <span className={cn("absolute top-1 left-1 px-1.5 py-0.5 rounded text-[8px] font-black uppercase", meta.className)}>
-                        {meta.label}
-                      </span>
-                      <button onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleRemoveQuoteFile(file.id); }}
-                        className="absolute top-1 right-1 w-5 h-5 rounded-full bg-black/60 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                        <X size={10} />
-                      </button>
-                    </a>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-
-        </div>
-
-        {/* Sidebar: totals + actions */}
-        <div className="space-y-5">
-          <div className="bg-slate-900 rounded-2xl p-5 space-y-1.5 lg:sticky lg:top-5">
-            {itemsSubtotal > 0 && servicesSubtotal > 0 && (
-              <>
-                <div className="flex justify-between text-[10px] font-bold uppercase text-slate-400">
-                  <span>Produtos</span><span className="font-mono">{fmt(itemsSubtotal)}</span>
-                </div>
-                <div className="flex justify-between text-[10px] font-bold uppercase text-blue-400">
-                  <span>Serviços</span><span className="font-mono">{fmt(servicesSubtotal)}</span>
-                </div>
-              </>
-            )}
-            <div className="flex justify-between text-[10px] font-bold uppercase text-slate-400">
-              <span>Subtotal</span><span className="font-mono text-slate-200">{fmt(subtotal)}</span>
-            </div>
-            {discountAmt > 0 && (
-              <div className="flex justify-between text-[10px] font-bold uppercase text-rose-400">
-                <span>Desconto</span><span className="font-mono">− {fmt(discountAmt)}</span>
-              </div>
-            )}
-            <div className="flex justify-between text-[13px] font-black uppercase text-white pt-1.5 border-t border-slate-700">
-              <span>Total</span><span className="font-mono">{fmt(total)}</span>
-            </div>
-            {depositAmt > 0 && (
-              <>
-                <div className="flex justify-between text-[10px] font-bold uppercase text-cyan-400 pt-1.5 border-t border-slate-700">
-                  <span>Entrada</span><span className="font-mono">{fmt(depositAmt)}</span>
-                </div>
-                <div className="flex justify-between text-[11px] font-black uppercase text-amber-400">
-                  <span>Resta</span><span className="font-mono">{fmt(remaining)}</span>
-                </div>
-              </>
-            )}
-          </div>
-
-          <div className="bg-white rounded-2xl border border-slate-200 p-4 space-y-2">
-            <p className="px-1 text-center text-[9px] font-bold text-emerald-600">Alterações salvas automaticamente</p>
-            <button onClick={handleDownloadPDF} disabled={!formItems.length && !formServices.length}
-              className="w-full h-10 bg-slate-100 hover:bg-slate-200 disabled:opacity-40 rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 text-slate-700 transition-all">
-              <Download size={14} /> Baixar PDF
-            </button>
-            <button onClick={() => setShowHistory(true)}
-              className="w-full h-10 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 text-slate-700 transition-all">
-              <History size={14} /> Histórico
-            </button>
-            {(quote.customer_email || selectedCustomer?.email) && (
-              <>
-                <button onClick={handleSendQuoteEmail} disabled={sendingEmail}
-                  className="w-full h-10 bg-blue-600 hover:bg-blue-700 disabled:opacity-60 rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 text-white transition-all">
-                  {sendingEmail ? <Loader2 size={14} className="animate-spin" /> : emailDelivery?.sent ? <Send size={14} /> : <Mail size={14} />}
-                  {emailDelivery?.sent ? "Reenviar por E-mail" : "Enviar por E-mail"}
-                </button>
-                {emailDelivery?.sent && emailDelivery.sent_at && (
-                  <p className="px-2 text-center text-[9px] font-bold text-emerald-600">Enviado para {emailDelivery.recipient} em {new Date(emailDelivery.sent_at).toLocaleString("pt-BR")}</p>
-                )}
-              </>
-            )}
-            {!(quote.customer_email || selectedCustomer?.email) && <p className="px-2 text-center text-[9px] font-bold text-amber-600">Cadastre o e-mail do cliente para enviar este orçamento.</p>}
-            {quote.status === "orcamento_enviado" && (
-              <>
-                <button onClick={() => { setDepositAmount(centsToMasked(remaining)); setShowDepositModal(true); }}
-                  className="w-full h-10 bg-cyan-50 hover:bg-cyan-100 border border-cyan-200 rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 text-cyan-700 transition-all">
-                  <Wallet size={14} /> Registrar Entrada
-                </button>
-                <button onClick={() => { setConvertPayments([{ ...newConvertPayment(), amount: centsToMasked(remaining) }]); setConvertSellerId(""); setShowConvertModal(true); }}
-                  className="w-full h-10 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-all">
-                  <ArrowRight size={14} /> Converter em Venda
-                </button>
-              </>
-            )}
-            {quote.status === "aguardando_aprovacao" && (
-              <button onClick={handleCopyApprovalLink} disabled={generatingLink}
-                className="w-full h-10 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 text-blue-700 transition-all disabled:opacity-50">
-                {generatingLink ? <Loader2 size={14} className="animate-spin" /> : <Link2 size={14} />}
-                {linkCopied ? "Link copiado!" : "Copiar Link de Aprovação"}
-              </button>
-            )}
-            {!isDraft && (
-              <button onClick={handleDiscard} disabled={deleting}
-                className="w-full h-10 bg-white hover:bg-red-50 border border-red-200 rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 text-red-600 transition-all disabled:opacity-40">
-                <Trash2 size={14} /> Excluir Orçamento
-              </button>
-            )}
-          </div>
         </div>
       </div>
 
-      {/* ── Medida (m²/linear) Modal ─────────────────────────────────────────── */}
-      {measureProduct && (
-        <>
-          <div onClick={() => setMeasureProduct(null)} className="fixed inset-0 bg-slate-900/70 backdrop-blur-sm z-[400]" />
-          <div className="fixed inset-x-4 bottom-4 sm:inset-auto sm:top-1/2 sm:left-1/2 sm:-translate-x-1/2 sm:-translate-y-1/2 z-[401] bg-white flex flex-col overflow-hidden rounded-3xl" style={{ width: "min(420px, calc(100vw - 32px))" }}>
-            <div className="shrink-0 flex items-center justify-between px-6 py-4 border-b border-slate-100">
-              <div>
-                <p className="text-[9px] font-black uppercase tracking-widest text-blue-500">
-                  Venda por {measureProduct.sale_unit === "m2" ? "m²" : "metro linear"}
-                </p>
-                <h2 className="text-[14px] font-black text-slate-800">{measureProduct.name}</h2>
-              </div>
-              <button onClick={() => setMeasureProduct(null)} className="w-8 h-8 rounded-xl bg-slate-100 hover:bg-slate-200 flex items-center justify-center">
-                <X size={14} className="text-slate-500" />
-              </button>
-            </div>
-            <div className="p-5 space-y-3">
-              {measureProduct.sale_unit === "m2" ? (
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400 mb-1.5 block">Altura (m)</label>
-                    <input type="number" min="0" step="0.01" autoFocus value={measureHeight} onChange={(e) => setMeasureHeight(e.target.value)} placeholder="0,00"
-                      className="w-full h-11 px-3 rounded-xl border border-slate-200 text-sm font-mono font-bold text-center focus:outline-none focus:border-blue-400" />
-                  </div>
-                  <div>
-                    <label className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400 mb-1.5 block">Largura (m)</label>
-                    <input type="number" min="0" step="0.01" value={measureWidth} onChange={(e) => setMeasureWidth(e.target.value)} placeholder="0,00"
-                      className="w-full h-11 px-3 rounded-xl border border-slate-200 text-sm font-mono font-bold text-center focus:outline-none focus:border-blue-400" />
-                  </div>
-                </div>
-              ) : (
-                <div>
-                  <label className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400 mb-1.5 block">Comprimento (m)</label>
-                  <input type="number" min="0" step="0.01" autoFocus value={measureHeight} onChange={(e) => setMeasureHeight(e.target.value)} placeholder="0,00"
-                    className="w-full h-11 px-3 rounded-xl border border-slate-200 text-sm font-mono font-bold text-center focus:outline-none focus:border-blue-400" />
-                </div>
+      {/* Cabeçalho da entidade */}
+      <ContentCard padding="md">
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-lg border border-blue-100 bg-blue-50 text-blue-700">
+            <FileText size={22} />
+          </div>
+          <div className="min-w-0 flex-1">
+            <h1 className="truncate text-base font-semibold text-slate-900 sm:text-lg">
+              {isDraft ? "Novo orçamento (rascunho)" : `Orçamento #${String(quote.number).padStart(4, "0")}`}
+            </h1>
+            <p className="mt-0.5 text-xs text-slate-500">
+              {[
+                quote.customer_name || (selectedCustomer?.name ?? manualCustomer.name),
+                new Date(quote.created_at).toLocaleDateString("pt-BR"),
+                `Validade ${validityDays} dias`,
+              ].filter(Boolean).join(" · ")}
+            </p>
+            <div className="mt-1.5 flex flex-wrap items-center gap-2">
+              <Badge color={st.color} size="sm" dot>{st.label}</Badge>
+              {quote.converted_order_id && (
+                <span className="text-xs text-emerald-700">Convertido — Pedido #{quote.converted_order_id}</span>
               )}
-              {measurePreview && measurePreview.rawQuantity > 0 && (
-                <div className="bg-slate-900 rounded-2xl p-4 space-y-1.5">
-                  <div className="flex justify-between text-[10px] font-bold uppercase text-slate-400">
-                    <span>{measureProduct.sale_unit === "m2" ? "Área" : "Comprimento"}</span>
-                    <span className="font-mono text-slate-200">{measurePreview.label}</span>
-                  </div>
-                  {measurePreview.minimumApplied && (
-                    <p className="text-[10px] font-bold text-amber-400">
-                      Cobrando o mínimo de {Number(measureProduct.min_billable_quantity).toFixed(2)}{measureProduct.sale_unit === "m2" ? "m²" : "m"}
-                    </p>
-                  )}
-                  <div className="flex justify-between text-[13px] font-black uppercase text-white pt-1.5 border-t border-slate-700">
-                    <span>Total</span><span className="font-mono">R$ {measurePreview.total.toFixed(2)}</span>
-                  </div>
-                </div>
-              )}
-            </div>
-            <div className="shrink-0 px-6 pb-6 pt-1 flex gap-2 border-t border-slate-100">
-              <button onClick={() => setMeasureProduct(null)} className="flex-1 h-11 rounded-xl border border-slate-200 text-[10px] font-black uppercase tracking-widest text-slate-600 hover:bg-slate-50 transition-colors">
-                Cancelar
-              </button>
-              <button onClick={addMeasuredProduct} disabled={!measurePreview || measurePreview.rawQuantity <= 0}
-                className="flex-1 h-11 bg-blue-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-blue-700 transition-all disabled:opacity-50 flex items-center justify-center gap-2">
-                <PlusCircle size={14} /> Adicionar
-              </button>
+              {isDraft && <span className="text-xs text-slate-500">Preencha os dados abaixo — tudo é salvo automaticamente</span>}
             </div>
           </div>
-        </>
-      )}
-
-      {/* ── Medida (m²/linear) Modal — Serviço ──────────────────────────────── */}
-      {measureService && (
-        <>
-          <div onClick={() => setMeasureService(null)} className="fixed inset-0 bg-slate-900/70 backdrop-blur-sm z-[400]" />
-          <div className="fixed inset-x-4 bottom-4 sm:inset-auto sm:top-1/2 sm:left-1/2 sm:-translate-x-1/2 sm:-translate-y-1/2 z-[401] bg-white flex flex-col overflow-hidden rounded-3xl" style={{ width: "min(420px, calc(100vw - 32px))" }}>
-            <div className="shrink-0 flex items-center justify-between px-6 py-4 border-b border-slate-100">
-              <div>
-                <p className="text-[9px] font-black uppercase tracking-widest text-blue-500">
-                  Serviço por {measureService.sale_unit === "m2" ? "m²" : "metro linear"}
-                </p>
-                <h2 className="text-[14px] font-black text-slate-800">{measureService.name}</h2>
-              </div>
-              <button onClick={() => setMeasureService(null)} className="w-8 h-8 rounded-xl bg-slate-100 hover:bg-slate-200 flex items-center justify-center">
-                <X size={14} className="text-slate-500" />
-              </button>
-            </div>
-            <div className="p-5 space-y-3">
-              {measureService.sale_unit === "m2" ? (
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400 mb-1.5 block">Altura (m)</label>
-                    <input type="number" min="0" step="0.01" autoFocus value={measureServiceHeight} onChange={(e) => setMeasureServiceHeight(e.target.value)} placeholder="0,00"
-                      className="w-full h-11 px-3 rounded-xl border border-slate-200 text-sm font-mono font-bold text-center focus:outline-none focus:border-blue-400" />
-                  </div>
-                  <div>
-                    <label className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400 mb-1.5 block">Largura (m)</label>
-                    <input type="number" min="0" step="0.01" value={measureServiceWidth} onChange={(e) => setMeasureServiceWidth(e.target.value)} placeholder="0,00"
-                      className="w-full h-11 px-3 rounded-xl border border-slate-200 text-sm font-mono font-bold text-center focus:outline-none focus:border-blue-400" />
-                  </div>
-                </div>
-              ) : (
-                <div>
-                  <label className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400 mb-1.5 block">Comprimento (m)</label>
-                  <input type="number" min="0" step="0.01" autoFocus value={measureServiceHeight} onChange={(e) => setMeasureServiceHeight(e.target.value)} placeholder="0,00"
-                    className="w-full h-11 px-3 rounded-xl border border-slate-200 text-sm font-mono font-bold text-center focus:outline-none focus:border-blue-400" />
-                </div>
-              )}
-              {measureServicePreview && measureServicePreview.rawQuantity > 0 && (
-                <div className="bg-slate-900 rounded-2xl p-4 space-y-1.5">
-                  <div className="flex justify-between text-[10px] font-bold uppercase text-slate-400">
-                    <span>{measureService.sale_unit === "m2" ? "Área" : "Comprimento"}</span>
-                    <span className="font-mono text-slate-200">{measureServicePreview.label}</span>
-                  </div>
-                  {measureServicePreview.minimumApplied && (
-                    <p className="text-[10px] font-bold text-amber-400">
-                      Cobrando o mínimo de {Number(measureService.min_billable_quantity).toFixed(2)}{measureService.sale_unit === "m2" ? "m²" : "m"}
-                    </p>
-                  )}
-                  <div className="flex justify-between text-[13px] font-black uppercase text-white pt-1.5 border-t border-slate-700">
-                    <span>Total</span><span className="font-mono">R$ {measureServicePreview.total.toFixed(2)}</span>
-                  </div>
-                </div>
-              )}
-            </div>
-            <div className="shrink-0 px-6 pb-6 pt-1 flex gap-2 border-t border-slate-100">
-              <button onClick={() => setMeasureService(null)} className="flex-1 h-11 rounded-xl border border-slate-200 text-[10px] font-black uppercase tracking-widest text-slate-600 hover:bg-slate-50 transition-colors">
-                Cancelar
-              </button>
-              <button onClick={addMeasuredService} disabled={!measureServicePreview || measureServicePreview.rawQuantity <= 0}
-                className="flex-1 h-11 bg-blue-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-blue-700 transition-all disabled:opacity-50 flex items-center justify-center gap-2">
-                <PlusCircle size={14} /> Adicionar
-              </button>
-            </div>
+          <div className="text-right">
+            <p className="text-[11px] text-slate-500">Total</p>
+            <p className="text-base font-semibold tabular-nums text-slate-900">{fmt(total)}</p>
           </div>
-        </>
-      )}
-
-      {/* ── Registrar Entrada Modal ───────────────────────────────────────────── */}
-      {showDepositModal && (
-        <>
-          <div onClick={() => !savingDeposit && setShowDepositModal(false)} className="fixed inset-0 bg-slate-900/70 backdrop-blur-sm z-[400]" />
-          <div className="fixed inset-x-4 bottom-4 sm:inset-auto sm:top-1/2 sm:left-1/2 sm:-translate-x-1/2 sm:-translate-y-1/2 z-[401] bg-white flex flex-col overflow-hidden rounded-3xl" style={{ width: "min(420px, calc(100vw - 32px))" }}>
-            <div className="shrink-0 flex items-center justify-between px-6 py-4 border-b border-slate-100">
-              <h2 className="text-[14px] font-black text-slate-800">Registrar Entrada</h2>
-              <button onClick={() => setShowDepositModal(false)} className="w-8 h-8 rounded-xl bg-slate-100 hover:bg-slate-200 flex items-center justify-center">
-                <X size={14} className="text-slate-500" />
-              </button>
-            </div>
-            <div className="p-5 space-y-4">
-              <div>
-                <label className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400 mb-1.5 block">Valor da Entrada</label>
-                <div className="relative">
-                  <Banknote className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
-                  <input inputMode="numeric" value={depositAmount} onChange={(e) => setDepositAmount(applyMoneyMask(e.target.value))} placeholder="0,00"
-                    className="w-full pl-9 pr-3 h-10 rounded-xl border border-slate-200 text-[13px] font-mono font-bold focus:outline-none focus:border-blue-400 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none" />
-                </div>
-              </div>
-              <div>
-                <label className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400 mb-1.5 block">Forma de Pagamento</label>
-                <div className="grid grid-cols-4 gap-1.5">
-                  {(["money", "debit", "credit", "pix"] as ConvertMethod[]).map((key) => (
-                    <button key={key} onClick={() => setDepositMethod(key)}
-                      className={cn("h-9 rounded-xl border text-[9px] font-black uppercase tracking-widest transition-all flex flex-col items-center justify-center gap-0.5",
-                        depositMethod === key ? (key === "credit" ? "bg-emerald-600 border-emerald-500 text-white" : "bg-blue-600 border-blue-500 text-white") : "bg-white border-slate-200 text-slate-500 hover:border-slate-400")}>
-                      {key === "money" && <Banknote size={12} />}
-                      {key === "debit" && <CreditCard size={12} />}
-                      {key === "credit" && <CreditCard size={12} />}
-                      {key === "pix" && <QrCode size={12} />}
-                      {CONVERT_PM_LABEL[key]}
-                    </button>
-                  ))}
-                </div>
-              </div>
-              {(depositMethod === "debit" || depositMethod === "credit") && (
-                <div className="grid grid-cols-3 gap-1">
-                  {CONVERT_CARD_BRANDS.map(({ key, label, color }) => (
-                    <button key={key} onClick={() => setDepositBrand(key)}
-                      className={cn("h-7 rounded-lg border text-[8px] font-black uppercase tracking-widest transition-all", depositBrand === key ? "text-white border-transparent" : "bg-white border-slate-200 text-slate-500 hover:border-slate-400")}
-                      style={depositBrand === key ? { backgroundColor: color } : {}}>
-                      {label}
-                    </button>
-                  ))}
-                </div>
-              )}
-              {depositMethod === "credit" && (
-                <div className="grid grid-cols-4 gap-1">
-                  {[1, 2, 3, 4, 5, 6, 10, 12].map((n) => (
-                    <button key={n} onClick={() => setDepositInstallments(n)}
-                      className={cn("h-8 rounded-lg border text-[9px] font-black transition-all", depositInstallments === n ? "bg-emerald-600 border-emerald-500 text-white" : "bg-white border-slate-200 text-slate-500 hover:border-slate-400")}>
-                      {n === 1 ? "Vista" : `${n}×`}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-            <div className="shrink-0 px-6 pb-6 pt-3 flex gap-2 border-t border-slate-100">
-              <button onClick={() => setShowDepositModal(false)} className="flex-1 h-11 rounded-xl border border-slate-200 text-[10px] font-black uppercase tracking-widest text-slate-600 hover:bg-slate-50 transition-colors">
-                Cancelar
-              </button>
-              <button onClick={handleRecordDeposit} disabled={savingDeposit || !(parseMaskedPrice(depositAmount) > 0)}
-                className="flex-1 h-11 bg-cyan-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-cyan-700 transition-all disabled:opacity-50 flex items-center justify-center gap-2">
-                {savingDeposit ? <Loader2 size={14} className="animate-spin" /> : <Wallet size={14} />}
-                Confirmar Entrada
-              </button>
-            </div>
+        </div>
+        {isDraft && (
+          <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-slate-100 pt-3">
+            <Button
+              size="sm"
+              loading={starting}
+              onClick={handleStart}
+              disabled={!(selectedCustomer?.name ?? manualCustomer.name).trim() || (formItems.length === 0 && formServices.length === 0)}
+              iconRight={<ArrowRight size={14} />}
+            >
+              Marcar como Enviado
+            </Button>
+            <Button size="sm" variant="ghost" onClick={() => setShowDiscardConfirm(true)} disabled={deleting}>
+              Descartar rascunho
+            </Button>
+            {!(selectedCustomer?.name ?? manualCustomer.name).trim() && (
+              <span className="text-[11px] text-slate-500">Preencha cliente e adicione itens/serviços</span>
+            )}
           </div>
-        </>
-      )}
+        )}
+      </ContentCard>
 
-      {/* ── Novo Cliente Modal ────────────────────────────────────────────────── */}
-      {showNewCustomer && (
-        <>
-          <div onClick={() => setShowNewCustomer(false)} className="fixed inset-0 bg-slate-900/60 z-[400] backdrop-blur-sm" />
-          <div className="fixed inset-y-0 right-0 w-full max-w-sm bg-white z-[410] shadow-2xl flex flex-col">
-            <div className="flex items-center justify-between px-5 py-4 border-b border-slate-200 shrink-0">
-              <div>
-                <h2 className="font-black text-slate-900 text-[15px]">Novo Cliente</h2>
-                <p className="text-[11px] text-slate-500">Cadastro CRM</p>
-              </div>
-              <button onClick={() => setShowNewCustomer(false)} className="p-2 hover:bg-slate-100 rounded-lg text-slate-500">
-                <X size={18} />
-              </button>
-            </div>
-            <div className="flex-1 overflow-y-auto p-5 space-y-3">
-              <div>
-                <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block mb-1">Nome *</label>
-                <input value={ncName} onChange={(e) => setNcName(e.target.value)} placeholder="Nome completo"
-                  className="w-full h-9 px-3 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-              </div>
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block mb-1">Telefone</label>
-                  <input value={ncPhone} onChange={(e) => setNcPhone(maskPhone(e.target.value))} inputMode="numeric" placeholder="(11) 99999-9999"
-                    className="w-full h-9 px-3 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-                </div>
-                <div>
-                  <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block mb-1">CPF/CNPJ</label>
-                  <input value={ncDoc} onChange={(e) => setNcDoc(maskDoc(e.target.value))} inputMode="numeric" placeholder="000.000.000-00"
-                    className="w-full h-9 px-3 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-                </div>
-              </div>
-              <div>
-                <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block mb-1">E-mail</label>
-                <input type="email" value={ncEmail} onChange={(e) => setNcEmail(e.target.value)} placeholder="email@exemplo.com"
-                  className="w-full h-9 px-3 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-              </div>
-            </div>
-            <div className="border-t border-slate-200 px-5 py-4 shrink-0 bg-slate-50 flex gap-2">
-              <button onClick={() => setShowNewCustomer(false)} className="flex-1 h-9 rounded-lg border border-slate-200 text-sm font-semibold text-slate-600 hover:bg-slate-100">
-                Cancelar
-              </button>
-              <button
-                disabled={savingNC || !ncName.trim()}
-                onClick={async () => {
-                  if (!ncName.trim()) return;
-                  setSavingNC(true);
-                  try {
-                    const res = await fetch("/api/customers", {
-                      method: "POST",
-                      headers: authHeader(),
-                      body: JSON.stringify({ name: ncName, phone: ncPhone.replace(/\D/g, "") || null, document: ncDoc.replace(/\D/g, "") || null, email: ncEmail || null }),
-                    });
-                    const newCust = await res.json();
-                    const cRes = await fetch("/api/customers", { headers: authHeaderNoJson() });
-                    const cData = await cRes.json();
-                    setCustomers(Array.isArray(cData) ? cData : []);
-                    handleCustomerChange(newCust);
-                    setShowNewCustomer(false);
-                  } finally {
-                    setSavingNC(false);
-                  }
-                }}
-                className="flex-1 h-9 bg-blue-600 text-white rounded-lg text-sm font-bold hover:bg-blue-700 disabled:opacity-50 transition-all"
-              >
-                {savingNC ? "Cadastrando…" : "Criar Cliente"}
-              </button>
-            </div>
-          </div>
-        </>
-      )}
-
-      {/* ── Convert to Order Modal ────────────────────────────────────────────── */}
-      {showConvertModal && (
-        <>
-          <div onClick={() => !converting && setShowConvertModal(false)} className="fixed inset-0 bg-slate-900/60 z-40 backdrop-blur-sm" />
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 overflow-y-auto">
-            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md my-auto">
-              <div className="px-6 pt-6 pb-4 border-b border-slate-100">
-                <div className="flex items-start justify-between">
-                  <div>
-                    <h3 className="font-black text-slate-900 text-base">Converter em Venda</h3>
-                    <p className="text-[11px] text-slate-500 mt-0.5">Orç. #{String(quote.number).padStart(4, "0")} · {quote.customer_name}</p>
-                  </div>
-                  <button onClick={() => setShowConvertModal(false)} className="text-slate-300 hover:text-slate-600 transition-colors">
-                    <X size={18} />
-                  </button>
-                </div>
-                <div className="mt-3 bg-slate-900 rounded-xl px-4 py-2.5 flex items-center justify-between">
-                  <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Total do Orçamento</span>
-                  <span className="text-lg font-mono font-black text-white">{fmt(quoteTotal)}</span>
-                </div>
-              </div>
-
-              <div className="px-6 py-4 space-y-4 max-h-[65vh] overflow-y-auto">
-                {sellers.length > 0 && (
-                  <div>
-                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Vendedor</p>
-                    <div className="relative">
-                      <User size={12} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
-                      <select value={convertSellerId} onChange={(e) => setConvertSellerId(e.target.value === "" ? "" : Number(e.target.value))}
-                        className="w-full pl-8 pr-8 h-10 rounded-xl border border-slate-200 text-[11px] font-bold appearance-none focus:outline-none focus:border-blue-400 bg-white">
-                        <option value="">Sem vendedor</option>
-                        {sellers.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
-                      </select>
-                      <ChevronDown size={12} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3 lg:items-start">
+        <div className="min-w-0 lg:col-span-2">
+          <Tabs<QuoteTabId> items={QUOTE_TABS} value={activeTab} onChange={setActiveTab} label="Detalhes do orçamento">
+            {activeTab === "dados" && (
+              <div className="space-y-3">
+                <PanelCard title="Cliente" icon={User}>
+                  <div className="space-y-2 p-3">
+                    <div className="flex gap-2">
+                      <div className="min-w-0 flex-1">
+                        <Combobox
+                          placeholder="Buscar por nome ou telefone..."
+                          searchPlaceholder="Nome ou telefone..."
+                          clearable
+                          freeInput
+                          disabled={!isEditable}
+                          value={selectedCustomer ? String(selectedCustomer.id) : manualCustomer.name}
+                          onChange={(v) => {
+                            if (!v) { handleCustomerChange(null, ""); return; }
+                            const cust = customers.find((c) => String(c.id) === v);
+                            handleCustomerChange(cust ?? null, cust ? undefined : v);
+                          }}
+                          options={customers.map((c) => ({ value: String(c.id), label: c.name, description: c.phone }))}
+                          onAddNew={(q) => { setNcName(q); setNcPhone(""); setNcDoc(""); setNcEmail(""); setShowNewCustomer(true); }}
+                        />
+                      </div>
+                      <IconButton
+                        variant="outline"
+                        disabled={!isEditable}
+                        onClick={() => { setNcName(""); setNcPhone(""); setNcDoc(""); setNcEmail(""); setShowNewCustomer(true); }}
+                        title="Cadastrar novo cliente"
+                        aria-label="Cadastrar novo cliente"
+                      >
+                        <UserPlus size={15} />
+                      </IconButton>
                     </div>
+                    {selectedCustomer ? (
+                      <dl className="grid grid-cols-1 gap-x-6 sm:grid-cols-2">
+                        <DetailField label="Telefone" value={selectedCustomer.phone ? maskPhone(selectedCustomer.phone) : ""} />
+                        <DetailField label="E-mail" value={selectedCustomer.email} />
+                      </dl>
+                    ) : (
+                      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                        <Input
+                          label="Telefone"
+                          value={manualCustomer.phone}
+                          disabled={!isEditable}
+                          onChange={(e) => setManualCustomer((m) => ({ ...m, phone: e.target.value }))}
+                          onBlur={() => autosaveField({ customer_phone: manualCustomer.phone }, "customer_phone")}
+                          placeholder="Telefone"
+                        />
+                        <Input
+                          label="E-mail"
+                          value={manualCustomer.email}
+                          disabled={!isEditable}
+                          onChange={(e) => setManualCustomer((m) => ({ ...m, email: e.target.value }))}
+                          onBlur={() => autosaveField({ customer_email: manualCustomer.email }, "customer_email")}
+                          placeholder="E-mail"
+                        />
+                      </div>
+                    )}
                   </div>
+                </PanelCard>
+
+                <PanelCard title="Desconto, validade e observações">
+                  <div className="space-y-3 p-3">
+                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                      <div>
+                        <span className="ds-label mb-1 block">Desconto</span>
+                        <div className="flex gap-1">
+                          <IconButton
+                            size="md"
+                            variant={discountType === "percent" ? "primary" : "outline"}
+                            disabled={!isEditable}
+                            aria-label="Desconto em porcentagem"
+                            title="Desconto em porcentagem"
+                            onClick={() => { setDiscountType("percent"); autosaveField({ discount_type: "percent" }, "discount"); }}
+                          >
+                            <Percent size={14} />
+                          </IconButton>
+                          <IconButton
+                            size="md"
+                            variant={discountType === "fixed" ? "primary" : "outline"}
+                            disabled={!isEditable}
+                            aria-label="Desconto em valor fixo"
+                            title="Desconto em valor fixo"
+                            onClick={() => { setDiscountType("fixed"); autosaveField({ discount_type: "fixed" }, "discount"); }}
+                          >
+                            <DollarSign size={14} />
+                          </IconButton>
+                          <Input
+                            wrapperClassName="flex-1"
+                            type="number" min={0} disabled={!isEditable} value={discountValue || ""}
+                            onChange={(e) => setDiscountValue(Number(e.target.value))}
+                            onBlur={() => autosaveField({ discount_value: discountValue }, "discount")}
+                            placeholder={discountType === "percent" ? "%" : "R$"}
+                            aria-label="Valor do desconto"
+                          />
+                        </div>
+                      </div>
+                      <Input
+                        label="Validade (dias)"
+                        type="number" min={1} disabled={!isEditable} value={validityDays}
+                        onChange={(e) => setValidityDays(Number(e.target.value))}
+                        onBlur={() => autosaveField({ validity_days: validityDays }, "validity_days")}
+                      />
+                    </div>
+                    <Textarea
+                      label="Observações / Condições de pagamento"
+                      value={notes} disabled={!isEditable} onChange={(e) => setNotes(e.target.value)}
+                      onBlur={() => autosaveField({ notes }, "notes")}
+                      rows={3} placeholder="Ex: Pagamento à vista com desconto. Entrega em 5 dias úteis."
+                    />
+                  </div>
+                </PanelCard>
+              </div>
+            )}
+
+            {activeTab === "itens" && (
+              <div className="space-y-3">
+                {isEditable && (
+                  <PanelCard title="Adicionar produtos" icon={Package}>
+                    <div className="space-y-2 p-3">
+                      <Input
+                        iconLeft={<Search size={13} />}
+                        value={productSearch}
+                        onChange={(e) => setProductSearch(e.target.value)}
+                        placeholder="Buscar produto..."
+                        aria-label="Buscar produto"
+                      />
+                      {productSearch && (
+                        <div className="max-h-48 overflow-y-auto rounded-lg border border-slate-200 bg-white">
+                          {filteredProducts.length === 0 ? (
+                            <p className="px-3 py-2 text-xs text-slate-500">Nenhum produto encontrado</p>
+                          ) : (
+                            filteredProducts.slice(0, 10).map((p) => (
+                              <button key={p.id} type="button" onClick={() => addProduct(p)} className="flex w-full items-center justify-between gap-2 px-3 py-2 text-left text-xs hover:bg-slate-50">
+                                <div className="min-w-0">
+                                  <span className="font-medium text-slate-800">{p.name}</span>
+                                  <span className="ml-2 text-[11px] text-slate-500">Estoque: {p.stock_quantity}</span>
+                                </div>
+                                <span className="shrink-0 font-semibold text-blue-700">{fmt(Number(p.discount_price ?? p.price))}</span>
+                              </button>
+                            ))
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  </PanelCard>
                 )}
 
-                <div>
-                  <div className="flex items-center justify-between mb-1.5">
-                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Formas de Pagamento</p>
-                    <button onClick={addConvertPayment} className="flex items-center gap-1 h-6 px-2 bg-blue-50 border border-blue-200 rounded-lg text-[9px] font-black text-blue-600 uppercase tracking-widest hover:bg-blue-100 transition-all">
-                      <PlusCircle size={10} /> Adicionar
-                    </button>
-                  </div>
-                  <div className="space-y-2.5">
-                    {convertPayments.map((p, idx) => {
-                      const feeRate = p.method === "credit" ? (tenant?.card_fees?.[p.cardBrand]?.[p.installments - 1] ?? 0) : 0;
-                      const pAmt    = parseMaskedPrice(p.amount);
-                      const pFee    = feeRate > 0 && pAmt > 0 ? pAmt * (feeRate / 100) : 0;
-                      return (
-                        <div key={p.id} className="bg-slate-50 rounded-2xl border border-slate-200 p-3 space-y-2.5">
-                          <div className="flex items-center gap-2">
-                            {convertPayments.length > 1 && (
-                              <span className="w-5 h-5 bg-slate-200 rounded-full flex items-center justify-center text-[9px] font-black text-slate-600 shrink-0">{idx + 1}</span>
-                            )}
-                            <div className="grid grid-cols-4 gap-1.5 flex-1">
-                              {(["money", "debit", "credit", "pix"] as ConvertMethod[]).map((key) => (
-                                <button key={key} onClick={() => updateConvertPayment(p.id, { method: key, installments: 1 })}
-                                  className={cn("h-9 rounded-xl border text-[9px] font-black uppercase tracking-widest transition-all flex flex-col items-center justify-center gap-0.5",
-                                    p.method === key ? (key === "credit" ? "bg-emerald-600 border-emerald-500 text-white" : "bg-blue-600 border-blue-500 text-white") : "bg-white border-slate-200 text-slate-500 hover:border-slate-400")}>
-                                  {key === "money"  && <Banknote size={12} />}
-                                  {key === "debit"  && <CreditCard size={12} />}
-                                  {key === "credit" && <CreditCard size={12} />}
-                                  {key === "pix"    && <QrCode size={12} />}
-                                  {CONVERT_PM_LABEL[key]}
-                                </button>
-                              ))}
-                            </div>
-                            {convertPayments.length > 1 && (
-                              <button onClick={() => removeConvertPayment(p.id)} className="text-slate-300 hover:text-red-500 transition-colors shrink-0">
-                                <X size={14} />
-                              </button>
-                            )}
+                {formItems.length > 0 && (
+                  <PanelCard title="Produtos" icon={Package}>
+                    <div className="space-y-2 p-3">
+                      {formItems.map((item, idx) => (
+                        <div key={idx} className="flex flex-wrap items-end gap-2 rounded-lg bg-slate-50 px-3 py-2">
+                          <div className="min-w-[120px] flex-1 self-center">
+                            <p className="truncate text-xs font-medium text-slate-800">{item.name}</p>
+                            {item.dimensions_label && <p className="truncate font-mono text-[11px] text-blue-600">{item.dimensions_label}</p>}
                           </div>
-                          {(p.method === "debit" || p.method === "credit") && (
-                            <div className="grid grid-cols-3 gap-1">
-                              {CONVERT_CARD_BRANDS.map(({ key, label, color }) => (
-                                <button key={key} onClick={() => updateConvertPayment(p.id, { cardBrand: key })}
-                                  className={cn("h-7 rounded-lg border text-[8px] font-black uppercase tracking-widest transition-all", p.cardBrand === key ? "text-white border-transparent" : "bg-white border-slate-200 text-slate-500 hover:border-slate-400")}
-                                  style={p.cardBrand === key ? { backgroundColor: color } : {}}>
-                                  {label}
-                                </button>
-                              ))}
+                          <div className="shrink-0">
+                            <span className="ds-label mb-1 block">Qtd.</span>
+                            <div className="flex items-center gap-1">
+                              <IconButton size="xs" variant="outline" disabled={!isEditable} aria-label="Diminuir quantidade" onClick={() => updateItemQty(idx, item.quantity - 1)}>−</IconButton>
+                              <Input
+                                wrapperClassName="w-16" className="text-center"
+                                type="number" min={0} step="any" disabled={!isEditable} value={item.quantity}
+                                aria-label="Quantidade"
+                                onChange={(e) => updateItemQty(idx, Number(e.target.value))}
+                              />
+                              <IconButton size="xs" variant="outline" disabled={!isEditable} aria-label="Aumentar quantidade" onClick={() => updateItemQty(idx, item.quantity + 1)}>+</IconButton>
                             </div>
-                          )}
-                          {p.method === "credit" && (
-                            <div className="grid grid-cols-4 gap-1">
-                              {[1, 2, 3, 4, 5, 6, 10, 12].map((n) => {
-                                const rate      = tenant?.card_fees?.[p.cardBrand]?.[n - 1] ?? 0;
-                                const totalWFee = pAmt > 0 && rate > 0 ? pAmt * (1 + rate / 100) : pAmt;
-                                const perInst   = n > 1 && pAmt > 0 ? totalWFee / n : 0;
-                                const isActive  = p.installments === n;
-                                return (
-                                  <button key={n} onClick={() => updateConvertPayment(p.id, { installments: n })}
-                                    className={cn("rounded-lg border transition-all flex flex-col items-center justify-center py-1.5 px-1 gap-0.5", isActive ? "bg-emerald-600 border-emerald-500 text-white" : "bg-white border-slate-200 text-slate-500 hover:border-slate-400")}>
-                                    <span className="text-[8px] font-black uppercase">{n === 1 ? "Vista" : `${n}×`}</span>
-                                    {rate > 0 && <span className={cn("text-[7px] font-bold", isActive ? "text-emerald-200" : "text-amber-500")}>+{rate}%</span>}
-                                    {pAmt > 0 && rate > 0 && <span className={cn("text-[7px] font-mono font-black", isActive ? "text-emerald-100" : "text-slate-600")}>R${totalWFee.toFixed(2)}</span>}
-                                    {perInst > 0 && <span className={cn("text-[7px] font-mono", isActive ? "text-emerald-200" : "text-slate-400")}>{n}×R${perInst.toFixed(2)}</span>}
-                                  </button>
-                                );
-                              })}
-                            </div>
-                          )}
-                          <div className="flex gap-2">
-                            <div className="relative flex-1">
-                              <Banknote className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={13} />
-                              <input inputMode="numeric"
-                                placeholder={idx === 0 && convertRemaining > 0 ? centsToMasked(convertRemaining) : "0,00"}
-                                className="w-full pl-9 pr-3 h-10 bg-white border border-slate-200 rounded-xl focus:outline-none focus:border-blue-500 text-[11px] font-medium text-slate-800 placeholder:text-slate-400 transition-all [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none"
-                                value={p.amount} onChange={(e) => updateConvertPayment(p.id, { amount: applyMoneyMask(e.target.value) })} />
-                            </div>
-                            {pFee > 0.005 && (
-                              <div className="flex flex-col items-end gap-0.5 bg-amber-50 border border-amber-200 rounded-xl px-3 py-1.5 shrink-0">
-                                <span className="text-[8px] font-black text-amber-600 uppercase">Taxa {feeRate}%</span>
-                                <span className="text-[10px] font-mono font-black text-amber-700">− R$ {pFee.toFixed(2)}</span>
-                                {p.installments > 1 && pAmt > 0 && (
-                                  <span className="text-[7px] font-bold text-amber-500">{p.installments}× R$ {((pAmt * (1 + feeRate / 100)) / p.installments).toFixed(2)}/parc</span>
-                                )}
-                              </div>
-                            )}
                           </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                <div className="bg-slate-900 rounded-2xl p-4 space-y-2">
-                  <div className="flex justify-between text-[10px] font-bold uppercase text-slate-500">
-                    <span>Total orçamento</span><span className="font-mono">R$ {quoteTotal.toFixed(2)}</span>
-                  </div>
-                  {depositAlready > 0 && (
-                    <div className="flex justify-between text-[10px] font-bold uppercase text-cyan-400">
-                      <span>Entrada já paga</span><span className="font-mono">− R$ {depositAlready.toFixed(2)}</span>
-                    </div>
-                  )}
-                  <div className="flex justify-between text-[10px] font-bold uppercase text-slate-400">
-                    <span>Pago agora</span><span className="font-mono text-emerald-400">R$ {paidTotal.toFixed(2)}</span>
-                  </div>
-                  {convertRemaining > 0.005 && (
-                    <div className="flex justify-between text-[10px] font-black uppercase text-rose-400 pt-1 border-t border-slate-700">
-                      <span>Restante</span><span className="font-mono">R$ {convertRemaining.toFixed(2)}</span>
-                    </div>
-                  )}
-                  {convertRemaining <= 0.005 && paidTotal > 0 && (
-                    <div className="flex justify-between text-[10px] font-black uppercase text-emerald-400 pt-1 border-t border-slate-700">
-                      <span>Pagamento OK</span><span className="font-mono">✓</span>
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              <div className="px-6 pb-6 pt-3 flex gap-2 border-t border-slate-100">
-                <button onClick={() => setShowConvertModal(false)} className="flex-1 h-11 rounded-xl border border-slate-200 text-[10px] font-black uppercase tracking-widest text-slate-600 hover:bg-slate-50 transition-colors">
-                  Cancelar
-                </button>
-                <button onClick={handleConvert} disabled={converting || paidTotal <= 0}
-                  className="flex-1 h-11 bg-emerald-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-emerald-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2">
-                  {converting ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle2 size={14} />}
-                  Confirmar Venda
-                </button>
-              </div>
-            </div>
-          </div>
-        </>
-      )}
-
-      {showHistory && (
-        <>
-          <div onClick={() => setShowHistory(false)} className="fixed inset-0 z-[400] bg-slate-900/60 backdrop-blur-sm" />
-          <div className="fixed inset-x-4 top-1/2 z-[401] max-h-[80vh] -translate-y-1/2 overflow-hidden rounded-3xl bg-white shadow-2xl sm:left-1/2 sm:right-auto sm:w-[min(680px,calc(100vw-32px))] sm:-translate-x-1/2">
-            <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4">
-              <div>
-                <p className="text-[9px] font-black uppercase tracking-[0.2em] text-blue-600">Auditoria do orçamento</p>
-                <h2 className="mt-1 text-[15px] font-black text-slate-800">Histórico de alterações</h2>
-              </div>
-              <button onClick={() => setShowHistory(false)} className="flex h-8 w-8 items-center justify-center rounded-xl bg-slate-100 text-slate-500 hover:bg-slate-200"><X size={15} /></button>
-            </div>
-            <div className="max-h-[calc(80vh-76px)] space-y-3 overflow-y-auto p-5">
-              {!quote.actions?.length ? (
-                <p className="py-8 text-center text-[12px] text-slate-400">Nenhuma alteração registrada.</p>
-              ) : quote.actions.map((action) => (
-                <div key={action.id} className="rounded-2xl border border-slate-200 p-3">
-                  <p className="text-[12px] font-bold text-slate-700">{quoteActionLabel(action)}</p>
-                  <p className="mt-1 text-[10px] text-slate-400">{action.actor ?? "Sistema"} · {new Date(action.created_at).toLocaleString("pt-BR")}</p>
-                  {action.meta?.changes?.length ? (
-                    <div className="mt-3 space-y-2 border-t border-slate-100 pt-3">
-                      {action.meta.changes.map((change, index) => (
-                        <div key={`${action.id}-${change.field}-${index}`} className="rounded-xl bg-slate-50 px-3 py-2 text-[10px]">
-                          <p className="font-black uppercase tracking-wide text-slate-500">{change.label}</p>
-                          <p className="mt-1 break-words text-rose-600"><span className="font-bold">Antes:</span> {change.before}</p>
-                          <p className="mt-0.5 break-words text-emerald-700"><span className="font-bold">Depois:</span> {change.after}</p>
+                          <Input
+                            label="Preço unitário"
+                            wrapperClassName="w-32 shrink-0" className="text-right font-mono"
+                            addonLeft="R$"
+                            inputMode="numeric" disabled={!isEditable} placeholder="0,00" value={centsToMasked(item.unit_price)}
+                            onChange={(e) => updateItemPrice(idx, parseMaskedPrice(applyMoneyMask(e.target.value)))}
+                          />
+                          <span className="w-20 shrink-0 self-center text-right text-xs font-semibold tabular-nums text-slate-800">{fmt(item.total)}</span>
+                          {isEditable && (
+                            <IconButton size="xs" variant="ghost" aria-label="Remover produto" onClick={() => removeItem(idx)}><X size={14} /></IconButton>
+                          )}
                         </div>
                       ))}
                     </div>
-                  ) : null}
+                  </PanelCard>
+                )}
+
+                {isEditable && services.length > 0 && (
+                  <PanelCard title="Adicionar serviços" icon={Wrench}>
+                    <div className="space-y-2 p-3">
+                      <Input
+                        iconLeft={<Search size={13} />}
+                        value={serviceSearch}
+                        onChange={(e) => setServiceSearch(e.target.value)}
+                        placeholder="Buscar serviço..."
+                        aria-label="Buscar serviço"
+                      />
+                      {serviceSearch && (
+                        <div className="max-h-36 overflow-y-auto rounded-lg border border-slate-200 bg-white">
+                          {services.filter((s) => s.name.toLowerCase().includes(serviceSearch.toLowerCase())).length === 0 ? (
+                            <p className="px-3 py-2 text-xs text-slate-500">Nenhum serviço encontrado</p>
+                          ) : (
+                            services.filter((s) => s.name.toLowerCase().includes(serviceSearch.toLowerCase())).slice(0, 8).map((s) => (
+                              <button key={s.id} type="button" onClick={() => addService(s)} className="flex w-full items-center justify-between gap-2 px-3 py-2 text-left text-xs hover:bg-slate-50">
+                                <div className="min-w-0">
+                                  <span className="font-medium text-slate-800">{s.name}</span>
+                                  {s.description && <span className="ml-2 text-[11px] text-slate-500">{s.description}</span>}
+                                </div>
+                                <span className="shrink-0 font-semibold text-blue-700">
+                                  {s.sale_unit && s.sale_unit !== "unidade"
+                                    ? `${fmt(Number(s.price_per_measure ?? 0))}/${s.sale_unit === "m2" ? "m²" : "m"}`
+                                    : fmt(Number(s.price))}
+                                </span>
+                              </button>
+                            ))
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  </PanelCard>
+                )}
+
+                {formServices.length > 0 && (
+                  <PanelCard title="Serviços" icon={Wrench}>
+                    <div className="space-y-2 p-3">
+                      {formServices.map((svc) => (
+                        <div key={svc.service_id} className="flex flex-wrap items-end gap-2 rounded-lg border border-blue-100 bg-blue-50 px-3 py-2">
+                          <div className="min-w-[100px] flex-1 self-center truncate">
+                            <span className="text-xs font-medium text-slate-800">{svc.name}</span>
+                            {svc.dimensions_label && <span className="ml-1.5 font-mono text-[11px] text-blue-600">{svc.dimensions_label}</span>}
+                          </div>
+                          <div className="shrink-0">
+                            <span className="ds-label mb-1 block">Qtd.</span>
+                            <div className="flex items-center gap-1">
+                              <IconButton size="xs" variant="outline" disabled={!isEditable} aria-label="Diminuir quantidade" onClick={() => updateServiceQty(svc.service_id, svc.quantity - 1)}>−</IconButton>
+                              <Input
+                                wrapperClassName="w-16" className="text-center"
+                                type="number" min={0} step="any" disabled={!isEditable} value={svc.quantity}
+                                aria-label="Quantidade"
+                                onChange={(e) => updateServiceQty(svc.service_id, Number(e.target.value))}
+                              />
+                              <IconButton size="xs" variant="outline" disabled={!isEditable} aria-label="Aumentar quantidade" onClick={() => updateServiceQty(svc.service_id, svc.quantity + 1)}>+</IconButton>
+                            </div>
+                          </div>
+                          <Input
+                            label="Preço unitário"
+                            wrapperClassName="w-32 shrink-0" className="text-right font-mono"
+                            addonLeft="R$"
+                            inputMode="numeric" disabled={!isEditable} placeholder="0,00" value={centsToMasked(svc.price)}
+                            onChange={(e) => updateServicePrice(svc.service_id, parseMaskedPrice(applyMoneyMask(e.target.value)))}
+                          />
+                          <span className="w-20 shrink-0 self-center text-right text-xs font-semibold tabular-nums text-blue-700">{fmt(svc.price * svc.quantity)}</span>
+                          {isEditable && (
+                            <IconButton size="xs" variant="ghost" aria-label="Remover serviço" onClick={() => removeService(svc.service_id)}><X size={14} /></IconButton>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </PanelCard>
+                )}
+
+                {!isEditable && formItems.length === 0 && formServices.length === 0 && (
+                  <ContentCard><EmptyState icon={Package} title="Nenhum item neste orçamento" /></ContentCard>
+                )}
+              </div>
+            )}
+
+            {activeTab === "arquivos" && (
+              <PanelCard
+                title="Arquivos"
+                description="Referência, arte final e prova de aprovação"
+                action={
+                  <div className="flex flex-wrap gap-1.5">
+                    <Button size="xs" variant="outline" iconLeft={<Package size={12} />} onClick={() => referenciaInputRef.current?.click()} disabled={fileUploading}>Referência</Button>
+                    {tenant?.grafica_enabled && (
+                      <>
+                        <Button size="xs" variant="outline" iconLeft={<Palette size={12} />} onClick={() => arteInputRef.current?.click()} disabled={fileUploading}>Arte final</Button>
+                        <Button size="xs" variant="outline" iconLeft={<CheckCircle2 size={12} />} onClick={() => provaInputRef.current?.click()} disabled={fileUploading}>Prova</Button>
+                      </>
+                    )}
+                  </div>
+                }
+              >
+                <div className="p-3">
+                  <input ref={referenciaInputRef} type="file" accept="image/*,application/pdf" multiple className="hidden" aria-label="Anexar arquivo de referência"
+                    onChange={(e) => { const files = e.target.files; if (files) Array.from(files).forEach((f) => handleQuoteFile(f, "referencia")); e.target.value = ""; }} />
+                  <input ref={arteInputRef} type="file" accept="image/*,application/pdf" multiple className="hidden" aria-label="Anexar arte final"
+                    onChange={(e) => { const files = e.target.files; if (files) Array.from(files).forEach((f) => handleQuoteFile(f, "arte")); e.target.value = ""; }} />
+                  <input ref={provaInputRef} type="file" accept="image/*,application/pdf" multiple className="hidden" aria-label="Anexar prova de aprovação"
+                    onChange={(e) => { const files = e.target.files; if (files) Array.from(files).forEach((f) => handleQuoteFile(f, "prova")); e.target.value = ""; }} />
+                  {fileUploading && <p className="mb-2 text-[11px] text-slate-500">Enviando arquivo...</p>}
+                  {(!quote.files || quote.files.length === 0) ? (
+                    <p className="py-2 text-xs text-slate-500">Nenhum arquivo anexado.</p>
+                  ) : (
+                    <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
+                      {quote.files.map((file) => {
+                        const isPdf = file.url.toLowerCase().endsWith(".pdf");
+                        const kindMeta: Record<string, { label: string; color: "default" | "purple" | "success" }> = {
+                          referencia: { label: "Referência", color: "default" },
+                          arte: { label: "Arte", color: "purple" },
+                          prova: { label: "Prova", color: "success" },
+                        };
+                        const meta = kindMeta[file.kind] ?? kindMeta.referencia;
+                        return (
+                          <a key={file.id} href={file.url} target="_blank" rel="noreferrer"
+                            className="group relative block aspect-square overflow-hidden rounded-lg border border-slate-200">
+                            {isPdf ? (
+                              <div className="flex h-full w-full flex-col items-center justify-center gap-1 bg-slate-50 text-slate-400">
+                                <Download size={22} />
+                                <span className="text-[11px] font-medium">PDF</span>
+                              </div>
+                            ) : (
+                              <img src={file.url} alt={file.caption ?? ""} className="h-full w-full object-cover" />
+                            )}
+                            <span className="absolute left-1 top-1"><Badge color={meta.color} size="sm">{meta.label}</Badge></span>
+                            <button type="button" aria-label="Remover arquivo" onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleRemoveQuoteFile(file.id); }}
+                              className="absolute right-1 top-1 flex h-5 w-5 items-center justify-center rounded-full bg-black/60 text-white opacity-0 transition-opacity group-hover:opacity-100">
+                              <X size={10} />
+                            </button>
+                          </a>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
+              </PanelCard>
+            )}
+
+            {activeTab === "historico" && (
+              <PanelCard title="Histórico de alterações" description="Auditoria do orçamento" icon={History}>
+                <div className="space-y-2 p-3">
+                  {!quote.actions?.length ? (
+                    <p className="py-4 text-center text-xs text-slate-500">Nenhuma alteração registrada.</p>
+                  ) : quote.actions.map((action) => (
+                    <div key={action.id} className="rounded-lg border border-slate-200 p-3">
+                      <p className="text-xs font-medium text-slate-800">{quoteActionLabel(action)}</p>
+                      <p className="mt-0.5 text-[11px] text-slate-500">{action.actor ?? "Sistema"} · {new Date(action.created_at).toLocaleString("pt-BR")}</p>
+                      {action.meta?.changes?.length ? (
+                        <div className="mt-2 space-y-2 border-t border-slate-100 pt-2">
+                          {action.meta.changes.map((change, index) => (
+                            <div key={`${action.id}-${change.field}-${index}`} className="rounded-lg bg-slate-50 px-3 py-2 text-[11px]">
+                              <p className="font-medium text-slate-600">{change.label}</p>
+                              <p className="mt-1 break-words text-red-600"><span className="font-medium">Antes:</span> {change.before}</p>
+                              <p className="mt-0.5 break-words text-emerald-700"><span className="font-medium">Depois:</span> {change.after}</p>
+                            </div>
+                          ))}
+                        </div>
+                      ) : null}
+                    </div>
+                  ))}
+                </div>
+              </PanelCard>
+            )}
+          </Tabs>
+        </div>
+
+        {/* Lateral: totais + ações */}
+        <div className="space-y-3">
+          <PanelCard title="Resumo" className="lg:sticky lg:top-5">
+            <div className="space-y-1.5 p-3 text-xs">
+              {itemsSubtotal > 0 && servicesSubtotal > 0 && (
+                <>
+                  <div className="flex justify-between text-slate-500"><span>Produtos</span><span className="tabular-nums">{fmt(itemsSubtotal)}</span></div>
+                  <div className="flex justify-between text-blue-700"><span>Serviços</span><span className="tabular-nums">{fmt(servicesSubtotal)}</span></div>
+                </>
+              )}
+              <div className="flex justify-between text-slate-500"><span>Subtotal</span><span className="tabular-nums text-slate-800">{fmt(subtotal)}</span></div>
+              {discountAmt > 0 && (
+                <div className="flex justify-between text-red-600"><span>Desconto</span><span className="tabular-nums">− {fmt(discountAmt)}</span></div>
+              )}
+              <div className="flex justify-between border-t border-slate-100 pt-1.5 text-[13px] font-semibold text-slate-900">
+                <span>Total</span><span className="tabular-nums">{fmt(total)}</span>
+              </div>
+              {depositAmt > 0 && (
+                <>
+                  <div className="flex justify-between border-t border-slate-100 pt-1.5 text-cyan-700"><span>Entrada</span><span className="tabular-nums">{fmt(depositAmt)}</span></div>
+                  <div className="flex justify-between text-amber-700"><span>Resta</span><span className="tabular-nums">{fmt(remaining)}</span></div>
+                </>
+              )}
+            </div>
+            <div className="space-y-2 border-t border-slate-100 p-3">
+              <p className="text-center text-[11px] text-emerald-700">Alterações salvas automaticamente</p>
+              <Button fullWidth variant="outline" size="sm" iconLeft={<Download size={14} />} onClick={handleDownloadPDF} disabled={!formItems.length && !formServices.length}>
+                Baixar PDF
+              </Button>
+              <Button fullWidth variant="outline" size="sm" iconLeft={<History size={14} />} onClick={() => setActiveTab("historico")}>
+                Histórico
+              </Button>
+              {(quote.customer_email || selectedCustomer?.email) ? (
+                <>
+                  <Button fullWidth size="sm" loading={sendingEmail} onClick={handleSendQuoteEmail} iconLeft={emailDelivery?.sent ? <Send size={14} /> : <Mail size={14} />}>
+                    {emailDelivery?.sent ? "Reenviar por E-mail" : "Enviar por E-mail"}
+                  </Button>
+                  {emailDelivery?.sent && emailDelivery.sent_at && (
+                    <p className="text-center text-[11px] text-emerald-700">Enviado para {emailDelivery.recipient} em {new Date(emailDelivery.sent_at).toLocaleString("pt-BR")}</p>
+                  )}
+                </>
+              ) : (
+                <p className="text-center text-[11px] text-amber-700">Cadastre o e-mail do cliente para enviar este orçamento.</p>
+              )}
+              {quote.status === "orcamento_enviado" && (
+                <>
+                  <Button fullWidth variant="outline" size="sm" iconLeft={<Wallet size={14} />}
+                    onClick={() => { setDepositAmount(centsToMasked(remaining)); setShowDepositModal(true); }}>
+                    Registrar Entrada
+                  </Button>
+                  <Button fullWidth variant="success" size="sm" iconLeft={<ArrowRight size={14} />}
+                    onClick={() => { setConvertForm(newSalePaymentFormState(amountDue > 0 ? amountDue.toFixed(2) : "")); setShowConvertModal(true); }}>
+                    Converter em Venda
+                  </Button>
+                </>
+              )}
+              {quote.status === "aguardando_aprovacao" && (
+                <Button fullWidth variant="outline" size="sm" loading={generatingLink} onClick={handleCopyApprovalLink} iconLeft={<Link2 size={14} />}>
+                  {linkCopied ? "Link copiado!" : "Copiar Link de Aprovação"}
+                </Button>
+              )}
+              {!isDraft && (
+                <Button fullWidth variant="danger" size="sm" iconLeft={<Trash2 size={14} />} onClick={handleDiscard} disabled={deleting}>
+                  Excluir Orçamento
+                </Button>
+              )}
+            </div>
+          </PanelCard>
+        </div>
+      </div>
+
+      {/* ── Medida (m²/linear) — Produto ─────────────────────────────────────── */}
+      <Modal
+        open={!!measureProduct}
+        onClose={() => setMeasureProduct(null)}
+        size="sm"
+        title={measureProduct?.name}
+        subtitle={measureProduct ? `Venda por ${measureProduct.sale_unit === "m2" ? "m²" : "metro linear"}` : undefined}
+        footer={
+          <ModalFooter>
+            <Button variant="outline" onClick={() => setMeasureProduct(null)}>Cancelar</Button>
+            <Button onClick={addMeasuredProduct} disabled={!measurePreview || measurePreview.rawQuantity <= 0} iconLeft={<PlusCircle size={14} />}>Adicionar</Button>
+          </ModalFooter>
+        }
+      >
+        {measureProduct && (
+          <div className="space-y-3">
+            {measureProduct.sale_unit === "m2" ? (
+              <div className="grid grid-cols-2 gap-3">
+                <Input label="Altura (m)" type="number" min="0" step="0.01" autoFocus value={measureHeight} onChange={(e) => setMeasureHeight(e.target.value)} placeholder="0,00" className="text-center font-mono" />
+                <Input label="Largura (m)" type="number" min="0" step="0.01" value={measureWidth} onChange={(e) => setMeasureWidth(e.target.value)} placeholder="0,00" className="text-center font-mono" />
+              </div>
+            ) : (
+              <Input label="Comprimento (m)" type="number" min="0" step="0.01" autoFocus value={measureHeight} onChange={(e) => setMeasureHeight(e.target.value)} placeholder="0,00" className="text-center font-mono" />
+            )}
+            {measurePreview && measurePreview.rawQuantity > 0 && (
+              <div className="space-y-1.5 rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs">
+                <div className="flex justify-between text-slate-500">
+                  <span>{measureProduct.sale_unit === "m2" ? "Área" : "Comprimento"}</span>
+                  <span className="font-mono text-slate-800">{measurePreview.label}</span>
+                </div>
+                {measurePreview.minimumApplied && (
+                  <p className="text-[11px] text-amber-700">
+                    Cobrando o mínimo de {Number(measureProduct.min_billable_quantity).toFixed(2)}{measureProduct.sale_unit === "m2" ? "m²" : "m"}
+                  </p>
+                )}
+                <div className="flex justify-between border-t border-slate-200 pt-1.5 text-[13px] font-semibold text-slate-900">
+                  <span>Total</span><span className="font-mono">R$ {measurePreview.total.toFixed(2)}</span>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+      </Modal>
+
+      {/* ── Medida (m²/linear) — Serviço ─────────────────────────────────────── */}
+      <Modal
+        open={!!measureService}
+        onClose={() => setMeasureService(null)}
+        size="sm"
+        title={measureService?.name}
+        subtitle={measureService ? `Serviço por ${measureService.sale_unit === "m2" ? "m²" : "metro linear"}` : undefined}
+        footer={
+          <ModalFooter>
+            <Button variant="outline" onClick={() => setMeasureService(null)}>Cancelar</Button>
+            <Button onClick={addMeasuredService} disabled={!measureServicePreview || measureServicePreview.rawQuantity <= 0} iconLeft={<PlusCircle size={14} />}>Adicionar</Button>
+          </ModalFooter>
+        }
+      >
+        {measureService && (
+          <div className="space-y-3">
+            {measureService.sale_unit === "m2" ? (
+              <div className="grid grid-cols-2 gap-3">
+                <Input label="Altura (m)" type="number" min="0" step="0.01" autoFocus value={measureServiceHeight} onChange={(e) => setMeasureServiceHeight(e.target.value)} placeholder="0,00" className="text-center font-mono" />
+                <Input label="Largura (m)" type="number" min="0" step="0.01" value={measureServiceWidth} onChange={(e) => setMeasureServiceWidth(e.target.value)} placeholder="0,00" className="text-center font-mono" />
+              </div>
+            ) : (
+              <Input label="Comprimento (m)" type="number" min="0" step="0.01" autoFocus value={measureServiceHeight} onChange={(e) => setMeasureServiceHeight(e.target.value)} placeholder="0,00" className="text-center font-mono" />
+            )}
+            {measureServicePreview && measureServicePreview.rawQuantity > 0 && (
+              <div className="space-y-1.5 rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs">
+                <div className="flex justify-between text-slate-500">
+                  <span>{measureService.sale_unit === "m2" ? "Área" : "Comprimento"}</span>
+                  <span className="font-mono text-slate-800">{measureServicePreview.label}</span>
+                </div>
+                {measureServicePreview.minimumApplied && (
+                  <p className="text-[11px] text-amber-700">
+                    Cobrando o mínimo de {Number(measureService.min_billable_quantity).toFixed(2)}{measureService.sale_unit === "m2" ? "m²" : "m"}
+                  </p>
+                )}
+                <div className="flex justify-between border-t border-slate-200 pt-1.5 text-[13px] font-semibold text-slate-900">
+                  <span>Total</span><span className="font-mono">R$ {measureServicePreview.total.toFixed(2)}</span>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+      </Modal>
+
+      {/* ── Registrar Entrada ─────────────────────────────────────────────────── */}
+      <Modal
+        open={showDepositModal}
+        onClose={() => { if (!savingDeposit) setShowDepositModal(false); }}
+        size="sm"
+        title="Registrar Entrada"
+        footer={
+          <ModalFooter>
+            <Button variant="outline" onClick={() => setShowDepositModal(false)}>Cancelar</Button>
+            <Button onClick={handleRecordDeposit} loading={savingDeposit} disabled={!(parseMaskedPrice(depositAmount) > 0)} iconLeft={<Wallet size={14} />}>
+              Confirmar Entrada
+            </Button>
+          </ModalFooter>
+        }
+      >
+        <div className="space-y-4">
+          <Input
+            label="Valor da entrada"
+            iconLeft={<Banknote size={14} />}
+            inputMode="numeric" value={depositAmount} onChange={(e) => setDepositAmount(applyMoneyMask(e.target.value))} placeholder="0,00"
+            className="font-mono"
+          />
+          <div>
+            <span className="ds-label mb-1 block">Forma de pagamento</span>
+            <div className="grid grid-cols-4 gap-1.5">
+              {(["money", "debit", "credit", "pix"] as ConvertMethod[]).map((key) => (
+                <button key={key} type="button" onClick={() => setDepositMethod(key)}
+                  className={cn("flex h-9 flex-col items-center justify-center gap-0.5 rounded-lg border text-[11px] font-medium transition-all",
+                    depositMethod === key ? (key === "credit" ? "border-emerald-500 bg-emerald-600 text-white" : "border-blue-500 bg-blue-600 text-white") : "border-slate-200 bg-white text-slate-500 hover:border-slate-400")}>
+                  {key === "money" && <Banknote size={12} />}
+                  {key === "debit" && <CreditCard size={12} />}
+                  {key === "credit" && <CreditCard size={12} />}
+                  {key === "pix" && <QrCode size={12} />}
+                  {CONVERT_PM_LABEL[key]}
+                </button>
               ))}
             </div>
           </div>
-        </>
-      )}
+          {(depositMethod === "debit" || depositMethod === "credit") && (
+            <div className="grid grid-cols-3 gap-1">
+              {CONVERT_CARD_BRANDS.map(({ key, label, color }) => (
+                <button key={key} type="button" onClick={() => setDepositBrand(key)}
+                  className={cn("h-7 rounded-lg border text-[11px] font-medium transition-all", depositBrand === key ? "border-transparent text-white" : "border-slate-200 bg-white text-slate-500 hover:border-slate-400")}
+                  style={depositBrand === key ? { backgroundColor: color } : {}}>
+                  {label}
+                </button>
+              ))}
+            </div>
+          )}
+          {depositMethod === "credit" && (
+            <div className="grid grid-cols-4 gap-1">
+              {[1, 2, 3, 4, 5, 6, 10, 12].map((n) => (
+                <button key={n} type="button" onClick={() => setDepositInstallments(n)}
+                  className={cn("h-8 rounded-lg border text-[11px] font-medium transition-all", depositInstallments === n ? "border-emerald-500 bg-emerald-600 text-white" : "border-slate-200 bg-white text-slate-500 hover:border-slate-400")}>
+                  {n === 1 ? "Vista" : `${n}×`}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      </Modal>
+
+      {/* ── Novo Cliente ──────────────────────────────────────────────────────── */}
+      <Modal
+        open={showNewCustomer}
+        onClose={() => setShowNewCustomer(false)}
+        position="right"
+        size="sm"
+        title="Novo Cliente"
+        subtitle="Cadastro CRM"
+        footer={
+          <ModalFooter>
+            <Button variant="outline" onClick={() => setShowNewCustomer(false)}>Cancelar</Button>
+            <Button
+              loading={savingNC}
+              disabled={!ncName.trim()}
+              onClick={async () => {
+                if (!ncName.trim()) return;
+                setSavingNC(true);
+                try {
+                  const res = await fetch("/api/customers", {
+                    method: "POST",
+                    headers: authHeader(),
+                    body: JSON.stringify({ name: ncName, phone: ncPhone.replace(/\D/g, "") || null, document: ncDoc.replace(/\D/g, "") || null, email: ncEmail || null }),
+                  });
+                  const newCust = await res.json();
+                  const cRes = await fetch("/api/customers", { headers: authHeaderNoJson() });
+                  const cData = await cRes.json();
+                  setCustomers(Array.isArray(cData) ? cData : []);
+                  handleCustomerChange(newCust);
+                  setShowNewCustomer(false);
+                } finally {
+                  setSavingNC(false);
+                }
+              }}
+            >
+              Criar Cliente
+            </Button>
+          </ModalFooter>
+        }
+      >
+        <div className="space-y-3">
+          <Input label="Nome *" value={ncName} onChange={(e) => setNcName(e.target.value)} placeholder="Nome completo" />
+          <div className="grid grid-cols-2 gap-2">
+            <Input label="Telefone" value={ncPhone} onChange={(e) => setNcPhone(maskPhone(e.target.value))} inputMode="numeric" placeholder="(11) 99999-9999" />
+            <Input label="CPF/CNPJ" value={ncDoc} onChange={(e) => setNcDoc(maskDoc(e.target.value))} inputMode="numeric" placeholder="000.000.000-00" />
+          </div>
+          <Input label="E-mail" type="email" value={ncEmail} onChange={(e) => setNcEmail(e.target.value)} placeholder="email@exemplo.com" />
+        </div>
+      </Modal>
+
+      {/* ── Converter em Venda ────────────────────────────────────────────────── */}
+      <Modal
+        open={showConvertModal}
+        onClose={() => { if (!converting) setShowConvertModal(false); }}
+        size="md"
+        title="Converter em Venda"
+        subtitle={`Orç. #${String(quote.number).padStart(4, "0")} · ${quote.customer_name}`}
+        footer={
+          <ModalFooter>
+            <Button variant="outline" onClick={() => setShowConvertModal(false)}>Cancelar</Button>
+            <Button variant="success" onClick={handleConvert} loading={converting} disabled={convertCalc.paidAmount <= 0 || convertHasCrediarioWithoutCustomer} iconLeft={<CheckCircle2 size={14} />}>
+              Confirmar Venda
+            </Button>
+          </ModalFooter>
+        }
+      >
+        <div className="space-y-3">
+          <div className="flex items-center justify-between rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
+            <span className="text-[11px] text-slate-500">Total do orçamento</span>
+            <span className="font-mono text-base font-semibold text-slate-900">{fmt(quoteTotal)}</span>
+          </div>
+
+          <SalePaymentForm
+            state={convertForm}
+            onChange={setConvertForm}
+            settings={convertSettings}
+            baseAmount={amountDue}
+            baseLabel={depositAlready > 0 ? "Saldo do orçamento" : "Total do orçamento"}
+            sellers={sellers}
+            hasCustomer={!!quote.customer_id}
+            summaryExtra={depositAlready > 0 ? (
+              <div className="flex justify-between text-cyan-700">
+                <span>Entrada já paga (total {fmt(quoteTotal)})</span><span className="font-mono">{fmt(depositAlready)}</span>
+              </div>
+            ) : undefined}
+          />
+        </div>
+      </Modal>
 
       <ConfirmDialog
         open={showDiscardConfirm}

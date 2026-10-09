@@ -16,19 +16,19 @@ export function EmptyState({ icon, title, description, action, className, border
     <div
       className={cn(
         "flex flex-col items-center justify-center gap-4 py-16 px-8 text-center",
-        bordered && "border-2 border-dashed border-slate-200 rounded-2xl",
+        bordered && "border-2 border-dashed border-slate-200 rounded-lg",
         className
       )}
     >
       {icon && (
-        <div className="w-16 h-16 bg-slate-50 border border-slate-100 rounded-2xl flex items-center justify-center text-slate-300 shadow-inner">
+        <div className="w-16 h-16 bg-slate-50 border border-slate-100 rounded-lg flex items-center justify-center text-slate-300 shadow-inner">
           {icon}
         </div>
       )}
       <div className="space-y-1">
-        <p className="text-xs font-black text-slate-500 uppercase tracking-widest">{title}</p>
+        <p className="text-xs font-semibold text-slate-500">{title}</p>
         {description && (
-          <p className="text-[10px] text-slate-400 font-medium max-w-xs">{description}</p>
+          <p className="text-[11px] text-slate-400 font-medium max-w-xs">{description}</p>
         )}
       </div>
       {action && <div className="mt-2">{action}</div>}
@@ -48,9 +48,9 @@ export function LoadingState({ text = "Carregando...", className, rows = 5 }: Lo
   return (
     <div className={cn("space-y-3", className)}>
       {Array.from({ length: rows }).map((_, i) => (
-        <div key={i} className="h-14 bg-slate-100 rounded-xl animate-pulse" style={{ opacity: 1 - i * 0.15 }} />
+        <div key={i} className="h-14 bg-slate-100 rounded-lg animate-pulse" style={{ opacity: 1 - i * 0.15 }} />
       ))}
-      <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest text-center pt-2">
+      <p className="text-[11px] text-slate-400 font-semibold text-center pt-2">
         {text}
       </p>
     </div>

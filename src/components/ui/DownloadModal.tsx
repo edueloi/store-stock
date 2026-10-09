@@ -96,12 +96,12 @@ export default function DownloadModal({
       }
     >
       {summary && (
-        <div className="px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-600 font-medium">
+        <div className="px-4 py-3 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-600 font-medium">
           {summary}
         </div>
       )}
 
-      <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">
+      <p className="text-[11px] font-semibold text-slate-400 mb-3">
         Escolha o formato
       </p>
 
@@ -111,19 +111,19 @@ export default function DownloadModal({
             key={opt.format}
             onClick={() => setSelected(opt.format)}
             className={cn(
-              "flex items-center gap-3 p-3 rounded-xl border-2 transition-all text-left",
+              "flex items-center gap-3 p-3 rounded-lg border-2 transition-all text-left",
               selected === opt.format
                 ? "border-blue-500 bg-blue-50"
                 : "border-slate-200 hover:border-slate-300 bg-white"
             )}
           >
-            <div className={cn("w-10 h-10 rounded-xl flex items-center justify-center border shrink-0", formatColor[opt.format])}>
+            <div className={cn("w-10 h-10 rounded-lg flex items-center justify-center border shrink-0", formatColor[opt.format])}>
               {formatIcon[opt.format]}
             </div>
             <div>
-              <p className="text-xs font-black text-slate-800 uppercase tracking-tight">{opt.label}</p>
+              <p className="text-xs font-semibold text-slate-800">{opt.label}</p>
               {opt.description && (
-                <p className="text-[10px] text-slate-400 font-medium">{opt.description}</p>
+                <p className="text-[11px] text-slate-400 font-medium">{opt.description}</p>
               )}
             </div>
             <div className="ml-auto">

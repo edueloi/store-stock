@@ -83,11 +83,11 @@ export default function ConfirmDialog({
       }
     >
       <div className="flex flex-col items-center text-center gap-4 pt-2 pb-2">
-        <div className={cn("w-14 h-14 rounded-2xl flex items-center justify-center", iconBg)}>
+        <div className={cn("w-14 h-14 rounded-lg flex items-center justify-center", iconBg)}>
           {icon}
         </div>
         <div>
-          <h3 className="text-sm font-black text-slate-900 uppercase tracking-tight">{title}</h3>
+          <h3 className="text-sm font-semibold text-slate-900">{title}</h3>
           {description && (
             <p className="text-xs text-slate-500 mt-2 leading-relaxed">{description}</p>
           )}

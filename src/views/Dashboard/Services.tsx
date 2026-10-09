@@ -33,12 +33,27 @@ import {
   FolderOpen,
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
-import Button from "../../components/ui/Button";
-import { Input, Textarea } from "../../components/ui/Input";
-import Modal from "../../components/ui/Modal";
-import PageHeader from "../../components/layout/PageHeader";
+import {
+  Button,
+  IconButton,
+  Input,
+  Textarea,
+  Modal,
+  ModalFooter,
+  ConfirmModal,
+  Switch,
+  PageWrapper,
+  SectionTitle,
+  StatGrid,
+  StatCard,
+  FilterLine,
+  FilterLineSection,
+  FilterLineItem,
+  FilterLineSearch,
+  FilterLineSegmented,
+  FilterLineViewToggle,
+} from "../../components/ui";
 import { EmptyState, LoadingState } from "../../components/layout/EmptyState";
-import { StatCard } from "../../components/ui/Card";
 import Combobox from "../../components/ui/Combobox";
 import { onRealtime } from "../../lib/realtime";
 import ServicesPageTour, {
@@ -599,23 +614,26 @@ export default function Services() {
   };
 
   return (
-    <div data-tour="services-page" className="space-y-6">
-      <PageHeader
+    <PageWrapper data-tour="services-page">
+    <div className="space-y-4">
+      <SectionTitle
+        icon={Wrench}
         title="Serviços"
-        subtitle="Gerencie os serviços oferecidos — impressão, cartão de visita, xerox e mais"
+        description="Gerencie os serviços oferecidos — impressão, cartão de visita, xerox e mais"
         action={
-          <div className="flex gap-2 items-center flex-wrap">
+          <>
             <Button
+              size="sm"
               data-tour="services-new-btn"
-              icon={<Plus size={15} />}
+              iconLeft={<Plus size={14} />}
               onClick={openNew}
             >
               Novo Serviço
             </Button>
             <Button
-              variant="secondary"
-              className="text-slate-400 hover:text-blue-600 hover:bg-blue-50 border-slate-200 hover:border-blue-300"
-              icon={<FolderOpen size={14} />}
+              size="sm"
+              variant="outline"
+              iconLeft={<FolderOpen size={14} />}
               onClick={() => {
                 openNewCategory();
                 setShowManageCategories(true);
@@ -625,132 +643,72 @@ export default function Services() {
               <span className="sr-only sm:not-sr-only">Categorias</span>
             </Button>
             <Button
-              variant="secondary"
-              className="text-slate-400 hover:text-blue-600 hover:bg-blue-50 border-slate-200 hover:border-blue-300"
-              icon={<HelpCircle size={14} />}
+              size="sm"
+              variant="outline"
+              iconLeft={<HelpCircle size={14} />}
               onClick={() => servicesPageTourRef.current?.start()}
               title="Tour guiado desta página"
             >
               <span className="sr-only sm:not-sr-only">Ajuda</span>
             </Button>
-          </div>
+          </>
         }
       />
 
       <ServicesPageTour ref={servicesPageTourRef} />
 
       {/* Stats */}
-      <div className="grid grid-cols-3 gap-3">
-        <StatCard
-          label="Total"
-          value={services.length}
-          icon={<Wrench />}
-          accent="blue"
-        />
-        <StatCard
-          label="Ativos"
-          value={activeCount}
-          icon={<CheckCircle />}
-          accent="blue"
-        />
-        <StatCard
-          label="Inativos"
-          value={inactiveCount}
-          icon={<XCircle />}
-          accent="slate"
-        />
-      </div>
+      <StatGrid cols={3}>
+        <StatCard title="Total" value={services.length} icon={Wrench} color="info" />
+        <StatCard title="Ativos" value={activeCount} icon={CheckCircle} color="success" />
+        <StatCard title="Inativos" value={inactiveCount} icon={XCircle} color="default" />
+      </StatGrid>
 
       {/* Toolbar */}
-      <div className="flex flex-col gap-2">
-        {/* Search + view toggle */}
-        <div className="flex gap-2">
-          <div className="relative flex-1">
-            <Search
-              size={14}
-              className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"
-            />
-            <input
-              type="text"
+      <FilterLine>
+        <FilterLineSection grow>
+          <FilterLineItem grow minWidth={220}>
+            <FilterLineSearch
+              aria-label="Buscar serviços"
               value={search}
-              onChange={(e) => setSearch(e.target.value)}
+              onChange={setSearch}
               placeholder="Buscar por nome, descrição ou categoria..."
-              className="w-full pl-9 pr-9 py-2.5 text-sm border border-slate-200 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400 transition-all"
             />
-            {search && (
-              <button
-                onClick={() => setSearch("")}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
-              >
-                <X size={14} />
-              </button>
-            )}
-          </div>
+          </FilterLineItem>
 
           {/* Status filter */}
-          <div className="flex border border-slate-200 rounded-xl overflow-hidden bg-white shrink-0 text-[10px] font-black uppercase tracking-widest">
-            {(["all", "active", "inactive"] as const).map((f) => (
-              <button
-                key={f}
-                onClick={() => setFilterActive(f)}
-                className={`px-3 py-2.5 transition-all ${filterActive === f ? "bg-slate-900 text-white" : "text-slate-400 hover:text-slate-600"}`}
-              >
-                {f === "all" ? "Todos" : f === "active" ? "Ativos" : "Inativos"}
-              </button>
-            ))}
-          </div>
+          <FilterLineSegmented<"all" | "active" | "inactive">
+            value={filterActive}
+            onChange={setFilterActive}
+            options={[
+              { value: "all", label: "Todos" },
+              { value: "active", label: "Ativos" },
+              { value: "inactive", label: "Inativos" },
+            ]}
+          />
 
-          {/* View toggle */}
-          <div className="flex border border-slate-200 rounded-xl overflow-hidden bg-white shrink-0">
-            <button
-              onClick={() => setViewMode("list")}
-              className={`px-3 py-2.5 transition-all ${viewMode === "list" ? "bg-slate-900 text-white" : "text-slate-400 hover:text-slate-600"}`}
-            >
-              <List size={14} />
-            </button>
-            <button
-              onClick={() => setViewMode("grid")}
-              className={`px-3 py-2.5 transition-all ${viewMode === "grid" ? "bg-slate-900 text-white" : "text-slate-400 hover:text-slate-600"}`}
-            >
-              <LayoutGrid size={14} />
-            </button>
-          </div>
-        </div>
+          {/* Category filter */}
+          {presentCategoryIds.length > 1 && (
+            <FilterLineSegmented<number | "all">
+              value={filterCategory}
+              onChange={setFilterCategory}
+              options={[
+                { value: "all", label: "Todas" },
+                ...presentCategoryIds.map((catId) => {
+                  const meta = getCategoryMeta(catId);
+                  const Icon = getCategoryIcon(meta.icon);
+                  return { value: catId, label: meta.name, icon: <Icon size={12} /> };
+                }),
+              ]}
+            />
+          )}
+        </FilterLineSection>
 
-        {/* Category filter pills */}
-        {presentCategoryIds.length > 1 && (
-          <div className="flex flex-wrap gap-1.5">
-            <button
-              onClick={() => setFilterCategory("all")}
-              className={`h-7 px-3 rounded-full text-[10px] font-black uppercase tracking-wider border transition-all ${
-                filterCategory === "all"
-                  ? "bg-slate-900 text-white border-slate-900"
-                  : "bg-white text-slate-500 border-slate-200 hover:border-slate-400"
-              }`}
-            >
-              Todas
-            </button>
-            {presentCategoryIds.map((catId) => {
-              const meta = getCategoryMeta(catId);
-              const Icon = getCategoryIcon(meta.icon);
-              return (
-                <button
-                  key={catId}
-                  onClick={() => setFilterCategory(catId)}
-                  className={`h-7 px-3 rounded-full text-[10px] font-black uppercase tracking-wider border transition-all flex items-center gap-1.5 ${
-                    filterCategory === catId
-                      ? "bg-slate-900 text-white border-slate-900"
-                      : "bg-white text-slate-500 border-slate-200 hover:border-slate-400"
-                  }`}
-                >
-                  <Icon size={10} />
-                  {meta.name}
-                </button>
-              );
-            })}
-          </div>
-        )}
-      </div>
+        {/* View toggle */}
+        <FilterLineSection align="right">
+          <FilterLineViewToggle<ViewMode> value={viewMode} onChange={setViewMode} gridValue="grid" listValue="list" />
+        </FilterLineSection>
+      </FilterLine>
 
       {/* Content */}
       {loading ? (
@@ -776,18 +734,18 @@ export default function Services() {
         />
       ) : viewMode === "list" ? (
         /* ── LIST VIEW ── */
-        <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm">
+        <div className="bg-white rounded-lg border border-slate-200 overflow-hidden shadow-sm">
           <div className="hidden sm:grid grid-cols-[1fr_1.5fr_auto_auto_auto] gap-4 px-5 py-2.5 bg-slate-50 border-b border-slate-200">
-            <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">
+            <span className="text-[10px] font-semibold text-slate-400">
               Serviço
             </span>
-            <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">
+            <span className="text-[10px] font-semibold text-slate-400">
               Descrição
             </span>
-            <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">
+            <span className="text-[10px] font-semibold text-slate-400">
               Unidade
             </span>
-            <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">
+            <span className="text-[10px] font-semibold text-slate-400">
               Preço
             </span>
             <span />
@@ -808,7 +766,7 @@ export default function Services() {
                   {/* Nome + status */}
                   <div className="flex items-center gap-3 min-w-0">
                     {svc.image_url ? (
-                      <div className="w-9 h-9 rounded-xl overflow-hidden shrink-0 border border-slate-100">
+                      <div className="w-9 h-9 rounded-lg overflow-hidden shrink-0 border border-slate-100">
                         <img
                           src={svc.image_url}
                           alt={svc.name}
@@ -817,7 +775,7 @@ export default function Services() {
                       </div>
                     ) : (
                       <div
-                        className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0"
+                        className="w-9 h-9 rounded-lg flex items-center justify-center shrink-0"
                         style={
                           svc.is_active
                             ? { background: `${color}1a`, color }
@@ -833,22 +791,22 @@ export default function Services() {
                       </div>
                     )}
                     <div className="min-w-0">
-                      <p className="text-[12px] font-bold text-slate-900 truncate">
+                      <p className="text-[12px] font-semibold text-slate-900 truncate">
                         {svc.name}
                       </p>
                       <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
                         <span
-                          className={`text-[9px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded-full ${svc.is_active ? "bg-emerald-50 text-emerald-600" : "bg-slate-100 text-slate-400"}`}
+                          className={`text-[10px] font-semibold   px-1.5 py-0.5 rounded-full ${svc.is_active ? "bg-emerald-50 text-emerald-600" : "bg-slate-100 text-slate-400"}`}
                         >
                           {svc.is_active ? "Ativo" : "Inativo"}
                         </span>
                         <span
-                          className="text-[9px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded-full"
+                          className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full"
                           style={{ background: `${color}1a`, color }}
                         >
                           {meta.name}
                         </span>
-                        <span className="flex items-center gap-0.5 text-[9px] text-slate-400">
+                        <span className="flex items-center gap-0.5 text-[10px] text-slate-400">
                           <Clock size={8} />
                           {new Date(svc.created_at).toLocaleDateString("pt-BR")}
                         </span>
@@ -866,46 +824,52 @@ export default function Services() {
                   </p>
 
                   {/* Unidade */}
-                  <span className="hidden sm:flex items-center gap-1 text-[10px] font-bold text-slate-500 bg-slate-50 border border-slate-200 rounded-lg px-2 py-1 shrink-0">
+                  <span className="hidden sm:flex items-center gap-1 text-[11px] font-semibold text-slate-500 bg-slate-50 border border-slate-200 rounded-lg px-2 py-1 shrink-0">
                     <Ruler size={9} className="text-slate-400" />
                     {getUnitAbbr(svc.unit ?? "unidade")}
                   </span>
 
                   {/* Preço */}
                   <div className="text-right shrink-0">
-                    <p className="text-[14px] font-mono font-black text-blue-600">
+                    <p className="text-[14px] font-mono font-semibold text-blue-600">
                       {displayPrice(svc).value}
                     </p>
-                    <p className="text-[9px] text-slate-400">
+                    <p className="text-[10px] text-slate-400">
                       {displayPrice(svc).suffix}
                     </p>
                   </div>
 
                   {/* Ações */}
                   <div className="flex items-center gap-1 shrink-0">
-                    <button
+                    <IconButton
+                      size="sm"
                       onClick={() => handleToggle(svc)}
                       title={svc.is_active ? "Desativar" : "Ativar"}
-                      className="w-8 h-8 flex items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 transition-all"
+                      aria-label={svc.is_active ? "Desativar serviço" : "Ativar serviço"}
                     >
                       {svc.is_active ? (
                         <ToggleRight size={18} className="text-emerald-500" />
                       ) : (
                         <ToggleLeft size={18} />
                       )}
-                    </button>
-                    <button
+                    </IconButton>
+                    <IconButton
+                      size="sm"
                       onClick={() => openEdit(svc)}
-                      className="w-8 h-8 flex items-center justify-center rounded-lg text-slate-400 hover:bg-blue-50 hover:text-blue-600 transition-all"
+                      title="Editar"
+                      aria-label="Editar serviço"
                     >
-                      <Edit2 size={13} />
-                    </button>
-                    <button
+                      <Edit2 size={14} />
+                    </IconButton>
+                    <IconButton
+                      size="sm"
+                      variant="danger"
                       onClick={() => setDeleteTarget(svc)}
-                      className="w-8 h-8 flex items-center justify-center rounded-lg text-slate-400 hover:bg-rose-50 hover:text-rose-600 transition-all"
+                      title="Excluir"
+                      aria-label="Excluir serviço"
                     >
-                      <Trash2 size={13} />
-                    </button>
+                      <Trash2 size={14} />
+                    </IconButton>
                   </div>
                 </motion.div>
               );
@@ -935,10 +899,10 @@ export default function Services() {
                     >
                       <CatIcon size={13} />
                     </div>
-                    <span className="text-[10px] font-black uppercase tracking-widest text-slate-600">
+                    <span className="text-[11px] font-semibold text-slate-600">
                       {meta.name}
                     </span>
-                    <span className="text-[9px] text-slate-400 font-bold">
+                    <span className="text-[10px] text-slate-400 font-semibold">
                       {items.length} serviço{items.length !== 1 ? "s" : ""}
                     </span>
                     <div className="flex-1 h-px bg-slate-100" />
@@ -953,12 +917,12 @@ export default function Services() {
                         <motion.div
                           key={svc.id}
                           layout
-                          className={`bg-white border border-slate-200 rounded-2xl p-4 shadow-sm hover:shadow-md transition-all flex flex-col gap-3 ${!svc.is_active ? "opacity-50" : ""}`}
+                          className={`bg-white border border-slate-200 rounded-lg p-4 shadow-sm hover:shadow-sm transition-all flex flex-col gap-3 ${!svc.is_active ? "opacity-50" : ""}`}
                         >
                           {/* Header row */}
                           <div className="flex items-start justify-between gap-2">
                             {svc.image_url ? (
-                              <div className="w-10 h-10 rounded-xl overflow-hidden shrink-0 border border-slate-100">
+                              <div className="w-10 h-10 rounded-lg overflow-hidden shrink-0 border border-slate-100">
                                 <img
                                   src={svc.image_url}
                                   alt={svc.name}
@@ -967,7 +931,7 @@ export default function Services() {
                               </div>
                             ) : (
                               <div
-                                className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
+                                className="w-10 h-10 rounded-lg flex items-center justify-center shrink-0"
                                 style={
                                   svc.is_active
                                     ? { background: `${c}1a`, color: c }
@@ -986,12 +950,12 @@ export default function Services() {
                             )}
                             <div className="flex flex-col items-end gap-1">
                               <span
-                                className={`text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full ${svc.is_active ? "bg-emerald-50 text-emerald-600" : "bg-slate-100 text-slate-400"}`}
+                                className={`text-[10px] font-semibold   px-2 py-0.5 rounded-full ${svc.is_active ? "bg-emerald-50 text-emerald-600" : "bg-slate-100 text-slate-400"}`}
                               >
                                 {svc.is_active ? "Ativo" : "Inativo"}
                               </span>
                               <span
-                                className="text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full"
+                                className="text-[10px] font-semibold px-2 py-0.5 rounded-full"
                                 style={{ background: `${c}1a`, color: c }}
                               >
                                 {m.name}
@@ -1001,11 +965,11 @@ export default function Services() {
 
                           {/* Name + description */}
                           <div className="flex-1 min-w-0">
-                            <p className="text-xs font-black text-slate-900 uppercase tracking-tight leading-tight">
+                            <p className="text-xs font-semibold text-slate-900 leading-tight">
                               {svc.name}
                             </p>
                             {svc.description && (
-                              <p className="text-[10px] text-slate-400 mt-1 line-clamp-2 leading-relaxed">
+                              <p className="text-[11px] text-slate-400 mt-1 line-clamp-2 leading-relaxed">
                                 {svc.description}
                               </p>
                             )}
@@ -1014,10 +978,10 @@ export default function Services() {
                           {/* Price + unit */}
                           <div className="flex items-end justify-between">
                             <div>
-                              <p className="text-[18px] font-mono font-black text-blue-600 leading-none">
+                              <p className="text-[18px] font-mono font-semibold text-blue-600 leading-none">
                                 {displayPrice(svc).value}
                               </p>
-                              <p className="text-[9px] text-slate-400 mt-0.5 flex items-center gap-1">
+                              <p className="text-[10px] text-slate-400 mt-0.5 flex items-center gap-1">
                                 <Ruler size={8} />
                                 {displayPrice(svc).suffix}
                               </p>
@@ -1026,32 +990,39 @@ export default function Services() {
 
                           {/* Actions */}
                           <div className="flex gap-1.5 pt-2 border-t border-slate-100">
-                            <button
+                            <Button
+                              size="xs"
+                              variant="outline"
+                              className="flex-1"
                               onClick={() => handleToggle(svc)}
-                              className="flex-1 h-7 flex items-center justify-center gap-1 bg-slate-50 hover:bg-emerald-50 hover:text-emerald-600 text-slate-400 rounded-lg transition-all border border-slate-200 hover:border-emerald-200 text-[9px] font-black uppercase"
+                              iconLeft={
+                                svc.is_active ? (
+                                  <ToggleRight size={14} />
+                                ) : (
+                                  <ToggleLeft size={14} />
+                                )
+                              }
                             >
-                              {svc.is_active ? (
-                                <>
-                                  <ToggleRight size={11} /> Ativo
-                                </>
-                              ) : (
-                                <>
-                                  <ToggleLeft size={11} /> Inativo
-                                </>
-                              )}
-                            </button>
-                            <button
+                              {svc.is_active ? "Ativo" : "Inativo"}
+                            </Button>
+                            <IconButton
+                              size="xs"
+                              variant="outline"
                               onClick={() => openEdit(svc)}
-                              className="w-7 h-7 flex items-center justify-center bg-slate-50 hover:bg-blue-50 hover:text-blue-600 text-slate-400 rounded-lg transition-all border border-slate-200 hover:border-blue-200"
+                              title="Editar"
+                              aria-label="Editar serviço"
                             >
-                              <Edit2 size={11} />
-                            </button>
-                            <button
+                              <Edit2 size={14} />
+                            </IconButton>
+                            <IconButton
+                              size="xs"
+                              variant="danger"
                               onClick={() => setDeleteTarget(svc)}
-                              className="w-7 h-7 flex items-center justify-center bg-slate-50 hover:bg-red-50 hover:text-red-500 text-slate-400 rounded-lg transition-all border border-slate-200 hover:border-red-200"
+                              title="Excluir"
+                              aria-label="Excluir serviço"
                             >
-                              <Trash2 size={11} />
-                            </button>
+                              <Trash2 size={14} />
+                            </IconButton>
                           </div>
                         </motion.div>
                       );
@@ -1066,10 +1037,10 @@ export default function Services() {
           <motion.button
             layout
             onClick={openNew}
-            className="w-full bg-white border-2 border-dashed border-slate-200 rounded-2xl p-4 hover:border-blue-400 hover:bg-blue-50/30 transition-all flex items-center justify-center gap-2 text-slate-400 hover:text-blue-600 h-16"
+            className="w-full bg-white border-2 border-dashed border-slate-200 rounded-lg p-4 hover:border-blue-400 hover:bg-blue-50/30 transition-all flex items-center justify-center gap-2 text-slate-400 hover:text-blue-600 h-16"
           >
             <Plus size={18} strokeWidth={1.5} />
-            <span className="text-[10px] font-black uppercase tracking-widest">
+            <span className="text-[11px] font-semibold">
               Novo Serviço
             </span>
           </motion.button>
@@ -1084,27 +1055,29 @@ export default function Services() {
         subtitle={editing ? editing.name : "Preencha os dados do serviço"}
         size="xl"
         footer={
-          <>
-            <Button variant="secondary" onClick={closeModal}>
+          <ModalFooter>
+            <Button variant="ghost" size="sm" onClick={closeModal}>
               Cancelar
             </Button>
             <Button
+              size="sm"
               form="service-form"
               type="submit"
               loading={saving}
-              icon={<Save size={13} />}
+              iconLeft={<Save size={14} />}
             >
               {editing ? "Salvar" : "Cadastrar"}
             </Button>
-          </>
+          </ModalFooter>
         }
       >
-        <form id="service-form" onSubmit={handleSave} className="space-y-6">
+        <form id="service-form" onSubmit={handleSave} className="space-y-4">
           {/* Identificação: imagem + nome/categoria lado a lado */}
-          <div className="grid gap-5 lg:grid-cols-[150px_minmax(0,1fr)] lg:items-start">
+          <div className="grid gap-4 lg:grid-cols-[150px_minmax(0,1fr)] lg:items-start">
             <input
               ref={fileInputRef}
               type="file"
+              aria-label="Imagem do serviço"
               accept="image/jpeg,image/png"
               className="hidden"
               onChange={(e) => {
@@ -1116,23 +1089,26 @@ export default function Services() {
             {imagePreview ? (
               <div
                 data-tour="service-form-image"
-                className="relative h-32 w-full max-w-[150px] overflow-hidden rounded-2xl border border-slate-200 bg-slate-50"
+                className="relative h-32 w-full max-w-[150px] overflow-hidden rounded-lg border border-slate-200 bg-slate-50"
               >
                 <img
                   src={imagePreview}
                   alt="preview"
                   className="w-full h-full object-cover"
                 />
-                <button
-                  type="button"
+                <IconButton
+                  size="xs"
+                  variant="outline"
+                  aria-label="Remover imagem"
+                  title="Remover imagem"
                   onClick={() => {
                     setImagePreview("");
                     setForm((f) => ({ ...f, image_url: "" }));
                   }}
-                  className="absolute top-1 right-1 w-5 h-5 bg-white/90 rounded-full flex items-center justify-center text-slate-500 hover:text-red-500 shadow-sm border border-slate-200"
+                  className="absolute top-1 right-1 !h-6 !w-6"
                 >
-                  <X size={10} />
-                </button>
+                  <X size={12} />
+                </IconButton>
               </div>
             ) : (
               <button
@@ -1141,20 +1117,20 @@ export default function Services() {
                 disabled={uploadingImg}
                 onClick={() => fileInputRef.current?.click()}
                 title="JPG ou PNG, máx. 2 MB"
-                className="h-32 w-full max-w-[150px] border-2 border-dashed border-slate-200 rounded-2xl flex flex-col items-center justify-center gap-2 text-slate-300 hover:border-blue-400 hover:text-blue-500 hover:bg-blue-50/30 transition-all disabled:opacity-50"
+                className="h-32 w-full max-w-[150px] border-2 border-dashed border-slate-200 rounded-lg flex flex-col items-center justify-center gap-2 text-slate-300 hover:border-blue-400 hover:text-blue-500 hover:bg-blue-50/30 transition-all disabled:opacity-50"
               >
                 {uploadingImg ? (
-                  <span className="text-[8px] font-bold">Enviando</span>
+                  <span className="text-[11px] font-medium">Enviando</span>
                 ) : (
                   <Upload size={16} strokeWidth={1.5} />
                 )}
               </button>
             )}
 
-            <div className="grid min-w-0 grid-cols-1 gap-4 sm:grid-cols-2">
+            <div className="grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-2">
               <Input
                 data-tour="service-form-name"
-                className="sm:col-span-2"
+                wrapperClassName="sm:col-span-2"
                 label="Nome do Serviço *"
                 required
                 autoFocus
@@ -1178,22 +1154,22 @@ export default function Services() {
                     }
                   />
                 </div>
-                <button
-                  type="button"
+                <IconButton
+                  variant="outline"
                   title="Nova categoria"
+                  aria-label="Nova categoria"
                   onClick={() => {
                     openNewCategory();
                     setShowManageCategories(true);
                   }}
-                  className="h-10 w-10 shrink-0 flex items-center justify-center rounded-xl border border-slate-200 text-slate-400 hover:text-blue-600 hover:border-blue-300 hover:bg-blue-50 transition-all"
                 >
                   <Plus size={16} />
-                </button>
+                </IconButton>
               </div>
             </div>
           </div>
           {imgToast && (
-            <p className="-mt-3 text-[10px] font-bold text-amber-600 flex items-center gap-1">
+            <p className="-mt-2 text-[11px] font-medium text-amber-600 flex items-center gap-1">
               <AlertTriangle size={10} />
               {imgToast}
             </p>
@@ -1202,62 +1178,45 @@ export default function Services() {
           {/* Precificação */}
           <div
             data-tour="service-form-pricing"
-            className="rounded-2xl border border-slate-200 bg-slate-50 p-5 space-y-4"
+            className="rounded-lg border border-slate-200 bg-slate-50 p-3 space-y-3"
           >
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div>
-                <label className="text-[10px] font-black text-slate-600 uppercase tracking-wider">
+                <p className="text-xs font-medium text-slate-600">
                   Como este serviço é cobrado
-                </label>
-                <p className="mt-1 text-[11px] text-slate-400">
+                </p>
+                <p className="mt-0.5 text-[11px] text-slate-500">
                   Defina o valor fixo ou a cobrança por medida.
                 </p>
               </div>
-              <div className="grid grid-cols-3 bg-white rounded-xl border border-slate-200 p-1">
-                {SALE_UNIT_OPTIONS.map((opt) => (
-                  <button
-                    key={opt.value}
-                    type="button"
-                    onClick={() =>
-                      setForm((f) => ({ ...f, sale_unit: opt.value }))
-                    }
-                    className={`min-h-9 px-3 rounded-lg text-[10px] font-bold transition-all ${
-                      form.sale_unit === opt.value
-                        ? "bg-blue-600 text-white"
-                        : "text-slate-500 hover:bg-slate-100"
-                    }`}
-                  >
-                    {opt.label}
-                  </button>
-                ))}
-              </div>
+              <FilterLineSegmented<"unidade" | "m2" | "linear">
+                size="sm"
+                value={form.sale_unit}
+                onChange={(v) => setForm((f) => ({ ...f, sale_unit: v }))}
+                options={SALE_UNIT_OPTIONS.map((opt) => ({
+                  value: opt.value,
+                  label: opt.label,
+                }))}
+              />
             </div>
 
             {!isMeasuredForm ? (
               <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-[10px] font-black text-slate-600 uppercase tracking-wider mb-1.5">
-                    Preço *
-                  </label>
-                  <div className="relative">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-[11px] font-bold pointer-events-none select-none">
-                      R$
-                    </span>
-                    <input
-                      required
-                      inputMode="numeric"
-                      placeholder="0,00"
-                      className="w-full pl-9 pr-4 h-10 text-sm border border-slate-200 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400 transition-all text-slate-800 font-mono"
-                      value={form.price}
-                      onChange={(e) =>
-                        setForm({
-                          ...form,
-                          price: applyMoneyMask(e.target.value),
-                        })
-                      }
-                    />
-                  </div>
-                </div>
+                <Input
+                  label="Preço *"
+                  required
+                  inputMode="numeric"
+                  placeholder="0,00"
+                  addonLeft="R$"
+                  className="font-mono"
+                  value={form.price}
+                  onChange={(e) =>
+                    setForm({
+                      ...form,
+                      price: applyMoneyMask(e.target.value),
+                    })
+                  }
+                />
                 <Combobox
                   label="Unidade"
                   placeholder="Unidade..."
@@ -1269,60 +1228,48 @@ export default function Services() {
               </div>
             ) : (
               <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-[10px] font-black text-slate-600 uppercase tracking-wider mb-1.5">
-                    Preço / {form.sale_unit === "m2" ? "m²" : "metro linear"} *
-                  </label>
-                  <div className="relative">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-[11px] font-bold pointer-events-none select-none">
-                      R$
-                    </span>
-                    <input
-                      required
-                      inputMode="numeric"
-                      placeholder="0,00"
-                      className="w-full pl-9 pr-4 h-10 text-sm border border-slate-200 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400 transition-all text-slate-800 font-mono"
-                      value={form.price_per_measure}
-                      onChange={(e) =>
-                        setForm({
-                          ...form,
-                          price_per_measure: applyMoneyMask(e.target.value),
-                        })
-                      }
-                    />
-                  </div>
-                </div>
-                <div>
-                  <label className="block text-[10px] font-black text-slate-600 uppercase tracking-wider mb-1.5">
-                    Mínimo faturável ({form.sale_unit === "m2" ? "m²" : "m"})
-                  </label>
-                  <input
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    placeholder="Opcional"
-                    className="w-full px-3 h-10 text-sm border border-slate-200 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400 transition-all text-slate-800 font-mono"
-                    value={form.min_billable_quantity}
-                    onChange={(e) =>
-                      setForm({
-                        ...form,
-                        min_billable_quantity: e.target.value,
-                      })
-                    }
-                  />
-                </div>
+                <Input
+                  label={`Preço / ${form.sale_unit === "m2" ? "m²" : "metro linear"} *`}
+                  required
+                  inputMode="numeric"
+                  placeholder="0,00"
+                  addonLeft="R$"
+                  className="font-mono"
+                  value={form.price_per_measure}
+                  onChange={(e) =>
+                    setForm({
+                      ...form,
+                      price_per_measure: applyMoneyMask(e.target.value),
+                    })
+                  }
+                />
+                <Input
+                  label={`Mínimo faturável (${form.sale_unit === "m2" ? "m²" : "m"})`}
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  placeholder="Opcional"
+                  className="font-mono"
+                  value={form.min_billable_quantity}
+                  onChange={(e) =>
+                    setForm({
+                      ...form,
+                      min_billable_quantity: e.target.value,
+                    })
+                  }
+                />
               </div>
             )}
 
             {!isMeasuredForm && parseMaskedPrice(form.price) > 0 && (
               <div className="flex items-center gap-2 flex-wrap">
-                <span className="text-[9px] font-black uppercase tracking-widest text-slate-400">
+                <span className="text-[11px] font-medium text-slate-500">
                   Exemplos:
                 </span>
                 {[2, 5, 10, 50].map((qty) => (
                   <span
                     key={qty}
-                    className="text-[9px] font-mono font-black text-blue-600 bg-blue-100 px-1.5 py-0.5 rounded-md"
+                    className="text-[11px] font-mono font-medium text-blue-600 bg-blue-100 px-1.5 py-0.5 rounded-md"
                   >
                     {qty}× = {fmt(parseMaskedPrice(form.price) * qty)}
                   </span>
@@ -1331,21 +1278,21 @@ export default function Services() {
             )}
             {isMeasuredForm && parseMaskedPrice(form.price_per_measure) > 0 && (
               <div className="flex items-center gap-2 flex-wrap">
-                <span className="text-[9px] font-black uppercase tracking-widest text-slate-400">
+                <span className="text-[11px] font-medium text-slate-500">
                   Simulação:
                 </span>
                 {form.sale_unit === "linear" ? (
                   [0.5, 1, 2].map((meters) => (
                     <span
                       key={meters}
-                      className="text-[9px] font-mono font-black text-blue-600 bg-blue-100 px-1.5 py-0.5 rounded-md"
+                      className="text-[11px] font-mono font-medium text-blue-600 bg-blue-100 px-1.5 py-0.5 rounded-md"
                     >
                       {meters === 0.5 ? "50 cm" : `${meters} m`} ={" "}
                       {fmt(parseMaskedPrice(form.price_per_measure) * meters)}
                     </span>
                   ))
                 ) : (
-                  <span className="text-[9px] font-mono font-black text-blue-600 bg-blue-100 px-1.5 py-0.5 rounded-md">
+                  <span className="text-[11px] font-mono font-medium text-blue-600 bg-blue-100 px-1.5 py-0.5 rounded-md">
                     1,20 m × 2,00 m ={" "}
                     {fmt(parseMaskedPrice(form.price_per_measure) * 2.4)}
                   </span>
@@ -1364,64 +1311,42 @@ export default function Services() {
           />
 
           {/* Ativo */}
-          <div className="flex items-center justify-between bg-slate-50 border border-slate-200 rounded-xl px-4 h-11">
-            <span className="text-[11px] font-bold text-slate-600">
+          <div className="flex items-center justify-between bg-slate-50 border border-slate-200 rounded-lg px-3 h-10">
+            <span className="text-xs font-medium text-slate-600">
               Serviço Ativo
             </span>
-            <button
-              type="button"
-              onClick={() => setForm({ ...form, is_active: !form.is_active })}
-              className="transition-colors"
-            >
-              {form.is_active ? (
-                <ToggleRight size={22} className="text-emerald-500" />
-              ) : (
-                <ToggleLeft size={22} className="text-slate-400" />
-              )}
-            </button>
+            <Switch
+              checked={form.is_active}
+              aria-label="Serviço ativo"
+              onCheckedChange={(checked) =>
+                setForm({ ...form, is_active: checked })
+              }
+            />
           </div>
         </form>
       </Modal>
 
       {/* ── Modal Deletar ── */}
-      <Modal
-        open={!!deleteTarget}
+      <ConfirmModal
+        isOpen={!!deleteTarget}
         onClose={() => setDeleteTarget(null)}
+        onConfirm={handleDelete}
         title="Excluir Serviço"
-        subtitle="Esta ação não pode ser desfeita"
-        size="sm"
-        footer={
+        confirmLabel="Excluir"
+        loading={deleting}
+        message={
           <>
-            <Button variant="secondary" onClick={() => setDeleteTarget(null)}>
-              Cancelar
-            </Button>
-            <Button
-              variant="danger"
-              loading={deleting}
-              icon={<Trash2 size={13} />}
-              onClick={handleDelete}
-            >
-              Excluir
-            </Button>
-          </>
-        }
-      >
-        <div className="flex gap-3 items-start">
-          <div className="w-10 h-10 bg-red-50 rounded-xl flex items-center justify-center text-red-500 shrink-0">
-            <AlertTriangle size={18} />
-          </div>
-          <div>
-            <p className="text-sm font-semibold text-slate-800">
+            <p className="font-medium text-slate-800">
               Excluir{" "}
               <span className="text-red-600">"{deleteTarget?.name}"</span>?
             </p>
             <p className="text-xs text-slate-500 mt-1">
-              Este serviço será removido permanentemente do sistema e não poderá
-              mais ser usado no PDV.
+              Esta ação não pode ser desfeita. Este serviço será removido
+              permanentemente do sistema e não poderá mais ser usado no PDV.
             </p>
-          </div>
-        </div>
-      </Modal>
+          </>
+        }
+      />
 
       {/* ── Modal Gerenciar Categorias (integrado à tela de Serviços) ── */}
       <Modal
@@ -1434,46 +1359,48 @@ export default function Services() {
         subtitle="Categorias de serviço desta loja"
         size="md"
       >
-        <div className="space-y-5">
+        <div className="space-y-4">
           {/* Mini-formulário de criar/editar */}
           <form
             onSubmit={handleSaveCategory}
-            className="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-3"
+            className="bg-slate-50 border border-slate-200 rounded-lg p-3 space-y-3"
           >
-            <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">
+            <p className="text-[11px] font-medium text-slate-500">
               {catEditing ? `Editando "${catEditing.name}"` : "Nova categoria"}
             </p>
-            <div className="flex gap-2">
-              <input
+            <div className="flex gap-2 items-start">
+              <Input
+                wrapperClassName="flex-1"
+                aria-label="Nome da categoria"
                 autoFocus
                 value={catForm.name}
                 onChange={(e) =>
                   setCatForm((f) => ({ ...f, name: e.target.value }))
                 }
                 placeholder="Nome da categoria (ex: Vidros, Instalação...)"
-                className="flex-1 h-10 px-3 rounded-xl border border-slate-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400"
               />
               {catEditing && (
-                <button
-                  type="button"
+                <IconButton
+                  variant="outline"
                   onClick={openNewCategory}
                   title="Cancelar edição"
-                  className="h-10 w-10 shrink-0 flex items-center justify-center rounded-xl border border-slate-200 text-slate-400 hover:text-slate-600 hover:bg-white transition-all"
+                  aria-label="Cancelar edição"
                 >
                   <X size={14} />
-                </button>
+                </IconButton>
               )}
             </div>
 
             <div>
-              <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-1.5">
+              <p className="text-[11px] font-medium text-slate-500 mb-1.5">
                 Ícone
               </p>
               <div className="grid grid-cols-6 gap-1.5">
-                {SERVICE_ICON_OPTIONS.map(({ value, Icon }) => (
+                {SERVICE_ICON_OPTIONS.map(({ value, label, Icon }) => (
                   <button
                     type="button"
                     key={value}
+                    aria-label={`Ícone ${label}`}
                     onClick={() => setCatForm((f) => ({ ...f, icon: value }))}
                     className={`h-9 rounded-lg border flex items-center justify-center transition-all ${
                       catForm.icon === value
@@ -1488,7 +1415,7 @@ export default function Services() {
             </div>
 
             <div>
-              <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-1.5">
+              <p className="text-[11px] font-medium text-slate-500 mb-1.5">
                 Cor
               </p>
               <div className="flex gap-1.5 items-center">
@@ -1505,6 +1432,7 @@ export default function Services() {
                 <label className="w-7 h-7 rounded-full border border-slate-200 overflow-hidden cursor-pointer shrink-0">
                   <input
                     type="color"
+                    aria-label="Escolher outra cor"
                     value={catForm.color}
                     onChange={(e) =>
                       setCatForm((f) => ({ ...f, color: e.target.value }))
@@ -1519,7 +1447,7 @@ export default function Services() {
               type="submit"
               size="sm"
               loading={savingCategory}
-              icon={<Save size={12} />}
+              iconLeft={<Save size={14} />}
               disabled={!catForm.name.trim()}
             >
               {catEditing ? "Salvar alterações" : "Criar categoria"}
@@ -1529,7 +1457,7 @@ export default function Services() {
           {/* Lista de categorias existentes */}
           <div className="space-y-1.5 max-h-64 overflow-y-auto">
             {categories.length === 0 ? (
-              <p className="text-center text-xs text-slate-400 py-6">
+              <p className="text-center text-xs text-slate-500 py-6">
                 Nenhuma categoria criada ainda.
               </p>
             ) : (
@@ -1539,7 +1467,7 @@ export default function Services() {
                 return (
                   <div
                     key={c.id}
-                    className="flex items-center gap-3 px-3 py-2 rounded-xl border border-slate-200 bg-white"
+                    className="flex items-center gap-3 px-3 py-2 rounded-lg border border-slate-200 bg-white"
                   >
                     <div
                       className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0"
@@ -1548,26 +1476,31 @@ export default function Services() {
                       <Icon size={14} />
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-xs font-bold text-slate-800 truncate">
+                      <p className="text-xs font-medium text-slate-800 truncate">
                         {c.name}
                       </p>
-                      <p className="text-[10px] text-slate-400">
+                      <p className="text-[11px] text-slate-500">
                         {c._count?.services ?? 0} serviço
                         {(c._count?.services ?? 0) !== 1 ? "s" : ""}
                       </p>
                     </div>
-                    <button
+                    <IconButton
+                      size="sm"
                       onClick={() => openEditCategory(c)}
-                      className="w-7 h-7 flex items-center justify-center rounded-lg text-slate-400 hover:bg-blue-50 hover:text-blue-600 transition-all"
+                      title="Editar categoria"
+                      aria-label="Editar categoria"
                     >
-                      <Edit2 size={12} />
-                    </button>
-                    <button
+                      <Edit2 size={14} />
+                    </IconButton>
+                    <IconButton
+                      size="sm"
+                      variant="danger"
                       onClick={() => setCatDeleteTarget(c)}
-                      className="w-7 h-7 flex items-center justify-center rounded-lg text-slate-400 hover:bg-rose-50 hover:text-rose-600 transition-all"
+                      title="Excluir categoria"
+                      aria-label="Excluir categoria"
                     >
-                      <Trash2 size={12} />
-                    </button>
+                      <Trash2 size={14} />
+                    </IconButton>
                   </div>
                 );
               })
@@ -1577,46 +1510,26 @@ export default function Services() {
       </Modal>
 
       {/* ── Modal Excluir Categoria ── */}
-      <Modal
-        open={!!catDeleteTarget}
+      <ConfirmModal
+        isOpen={!!catDeleteTarget}
         onClose={() => setCatDeleteTarget(null)}
+        onConfirm={handleDeleteCategory}
         title="Excluir Categoria"
-        subtitle="Esta ação não pode ser desfeita"
-        size="sm"
-        footer={
+        confirmLabel="Excluir"
+        message={
           <>
-            <Button
-              variant="secondary"
-              onClick={() => setCatDeleteTarget(null)}
-            >
-              Cancelar
-            </Button>
-            <Button
-              variant="danger"
-              icon={<Trash2 size={13} />}
-              onClick={handleDeleteCategory}
-            >
-              Excluir
-            </Button>
-          </>
-        }
-      >
-        <div className="flex gap-3 items-start">
-          <div className="w-10 h-10 bg-red-50 rounded-xl flex items-center justify-center text-red-500 shrink-0">
-            <AlertTriangle size={18} />
-          </div>
-          <div>
-            <p className="text-sm font-semibold text-slate-800">
+            <p className="font-medium text-slate-800">
               Excluir{" "}
               <span className="text-red-600">"{catDeleteTarget?.name}"</span>?
             </p>
             <p className="text-xs text-slate-500 mt-1">
-              Serviços vinculados a esta categoria ficarão sem categoria — eles
-              não são excluídos.
+              Esta ação não pode ser desfeita. Serviços vinculados a esta
+              categoria ficarão sem categoria — eles não são excluídos.
             </p>
-          </div>
-        </div>
-      </Modal>
+          </>
+        }
+      />
     </div>
+    </PageWrapper>
   );
 }

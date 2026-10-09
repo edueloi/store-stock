@@ -10,18 +10,18 @@ interface PageHeaderProps {
 
 export default function PageHeader({ title, subtitle, action, className }: PageHeaderProps) {
   return (
-    <div className={cn("flex flex-col sm:flex-row sm:items-center justify-between gap-4", className)}>
+    <div className={cn("flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between", className)}>
       <div className="min-w-0">
-        <h2 className="text-xl font-black text-slate-900 uppercase tracking-tight leading-none truncate">
+        <h2 className="truncate font-display text-base font-medium text-slate-900 sm:text-lg">
           {title}
         </h2>
         {subtitle && (
-          <p className="text-slate-400 text-[10px] font-bold uppercase tracking-widest mt-1 leading-none">
+          <p className="mt-0.5 text-xs leading-relaxed text-slate-500">
             {subtitle}
           </p>
         )}
       </div>
-      {action && <div className="shrink-0">{action}</div>}
+      {action && <div className="flex w-full min-w-0 flex-wrap items-center gap-2 sm:w-auto sm:justify-end">{action}</div>}
     </div>
   );
 }

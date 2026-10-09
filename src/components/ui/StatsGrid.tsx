@@ -48,13 +48,13 @@ function StatCard({ label, value, icon, accent = "slate", trend, trendLabel, pre
   const cfg = accentConfig[accent];
 
   return (
-    <div className="min-w-0 space-y-3 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm sm:p-4">
+    <div className="min-w-0 space-y-2 rounded-lg border border-slate-200 bg-white p-3">
       <div className="flex items-center justify-between">
-        <p className="truncate text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none">
+        <p className="truncate text-[11px] font-semibold text-slate-400 leading-none">
           {label}
         </p>
         {icon && (
-          <div className={cn("w-8 h-8 rounded-xl flex items-center justify-center [&>svg]:w-4 [&>svg]:h-4", cfg.icon)}>
+          <div className={cn("w-7 h-7 rounded-lg flex items-center justify-center [&>svg]:w-4 [&>svg]:h-4", cfg.icon)}>
             {icon}
           </div>
         )}
@@ -63,16 +63,16 @@ function StatCard({ label, value, icon, accent = "slate", trend, trendLabel, pre
       {loading ? (
         <div className="h-7 w-24 bg-slate-100 animate-pulse rounded-lg" />
       ) : (
-        <p className={cn("break-words text-xl font-black tracking-tight leading-none sm:text-2xl", cfg.value)}>
-          {prefix && <span className="text-base font-bold opacity-70 mr-0.5">{prefix}</span>}
+        <p className={cn("break-words text-base font-medium leading-none", cfg.value)}>
+          {prefix && <span className="text-base font-semibold opacity-70 mr-0.5">{prefix}</span>}
           {value}
-          {suffix && <span className="text-base font-bold opacity-70 ml-0.5">{suffix}</span>}
+          {suffix && <span className="text-base font-semibold opacity-70 ml-0.5">{suffix}</span>}
         </p>
       )}
 
       {trend !== undefined && !loading && (
         <div className={cn(
-          "inline-flex items-center gap-1 px-2 py-0.5 rounded-full border text-[10px] font-bold",
+          "inline-flex items-center gap-1 px-2 py-0.5 rounded-full border text-[11px] font-semibold",
           trend > 0 ? "bg-emerald-50 text-emerald-600 border-emerald-200" :
           trend < 0 ? "bg-red-50 text-red-500 border-red-200" :
           "bg-slate-50 text-slate-500 border-slate-200"
@@ -90,7 +90,7 @@ function StatCard({ label, value, icon, accent = "slate", trend, trendLabel, pre
 
 export default function StatsGrid({ stats, columns = 4, className }: StatsGridProps) {
   return (
-    <div className={cn("grid gap-3 sm:gap-4", colClasses[columns], className)}>
+    <div className={cn("grid gap-2 sm:gap-3", colClasses[columns], className)}>
       {stats.map((s, i) => (
         <StatCard
           key={i}

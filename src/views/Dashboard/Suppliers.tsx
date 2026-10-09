@@ -6,12 +6,12 @@ import {
   ExternalLink, ChevronDown, ChevronUp, Search, Package,
   Wallet, Loader2, ArrowRight, AlertCircle, HelpCircle,
 } from "lucide-react";
-import Button from "../../components/ui/Button";
-import { Input, Textarea } from "../../components/ui/Input";
-import Modal from "../../components/ui/Modal";
-import PageHeader from "../../components/layout/PageHeader";
+import {
+  Button, IconButton, Input, Textarea, Select, Modal, ModalFooter, Tabs,
+  PageWrapper, SectionTitle, StatGrid, StatCard,
+  FilterLine, FilterLineSection, FilterLineItem, FilterLineSearch, FilterLineViewToggle,
+} from "../../components/ui";
 import { EmptyState, LoadingState } from "../../components/layout/EmptyState";
-import { StatCard } from "../../components/ui/Card";
 import { Supplier } from "../../types";
 import SuppliersPageTour, { SUPPLIERS_PAGE_TOUR_EVENTS, type SuppliersPageTourHandle } from "../../components/onboarding/SuppliersPageTour";
 
@@ -57,7 +57,7 @@ function SupplierAvatar({ name, size = "md" }: { name: string; size?: "sm" | "md
     "bg-rose-100 text-rose-600 border-rose-200", "bg-cyan-100 text-cyan-600 border-cyan-200"];
   const color = colors[name.charCodeAt(0) % colors.length];
   return (
-    <div className={`${sizes[size]} ${color} border-2 rounded-2xl flex items-center justify-center font-black shrink-0`}>
+    <div className={`${sizes[size]} ${color} border-2 rounded-lg flex items-center justify-center font-semibold shrink-0`}>
       {name.charAt(0).toUpperCase()}
     </div>
   );
@@ -121,11 +121,26 @@ const STATUS_LABEL: Record<string, { label: string; color: string; bg: string }>
   cancelled: { label: "Cancelado", color: "text-slate-400", bg: "bg-slate-50 border-slate-200" },
 };
 
+const detailTabs = [
+  { id: "contato", label: "Contato", icon: Phone },
+  { id: "contas", label: "Contas a Pagar", icon: Wallet },
+  { id: "comercial", label: "Comercial", icon: CreditCard },
+] as const;
+type DetailTab = typeof detailTabs[number]["id"];
+
+const formTabs = [
+  { id: "geral", label: "Geral", icon: Building2 },
+  { id: "contato", label: "Contato", icon: Phone },
+  { id: "local", label: "Localização", icon: MapPin },
+] as const;
+type FormTab = typeof formTabs[number]["id"];
+
 function SupplierDetailModal({ supplier, onClose, onEdit }: {
   supplier: Supplier; onClose: () => void; onEdit: () => void;
 }) {
   const [summary, setSummary] = useState<SupplierSummary | null>(null);
   const [loadingSummary, setLoadingSummary] = useState(true);
+  const [tab, setTab] = useState<DetailTab>("contato");
 
   useEffect(() => {
     setLoadingSummary(true);
@@ -136,209 +151,194 @@ function SupplierDetailModal({ supplier, onClose, onEdit }: {
       .finally(() => setLoadingSummary(false));
   }, [supplier.id]);
 
+  const subtitle = [supplier.category, supplier.cnpj].filter(Boolean).join(" · ");
+
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
-      <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative bg-white w-full sm:max-w-2xl sm:rounded-3xl rounded-t-3xl shadow-2xl overflow-hidden animate-in slide-in-from-bottom-4 fade-in duration-200">
-        {/* Header */}
-        <div className="bg-gradient-to-br from-slate-800 to-slate-900 px-6 pt-6 pb-8">
-          <div className="flex items-start justify-between">
-            <div className="flex items-center gap-4">
-              <SupplierAvatar name={supplier.name} size="lg" />
-              <div>
-                <h2 className="text-lg font-black text-white uppercase tracking-tight">{supplier.name}</h2>
-                <div className="flex items-center gap-2 mt-1">
-                  <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-white/10 rounded-full text-[10px] font-bold text-white/80 uppercase">
-                    <Package size={9} /> {supplier.category}
-                  </span>
-                  {supplier.cnpj && (
-                    <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-white/10 rounded-full text-[10px] font-mono text-white/70">
-                      {supplier.cnpj}
-                    </span>
-                  )}
-                </div>
-              </div>
-            </div>
-            <button onClick={onClose} className="w-8 h-8 flex items-center justify-center text-white/60 hover:text-white hover:bg-white/10 rounded-xl transition-all">
-              <X size={16} />
-            </button>
-          </div>
-          <div className="flex items-center gap-2 mt-4">
-            <QuickContact supplier={supplier} />
-          </div>
-        </div>
-
-        {/* Body */}
-        <div className="p-6 space-y-5 max-h-[60vh] overflow-y-auto">
-          {/* Contato */}
-          <section>
-            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2">Contato</p>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              {supplier.contact_person && (
-                <div className="flex items-center gap-2.5 bg-slate-50 rounded-xl px-3 py-2.5 border border-slate-100">
-                  <User size={13} className="text-slate-400 shrink-0" />
-                  <div>
-                    <p className="text-[9px] text-slate-400 font-bold uppercase">Responsável</p>
-                    <p className="text-xs font-bold text-slate-700">{supplier.contact_person}</p>
-                  </div>
-                </div>
-              )}
-              {supplier.phone && (
-                <div className="flex items-center gap-2.5 bg-slate-50 rounded-xl px-3 py-2.5 border border-slate-100">
-                  <Phone size={13} className="text-slate-400 shrink-0" />
-                  <div>
-                    <p className="text-[9px] text-slate-400 font-bold uppercase">Telefone</p>
-                    <p className="text-xs font-bold text-slate-700">{supplier.phone}</p>
-                  </div>
-                </div>
-              )}
-              {supplier.whatsapp && (
-                <a href={whatsappHref(supplier.whatsapp)} target="_blank" rel="noopener noreferrer"
-                  className="flex items-center gap-2.5 bg-emerald-50 rounded-xl px-3 py-2.5 border border-emerald-100 hover:bg-emerald-100 transition-colors">
-                  <MessageCircle size={13} className="text-emerald-500 shrink-0" />
-                  <div>
-                    <p className="text-[9px] text-emerald-600 font-bold uppercase">WhatsApp</p>
-                    <p className="text-xs font-bold text-emerald-700">{supplier.whatsapp}</p>
-                  </div>
-                  <ExternalLink size={10} className="text-emerald-400 ml-auto" />
-                </a>
-              )}
-              {supplier.email && (
-                <a href={`mailto:${supplier.email}`}
-                  className="flex items-center gap-2.5 bg-blue-50 rounded-xl px-3 py-2.5 border border-blue-100 hover:bg-blue-100 transition-colors">
-                  <Mail size={13} className="text-blue-500 shrink-0" />
-                  <div>
-                    <p className="text-[9px] text-blue-600 font-bold uppercase">E-mail</p>
-                    <p className="text-xs font-bold text-blue-700 truncate max-w-[150px]">{supplier.email}</p>
-                  </div>
-                  <ExternalLink size={10} className="text-blue-400 ml-auto" />
-                </a>
-              )}
-              {supplier.website && (
-                <a href={supplier.website.startsWith("http") ? supplier.website : `https://${supplier.website}`}
-                  target="_blank" rel="noopener noreferrer"
-                  className="flex items-center gap-2.5 bg-violet-50 rounded-xl px-3 py-2.5 border border-violet-100 hover:bg-violet-100 transition-colors">
-                  <Globe size={13} className="text-violet-500 shrink-0" />
-                  <div>
-                    <p className="text-[9px] text-violet-600 font-bold uppercase">Site</p>
-                    <p className="text-xs font-bold text-violet-700 truncate max-w-[150px]">{supplier.website}</p>
-                  </div>
-                  <ExternalLink size={10} className="text-violet-400 ml-auto" />
-                </a>
-              )}
-            </div>
-          </section>
-
-          {/* Contas a Pagar deste fornecedor — casado por nome (sem vínculo formal ainda) */}
-          <section>
-            <div className="flex items-center justify-between mb-2">
-              <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Contas a Pagar</p>
-              {summary && summary.billsCount > 0 && (
-                <Link
-                  to={`/admin/contas-pagar?fornecedor=${encodeURIComponent(supplier.name)}`}
-                  className="flex items-center gap-1 text-[9px] font-black text-blue-600 hover:text-blue-800 uppercase tracking-widest"
-                >
-                  Ver todas <ArrowRight size={10} />
-                </Link>
-              )}
-            </div>
-            {loadingSummary ? (
-              <div className="flex items-center justify-center py-6"><Loader2 size={16} className="animate-spin text-slate-300" /></div>
-            ) : !summary || summary.billsCount === 0 ? (
-              <div className="flex items-center gap-2.5 bg-slate-50 rounded-xl px-3 py-3 border border-slate-100 text-slate-400">
-                <Wallet size={13} className="shrink-0" />
-                <p className="text-[11px] font-medium">Nenhuma conta a pagar lançada para este fornecedor ainda.</p>
-              </div>
-            ) : (
-              <div className="space-y-2.5">
-                <div className="grid grid-cols-2 gap-2.5">
-                  <div className="bg-amber-50 rounded-xl px-3 py-2.5 border border-amber-100">
-                    <p className="text-[9px] text-amber-600 font-bold uppercase flex items-center gap-1"><AlertCircle size={10} /> Em aberto</p>
-                    <p className="text-sm font-mono font-black text-amber-700">R$ {fmtMoney(summary.totalPending)}</p>
-                  </div>
-                  <div className="bg-emerald-50 rounded-xl px-3 py-2.5 border border-emerald-100">
-                    <p className="text-[9px] text-emerald-600 font-bold uppercase">Total pago</p>
-                    <p className="text-sm font-mono font-black text-emerald-700">R$ {fmtMoney(summary.totalPaid)}</p>
-                  </div>
-                </div>
-                <div className="rounded-xl border border-slate-100 divide-y divide-slate-50 overflow-hidden">
-                  {summary.recentBills.map((b) => {
-                    // due_date vem como ISO completo — corta pros 10 primeiros caracteres
-                    // antes de comparar (concatenar direto gera uma Date inválida).
-                    const isOverdue = b.status === "pending" && new Date(b.due_date.substring(0, 10) + "T23:59:59") < new Date();
-                    const st = STATUS_LABEL[isOverdue ? "overdue" : b.status] ?? STATUS_LABEL.pending;
-                    return (
-                      <div key={b.id} className="flex items-center justify-between gap-2 px-3 py-2 bg-white">
-                        <div className="min-w-0">
-                          <p className="text-[11px] font-semibold text-slate-700 truncate">{b.description}</p>
-                          <p className="text-[9px] text-slate-400">Venc. {new Date(b.due_date).toLocaleDateString("pt-BR")}</p>
-                        </div>
-                        <div className="flex items-center gap-2 shrink-0">
-                          <span className="text-[10px] font-mono font-bold text-slate-700">R$ {fmtMoney(b.amount)}</span>
-                          <span className={`text-[8px] font-black uppercase tracking-wide px-1.5 py-0.5 rounded-full border ${st.bg} ${st.color}`}>{st.label}</span>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-          </section>
-
-          {/* Localização */}
-          {(supplier.address || supplier.city || supplier.state) && (
-            <section>
-              <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2">Localização</p>
-              <div className="flex items-start gap-2.5 bg-slate-50 rounded-xl px-3 py-2.5 border border-slate-100">
-                <MapPin size={13} className="text-slate-400 shrink-0 mt-0.5" />
-                <div>
-                  {supplier.address && <p className="text-xs font-medium text-slate-700">{supplier.address}</p>}
-                  {(supplier.city || supplier.state) && (
-                    <p className="text-[10px] text-slate-500">{[supplier.city, supplier.state].filter(Boolean).join(" — ")}</p>
-                  )}
-                </div>
-              </div>
-            </section>
-          )}
-
-          {/* Comercial */}
-          {supplier.payment_terms && (
-            <section>
-              <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2">Condições Comerciais</p>
-              <div className="flex items-center gap-2.5 bg-slate-50 rounded-xl px-3 py-2.5 border border-slate-100">
-                <CreditCard size={13} className="text-slate-400 shrink-0" />
-                <div>
-                  <p className="text-[9px] text-slate-400 font-bold uppercase">Prazo de Pagamento</p>
-                  <p className="text-xs font-bold text-slate-700">{supplier.payment_terms}</p>
-                </div>
-              </div>
-            </section>
-          )}
-
-          {/* Notas */}
-          {supplier.notes && (
-            <section>
-              <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2">Notas Internas</p>
-              <div className="flex items-start gap-2.5 bg-amber-50 rounded-xl px-3 py-2.5 border border-amber-100">
-                <Info size={13} className="text-amber-500 shrink-0 mt-0.5" />
-                <p className="text-xs text-amber-800 leading-relaxed whitespace-pre-wrap">{supplier.notes}</p>
-              </div>
-            </section>
-          )}
-        </div>
-
-        {/* Footer */}
-        <div className="px-6 py-4 border-t border-slate-100 flex justify-between items-center bg-slate-50/60">
-          <p className="text-[9px] text-slate-400 font-medium">
+    <Modal
+      open
+      onClose={onClose}
+      size="lg"
+      title={supplier.name}
+      subtitle={subtitle}
+      footer={
+        <ModalFooter align="between">
+          <p className="text-[11px] text-slate-500">
             Cadastrado em {new Date(supplier.created_at).toLocaleDateString("pt-BR")}
           </p>
-          <button onClick={onEdit}
-            className="flex items-center gap-2 px-4 py-2 bg-slate-900 text-white text-xs font-bold rounded-xl hover:bg-slate-700 transition-all">
-            <Edit3 size={12} /> Editar Fornecedor
-          </button>
+          <Button size="sm" iconLeft={<Edit3 size={14} />} onClick={onEdit}>Editar Fornecedor</Button>
+        </ModalFooter>
+      }
+    >
+      <div className="space-y-3">
+        <div className="flex items-center gap-3">
+          <SupplierAvatar name={supplier.name} size="md" />
+          <QuickContact supplier={supplier} />
         </div>
+        <Tabs<DetailTab> items={detailTabs} value={tab} onChange={setTab} label="Detalhes do fornecedor">
+          {tab === "contato" && (
+            <div className="space-y-4">
+              <section>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {supplier.contact_person && (
+                    <div className="flex items-center gap-2.5 bg-slate-50 rounded-lg px-3 py-2.5 border border-slate-100">
+                      <User size={13} className="text-slate-400 shrink-0" />
+                      <div>
+                        <p className="text-[11px] text-slate-500 font-medium">Responsável</p>
+                        <p className="text-xs font-medium text-slate-700">{supplier.contact_person}</p>
+                      </div>
+                    </div>
+                  )}
+                  {supplier.phone && (
+                    <div className="flex items-center gap-2.5 bg-slate-50 rounded-lg px-3 py-2.5 border border-slate-100">
+                      <Phone size={13} className="text-slate-400 shrink-0" />
+                      <div>
+                        <p className="text-[11px] text-slate-500 font-medium">Telefone</p>
+                        <p className="text-xs font-medium text-slate-700">{supplier.phone}</p>
+                      </div>
+                    </div>
+                  )}
+                  {supplier.whatsapp && (
+                    <a href={whatsappHref(supplier.whatsapp)} target="_blank" rel="noopener noreferrer"
+                      className="flex items-center gap-2.5 bg-emerald-50 rounded-lg px-3 py-2.5 border border-emerald-100 hover:bg-emerald-100 transition-colors">
+                      <MessageCircle size={13} className="text-emerald-500 shrink-0" />
+                      <div>
+                        <p className="text-[11px] text-emerald-600 font-medium">WhatsApp</p>
+                        <p className="text-xs font-medium text-emerald-700">{supplier.whatsapp}</p>
+                      </div>
+                      <ExternalLink size={10} className="text-emerald-400 ml-auto" />
+                    </a>
+                  )}
+                  {supplier.email && (
+                    <a href={`mailto:${supplier.email}`}
+                      className="flex items-center gap-2.5 bg-blue-50 rounded-lg px-3 py-2.5 border border-blue-100 hover:bg-blue-100 transition-colors">
+                      <Mail size={13} className="text-blue-500 shrink-0" />
+                      <div className="min-w-0">
+                        <p className="text-[11px] text-blue-600 font-medium">E-mail</p>
+                        <p className="text-xs font-medium text-blue-700 truncate max-w-[150px]">{supplier.email}</p>
+                      </div>
+                      <ExternalLink size={10} className="text-blue-400 ml-auto" />
+                    </a>
+                  )}
+                  {supplier.website && (
+                    <a href={supplier.website.startsWith("http") ? supplier.website : `https://${supplier.website}`}
+                      target="_blank" rel="noopener noreferrer"
+                      className="flex items-center gap-2.5 bg-violet-50 rounded-lg px-3 py-2.5 border border-violet-100 hover:bg-violet-100 transition-colors">
+                      <Globe size={13} className="text-violet-500 shrink-0" />
+                      <div className="min-w-0">
+                        <p className="text-[11px] text-violet-600 font-medium">Site</p>
+                        <p className="text-xs font-medium text-violet-700 truncate max-w-[150px]">{supplier.website}</p>
+                      </div>
+                      <ExternalLink size={10} className="text-violet-400 ml-auto" />
+                    </a>
+                  )}
+                </div>
+              </section>
+
+              {(supplier.address || supplier.city || supplier.state) && (
+                <section>
+                  <h3 className="text-xs font-semibold text-slate-800 mb-2">Localização</h3>
+                  <div className="flex items-start gap-2.5 bg-slate-50 rounded-lg px-3 py-2.5 border border-slate-100">
+                    <MapPin size={13} className="text-slate-400 shrink-0 mt-0.5" />
+                    <div>
+                      {supplier.address && <p className="text-xs font-medium text-slate-700">{supplier.address}</p>}
+                      {(supplier.city || supplier.state) && (
+                        <p className="text-[11px] text-slate-500">{[supplier.city, supplier.state].filter(Boolean).join(" — ")}</p>
+                      )}
+                    </div>
+                  </div>
+                </section>
+              )}
+            </div>
+          )}
+
+          {tab === "contas" && (
+            <section>
+              {/* Contas a Pagar deste fornecedor — casado por nome (sem vínculo formal ainda) */}
+              {summary && summary.billsCount > 0 && (
+                <div className="flex justify-end mb-2">
+                  <Link
+                    to={`/admin/contas-pagar?fornecedor=${encodeURIComponent(supplier.name)}`}
+                    className="flex items-center gap-1 text-[11px] font-medium text-blue-600 hover:text-blue-800"
+                  >
+                    Ver todas <ArrowRight size={10} />
+                  </Link>
+                </div>
+              )}
+              {loadingSummary ? (
+                <div className="flex items-center justify-center py-6"><Loader2 size={16} className="animate-spin text-slate-300" /></div>
+              ) : !summary || summary.billsCount === 0 ? (
+                <div className="flex items-center gap-2.5 bg-slate-50 rounded-lg px-3 py-3 border border-slate-100 text-slate-500">
+                  <Wallet size={13} className="shrink-0" />
+                  <p className="text-[11px] font-medium">Nenhuma conta a pagar lançada para este fornecedor ainda.</p>
+                </div>
+              ) : (
+                <div className="space-y-2.5">
+                  <div className="grid grid-cols-2 gap-2.5">
+                    <div className="bg-amber-50 rounded-lg px-3 py-2.5 border border-amber-100">
+                      <p className="text-[11px] text-amber-600 font-medium flex items-center gap-1"><AlertCircle size={10} /> Em aberto</p>
+                      <p className="text-sm font-mono font-medium text-amber-700">R$ {fmtMoney(summary.totalPending)}</p>
+                    </div>
+                    <div className="bg-emerald-50 rounded-lg px-3 py-2.5 border border-emerald-100">
+                      <p className="text-[11px] text-emerald-600 font-medium">Total pago</p>
+                      <p className="text-sm font-mono font-medium text-emerald-700">R$ {fmtMoney(summary.totalPaid)}</p>
+                    </div>
+                  </div>
+                  <div className="rounded-lg border border-slate-100 divide-y divide-slate-50 overflow-hidden">
+                    {summary.recentBills.map((b) => {
+                      // due_date vem como ISO completo — corta pros 10 primeiros caracteres
+                      // antes de comparar (concatenar direto gera uma Date inválida).
+                      const isOverdue = b.status === "pending" && new Date(b.due_date.substring(0, 10) + "T23:59:59") < new Date();
+                      const st = STATUS_LABEL[isOverdue ? "overdue" : b.status] ?? STATUS_LABEL.pending;
+                      return (
+                        <div key={b.id} className="flex items-center justify-between gap-2 px-3 py-2 bg-white">
+                          <div className="min-w-0">
+                            <p className="text-[11px] font-medium text-slate-700 truncate">{b.description}</p>
+                            <p className="text-[11px] text-slate-500">Venc. {new Date(b.due_date).toLocaleDateString("pt-BR")}</p>
+                          </div>
+                          <div className="flex items-center gap-2 shrink-0">
+                            <span className="text-[11px] font-mono font-medium text-slate-700">R$ {fmtMoney(b.amount)}</span>
+                            <span className={`text-[11px] font-medium px-1.5 py-0.5 rounded-full border ${st.bg} ${st.color}`}>{st.label}</span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </section>
+          )}
+
+          {tab === "comercial" && (
+            <div className="space-y-4">
+              {supplier.payment_terms && (
+                <section>
+                  <h3 className="text-xs font-semibold text-slate-800 mb-2">Condições Comerciais</h3>
+                  <div className="flex items-center gap-2.5 bg-slate-50 rounded-lg px-3 py-2.5 border border-slate-100">
+                    <CreditCard size={13} className="text-slate-400 shrink-0" />
+                    <div>
+                      <p className="text-[11px] text-slate-500 font-medium">Prazo de Pagamento</p>
+                      <p className="text-xs font-medium text-slate-700">{supplier.payment_terms}</p>
+                    </div>
+                  </div>
+                </section>
+              )}
+              {supplier.notes && (
+                <section>
+                  <h3 className="text-xs font-semibold text-slate-800 mb-2">Notas Internas</h3>
+                  <div className="flex items-start gap-2.5 bg-amber-50 rounded-lg px-3 py-2.5 border border-amber-100">
+                    <Info size={13} className="text-amber-500 shrink-0 mt-0.5" />
+                    <p className="text-xs text-amber-800 leading-relaxed whitespace-pre-wrap">{supplier.notes}</p>
+                  </div>
+                </section>
+              )}
+              {!supplier.payment_terms && !supplier.notes && (
+                <p className="text-xs text-slate-500 py-2">Nenhuma condição comercial ou nota registrada.</p>
+              )}
+            </div>
+          )}
+        </Tabs>
       </div>
-    </div>
+    </Modal>
   );
 }
 
@@ -346,33 +346,33 @@ function SupplierCard({ supplier, onEdit, onDelete, onView, editTourTag }: {
   supplier: Supplier; onEdit: () => void; onDelete: () => void; onView: () => void; editTourTag?: string;
 }) {
   return (
-    <div className="bg-white rounded-2xl border border-slate-200 shadow-sm hover:shadow-md hover:border-slate-300 transition-all overflow-hidden">
+    <div className="bg-white rounded-lg border border-slate-200 shadow-sm hover:shadow-sm hover:border-slate-300 transition-all overflow-hidden">
       {/* Top */}
       <div className="p-4">
         <div className="flex items-start justify-between gap-2">
           <button onClick={onView} className="flex items-center gap-3 text-left group flex-1 min-w-0">
             <SupplierAvatar name={supplier.name} size="md" />
             <div className="min-w-0">
-              <p className="text-xs font-black text-slate-900 uppercase tracking-tight group-hover:text-blue-600 transition-colors truncate">{supplier.name}</p>
+              <p className="text-xs font-semibold text-slate-900 group-hover:text-blue-600 transition-colors truncate">{supplier.name}</p>
               <div className="flex items-center gap-1 mt-0.5">
                 <Tag size={9} className="text-slate-400 shrink-0" />
-                <span className="text-[9px] font-bold text-slate-400 uppercase truncate">{supplier.category}</span>
+                <span className="text-[10px] font-semibold text-slate-400 truncate">{supplier.category}</span>
               </div>
               {supplier.contact_person && (
                 <div className="flex items-center gap-1 mt-0.5">
                   <User size={9} className="text-slate-300 shrink-0" />
-                  <span className="text-[9px] text-slate-400 truncate">{supplier.contact_person}</span>
+                  <span className="text-[10px] text-slate-400 truncate">{supplier.contact_person}</span>
                 </div>
               )}
             </div>
           </button>
           <div className="flex items-center gap-1 shrink-0">
-            <button {...(editTourTag ? { "data-tour": editTourTag } : {})} onClick={onEdit} className="w-7 h-7 flex items-center justify-center text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all">
-              <Edit3 size={12} />
-            </button>
-            <button onClick={onDelete} className="w-7 h-7 flex items-center justify-center text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all">
-              <Trash2 size={12} />
-            </button>
+            <IconButton size="sm" aria-label="Editar fornecedor" title="Editar" {...(editTourTag ? { "data-tour": editTourTag } : {})} onClick={onEdit}>
+              <Edit3 size={14} />
+            </IconButton>
+            <IconButton size="sm" variant="danger" aria-label="Remover fornecedor" title="Remover" onClick={onDelete}>
+              <Trash2 size={14} />
+            </IconButton>
           </div>
         </div>
       </div>
@@ -381,18 +381,18 @@ function SupplierCard({ supplier, onEdit, onDelete, onView, editTourTag }: {
       <div className="flex items-center justify-between px-4 py-2.5 border-t border-slate-100 bg-slate-50/50">
         <div className="flex items-center gap-1.5">
           {supplier.city && (
-            <span className="flex items-center gap-1 text-[9px] text-slate-400 font-medium">
+            <span className="flex items-center gap-1 text-[10px] text-slate-400 font-medium">
               <MapPin size={9} className="text-slate-300" />
               {[supplier.city, supplier.state].filter(Boolean).join(" / ")}
             </span>
           )}
           {!supplier.city && supplier.address && (
-            <span className="flex items-center gap-1 text-[9px] text-slate-400">
+            <span className="flex items-center gap-1 text-[10px] text-slate-400">
               <MapPin size={9} className="text-slate-300" /> {supplier.address}
             </span>
           )}
           {supplier.payment_terms && !supplier.city && !supplier.address && (
-            <span className="flex items-center gap-1 text-[9px] text-slate-400">
+            <span className="flex items-center gap-1 text-[10px] text-slate-400">
               <CreditCard size={9} className="text-slate-300" /> {supplier.payment_terms}
             </span>
           )}
@@ -414,6 +414,7 @@ export default function Suppliers() {
   const [saving, setSaving] = useState(false);
   const [viewing, setViewing] = useState<Supplier | null>(null);
   const [viewMode, setViewMode] = useState<ViewMode>("grid");
+  const [formTab, setFormTab] = useState<FormTab>("geral");
   const [expandedRows, setExpandedRows] = useState<Set<number>>(new Set());
   const suppliersPageTourRef = React.useRef<SuppliersPageTourHandle>(null);
 
@@ -435,8 +436,8 @@ export default function Suppliers() {
 
   useEffect(() => { fetchSuppliers(); }, []);
 
-  const openNew = () => { setEditing(EMPTY); setIsModalOpen(true); };
-  const openEdit = (s: Supplier) => { setViewing(null); setEditing(s); setIsModalOpen(true); };
+  const openNew = () => { setFormTab("geral"); setEditing(EMPTY); setIsModalOpen(true); };
+  const openEdit = (s: Supplier) => { setFormTab("geral"); setViewing(null); setEditing(s); setIsModalOpen(true); };
   const closeModal = () => { setIsModalOpen(false); setEditing(EMPTY); };
 
   const handleSave = async (e: React.FormEvent) => {
@@ -506,71 +507,57 @@ export default function Suppliers() {
   }, [suppliers]);
 
   return (
-    <div data-tour="suppliers-page" className="space-y-6">
-      <PageHeader
+    <PageWrapper data-tour="suppliers-page">
+    <div className="space-y-4">
+      <SectionTitle
+        icon={Truck}
         title="Fornecedores"
-        subtitle="Cadeia de suprimentos e parceiros"
+        description="Cadeia de suprimentos e parceiros"
         action={
-          <div className="flex gap-2 items-center">
-            <Button data-tour="suppliers-new-btn" icon={<Plus size={15} />} onClick={openNew}>
+          <>
+            <Button size="sm" data-tour="suppliers-new-btn" iconLeft={<Plus size={14} />} onClick={openNew}>
               Novo Fornecedor
             </Button>
             <Button
-              variant="secondary"
-              className="h-9 px-3 rounded-xl flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest border border-slate-200 bg-white text-slate-400 hover:text-blue-600 hover:bg-blue-50 hover:border-blue-300 transition-all"
-              icon={<HelpCircle size={14} />}
+              size="sm"
+              variant="outline"
+              iconLeft={<HelpCircle size={14} />}
               onClick={() => suppliersPageTourRef.current?.start()}
               title="Tour guiado desta página"
             >
               <span className="sr-only sm:not-sr-only">Ajuda</span>
             </Button>
-          </div>
+          </>
         }
       />
 
       <SuppliersPageTour ref={suppliersPageTourRef} />
 
       {/* Stats */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-        <StatCard label="Total" value={suppliers.length} icon={<Truck />} accent="blue" />
-        <StatCard label="Filtrados" value={filtered.length} icon={<Search />} accent="slate" />
-        <div className="hidden sm:block">
-          <StatCard label="Com WhatsApp" value={suppliers.filter((s) => s.whatsapp).length} icon={<MessageCircle />} accent="blue" />
-        </div>
-      </div>
+      <StatGrid cols={3}>
+        <StatCard title="Total" value={suppliers.length} icon={Truck} color="info" />
+        <StatCard title="Filtrados" value={filtered.length} icon={Search} color="default" />
+        <StatCard title="Com WhatsApp" value={suppliers.filter((s) => s.whatsapp).length} icon={MessageCircle} color="success" />
+      </StatGrid>
 
       {/* Search + view toggle */}
-      <div className="flex items-center gap-2">
-        <div className="relative flex-1">
-          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
-          <input
-            type="text"
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            placeholder="Buscar por nome, categoria, cidade, CNPJ..."
-            className="w-full pl-9 pr-4 py-2.5 text-sm border border-slate-200 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400 transition-all"
-          />
-          {searchTerm && (
-            <button onClick={() => setSearchTerm("")} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
-              <X size={14} />
-            </button>
-          )}
-        </div>
-        <div data-tour="suppliers-view-toggle" className="flex border border-slate-200 rounded-xl overflow-hidden bg-white shrink-0">
-          <button
-            onClick={() => setViewMode("grid")}
-            className={`px-3 py-2.5 text-xs font-bold transition-all ${viewMode === "grid" ? "bg-slate-900 text-white" : "text-slate-400 hover:text-slate-600"}`}
-          >
-            Grade
-          </button>
-          <button
-            onClick={() => setViewMode("list")}
-            className={`px-3 py-2.5 text-xs font-bold transition-all ${viewMode === "list" ? "bg-slate-900 text-white" : "text-slate-400 hover:text-slate-600"}`}
-          >
-            Lista
-          </button>
-        </div>
-      </div>
+      <FilterLine>
+        <FilterLineSection grow>
+          <FilterLineItem grow>
+            <FilterLineSearch
+              aria-label="Buscar fornecedores"
+              value={searchTerm}
+              onChange={setSearchTerm}
+              placeholder="Buscar por nome, categoria, cidade, CNPJ..."
+            />
+          </FilterLineItem>
+        </FilterLineSection>
+        <FilterLineSection align="right">
+          <div data-tour="suppliers-view-toggle">
+            <FilterLineViewToggle<ViewMode> value={viewMode} onChange={setViewMode} gridValue="grid" listValue="list" />
+          </div>
+        </FilterLineSection>
+      </FilterLine>
 
       {loading ? (
         <LoadingState />
@@ -597,12 +584,12 @@ export default function Suppliers() {
         </div>
       ) : (
         /* List / accordion view */
-        <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm divide-y divide-slate-100">
+        <div className="bg-white rounded-lg border border-slate-200 overflow-hidden shadow-sm divide-y divide-slate-100">
           {/* Table header */}
           <div className="hidden sm:grid grid-cols-[1fr_1fr_auto_auto] gap-4 px-5 py-2.5 bg-slate-50 border-b border-slate-200">
-            <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Fornecedor</span>
-            <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Contato</span>
-            <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Ações Rápidas</span>
+            <span className="text-[10px] font-semibold text-slate-400">Fornecedor</span>
+            <span className="text-[10px] font-semibold text-slate-400">Contato</span>
+            <span className="text-[10px] font-semibold text-slate-400">Ações Rápidas</span>
             <span />
           </div>
 
@@ -616,13 +603,13 @@ export default function Suppliers() {
                   <button onClick={() => setViewing(s)} className="flex items-center gap-3 text-left group">
                     <SupplierAvatar name={s.name} size="sm" />
                     <div className="min-w-0">
-                      <p className="text-xs font-black text-slate-900 uppercase tracking-tight group-hover:text-blue-600 transition-colors truncate">{s.name}</p>
+                      <p className="text-xs font-semibold text-slate-900 group-hover:text-blue-600 transition-colors truncate">{s.name}</p>
                       <div className="flex items-center gap-1.5">
-                        <span className="text-[9px] font-bold text-slate-400 uppercase">{s.category}</span>
+                        <span className="text-[10px] font-semibold text-slate-400">{s.category}</span>
                         {(s.city || s.state) && (
                           <>
                             <span className="text-slate-200">·</span>
-                            <span className="flex items-center gap-0.5 text-[9px] text-slate-400">
+                            <span className="flex items-center gap-0.5 text-[10px] text-slate-400">
                               <MapPin size={8} />{[s.city, s.state].filter(Boolean).join(" / ")}
                             </span>
                           </>
@@ -637,19 +624,19 @@ export default function Suppliers() {
                       {s.contact_person && (
                         <div className="flex items-center gap-1.5">
                           <User size={10} className="text-slate-300" />
-                          <span className="text-[10px] text-slate-600 font-medium">{s.contact_person}</span>
+                          <span className="text-[11px] text-slate-600 font-medium">{s.contact_person}</span>
                         </div>
                       )}
                       {s.phone && (
                         <div className="flex items-center gap-1.5">
                           <Phone size={10} className="text-slate-300" />
-                          <span className="text-[10px] text-slate-500 font-mono">{s.phone}</span>
+                          <span className="text-[11px] text-slate-500 font-mono">{s.phone}</span>
                         </div>
                       )}
                       {s.payment_terms && (
                         <div className="flex items-center gap-1.5">
                           <CreditCard size={10} className="text-slate-300" />
-                          <span className="text-[10px] text-slate-500">{s.payment_terms}</span>
+                          <span className="text-[11px] text-slate-500">{s.payment_terms}</span>
                         </div>
                       )}
                     </div>
@@ -662,20 +649,20 @@ export default function Suppliers() {
 
                   {/* Actions */}
                   <div className="flex items-center gap-1">
-                    <button onClick={() => toggleRow(s.id)}
-                      className="w-7 h-7 flex items-center justify-center text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-all">
-                      {expanded ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
-                    </button>
-                    <button
+                    <IconButton size="sm" aria-label={expanded ? "Recolher detalhes" : "Expandir detalhes"} onClick={() => toggleRow(s.id)}>
+                      {expanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                    </IconButton>
+                    <IconButton
+                      size="sm"
+                      aria-label="Editar fornecedor"
+                      title="Editar"
                       {...(idx === 0 ? { "data-tour": "suppliers-edit-btn" } : {})}
-                      onClick={() => openEdit(s)}
-                      className="w-7 h-7 flex items-center justify-center text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all">
-                      <Edit3 size={12} />
-                    </button>
-                    <button onClick={() => handleDelete(s.id)}
-                      className="w-7 h-7 flex items-center justify-center text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all">
-                      <Trash2 size={12} />
-                    </button>
+                      onClick={() => openEdit(s)}>
+                      <Edit3 size={14} />
+                    </IconButton>
+                    <IconButton size="sm" variant="danger" aria-label="Remover fornecedor" title="Remover" onClick={() => handleDelete(s.id)}>
+                      <Trash2 size={14} />
+                    </IconButton>
                   </div>
                 </div>
 
@@ -685,29 +672,29 @@ export default function Suppliers() {
                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-3">
                       {s.email && (
                         <a href={`mailto:${s.email}`}
-                          className="flex items-center gap-2 bg-white rounded-xl px-3 py-2 border border-slate-200 hover:border-blue-200 hover:bg-blue-50 transition-all group">
+                          className="flex items-center gap-2 bg-white rounded-lg px-3 py-2 border border-slate-200 hover:border-blue-200 hover:bg-blue-50 transition-all group">
                           <Mail size={12} className="text-slate-400 group-hover:text-blue-500 shrink-0" />
-                          <span className="text-[10px] text-slate-600 font-medium truncate">{s.email}</span>
+                          <span className="text-[11px] text-slate-600 font-medium truncate">{s.email}</span>
                         </a>
                       )}
                       {s.website && (
                         <a href={s.website.startsWith("http") ? s.website : `https://${s.website}`}
                           target="_blank" rel="noopener noreferrer"
-                          className="flex items-center gap-2 bg-white rounded-xl px-3 py-2 border border-slate-200 hover:border-violet-200 hover:bg-violet-50 transition-all group">
+                          className="flex items-center gap-2 bg-white rounded-lg px-3 py-2 border border-slate-200 hover:border-violet-200 hover:bg-violet-50 transition-all group">
                           <Globe size={12} className="text-slate-400 group-hover:text-violet-500 shrink-0" />
-                          <span className="text-[10px] text-slate-600 font-medium truncate">{s.website}</span>
+                          <span className="text-[11px] text-slate-600 font-medium truncate">{s.website}</span>
                         </a>
                       )}
                       {s.cnpj && (
-                        <div className="flex items-center gap-2 bg-white rounded-xl px-3 py-2 border border-slate-200">
+                        <div className="flex items-center gap-2 bg-white rounded-lg px-3 py-2 border border-slate-200">
                           <Building2 size={12} className="text-slate-400 shrink-0" />
-                          <span className="text-[10px] text-slate-600 font-mono">{s.cnpj}</span>
+                          <span className="text-[11px] text-slate-600 font-mono">{s.cnpj}</span>
                         </div>
                       )}
                       {s.notes && (
-                        <div className="col-span-2 sm:col-span-4 flex items-start gap-2 bg-amber-50 rounded-xl px-3 py-2 border border-amber-100">
+                        <div className="col-span-2 sm:col-span-4 flex items-start gap-2 bg-amber-50 rounded-lg px-3 py-2 border border-amber-100">
                           <Info size={12} className="text-amber-500 shrink-0 mt-0.5" />
-                          <span className="text-[10px] text-amber-800 leading-relaxed">{s.notes}</span>
+                          <span className="text-[11px] text-amber-800 leading-relaxed">{s.notes}</span>
                         </div>
                       )}
                     </div>
@@ -718,6 +705,8 @@ export default function Suppliers() {
           })}
         </div>
       )}
+
+    </div>
 
       {/* Detail Modal */}
       {viewing && (
@@ -732,53 +721,66 @@ export default function Suppliers() {
       <Modal
         open={isModalOpen}
         onClose={closeModal}
+        size="lg"
         title={editing.id ? "Editar Fornecedor" : "Novo Fornecedor"}
         subtitle={editing.id ? editing.name : "Preencha os dados do parceiro comercial"}
         footer={
-          <>
-            <Button variant="secondary" onClick={closeModal}>Cancelar</Button>
-            <Button form="supplier-form" type="submit" loading={saving}>
+          <ModalFooter>
+            <Button variant="ghost" size="sm" onClick={closeModal}>Cancelar</Button>
+            <Button size="sm" form="supplier-form" type="submit" loading={saving}>
               {editing.id ? "Atualizar" : "Cadastrar"}
             </Button>
-          </>
+          </ModalFooter>
         }
       >
-        <form id="supplier-form" onSubmit={handleSave} className="space-y-5">
-          {/* Identificação */}
-          <div>
-            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2.5">Identificação</p>
-            <div className="space-y-3">
-              <Input
-                data-tour="supplier-name-field"
-                label="Nome / Razão Social *"
-                required
-                placeholder="Nome Fantasia ou Razão Social"
-                value={editing.name || ""}
-                onChange={(e) => set("name", e.target.value)}
-              />
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <form id="supplier-form" onSubmit={handleSave}>
+          <Tabs<FormTab> items={formTabs} value={formTab} onChange={setFormTab} label="Dados do fornecedor">
+            {/* Painéis ficam montados (só ocultos) para os campos obrigatórios continuarem validando no submit */}
+            <div className={formTab === "geral" ? "space-y-4" : "hidden"}>
+              <div className="space-y-3">
                 <Input
-                  data-tour="supplier-category-field"
-                  label="O que fornece? *"
+                  data-tour="supplier-name-field"
+                  label="Nome / Razão Social *"
                   required
-                  placeholder="Ex: Embalagens, Tecidos, Calçados"
-                  value={editing.category || ""}
-                  onChange={(e) => set("category", e.target.value)}
+                  placeholder="Nome Fantasia ou Razão Social"
+                  value={editing.name || ""}
+                  onChange={(e) => set("name", e.target.value)}
                 />
-                <Input
-                  label="CNPJ"
-                  placeholder="00.000.000/0000-00"
-                  value={editing.cnpj || ""}
-                  onChange={(e) => set("cnpj", formatCNPJ(e.target.value))}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <Input
+                    data-tour="supplier-category-field"
+                    label="O que fornece? *"
+                    required
+                    placeholder="Ex: Embalagens, Tecidos, Calçados"
+                    value={editing.category || ""}
+                    onChange={(e) => set("category", e.target.value)}
+                  />
+                  <Input
+                    label="CNPJ"
+                    placeholder="00.000.000/0000-00"
+                    value={editing.cnpj || ""}
+                    onChange={(e) => set("cnpj", formatCNPJ(e.target.value))}
+                  />
+                </div>
+                <Select
+                  label="Prazo de Pagamento"
+                  value={editing.payment_terms || ""}
+                  onChange={(e) => set("payment_terms", e.target.value)}
+                >
+                  <option value="">Selecione...</option>
+                  {PAYMENT_OPTIONS.map((opt) => <option key={opt} value={opt}>{opt}</option>)}
+                </Select>
+                <Textarea
+                  label="Observações"
+                  placeholder="Prazos de entrega, condições especiais, histórico, observações..."
+                  rows={3}
+                  value={editing.notes || ""}
+                  onChange={(e) => set("notes", e.target.value)}
                 />
               </div>
             </div>
-          </div>
 
-          {/* Contato */}
-          <div>
-            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2.5">Contato</p>
-            <div className="space-y-3">
+            <div className={formTab === "contato" ? "space-y-3" : "hidden"}>
               <Input
                 label="Nome do Contato / Representante"
                 placeholder="Fulano da Silva"
@@ -816,12 +818,8 @@ export default function Suppliers() {
                 />
               </div>
             </div>
-          </div>
 
-          {/* Localização */}
-          <div>
-            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2.5">Localização</p>
-            <div className="space-y-3">
+            <div className={formTab === "local" ? "space-y-3" : "hidden"}>
               <Input
                 label="Endereço / Bairro"
                 placeholder="Rua, número, bairro"
@@ -829,58 +827,26 @@ export default function Suppliers() {
                 onChange={(e) => set("address", e.target.value)}
               />
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                <div className="col-span-2 sm:col-span-2">
-                  <Input
-                    label="Cidade"
-                    placeholder="São Paulo"
-                    value={editing.city || ""}
-                    onChange={(e) => set("city", e.target.value)}
-                  />
-                </div>
-                <div>
-                  <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-1">Estado</label>
-                  <select
-                    value={editing.state || ""}
-                    onChange={(e) => set("state", e.target.value)}
-                    className="w-full px-3 py-2.5 text-sm border border-slate-200 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400 transition-all text-slate-700"
-                  >
-                    <option value="">UF</option>
-                    {STATES.map((uf) => <option key={uf} value={uf}>{uf}</option>)}
-                  </select>
-                </div>
+                <Input
+                  wrapperClassName="col-span-2"
+                  label="Cidade"
+                  placeholder="São Paulo"
+                  value={editing.city || ""}
+                  onChange={(e) => set("city", e.target.value)}
+                />
+                <Select
+                  label="Estado"
+                  value={editing.state || ""}
+                  onChange={(e) => set("state", e.target.value)}
+                >
+                  <option value="">UF</option>
+                  {STATES.map((uf) => <option key={uf} value={uf}>{uf}</option>)}
+                </Select>
               </div>
             </div>
-          </div>
-
-          {/* Comercial */}
-          <div>
-            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2.5">Condições Comerciais</p>
-            <div>
-              <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-1">Prazo de Pagamento</label>
-              <select
-                value={editing.payment_terms || ""}
-                onChange={(e) => set("payment_terms", e.target.value)}
-                className="w-full px-3 py-2.5 text-sm border border-slate-200 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400 transition-all text-slate-700"
-              >
-                <option value="">Selecione...</option>
-                {PAYMENT_OPTIONS.map((opt) => <option key={opt} value={opt}>{opt}</option>)}
-              </select>
-            </div>
-          </div>
-
-          {/* Notas */}
-          <div>
-            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2.5">Observações</p>
-            <Textarea
-              label=""
-              placeholder="Prazos de entrega, condições especiais, histórico, observações..."
-              rows={3}
-              value={editing.notes || ""}
-              onChange={(e) => set("notes", e.target.value)}
-            />
-          </div>
+          </Tabs>
         </form>
       </Modal>
-    </div>
+    </PageWrapper>
   );
 }

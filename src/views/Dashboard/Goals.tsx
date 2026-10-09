@@ -4,21 +4,22 @@ import {
   Plus,
   Trash2,
   TrendingUp,
-  X,
   CheckCircle2,
   Clock,
   XCircle,
   Edit2,
-  ChevronDown,
   Flame,
   Trophy,
   AlertCircle,
   HelpCircle,
+  Layers,
+  CalendarDays,
+  CalendarRange,
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { cn } from "../../lib/utils";
-import PageHeader from "../../components/layout/PageHeader";
-import Button from "../../components/ui/Button";
+import React from "react";
+import { Button, Input, Textarea, Select, Modal, ModalFooter, EmptyState, ContentCard, SectionTitle, StatGrid, StatCard, Tabs, IconButton, Badge } from "../../components/ui";
 import GoalsPageTour, { type GoalsPageTourHandle } from "../../components/onboarding/GoalsPageTour";
 import {
   GOAL_TYPES,
@@ -79,40 +80,34 @@ function GoalCard({
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, scale: 0.96 }}
       className={cn(
-        "bg-white rounded-2xl border shadow-sm hover:shadow-md transition-all flex flex-col gap-0 overflow-hidden",
+        "bg-white rounded-lg border hover:border-blue-200 transition-all flex flex-col gap-0 overflow-hidden",
         isDone ? "border-emerald-300 ring-1 ring-emerald-200" : "border-slate-200"
       )}
     >
       {/* Header */}
       <div className={cn("flex items-start justify-between px-4 pt-4 pb-3")}>
         <div className="flex items-start gap-3 min-w-0">
-          <div className={cn("w-9 h-9 rounded-xl flex items-center justify-center shrink-0", cfg.bg, cfg.border, "border")}>
+          <div className={cn("w-9 h-9 rounded-lg flex items-center justify-center shrink-0", cfg.bg, cfg.border, "border")}>
             <Icon size={16} className={cfg.color} />
           </div>
           <div className="min-w-0">
-            <p className="text-[11px] font-black uppercase tracking-wider text-slate-400 leading-none mb-0.5">
+            <p className="text-[11px] font-semibold text-slate-400 leading-none mb-0.5">
               {getPeriodLabel(goal.period)} · {cfg.label}
             </p>
-            <h3 className="font-black text-slate-800 text-[14px] leading-tight truncate">{goal.title}</h3>
+            <h3 className="font-semibold text-slate-800 text-[14px] leading-tight truncate">{goal.title}</h3>
             {goal.description && (
               <p className="text-[11px] text-slate-400 mt-0.5 line-clamp-1">{goal.description}</p>
             )}
           </div>
         </div>
-        <div className="flex items-center gap-1 shrink-0 ml-2">
+        <div className="ml-2 flex shrink-0 items-center gap-1">
           {isDone && <Trophy size={14} className="text-amber-400" />}
-          <button
-            onClick={() => onEdit(goal)}
-            className="p-1.5 hover:bg-slate-100 rounded-lg text-slate-400 transition-colors"
-          >
+          <IconButton size="xs" aria-label="Editar meta" onClick={() => onEdit(goal)}>
             <Edit2 size={13} />
-          </button>
-          <button
-            onClick={() => onDelete(goal.id)}
-            className="p-1.5 hover:bg-red-50 rounded-lg text-slate-300 hover:text-red-400 transition-colors"
-          >
+          </IconButton>
+          <IconButton size="xs" variant="danger" aria-label="Excluir meta" onClick={() => onDelete(goal.id)}>
             <Trash2 size={13} />
-          </button>
+          </IconButton>
         </div>
       </div>
 
@@ -127,10 +122,10 @@ function GoalCard({
           />
         </div>
         <div className="flex items-center justify-between mt-1.5">
-          <span className={cn("text-[11px] font-black", progressColor(pct).replace("bg-", "text-"))}>
+          <span className={cn("text-[11px] font-semibold", progressColor(pct).replace("bg-", "text-"))}>
             {pct.toFixed(1)}%
           </span>
-          <span className="text-[10px] text-slate-400 font-semibold">
+          <span className="text-[11px] text-slate-400 font-semibold">
             {fmtValue(Number(goal.current_value), cfg.unit)} / {fmtValue(Number(goal.target_value), cfg.unit)}
           </span>
         </div>
@@ -140,24 +135,18 @@ function GoalCard({
       <div className="flex items-center justify-between px-4 py-3 border-t border-slate-100 mt-auto">
         <div className="flex items-center gap-1.5">
           {isDone ? (
-            <span className="flex items-center gap-1 text-[10px] font-black text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full">
-              <CheckCircle2 size={10} /> Meta atingida!
-            </span>
+            <Badge color="success" icon={<CheckCircle2 size={10} />}>Meta atingida!</Badge>
           ) : isExpired ? (
-            <span className="flex items-center gap-1 text-[10px] font-black text-red-500 bg-red-50 px-2 py-0.5 rounded-full">
-              <XCircle size={10} /> Expirada
-            </span>
+            <Badge color="danger" icon={<XCircle size={10} />}>Expirada</Badge>
           ) : left <= 3 ? (
-            <span className="flex items-center gap-1 text-[10px] font-black text-orange-600 bg-orange-50 px-2 py-0.5 rounded-full">
-              <Flame size={10} /> {left}d restante{left !== 1 ? "s" : ""}
-            </span>
+            <Badge color="warning" icon={<Flame size={10} />}>{left}d restante{left !== 1 ? "s" : ""}</Badge>
           ) : (
-            <span className="flex items-center gap-1 text-[10px] font-semibold text-slate-500">
+            <span className="flex items-center gap-1 text-[11px] font-medium text-slate-500">
               <Clock size={10} /> {left}d restantes
             </span>
           )}
         </div>
-        <span className="text-[10px] text-slate-400">
+        <span className="text-[11px] text-slate-400">
           Falta: {fmtValue(Math.max(0, Number(goal.target_value) - Number(goal.current_value)), cfg.unit)}
         </span>
       </div>
@@ -168,6 +157,16 @@ function GoalCard({
 // ─── Main Component ───────────────────────────────────────────────────────────
 
 type PeriodFilter = "all" | "daily" | "weekly" | "monthly" | "quarterly" | "biannual" | "annual";
+
+const PERIOD_TABS = [
+  { id: "all", label: "Todas", icon: Layers },
+  { id: "daily", label: "Diária", icon: CalendarDays },
+  { id: "weekly", label: "Semanal", icon: CalendarDays },
+  { id: "monthly", label: "Mensal", icon: CalendarRange },
+  { id: "quarterly", label: "Trimestral", icon: CalendarRange },
+  { id: "biannual", label: "Semestral", icon: CalendarRange },
+  { id: "annual", label: "Anual", icon: CalendarRange },
+] as const satisfies readonly { id: PeriodFilter; label: string; icon: React.ElementType }[];
 
 export default function Goals() {
   const [goals, setGoals] = useState<Goal[]>([]);
@@ -319,23 +318,20 @@ export default function Goals() {
   const cfg = getTypeConfig(fType);
 
   return (
-    <div data-tour="goals-page" className="space-y-5">
-      <PageHeader
+    <div data-tour="goals-page" className="space-y-4">
+      <SectionTitle
         title="Metas"
-        subtitle="Acompanhe faturamento, vendas, despesas e muito mais"
+        icon={Target}
+        description="Acompanhe faturamento, vendas, despesas e muito mais"
         action={
-          <div className="flex gap-2 items-center flex-wrap">
-            <button
-              data-tour="goals-new-btn"
-              onClick={openCreate}
-              className="h-9 px-4 bg-blue-600 text-white rounded-lg flex items-center gap-2 text-[12px] font-bold hover:bg-blue-700 transition-all shadow-md shadow-blue-500/20"
-            >
-              <Plus size={15} /> Nova Meta
-            </button>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button data-tour="goals-new-btn" size="sm" iconLeft={<Plus size={14} />} onClick={openCreate}>
+              Nova Meta
+            </Button>
             <Button
-              variant="secondary"
-              className="text-slate-400 hover:text-blue-600 hover:bg-blue-50 border-slate-200 hover:border-blue-300"
-              icon={<HelpCircle size={14} />}
+              variant="outline"
+              size="sm"
+              iconLeft={<HelpCircle size={14} />}
               onClick={() => tourRef.current?.start()}
               title="Tour guiado desta página"
             >
@@ -348,65 +344,35 @@ export default function Goals() {
       <GoalsPageTour ref={tourRef} />
 
       {/* Summary cards */}
-      <div data-tour="goals-summary-cards" className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        {[
-          { label: "Total Ativas",   value: active.length,    icon: Target,       color: "text-slate-700",   bg: "bg-slate-50"   },
-          { label: "Atingidas",      value: achieved.length,  icon: Trophy,       color: "text-emerald-600", bg: "bg-emerald-50" },
-          { label: "No Caminho",     value: onTrack.length,   icon: TrendingUp,   color: "text-blue-600",    bg: "bg-blue-50"    },
-          { label: "Em Risco",       value: atRisk.length,    icon: AlertCircle,  color: "text-orange-600",  bg: "bg-orange-50"  },
-        ].map((s) => (
-          <div key={s.label} className={cn("rounded-xl p-4 border border-white/60 shadow-sm flex items-center gap-3", s.bg)}>
-            <s.icon size={20} className={cn(s.color, "shrink-0")} />
-            <div>
-              <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500 leading-none">{s.label}</p>
-              <p className={cn("text-2xl font-black mt-0.5 leading-none", s.color)}>{s.value}</p>
-            </div>
-          </div>
-        ))}
+      <div data-tour="goals-summary-cards">
+        <StatGrid cols={4}>
+          <StatCard title="Total Ativas" value={active.length} icon={Target} color="info" />
+          <StatCard title="Atingidas" value={achieved.length} icon={Trophy} color="success" />
+          <StatCard title="No Caminho" value={onTrack.length} icon={TrendingUp} color="info" />
+          <StatCard title="Em Risco" value={atRisk.length} icon={AlertCircle} color="warning" />
+        </StatGrid>
       </div>
 
-      {/* Period filter pills */}
-      <div data-tour="goals-period-filter" className="flex gap-2 flex-wrap">
-        {([
-          { value: "all",       label: "Todas"       },
-          { value: "daily",     label: "Diária"      },
-          { value: "weekly",    label: "Semanal"     },
-          { value: "monthly",   label: "Mensal"      },
-          { value: "quarterly", label: "Trimestral"  },
-          { value: "biannual",  label: "Semestral"   },
-          { value: "annual",    label: "Anual"       },
-        ] as { value: PeriodFilter; label: string }[]).map((p) => (
-          <button
-            key={p.value}
-            onClick={() => setPeriodFilter(p.value)}
-            className={cn(
-              "h-8 px-3 rounded-lg text-[11px] font-bold border transition-all",
-              periodFilter === p.value
-                ? "bg-blue-600 text-white border-blue-600"
-                : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50"
-            )}
-          >
-            {p.label}
-          </button>
-        ))}
+      {/* Filtro de período (abas) */}
+      <div data-tour="goals-period-filter">
+        <Tabs<PeriodFilter> items={PERIOD_TABS} value={periodFilter} onChange={setPeriodFilter} label="Período das metas">
+          {null}
+        </Tabs>
       </div>
 
       {/* Goals grid */}
       {loading ? (
-        <div className="flex justify-center py-16 text-slate-400 text-sm">Carregando…</div>
+        <div role="status" className="flex justify-center py-12 text-sm text-slate-500">Carregando…</div>
       ) : filtered.length === 0 ? (
-        <div className="flex flex-col items-center py-16 text-slate-400 gap-3">
-          <Target size={40} strokeWidth={1} />
-          <p className="text-sm font-medium">Nenhuma meta encontrada</p>
-          <button
-            onClick={openCreate}
-            className="h-8 px-4 bg-blue-600 text-white rounded-lg text-xs font-bold hover:bg-blue-700"
-          >
-            Criar primeira meta
-          </button>
-        </div>
+        <ContentCard>
+          <EmptyState
+            icon={Target}
+            title="Nenhuma meta encontrada"
+            action={<Button size="sm" onClick={openCreate}>Criar primeira meta</Button>}
+          />
+        </ContentCard>
       ) : (
-        <div data-tour="goals-grid" className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
+        <div data-tour="goals-grid" className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
           <AnimatePresence mode="popLayout">
             {filtered.map((g) => (
               <GoalCard key={g.id} goal={g} onDelete={handleDelete} onEdit={openEdit} />
@@ -415,197 +381,129 @@ export default function Goals() {
         </div>
       )}
 
-      {/* ── Form Drawer ──────────────────────────────────────────────────────── */}
-      <AnimatePresence>
-        {showForm && (
-          <>
-            <motion.div
-              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-              onClick={closeForm}
-              className="fixed inset-0 bg-slate-900/50 z-40 backdrop-blur-sm"
-            />
-            <motion.div
-              initial={{ x: "100%" }} animate={{ x: 0 }} exit={{ x: "100%" }}
-              transition={{ type: "spring", damping: 26, stiffness: 200 }}
-              className="fixed inset-y-0 right-0 w-full max-w-md bg-white z-50 shadow-2xl flex flex-col"
+      {/* ── Form (modal lateral) ─────────────────────────────────────────────── */}
+      <Modal
+        open={showForm}
+        onClose={closeForm}
+        position="right"
+        size="md"
+        title={editGoal ? "Editar Meta" : "Nova Meta"}
+        subtitle={editGoal ? "Altere título, descrição ou valor alvo" : "Configure o tipo, período e valor alvo"}
+        footer={
+          <ModalFooter>
+            <Button variant="outline" onClick={closeForm}>Cancelar</Button>
+            <Button
+              onClick={handleSave}
+              disabled={saving || !fTitle.trim() || !fTarget || (!editGoal && (!fStart || !fEnd))}
             >
-              {/* Header */}
-              <div className="flex items-center justify-between px-5 py-4 border-b border-slate-200 shrink-0">
-                <div>
-                  <h2 className="font-black text-slate-900 text-[15px]">
-                    {editGoal ? "Editar Meta" : "Nova Meta"}
-                  </h2>
-                  <p className="text-[11px] text-slate-500">
-                    {editGoal ? "Altere título, descrição ou valor alvo" : "Configure o tipo, período e valor alvo"}
-                  </p>
-                </div>
-                <button onClick={closeForm} className="p-2 hover:bg-slate-100 rounded-lg text-slate-500">
-                  <X size={18} />
-                </button>
+              {saving ? "Salvando…" : editGoal ? "Salvar Alterações" : "Criar Meta"}
+            </Button>
+          </ModalFooter>
+        }
+      >
+        <div className="space-y-4">
+          {/* Título */}
+          <div data-tour="goals-form-title">
+            <Input
+              label="Título da Meta *"
+              value={fTitle}
+              onChange={(e) => setFTitle(e.target.value)}
+              placeholder="Ex: Faturar R$ 50.000 em Junho"
+            />
+          </div>
+
+          {/* Descrição */}
+          <Textarea
+            label="Descrição (opcional)"
+            value={fDesc}
+            onChange={(e) => setFDesc(e.target.value)}
+            rows={2}
+            placeholder="Detalhes ou estratégias para atingir a meta…"
+          />
+
+          {/* Tipo */}
+          {!editGoal && (
+            <div>
+              <span className="ds-label mb-1.5 block">Tipo de Meta *</span>
+              <div className="grid grid-cols-2 gap-2">
+                {GOAL_TYPES.map((t) => (
+                  <button
+                    type="button"
+                    key={t.value}
+                    onClick={() => setFType(t.value)}
+                    className={cn(
+                      "flex items-center gap-2 rounded-lg border px-3 py-2 text-left transition-all",
+                      fType === t.value
+                        ? `${t.bg} ${t.border} ${t.color}`
+                        : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
+                    )}
+                  >
+                    <t.icon size={14} className={fType === t.value ? t.color : "text-slate-400"} />
+                    <span className="text-[11px] font-medium leading-tight">{t.label}</span>
+                  </button>
+                ))}
               </div>
+            </div>
+          )}
 
-              <div className="flex-1 overflow-y-auto p-5 space-y-4">
+          {/* Período */}
+          {!editGoal && (
+            <Select label="Período *" value={fPeriod} onChange={(e) => setFPeriod(e.target.value)}>
+              {PERIODS.map((p) => (
+                <option key={p.value} value={p.value}>{p.label}</option>
+              ))}
+            </Select>
+          )}
 
-                {/* Título */}
-                <div data-tour="goals-form-title">
-                  <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block mb-1">
-                    Título da Meta *
-                  </label>
-                  <input
-                    value={fTitle}
-                    onChange={(e) => setFTitle(e.target.value)}
-                    placeholder="Ex: Faturar R$ 50.000 em Junho"
-                    className="w-full h-9 px-3 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
-                </div>
+          {/* Datas */}
+          {!editGoal && (
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <Input
+                label="Início *"
+                type="date"
+                value={fStart}
+                onChange={(e) => { setFPeriod("custom"); setFStart(e.target.value); }}
+              />
+              <Input
+                label="Fim *"
+                type="date"
+                value={fEnd}
+                onChange={(e) => { setFPeriod("custom"); setFEnd(e.target.value); }}
+              />
+            </div>
+          )}
 
-                {/* Descrição */}
-                <div>
-                  <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block mb-1">
-                    Descrição (opcional)
-                  </label>
-                  <textarea
-                    value={fDesc}
-                    onChange={(e) => setFDesc(e.target.value)}
-                    rows={2}
-                    placeholder="Detalhes ou estratégias para atingir a meta…"
-                    className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
-                  />
-                </div>
+          {/* Valor alvo */}
+          <div data-tour="goals-form-target">
+            <Input
+              label={`Valor Alvo * ${cfg.unit === "currency" ? "(R$)" : "(unidades)"}`}
+              type="number"
+              min={0}
+              step={cfg.unit === "currency" ? "0.01" : "1"}
+              value={fTarget}
+              onChange={(e) => setFTarget(e.target.value)}
+              placeholder={cfg.unit === "currency" ? "0,00" : "0"}
+              addonLeft={cfg.unit === "currency" ? "R$" : "#"}
+            />
+          </div>
 
-                {/* Tipo */}
-                {!editGoal && (
-                  <div>
-                    <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block mb-2">
-                      Tipo de Meta *
-                    </label>
-                    <div className="grid grid-cols-2 gap-2">
-                      {GOAL_TYPES.map((t) => (
-                        <button
-                          key={t.value}
-                          onClick={() => setFType(t.value)}
-                          className={cn(
-                            "flex items-center gap-2 px-3 py-2.5 rounded-xl border text-left transition-all",
-                            fType === t.value
-                              ? `${t.bg} ${t.border} ${t.color} border-2`
-                              : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50"
-                          )}
-                        >
-                          <t.icon size={14} className={fType === t.value ? t.color : "text-slate-400"} />
-                          <span className="text-[11px] font-bold leading-tight">{t.label}</span>
-                        </button>
-                      ))}
-                    </div>
-                  </div>
+          {/* Preview */}
+          {fTarget && Number(fTarget) > 0 && (
+            <div className={cn("rounded-lg border p-3", cfg.bg, cfg.border)}>
+              <p className="mb-1 text-[11px] font-medium text-slate-500">Resumo da Meta</p>
+              <p className={cn("text-sm font-semibold", cfg.color)}>
+                {fTitle || "Meta sem título"}
+              </p>
+              <p className="mt-1 text-xs text-slate-600">
+                Alvo: <strong>{fmtValue(Number(fTarget), cfg.unit)}</strong>
+                {fStart && fEnd && (
+                  <> · {new Date(fStart + "T12:00:00").toLocaleDateString("pt-BR")} até {new Date(fEnd + "T12:00:00").toLocaleDateString("pt-BR")}</>
                 )}
-
-                {/* Período */}
-                {!editGoal && (
-                  <div>
-                    <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block mb-1">
-                      Período *
-                    </label>
-                    <div className="relative">
-                      <select
-                        value={fPeriod}
-                        onChange={(e) => setFPeriod(e.target.value)}
-                        className="w-full h-9 pl-3 pr-8 rounded-lg border border-slate-200 text-sm appearance-none focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
-                      >
-                        {PERIODS.map((p) => (
-                          <option key={p.value} value={p.value}>{p.label}</option>
-                        ))}
-                      </select>
-                      <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
-                    </div>
-                  </div>
-                )}
-
-                {/* Datas */}
-                {!editGoal && (
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block mb-1">
-                        Início *
-                      </label>
-                      <input
-                        type="date"
-                        value={fStart}
-                        onChange={(e) => { setFPeriod("custom"); setFStart(e.target.value); }}
-                        className="w-full h-9 px-3 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      />
-                    </div>
-                    <div>
-                      <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block mb-1">
-                        Fim *
-                      </label>
-                      <input
-                        type="date"
-                        value={fEnd}
-                        onChange={(e) => { setFPeriod("custom"); setFEnd(e.target.value); }}
-                        className="w-full h-9 px-3 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      />
-                    </div>
-                  </div>
-                )}
-
-                {/* Valor alvo */}
-                <div data-tour="goals-form-target">
-                  <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block mb-1">
-                    Valor Alvo * {cfg.unit === "currency" ? "(R$)" : "(unidades)"}
-                  </label>
-                  <div className="relative">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm font-bold">
-                      {cfg.unit === "currency" ? "R$" : "#"}
-                    </span>
-                    <input
-                      type="number"
-                      min={0}
-                      step={cfg.unit === "currency" ? "0.01" : "1"}
-                      value={fTarget}
-                      onChange={(e) => setFTarget(e.target.value)}
-                      placeholder={cfg.unit === "currency" ? "0,00" : "0"}
-                      className="w-full h-9 pl-9 pr-3 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    />
-                  </div>
-                </div>
-
-                {/* Preview */}
-                {fTarget && Number(fTarget) > 0 && (
-                  <div className={cn("rounded-xl p-4 border", cfg.bg, cfg.border)}>
-                    <p className="text-[10px] font-black uppercase tracking-wider text-slate-500 mb-1">Resumo da Meta</p>
-                    <p className={cn("font-black text-[15px]", cfg.color)}>
-                      {fTitle || "Meta sem título"}
-                    </p>
-                    <p className="text-[12px] text-slate-600 mt-1">
-                      Alvo: <strong>{fmtValue(Number(fTarget), cfg.unit)}</strong>
-                      {fStart && fEnd && (
-                        <> · {new Date(fStart + "T12:00:00").toLocaleDateString("pt-BR")} até {new Date(fEnd + "T12:00:00").toLocaleDateString("pt-BR")}</>
-                      )}
-                    </p>
-                  </div>
-                )}
-              </div>
-
-              {/* Footer */}
-              <div className="border-t border-slate-200 px-5 py-4 shrink-0 bg-slate-50 flex gap-2">
-                <button
-                  onClick={closeForm}
-                  className="flex-1 h-9 rounded-lg border border-slate-200 text-sm font-semibold text-slate-600 hover:bg-slate-100"
-                >
-                  Cancelar
-                </button>
-                <button
-                  onClick={handleSave}
-                  disabled={saving || !fTitle.trim() || !fTarget || (!editGoal && (!fStart || !fEnd))}
-                  className="flex-1 h-9 bg-blue-600 text-white rounded-lg text-sm font-bold hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
-                >
-                  {saving ? "Salvando…" : editGoal ? "Salvar Alterações" : "Criar Meta"}
-                </button>
-              </div>
-            </motion.div>
-          </>
-        )}
-      </AnimatePresence>
+              </p>
+            </div>
+          )}
+        </div>
+      </Modal>
     </div>
   );
 }

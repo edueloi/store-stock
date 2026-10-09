@@ -6,12 +6,18 @@ import {
   Printer, FileText, MessageCircle, Phone, Clock, Receipt,
   ChevronDown, PlusCircle, Users, Barcode, Wrench, ChevronUp,
   Star, Gift, UserPlus, Store, Terminal, Ruler,
-  LayoutGrid, List, ShoppingBag, Wallet, MoreVertical,
+  LayoutGrid, List, ShoppingBag, Wallet, MoreVertical, Pencil,
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { Product, Category, NfceInvoice } from "../../types";
 import { cn } from "../../lib/utils";
 import Combobox from "../../components/ui/Combobox";
+import { Button, IconButton } from "../../components/ui/Button";
+import { Input, Textarea, Select } from "../../components/ui/Input";
+import { Modal, ModalFooter } from "../../components/ui/Modal";
+import { Badge } from "../../components/ui/Badge";
+import { Tabs } from "../../components/ui/Tabs";
+import { Alert } from "../../components/ui/Alert";
 import { SERVICE_UNITS, getCategoryIcon, UNCATEGORIZED_SERVICE_CATEGORY } from "./Services";
 import { computeMeasuredPrice, parseMeasureInput } from "../../utils/measurePricing";
 import { productHasStock } from "../../utils/productStock";
@@ -262,6 +268,15 @@ export default function PDV() {
   const [services, setServices]         = useState<ServiceItem[]>([]);
   const [showServicesModal, setShowServicesModal] = useState(false);
   const [cartServices, setCartServices] = useState<ServiceItem[]>([]);
+  // Edição do serviço só para esta venda: não altera o cadastro em Serviços.
+  const [editSvc, setEditSvc] = useState<{ id: number; name: string; priceCents: string } | null>(null);
+  const openEditSvc = (svc: ServiceItem) => setEditSvc({ id: svc.id, name: svc.name, priceCents: String(Math.round(Number(svc.price) * 100)) });
+  const editSvcPrice = editSvc ? Number(editSvc.priceCents || 0) / 100 : 0;
+  const saveEditSvc = () => {
+    if (!editSvc || !editSvc.name.trim() || !(editSvcPrice > 0)) return;
+    setCartServices((prev) => prev.map((s) => s.id === editSvc.id ? { ...s, name: editSvc.name.trim(), price: editSvcPrice } : s));
+    setEditSvc(null);
+  };
   const [showServicesTab, setShowServicesTab] = useState(false);
   const [measureService, setMeasureService] = useState<ServiceItem | null>(null);
   const [measureServiceHeight, setMeasureServiceHeight] = useState("");
@@ -1345,16 +1360,16 @@ export default function PDV() {
   .store-name { font-size: 19px; font-weight: 900; letter-spacing: 0.2px; }
   .store-meta { font-size: 11px; color: #64748b; margin-top: 3px; line-height: 1.5; }
   .doc-badge { text-align: right; flex-shrink: 0; }
-  .doc-badge .kind { font-size: 9px; font-weight: 800; color: #fff; background: ${accent}; text-transform: uppercase; letter-spacing: 2px; padding: 4px 10px; border-radius: 3px; display: inline-block; }
+  .doc-badge .kind { font-size: 9px; font-weight: 800; color: #fff; background: ${accent}; text-transform: ; letter-spacing: 2px; padding: 4px 10px; border-radius: 3px; display: inline-block; }
   .doc-badge .num { font-size: 24px; font-weight: 900; margin-top: 8px; }
   .doc-badge .date { font-size: 11px; color: #64748b; margin-top: 2px; }
   .doc-body { padding: 22px 26px; }
   .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; padding: 12px 0; border-bottom: 1px solid #e2e8f0; }
-  .field-row .field-label { font-size: 9px; font-weight: 800; color: #94a3b8; text-transform: uppercase; letter-spacing: 1.5px; margin-bottom: 3px; }
+  .field-row .field-label { font-size: 9px; font-weight: 800; color: #94a3b8; text-transform: ; letter-spacing: 1.5px; margin-bottom: 3px; }
   .field-row .field-value { font-size: 13px; font-weight: 700; }
-  .section-title { font-size: 10px; font-weight: 800; color: #94a3b8; text-transform: uppercase; letter-spacing: 2.5px; margin: 20px 0 10px; }
+  .section-title { font-size: 10px; font-weight: 800; color: #94a3b8; text-transform: ; letter-spacing: 2.5px; margin: 20px 0 10px; }
   table.items { width: 100%; border-collapse: collapse; }
-  table.items thead th { font-size: 9px; font-weight: 800; text-transform: uppercase; letter-spacing: 1.5px; color: #94a3b8; padding: 0 0 8px; border-bottom: 1.5px solid #cbd5e1; text-align: left; }
+  table.items thead th { font-size: 9px; font-weight: 800; text-transform: ; letter-spacing: 1.5px; color: #94a3b8; padding: 0 0 8px; border-bottom: 1.5px solid #cbd5e1; text-align: left; }
   table.items thead th:not(:first-child) { text-align: right; }
   table.items tbody tr:nth-child(even) { background: #f8fafc; }
   table.items tbody td { padding: 9px 6px; font-size: 12.5px; border-bottom: 1px solid #f1f5f9; }
@@ -1898,25 +1913,24 @@ export default function PDV() {
         {/* Logo + nome */}
         <div className="flex items-center gap-3">
           {pdvStep === "payment" && showCheckout && (
-            <button onClick={() => setPdvStep("cart")} disabled={finishing}
-              className="flex items-center gap-1 h-8 px-2.5 rounded-xl text-[10px] font-bold uppercase tracking-widest text-slate-500 border border-slate-200 hover:bg-slate-50 hover:text-slate-700 transition-all disabled:opacity-30 shrink-0 mr-1">
-              <ChevronLeft size={13} />
+            <Button variant="outline" size="lg" onClick={() => setPdvStep("cart")} disabled={finishing}
+              iconLeft={<ChevronLeft size={13} />} className="shrink-0 mr-1">
               <span className="hidden sm:inline">Voltar</span>
-            </button>
+            </Button>
           )}
           {tenant.logo_url ? (
-            <img src={tenant.logo_url} alt={tenant.name} className="h-8 w-auto max-w-[72px] object-contain rounded-xl" />
+            <img src={tenant.logo_url} alt={tenant.name} className="h-8 w-auto max-w-[72px] object-contain rounded-lg" />
           ) : (
-            <div className="w-9 h-9 rounded-xl flex items-center justify-center text-white font-black text-[13px] shadow"
+            <div className="w-9 h-9 rounded-lg flex items-center justify-center text-white font-semibold text-[13px] shadow"
               style={{ background: "linear-gradient(135deg, #3b82f6, #1d4ed8)" }}>
               {tenant.name.charAt(0).toUpperCase()}
             </div>
           )}
           <div>
-            <p className="text-[13px] font-black text-slate-800 tracking-wide leading-none">{tenant.name}</p>
+            <p className="text-[13px] font-semibold text-slate-800 leading-none">{tenant.name}</p>
             <div className="flex items-center gap-1.5 mt-0.5">
               <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-              <span className="text-[9px] font-semibold text-slate-400 uppercase tracking-widest">PDV Interno</span>
+              <span className="text-[10px] font-semibold text-slate-400">PDV Interno</span>
             </div>
           </div>
         </div>
@@ -1925,7 +1939,7 @@ export default function PDV() {
         {!(pdvStep === "payment" && showCheckout) && (
           <div className="hidden md:flex flex-1 min-w-0 justify-center px-2 min-[1800px]:px-6 shrink">
             <div className={cn(
-              "flex items-center gap-2 px-3 h-7 rounded-xl border text-[10px] font-bold uppercase tracking-widest transition-all duration-300",
+              "flex items-center gap-2 px-3 h-7 rounded-lg border text-[11px] font-semibold transition-all duration-300",
               scanFeedback === "ok"  ? "bg-emerald-50 border-emerald-300 text-emerald-600" :
               scanFeedback === "err" ? "bg-red-50 border-red-300 text-red-500" :
               "bg-slate-100 border-slate-200 text-slate-400"
@@ -1947,95 +1961,77 @@ export default function PDV() {
         {pdvStep === "payment" && showCheckout ? (
           <div className="flex items-center gap-3">
             <div className="text-right">
-              <p className="text-[9px] font-bold uppercase tracking-widest text-slate-400">{cartQty} {cartQty === 1 ? "item" : "itens"}</p>
-              <p className="text-[18px] font-mono font-black text-slate-800 leading-none">R$ {total.toFixed(2)}</p>
+              <p className="text-[10px] font-semibold text-slate-400">{cartQty} {cartQty === 1 ? "item" : "itens"}</p>
+              <p className="text-[18px] font-mono font-semibold text-slate-800 leading-none">R$ {total.toFixed(2)}</p>
             </div>
           </div>
         ) : (
           <div className="hidden lg:flex items-center gap-1 min-[1800px]:gap-2 min-w-0 overflow-x-auto pdv-scroll-light shrink pr-2 pt-2 -mt-2">
             {requireCashSession && cashSession && (
-              <button onClick={() => setShowCloseCashModal(true)} title="Fechar Caixa"
-                className="flex items-center gap-1.5 px-2 min-[1800px]:px-3 h-8 rounded-xl text-[10px] font-bold uppercase tracking-widest text-slate-500 border border-slate-200 hover:bg-emerald-50 hover:text-emerald-600 hover:border-emerald-200 transition-all shrink-0">
-                <Wallet size={11} />
-                <span className="hidden min-[1800px]:inline">Fechar Caixa</span>
-              </button>
+              <Button variant="outline" size="lg" onClick={() => setShowCloseCashModal(true)} title="Fechar Caixa" aria-label="Fechar Caixa"
+              iconLeft={<Wallet size={11}  />} className="shrink-0 px-2 min-[1800px]:px-3">
+              <span className="hidden min-[1800px]:inline">Fechar Caixa</span>
+            </Button>
             )}
-            <button onClick={refreshProducts} title="Atualizar produtos"
-              className="flex items-center gap-1.5 px-2 min-[1800px]:px-3 h-8 rounded-xl text-[10px] font-bold uppercase tracking-widest text-slate-500 border border-slate-200 hover:bg-slate-50 hover:text-slate-700 transition-all shrink-0">
-              <RefreshCw size={11} className={loading ? "animate-spin" : ""} />
+            <Button variant="outline" size="lg" onClick={refreshProducts} title="Atualizar produtos" aria-label="Atualizar produtos"
+              iconLeft={<RefreshCw size={11} className={loading ? "animate-spin" : ""} />} className="shrink-0 px-2 min-[1800px]:px-3">
               <span className="hidden min-[1800px]:inline">Atualizar</span>
-            </button>
-            <button onClick={() => { setShowRightPanel(!showRightPanel); if (!showRightPanel) fetchRecentOrders(); }}
-              title="Pedidos Recentes"
-              className={cn(
-                "flex items-center gap-1.5 px-2 min-[1800px]:px-3 h-8 rounded-xl text-[10px] font-bold uppercase tracking-widest border transition-all shrink-0",
-                showRightPanel
-                  ? "bg-slate-900 border-slate-900 text-white"
-                  : "text-slate-500 border-slate-200 hover:bg-slate-50 hover:text-slate-700"
-              )}>
-              <Receipt size={11} />
+            </Button>
+            <Button variant={showRightPanel ? "primary" : "outline"} size="lg"
+              onClick={() => { setShowRightPanel(!showRightPanel); if (!showRightPanel) fetchRecentOrders(); }}
+              title="Pedidos Recentes" aria-label="Pedidos Recentes" aria-pressed={showRightPanel}
+              iconLeft={<Receipt size={11} />} className="shrink-0 px-2 min-[1800px]:px-3">
               <span className="hidden min-[1800px]:inline">Recentes</span>
-            </button>
-            <button onClick={() => window.open("/pdv", "_blank", "noopener,noreferrer")}
-              title="Abrir PDV Externo"
-              className="flex items-center gap-1.5 px-2 min-[1800px]:px-3 h-8 rounded-xl text-[10px] font-bold uppercase tracking-widest text-white border border-blue-600 transition-all shadow shrink-0"
-              style={{ background: "linear-gradient(135deg,#3b82f6,#1d4ed8)" }}>
-              <ExternalLink size={11} />
+            </Button>
+            <Button variant="primary" size="lg" onClick={() => window.open("/pdv", "_blank", "noopener,noreferrer")}
+              title="Abrir PDV Externo" aria-label="Abrir PDV Externo"
+              iconLeft={<ExternalLink size={11} />} className="shrink-0 px-2 min-[1800px]:px-3">
               <span className="hidden min-[1800px]:inline">PDV Externo</span>
-            </button>
+            </Button>
             <div className="w-px h-5 bg-slate-200 mx-0.5 shrink-0" />
-            <button onClick={() => setShowCrediarioModal(true)} title="Crediário (F6)"
-              className="flex items-center gap-1.5 px-2 min-[1800px]:px-3 h-8 rounded-xl text-[10px] font-bold uppercase tracking-widest text-slate-500 border border-slate-200 hover:bg-amber-50 hover:text-amber-600 hover:border-amber-200 transition-all shrink-0">
-              <Wallet size={11} />
+            <Button variant="outline" size="lg" onClick={() => setShowCrediarioModal(true)} title="Crediário (F6)" aria-label="Crediário (F6)"
+              iconLeft={<Wallet size={11}  />} className="shrink-0 px-2 min-[1800px]:px-3">
               <span className="hidden min-[1800px]:inline">Crediário</span>
-            </button>
-            <button onClick={() => setShowCustomerLookup(true)} title="Consultar Cliente (F7)"
-              className="flex items-center gap-1.5 px-2 min-[1800px]:px-3 h-8 rounded-xl text-[10px] font-bold uppercase tracking-widest text-slate-500 border border-slate-200 hover:bg-blue-50 hover:text-blue-600 hover:border-blue-200 transition-all shrink-0">
-              <User size={11} />
+            </Button>
+            <Button variant="outline" size="lg" onClick={() => setShowCustomerLookup(true)} title="Consultar Cliente (F7)" aria-label="Consultar Cliente (F7)"
+              iconLeft={<User size={11}  />} className="shrink-0 px-2 min-[1800px]:px-3">
               <span className="hidden min-[1800px]:inline">Cliente</span>
-            </button>
-            <button onClick={() => setShowConsignmentLookup(true)} title="Consultar Consignado (F8)"
-              className="flex items-center gap-1.5 px-2 min-[1800px]:px-3 h-8 rounded-xl text-[10px] font-bold uppercase tracking-widest text-slate-500 border border-slate-200 hover:bg-violet-50 hover:text-violet-600 hover:border-violet-200 transition-all shrink-0">
-              <ShoppingBag size={11} />
+            </Button>
+            <Button variant="outline" size="lg" onClick={() => setShowConsignmentLookup(true)} title="Consultar Consignado (F8)" aria-label="Consultar Consignado (F8)"
+              iconLeft={<ShoppingBag size={11}  />} className="shrink-0 px-2 min-[1800px]:px-3">
               <span className="hidden min-[1800px]:inline">Consignado</span>
-            </button>
-            <button onClick={() => setShowHeldSalesDrawer(true)} title="Vendas Abertas"
-              className="relative flex items-center gap-1.5 px-2 min-[1800px]:px-3 h-8 rounded-xl text-[10px] font-bold uppercase tracking-widest text-slate-500 border border-slate-200 hover:bg-amber-50 hover:text-amber-600 hover:border-amber-200 transition-all shrink-0">
-              <Clock size={11} />
+            </Button>
+            <Button variant="outline" size="lg" onClick={() => setShowHeldSalesDrawer(true)} title="Vendas Abertas" aria-label="Vendas Abertas"
+              iconLeft={<Clock size={11} />} className="relative shrink-0 px-2 min-[1800px]:px-3">
               <span className="hidden min-[1800px]:inline">Vendas Abertas</span>
               {openHeldSalesCount > 0 && (
-                <span className="absolute -top-1.5 -right-1.5 min-w-[16px] h-[16px] px-1 rounded-full bg-amber-500 text-white text-[9px] font-black flex items-center justify-center leading-none">
+                <span className="absolute -top-1.5 -right-1.5 min-w-[16px] h-[16px] px-1 rounded-full bg-amber-500 text-white text-[10px] font-semibold flex items-center justify-center leading-none">
                   {openHeldSalesCount > 99 ? "99+" : openHeldSalesCount}
                 </span>
               )}
-            </button>
-            <button onClick={() => setShowSaleHistoryDrawer(true)} title="Histórico de Vendas"
-              className="flex items-center gap-1.5 px-2 min-[1800px]:px-3 h-8 rounded-xl text-[10px] font-bold uppercase tracking-widest text-slate-500 border border-slate-200 hover:bg-blue-50 hover:text-blue-600 hover:border-blue-200 transition-all shrink-0">
-              <Printer size={11} />
+            </Button>
+            <Button variant="outline" size="lg" onClick={() => setShowSaleHistoryDrawer(true)} title="Histórico de Vendas" aria-label="Histórico de Vendas"
+              iconLeft={<Printer size={11}  />} className="shrink-0 px-2 min-[1800px]:px-3">
               <span className="hidden min-[1800px]:inline">Reimprimir Venda</span>
-            </button>
+            </Button>
           </div>
         )}
 
         {/* Ações direita — mobile: refresh + menu "mais" com o resto */}
         {!(pdvStep === "payment" && showCheckout) && (
           <div className="flex lg:hidden items-center gap-1.5 relative">
-            <button onClick={refreshProducts} title="Atualizar produtos"
-              className="flex items-center justify-center w-9 h-9 rounded-xl text-slate-500 border border-slate-200 hover:bg-slate-50 hover:text-slate-700 transition-all">
+            <IconButton variant="outline" size="lg" onClick={refreshProducts} title="Atualizar produtos" aria-label="Atualizar produtos">
               <RefreshCw size={15} className={loading ? "animate-spin" : ""} />
-            </button>
-            <button onClick={() => setShowMobileActionsMenu((v) => !v)} title="Mais ações"
-              className={cn(
-                "relative flex items-center justify-center w-9 h-9 rounded-xl border transition-all",
-                showMobileActionsMenu ? "bg-slate-900 border-slate-900 text-white" : "text-slate-500 border-slate-200 hover:bg-slate-50 hover:text-slate-700"
-              )}>
+            </IconButton>
+            <IconButton variant={showMobileActionsMenu ? "primary" : "outline"} size="lg" onClick={() => setShowMobileActionsMenu((v) => !v)} title="Mais ações" aria-label="Mais ações"
+              className="relative">
               <MoreVertical size={16} />
               {openHeldSalesCount > 0 && !showMobileActionsMenu && (
-                <span className="absolute -top-1 -right-1 min-w-[15px] h-[15px] px-1 rounded-full bg-amber-500 text-white text-[8px] font-black flex items-center justify-center leading-none">
+                <span className="absolute -top-1 -right-1 min-w-[15px] h-[15px] px-1 rounded-full bg-amber-500 text-white text-[10px] font-semibold flex items-center justify-center leading-none">
                   {openHeldSalesCount > 99 ? "99+" : openHeldSalesCount}
                 </span>
               )}
-            </button>
+            </IconButton>
             <AnimatePresence>
               {showMobileActionsMenu && (
                 <>
@@ -2045,48 +2041,24 @@ export default function PDV() {
                     animate={{ opacity: 1, y: 0, scale: 1 }}
                     exit={{ opacity: 0, y: -6, scale: 0.98 }}
                     transition={{ duration: 0.12 }}
-                    className="absolute right-0 top-11 w-60 bg-white rounded-2xl border border-slate-200 shadow-xl z-50 p-1.5"
+                    className="absolute right-0 top-11 w-60 bg-white rounded-lg border border-slate-200 shadow-sm z-50 p-1.5"
                   >
                     {requireCashSession && cashSession && (
-                      <button onClick={() => { setShowCloseCashModal(true); setShowMobileActionsMenu(false); }}
-                        className="w-full flex items-center gap-2.5 px-3 h-10 rounded-xl text-[12px] font-bold text-slate-600 hover:bg-slate-50 transition-all">
-                        <Wallet size={14} /> Fechar Caixa
-                      </button>
+                      <Button variant="ghost" size="lg" fullWidth className="h-10 justify-start px-3" onClick={() => { setShowCloseCashModal(true); setShowMobileActionsMenu(false); }} iconLeft={<Wallet size={14} />}>Fechar Caixa</Button>
                     )}
-                    <button onClick={() => { setShowRightPanel(!showRightPanel); if (!showRightPanel) fetchRecentOrders(); setShowMobileActionsMenu(false); }}
-                      className="w-full flex items-center gap-2.5 px-3 h-10 rounded-xl text-[12px] font-bold text-slate-600 hover:bg-slate-50 transition-all">
-                      <Receipt size={14} /> Recentes
-                    </button>
-                    <button onClick={() => { window.open("/pdv", "_blank", "noopener,noreferrer"); setShowMobileActionsMenu(false); }}
-                      className="w-full flex items-center gap-2.5 px-3 h-10 rounded-xl text-[12px] font-bold text-slate-600 hover:bg-slate-50 transition-all">
-                      <ExternalLink size={14} /> PDV Externo
-                    </button>
+                    <Button variant="ghost" size="lg" fullWidth className="h-10 justify-start px-3" onClick={() => { setShowRightPanel(!showRightPanel); if (!showRightPanel) fetchRecentOrders(); setShowMobileActionsMenu(false); }} iconLeft={<Receipt size={14} />}>Recentes</Button>
+                    <Button variant="ghost" size="lg" fullWidth className="h-10 justify-start px-3" onClick={() => { window.open("/pdv", "_blank", "noopener,noreferrer"); setShowMobileActionsMenu(false); }} iconLeft={<ExternalLink size={14} />}>PDV Externo</Button>
                     <div className="h-px bg-slate-100 my-1" />
-                    <button onClick={() => { setShowCrediarioModal(true); setShowMobileActionsMenu(false); }}
-                      className="w-full flex items-center gap-2.5 px-3 h-10 rounded-xl text-[12px] font-bold text-slate-600 hover:bg-slate-50 transition-all">
-                      <Wallet size={14} /> Crediário
-                    </button>
-                    <button onClick={() => { setShowCustomerLookup(true); setShowMobileActionsMenu(false); }}
-                      className="w-full flex items-center gap-2.5 px-3 h-10 rounded-xl text-[12px] font-bold text-slate-600 hover:bg-slate-50 transition-all">
-                      <User size={14} /> Cliente
-                    </button>
-                    <button onClick={() => { setShowConsignmentLookup(true); setShowMobileActionsMenu(false); }}
-                      className="w-full flex items-center gap-2.5 px-3 h-10 rounded-xl text-[12px] font-bold text-slate-600 hover:bg-slate-50 transition-all">
-                      <ShoppingBag size={14} /> Consignado
-                    </button>
-                    <button onClick={() => { setShowHeldSalesDrawer(true); setShowMobileActionsMenu(false); }}
-                      className="w-full flex items-center justify-between px-3 h-10 rounded-xl text-[12px] font-bold text-slate-600 hover:bg-slate-50 transition-all">
+                    <Button variant="ghost" size="lg" fullWidth className="h-10 justify-start px-3" onClick={() => { setShowCrediarioModal(true); setShowMobileActionsMenu(false); }} iconLeft={<Wallet size={14} />}>Crediário</Button>
+                    <Button variant="ghost" size="lg" fullWidth className="h-10 justify-start px-3" onClick={() => { setShowCustomerLookup(true); setShowMobileActionsMenu(false); }} iconLeft={<User size={14} />}>Cliente</Button>
+                    <Button variant="ghost" size="lg" fullWidth className="h-10 justify-start px-3" onClick={() => { setShowConsignmentLookup(true); setShowMobileActionsMenu(false); }} iconLeft={<ShoppingBag size={14} />}>Consignado</Button>
+                    <Button variant="ghost" size="lg" fullWidth className="h-10 justify-between px-3" onClick={() => { setShowHeldSalesDrawer(true); setShowMobileActionsMenu(false); }}>
                       <span className="flex items-center gap-2.5"><Clock size={14} /> Vendas Abertas</span>
                       {openHeldSalesCount > 0 && (
-                        <span className="min-w-[18px] h-[18px] px-1 rounded-full bg-amber-500 text-white text-[10px] font-black flex items-center justify-center leading-none">
-                          {openHeldSalesCount > 99 ? "99+" : openHeldSalesCount}
-                        </span>
+                        <Badge size="sm" color="warning">{openHeldSalesCount > 99 ? "99+" : openHeldSalesCount}</Badge>
                       )}
-                    </button>
-                    <button onClick={() => { setShowSaleHistoryDrawer(true); setShowMobileActionsMenu(false); }}
-                      className="w-full flex items-center gap-2.5 px-3 h-10 rounded-xl text-[12px] font-bold text-slate-600 hover:bg-slate-50 transition-all">
-                      <Printer size={14} /> Reimprimir Venda
-                    </button>
+                    </Button>
+                    <Button variant="ghost" size="lg" fullWidth className="h-10 justify-start px-3" onClick={() => { setShowSaleHistoryDrawer(true); setShowMobileActionsMenu(false); }} iconLeft={<Printer size={14} />}>Reimprimir Venda</Button>
                   </motion.div>
                 </>
               )}
@@ -2104,35 +2076,26 @@ export default function PDV() {
 
           {/* Busca */}
           <div className="flex gap-2 items-center">
-            <div className="relative flex-1">
-              <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
-              <input id="pdv-search-input" type="text" placeholder={showServicesTab ? "Buscar serviço..." : "Buscar por nome, código ou código de barras..."}
-                value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-10 pr-4 h-10 bg-white rounded-xl text-[13px] font-medium text-slate-700 placeholder:text-slate-400 focus:outline-none transition-all border border-slate-200 focus:border-blue-400 focus:ring-2 focus:ring-blue-100 shadow-sm" />
-            </div>
+            <Input id="pdv-search-input" size="lg" type="text" placeholder={showServicesTab ? "Buscar serviço..." : "Buscar por nome, código ou código de barras..."}
+              aria-label="Buscar no PDV" iconLeft={<Search size={14} />}
+              value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)}
+              wrapperClassName="flex-1" />
             {/* Item avulso — venda rápida sem cadastro no catálogo */}
-            <button
-              onClick={() => setShowAvulsoModal(true)}
-              title="Item Avulso"
-              className="shrink-0 h-10 px-3 rounded-xl flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wide text-emerald-600 border border-emerald-200 bg-white hover:bg-emerald-50 transition-all active:scale-[0.98]">
-              <PlusCircle size={14} />
+            <Button variant="outline" size="lg" onClick={() => setShowAvulsoModal(true)} title="Item Avulso" aria-label="Item Avulso"
+              iconLeft={<PlusCircle size={14} />} className="shrink-0 h-10 border-emerald-200 text-emerald-600 hover:border-emerald-300 hover:bg-emerald-50 hover:text-emerald-700">
               <span className="hidden sm:inline">Avulso</span>
-            </button>
+            </Button>
             {/* Botão carrinho mobile */}
-            <button
-              onClick={goToPayment}
-              disabled={cartQty === 0}
-              className="lg:hidden relative h-10 px-4 rounded-xl flex items-center gap-2 text-[11px] font-black text-white shadow disabled:opacity-40"
-              style={{ background: "linear-gradient(135deg, #3b82f6, #1d4ed8)" }}>
-              <ShoppingCart size={14} />
+            <Button variant="primary" size="lg" onClick={goToPayment} disabled={cartQty === 0} aria-label="Ir para o pagamento"
+              iconLeft={<ShoppingCart size={14} />} className="lg:hidden relative h-10 px-4">
               {cartQty > 0 && (
-                <span className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-white text-blue-600 rounded-full text-[9px] font-black flex items-center justify-center shadow">{cartQty}</span>
+                <span className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-white text-blue-600 border border-blue-200 rounded-full text-[10px] font-semibold flex items-center justify-center">{cartQty}</span>
               )}
-            </button>
+            </Button>
           </div>
 
           {/* Categorias + aba Serviços */}
-          <div className="flex min-w-0 items-center gap-1.5 shrink-0 rounded-xl border border-slate-200/80 bg-slate-50/80 p-1 shadow-sm">
+          <div className="flex min-w-0 items-center gap-1.5 shrink-0 rounded-lg border border-slate-200/80 bg-slate-50/80 p-1 shadow-sm">
             <button
               type="button"
               onClick={() => scrollCategories(-1)}
@@ -2147,18 +2110,18 @@ export default function PDV() {
                 <button
                   onClick={() => { setShowServicesTab(true); setSelectedCategory(null); }}
                   className={cn(
-                    "shrink-0 h-7 px-3 rounded-lg text-[10px] font-bold tracking-wide transition-all border flex items-center gap-1.5",
+                    "shrink-0 h-7 px-3 rounded-lg text-[11px] font-semibold transition-all border flex items-center gap-1.5",
                     showServicesTab
-                      ? "text-white border-violet-500 shadow"
-                      : "bg-white text-slate-500 border-slate-200 hover:border-violet-300 hover:text-violet-600"
+                      ? "text-white border-blue-500 shadow"
+                      : "bg-white text-slate-500 border-slate-200 hover:border-blue-300 hover:text-blue-600"
                   )}
-                  style={showServicesTab ? { background: "linear-gradient(135deg,#7c3aed,#4f46e5)" } : {}}
+                  style={showServicesTab ? { background: "linear-gradient(135deg,#3b82f6,#1d4ed8)" } : {}}
                 >
                   <Wrench size={9} />
                   Serviços
                   {cartServices.length > 0 && (
-                    <span className={cn("w-4 h-4 rounded-full text-[9px] font-black flex items-center justify-center",
-                      showServicesTab ? "bg-white text-violet-700" : "bg-violet-600 text-white"
+                    <span className={cn("w-4 h-4 rounded-full text-[10px] font-semibold flex items-center justify-center",
+                      showServicesTab ? "bg-white text-blue-700" : "bg-blue-600 text-white"
                     )}>{cartServices.length}</span>
                   )}
                 </button>
@@ -2168,7 +2131,7 @@ export default function PDV() {
                 <button key={cat.id ?? "all"}
                   onClick={() => { setSelectedCategory(cat.id); setShowServicesTab(false); }}
                   className={cn(
-                    "shrink-0 h-7 px-3 rounded-lg text-[10px] font-bold tracking-wide transition-all border flex items-center gap-1",
+                    "shrink-0 h-7 px-3 rounded-lg text-[11px] font-semibold transition-all border flex items-center gap-1",
                     !showServicesTab && selectedCategory === cat.id
                       ? "text-white border-blue-500 shadow"
                       : "bg-white text-slate-500 border-slate-200 hover:border-blue-300 hover:text-blue-600"
@@ -2213,7 +2176,7 @@ export default function PDV() {
               services.length === 0 ? (
                 <div className="h-full flex flex-col items-center justify-center gap-3">
                   <Wrench size={44} className="text-slate-300" strokeWidth={1} />
-                  <p className="text-[11px] font-black uppercase tracking-widest text-slate-400">Nenhum serviço cadastrado</p>
+                  <p className="text-[11px] font-semibold text-slate-400">Nenhum serviço cadastrado</p>
                 </div>
               ) : (
                 <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-2.5">
@@ -2239,35 +2202,35 @@ export default function PDV() {
                         }}
                         whileTap={{ scale: 0.97 }}
                         className={cn(
-                          "bg-white rounded-2xl border flex flex-col items-start group relative text-left overflow-hidden transition-all duration-200",
+                          "bg-white rounded-lg border flex flex-col items-start group relative text-left overflow-hidden transition-all duration-200",
                           cartEntry
-                            ? "border-violet-400 shadow-md shadow-violet-100"
-                            : "border-slate-200 hover:border-violet-300 hover:shadow-md hover:shadow-violet-50"
+                            ? "border-blue-400 shadow-sm shadow-blue-100"
+                            : "border-slate-200 hover:border-blue-300 hover:shadow-sm hover:shadow-blue-50"
                         )}
                       >
                         {/* Ícone categoria */}
                         <div className="w-full aspect-[4/3] flex items-center justify-center relative" style={{ background: `${catColor}14` }}>
-                          <div className="w-14 h-14 rounded-2xl flex items-center justify-center" style={{ background: `${catColor}26`, color: catColor }}>
+                          <div className="w-14 h-14 rounded-lg flex items-center justify-center" style={{ background: `${catColor}26`, color: catColor }}>
                             <CatIcon size={26} strokeWidth={1.5} />
                           </div>
                           {/* badge categoria */}
                           <div className="absolute top-2 right-2">
-                            <span className="text-[8px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded-md" style={{ background: `${catColor}26`, color: catColor }}>
+                            <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-md" style={{ background: `${catColor}26`, color: catColor }}>
                               {catMeta.name}
                             </span>
                           </div>
                           {/* badge qty no carrinho */}
                           {cartEntry && (
                             <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }}
-                              className="absolute top-2 left-2 w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-black text-white shadow"
-                              style={{ background: "linear-gradient(135deg,#7c3aed,#4f46e5)" }}>
+                              className="absolute top-2 left-2 w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-semibold text-white shadow"
+                              style={{ background: "linear-gradient(135deg,#3b82f6,#1d4ed8)" }}>
                               {cartEntry.quantity ?? 1}
                             </motion.div>
                           )}
                           {/* overlay */}
-                          <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all duration-200 bg-violet-500/10">
-                            <div className="w-9 h-9 rounded-full flex items-center justify-center text-white scale-75 group-hover:scale-100 transition-transform shadow-lg"
-                              style={{ background: cartEntry ? "linear-gradient(135deg,#ef4444,#dc2626)" : "linear-gradient(135deg,#7c3aed,#4f46e5)" }}>
+                          <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all duration-200 bg-blue-500/10">
+                            <div className="w-9 h-9 rounded-full flex items-center justify-center text-white scale-75 group-hover:scale-100 transition-transform shadow-sm"
+                              style={{ background: cartEntry ? "linear-gradient(135deg,#ef4444,#dc2626)" : "linear-gradient(135deg,#3b82f6,#1d4ed8)" }}>
                               {cartEntry ? <X size={14} /> : <Plus size={16} strokeWidth={2.5} />}
                             </div>
                           </div>
@@ -2276,14 +2239,14 @@ export default function PDV() {
                         {/* Info */}
                         <div className="p-2.5 w-full">
                           <p className="text-[11px] font-semibold text-slate-700 leading-tight line-clamp-2 mb-1 min-h-[2.2em]">{svc.name}</p>
-                          {svc.description && <p className="text-[9px] text-slate-400 truncate mb-1">{svc.description}</p>}
+                          {svc.description && <p className="text-[10px] text-slate-400 truncate mb-1">{svc.description}</p>}
                           <div className="flex items-end justify-between gap-1">
-                            <p className="text-[14px] font-mono font-black text-violet-600">
+                            <p className="text-[14px] font-mono font-semibold text-blue-700">
                               {svc.sale_unit && svc.sale_unit !== "unidade"
                                 ? Number(svc.price_per_measure ?? 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })
                                 : Number(svc.price).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
                             </p>
-                            <span className="text-[8px] font-bold text-slate-400 flex items-center gap-0.5 pb-0.5">
+                            <span className="text-[10px] font-semibold text-slate-400 flex items-center gap-0.5 pb-0.5">
                               <Ruler size={7} />/{svc.sale_unit === "m2" ? "m²" : svc.sale_unit === "linear" ? "m" : unitAbbr}
                             </span>
                           </div>
@@ -2302,7 +2265,7 @@ export default function PDV() {
               ) : filteredProducts.length === 0 ? (
                 <div className="h-full flex flex-col items-center justify-center gap-3">
                   <Package size={44} className="text-slate-300" strokeWidth={1} />
-                  <p className="text-[11px] font-black uppercase tracking-widest text-slate-400">Nenhum produto encontrado</p>
+                  <p className="text-[11px] font-semibold text-slate-400">Nenhum produto encontrado</p>
                 </div>
               ) : viewMode === "list" ? (
                 <div className="grid grid-cols-1 lg:grid-cols-2 2xl:grid-cols-3 gap-1.5">
@@ -2316,7 +2279,7 @@ export default function PDV() {
                         onClick={() => !atLimit && addToCart(product)}
                         whileTap={atLimit ? {} : { scale: 0.98 }}
                         className={cn(
-                          "bg-white rounded-xl border flex items-center gap-3 group relative text-left overflow-hidden transition-all duration-200 px-2.5 py-2",
+                          "bg-white rounded-lg border flex items-center gap-3 group relative text-left overflow-hidden transition-all duration-200 px-2.5 py-2",
                           atLimit
                             ? "opacity-40 cursor-not-allowed border-slate-200"
                             : qtyInCart > 0
@@ -2329,7 +2292,7 @@ export default function PDV() {
                             ? <img src={product.image_url} alt={product.name} className="object-contain w-full h-full p-0.5" />
                             : <Package size={18} className="text-slate-300" />}
                           {qtyInCart > 0 && (
-                            <span className="absolute -top-1 -left-1 w-4.5 h-4.5 min-w-[18px] rounded-full flex items-center justify-center text-[9px] font-black text-white shadow"
+                            <span className="absolute -top-1 -left-1 w-4.5 h-4.5 min-w-[18px] rounded-full flex items-center justify-center text-[10px] font-semibold text-white shadow"
                               style={{ background: "linear-gradient(135deg,#3b82f6,#1d4ed8)" }}>
                               {qtyInCart}
                             </span>
@@ -2339,24 +2302,24 @@ export default function PDV() {
                         {/* Info */}
                         <div className="flex-1 min-w-0">
                           <p className="text-[12px] font-semibold text-slate-700 leading-tight truncate">{product.name}</p>
-                          {hasVariations && <p className="text-[8px] font-black text-blue-500 uppercase tracking-widest">variações</p>}
+                          {hasVariations && <p className="text-[10px] font-semibold text-blue-500">variações</p>}
                         </div>
 
                         {/* Estoque */}
-                        <div className="shrink-0 px-1.5 py-0.5 rounded-md text-[9px] font-mono font-bold bg-slate-50 border border-slate-200 text-slate-500">
+                        <div className="shrink-0 px-1.5 py-0.5 rounded-md text-[10px] font-mono font-semibold bg-slate-50 border border-slate-200 text-slate-500">
                           {product.stock_quantity}
                         </div>
 
                         {/* Preço */}
                         {product.discount_price ? (
                           <div className="shrink-0 w-20 text-right">
-                            <p className="text-[9px] font-mono text-slate-400 line-through leading-none">R$ {Number(product.price).toFixed(2)}</p>
-                            <p className="text-[13px] font-mono font-black text-emerald-600 leading-tight flex items-center justify-end gap-1">
+                            <p className="text-[10px] font-mono text-slate-400 line-through leading-none">R$ {Number(product.price).toFixed(2)}</p>
+                            <p className="text-[13px] font-mono font-semibold text-emerald-600 leading-tight flex items-center justify-end gap-1">
                               <Tag size={10} /> R$ {Number(product.discount_price).toFixed(2)}
                             </p>
                           </div>
                         ) : (
-                          <p className="text-[13px] font-mono font-black text-blue-600 shrink-0 w-20 text-right">R$ {Number(product.price).toFixed(2)}</p>
+                          <p className="text-[13px] font-mono font-semibold text-blue-600 shrink-0 w-20 text-right">R$ {Number(product.price).toFixed(2)}</p>
                         )}
 
                         {/* Add */}
@@ -2382,12 +2345,12 @@ export default function PDV() {
                         onClick={() => !atLimit && addToCart(product)}
                         whileTap={atLimit ? {} : { scale: 0.97 }}
                         className={cn(
-                          "bg-white rounded-2xl border flex flex-col items-start group relative text-left overflow-hidden transition-all duration-200",
+                          "bg-white rounded-lg border flex flex-col items-start group relative text-left overflow-hidden transition-all duration-200",
                           atLimit
                             ? "opacity-40 cursor-not-allowed border-slate-200"
                             : qtyInCart > 0
-                            ? "cursor-pointer border-blue-400 shadow-md shadow-blue-100"
-                            : "cursor-pointer border-slate-200 hover:border-blue-300 hover:shadow-md hover:shadow-blue-50"
+                            ? "cursor-pointer border-blue-400 shadow-sm shadow-blue-100"
+                            : "cursor-pointer border-slate-200 hover:border-blue-300 hover:shadow-sm hover:shadow-blue-50"
                         )}>
 
                         {/* Imagem */}
@@ -2396,20 +2359,20 @@ export default function PDV() {
                             ? <img src={product.image_url} alt={product.name} className="object-contain w-full h-full group-hover:scale-105 transition-transform duration-500 p-1" />
                             : <div className="w-full h-full flex items-center justify-center"><Package size={24} className="text-slate-300" /></div>}
                           {/* Badge estoque */}
-                          <div className="absolute top-2 right-2 px-1.5 py-0.5 rounded-md text-[8px] font-mono font-bold bg-white/90 border border-slate-200 text-slate-500 shadow-sm">
+                          <div className="absolute top-2 right-2 px-1.5 py-0.5 rounded-md text-[10px] font-mono font-semibold bg-white/90 border border-slate-200 text-slate-500 shadow-sm">
                             {product.stock_quantity}
                           </div>
                           {/* Badge carrinho */}
                           {qtyInCart > 0 && (
                             <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }}
-                              className="absolute top-2 left-2 w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-black text-white shadow"
+                              className="absolute top-2 left-2 w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-semibold text-white shadow"
                               style={{ background: "linear-gradient(135deg,#3b82f6,#1d4ed8)" }}>
                               {qtyInCart}
                             </motion.div>
                           )}
                           {/* Badge promoção */}
                           {!!product.discount_price && (
-                            <div className="absolute bottom-2 left-2 flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[8px] font-black uppercase tracking-wide bg-emerald-500 text-white shadow-sm">
+                            <div className="absolute bottom-2 left-2 flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[10px] font-semibold bg-emerald-500 text-white shadow-sm">
                               <Tag size={9} />
                               -{Math.round((1 - Number(product.discount_price) / Number(product.price)) * 100)}%
                             </div>
@@ -2417,7 +2380,7 @@ export default function PDV() {
                           {/* Overlay hover */}
                           {!atLimit && (
                             <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all duration-200 bg-blue-500/10">
-                              <div className="w-9 h-9 rounded-full flex items-center justify-center text-white scale-75 group-hover:scale-100 transition-transform shadow-lg"
+                              <div className="w-9 h-9 rounded-full flex items-center justify-center text-white scale-75 group-hover:scale-100 transition-transform shadow-sm"
                                 style={{ background: "linear-gradient(135deg,#3b82f6,#1d4ed8)" }}>
                                 <Plus size={16} strokeWidth={2.5} />
                               </div>
@@ -2427,15 +2390,15 @@ export default function PDV() {
 
                         {/* Info */}
                         <div className="p-2 sm:p-2.5 w-full">
-                          <p className="text-[10px] sm:text-[11px] font-semibold text-slate-700 leading-tight line-clamp-2 mb-1.5 min-h-[2.2em]">{product.name}</p>
-                          {hasVariations && <p className="text-[8px] font-black text-blue-500 uppercase tracking-widest mb-1">variações</p>}
+                          <p className="text-[11px] sm:text-[11px] font-semibold text-slate-700 leading-tight line-clamp-2 mb-1.5 min-h-[2.2em]">{product.name}</p>
+                          {hasVariations && <p className="text-[10px] font-semibold text-blue-500 mb-1">variações</p>}
                           {product.discount_price ? (
                             <div className="flex flex-col">
-                              <span className="text-[9px] sm:text-[10px] font-mono text-slate-400 line-through leading-none">R$ {Number(product.price).toFixed(2)}</span>
-                              <span className="text-[12px] sm:text-[14px] font-mono font-black text-emerald-600 leading-tight">R$ {Number(product.discount_price).toFixed(2)}</span>
+                              <span className="text-[10px] sm:text-[11px] font-mono text-slate-400 line-through leading-none">R$ {Number(product.price).toFixed(2)}</span>
+                              <span className="text-[12px] sm:text-[14px] font-mono font-semibold text-emerald-600 leading-tight">R$ {Number(product.discount_price).toFixed(2)}</span>
                             </div>
                           ) : (
-                            <p className="text-[12px] sm:text-[14px] font-mono font-black text-blue-600">R$ {Number(product.price).toFixed(2)}</p>
+                            <p className="text-[12px] sm:text-[14px] font-mono font-semibold text-blue-600">R$ {Number(product.price).toFixed(2)}</p>
                           )}
                         </div>
                       </motion.button>
@@ -2452,12 +2415,12 @@ export default function PDV() {
           {/* Header */}
           <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between shrink-0 bg-white">
             <div className="flex items-center gap-2.5">
-              <div className="w-7 h-7 bg-blue-50 border border-blue-100 rounded-xl flex items-center justify-center">
+              <div className="w-7 h-7 bg-blue-50 border border-blue-100 rounded-lg flex items-center justify-center">
                 <ShoppingCart size={14} className="text-blue-500" />
               </div>
               <div>
-                <h3 className="text-[12px] font-black uppercase tracking-widest text-slate-800">Carrinho</h3>
-                <span className="text-[9px] text-slate-400 font-bold uppercase tracking-widest">{cartQty} {cartQty === 1 ? "item" : "itens"}</span>
+                <h3 className="text-[12px] font-semibold text-slate-800">Carrinho</h3>
+                <span className="text-[10px] text-slate-400 font-semibold">{cartQty} {cartQty === 1 ? "item" : "itens"}</span>
               </div>
             </div>
           </div>
@@ -2470,30 +2433,31 @@ export default function PDV() {
                 <motion.div key={item.cartItemId}
                   initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20, height: 0 }}
                   transition={{ duration: 0.18 }}>
-                  <div className="flex items-center gap-3 p-3 rounded-2xl border border-slate-200 bg-white hover:border-blue-200 transition-colors shadow-sm">
-                    {item.image_url ? (
-                      <img src={item.image_url} alt={item.name} className="w-10 h-10 rounded-xl object-contain shrink-0 border border-slate-200 p-0.5 bg-slate-50" />
-                    ) : (
-                      <div className="w-10 h-10 rounded-xl bg-slate-100 border border-slate-200 flex items-center justify-center shrink-0">
-                        <Package size={14} className="text-slate-400" />
-                      </div>
-                    )}
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-1.5">
-                        <p className="text-[11px] font-bold text-slate-700 truncate leading-tight">{item.name}</p>
-                        {item.isAvulso && (
-                          <span className="shrink-0 px-1.5 py-0.5 rounded text-[8px] font-black uppercase tracking-widest bg-emerald-100 text-emerald-700">Avulso</span>
+                  <div className="p-3 rounded-lg border border-slate-200 bg-white hover:border-blue-200 transition-colors shadow-sm space-y-2.5">
+                    <div className="flex items-start gap-2.5">
+                      {item.image_url ? (
+                        <img src={item.image_url} alt={item.name} className="w-9 h-9 rounded-lg object-contain shrink-0 border border-slate-200 p-0.5 bg-slate-50" />
+                      ) : (
+                        <div className="w-9 h-9 rounded-lg bg-slate-100 border border-slate-200 flex items-center justify-center shrink-0">
+                          <Package size={14} className="text-slate-400" />
+                        </div>
+                      )}
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs font-semibold text-slate-700 leading-snug line-clamp-2 break-words" title={item.name}>{item.name}</p>
+                        {(item.isAvulso || item.variationLabel) && (
+                          <div className="flex flex-wrap items-center gap-1 mt-1">
+                            {item.isAvulso && <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-emerald-100 text-emerald-700">Avulso</span>}
+                            {item.variationLabel && <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-blue-50 text-blue-600">{item.variationLabel}</span>}
+                          </div>
                         )}
                       </div>
-                      {item.variationLabel && <p className="text-[9px] font-bold text-blue-500 uppercase tracking-widest">{item.variationLabel}</p>}
-                      <div className="flex items-center justify-between mt-1">
-                        <p className="text-[10px] font-mono text-slate-400">R$ {item.price.toFixed(2)}</p>
-                        <p className="text-[12px] font-mono font-black text-slate-800">R$ {(item.price * item.quantity).toFixed(2)}</p>
+                      <div className="flex items-center shrink-0 -mt-1 -mr-1">
+                        <IconButton variant="ghost" size="sm" onClick={() => removeFromCart(item.cartItemId)} aria-label="Remover item" title="Remover item" className="border-transparent text-slate-400 hover:bg-red-50 hover:text-red-600"><Trash2 size={14} /></IconButton>
                       </div>
                     </div>
-                    <div className="flex flex-col items-center gap-1 shrink-0">
-                      <div className="flex items-center gap-1 bg-slate-100 border border-slate-200 rounded-xl overflow-hidden">
-                        <button onClick={() => updateQuantity(item.cartItemId, -1)} className="p-1.5 hover:bg-slate-200 text-slate-400 hover:text-slate-700 transition-all"><Minus size={11} /></button>
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center bg-slate-50 border border-slate-200 rounded-lg">
+                        <IconButton variant="ghost" size="sm" onClick={() => updateQuantity(item.cartItemId, -1)} aria-label="Diminuir quantidade" className="border-transparent"><Minus size={12} /></IconButton>
                         <input
                           type="number"
                           min={1}
@@ -2503,11 +2467,14 @@ export default function PDV() {
                             ? setCart((prev) => prev.map((i) => i.cartItemId === item.cartItemId ? { ...i, quantity: Math.max(1, parseInt(e.target.value) || 1) } : i))
                             : setQuantityDirect(item.cartItemId, parseInt(e.target.value) || 1, item.stock_quantity)}
                           onFocus={(e) => e.target.select()}
-                          className="w-8 text-center font-mono font-black text-[12px] text-slate-700 bg-transparent border-none outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                          className="w-9 text-center font-mono font-semibold text-xs text-slate-700 bg-transparent border-none outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
                         />
-                        <button onClick={() => updateQuantity(item.cartItemId, 1)} disabled={!sellWithoutStockControl && !item.isAvulso && item.quantity >= item.stock_quantity} className="p-1.5 hover:bg-slate-200 text-slate-400 hover:text-slate-700 transition-all disabled:opacity-20"><Plus size={11} /></button>
+                        <IconButton variant="ghost" size="sm" onClick={() => updateQuantity(item.cartItemId, 1)} disabled={!sellWithoutStockControl && !item.isAvulso && item.quantity >= item.stock_quantity} aria-label="Aumentar quantidade" className="border-transparent"><Plus size={12} /></IconButton>
                       </div>
-                      <button onClick={() => removeFromCart(item.cartItemId)} className="p-1 text-slate-300 hover:text-red-500 transition-colors rounded"><Trash2 size={12} /></button>
+                      <div className="flex flex-col items-end leading-tight min-w-0">
+                        <span className="text-[10px] font-mono text-slate-400 whitespace-nowrap">R$ {item.price.toFixed(2)} × {item.quantity}</span>
+                        <span className="text-sm font-mono font-semibold text-slate-800 whitespace-nowrap">R$ {(item.price * item.quantity).toFixed(2)}</span>
+                      </div>
                     </div>
                   </div>
                 </motion.div>
@@ -2518,51 +2485,67 @@ export default function PDV() {
                 const catMeta = svc.category_ref ?? UNCATEGORIZED_SERVICE_CATEGORY;
                 const catColor = catMeta.color || "#64748b";
                 const CatIcon = getCategoryIcon(catMeta.icon);
+                const svcQty = svc.quantity ?? 1;
+                const svcPrice = Number(svc.price);
+                const isMeasuredSvc = !!svc.sale_unit && svc.sale_unit !== "unidade";
                 return (
                   <motion.div key={`svc-${svc.id}`}
                     initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20, height: 0 }}
                     transition={{ duration: 0.18 }}>
-                    <div className="flex items-center gap-2 p-3 rounded-2xl border border-violet-200 bg-violet-50/60 hover:border-violet-300 transition-colors shadow-sm">
-                      <div className="w-8 h-8 rounded-xl flex items-center justify-center shrink-0 border border-violet-200" style={{ background: `${catColor}1a`, color: catColor }}>
-                        <CatIcon size={13} />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <span className="text-[8px] font-black uppercase tracking-widest text-violet-500 bg-violet-100 px-1.5 py-0.5 rounded-md">Serviço</span>
-                        <p className="text-[11px] font-bold text-slate-700 truncate leading-tight mt-0.5">{svc.name}</p>
-                        {svc.dimensionsLabel ? (
-                          <p className="text-[9px] text-violet-500 font-mono">{svc.dimensionsLabel}</p>
-                        ) : null}
-                        <p className="text-[11px] font-mono font-black text-violet-600">R$ {(Number(svc.price) * (svc.quantity ?? 1)).toFixed(2)}</p>
-                      </div>
-                      {/* qty controls — item por medida tem quantidade fixa em 1 */}
-                      {svc.sale_unit && svc.sale_unit !== "unidade" ? null : (
-                        <div className="flex items-center gap-1 shrink-0">
-                          <button
-                            onClick={() => setCartServices(prev => (svc.quantity ?? 1) <= 1 ? prev.filter(s => s.id !== svc.id) : prev.map(s => s.id === svc.id ? { ...s, quantity: (s.quantity ?? 1) - 1 } : s))}
-                            className="w-6 h-6 rounded-lg border border-violet-200 bg-white flex items-center justify-center text-violet-500 hover:bg-violet-100 transition-colors text-[11px] font-black">
-                            −
-                          </button>
-                          <input
-                            type="number"
-                            min={1}
-                            value={svc.quantity ?? 1}
-                            onChange={(e) => { const v = parseInt(e.target.value) || 1; setCartServices(prev => prev.map(s => s.id === svc.id ? { ...s, quantity: Math.max(1, v) } : s)); }}
-                            onFocus={(e) => e.target.select()}
-                            className="w-8 text-center text-[11px] font-mono font-black text-slate-700 bg-transparent border-none outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
-                          />
-                          <button
-                            onClick={() => setCartServices(prev => prev.map(s => s.id === svc.id ? { ...s, quantity: (s.quantity ?? 1) + 1 } : s))}
-                            className="w-6 h-6 rounded-lg bg-violet-600 text-white flex items-center justify-center hover:bg-violet-700 transition-colors text-[11px] font-black">
-                            +
-                          </button>
+                    <div className="p-3 rounded-lg border border-slate-200 bg-white hover:border-blue-200 transition-colors shadow-sm space-y-2.5">
+                      <div className="flex items-start gap-2.5">
+                        <div className="w-9 h-9 rounded-lg flex items-center justify-center shrink-0 border border-slate-200" style={{ background: `${catColor}1a`, color: catColor }}>
+                          <CatIcon size={14} />
                         </div>
-                      )}
-                      <button
-                        onClick={() => setCartServices((prev) => prev.filter((s) => s.id !== svc.id))}
-                        className="p-1 text-slate-300 hover:text-red-500 transition-colors rounded shrink-0"
-                      >
-                        <Trash2 size={12} />
-                      </button>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs font-semibold text-slate-700 leading-snug line-clamp-2 break-words" title={svc.name}>{svc.name}</p>
+                          <div className="flex flex-wrap items-center gap-1 mt-1">
+                            <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-slate-100 text-slate-600">Serviço</span>
+                            {svc.dimensionsLabel ? (
+                              <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-blue-50 text-blue-600">{svc.dimensionsLabel}</span>
+                            ) : null}
+                          </div>
+                        </div>
+                        <div className="flex items-center shrink-0 -mt-1 -mr-1">
+                          <IconButton variant="ghost" size="sm" aria-label="Editar nome e valor nesta venda" title="Editar nome e valor (só nesta venda)"
+                            onClick={() => openEditSvc(svc)}
+                            className="border-transparent text-slate-400 hover:bg-blue-50 hover:text-blue-600">
+                            <Pencil size={14} />
+                          </IconButton>
+                          <IconButton variant="ghost" size="sm" aria-label="Remover serviço" title="Remover serviço"
+                            onClick={() => setCartServices((prev) => prev.filter((s) => s.id !== svc.id))}
+                            className="border-transparent text-slate-400 hover:bg-red-50 hover:text-red-600">
+                            <Trash2 size={14} />
+                          </IconButton>
+                        </div>
+                      </div>
+                      <div className="flex items-center justify-between gap-2">
+                        {/* qty controls — item por medida tem quantidade fixa em 1 */}
+                        {isMeasuredSvc ? <span /> : (
+                          <div className="flex items-center bg-slate-50 border border-slate-200 rounded-lg">
+                            <IconButton variant="ghost" size="sm" aria-label="Diminuir quantidade" className="border-transparent"
+                              onClick={() => setCartServices(prev => (svc.quantity ?? 1) <= 1 ? prev.filter(s => s.id !== svc.id) : prev.map(s => s.id === svc.id ? { ...s, quantity: (s.quantity ?? 1) - 1 } : s))}>
+                              <Minus size={12} />
+                            </IconButton>
+                            <input
+                              type="number"
+                              min={1}
+                              value={svcQty}
+                              onChange={(e) => { const v = parseInt(e.target.value) || 1; setCartServices(prev => prev.map(s => s.id === svc.id ? { ...s, quantity: Math.max(1, v) } : s)); }}
+                              onFocus={(e) => e.target.select()}
+                              className="w-9 text-center font-mono font-semibold text-xs text-slate-700 bg-transparent border-none outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                            />
+                            <IconButton variant="ghost" size="sm" aria-label="Aumentar quantidade" className="border-transparent"
+                              onClick={() => setCartServices(prev => prev.map(s => s.id === svc.id ? { ...s, quantity: (s.quantity ?? 1) + 1 } : s))}>
+                              <Plus size={12} />
+                            </IconButton>
+                          </div>
+                        )}
+                        <div className="flex flex-col items-end leading-tight min-w-0">
+                          <span className="text-[10px] font-mono text-slate-400 whitespace-nowrap">R$ {svcPrice.toFixed(2)} × {svcQty}</span>
+                          <span className="text-sm font-mono font-semibold text-slate-800 whitespace-nowrap">R$ {(svcPrice * svcQty).toFixed(2)}</span>
+                        </div>
+                      </div>
                     </div>
                   </motion.div>
                 );
@@ -2573,8 +2556,8 @@ export default function PDV() {
               <div className="h-full flex flex-col items-center justify-center text-slate-300 gap-4 py-16">
                 <ShoppingCart size={40} strokeWidth={1} />
                 <div className="text-center">
-                  <p className="text-[11px] font-black uppercase tracking-[0.2em] mb-1 text-slate-400">Carrinho Vazio</p>
-                  <p className="text-[10px] text-slate-400">Selecione produtos ou serviços</p>
+                  <p className="text-[11px] font-semibold mb-1 text-slate-400">Carrinho Vazio</p>
+                  <p className="text-[11px] text-slate-400">Selecione produtos ou serviços</p>
                 </div>
               </div>
             )}
@@ -2585,51 +2568,44 @@ export default function PDV() {
             {(cart.length > 0 || cartServices.length > 0) && (
               <div className="space-y-1.5">
                 {(discountValue > 0 || surchargeValue > 0 || servicesTotal > 0) && (
-                  <div className="flex justify-between text-[10px] font-medium text-slate-400">
+                  <div className="flex justify-between text-[11px] font-medium text-slate-400">
                     <span>Subtotal</span><span className="font-mono">R$ {subtotal.toFixed(2)}</span>
                   </div>
                 )}
                 {discountValue > 0 && (
-                  <div className="flex justify-between text-[10px] font-bold text-emerald-600">
+                  <div className="flex justify-between text-[11px] font-semibold text-emerald-600">
                     <span>Desconto</span><span className="font-mono">− R$ {discountValue.toFixed(2)}</span>
                   </div>
                 )}
                 {surchargeValue > 0 && (
-                  <div className="flex justify-between text-[10px] font-bold text-amber-500">
+                  <div className="flex justify-between text-[11px] font-semibold text-amber-500">
                     <span>Acréscimo</span><span className="font-mono">+ R$ {surchargeValue.toFixed(2)}</span>
                   </div>
                 )}
                 {feeAmount > 0 && (
-                  <div className="flex justify-between text-[10px] font-bold text-orange-500">
+                  <div className="flex justify-between text-[11px] font-semibold text-orange-500">
                     <span>Juros máquina</span><span className="font-mono">+ R$ {feeAmount.toFixed(2)}</span>
                   </div>
                 )}
                 <div className="flex justify-between items-baseline pt-1.5 border-t border-slate-100">
-                  <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Total</span>
-                  <span className="text-2xl font-mono font-black text-slate-800">R$ {total.toFixed(2)}</span>
+                  <span className="text-[11px] font-semibold text-slate-400">Total</span>
+                  <span className="text-2xl font-mono font-semibold text-slate-800">R$ {total.toFixed(2)}</span>
                 </div>
               </div>
             )}
             <div className="flex gap-2">
               {(cart.length > 0 || cartServices.length > 0) && (
-                <button
-                  onClick={holdSale}
-                  disabled={holdingSale}
-                  title="Segurar Venda"
-                  className="h-11 px-3.5 rounded-xl text-[11px] font-bold uppercase tracking-wide text-amber-600 border border-amber-200 hover:bg-amber-50 transition-all disabled:opacity-40 active:scale-[0.98] flex items-center justify-center gap-2 shrink-0">
-                  {holdingSale ? <Loader2 size={14} className="animate-spin" /> : <Clock size={14} />}
+                <Button variant="outline" size="lg" onClick={holdSale} disabled={holdingSale} loading={holdingSale}
+                  title="Segurar Venda" aria-label="Segurar Venda" iconLeft={<Clock size={14} />}
+                  className="h-11 shrink-0 border-amber-200 text-amber-600 hover:border-amber-300 hover:bg-amber-50 hover:text-amber-700">
                   <span className="hidden sm:inline">Segurar</span>
-                </button>
+                </Button>
               )}
-              <button
-                onClick={goToPayment}
-                disabled={!canFinish}
-                className="flex-1 h-11 disabled:opacity-25 text-white rounded-xl text-[11px] font-bold uppercase tracking-wide transition-all active:scale-[0.98] flex items-center justify-center gap-2 shadow-md shadow-blue-200"
-                style={{ background: "linear-gradient(135deg,#3b82f6,#1d4ed8)" }}>
-                <CreditCard size={14} />
+              <Button variant="primary" size="lg" onClick={goToPayment} disabled={!canFinish}
+                iconLeft={<CreditCard size={14} />} className="h-11 flex-1">
                 Ir para Pagamento
-                {cartQty > 0 && <span className="bg-white/20 rounded-md px-1.5 py-0.5 text-[9px] font-black">{cartQty}</span>}
-              </button>
+                {cartQty > 0 && <span className="bg-white/20 rounded-md px-1.5 py-0.5 text-[10px] font-semibold">{cartQty}</span>}
+              </Button>
             </div>
           </div>
         </div>
@@ -2642,13 +2618,12 @@ export default function PDV() {
               className="shrink-0 border-l border-slate-200 bg-white flex flex-col overflow-hidden">
               <div className="shrink-0 px-4 py-3 border-b border-slate-100 flex items-center justify-between">
                 <div>
-                  <p className="text-[10px] font-black uppercase tracking-widest text-slate-900">Pedidos Recentes</p>
-                  <p className="text-[9px] text-slate-400 font-medium mt-0.5">Últimas 10 vendas</p>
+                  <p className="text-[11px] font-semibold text-slate-900">Pedidos Recentes</p>
+                  <p className="text-[10px] text-slate-400 font-medium mt-0.5">Últimas 10 vendas</p>
                 </div>
-                <button onClick={fetchRecentOrders} disabled={loadingOrders}
-                  className="w-7 h-7 flex items-center justify-center text-slate-400 hover:text-blue-600 transition-colors rounded-lg hover:bg-slate-50">
+                <IconButton variant="ghost" size="md" onClick={fetchRecentOrders} disabled={loadingOrders} aria-label="Atualizar pedidos recentes">
                   <RefreshCw size={12} className={loadingOrders ? "animate-spin" : ""} />
-                </button>
+                </IconButton>
               </div>
               <div className="flex-1 overflow-y-auto admin-scroll">
                 {loadingOrders ? (
@@ -2656,30 +2631,30 @@ export default function PDV() {
                 ) : recentOrders.length === 0 ? (
                   <div className="flex flex-col items-center justify-center h-32 gap-2">
                     <Clock size={28} strokeWidth={1} className="text-slate-200" />
-                    <p className="text-[9px] font-black uppercase tracking-widest text-slate-400">Sem pedidos</p>
+                    <p className="text-[10px] font-semibold text-slate-400">Sem pedidos</p>
                   </div>
                 ) : (
                   <div className="p-3 space-y-2">
                     {recentOrders.map((order) => (
-                      <div key={order.id} className="bg-slate-50 border border-slate-100 rounded-xl p-3 hover:border-slate-200 transition-all">
+                      <div key={order.id} className="bg-slate-50 border border-slate-100 rounded-lg p-3 hover:border-slate-200 transition-all">
                         <div className="flex items-center justify-between mb-1.5">
-                          <span className="text-[9px] font-black text-blue-600 uppercase tracking-widest">#{String(order.id).padStart(5,"0")}</span>
-                          <span className="text-[11px] font-mono font-black text-slate-900">R$ {Number(order.total_amount).toFixed(2)}</span>
+                          <span className="text-[10px] font-semibold text-blue-600">#{String(order.id).padStart(5,"0")}</span>
+                          <span className="text-[11px] font-mono font-semibold text-slate-900">R$ {Number(order.total_amount).toFixed(2)}</span>
                         </div>
-                        <p className="text-[10px] font-bold text-slate-700 truncate mb-1">{order.customer_name || "Consumidor Final"}</p>
+                        <p className="text-[11px] font-semibold text-slate-700 truncate mb-1">{order.customer_name || "Consumidor Final"}</p>
                         <div className="flex items-center justify-between">
-                          <span className="text-[9px] text-slate-400 font-medium">{pmLabel(order.payment_method || "")}</span>
-                          <span className="text-[9px] text-slate-400 font-medium">{new Date(order.created_at).toLocaleTimeString("pt-BR", { hour:"2-digit", minute:"2-digit" })}</span>
+                          <span className="text-[10px] text-slate-400 font-medium">{pmLabel(order.payment_method || "")}</span>
+                          <span className="text-[10px] text-slate-400 font-medium">{new Date(order.created_at).toLocaleTimeString("pt-BR", { hour:"2-digit", minute:"2-digit" })}</span>
                         </div>
                         {Array.isArray(order.items) && order.items.length > 0 && (
                           <div className="flex gap-1 mt-2 overflow-x-auto scrollbar-none">
                             {order.items.slice(0, 4).map((item, idx) => (
                               <div key={idx} className="shrink-0 w-8 h-8 rounded-lg bg-slate-200 border border-slate-100 overflow-hidden flex items-center justify-center relative">
                                 {item.image_url ? <img src={item.image_url} alt={item.product_name} className="w-full h-full object-cover" /> : <Package size={12} className="text-slate-400" />}
-                                {item.quantity > 1 && <div className="absolute bottom-0 right-0 bg-blue-600 text-white text-[7px] font-black rounded-tl px-0.5 leading-none py-0.5">{item.quantity}</div>}
+                                {item.quantity > 1 && <div className="absolute bottom-0 right-0 bg-blue-600 text-white text-[7px] font-semibold rounded-tl px-0.5 leading-none py-0.5">{item.quantity}</div>}
                               </div>
                             ))}
-                            {order.items.length > 4 && <div className="shrink-0 w-8 h-8 rounded-lg bg-slate-100 border border-slate-200 flex items-center justify-center text-[8px] font-black text-slate-400">+{order.items.length - 4}</div>}
+                            {order.items.length > 4 && <div className="shrink-0 w-8 h-8 rounded-lg bg-slate-100 border border-slate-200 flex items-center justify-center text-[10px] font-semibold text-slate-400">+{order.items.length - 4}</div>}
                           </div>
                         )}
                       </div>
@@ -2694,434 +2669,298 @@ export default function PDV() {
       )}
 
       {/* ── VARIATION MODAL ─────────────────────────────────────────────────── */}
-      <AnimatePresence>
+      <Modal
+        open={!!configProduct}
+        onClose={() => setConfigProduct(null)}
+        title={configProduct?.name}
+        subtitle={configProduct ? `Selecionar variação · R$ ${Number(configProduct.discount_price || configProduct.price).toFixed(2)}` : undefined}
+        size="md"
+        footer={configProduct ? (
+          <ModalFooter>
+            <Button variant="outline" size="lg" onClick={() => setConfigProduct(null)}>Cancelar</Button>
+            <Button variant="primary" size="lg" iconLeft={<Plus size={16} />} onClick={() => addToCart(configProduct, selectedOptions)}>
+              Adicionar ao Carrinho
+            </Button>
+          </ModalFooter>
+        ) : undefined}
+      >
         {configProduct && (
-          <motion.div
-            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[200] flex items-end sm:items-center justify-center sm:p-4"
-            style={{ background: "rgba(5,8,20,0.88)", backdropFilter: "blur(16px)" }}>
-            <motion.div
-              initial={{ opacity: 0, y: 40, scale: 0.97 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: 30, scale: 0.97 }}
-              transition={{ type: "spring", damping: 28, stiffness: 260 }}
-              className="w-full sm:max-w-md rounded-t-[28px] sm:rounded-3xl overflow-hidden shadow-2xl"
-              style={{ background: "#0f1623", border: "1px solid rgba(255,255,255,0.07)" }}>
-
-              {/* Imagem + header */}
-              <div className="relative">
-                <div className="h-36 overflow-hidden relative" style={{ background: "rgba(255,255,255,0.05)" }}>
-                  {configProduct.image_url ? (
-                    <img src={configProduct.image_url} alt={configProduct.name} className="w-full h-full object-cover opacity-40" />
-                  ) : (
-                    <div className="w-full h-full flex items-center justify-center">
-                      <Package size={40} className="text-white/10" strokeWidth={1} />
-                    </div>
-                  )}
-                  <div className="absolute inset-0" style={{ background: "linear-gradient(to bottom, transparent 20%, #0f1623 100%)" }} />
-                </div>
-
-                {/* Thumbnail + nome */}
-                <div className="absolute bottom-0 left-0 right-0 flex items-end gap-3 px-5 pb-4">
-                  <div className="w-16 h-16 rounded-2xl overflow-hidden shrink-0 shadow-xl"
-                    style={{ border: "2px solid rgba(255,255,255,0.12)", background: "rgba(255,255,255,0.08)" }}>
-                    {configProduct.image_url
-                      ? <img src={configProduct.image_url} alt={configProduct.name} className="w-full h-full object-contain p-1" />
-                      : <div className="w-full h-full flex items-center justify-center"><Package size={22} className="text-white/30" /></div>}
-                  </div>
-                  <div className="flex-1 pb-0.5">
-                    <p className="text-[9px] font-black uppercase tracking-[0.25em] mb-0.5" style={{ color: "#60a5fa" }}>Selecionar variação</p>
-                    <h3 className="text-[15px] font-black text-white leading-tight line-clamp-2">{configProduct.name}</h3>
-                    <p className="text-[13px] font-mono font-black mt-0.5" style={{ color: "#34d399" }}>
-                      R$ {Number(configProduct.discount_price || configProduct.price).toFixed(2)}
-                    </p>
-                  </div>
-                </div>
-
-                {/* Fechar */}
-                <button onClick={() => setConfigProduct(null)}
-                  className="absolute top-3 right-3 w-8 h-8 rounded-full flex items-center justify-center transition-all"
-                  style={{ background: "rgba(0,0,0,0.5)", border: "1px solid rgba(255,255,255,0.1)" }}>
-                  <X size={15} className="text-white/60" />
-                </button>
-              </div>
-
-              {/* Opções */}
-              <div className="px-5 pt-2 pb-4 space-y-5 max-h-[50vh] overflow-y-auto admin-scroll">
-                {Array.isArray(configProduct.attributes) && configProduct.attributes.length > 0
-                  ? configProduct.attributes.map((attr, aIdx) => (
-                      <div key={aIdx}>
-                        <div className="flex items-center gap-2 mb-3">
-                          <p className="text-[9px] font-black uppercase tracking-[0.2em] text-white/35">{attr.name}</p>
-                          <div className="flex-1 h-px" style={{ background: "rgba(255,255,255,0.06)" }} />
-                        </div>
-                        <div className="flex flex-wrap gap-2">
-                          {attr.values.map((val, vIdx) => {
-                            const currentOptions = { ...selectedOptions, [attr.name]: val };
-                            const sku = configProduct.skus?.find((s) =>
-                              Object.entries(s.combo).every(([k, v]) => currentOptions[k] === v));
-                            const stockQty = sku ? sku.stock : null;
-                            const hasStock = stockQty === null || stockQty > 0;
-                            const isSelected = selectedOptions[attr.name] === val;
-                            return (
-                              <button key={vIdx} disabled={!hasStock}
-                                onClick={() => setSelectedOptions({ ...selectedOptions, [attr.name]: val })}
-                                className={cn("flex flex-col items-center px-3 py-2 rounded-xl transition-all border min-w-[64px]",
-                                  !hasStock ? "opacity-30 cursor-not-allowed"
-                                    : isSelected ? "shadow-lg shadow-blue-500/25"
-                                    : "hover:border-white/20"
-                                )}
-                                style={isSelected
-                                  ? { background: "rgba(59,130,246,0.2)", border: "1px solid rgba(59,130,246,0.6)" }
-                                  : { background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.08)" }}>
-                                <span className={cn("text-[12px] font-bold tracking-wide", !hasStock && "line-through",
-                                  isSelected ? "text-blue-300" : "text-white/70")}>
-                                  {val}
-                                </span>
-                                {stockQty !== null && (
-                                  <span className={cn("text-[9px] font-semibold mt-0.5",
-                                    stockQty === 0 ? "text-red-400/60"
-                                    : stockQty <= 3 ? "text-amber-400/80"
-                                    : "text-white/30")}>
-                                    {stockQty === 0 ? "esgotado" : `${stockQty} un`}
-                                  </span>
-                                )}
-                              </button>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    ))
-                  : configProduct.variations?.map((variation, vIdx) => (
-                      <div key={vIdx}>
-                        <div className="flex items-center gap-2 mb-3">
-                          <p className="text-[9px] font-black uppercase tracking-[0.2em] text-white/35">{variation.name}</p>
-                          <div className="flex-1 h-px" style={{ background: "rgba(255,255,255,0.06)" }} />
-                        </div>
-                        <div className="flex flex-wrap gap-2">
-                          {variation.options.map((opt, oIdx) => {
-                            const isSelected = selectedOptions[variation.name] === opt.value;
-                            return (
-                              <button key={oIdx} disabled={opt.stock === 0}
-                                onClick={() => setSelectedOptions({ ...selectedOptions, [variation.name]: opt.value })}
-                                className={cn("flex flex-col items-center px-3 py-2 rounded-xl transition-all border min-w-[64px]",
-                                  opt.stock === 0 ? "opacity-30 cursor-not-allowed"
-                                    : isSelected ? "shadow-lg shadow-blue-500/25"
-                                    : "hover:border-white/20"
-                                )}
-                                style={isSelected
-                                  ? { background: "rgba(59,130,246,0.2)", border: "1px solid rgba(59,130,246,0.6)" }
-                                  : { background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.08)" }}>
-                                <span className={cn("text-[12px] font-bold tracking-wide", opt.stock === 0 && "line-through",
-                                  isSelected ? "text-blue-300" : "text-white/70")}>
-                                  {opt.value}
-                                </span>
-                                <span className={cn("text-[9px] font-semibold mt-0.5",
-                                  opt.stock === 0 ? "text-red-400/60"
-                                  : opt.stock <= 3 ? "text-amber-400/80"
-                                  : "text-white/30")}>
-                                  {opt.stock === 0 ? "esgotado" : `${opt.stock} un`}
-                                </span>
-                              </button>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    ))}
-
-                {/* Tabela resumo de estoque por SKU */}
-                {configProduct.skus && configProduct.skus.length > 0 && (
-                  <div>
-                    <div className="flex items-center gap-2 mb-3">
-                      <p className="text-[9px] font-black uppercase tracking-[0.2em] text-white/35">Estoque disponível</p>
-                      <div className="flex-1 h-px" style={{ background: "rgba(255,255,255,0.06)" }} />
-                    </div>
-                    <div className="rounded-xl overflow-hidden" style={{ border: "1px solid rgba(255,255,255,0.07)" }}>
-                      {configProduct.skus.map((sku, sIdx) => {
-                        const label = Object.values(sku.combo).join(" · ");
-                        const isCurrentSelection = Object.entries(sku.combo).every(([k, v]) => selectedOptions[k] === v);
+          <div className="space-y-4">
+            {Array.isArray(configProduct.attributes) && configProduct.attributes.length > 0
+              ? configProduct.attributes.map((attr, aIdx) => (
+                  <div key={aIdx}>
+                    <p className="mb-2 text-xs font-medium text-slate-600">{attr.name}</p>
+                    <div className="flex flex-wrap gap-2">
+                      {attr.values.map((val, vIdx) => {
+                        const currentOptions = { ...selectedOptions, [attr.name]: val };
+                        const sku = configProduct.skus?.find((s) =>
+                          Object.entries(s.combo).every(([k, v]) => currentOptions[k] === v));
+                        const stockQty = sku ? sku.stock : null;
+                        const hasStock = stockQty === null || stockQty > 0;
+                        const isSelected = selectedOptions[attr.name] === val;
                         return (
-                          <div key={sIdx}
-                            className={cn("flex items-center justify-between px-3 py-2 transition-all", sIdx > 0 && "border-t")}
-                            style={{
-                              borderColor: "rgba(255,255,255,0.05)",
-                              background: isCurrentSelection ? "rgba(59,130,246,0.12)" : "rgba(255,255,255,0.02)",
-                            }}>
-                            <div className="flex items-center gap-2">
-                              {isCurrentSelection && <div className="w-1 h-4 rounded-full bg-blue-500" />}
-                              <span className="text-[11px] font-medium text-white/60">{label}</span>
-                            </div>
-                            <span className={cn("text-[11px] font-black",
-                              sku.stock === 0 ? "text-red-400/70"
-                              : sku.stock <= 3 ? "text-amber-400"
-                              : "text-emerald-400")}>
-                              {sku.stock === 0 ? "Esgotado" : `${sku.stock} un`}
+                          <button key={vIdx} type="button" disabled={!hasStock}
+                            onClick={() => setSelectedOptions({ ...selectedOptions, [attr.name]: val })}
+                            className={cn("flex min-h-[44px] min-w-[64px] flex-col items-center justify-center rounded-lg border px-3 py-1.5 transition-colors",
+                              !hasStock ? "cursor-not-allowed border-slate-200 bg-slate-50 opacity-50"
+                                : isSelected ? "border-blue-600 bg-blue-50"
+                                : "border-slate-200 bg-white hover:border-blue-300"
+                            )}>
+                            <span className={cn("text-xs font-medium", !hasStock && "line-through",
+                              isSelected ? "text-blue-700" : "text-slate-700")}>
+                              {val}
                             </span>
-                          </div>
+                            {stockQty !== null && (
+                              <span className={cn("mt-0.5 text-[10px] font-medium",
+                                stockQty === 0 ? "text-red-500"
+                                : stockQty <= 3 ? "text-amber-600"
+                                : "text-slate-400")}>
+                                {stockQty === 0 ? "esgotado" : `${stockQty} un`}
+                              </span>
+                            )}
+                          </button>
                         );
                       })}
                     </div>
                   </div>
-                )}
-              </div>
+                ))
+              : configProduct.variations?.map((variation, vIdx) => (
+                  <div key={vIdx}>
+                    <p className="mb-2 text-xs font-medium text-slate-600">{variation.name}</p>
+                    <div className="flex flex-wrap gap-2">
+                      {variation.options.map((opt, oIdx) => {
+                        const isSelected = selectedOptions[variation.name] === opt.value;
+                        return (
+                          <button key={oIdx} type="button" disabled={opt.stock === 0}
+                            onClick={() => setSelectedOptions({ ...selectedOptions, [variation.name]: opt.value })}
+                            className={cn("flex min-h-[44px] min-w-[64px] flex-col items-center justify-center rounded-lg border px-3 py-1.5 transition-colors",
+                              opt.stock === 0 ? "cursor-not-allowed border-slate-200 bg-slate-50 opacity-50"
+                                : isSelected ? "border-blue-600 bg-blue-50"
+                                : "border-slate-200 bg-white hover:border-blue-300"
+                            )}>
+                            <span className={cn("text-xs font-medium", opt.stock === 0 && "line-through",
+                              isSelected ? "text-blue-700" : "text-slate-700")}>
+                              {opt.value}
+                            </span>
+                            <span className={cn("mt-0.5 text-[10px] font-medium",
+                              opt.stock === 0 ? "text-red-500"
+                              : opt.stock <= 3 ? "text-amber-600"
+                              : "text-slate-400")}>
+                              {opt.stock === 0 ? "esgotado" : `${opt.stock} un`}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))}
 
-              {/* Botão confirmar */}
-              <div className="px-5 pb-6 pt-3" style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }}>
-                <button onClick={() => addToCart(configProduct, selectedOptions)}
-                  className="w-full rounded-2xl text-[12px] font-black uppercase tracking-[0.15em] text-white flex items-center justify-center gap-2 transition-all active:scale-[0.98] shadow-xl shadow-blue-500/25"
-                  style={{ background: "linear-gradient(135deg, #3b82f6, #1d4ed8)", height: "52px" }}>
-                  <Plus size={16} strokeWidth={3} /> Adicionar ao Carrinho
-                </button>
+            {/* Tabela resumo de estoque por SKU */}
+            {configProduct.skus && configProduct.skus.length > 0 && (
+              <div>
+                <p className="mb-2 text-xs font-medium text-slate-600">Estoque disponível</p>
+                <div className="overflow-hidden rounded-lg border border-slate-200">
+                  {configProduct.skus.map((sku, sIdx) => {
+                    const label = Object.values(sku.combo).join(" · ");
+                    const isCurrentSelection = Object.entries(sku.combo).every(([k, v]) => selectedOptions[k] === v);
+                    return (
+                      <div key={sIdx}
+                        className={cn("flex items-center justify-between px-3 py-2",
+                          sIdx > 0 && "border-t border-slate-100",
+                          isCurrentSelection ? "bg-blue-50" : "bg-white")}>
+                        <div className="flex items-center gap-2">
+                          {isCurrentSelection && <div className="h-4 w-1 rounded-full bg-blue-500" />}
+                          <span className="text-[11px] font-medium text-slate-600">{label}</span>
+                        </div>
+                        <Badge size="sm" color={sku.stock === 0 ? "danger" : sku.stock <= 3 ? "warning" : "success"}>
+                          {sku.stock === 0 ? "Esgotado" : `${sku.stock} un`}
+                        </Badge>
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
-            </motion.div>
-          </motion.div>
+            )}
+          </div>
         )}
-      </AnimatePresence>
+      </Modal>
 
       {/* ── MEASURE (m²/linear) MODAL ───────────────────────────────────────── */}
-      <AnimatePresence>
+      <Modal
+        open={!!measureProduct}
+        onClose={() => setMeasureProduct(null)}
+        title={measureProduct?.name}
+        subtitle={measureProduct ? `Venda por ${measureProduct.sale_unit === "m2" ? "m²" : "metro linear"}` : undefined}
+        size="sm"
+        footer={measureProduct ? (
+          <ModalFooter>
+            <Button variant="outline" size="lg" onClick={() => setMeasureProduct(null)}>Cancelar</Button>
+            <Button variant="primary" size="lg" iconLeft={<Plus size={16} />} onClick={addMeasuredToCart}
+              disabled={!measurePreview || measurePreview.rawQuantity <= 0 || (!sellWithoutStockControl && measurePreview.rawQuantity > Number(measureProduct.measure_stock_quantity ?? 0) + 0.0005)}>
+              Adicionar ao Carrinho
+            </Button>
+          </ModalFooter>
+        ) : undefined}
+      >
         {measureProduct && (
-          <motion.div
-            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[200] flex items-end sm:items-center justify-center sm:p-4"
-            style={{ background: "rgba(5,8,20,0.88)", backdropFilter: "blur(16px)" }}>
-            <motion.div
-              initial={{ opacity: 0, y: 40, scale: 0.97 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: 30, scale: 0.97 }}
-              transition={{ type: "spring", damping: 28, stiffness: 260 }}
-              className="w-full sm:max-w-sm rounded-t-[28px] sm:rounded-3xl overflow-hidden shadow-2xl bg-white"
-            >
-              <div className="px-5 pt-5 pb-3 flex items-center justify-between border-b border-slate-100">
-                <div>
-                  <p className="text-[9px] font-black uppercase tracking-widest text-blue-500">
-                    Venda por {measureProduct.sale_unit === "m2" ? "m²" : "metro linear"}
-                  </p>
-                  <h3 className="text-[15px] font-black text-slate-800">{measureProduct.name}</h3>
+          <div className="space-y-3">
+            {measureProduct.sale_unit === "m2" ? (
+              <div className="grid grid-cols-2 gap-3">
+                <Input size="lg" label="Altura (m)" type="text" inputMode="decimal" autoFocus value={measureHeight}
+                  onChange={(e) => setMeasureHeight(e.target.value)}
+                  placeholder="0,00" className="text-center font-mono font-semibold" />
+                <Input size="lg" label="Largura (m)" type="text" inputMode="decimal" value={measureWidth}
+                  onChange={(e) => setMeasureWidth(e.target.value)}
+                  placeholder="0,00" className="text-center font-mono font-semibold" />
+              </div>
+            ) : (
+              <Input size="lg" label="Comprimento (m)" type="text" inputMode="decimal" autoFocus value={measureHeight}
+                onChange={(e) => setMeasureHeight(e.target.value)}
+                placeholder="0,00" className="text-center font-mono font-semibold" />
+            )}
+
+            {measurePreview && measurePreview.rawQuantity > 0 && (
+              <div className="space-y-1.5 rounded-lg bg-slate-900 p-4">
+                <div className="flex justify-between text-[11px] font-semibold text-slate-400">
+                  <span>{measureProduct.sale_unit === "m2" ? "Área" : "Comprimento"}</span>
+                  <span className="font-mono text-slate-200">{measurePreview.label}</span>
                 </div>
-                <button onClick={() => setMeasureProduct(null)} className="w-9 h-9 rounded-xl bg-slate-100 hover:bg-slate-200 flex items-center justify-center">
-                  <X size={16} className="text-slate-500" />
-                </button>
-              </div>
-
-              <div className="p-5 space-y-3">
-                {measureProduct.sale_unit === "m2" ? (
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400 mb-1.5 block">Altura (m)</label>
-                      <input type="text" inputMode="decimal" autoFocus value={measureHeight}
-                        onChange={(e) => setMeasureHeight(e.target.value)}
-                        placeholder="0,00"
-                        className="w-full h-11 px-3 rounded-xl border border-slate-200 text-sm font-mono font-bold text-center focus:outline-none focus:border-blue-400" />
-                    </div>
-                    <div>
-                      <label className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400 mb-1.5 block">Largura (m)</label>
-                      <input type="text" inputMode="decimal" value={measureWidth}
-                        onChange={(e) => setMeasureWidth(e.target.value)}
-                        placeholder="0,00"
-                        className="w-full h-11 px-3 rounded-xl border border-slate-200 text-sm font-mono font-bold text-center focus:outline-none focus:border-blue-400" />
-                    </div>
-                  </div>
-                ) : (
-                  <div>
-                    <label className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400 mb-1.5 block">Comprimento (m)</label>
-                    <input type="text" inputMode="decimal" autoFocus value={measureHeight}
-                      onChange={(e) => setMeasureHeight(e.target.value)}
-                      placeholder="0,00"
-                      className="w-full h-11 px-3 rounded-xl border border-slate-200 text-sm font-mono font-bold text-center focus:outline-none focus:border-blue-400" />
-                  </div>
+                {measurePreview.minimumApplied && (
+                  <p className="text-[11px] font-semibold text-amber-400">
+                    Cobrando o mínimo de {Number(measureProduct.min_billable_quantity).toFixed(2)}{measureProduct.sale_unit === "m2" ? "m²" : "m"}
+                  </p>
                 )}
-
-                {measurePreview && measurePreview.rawQuantity > 0 && (
-                  <div className="bg-slate-900 rounded-2xl p-4 space-y-1.5">
-                    <div className="flex justify-between text-[10px] font-bold uppercase text-slate-400">
-                      <span>{measureProduct.sale_unit === "m2" ? "Área" : "Comprimento"}</span>
-                      <span className="font-mono text-slate-200">{measurePreview.label}</span>
-                    </div>
-                    {measurePreview.minimumApplied && (
-                      <p className="text-[10px] font-bold text-amber-400">
-                        Cobrando o mínimo de {Number(measureProduct.min_billable_quantity).toFixed(2)}{measureProduct.sale_unit === "m2" ? "m²" : "m"}
-                      </p>
-                    )}
-                    <div className="flex justify-between text-[15px] font-black uppercase text-white pt-1.5 border-t border-slate-700">
-                      <span>Total</span>
-                      <span className="font-mono">R$ {measurePreview.total.toFixed(2)}</span>
-                    </div>
-                  </div>
-                )}
-                <p className="text-[10px] text-slate-500 font-medium">
-                  Saldo disponível: <span className="font-mono font-bold">{Number(measureProduct.measure_stock_quantity ?? 0).toFixed(3)} {measureProduct.sale_unit === "m2" ? "m²" : "m"}</span>
-                </p>
+                <div className="flex justify-between border-t border-slate-700 pt-1.5 text-[15px] font-semibold text-white">
+                  <span>Total</span>
+                  <span className="font-mono">R$ {measurePreview.total.toFixed(2)}</span>
+                </div>
               </div>
-
-              <div className="px-5 pb-6 pt-1">
-                <button onClick={addMeasuredToCart}
-                  disabled={!measurePreview || measurePreview.rawQuantity <= 0 || (!sellWithoutStockControl && measurePreview.rawQuantity > Number(measureProduct.measure_stock_quantity ?? 0) + 0.0005)}
-                  className="w-full h-12 rounded-2xl text-[12px] font-black uppercase tracking-[0.15em] text-white flex items-center justify-center gap-2 transition-all active:scale-[0.98] disabled:opacity-40"
-                  style={{ background: "linear-gradient(135deg, #3b82f6, #1d4ed8)" }}>
-                  <Plus size={16} strokeWidth={3} /> Adicionar ao Carrinho
-                </button>
-              </div>
-            </motion.div>
-          </motion.div>
+            )}
+            <p className="text-[11px] font-medium text-slate-500">
+              Saldo disponível: <span className="font-mono font-semibold">{Number(measureProduct.measure_stock_quantity ?? 0).toFixed(3)} {measureProduct.sale_unit === "m2" ? "m²" : "m"}</span>
+            </p>
+          </div>
         )}
-      </AnimatePresence>
+      </Modal>
 
       {/* ── MEASURE (m²/linear) MODAL — Serviço ─────────────────────────────── */}
-      <AnimatePresence>
+      <Modal
+        open={!!measureService}
+        onClose={() => setMeasureService(null)}
+        title={measureService?.name}
+        subtitle={measureService ? `Serviço por ${measureService.sale_unit === "m2" ? "m²" : "metro linear"}` : undefined}
+        size="sm"
+        footer={measureService ? (
+          <ModalFooter>
+            <Button variant="outline" size="lg" onClick={() => setMeasureService(null)}>Cancelar</Button>
+            <Button variant="primary" size="lg" iconLeft={<Plus size={16} />} onClick={addMeasuredServiceToCart}
+              disabled={!measureServicePreview || measureServicePreview.rawQuantity <= 0}>
+              Adicionar ao Carrinho
+            </Button>
+          </ModalFooter>
+        ) : undefined}
+      >
         {measureService && (
-          <motion.div
-            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[200] flex items-end sm:items-center justify-center sm:p-4"
-            style={{ background: "rgba(5,8,20,0.88)", backdropFilter: "blur(16px)" }}>
-            <motion.div
-              initial={{ opacity: 0, y: 40, scale: 0.97 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: 30, scale: 0.97 }}
-              transition={{ type: "spring", damping: 28, stiffness: 260 }}
-              className="w-full sm:max-w-sm rounded-t-[28px] sm:rounded-3xl overflow-hidden shadow-2xl bg-white"
-            >
-              <div className="px-5 pt-5 pb-3 flex items-center justify-between border-b border-slate-100">
-                <div>
-                  <p className="text-[9px] font-black uppercase tracking-widest text-violet-500">
-                    Serviço por {measureService.sale_unit === "m2" ? "m²" : "metro linear"}
+          <div className="space-y-3">
+            {measureService.sale_unit === "m2" ? (
+              <div className="grid grid-cols-2 gap-3">
+                <Input size="lg" label="Altura (m)" type="text" inputMode="decimal" autoFocus value={measureServiceHeight}
+                  onChange={(e) => setMeasureServiceHeight(e.target.value)}
+                  placeholder="0,00" className="text-center font-mono font-semibold" />
+                <Input size="lg" label="Largura (m)" type="text" inputMode="decimal" value={measureServiceWidth}
+                  onChange={(e) => setMeasureServiceWidth(e.target.value)}
+                  placeholder="0,00" className="text-center font-mono font-semibold" />
+              </div>
+            ) : (
+              <Input size="lg" label="Comprimento (m)" type="text" inputMode="decimal" autoFocus value={measureServiceHeight}
+                onChange={(e) => setMeasureServiceHeight(e.target.value)}
+                placeholder="0,00" className="text-center font-mono font-semibold" />
+            )}
+
+            {measureServicePreview && measureServicePreview.rawQuantity > 0 && (
+              <div className="space-y-1.5 rounded-lg bg-slate-900 p-4">
+                <div className="flex justify-between text-[11px] font-semibold text-slate-400">
+                  <span>{measureService.sale_unit === "m2" ? "Área" : "Comprimento"}</span>
+                  <span className="font-mono text-slate-200">{measureServicePreview.label}</span>
+                </div>
+                {measureServicePreview.minimumApplied && (
+                  <p className="text-[11px] font-semibold text-amber-400">
+                    Cobrando o mínimo de {Number(measureService.min_billable_quantity).toFixed(2)}{measureService.sale_unit === "m2" ? "m²" : "m"}
                   </p>
-                  <h3 className="text-[15px] font-black text-slate-800">{measureService.name}</h3>
-                </div>
-                <button onClick={() => setMeasureService(null)} className="w-9 h-9 rounded-xl bg-slate-100 hover:bg-slate-200 flex items-center justify-center">
-                  <X size={16} className="text-slate-500" />
-                </button>
-              </div>
-
-              <div className="p-5 space-y-3">
-                {measureService.sale_unit === "m2" ? (
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400 mb-1.5 block">Altura (m)</label>
-                      <input type="text" inputMode="decimal" autoFocus value={measureServiceHeight}
-                        onChange={(e) => setMeasureServiceHeight(e.target.value)}
-                        placeholder="0,00"
-                        className="w-full h-11 px-3 rounded-xl border border-slate-200 text-sm font-mono font-bold text-center focus:outline-none focus:border-violet-400" />
-                    </div>
-                    <div>
-                      <label className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400 mb-1.5 block">Largura (m)</label>
-                      <input type="text" inputMode="decimal" value={measureServiceWidth}
-                        onChange={(e) => setMeasureServiceWidth(e.target.value)}
-                        placeholder="0,00"
-                        className="w-full h-11 px-3 rounded-xl border border-slate-200 text-sm font-mono font-bold text-center focus:outline-none focus:border-violet-400" />
-                    </div>
-                  </div>
-                ) : (
-                  <div>
-                    <label className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400 mb-1.5 block">Comprimento (m)</label>
-                    <input type="text" inputMode="decimal" autoFocus value={measureServiceHeight}
-                      onChange={(e) => setMeasureServiceHeight(e.target.value)}
-                      placeholder="0,00"
-                      className="w-full h-11 px-3 rounded-xl border border-slate-200 text-sm font-mono font-bold text-center focus:outline-none focus:border-violet-400" />
-                  </div>
                 )}
-
-                {measureServicePreview && measureServicePreview.rawQuantity > 0 && (
-                  <div className="bg-slate-900 rounded-2xl p-4 space-y-1.5">
-                    <div className="flex justify-between text-[10px] font-bold uppercase text-slate-400">
-                      <span>{measureService.sale_unit === "m2" ? "Área" : "Comprimento"}</span>
-                      <span className="font-mono text-slate-200">{measureServicePreview.label}</span>
-                    </div>
-                    {measureServicePreview.minimumApplied && (
-                      <p className="text-[10px] font-bold text-amber-400">
-                        Cobrando o mínimo de {Number(measureService.min_billable_quantity).toFixed(2)}{measureService.sale_unit === "m2" ? "m²" : "m"}
-                      </p>
-                    )}
-                    <div className="flex justify-between text-[15px] font-black uppercase text-white pt-1.5 border-t border-slate-700">
-                      <span>Total</span>
-                      <span className="font-mono">R$ {measureServicePreview.total.toFixed(2)}</span>
-                    </div>
-                  </div>
-                )}
+                <div className="flex justify-between border-t border-slate-700 pt-1.5 text-[15px] font-semibold text-white">
+                  <span>Total</span>
+                  <span className="font-mono">R$ {measureServicePreview.total.toFixed(2)}</span>
+                </div>
               </div>
-
-              <div className="px-5 pb-6 pt-1">
-                <button onClick={addMeasuredServiceToCart}
-                  disabled={!measureServicePreview || measureServicePreview.rawQuantity <= 0}
-                  className="w-full h-12 rounded-2xl text-[12px] font-black uppercase tracking-[0.15em] text-white flex items-center justify-center gap-2 transition-all active:scale-[0.98] disabled:opacity-40"
-                  style={{ background: "linear-gradient(135deg, #7c3aed, #4f46e5)" }}>
-                  <Plus size={16} strokeWidth={3} /> Adicionar ao Carrinho
-                </button>
-              </div>
-            </motion.div>
-          </motion.div>
+            )}
+          </div>
         )}
+      </Modal>
 
-        {showAvulsoModal && (
-          <motion.div
-            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[200] flex items-end sm:items-center justify-center sm:p-4"
-            style={{ background: "rgba(5,8,20,0.88)", backdropFilter: "blur(16px)" }}>
-            <motion.div
-              initial={{ opacity: 0, y: 40, scale: 0.97 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: 30, scale: 0.97 }}
-              transition={{ type: "spring", damping: 28, stiffness: 260 }}
-              className="w-full sm:max-w-sm rounded-t-[28px] sm:rounded-3xl overflow-hidden shadow-2xl bg-white"
-            >
-              <div className="px-5 pt-5 pb-3 flex items-center justify-between border-b border-slate-100">
-                <div>
-                  <p className="text-[9px] font-black uppercase tracking-widest text-emerald-500">Venda Rápida</p>
-                  <h3 className="text-[15px] font-black text-slate-800">Item Avulso</h3>
-                </div>
-                <button onClick={() => setShowAvulsoModal(false)} className="w-9 h-9 rounded-xl bg-slate-100 hover:bg-slate-200 flex items-center justify-center">
-                  <X size={16} className="text-slate-500" />
-                </button>
-              </div>
-
-              <div className="p-5 space-y-3">
-                <div>
-                  <label className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400 mb-1.5 block">Nome do item</label>
-                  <input type="text" autoFocus value={avulsoName}
-                    onChange={(e) => setAvulsoName(e.target.value)}
-                    placeholder="Ex: Peça avulsa do cliente"
-                    className="w-full h-11 px-3 rounded-xl border border-slate-200 text-sm font-medium focus:outline-none focus:border-emerald-400" />
-                </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400 mb-1.5 block">Valor unitário</label>
-                    <div className="relative">
-                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[12px] font-mono text-slate-400">R$</span>
-                      <input type="text" inputMode="numeric" value={avulsoPriceDisplay}
-                        onChange={(e) => setAvulsoPriceCents(e.target.value.replace(/\D/g, "").replace(/^0+(?=\d)/, ""))}
-                        placeholder="0,00"
-                        className="w-full h-11 pl-8 pr-3 rounded-xl border border-slate-200 text-sm font-mono font-bold text-center focus:outline-none focus:border-emerald-400" />
-                    </div>
-                  </div>
-                  <div>
-                    <label className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400 mb-1.5 block">Quantidade</label>
-                    <input type="number" min="1" step="1" value={avulsoQuantity}
-                      onChange={(e) => setAvulsoQuantity(e.target.value)}
-                      className="w-full h-11 px-3 rounded-xl border border-slate-200 text-sm font-mono font-bold text-center focus:outline-none focus:border-emerald-400" />
-                  </div>
-                </div>
-                <div>
-                  <label className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400 mb-1.5 block">NCM (opcional)</label>
-                  <input type="text" value={avulsoNcm}
-                    onChange={(e) => setAvulsoNcm(e.target.value)}
-                    placeholder="Deixe em branco se não souber"
-                    className="w-full h-11 px-3 rounded-xl border border-slate-200 text-sm font-mono focus:outline-none focus:border-emerald-400" />
-                  <div className="mt-1.5"><FiscalCodeLookup kind="ncm" token={token} onSelect={(item) => setAvulsoNcm(item.code)} /></div>
-                </div>
-              </div>
-
-              <div className="px-5 pb-6 pt-1">
-                <button onClick={addAvulsoToCart}
-                  disabled={!avulsoName.trim() || !(avulsoPrice > 0)}
-                  className="w-full h-12 rounded-2xl text-[12px] font-black uppercase tracking-[0.15em] text-white flex items-center justify-center gap-2 transition-all active:scale-[0.98] disabled:opacity-40"
-                  style={{ background: "linear-gradient(135deg, #10b981, #059669)" }}>
-                  <Plus size={16} strokeWidth={3} /> Adicionar ao Carrinho
-                </button>
-              </div>
-            </motion.div>
-          </motion.div>
+      {/* ── EDITAR SERVIÇO NA VENDA ─────────────────────────────────────────── */}
+      <Modal
+        open={!!editSvc}
+        onClose={() => setEditSvc(null)}
+        title="Editar serviço"
+        subtitle="Vale apenas para esta venda — o cadastro do serviço não muda"
+        size="sm"
+        footer={
+          <ModalFooter>
+            <Button variant="outline" size="lg" onClick={() => setEditSvc(null)}>Cancelar</Button>
+            <Button size="lg" onClick={saveEditSvc} disabled={!editSvc?.name.trim() || !(editSvcPrice > 0)}>Aplicar</Button>
+          </ModalFooter>
+        }
+      >
+        {editSvc && (
+          <form className="space-y-3" onSubmit={(e) => { e.preventDefault(); saveEditSvc(); }}>
+            <Input size="lg" label="Nome" type="text" autoFocus value={editSvc.name}
+              onChange={(e) => setEditSvc({ ...editSvc, name: e.target.value })} />
+            <Input size="lg" label="Valor unitário" type="text" inputMode="numeric" addonLeft="R$"
+              value={editSvcPrice.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              onChange={(e) => setEditSvc({ ...editSvc, priceCents: e.target.value.replace(/\D/g, "").replace(/^0+(?=\d)/, "") })}
+              className="text-center font-mono font-semibold" />
+          </form>
         )}
-      </AnimatePresence>
+      </Modal>
+
+      {/* ── ITEM AVULSO ─────────────────────────────────────────────────────── */}
+      <Modal
+        open={showAvulsoModal}
+        onClose={() => setShowAvulsoModal(false)}
+        title="Item Avulso"
+        subtitle="Venda Rápida"
+        size="sm"
+        footer={
+          <ModalFooter>
+            <Button variant="outline" size="lg" onClick={() => setShowAvulsoModal(false)}>Cancelar</Button>
+            <Button variant="success" size="lg" iconLeft={<Plus size={16} />} onClick={addAvulsoToCart}
+              disabled={!avulsoName.trim() || !(avulsoPrice > 0)}>
+              Adicionar ao Carrinho
+            </Button>
+          </ModalFooter>
+        }
+      >
+        <div className="space-y-3">
+          <Input size="lg" label="Nome do item" type="text" autoFocus value={avulsoName}
+            onChange={(e) => setAvulsoName(e.target.value)}
+            placeholder="Ex: Peça avulsa do cliente" />
+          <div className="grid grid-cols-2 gap-3">
+            <Input size="lg" label="Valor unitário" type="text" inputMode="numeric" value={avulsoPriceDisplay}
+              onChange={(e) => setAvulsoPriceCents(e.target.value.replace(/\D/g, "").replace(/^0+(?=\d)/, ""))}
+              placeholder="0,00" addonLeft="R$" className="text-center font-mono font-semibold" />
+            <Input size="lg" label="Quantidade" type="number" min="1" step="1" value={avulsoQuantity}
+              onChange={(e) => setAvulsoQuantity(e.target.value)}
+              className="text-center font-mono font-semibold" />
+          </div>
+          <div>
+            <Input size="lg" label="NCM (opcional)" type="text" value={avulsoNcm}
+              onChange={(e) => setAvulsoNcm(e.target.value)}
+              placeholder="Deixe em branco se não souber" className="font-mono" />
+            <div className="mt-1.5"><FiscalCodeLookup kind="ncm" token={token} onSelect={(item) => setAvulsoNcm(item.code)} /></div>
+          </div>
+        </div>
+      </Modal>
 
       {/* ── ETAPA DE PAGAMENTO (substitui a área principal, sem overlay) ────── */}
       {pdvStep === "payment" && showCheckout && (
@@ -3140,21 +2979,21 @@ export default function PDV() {
                   {/* Itens do pedido */}
                   <div className="p-4 sm:p-5 border-b border-slate-100">
                     <div className="flex items-center justify-between mb-2.5 sm:mb-3">
-                      <p className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400">Itens do pedido</p>
+                      <p className="text-[10px] font-semibold text-slate-400">Itens do pedido</p>
                       <button onClick={() => setShowAddProductModal(true)}
                         className="flex items-center gap-1 h-6 px-2 rounded-lg bg-blue-50 border border-blue-200 text-blue-600 hover:bg-blue-100 transition-colors">
                         <Plus size={10} />
-                        <span className="text-[9px] font-black uppercase tracking-wide">Adicionar</span>
+                        <span className="text-[10px] font-semibold">Adicionar</span>
                       </button>
                     </div>
-                    <div className="rounded-xl border border-slate-200 bg-white overflow-hidden">
+                    <div className="rounded-lg border border-slate-200 bg-white overflow-hidden">
                       <table className="w-full text-left">
                         <thead>
                           <tr className="bg-slate-50 border-b border-slate-100">
-                            <th className="px-3 py-2 text-[8px] font-black uppercase tracking-wider text-slate-400">Produto</th>
-                            <th className="px-2 py-2 text-[8px] font-black uppercase tracking-wider text-slate-400 text-right">Unit.</th>
-                            <th className="px-2 py-2 text-[8px] font-black uppercase tracking-wider text-slate-400 text-center">Qtd.</th>
-                            <th className="px-3 py-2 text-[8px] font-black uppercase tracking-wider text-slate-400 text-right">Subtotal</th>
+                            <th className="px-3 py-2 text-[10px] font-semibold text-slate-400">Produto</th>
+                            <th className="px-2 py-2 text-[10px] font-semibold text-slate-400 text-right">Unit.</th>
+                            <th className="px-2 py-2 text-[10px] font-semibold text-slate-400 text-center">Qtd.</th>
+                            <th className="px-3 py-2 text-[10px] font-semibold text-slate-400 text-right">Subtotal</th>
                             <th className="w-7"></th>
                           </tr>
                         </thead>
@@ -3165,14 +3004,14 @@ export default function PDV() {
                                 <div className="flex items-center gap-1">
                                   <p className="text-[12px] font-semibold text-slate-700 truncate leading-tight">{item.name}</p>
                                   {item.isAvulso && (
-                                    <span className="shrink-0 px-1 py-0.5 rounded text-[7px] font-black uppercase tracking-widest bg-emerald-100 text-emerald-700">Avulso</span>
+                                    <span className="shrink-0 px-1 py-0.5 rounded text-[7px] font-semibold bg-emerald-100 text-emerald-700">Avulso</span>
                                   )}
                                 </div>
-                                {item.variationLabel && <p className="text-[9px] font-bold text-blue-500 truncate">{item.variationLabel}</p>}
+                                {item.variationLabel && <p className="text-[10px] font-semibold text-blue-500 truncate">{item.variationLabel}</p>}
                               </td>
                               <td className="px-2 py-2 text-right whitespace-nowrap">
                                 <div className="inline-flex items-center gap-0.5">
-                                  <span className="text-[10px] font-mono text-slate-400">R$</span>
+                                  <span className="text-[11px] font-mono text-slate-400">R$</span>
                                   <input
                                     type="number" min={0} step="0.01"
                                     value={item.price}
@@ -3185,11 +3024,11 @@ export default function PDV() {
                               <td className="px-2 py-2">
                                 <div className="flex items-center justify-center gap-0.5 bg-slate-100 border border-slate-200 rounded-lg p-0.5 mx-auto w-fit">
                                   <button onClick={() => updateQuantity(item.cartItemId, -1)} className="p-1 hover:bg-white rounded text-slate-500"><Minus size={9} /></button>
-                                  <span className="w-5 text-center font-mono font-black text-[10px] text-slate-700">{item.quantity}</span>
+                                  <span className="w-5 text-center font-mono font-semibold text-[11px] text-slate-700">{item.quantity}</span>
                                   <button onClick={() => updateQuantity(item.cartItemId, 1)} disabled={!sellWithoutStockControl && !item.isAvulso && item.quantity >= item.stock_quantity} className="p-1 hover:bg-white rounded text-slate-500 disabled:opacity-30"><Plus size={9} /></button>
                                 </div>
                               </td>
-                              <td className="px-3 py-2 text-[12px] font-mono font-black text-slate-800 text-right whitespace-nowrap">R$ {(item.price * item.quantity).toFixed(2)}</td>
+                              <td className="px-3 py-2 text-[12px] font-mono font-semibold text-slate-800 text-right whitespace-nowrap">R$ {(item.price * item.quantity).toFixed(2)}</td>
                               <td className="pr-2">
                                 <button onClick={() => removeFromCart(item.cartItemId)} className="text-slate-300 hover:text-red-500 transition-colors"><Trash2 size={12} /></button>
                               </td>
@@ -3202,32 +3041,32 @@ export default function PDV() {
                     {/* Mini totais */}
                     <div className="mt-2.5 sm:mt-3 pt-2.5 sm:pt-3 border-t border-slate-200 space-y-1">
                       {servicesTotal > 0 && (
-                        <div className="flex justify-between text-[10px]">
+                        <div className="flex justify-between text-[11px]">
                           <span className="flex items-center gap-1 text-slate-400"><Wrench size={9} /> Serviços</span>
-                          <span className="font-mono font-bold text-blue-600">+ R$ {servicesTotal.toFixed(2)}</span>
+                          <span className="font-mono font-semibold text-blue-600">+ R$ {servicesTotal.toFixed(2)}</span>
                         </div>
                       )}
                       {discountValue > 0 && (
-                        <div className="flex justify-between text-[10px]">
+                        <div className="flex justify-between text-[11px]">
                           <span className="text-slate-400">Desconto</span>
-                          <span className="font-mono font-bold text-emerald-600">− R$ {discountValue.toFixed(2)}</span>
+                          <span className="font-mono font-semibold text-emerald-600">− R$ {discountValue.toFixed(2)}</span>
                         </div>
                       )}
                       {surchargeValue > 0 && (
-                        <div className="flex justify-between text-[10px]">
+                        <div className="flex justify-between text-[11px]">
                           <span className="text-slate-400">Acréscimo</span>
-                          <span className="font-mono font-bold text-amber-500">+ R$ {surchargeValue.toFixed(2)}</span>
+                          <span className="font-mono font-semibold text-amber-500">+ R$ {surchargeValue.toFixed(2)}</span>
                         </div>
                       )}
                       {feeAmount > 0 && (
-                        <div className="flex justify-between text-[10px]">
+                        <div className="flex justify-between text-[11px]">
                           <span className="text-slate-400">Juros máquina</span>
-                          <span className="font-mono font-bold text-orange-500">+ R$ {feeAmount.toFixed(2)}</span>
+                          <span className="font-mono font-semibold text-orange-500">+ R$ {feeAmount.toFixed(2)}</span>
                         </div>
                       )}
                       <div className="flex justify-between items-baseline pt-1 border-t border-slate-200">
-                        <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Total</span>
-                        <span className="text-[17px] font-mono font-black text-slate-800">R$ {total.toFixed(2)}</span>
+                        <span className="text-[11px] font-semibold text-slate-400">Total</span>
+                        <span className="text-[17px] font-mono font-semibold text-slate-800">R$ {total.toFixed(2)}</span>
                       </div>
                     </div>
                   </div>
@@ -3238,13 +3077,13 @@ export default function PDV() {
                     {/* Cliente */}
                     <div>
                       <div className="flex items-center justify-between mb-1.5">
-                        <label className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400">Cliente</label>
+                        <label className="text-[10px] font-semibold text-slate-400">Cliente</label>
                         <button type="button"
                           onClick={() => { setNcName(""); setNcPhone(""); setNcDoc(""); setNcEmail(""); setNcAddr(""); setNcBirth(""); setNcCredit(""); setNcNotes(""); setNcRisk(false); setNcRiskReason(""); setShowNewCustomer(true); }}
                           className="h-6 px-2 rounded-lg bg-blue-50 border border-blue-200 text-blue-600 hover:bg-blue-100 flex items-center gap-1 transition-colors"
                           title="Cadastrar novo cliente">
                           <UserPlus size={11} />
-                          <span className="text-[9px] font-black uppercase tracking-wide">Novo</span>
+                          <span className="text-[10px] font-semibold">Novo</span>
                         </button>
                       </div>
                       <Combobox
@@ -3282,28 +3121,28 @@ export default function PDV() {
 
                       {/* Loyalty panel */}
                       {selectedCustomerId && loyaltyProgram?.is_active && (
-                        <div className="mt-2 bg-amber-50 border border-amber-200 rounded-xl p-2.5 sm:p-3 space-y-2">
+                        <div className="mt-2 bg-amber-50 border border-amber-200 rounded-lg p-2.5 sm:p-3 space-y-2">
                           <div className="flex items-center justify-between">
                             <div className="flex items-center gap-1.5">
                               <Star size={12} className="text-amber-500" fill="currentColor" />
-                              <span className="text-[11px] font-bold text-amber-700">{customerPoints.toLocaleString("pt-BR")} pontos</span>
+                              <span className="text-[11px] font-semibold text-amber-700">{customerPoints.toLocaleString("pt-BR")} pontos</span>
                             </div>
                             {appliedReward ? (
                               <button onClick={() => { if (appliedReward.type === "discount") { setDiscount(""); setDiscountMode("R$"); } setAppliedReward(null); }}
-                                className="text-[10px] text-rose-500 font-bold hover:underline">Remover resgate</button>
+                                className="text-[11px] text-rose-500 font-semibold hover:underline">Remover resgate</button>
                             ) : loyaltyRewards.filter((r) => customerPoints >= r.points_cost).length > 0 ? (
-                              <span className="text-[10px] text-amber-600 font-bold">Pode resgatar!</span>
+                              <span className="text-[11px] text-amber-600 font-semibold">Pode resgatar!</span>
                             ) : null}
                           </div>
                           {loyaltyProgram.spend_per_point > 0 && (() => {
                             const willEarn = Math.floor(total / loyaltyProgram.spend_per_point);
                             return willEarn > 0 ? (
-                              <p className="text-[10px] text-amber-600 font-medium">+{willEarn} ponto{willEarn !== 1 ? "s" : ""} ao finalizar</p>
+                              <p className="text-[11px] text-amber-600 font-medium">+{willEarn} ponto{willEarn !== 1 ? "s" : ""} ao finalizar</p>
                             ) : null;
                           })()}
                           {!appliedReward && loyaltyRewards.filter((r) => customerPoints >= r.points_cost).length > 0 && (
                             <div className="space-y-1 pt-1 border-t border-amber-200">
-                              <p className="text-[9px] font-black uppercase tracking-widest text-amber-600 mb-1">Recompensas disponíveis</p>
+                              <p className="text-[10px] font-semibold text-amber-600 mb-1">Recompensas disponíveis</p>
                               {loyaltyRewards.filter((r) => customerPoints >= r.points_cost).map((r) => (
                                 <button key={r.id} onClick={() => {
                                   setAppliedReward(r);
@@ -3313,13 +3152,13 @@ export default function PDV() {
                                   }
                                 }}
                                   className="w-full flex items-center justify-between p-2 bg-white rounded-lg border border-amber-200 text-[11px] hover:bg-amber-50 transition-colors">
-                                  <span className="flex items-center gap-1.5 font-bold text-slate-700">
+                                  <span className="flex items-center gap-1.5 font-semibold text-slate-700">
                                     {r.type === "product"
-                                      ? <><Gift size={11} className="text-violet-500" /><span>{r.name}</span><span className="text-[9px] font-black text-violet-500 bg-violet-50 px-1.5 py-0.5 rounded-md border border-violet-200 ml-1">brinde</span></>
-                                      : <><Gift size={11} className="text-amber-500" /><span>{r.name}</span>{r.discount_value && <span className="text-[9px] font-black text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded-md border border-emerald-200 ml-1">{r.discount_type === "percent" ? `${r.discount_value}% off` : `R$ ${r.discount_value} off`}</span>}</>
+                                      ? <><Gift size={11} className="text-violet-500" /><span>{r.name}</span><span className="text-[10px] font-semibold text-violet-500 bg-violet-50 px-1.5 py-0.5 rounded-md border border-violet-200 ml-1">brinde</span></>
+                                      : <><Gift size={11} className="text-amber-500" /><span>{r.name}</span>{r.discount_value && <span className="text-[10px] font-semibold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded-md border border-emerald-200 ml-1">{r.discount_type === "percent" ? `${r.discount_value}% off` : `R$ ${r.discount_value} off`}</span>}</>
                                     }
                                   </span>
-                                  <span className="text-amber-600 font-bold shrink-0 ml-2">{r.points_cost} pts</span>
+                                  <span className="text-amber-600 font-semibold shrink-0 ml-2">{r.points_cost} pts</span>
                                 </button>
                               ))}
                             </div>
@@ -3328,10 +3167,10 @@ export default function PDV() {
                             <div className={cn("flex items-center gap-2 p-2 rounded-lg border", appliedReward.type === "product" ? "bg-violet-50 border-violet-200" : "bg-emerald-50 border-emerald-200")}>
                               <Gift size={12} className={appliedReward.type === "product" ? "text-violet-500" : "text-emerald-500"} />
                               <div className="flex-1 min-w-0">
-                                <p className={cn("text-[11px] font-bold", appliedReward.type === "product" ? "text-violet-700" : "text-emerald-700")}>{appliedReward.name} aplicado!</p>
-                                {appliedReward.type === "product" && <p className="text-[10px] text-violet-500 font-medium">Brinde sairá do estoque ao confirmar</p>}
+                                <p className={cn("text-[11px] font-semibold", appliedReward.type === "product" ? "text-violet-700" : "text-emerald-700")}>{appliedReward.name} aplicado!</p>
+                                {appliedReward.type === "product" && <p className="text-[11px] text-violet-500 font-medium">Brinde sairá do estoque ao confirmar</p>}
                               </div>
-                              <span className="text-[10px] font-bold text-rose-500 shrink-0">−{appliedReward.points_cost} pts</span>
+                              <span className="text-[11px] font-semibold text-rose-500 shrink-0">−{appliedReward.points_cost} pts</span>
                             </div>
                           )}
                         </div>
@@ -3342,21 +3181,21 @@ export default function PDV() {
                         (nesse caso o documento do cadastro já é usado automaticamente) */}
                     {!selectedCustomerId && (
                       <div>
-                        <label className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400 mb-1.5 block">
+                        <label className="text-[10px] font-semibold text-slate-400 mb-1.5 block">
                           CPF/CNPJ na Nota (opcional)
                         </label>
                         <input value={customerDocument} onChange={(e) => setCustomerDocument(maskDoc(e.target.value))}
                           inputMode="numeric" placeholder="000.000.000-00"
-                          className="w-full h-9 px-3 rounded-xl border border-slate-200 text-[12px] font-mono focus:outline-none focus:border-blue-400" />
+                          className="w-full h-9 px-3 rounded-lg border border-slate-200 text-[12px] font-mono focus:outline-none focus:border-blue-400" />
                       </div>
                     )}
 
                     {/* Vendedor */}
                     <div>
                       <div className="flex items-center justify-between mb-1.5">
-                        <label className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400">Vendedor</label>
+                        <label className="text-[10px] font-semibold text-slate-400">Vendedor</label>
                         <button type="button" onClick={openNewSellerModal}
-                          className="text-[9px] font-black uppercase tracking-widest text-blue-600 hover:text-blue-700">
+                          className="text-[10px] font-semibold text-blue-600 hover:text-blue-700">
                           + Novo
                         </button>
                       </div>
@@ -3371,12 +3210,12 @@ export default function PDV() {
                             value: String(seller.id),
                             label: seller.name,
                             description: `Comissão de ${Number(seller.commission_rate).toFixed(1)}%`,
-                            icon: <span className="w-6 h-6 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center text-[9px] font-black">{seller.name.charAt(0).toUpperCase()}</span>,
+                            icon: <span className="w-6 h-6 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center text-[10px] font-semibold">{seller.name.charAt(0).toUpperCase()}</span>,
                           })),
                         ]}
                       />
                       {selectedSellerId && (
-                        <p className="text-[9px] text-blue-500 font-bold mt-1.5">
+                        <p className="text-[10px] text-blue-500 font-semibold mt-1.5">
                           Comissão: {Number(sellers.find((s) => s.id === selectedSellerId)?.commission_rate ?? 0).toFixed(1)}% = R$ {(total * Number(sellers.find((s) => s.id === selectedSellerId)?.commission_rate ?? 0) / 100).toFixed(2)}
                         </p>
                       )}
@@ -3385,10 +3224,10 @@ export default function PDV() {
                     {/* Serviços */}
                     {services.length > 0 && (
                       <div>
-                        <label className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400 mb-1.5 block">Serviços</label>
+                        <label className="text-[10px] font-semibold text-slate-400 mb-1.5 block">Serviços</label>
                         <button type="button" onClick={() => setShowServicesModal(true)}
-                          className="w-full flex items-center justify-between h-10 bg-white border border-slate-200 rounded-xl px-3 hover:border-blue-400 hover:bg-blue-50 transition-all">
-                          <span className="flex items-center gap-2 text-[11px] font-bold text-slate-500">
+                          className="w-full flex items-center justify-between h-10 bg-white border border-slate-200 rounded-lg px-3 hover:border-blue-400 hover:bg-blue-50 transition-all">
+                          <span className="flex items-center gap-2 text-[11px] font-semibold text-slate-500">
                             <Wrench size={13} className="text-blue-500" />
                             {cartServices.length === 0 ? "Adicionar serviços" : `${cartServices.length} serviço${cartServices.length > 1 ? "s" : ""} — R$ ${servicesTotal.toFixed(2)}`}
                           </span>
@@ -3399,27 +3238,28 @@ export default function PDV() {
                             {cartServices.map((s) => {
                               const isMeasured = !!s.sale_unit && s.sale_unit !== "unidade";
                               return (
-                                <div key={s.id} className="flex items-center gap-1.5 bg-violet-50 border border-violet-100 rounded-lg px-2 py-1.5">
-                                  <span className="flex items-center gap-1 text-[10px] font-bold text-slate-700 flex-1 min-w-0">
-                                    <Wrench size={10} className="text-violet-400 shrink-0" />
+                                <div key={s.id} className="flex items-center gap-1.5 bg-slate-50 border border-slate-200 rounded-lg px-2 py-1.5">
+                                  <span className="flex items-center gap-1 text-[11px] font-semibold text-slate-700 flex-1 min-w-0">
+                                    <Wrench size={10} className="text-slate-400 shrink-0" />
                                     <span className="truncate">{s.name}{isMeasured && s.dimensionsLabel ? ` (${s.dimensionsLabel})` : ""}</span>
                                   </span>
                                   <div className="flex items-center gap-1 shrink-0">
                                     {!isMeasured && (
                                       <>
-                                        <button onClick={() => setCartServices(prev => (s.quantity ?? 1) <= 1 ? prev.filter(x => x.id !== s.id) : prev.map(x => x.id === s.id ? { ...x, quantity: (x.quantity ?? 1) - 1 } : x))} className="w-4 h-4 rounded border border-violet-200 bg-white flex items-center justify-center text-violet-500 hover:bg-violet-100 text-[9px] font-black">−</button>
+                                        <button onClick={() => setCartServices(prev => (s.quantity ?? 1) <= 1 ? prev.filter(x => x.id !== s.id) : prev.map(x => x.id === s.id ? { ...x, quantity: (x.quantity ?? 1) - 1 } : x))} className="w-4 h-4 rounded border border-slate-200 bg-white flex items-center justify-center text-slate-500 hover:bg-slate-100 text-[10px] font-semibold">−</button>
                                         <input
                                           type="number"
                                           min={1}
                                           value={s.quantity ?? 1}
                                           onChange={(e) => { const v = parseInt(e.target.value) || 1; setCartServices(prev => prev.map(x => x.id === s.id ? { ...x, quantity: Math.max(1, v) } : x)); }}
                                           onFocus={(e) => e.target.select()}
-                                          className="w-6 text-center text-[9px] font-mono font-black text-slate-700 bg-transparent border-none outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                                          className="w-6 text-center text-[10px] font-mono font-semibold text-slate-700 bg-transparent border-none outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
                                         />
-                                        <button onClick={() => setCartServices(prev => prev.map(x => x.id === s.id ? { ...x, quantity: (x.quantity ?? 1) + 1 } : x))} className="w-4 h-4 rounded bg-violet-600 text-white flex items-center justify-center text-[9px] font-black">+</button>
+                                        <button onClick={() => setCartServices(prev => prev.map(x => x.id === s.id ? { ...x, quantity: (x.quantity ?? 1) + 1 } : x))} className="w-4 h-4 rounded bg-blue-600 text-white flex items-center justify-center text-[10px] font-semibold">+</button>
                                       </>
                                     )}
-                                    <span className="text-[10px] font-mono font-black text-violet-600 ml-0.5">R$ {(Number(s.price) * (s.quantity ?? 1)).toFixed(2)}</span>
+                                    <span className="text-[11px] font-mono font-semibold text-blue-700 ml-0.5">R$ {(Number(s.price) * (s.quantity ?? 1)).toFixed(2)}</span>
+                                    <button onClick={() => openEditSvc(s)} aria-label="Editar nome e valor nesta venda" title="Editar nome e valor (só nesta venda)" className="text-slate-300 hover:text-blue-600 transition-colors ml-0.5"><Pencil size={11} /></button>
                                     <button onClick={() => setCartServices((prev) => prev.filter((x) => x.id !== s.id))} className="text-slate-300 hover:text-red-400 transition-colors ml-0.5"><X size={11} /></button>
                                   </div>
                                 </div>
@@ -3437,9 +3277,9 @@ export default function PDV() {
                 <div className="flex flex-1 flex-col sm:overflow-hidden bg-slate-100 min-h-0">
                   <div className="shrink-0 flex items-center justify-between px-4 sm:px-5 lg:px-8 py-2.5 sm:py-3 border-b border-slate-200 bg-white">
                     <div>
-                      <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-800">Finalizar venda</p>
+                      <p className="text-[11px] font-semibold text-slate-800">Finalizar venda</p>
                     </div>
-                    <div className="hidden xl:flex items-center gap-1.5 text-[9px] font-bold text-slate-500">
+                    <div className="hidden xl:flex items-center gap-1.5 text-[10px] font-semibold text-slate-500">
                       <span className="rounded-md border border-slate-200 bg-slate-50 px-2 py-1"><b className="text-slate-700">F2</b> buscar</span>
                       <span className="rounded-md border border-slate-200 bg-slate-50 px-2 py-1"><b className="text-slate-700">F3</b> item</span>
                       <span className="rounded-md border border-slate-200 bg-slate-50 px-2 py-1"><b className="text-slate-700">F6</b> crediário</span>
@@ -3451,39 +3291,38 @@ export default function PDV() {
 
                     {/* Label + adicionar */}
                     <div className="flex items-center justify-between mb-1">
-                      <p className="text-[9px] font-black uppercase tracking-[0.25em] text-slate-400">Formas de pagamento</p>
-                      <button onClick={addPayment}
-                        className="flex items-center gap-1.5 h-7 px-3 rounded-lg text-[9px] font-black uppercase tracking-wider bg-blue-50 border border-blue-200 text-blue-600 hover:bg-blue-100 transition-all">
-                        <PlusCircle size={11} /> Adicionar forma
-                      </button>
+                      <p className="text-[10px] font-semibold text-slate-400">Formas de pagamento</p>
+                      <Button variant="outline" size="lg" onClick={addPayment} iconLeft={<PlusCircle size={11} />}>
+                        Adicionar forma
+                      </Button>
                     </div>
 
-                    <div className="grid grid-cols-2 gap-2.5 sm:gap-3 rounded-2xl border border-slate-200 bg-white p-2.5 sm:p-3">
+                    <div className="grid grid-cols-2 gap-2.5 sm:gap-3 rounded-lg border border-slate-200 bg-white p-2.5 sm:p-3">
                       <div>
-                        <label className="text-[9px] font-black uppercase tracking-[0.16em] text-slate-400 mb-1.5 block">Desconto</label>
+                        <label className="text-[10px] font-semibold text-slate-400 mb-1.5 block">Desconto</label>
                         <div className="flex gap-1.5">
-                          <div className="flex bg-slate-100 border border-slate-200 rounded-xl p-0.5 gap-0.5 shrink-0">
+                          <div className="flex bg-slate-100 border border-slate-200 rounded-lg p-0.5 gap-0.5 shrink-0">
                             {(["R$", "%"] as const).map((m) => (
-                              <button key={m} onClick={() => { setDiscountMode(m); setDiscount(""); }} className="h-7 px-2 rounded-lg text-[9px] font-black transition-all" style={discountMode === m ? { background: "#2563eb", color: "white" } : { color: "#94a3b8" }}>{m}</button>
+                              <button key={m} onClick={() => { setDiscountMode(m); setDiscount(""); }} className="h-7 px-2 rounded-lg text-[10px] font-semibold transition-all" style={discountMode === m ? { background: "#2563eb", color: "white" } : { color: "#94a3b8" }}>{m}</button>
                             ))}
                           </div>
-                          <input type="number" min="0" step="0.01" placeholder="0,00" value={discount} onChange={(e) => setDiscount(e.target.value)} className="flex-1 min-w-0 h-8 px-2 rounded-xl text-[12px] font-mono font-bold text-slate-700 placeholder:text-slate-300 bg-slate-50 border border-slate-200 focus:outline-none focus:border-emerald-400 text-center [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none transition-all" />
+                          <input type="number" min="0" step="0.01" placeholder="0,00" value={discount} onChange={(e) => setDiscount(e.target.value)} className="flex-1 min-w-0 h-8 px-2 rounded-lg text-[12px] font-mono font-semibold text-slate-700 placeholder:text-slate-300 bg-slate-50 border border-slate-200 focus:outline-none focus:border-emerald-400 text-center [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none transition-all" />
                         </div>
                         {discountExceedsLimit && (
-                          <p className="text-[9px] font-bold text-rose-500 mt-1">
+                          <p className="text-[10px] font-semibold text-rose-500 mt-1">
                             Limitado a {cartMaxDiscountPct?.toFixed(0)}% (teto de um item no carrinho) — aplicado R$ {discountValue.toFixed(2)}
                           </p>
                         )}
                       </div>
                       <div>
-                        <label className="text-[9px] font-black uppercase tracking-[0.16em] text-slate-400 mb-1.5 block">Acréscimo</label>
+                        <label className="text-[10px] font-semibold text-slate-400 mb-1.5 block">Acréscimo</label>
                         <div className="flex gap-1.5">
-                          <div className="flex bg-slate-100 border border-slate-200 rounded-xl p-0.5 gap-0.5 shrink-0">
+                          <div className="flex bg-slate-100 border border-slate-200 rounded-lg p-0.5 gap-0.5 shrink-0">
                             {(["R$", "%"] as const).map((m) => (
-                              <button key={m} onClick={() => { setSurchargeMode(m); setSurcharge(""); }} className="h-7 px-2 rounded-lg text-[9px] font-black transition-all" style={surchargeMode === m ? { background: "#d97706", color: "white" } : { color: "#94a3b8" }}>{m}</button>
+                              <button key={m} onClick={() => { setSurchargeMode(m); setSurcharge(""); }} className="h-7 px-2 rounded-lg text-[10px] font-semibold transition-all" style={surchargeMode === m ? { background: "#d97706", color: "white" } : { color: "#94a3b8" }}>{m}</button>
                             ))}
                           </div>
-                          <input type="number" min="0" step="0.01" placeholder="0,00" value={surcharge} onChange={(e) => setSurcharge(e.target.value)} className="flex-1 min-w-0 h-8 px-2 rounded-xl text-[12px] font-mono font-bold text-slate-700 placeholder:text-slate-300 bg-slate-50 border border-slate-200 focus:outline-none focus:border-amber-400 text-center [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none transition-all" />
+                          <input type="number" min="0" step="0.01" placeholder="0,00" value={surcharge} onChange={(e) => setSurcharge(e.target.value)} className="flex-1 min-w-0 h-8 px-2 rounded-lg text-[12px] font-mono font-semibold text-slate-700 placeholder:text-slate-300 bg-slate-50 border border-slate-200 focus:outline-none focus:border-amber-400 text-center [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none transition-all" />
                         </div>
                       </div>
                     </div>
@@ -3495,17 +3334,17 @@ export default function PDV() {
                       const otherPayments = paidAmount - pAmt;
                       const thisMoneyChange = p.method === "money" && pAmt > 0 ? Math.max(0, pAmt - Math.max(0, total - otherPayments)) : 0;
                       return (
-                        <div key={p.id} className="bg-slate-50 rounded-2xl border border-slate-200 p-2.5 sm:p-3 space-y-2 sm:space-y-2.5">
+                        <div key={p.id} className="bg-slate-50 rounded-lg border border-slate-200 p-2.5 sm:p-3 space-y-2 sm:space-y-2.5">
                           {/* method row */}
                           <div className="flex items-center gap-2">
                             {payments.length > 1 && (
-                              <span className="w-5 h-5 bg-slate-200 rounded-full flex items-center justify-center text-[9px] font-black text-slate-600 shrink-0">{idx + 1}</span>
+                              <span className="w-5 h-5 bg-slate-200 rounded-full flex items-center justify-center text-[10px] font-semibold text-slate-600 shrink-0">{idx + 1}</span>
                             )}
                             <div className="grid grid-cols-4 gap-1.5 flex-1">
                               {/* Cartão (Crédito/Débito agrupados) */}
                               <button
                                 onClick={() => handleMethodChange(p.id, p.method === "debit" ? "debit" : "credit")}
-                                className={cn("h-10 rounded-xl border text-[9px] font-black uppercase tracking-widest transition-all flex flex-col items-center justify-center gap-0.5",
+                                className={cn("h-10 rounded-lg border text-[10px] font-semibold transition-all flex flex-col items-center justify-center gap-0.5",
                                   (p.method === "credit" || p.method === "debit")
                                     ? "bg-emerald-600 border-emerald-500 text-white shadow-sm"
                                     : "bg-white border-slate-200 text-slate-500 hover:border-slate-400")}>
@@ -3513,13 +3352,13 @@ export default function PDV() {
                                 Cartão
                               </button>
                               <button onClick={() => handleMethodChange(p.id, "pix")}
-                                className={cn("h-10 rounded-xl border text-[9px] font-black uppercase tracking-widest transition-all flex flex-col items-center justify-center gap-0.5",
+                                className={cn("h-10 rounded-lg border text-[10px] font-semibold transition-all flex flex-col items-center justify-center gap-0.5",
                                   p.method === "pix" ? "bg-blue-600 border-blue-500 text-white shadow-sm" : "bg-white border-slate-200 text-slate-500 hover:border-slate-400")}>
                                 <QrCode size={13} />
                                 {PM_LABEL.pix}
                               </button>
                               <button onClick={() => handleMethodChange(p.id, "money")}
-                                className={cn("h-10 rounded-xl border text-[9px] font-black uppercase tracking-widest transition-all flex flex-col items-center justify-center gap-0.5",
+                                className={cn("h-10 rounded-lg border text-[10px] font-semibold transition-all flex flex-col items-center justify-center gap-0.5",
                                   p.method === "money" ? "bg-blue-600 border-blue-500 text-white shadow-sm" : "bg-white border-slate-200 text-slate-500 hover:border-slate-400")}>
                                 <Banknote size={13} />
                                 {PM_LABEL.money}
@@ -3527,13 +3366,13 @@ export default function PDV() {
                               {/* "Mais" — crediário e métodos futuros */}
                               <div className="relative">
                                 <button onClick={(e) => { e.stopPropagation(); setMorePaymentMenuFor(morePaymentMenuFor === p.id ? null : p.id); }}
-                                  className={cn("h-10 w-full rounded-xl border text-[9px] font-black uppercase tracking-widest transition-all flex flex-col items-center justify-center gap-0.5",
+                                  className={cn("h-10 w-full rounded-lg border text-[10px] font-semibold transition-all flex flex-col items-center justify-center gap-0.5",
                                     p.method === "crediario" ? "bg-amber-600 border-amber-500 text-white shadow-sm" : "bg-white border-slate-200 text-slate-500 hover:border-slate-400")}>
                                   <PlusCircle size={13} />
                                   Mais
                                 </button>
                                 {morePaymentMenuFor === p.id && (
-                                  <div className="absolute z-20 top-full mt-1 right-0 w-40 bg-white border border-slate-200 rounded-xl shadow-lg overflow-hidden">
+                                  <div className="absolute z-20 top-full mt-1 right-0 w-40 bg-white border border-slate-200 rounded-lg shadow-sm overflow-hidden">
                                     <button
                                       onClick={() => {
                                         if (!selectedCustomerId) { setSaleError("Selecione um cliente para vender no crediário"); setMorePaymentMenuFor(null); return; }
@@ -3554,13 +3393,13 @@ export default function PDV() {
 
                           {/* toggle crédito/débito dentro de "Cartão" */}
                           {(p.method === "debit" || p.method === "credit") && (
-                            <div className="flex bg-slate-100 border border-slate-200 rounded-xl p-0.5 gap-0.5 w-fit">
+                            <div className="flex bg-slate-100 border border-slate-200 rounded-lg p-0.5 gap-0.5 w-fit">
                               <button onClick={() => handleMethodChange(p.id, "credit")}
-                                className={cn("h-7 px-3 rounded-lg text-[9px] font-black uppercase tracking-wide transition-all", p.method === "credit" ? "bg-emerald-600 text-white" : "text-slate-500")}>
+                                className={cn("h-7 px-3 rounded-lg text-[10px] font-semibold transition-all", p.method === "credit" ? "bg-emerald-600 text-white" : "text-slate-500")}>
                                 Crédito
                               </button>
                               <button onClick={() => handleMethodChange(p.id, "debit")}
-                                className={cn("h-7 px-3 rounded-lg text-[9px] font-black uppercase tracking-wide transition-all", p.method === "debit" ? "bg-emerald-600 text-white" : "text-slate-500")}>
+                                className={cn("h-7 px-3 rounded-lg text-[10px] font-semibold transition-all", p.method === "debit" ? "bg-emerald-600 text-white" : "text-slate-500")}>
                                 Débito
                               </button>
                             </div>
@@ -3574,7 +3413,7 @@ export default function PDV() {
                               <div className={`grid ${cols} gap-1`}>
                                 {activeB.map(({ key, label, color }) => (
                                   <button key={key} onClick={() => updatePayment(p.id, { cardBrand: key })}
-                                    className={cn("h-9 sm:h-7 rounded-lg border text-[8px] font-black uppercase tracking-widest transition-all",
+                                    className={cn("h-9 sm:h-7 rounded-lg border text-[10px] font-semibold transition-all",
                                       p.cardBrand === key ? "text-white border-transparent shadow-sm" : "bg-white border-slate-200 text-slate-500 hover:border-slate-400")}
                                     style={p.cardBrand === key ? { backgroundColor: color } : {}}>
                                     {label}
@@ -3602,9 +3441,9 @@ export default function PDV() {
                                         "rounded-lg border transition-all flex flex-col items-center justify-center py-1.5 px-1 gap-0.5",
                                         isActive ? "bg-emerald-600 border-emerald-500 text-white shadow-sm" : "bg-white border-slate-200 text-slate-500 hover:border-slate-400"
                                       )}>
-                                      <span className="text-[8px] font-black uppercase tracking-widest">{n === 1 ? "À vista" : `${n}×`}</span>
+                                      <span className="text-[10px] font-semibold">{n === 1 ? "À vista" : `${n}×`}</span>
                                       {rate > 0 && (
-                                        <span className={cn("text-[7px] font-bold", isActive ? "text-emerald-200" : passFeeToCustomer ? "text-blue-500" : "text-amber-500")}>
+                                        <span className={cn("text-[7px] font-semibold", isActive ? "text-emerald-200" : passFeeToCustomer ? "text-blue-500" : "text-amber-500")}>
                                           {passFeeToCustomer ? `c/ ${rate}%` : `+${rate}%`}
                                         </span>
                                       )}
@@ -3624,21 +3463,21 @@ export default function PDV() {
                           {p.method === "crediario" && (
                             <div className="grid grid-cols-2 gap-2">
                               <div>
-                                <label className="text-[8px] font-black uppercase tracking-[0.2em] text-slate-400 mb-1 block">Nº de parcelas</label>
+                                <label className="text-[10px] font-semibold text-slate-400 mb-1 block">Nº de parcelas</label>
                                 <input type="number" min="1" max="24" step="1"
-                                  className="w-full h-9 px-2 bg-white border border-slate-200 rounded-lg text-[12px] font-mono font-bold text-slate-800 focus:outline-none focus:border-amber-500"
+                                  className="w-full h-9 px-2 bg-white border border-slate-200 rounded-lg text-[12px] font-mono font-semibold text-slate-800 focus:outline-none focus:border-amber-500"
                                   value={p.crediarioInstallments}
                                   onChange={(e) => updatePayment(p.id, { crediarioInstallments: Math.max(1, Number(e.target.value) || 1) })} />
                               </div>
                               <div>
-                                <label className="text-[8px] font-black uppercase tracking-[0.2em] text-slate-400 mb-1 block">Vencimento 1ª parcela</label>
+                                <label className="text-[10px] font-semibold text-slate-400 mb-1 block">Vencimento 1ª parcela</label>
                                 <input type="date"
-                                  className="w-full h-9 px-2 bg-white border border-slate-200 rounded-lg text-[12px] font-mono font-bold text-slate-800 focus:outline-none focus:border-amber-500"
+                                  className="w-full h-9 px-2 bg-white border border-slate-200 rounded-lg text-[12px] font-mono font-semibold text-slate-800 focus:outline-none focus:border-amber-500"
                                   value={p.crediarioFirstDueDate}
                                   onChange={(e) => updatePayment(p.id, { crediarioFirstDueDate: e.target.value })} />
                               </div>
                               {p.crediarioInstallments > 1 && Number(p.amount) > 0 && (
-                                <p className="col-span-2 text-[10px] font-bold text-amber-600">
+                                <p className="col-span-2 text-[11px] font-semibold text-amber-600">
                                   {p.crediarioInstallments}x de R$ {(Number(p.amount) / p.crediarioInstallments).toFixed(2)}
                                 </p>
                               )}
@@ -3647,7 +3486,7 @@ export default function PDV() {
 
                           {/* valor recebido + troco */}
                           <div>
-                            <label className="text-[8px] font-black uppercase tracking-[0.2em] text-slate-400 mb-1 flex items-center gap-1">
+                            <label className="text-[10px] font-semibold text-slate-400 mb-1 flex items-center gap-1">
                               {p.method === "money" ? "Valor recebido" : "Valor"}
                             </label>
                             <div className="flex gap-2">
@@ -3655,25 +3494,25 @@ export default function PDV() {
                                 <Banknote className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={13} />
                                 <input type="number" min="0" step="0.01"
                                   placeholder={idx === 0 ? `R$ ${total > 0 ? total.toFixed(2) : "0,00"}` : "Valor (R$)"}
-                                  className={cn("w-full pl-9 pr-3 h-11 bg-white border rounded-xl focus:outline-none text-[13px] font-mono font-bold text-slate-800 placeholder:text-slate-400 transition-all [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none",
+                                  className={cn("w-full pl-9 pr-3 h-11 bg-white border rounded-lg focus:outline-none text-[13px] font-mono font-semibold text-slate-800 placeholder:text-slate-400 transition-all [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none",
                                     p.method === "money" && pAmt > 0 && pAmt < (total - (paidAmount - pAmt)) ? "border-red-400 bg-red-50" : "border-slate-200 focus:border-blue-500")}
                                   value={p.amount}
                                   onChange={(e) => updatePayment(p.id, { amount: e.target.value })} />
                               </div>
                               {pFee > 0.005 && (
-                                <div className="flex flex-col items-end gap-0.5 bg-amber-50 border border-amber-200 rounded-xl px-3 py-1.5 shrink-0">
-                                  <span className="text-[8px] font-black text-amber-600 uppercase tracking-widest">Taxa {feeRate}%</span>
-                                  <span className="text-[10px] font-mono font-black text-amber-700">− R$ {pFee.toFixed(2)}</span>
+                                <div className="flex flex-col items-end gap-0.5 bg-amber-50 border border-amber-200 rounded-lg px-3 py-1.5 shrink-0">
+                                  <span className="text-[10px] font-semibold text-amber-600">Taxa {feeRate}%</span>
+                                  <span className="text-[11px] font-mono font-semibold text-amber-700">− R$ {pFee.toFixed(2)}</span>
                                   {p.installments > 1 && pAmt > 0 && (
-                                    <span className="text-[7px] font-bold text-amber-500">{p.installments}× R$ {((pAmt * (1 + feeRate/100)) / p.installments).toFixed(2)}/parc</span>
+                                    <span className="text-[7px] font-semibold text-amber-500">{p.installments}× R$ {((pAmt * (1 + feeRate/100)) / p.installments).toFixed(2)}/parc</span>
                                   )}
                                 </div>
                               )}
                             </div>
                             {p.method === "money" && (
                               <div className="mt-1.5 flex items-center justify-between">
-                                <span className="text-[9px] font-black uppercase tracking-widest text-slate-400">Troco</span>
-                                <span className={cn("text-[12px] font-mono font-black", thisMoneyChange > 0.005 ? "text-emerald-600" : "text-slate-400")}>
+                                <span className="text-[10px] font-semibold text-slate-400">Troco</span>
+                                <span className={cn("text-[12px] font-mono font-semibold", thisMoneyChange > 0.005 ? "text-emerald-600" : "text-slate-400")}>
                                   R$ {thisMoneyChange.toFixed(2)}
                                 </span>
                               </div>
@@ -3689,7 +3528,7 @@ export default function PDV() {
                               <div className="flex gap-1 flex-wrap">
                                 {quick.map((v) => (
                                   <button key={v} onClick={() => updatePayment(p.id, { amount: v.toFixed(2) })}
-                                    className="h-7 px-2.5 rounded-lg border border-slate-200 bg-white text-[10px] font-bold text-slate-600 hover:border-blue-300 hover:bg-blue-50 hover:text-blue-600 transition-all">
+                                    className="h-7 px-2.5 rounded-lg border border-slate-200 bg-white text-[11px] font-semibold text-slate-600 hover:border-blue-300 hover:bg-blue-50 hover:text-blue-600 transition-all">
                                     R$ {v % 1 === 0 ? v.toFixed(0) : v.toFixed(2)}
                                   </button>
                                 ))}
@@ -3701,73 +3540,68 @@ export default function PDV() {
                     })}
 
                     {/* Resumo financeiro */}
-                    <div className="rounded-2xl px-3 sm:px-4 py-2.5 sm:py-3 bg-slate-50 border border-slate-200 shadow-sm space-y-1.5">
+                    <div className="rounded-lg px-3 sm:px-4 py-2.5 sm:py-3 bg-slate-50 border border-slate-200 shadow-sm space-y-1.5">
                       <div className="flex items-center justify-between">
-                        <span className="text-[10px] font-bold text-slate-400">Subtotal</span>
-                        <span className="text-[11px] font-mono font-bold text-slate-600">R$ {subtotal.toFixed(2)}</span>
+                        <span className="text-[11px] font-semibold text-slate-400">Subtotal</span>
+                        <span className="text-[11px] font-mono font-semibold text-slate-600">R$ {subtotal.toFixed(2)}</span>
                       </div>
                       {discountValue > 0 && (
                         <div className="flex items-center justify-between">
-                          <span className="text-[10px] font-bold text-slate-400">Desconto</span>
-                          <span className="text-[11px] font-mono font-bold text-emerald-600">− R$ {discountValue.toFixed(2)}</span>
+                          <span className="text-[11px] font-semibold text-slate-400">Desconto</span>
+                          <span className="text-[11px] font-mono font-semibold text-emerald-600">− R$ {discountValue.toFixed(2)}</span>
                         </div>
                       )}
                       {surchargeValue > 0 && (
                         <div className="flex items-center justify-between">
-                          <span className="text-[10px] font-bold text-slate-400">Acréscimo</span>
-                          <span className="text-[11px] font-mono font-bold text-amber-500">+ R$ {surchargeValue.toFixed(2)}</span>
+                          <span className="text-[11px] font-semibold text-slate-400">Acréscimo</span>
+                          <span className="text-[11px] font-mono font-semibold text-amber-500">+ R$ {surchargeValue.toFixed(2)}</span>
                         </div>
                       )}
                       {feeAmount > 0 && (
                         <div className="flex items-center justify-between">
-                          <span className="text-[10px] font-bold text-slate-400">Juros máquina</span>
-                          <span className="text-[11px] font-mono font-bold text-orange-500">+ R$ {feeAmount.toFixed(2)}</span>
+                          <span className="text-[11px] font-semibold text-slate-400">Juros máquina</span>
+                          <span className="text-[11px] font-mono font-semibold text-orange-500">+ R$ {feeAmount.toFixed(2)}</span>
                         </div>
                       )}
                       <div className="pt-1.5 mt-1 border-t border-slate-200 flex items-center justify-between">
                         <div>
-                          <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-0.5">Total</p>
-                          {remaining > 0.009 && <p className="text-[10px] font-bold text-amber-500">⚠ Faltam R$ {remaining.toFixed(2)}</p>}
-                          {change > 0 && <p className="text-[10px] font-bold text-emerald-600">Troco R$ {change.toFixed(2)}</p>}
+                          <p className="text-[10px] font-semibold text-slate-400 mb-0.5">Total</p>
+                          {remaining > 0.009 && <p className="text-[11px] font-semibold text-amber-500">⚠ Faltam R$ {remaining.toFixed(2)}</p>}
+                          {change > 0 && <p className="text-[11px] font-semibold text-emerald-600">Troco R$ {change.toFixed(2)}</p>}
                         </div>
-                        <span className="text-[28px] font-mono font-black text-slate-800">R$ {total.toFixed(2)}</span>
+                        <span className="text-[28px] font-mono font-semibold text-slate-800">R$ {total.toFixed(2)}</span>
                       </div>
                     </div>
 
                     {/* Botões de ação */}
                     {saleError && (
-                      <div className="px-3 py-2.5 bg-red-50 border border-red-200 rounded-xl flex items-start gap-2">
+                      <div className="px-3 py-2.5 bg-red-50 border border-red-200 rounded-lg flex items-start gap-2">
                         <span className="text-red-500 shrink-0 mt-0.5">⚠</span>
-                        <p className="text-[11px] font-bold text-red-700 leading-snug">{saleError}</p>
+                        <p className="text-[11px] font-semibold text-red-700 leading-snug">{saleError}</p>
                       </div>
                     )}
                     {terminalResult?.status === "approved" && (
-                      <div className="px-3 py-2.5 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center gap-2">
+                      <div className="px-3 py-2.5 bg-emerald-50 border border-emerald-200 rounded-lg flex items-center gap-2">
                         <CheckCircle2 size={14} className="text-emerald-600 shrink-0" />
-                        <p className="text-[11px] font-bold text-emerald-700">
+                        <p className="text-[11px] font-semibold text-emerald-700">
                           Aprovado{terminalResult.brand ? ` · ${terminalResult.brand.toUpperCase()}` : ""}{terminalResult.authCode ? ` · Auth ${terminalResult.authCode}` : ""}
                         </p>
                       </div>
                     )}
                     <div className="flex gap-2 sm:gap-2.5">
-                      <button onClick={cancelSale} disabled={finishing}
-                        className="h-11 px-4 rounded-xl text-[11px] font-bold uppercase tracking-wide text-red-500 border border-red-200 hover:bg-red-50 transition-all disabled:opacity-40 active:scale-[0.98] flex items-center justify-center gap-2 shrink-0">
-                        <Trash2 size={14} /> Cancelar
-                      </button>
-                      <button onClick={shouldSendToTerminal ? handleChargeTerminal : handleFinishSale} disabled={!canFinish || finishing || terminalCharging}
-                        className="flex-1 h-11 rounded-xl text-[11px] font-bold uppercase tracking-wide text-white transition-all disabled:opacity-40 active:scale-[0.98] flex items-center justify-center gap-2"
-                        style={{
-                          background: remaining > 0.009
-                            ? "linear-gradient(135deg,#f59e0b,#d97706)"
-                            : terminalResult?.status === "approved"
-                              ? "linear-gradient(135deg,#3b82f6,#1d4ed8)"
-                              : "linear-gradient(135deg,#3b82f6,#1d4ed8)",
-                          boxShadow: remaining > 0.009 ? "0 3px 10px rgba(245,158,11,0.25)" : "0 3px 10px rgba(59,130,246,0.25)",
-                        }}>
+                      <Button variant="outline" size="lg" onClick={cancelSale} disabled={finishing} iconLeft={<Trash2 size={14} />}
+                        className="h-11 shrink-0 border-red-200 text-red-600 hover:border-red-300 hover:bg-red-50 hover:text-red-700">
+                        Cancelar
+                      </Button>
+                      <Button variant="primary" size="lg" onClick={shouldSendToTerminal ? handleChargeTerminal : handleFinishSale}
+                        disabled={!canFinish || finishing || terminalCharging}
+                        loading={finishing || terminalCharging}
+                        iconLeft={<CheckCircle2 size={14} />}
+                        className={cn("h-11 flex-1", remaining > 0.009 && "border-amber-600 bg-amber-500 hover:border-amber-700 hover:bg-amber-600")}>
                         {finishing || terminalCharging
-                          ? <><Loader2 size={14} className="animate-spin" /> {terminalCharging ? "Aguardando maquininha…" : "Finalizando…"}</>
-                          : <><CheckCircle2 size={14} /> Confirmar Venda</>}
-                      </button>
+                          ? (terminalCharging ? "Aguardando maquininha…" : "Finalizando…")
+                          : "Confirmar Venda"}
+                      </Button>
                     </div>
                    </div>
                   </div>
@@ -3789,7 +3623,7 @@ export default function PDV() {
               animate={{ y: 0, opacity: 1 }}
               exit={{ y: "100%", opacity: 0 }}
               transition={{ type: "spring", damping: 32, stiffness: 300 }}
-              className="fixed inset-x-0 bottom-0 sm:inset-auto sm:top-1/2 sm:left-1/2 sm:-translate-x-1/2 sm:-translate-y-1/2 z-[401] w-full sm:w-[440px] bg-white sm:rounded-3xl rounded-t-3xl shadow-2xl flex flex-col overflow-hidden max-h-[92dvh] sm:max-h-[90vh]">
+              className="fixed inset-x-0 bottom-0 sm:inset-auto sm:top-1/2 sm:left-1/2 sm:-translate-x-1/2 sm:-translate-y-1/2 z-[401] w-full sm:w-[440px] bg-white sm:rounded-lg rounded-t-lg shadow-sm flex flex-col overflow-hidden max-h-[92dvh] sm:max-h-[90vh]">
 
               {/* drag handle */}
               <div className="shrink-0 flex justify-center pt-3 pb-0 sm:hidden">
@@ -3808,10 +3642,10 @@ export default function PDV() {
                       <div className="w-5 h-5 rounded-full bg-white/20 flex items-center justify-center">
                         <CheckCircle2 size={14} className="text-white" />
                       </div>
-                      <span className="text-[10px] font-black uppercase tracking-[0.2em] text-emerald-100">Venda Confirmada</span>
+                      <span className="text-[11px] font-semibold text-emerald-100">Venda Confirmada</span>
                     </div>
-                    <p className="text-3xl font-mono font-black leading-none">R$ {completedSale.total.toFixed(2)}</p>
-                    <p className="text-[11px] text-emerald-200 font-bold mt-1.5">
+                    <p className="text-3xl font-mono font-semibold leading-none">R$ {completedSale.total.toFixed(2)}</p>
+                    <p className="text-[11px] text-emerald-200 font-semibold mt-1.5">
                       #{String(completedSale.orderId).padStart(5,"0")} · {completedSale.customerName || "Consumidor Final"}
                     </p>
                     {/* badges */}
@@ -3819,19 +3653,19 @@ export default function PDV() {
                       {completedSale.change > 0 && (
                         <div className="inline-flex items-center gap-1 bg-white/20 rounded-lg px-2.5 py-1">
                           <Banknote size={11} className="text-emerald-200" />
-                          <span className="text-[10px] font-black text-white">Troco R$ {completedSale.change.toFixed(2)}</span>
+                          <span className="text-[11px] font-semibold text-white">Troco R$ {completedSale.change.toFixed(2)}</span>
                         </div>
                       )}
                       {completedSale.pointsEarned != null && completedSale.pointsEarned > 0 && (
                         <div className="inline-flex items-center gap-1 bg-amber-400/20 rounded-lg px-2.5 py-1">
                           <Star size={11} className="text-amber-300" fill="currentColor" />
-                          <span className="text-[10px] font-black text-amber-200">+{completedSale.pointsEarned} pts</span>
+                          <span className="text-[11px] font-semibold text-amber-200">+{completedSale.pointsEarned} pts</span>
                         </div>
                       )}
                       {completedSale.rewardApplied && (
                         <div className="inline-flex items-center gap-1 bg-violet-400/20 rounded-lg px-2.5 py-1">
                           <Gift size={11} className="text-violet-300" />
-                          <span className="text-[10px] font-black text-violet-200">{completedSale.rewardApplied}</span>
+                          <span className="text-[11px] font-semibold text-violet-200">{completedSale.rewardApplied}</span>
                         </div>
                       )}
                     </div>
@@ -3842,25 +3676,25 @@ export default function PDV() {
                         const inst  = p.method==="credit" && p.installments>1 ? ` ${p.installments}×` : "";
                         return (
                           <div key={i} className="inline-flex items-center gap-1 bg-white/15 rounded-lg px-2 py-1">
-                            <span className="text-[9px] font-black text-emerald-100">{PM_LABEL[p.method]}{brand}{inst}</span>
-                            <span className="text-[9px] font-mono font-black text-white">R$ {Number(p.amount).toFixed(2)}</span>
+                            <span className="text-[10px] font-semibold text-emerald-100">{PM_LABEL[p.method]}{brand}{inst}</span>
+                            <span className="text-[10px] font-mono font-semibold text-white">R$ {Number(p.amount).toFixed(2)}</span>
                           </div>
                         );
                       })}
                     </div>
                   </div>
-                  <button onClick={() => setShowReceipt(false)}
-                    className="ml-3 shrink-0 w-8 h-8 flex items-center justify-center bg-white/15 hover:bg-white/25 rounded-xl transition-all text-white">
+                  <IconButton onClick={() => setShowReceipt(false)} aria-label="Fechar"
+                    className="ml-3 h-9 w-9 border-transparent bg-white/15 text-white hover:bg-white/25 hover:text-white">
                     <X size={16} />
-                  </button>
+                  </IconButton>
                 </div>
                 {/* items strip */}
                 <div className="relative mt-3 flex gap-2 overflow-x-auto scrollbar-none pb-0.5 -mx-1 px-1">
                   {completedSale.items.map((item, idx) => (
-                    <div key={idx} className="shrink-0 flex items-center gap-1.5 bg-white/15 rounded-xl px-2.5 py-1.5">
+                    <div key={idx} className="shrink-0 flex items-center gap-1.5 bg-white/15 rounded-lg px-2.5 py-1.5">
                       {item.image_url ? <img src={item.image_url} className="w-5 h-5 rounded object-cover shrink-0" alt={item.name} /> : <Package size={12} className="text-emerald-200 shrink-0" />}
-                      <span className="text-[10px] font-bold text-white truncate max-w-[80px]">{item.name}</span>
-                      <span className="text-[10px] font-black text-emerald-200">×{item.quantity}</span>
+                      <span className="text-[11px] font-semibold text-white truncate max-w-[80px]">{item.name}</span>
+                      <span className="text-[11px] font-semibold text-emerald-200">×{item.quantity}</span>
                     </div>
                   ))}
                 </div>
@@ -3868,29 +3702,29 @@ export default function PDV() {
 
               {/* actions */}
               <div className="flex-1 overflow-y-auto overscroll-contain p-4 space-y-2">
-                <p className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] pb-1">Emitir Comprovante</p>
+                <p className="text-[10px] font-semibold text-slate-400 pb-1">Emitir Comprovante</p>
 
                 <button onClick={() => { setPrintError(null); printThermalReceipt(completedSale); }}
-                  className="w-full flex items-center gap-3.5 h-16 bg-slate-50 hover:bg-slate-100 active:scale-[0.98] border border-slate-200 rounded-2xl px-4 transition-all group">
-                  <div className="w-10 h-10 bg-slate-900 rounded-xl flex items-center justify-center shrink-0 group-hover:bg-blue-600 transition-colors">
+                  className="w-full flex items-center gap-3.5 h-16 bg-slate-50 hover:bg-slate-100 active:scale-[0.98] border border-slate-200 rounded-lg px-4 transition-all group">
+                  <div className="w-10 h-10 bg-slate-900 rounded-lg flex items-center justify-center shrink-0 group-hover:bg-blue-600 transition-colors">
                     <Printer size={17} className="text-white" />
                   </div>
                   <div className="text-left flex-1 min-w-0">
-                    <p className="text-[12px] font-black text-slate-900 uppercase tracking-wide">Nota Térmica</p>
-                    <p className="text-[10px] text-slate-400 font-medium">Impressora 58mm · Cupom fiscal</p>
+                    <p className="text-[12px] font-semibold text-slate-900">Nota Térmica</p>
+                    <p className="text-[11px] text-slate-400 font-medium">Impressora 58mm · Cupom fiscal</p>
                   </div>
                   <ChevronRight size={15} className="text-slate-300 group-hover:text-slate-500 shrink-0" />
                 </button>
 
                 {completedSale.payments.some((p) => p.method === "crediario") && (
                   <button onClick={() => handleGenerateBooklet(completedSale)} disabled={generatingBooklet}
-                    className="w-full flex items-center gap-3.5 h-16 bg-slate-50 hover:bg-slate-100 active:scale-[0.98] disabled:opacity-60 border border-slate-200 rounded-2xl px-4 transition-all group">
-                    <div className="w-10 h-10 bg-amber-600 rounded-xl flex items-center justify-center shrink-0 group-hover:bg-amber-700 transition-colors">
+                    className="w-full flex items-center gap-3.5 h-16 bg-slate-50 hover:bg-slate-100 active:scale-[0.98] disabled:opacity-60 border border-slate-200 rounded-lg px-4 transition-all group">
+                    <div className="w-10 h-10 bg-amber-600 rounded-lg flex items-center justify-center shrink-0 group-hover:bg-amber-700 transition-colors">
                       {generatingBooklet ? <Loader2 size={17} className="text-white animate-spin" /> : <FileText size={17} className="text-white" />}
                     </div>
                     <div className="text-left flex-1 min-w-0">
-                      <p className="text-[12px] font-black text-slate-900 uppercase tracking-wide">Gerar Carnê</p>
-                      <p className="text-[10px] text-slate-400 font-medium">Imprime um canhoto por parcela</p>
+                      <p className="text-[12px] font-semibold text-slate-900">Gerar Carnê</p>
+                      <p className="text-[11px] text-slate-400 font-medium">Imprime um canhoto por parcela</p>
                     </div>
                     <ChevronRight size={15} className="text-slate-300 group-hover:text-slate-500 shrink-0" />
                   </button>
@@ -3898,13 +3732,13 @@ export default function PDV() {
 
                 {window.boxsysDesktop?.openCashDrawer && (
                   <button onClick={handleOpenCashDrawer}
-                    className="w-full flex items-center gap-3.5 h-16 bg-slate-50 hover:bg-slate-100 active:scale-[0.98] border border-slate-200 rounded-2xl px-4 transition-all group">
-                    <div className="w-10 h-10 bg-amber-500 rounded-xl flex items-center justify-center shrink-0 group-hover:bg-amber-600 transition-colors">
+                    className="w-full flex items-center gap-3.5 h-16 bg-slate-50 hover:bg-slate-100 active:scale-[0.98] border border-slate-200 rounded-lg px-4 transition-all group">
+                    <div className="w-10 h-10 bg-amber-500 rounded-lg flex items-center justify-center shrink-0 group-hover:bg-amber-600 transition-colors">
                       <Banknote size={17} className="text-white" />
                     </div>
                     <div className="text-left flex-1 min-w-0">
-                      <p className="text-[12px] font-black text-slate-900 uppercase tracking-wide">Abrir Gaveta</p>
-                      <p className="text-[10px] text-slate-400 font-medium">Acionar gaveta de dinheiro (F4)</p>
+                      <p className="text-[12px] font-semibold text-slate-900">Abrir Gaveta</p>
+                      <p className="text-[11px] text-slate-400 font-medium">Acionar gaveta de dinheiro (F4)</p>
                     </div>
                     <ChevronRight size={15} className="text-slate-300 group-hover:text-slate-500 shrink-0" />
                   </button>
@@ -3912,18 +3746,18 @@ export default function PDV() {
 
                 {remoteTerminals.length > 0 && (
                   <>
-                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] pb-1 pt-1">Imprimir em Outro Terminal</p>
+                    <p className="text-[10px] font-semibold text-slate-400 pb-1 pt-1">Imprimir em Outro Terminal</p>
                     {remoteTerminals.map((terminal) => (
                       <button key={terminal.id}
                         onClick={() => handleRemotePrint(completedSale, terminal.id)}
                         disabled={remotePrintSending === terminal.id}
-                        className="w-full flex items-center gap-3.5 h-16 bg-slate-50 hover:bg-slate-100 active:scale-[0.98] disabled:opacity-60 border border-slate-200 rounded-2xl px-4 transition-all group">
-                        <div className="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center shrink-0 group-hover:bg-indigo-700 transition-colors">
+                        className="w-full flex items-center gap-3.5 h-16 bg-slate-50 hover:bg-slate-100 active:scale-[0.98] disabled:opacity-60 border border-slate-200 rounded-lg px-4 transition-all group">
+                        <div className="w-10 h-10 bg-indigo-600 rounded-lg flex items-center justify-center shrink-0 group-hover:bg-indigo-700 transition-colors">
                           {remotePrintSending === terminal.id ? <Loader2 size={17} className="text-white animate-spin" /> : <Printer size={17} className="text-white" />}
                         </div>
                         <div className="text-left flex-1 min-w-0">
-                          <p className="text-[12px] font-black text-slate-900 uppercase tracking-wide">{terminal.name}</p>
-                          <p className="text-[10px] text-slate-400 font-medium">Enviar cupom para este terminal</p>
+                          <p className="text-[12px] font-semibold text-slate-900">{terminal.name}</p>
+                          <p className="text-[11px] text-slate-400 font-medium">Enviar cupom para este terminal</p>
                         </div>
                         <ChevronRight size={15} className="text-slate-300 group-hover:text-slate-500 shrink-0" />
                       </button>
@@ -3932,19 +3766,19 @@ export default function PDV() {
                 )}
 
                 {printError && (
-                  <div className="bg-rose-50 border border-rose-200 rounded-2xl px-4 py-3 text-[11px] font-bold text-rose-600">
+                  <div className="bg-rose-50 border border-rose-200 rounded-lg px-4 py-3 text-[11px] font-semibold text-rose-600">
                     {printError}
                   </div>
                 )}
 
                 <button onClick={() => printViaIframe(buildPDFHtml(completedSale), 600)}
-                  className="w-full flex items-center gap-3.5 h-16 bg-slate-50 hover:bg-slate-100 active:scale-[0.98] border border-slate-200 rounded-2xl px-4 transition-all group">
-                  <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center shrink-0 group-hover:bg-blue-700 transition-colors">
+                  className="w-full flex items-center gap-3.5 h-16 bg-slate-50 hover:bg-slate-100 active:scale-[0.98] border border-slate-200 rounded-lg px-4 transition-all group">
+                  <div className="w-10 h-10 bg-blue-600 rounded-lg flex items-center justify-center shrink-0 group-hover:bg-blue-700 transition-colors">
                     <FileText size={17} className="text-white" />
                   </div>
                   <div className="text-left flex-1 min-w-0">
-                    <p className="text-[12px] font-black text-slate-900 uppercase tracking-wide">PDF Completo</p>
-                    <p className="text-[10px] text-slate-400 font-medium">Nota detalhada A4 · Imprimir ou salvar</p>
+                    <p className="text-[12px] font-semibold text-slate-900">PDF Completo</p>
+                    <p className="text-[11px] text-slate-400 font-medium">Nota detalhada A4 · Imprimir ou salvar</p>
                   </div>
                   <ChevronRight size={15} className="text-slate-300 group-hover:text-slate-500 shrink-0" />
                 </button>
@@ -3959,14 +3793,14 @@ export default function PDV() {
                       .catch(() => setWaBotConnected(false));
                   }
                 }}
-                  className={cn("w-full flex items-center gap-3.5 h-16 border rounded-2xl px-4 transition-all group active:scale-[0.98]",
+                  className={cn("w-full flex items-center gap-3.5 h-16 border rounded-lg px-4 transition-all group active:scale-[0.98]",
                     showPhoneInput ? "bg-emerald-50 border-emerald-300" : "bg-slate-50 hover:bg-slate-100 border-slate-200 hover:border-slate-300")}>
-                  <div className={cn("w-10 h-10 rounded-xl flex items-center justify-center shrink-0 transition-colors", showPhoneInput ? "bg-emerald-600" : "bg-emerald-500 group-hover:bg-emerald-600")}>
+                  <div className={cn("w-10 h-10 rounded-lg flex items-center justify-center shrink-0 transition-colors", showPhoneInput ? "bg-emerald-600" : "bg-emerald-500 group-hover:bg-emerald-600")}>
                     <MessageCircle size={17} className="text-white" />
                   </div>
                   <div className="text-left flex-1 min-w-0">
-                    <p className="text-[12px] font-black text-slate-900 uppercase tracking-wide">WhatsApp</p>
-                    <p className="text-[10px] text-slate-400 font-medium">Enviar comprovante por mensagem</p>
+                    <p className="text-[12px] font-semibold text-slate-900">WhatsApp</p>
+                    <p className="text-[11px] text-slate-400 font-medium">Enviar comprovante por mensagem</p>
                   </div>
                   <ChevronDown size={15} className={cn("transition-transform shrink-0", showPhoneInput ? "rotate-180 text-emerald-500" : "text-slate-300 group-hover:text-slate-500")} />
                 </button>
@@ -3975,13 +3809,13 @@ export default function PDV() {
                   {showPhoneInput && (
                     <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }} className="overflow-hidden">
                       {waBotConnected && (
-                        <label className="mt-2 flex items-center gap-3 rounded-xl border border-emerald-100 bg-emerald-50/70 px-3 py-2.5 cursor-pointer select-none">
+                        <label className="mt-2 flex items-center gap-3 rounded-lg border border-emerald-100 bg-emerald-50/70 px-3 py-2.5 cursor-pointer select-none">
                           <input type="checkbox" checked={sendWarrantyWithReceipt}
                             onChange={(e) => { setSendWarrantyWithReceipt(e.target.checked); setWaSent(false); setWaSentWarranty(false); setWaSendError(null); }}
                             className="h-4 w-4 rounded border-emerald-300 text-emerald-600 focus:ring-emerald-500" />
                           <span className="min-w-0">
-                            <span className="block text-[10px] font-black uppercase tracking-wide text-emerald-800">Enviar garantia junto</span>
-                            <span className="block text-[9px] font-medium text-emerald-700">O cliente receberá o comprovante e o certificado de garantia em PDFs separados.</span>
+                            <span className="block text-[11px] font-semibold text-emerald-800">Enviar garantia junto</span>
+                            <span className="block text-[10px] font-medium text-emerald-700">O cliente receberá o comprovante e o certificado de garantia em PDFs separados.</span>
                           </span>
                         </label>
                       )}
@@ -3989,13 +3823,13 @@ export default function PDV() {
                         <div className="relative flex-1">
                           <Phone className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
                           <input type="tel" placeholder="(11) 99999-9999"
-                            className="w-full pl-9 pr-4 h-12 bg-white border border-emerald-300 rounded-xl focus:outline-none focus:border-emerald-500 text-[13px] font-medium text-slate-800 placeholder:text-slate-400 transition-all"
+                            className="w-full pl-9 pr-4 h-12 bg-white border border-emerald-300 rounded-lg focus:outline-none focus:border-emerald-500 text-[13px] font-medium text-slate-800 placeholder:text-slate-400 transition-all"
                             value={whatsappPhone} onChange={(e) => { setWhatsappPhone(maskPhone(e.target.value)); setWaSent(false); setWaSendError(null); }} />
                         </div>
                         {waBotConnected ? (
                           <button onClick={handleSendWhatsappDocument}
                             disabled={whatsappPhone.replace(/\D/g, "").length < 10 || waSending}
-                            className="h-12 px-5 bg-emerald-600 disabled:bg-slate-200 disabled:text-slate-400 text-white rounded-xl font-black text-[11px] uppercase tracking-widest flex items-center gap-2 transition-all hover:bg-emerald-700 disabled:cursor-not-allowed shrink-0 shadow-lg shadow-emerald-500/25 active:scale-95">
+                            className="h-12 px-5 bg-emerald-600 disabled:bg-slate-200 disabled:text-slate-400 text-white rounded-lg font-semibold text-[11px] flex items-center gap-2 transition-all hover:bg-emerald-700 disabled:cursor-not-allowed shrink-0 shadow-sm active:scale-95">
                             {waSending ? <Loader2 size={14} className="animate-spin" /> : <MessageCircle size={14} />}
                             {waSending ? "Enviando..." : "Enviar PDF"}
                           </button>
@@ -4006,21 +3840,21 @@ export default function PDV() {
                             window.open(`https://wa.me/${full}?text=${encodeURIComponent(buildWhatsAppText(completedSale))}`, "_blank", "noopener,noreferrer");
                           }}
                             disabled={whatsappPhone.replace(/\D/g, "").length < 10}
-                            className="h-12 px-5 bg-emerald-600 disabled:bg-slate-200 disabled:text-slate-400 text-white rounded-xl font-black text-[11px] uppercase tracking-widest flex items-center gap-2 transition-all hover:bg-emerald-700 disabled:cursor-not-allowed shrink-0 shadow-lg shadow-emerald-500/25 active:scale-95">
+                            className="h-12 px-5 bg-emerald-600 disabled:bg-slate-200 disabled:text-slate-400 text-white rounded-lg font-semibold text-[11px] flex items-center gap-2 transition-all hover:bg-emerald-700 disabled:cursor-not-allowed shrink-0 shadow-sm active:scale-95">
                             <MessageCircle size={14} /> Enviar
                           </button>
                         )}
                       </div>
                       {waBotConnected === false && (
-                        <p className="text-[9px] text-slate-400 font-medium pt-1.5 px-1">
+                        <p className="text-[10px] text-slate-400 font-medium pt-1.5 px-1">
                           Bot do WhatsApp não conectado — abrindo link manual (só texto, sem o PDF anexado).
                         </p>
                       )}
                       {waSendError && (
-                        <p className="text-[9px] text-rose-500 font-bold pt-1.5 px-1">{waSendError}</p>
+                        <p className="text-[10px] text-rose-500 font-semibold pt-1.5 px-1">{waSendError}</p>
                       )}
                       {waSent && (
-                        <p className="text-[9px] text-emerald-600 font-bold pt-1.5 px-1">{waSentWarranty ? "Comprovante e garantia enviados pelo WhatsApp!" : "Comprovante enviado pelo WhatsApp!"}</p>
+                        <p className="text-[10px] text-emerald-600 font-semibold pt-1.5 px-1">{waSentWarranty ? "Comprovante e garantia enviados pelo WhatsApp!" : "Comprovante enviado pelo WhatsApp!"}</p>
                       )}
                     </motion.div>
                   )}
@@ -4031,29 +3865,25 @@ export default function PDV() {
                 <div className="border-t border-slate-100 pt-3 mt-1">
                   {/* escolha: emitir NFC-e ou só cupom — nada é emitido sem essa decisão explícita */}
                   {!nfceRequested && !nfceInvoice && (
-                    <div className="w-full rounded-2xl px-4 py-3 border bg-slate-50 border-slate-200 space-y-2.5">
+                    <div className="w-full rounded-lg px-4 py-3 border bg-slate-50 border-slate-200 space-y-2.5">
                       <div>
-                        <p className="text-[11px] font-black text-slate-700 uppercase tracking-wide">Emitir nota fiscal?</p>
-                        <p className="text-[10px] text-slate-500 font-medium">Ou emita só o cupom não-fiscal acima.</p>
+                        <p className="text-[11px] font-semibold text-slate-700">Emitir nota fiscal?</p>
+                        <p className="text-[11px] text-slate-500 font-medium">Ou emita só o cupom não-fiscal acima.</p>
                       </div>
                       {nfceEmitError && (
-                        <p className="text-[10px] text-rose-600 font-bold">{nfceEmitError}</p>
+                        <p className="text-[11px] text-rose-600 font-semibold">{nfceEmitError}</p>
                       )}
-                      <button
-                        onClick={handleEmitNfce}
-                        disabled={nfceEmitting}
-                        className="w-full h-10 bg-blue-600 hover:bg-blue-700 disabled:opacity-60 text-white rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-all"
-                      >
-                        {nfceEmitting ? <Loader2 size={14} className="animate-spin" /> : <FileText size={14} />}
+                      <Button variant="primary" size="lg" fullWidth onClick={handleEmitNfce} disabled={nfceEmitting} loading={nfceEmitting}
+                        iconLeft={<FileText size={14} />}>
                         {nfceEmitting ? "Iniciando emissão..." : "Emitir Nota Fiscal (NFC-e)"}
-                      </button>
+                      </Button>
                     </div>
                   )}
 
                   {/* status da NFC-e — só depois que o operador pediu a emissão acima */}
                   {nfceRequested && (
                   <div className={cn(
-                    "w-full flex items-center gap-3.5 rounded-2xl px-4 py-3 border",
+                    "w-full flex items-center gap-3.5 rounded-lg px-4 py-3 border",
                     nfceInvoice?.status === "authorized" ? "bg-emerald-50 border-emerald-200"
                       : nfceInvoice?.status === "rejected" || nfceInvoice?.status === "error" ? "bg-rose-50 border-rose-200"
                       : "bg-blue-50 border-blue-200",
@@ -4062,8 +3892,8 @@ export default function PDV() {
                       <>
                         <Loader2 size={18} className="text-blue-500 animate-spin shrink-0" />
                         <div className="flex-1 min-w-0">
-                          <p className="text-[11px] font-black text-blue-700 uppercase tracking-wide">Emitindo nota fiscal...</p>
-                          <p className="text-[10px] text-blue-500 font-medium">Aguardando autorização da SEFAZ-SP</p>
+                          <p className="text-[11px] font-semibold text-blue-700">Emitindo nota fiscal...</p>
+                          <p className="text-[11px] text-blue-500 font-medium">Aguardando autorização da SEFAZ-SP</p>
                         </div>
                       </>
                     )}
@@ -4071,13 +3901,13 @@ export default function PDV() {
                       <>
                         <CheckCircle2 size={18} className="text-emerald-600 shrink-0" />
                         <div className="flex-1 min-w-0">
-                          <p className="text-[11px] font-black text-emerald-700 uppercase tracking-wide">NFC-e autorizada</p>
-                          <p className="text-[10px] text-emerald-600 font-medium truncate">Protocolo {nfceInvoice.protocol}</p>
+                          <p className="text-[11px] font-semibold text-emerald-700">NFC-e autorizada</p>
+                          <p className="text-[11px] text-emerald-600 font-medium truncate">Protocolo {nfceInvoice.protocol}</p>
                         </div>
                         <a
                           href={`/api/nfce/${completedSale.orderId}/danfe`}
                           target="_blank" rel="noopener noreferrer"
-                          className="shrink-0 h-9 px-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center gap-1.5 transition-all"
+                          className="shrink-0 h-9 px-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-[11px] font-semibold flex items-center gap-1.5 transition-all"
                         >
                           <FileText size={13} /> DANFE
                         </a>
@@ -4087,16 +3917,13 @@ export default function PDV() {
                       <>
                         <X size={18} className="text-rose-600 shrink-0" />
                         <div className="flex-1 min-w-0">
-                          <p className="text-[11px] font-black text-rose-700 uppercase tracking-wide">Falha na emissão</p>
-                          <p className="text-[10px] text-rose-500 font-medium truncate">{nfceInvoice.rejection_reason || "Erro desconhecido"}</p>
+                          <p className="text-[11px] font-semibold text-rose-700">Falha na emissão</p>
+                          <p className="text-[11px] text-rose-500 font-medium truncate">{nfceInvoice.rejection_reason || "Erro desconhecido"}</p>
                         </div>
-                        <button
-                          onClick={handleRetryNfce}
-                          disabled={nfceRetrying}
-                          className="shrink-0 h-9 px-3 bg-rose-600 hover:bg-rose-700 disabled:opacity-50 text-white rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center gap-1.5 transition-all"
-                        >
-                          {nfceRetrying ? <Loader2 size={13} className="animate-spin" /> : <RefreshCw size={13} />} Tentar de novo
-                        </button>
+                        <Button variant="danger" size="lg" className="shrink-0" onClick={handleRetryNfce} disabled={nfceRetrying} loading={nfceRetrying}
+                          iconLeft={<RefreshCw size={13} />}>
+                          Tentar de novo
+                        </Button>
                       </>
                     )}
                   </div>
@@ -4105,10 +3932,9 @@ export default function PDV() {
               </div>
 
               <div className="shrink-0 px-4 pb-5 pt-2">
-                <button onClick={() => setShowReceipt(false)}
-                  className="w-full h-12 border border-slate-200 rounded-2xl text-[11px] font-black text-slate-500 uppercase tracking-widest hover:bg-slate-50 active:scale-[0.98] transition-all">
+                <Button variant="outline" size="lg" fullWidth className="h-12" onClick={() => setShowReceipt(false)}>
                   Fechar
-                </button>
+                </Button>
               </div>
             </motion.div>
           </>
@@ -4129,16 +3955,16 @@ export default function PDV() {
               key="svc-panel"
               initial={{ x: "100%" }} animate={{ x: 0 }} exit={{ x: "100%" }}
               transition={{ type: "spring", damping: 28, stiffness: 300 }}
-              className="fixed right-0 top-0 h-full w-full max-w-sm bg-white shadow-2xl z-[320] flex flex-col"
+              className="fixed right-0 top-0 h-full w-full max-w-sm bg-white shadow-sm z-[320] flex flex-col"
             >
               <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50">
                 <div className="flex items-center gap-2">
                   <Wrench size={15} className="text-blue-600" />
-                  <span className="text-[11px] font-black text-slate-900 uppercase tracking-widest">Serviços</span>
+                  <span className="text-[11px] font-semibold text-slate-900">Serviços</span>
                 </div>
-                <button onClick={() => setShowServicesModal(false)} className="w-8 h-8 rounded-lg border border-slate-200 bg-white flex items-center justify-center text-slate-400 hover:text-slate-700 transition-all">
+                <IconButton variant="outline" onClick={() => setShowServicesModal(false)} aria-label="Fechar" className="h-9 w-9">
                   <X size={14} />
-                </button>
+                </IconButton>
               </div>
 
               <div className="flex-1 overflow-y-auto admin-scroll">
@@ -4160,31 +3986,34 @@ export default function PDV() {
                         {/* category header */}
                         <div className="px-4 py-2 flex items-center gap-2 border-b border-slate-100" style={{ background: `${color}14`, color }}>
                           <Icon size={11} />
-                          <span className="text-[9px] font-black uppercase tracking-widest">{meta.name}</span>
-                          <span className="text-[9px] opacity-60">{items.length}</span>
+                          <span className="text-[10px] font-semibold">{meta.name}</span>
+                          <span className="text-[10px] opacity-60">{items.length}</span>
                         </div>
                         {items.map((svc) => {
                           const inCart = cartServices.some((s) => s.id === svc.id);
                           return (
                             <div key={svc.id} className={cn("px-4 py-3 flex items-center gap-3 border-b border-slate-50 hover:bg-slate-50/70 transition-colors", inCart && "bg-blue-50/40")}>
-                              <div className="w-8 h-8 rounded-xl flex items-center justify-center shrink-0" style={{ background: `${color}1a`, color }}>
+                              <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0" style={{ background: `${color}1a`, color }}>
                                 <Icon size={13} />
                               </div>
                               <div className="flex-1 min-w-0">
-                                <p className="text-[11px] font-bold text-slate-900 truncate">{svc.name}</p>
-                                {svc.description && <p className="text-[9px] text-slate-400 truncate leading-tight">{svc.description}</p>}
+                                <p className="text-[11px] font-semibold text-slate-900 truncate">{svc.name}</p>
+                                {svc.description && <p className="text-[10px] text-slate-400 truncate leading-tight">{svc.description}</p>}
                                 <div className="flex items-center gap-2 mt-0.5">
-                                  <p className="text-[11px] font-mono font-black text-blue-600">
+                                  <p className="text-[11px] font-mono font-semibold text-blue-600">
                                     {svc.sale_unit && svc.sale_unit !== "unidade"
                                       ? Number(svc.price_per_measure ?? 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })
                                       : Number(svc.price).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
                                   </p>
-                                  <span className="text-[8px] text-slate-400 font-bold flex items-center gap-0.5">
+                                  <span className="text-[10px] text-slate-400 font-semibold flex items-center gap-0.5">
                                     <Ruler size={7} />/{svc.sale_unit === "m2" ? "m²" : svc.sale_unit === "linear" ? "m" : unitAbbr(svc.unit)}
                                   </span>
                                 </div>
                               </div>
-                              <button
+                              <IconButton
+                                variant={inCart ? "danger" : "primary"}
+                                aria-label={inCart ? "Remover serviço" : "Adicionar serviço"}
+                                className="h-9 w-9"
                                 onClick={() => {
                                   if (svc.sale_unit && svc.sale_unit !== "unidade") {
                                     setMeasureService(svc);
@@ -4195,15 +4024,9 @@ export default function PDV() {
                                   if (inCart) setCartServices((prev) => prev.filter((s) => s.id !== svc.id));
                                   else setCartServices((prev) => [...prev, { ...svc, price: Number(svc.price) }]);
                                 }}
-                                className={cn(
-                                  "w-8 h-8 rounded-xl border flex items-center justify-center transition-all shrink-0",
-                                  inCart
-                                    ? "bg-rose-500 border-rose-500 text-white hover:bg-rose-600"
-                                    : "bg-blue-600 border-blue-600 text-white hover:bg-blue-700"
-                                )}
                               >
                                 {inCart ? <X size={12} /> : <Plus size={12} />}
-                              </button>
+                              </IconButton>
                             </div>
                           );
                         })}
@@ -4215,17 +4038,14 @@ export default function PDV() {
 
               <div className="px-5 py-4 border-t border-slate-100 space-y-2">
                 {cartServices.length > 0 && (
-                  <div className="flex items-center justify-between text-[10px] font-bold text-slate-500 uppercase tracking-widest">
+                  <div className="flex items-center justify-between text-[11px] font-semibold text-slate-500">
                     <span>{cartServices.length} serviço{cartServices.length > 1 ? "s" : ""} selecionado{cartServices.length > 1 ? "s" : ""}</span>
-                    <span className="font-mono text-blue-600 font-black">R$ {servicesTotal.toFixed(2)}</span>
+                    <span className="font-mono text-blue-600 font-semibold">R$ {servicesTotal.toFixed(2)}</span>
                   </div>
                 )}
-                <button
-                  onClick={() => setShowServicesModal(false)}
-                  className="w-full h-11 bg-slate-900 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-slate-700 transition-colors"
-                >
+                <Button variant="primary" size="lg" fullWidth className="h-11" onClick={() => setShowServicesModal(false)}>
                   Confirmar
-                </button>
+                </Button>
               </div>
             </motion.div>
           </>
@@ -4242,72 +4062,39 @@ export default function PDV() {
             <motion.div
               initial={{ x: "100%" }} animate={{ x: 0 }} exit={{ x: "100%" }}
               transition={{ type: "spring", damping: 26, stiffness: 200 }}
-              className="fixed inset-y-0 right-0 w-full max-w-sm bg-white z-[510] shadow-2xl flex flex-col">
+              className="fixed inset-y-0 right-0 w-full max-w-sm bg-white z-[510] shadow-sm flex flex-col">
               <div className="flex items-center justify-between px-5 py-4 border-b border-slate-200 shrink-0">
                 <div>
-                  <h2 className="font-black text-slate-900 text-[15px]">Novo Cliente</h2>
+                  <h2 className="font-semibold text-slate-900 text-[15px]">Novo Cliente</h2>
                   <p className="text-[11px] text-slate-500">Cadastro de Cliente</p>
                 </div>
-                <button onClick={() => setShowNewCustomer(false)} className="p-2 hover:bg-slate-100 rounded-lg text-slate-500"><X size={18} /></button>
+                <IconButton variant="ghost" onClick={() => setShowNewCustomer(false)} aria-label="Fechar" className="h-9 w-9"><X size={18} /></IconButton>
               </div>
               <div className="flex-1 overflow-y-auto p-5 space-y-3">
-                <div>
-                  <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block mb-1">Nome *</label>
-                  <input value={ncName} onChange={(e) => setNcName(e.target.value)} placeholder="Nome completo"
-                    className="w-full h-9 px-3 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-                </div>
+                <Input size="lg" label="Nome *" value={ncName} onChange={(e) => setNcName(e.target.value)} placeholder="Nome completo" />
                 <div className="grid grid-cols-2 gap-2">
-                  <div>
-                    <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block mb-1">Telefone</label>
-                    <input value={ncPhone} onChange={(e) => setNcPhone(maskPhone(e.target.value))} inputMode="numeric" placeholder="(11) 99999-9999"
-                      className="w-full h-9 px-3 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-                  </div>
-                  <div>
-                    <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block mb-1">CPF/CNPJ</label>
-                    <input value={ncDoc} onChange={(e) => setNcDoc(maskDoc(e.target.value))} inputMode="numeric" placeholder="000.000.000-00"
-                      className="w-full h-9 px-3 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-                  </div>
+                  <Input size="lg" label="Telefone" value={ncPhone} onChange={(e) => setNcPhone(maskPhone(e.target.value))} inputMode="numeric" placeholder="(11) 99999-9999" />
+                  <Input size="lg" label="CPF/CNPJ" value={ncDoc} onChange={(e) => setNcDoc(maskDoc(e.target.value))} inputMode="numeric" placeholder="000.000.000-00" />
                 </div>
-                <div>
-                  <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block mb-1">E-mail</label>
-                  <input type="email" value={ncEmail} onChange={(e) => setNcEmail(e.target.value)} placeholder="email@exemplo.com"
-                    className="w-full h-9 px-3 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-                </div>
-                <div>
-                  <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block mb-1">Endereço</label>
-                  <input value={ncAddr} onChange={(e) => setNcAddr(e.target.value)} placeholder="Rua, Cidade - UF"
-                    className="w-full h-9 px-3 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-                </div>
-                <div>
-                  <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block mb-1">Data de Aniversário</label>
-                  <input type="date" value={ncBirth} onChange={(e) => setNcBirth(e.target.value)}
-                    className="w-full h-9 px-3 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-                </div>
-                <div>
-                  <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block mb-1">Limite de Crédito (R$)</label>
-                  <input type="number" min={0} value={ncCredit} onChange={(e) => setNcCredit(e.target.value)} placeholder="0,00"
-                    className="w-full h-9 px-3 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-                </div>
-                <div>
-                  <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block mb-1">Observações</label>
-                  <textarea value={ncNotes} onChange={(e) => setNcNotes(e.target.value)} rows={2} placeholder="Preferências, anotações gerais…"
-                    className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none" />
-                </div>
-                <div className={cn("rounded-xl border p-3 space-y-2 transition-colors", ncRisk ? "bg-rose-50 border-rose-200" : "bg-slate-50 border-slate-200")}>
+                <Input size="lg" label="E-mail" type="email" value={ncEmail} onChange={(e) => setNcEmail(e.target.value)} placeholder="email@exemplo.com" />
+                <Input size="lg" label="Endereço" value={ncAddr} onChange={(e) => setNcAddr(e.target.value)} placeholder="Rua, Cidade - UF" />
+                <Input size="lg" label="Data de Aniversário" type="date" value={ncBirth} onChange={(e) => setNcBirth(e.target.value)} />
+                <Input size="lg" label="Limite de Crédito (R$)" type="number" min={0} value={ncCredit} onChange={(e) => setNcCredit(e.target.value)} placeholder="0,00" />
+                <Textarea label="Observações" value={ncNotes} onChange={(e) => setNcNotes(e.target.value)} rows={2} placeholder="Preferências, anotações gerais…" className="resize-none" />
+                <div className={cn("rounded-lg border p-3 space-y-2 transition-colors", ncRisk ? "bg-rose-50 border-rose-200" : "bg-slate-50 border-slate-200")}>
                   <label className="flex items-center gap-2 cursor-pointer">
                     <input type="checkbox" checked={ncRisk} onChange={(e) => setNcRisk(e.target.checked)} className="w-4 h-4 accent-rose-500" />
-                    <span className={cn("text-[12px] font-black", ncRisk ? "text-rose-600" : "text-slate-600")}>⚠ Marcar como Cliente de Risco</span>
+                    <span className={cn("text-[12px] font-semibold", ncRisk ? "text-rose-600" : "text-slate-600")}>⚠ Marcar como Cliente de Risco</span>
                   </label>
                   {ncRisk && (
-                    <textarea value={ncRiskReason} onChange={(e) => setNcRiskReason(e.target.value)} rows={2} placeholder="Motivo do risco…"
-                      className="w-full px-3 py-2 rounded-lg border border-rose-200 text-sm focus:outline-none focus:ring-2 focus:ring-rose-400 resize-none bg-white" />
+                    <Textarea value={ncRiskReason} onChange={(e) => setNcRiskReason(e.target.value)} rows={2} placeholder="Motivo do risco…"
+                      aria-label="Motivo do risco" className="resize-none bg-white" />
                   )}
                 </div>
               </div>
               <div className="border-t border-slate-200 px-5 py-4 shrink-0 bg-slate-50 flex gap-2">
-                <button onClick={() => setShowNewCustomer(false)}
-                  className="flex-1 h-9 rounded-lg border border-slate-200 text-sm font-semibold text-slate-600 hover:bg-slate-100">Cancelar</button>
-                <button disabled={savingNC || !ncName.trim()} onClick={async () => {
+                <Button variant="outline" size="lg" className="flex-1" onClick={() => setShowNewCustomer(false)}>Cancelar</Button>
+                <Button variant="primary" size="lg" className="flex-1" disabled={savingNC || !ncName.trim()} loading={savingNC} onClick={async () => {
                   if (!ncName.trim()) return;
                   setSavingNC(true);
                   try {
@@ -4327,10 +4114,9 @@ export default function PDV() {
                     setSelectedCustomerId(newCust.id); setCustomerName(newCust.name); setCustomerPoints(0);
                     setShowNewCustomer(false);
                   } finally { setSavingNC(false); }
-                }}
-                  className="flex-1 h-9 bg-blue-600 text-white rounded-lg text-sm font-bold hover:bg-blue-700 disabled:opacity-50 transition-all">
+                }}>
                   {savingNC ? "Cadastrando…" : "Criar Cliente"}
-                </button>
+                </Button>
               </div>
             </motion.div>
           </>
@@ -4346,24 +4132,20 @@ export default function PDV() {
               className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[500]" />
             <motion.div initial={{ x: "100%" }} animate={{ x: 0 }} exit={{ x: "100%" }}
               transition={{ type: "spring", damping: 26, stiffness: 200 }}
-              className="fixed inset-y-0 right-0 w-full max-w-sm bg-white z-[510] shadow-2xl flex flex-col">
+              className="fixed inset-y-0 right-0 w-full max-w-sm bg-white z-[510] shadow-sm flex flex-col">
               <div className="flex items-center justify-between px-5 py-4 border-b border-slate-200 shrink-0">
                 <div>
-                  <h2 className="font-black text-slate-900 text-[15px]">Crediário</h2>
+                  <h2 className="font-semibold text-slate-900 text-[15px]">Crediário</h2>
                   <p className="text-[11px] text-slate-500">Consultar e pagar dívidas de um cliente</p>
                 </div>
-                <button onClick={() => setShowCrediarioModal(false)} className="p-2 hover:bg-slate-100 rounded-lg text-slate-500"><X size={18} /></button>
+                <IconButton variant="ghost" onClick={() => setShowCrediarioModal(false)} aria-label="Fechar" className="h-9 w-9"><X size={18} /></IconButton>
               </div>
 
               <div className="p-4 border-b border-slate-100 shrink-0">
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={13} />
-                  <input value={crediarioSearch} onChange={(e) => setCrediarioSearch(e.target.value)}
-                    placeholder="Buscar cliente por nome ou telefone..."
-                    className="w-full pl-9 pr-3 h-10 rounded-xl border border-slate-200 text-[12px] font-medium focus:outline-none focus:border-blue-400" />
-                </div>
+                <Input value={crediarioSearch} onChange={(e) => setCrediarioSearch(e.target.value)}
+                    placeholder="Buscar cliente por nome ou telefone..." iconLeft={<Search size={13} />} />
                 {crediarioFilteredCustomers.length > 0 && !crediarioCustomer && (
-                  <div className="mt-2 border border-slate-200 rounded-xl overflow-hidden max-h-40 overflow-y-auto">
+                  <div className="mt-2 border border-slate-200 rounded-lg overflow-hidden max-h-40 overflow-y-auto">
                     {crediarioFilteredCustomers.slice(0, 8).map((c) => (
                       <button key={c.id} onClick={() => { loadCrediarioCustomer(c); setCrediarioSearch(""); }}
                         className="w-full text-left px-3 py-2 hover:bg-slate-50 text-[12px] font-semibold text-slate-700 border-b border-slate-50 last:border-0">
@@ -4378,27 +4160,27 @@ export default function PDV() {
                 {!crediarioCustomer ? (
                   <div className="h-full flex flex-col items-center justify-center text-slate-300 gap-3 py-16">
                     <Wallet size={36} strokeWidth={1} />
-                    <p className="text-[11px] font-bold text-slate-400">Busque um cliente para ver suas dívidas</p>
+                    <p className="text-[11px] font-semibold text-slate-400">Busque um cliente para ver suas dívidas</p>
                   </div>
                 ) : crediarioLoading ? (
                   <div className="flex items-center justify-center h-32"><Loader2 size={20} className="animate-spin text-slate-300" /></div>
                 ) : (
                   <>
-                    <div className="flex items-center justify-between bg-slate-50 rounded-xl px-3 py-2.5 border border-slate-200">
+                    <div className="flex items-center justify-between bg-slate-50 rounded-lg px-3 py-2.5 border border-slate-200">
                       <div>
-                        <p className="text-[12px] font-black text-slate-800">{crediarioCustomer.name}</p>
-                        <p className="text-[10px] text-slate-400">{crediarioCustomer.phone}</p>
+                        <p className="text-[12px] font-semibold text-slate-800">{crediarioCustomer.name}</p>
+                        <p className="text-[11px] text-slate-400">{crediarioCustomer.phone}</p>
                       </div>
-                      <button onClick={() => { setCrediarioCustomer(null); setCrediarioDebts([]); }} className="text-[10px] font-bold text-blue-600 hover:underline">Trocar</button>
+                      <Button variant="ghost" size="lg" onClick={() => { setCrediarioCustomer(null); setCrediarioDebts([]); }}>Trocar</Button>
                     </div>
                     {crediarioDebts.filter((d) => d.status === "open").length === 0 ? (
-                      <div className="text-center py-10 text-[11px] font-bold text-emerald-600">Sem dívidas em aberto ✓</div>
+                      <div className="text-center py-10 text-[11px] font-semibold text-emerald-600">Sem dívidas em aberto ✓</div>
                     ) : (
                       crediarioDebts.filter((d) => d.status === "open").map((d) => {
                         const remaining = Number(d.amount) - Number(d.amount_paid);
                         const isExpanded = crediarioExpandedId === d.id;
                         return (
-                          <div key={d.id} className="rounded-xl border border-slate-200 overflow-hidden">
+                          <div key={d.id} className="rounded-lg border border-slate-200 overflow-hidden">
                             <div className="p-3">
                               <div className="flex items-start justify-between gap-2">
                                 <div className="flex items-center gap-1.5 min-w-0">
@@ -4407,17 +4189,17 @@ export default function PDV() {
                                       {isExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
                                     </button>
                                   )}
-                                  <p className="text-[12px] font-bold text-slate-700 truncate">{d.description}</p>
+                                  <p className="text-[12px] font-semibold text-slate-700 truncate">{d.description}</p>
                                 </div>
-                                <span className="text-[11px] font-mono font-black text-slate-800 shrink-0">R$ {remaining.toFixed(2)}</span>
+                                <span className="text-[11px] font-mono font-semibold text-slate-800 shrink-0">R$ {remaining.toFixed(2)}</span>
                               </div>
                               {Number(d.amount_paid) > 0 && (
-                                <p className="text-[10px] text-emerald-600 font-semibold mt-0.5">
+                                <p className="text-[11px] text-emerald-600 font-semibold mt-0.5">
                                   Pago: R$ {Number(d.amount_paid).toFixed(2)} de R$ {Number(d.amount).toFixed(2)}
                                 </p>
                               )}
                               {d.due_date && (!d.installments || d.installments.length <= 1) && (
-                                <p className="text-[10px] text-amber-600 font-semibold mt-0.5">Vencimento: {new Date(d.due_date).toLocaleDateString("pt-BR")}</p>
+                                <p className="text-[11px] text-amber-600 font-semibold mt-0.5">Vencimento: {new Date(d.due_date).toLocaleDateString("pt-BR")}</p>
                               )}
                               {d.installments && d.installments.length > 1 ? (
                                 <div className="mt-2 space-y-1.5">
@@ -4435,13 +4217,13 @@ export default function PDV() {
                                       )}>
                                         <div className="flex items-center justify-between gap-2">
                                           <div className="min-w-0">
-                                            <p className="text-[10px] font-bold text-slate-700">Parcela {inst.number}/{d.installments!.length}</p>
-                                            <p className={cn("text-[9px] font-semibold", instOverdue ? "text-red-500" : "text-slate-400")}>
+                                            <p className="text-[11px] font-semibold text-slate-700">Parcela {inst.number}/{d.installments!.length}</p>
+                                            <p className={cn("text-[10px] font-semibold", instOverdue ? "text-red-500" : "text-slate-400")}>
                                               Vence {new Date(inst.due_date).toLocaleDateString("pt-BR")}{instOverdue && " (vencida)"}
                                             </p>
                                           </div>
                                           {instOpen ? (
-                                            <span className="text-[11px] font-mono font-black text-slate-700 shrink-0">R$ {instRemaining.toFixed(2)}</span>
+                                            <span className="text-[11px] font-mono font-semibold text-slate-700 shrink-0">R$ {instRemaining.toFixed(2)}</span>
                                           ) : (
                                             <CheckCircle2 size={15} className="text-emerald-600 shrink-0" />
                                           )}
@@ -4460,20 +4242,19 @@ export default function PDV() {
                                               />
                                             </div>
                                             {crediarioInstallmentPayError[inst.id] && (
-                                              <p className="text-[9px] font-bold text-red-600 mt-1">{crediarioInstallmentPayError[inst.id]}</p>
+                                              <p className="text-[10px] font-semibold text-red-600 mt-1">{crediarioInstallmentPayError[inst.id]}</p>
                                             )}
-                                            <button onClick={() => handlePayInstallment(d, inst)} disabled={crediarioPayingInstallmentId === inst.id}
-                                              className="w-full h-7 mt-1.5 rounded-md bg-emerald-600 text-white text-[9px] font-black uppercase tracking-wider hover:bg-emerald-700 disabled:opacity-50 transition-all flex items-center justify-center gap-1.5">
-                                              {crediarioPayingInstallmentId === inst.id ? <Loader2 size={11} className="animate-spin" /> : "Confirmar pagamento"}
-                                            </button>
+                                            <Button variant="success" size="lg" fullWidth className="mt-1.5" onClick={() => handlePayInstallment(d, inst)}
+                                              disabled={crediarioPayingInstallmentId === inst.id} loading={crediarioPayingInstallmentId === inst.id}>
+                                              Confirmar pagamento
+                                            </Button>
                                             {instSuggestedInterest > 0 && (
                                               <div className="flex items-center justify-between gap-2 mt-1.5 pt-1.5 border-t border-red-200">
-                                                <p className="text-[8px] text-red-600 font-semibold">Juros sugerido: R$ {instSuggestedInterest.toFixed(2)}</p>
-                                                <button onClick={() => handleApplyInterest(d, inst, instSuggestedInterest)}
-                                                  disabled={crediarioApplyingInterestId === inst.id}
-                                                  className="h-6 px-2 rounded-md bg-red-600 text-white text-[8px] font-black uppercase tracking-wide hover:bg-red-700 disabled:opacity-50 transition-colors shrink-0">
-                                                  {crediarioApplyingInterestId === inst.id ? <Loader2 size={10} className="animate-spin" /> : "Aplicar juros"}
-                                                </button>
+                                                <p className="text-[10px] text-red-600 font-semibold">Juros sugerido: R$ {instSuggestedInterest.toFixed(2)}</p>
+                                                <Button variant="danger" size="lg" className="shrink-0" onClick={() => handleApplyInterest(d, inst, instSuggestedInterest)}
+                                                  disabled={crediarioApplyingInterestId === inst.id} loading={crediarioApplyingInterestId === inst.id}>
+                                                  Aplicar juros
+                                                </Button>
                                               </div>
                                             )}
                                           </>
@@ -4496,24 +4277,24 @@ export default function PDV() {
                                     />
                                   </div>
                                   {crediarioPayError[d.id] && (
-                                    <p className="text-[9px] font-bold text-red-600 mt-1">{crediarioPayError[d.id]}</p>
+                                    <p className="text-[10px] font-semibold text-red-600 mt-1">{crediarioPayError[d.id]}</p>
                                   )}
-                                  <button onClick={() => handlePayCrediarioDebt(d)} disabled={crediarioPaying === d.id}
-                                    className="w-full h-8 mt-2 rounded-lg bg-emerald-600 text-white text-[10px] font-black uppercase tracking-wider hover:bg-emerald-700 disabled:opacity-50 transition-all flex items-center justify-center gap-1.5">
-                                    {crediarioPaying === d.id ? <Loader2 size={12} className="animate-spin" /> : "Confirmar pagamento"}
-                                  </button>
+                                  <Button variant="success" size="lg" fullWidth className="mt-2" onClick={() => handlePayCrediarioDebt(d)}
+                                    disabled={crediarioPaying === d.id} loading={crediarioPaying === d.id}>
+                                    Confirmar pagamento
+                                  </Button>
                                 </>
                               )}
                             </div>
                             {isExpanded && d.order && (
                               <div className="px-3 pb-3 pt-0 space-y-1 bg-slate-50 border-t border-slate-100">
                                 {d.order.items.map((it) => (
-                                  <div key={it.id} className="flex justify-between text-[10px] text-slate-600 pt-2">
+                                  <div key={it.id} className="flex justify-between text-[11px] text-slate-600 pt-2">
                                     <span>{it.product?.name ?? `Item #${it.id}`} × {it.quantity}</span>
                                     <span className="font-mono">R$ {(Number(it.unit_price) * it.quantity).toFixed(2)}</span>
                                   </div>
                                 ))}
-                                {(d.payments?.length ?? 0) > 0 && <div className="pt-2 mt-2 border-t border-slate-200"><p className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-1">Pagamentos registrados</p>{d.payments!.map((payment) => <div key={payment.id} className="flex justify-between text-[10px] text-slate-600 py-0.5"><span>{PM_LABEL[(payment.payment_method as PaymentMethod) ?? "money"]} · {new Date(payment.paid_at).toLocaleDateString("pt-BR")}</span><span className="font-mono font-bold text-emerald-600">R$ {Number(payment.amount).toFixed(2)}</span></div>)}</div>}
+                                {(d.payments?.length ?? 0) > 0 && <div className="pt-2 mt-2 border-t border-slate-200"><p className="text-[10px] font-semibold text-slate-400 mb-1">Pagamentos registrados</p>{d.payments!.map((payment) => <div key={payment.id} className="flex justify-between text-[11px] text-slate-600 py-0.5"><span>{PM_LABEL[(payment.payment_method as PaymentMethod) ?? "money"]} · {new Date(payment.paid_at).toLocaleDateString("pt-BR")}</span><span className="font-mono font-semibold text-emerald-600">R$ {Number(payment.amount).toFixed(2)}</span></div>)}</div>}
                               </div>
                             )}
                           </div>
@@ -4537,37 +4318,32 @@ export default function PDV() {
               className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[500]" />
             <motion.div initial={{ x: "100%" }} animate={{ x: 0 }} exit={{ x: "100%" }}
               transition={{ type: "spring", damping: 26, stiffness: 200 }}
-              className="fixed inset-y-0 right-0 w-full max-w-sm bg-white z-[510] shadow-2xl flex flex-col">
+              className="fixed inset-y-0 right-0 w-full max-w-sm bg-white z-[510] shadow-sm flex flex-col">
               <div className="flex items-center justify-between px-5 py-4 border-b border-slate-200 shrink-0">
                 <div>
-                  <h2 className="font-black text-slate-900 text-[15px]">Consultar Cliente</h2>
+                  <h2 className="font-semibold text-slate-900 text-[15px]">Consultar Cliente</h2>
                   <p className="text-[11px] text-slate-500">Buscar cadastro e usar nesta venda</p>
                 </div>
-                <button onClick={() => setShowCustomerLookup(false)} className="p-2 hover:bg-slate-100 rounded-lg text-slate-500"><X size={18} /></button>
+                <IconButton variant="ghost" onClick={() => setShowCustomerLookup(false)} aria-label="Fechar" className="h-9 w-9"><X size={18} /></IconButton>
               </div>
               <div className="p-4 border-b border-slate-100 shrink-0">
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={13} />
-                  <input value={customerLookupSearch} onChange={(e) => setCustomerLookupSearch(e.target.value)}
-                    placeholder="Buscar por nome ou telefone..." autoFocus
-                    className="w-full pl-9 pr-3 h-10 rounded-xl border border-slate-200 text-[12px] font-medium focus:outline-none focus:border-blue-400" />
-                </div>
+                <Input value={customerLookupSearch} onChange={(e) => setCustomerLookupSearch(e.target.value)}
+                    placeholder="Buscar por nome ou telefone..." autoFocus iconLeft={<Search size={13} />} />
               </div>
               <div className="flex-1 overflow-y-auto p-3 space-y-1.5">
                 {customerLookupFiltered.length === 0 ? (
-                  <div className="text-center py-10 text-[11px] font-bold text-slate-400">Nenhum cliente encontrado</div>
+                  <div className="text-center py-10 text-[11px] font-semibold text-slate-400">Nenhum cliente encontrado</div>
                 ) : (
                   customerLookupFiltered.slice(0, 50).map((c) => (
-                    <div key={c.id} className="flex items-center justify-between gap-2 px-3 py-2.5 rounded-xl border border-slate-100 hover:border-blue-200 transition-colors">
+                    <div key={c.id} className="flex items-center justify-between gap-2 px-3 py-2.5 rounded-lg border border-slate-100 hover:border-blue-200 transition-colors">
                       <div className="min-w-0">
-                        <p className="text-[12px] font-bold text-slate-700 truncate">{c.name}</p>
-                        {c.phone && <p className="text-[10px] text-slate-400">{c.phone}</p>}
+                        <p className="text-[12px] font-semibold text-slate-700 truncate">{c.name}</p>
+                        {c.phone && <p className="text-[11px] text-slate-400">{c.phone}</p>}
                       </div>
-                      <button
-                        onClick={() => { setSelectedCustomerId(c.id); setCustomerName(c.name); setShowCustomerLookup(false); }}
-                        className="shrink-0 h-7 px-2.5 rounded-lg bg-blue-50 border border-blue-200 text-blue-600 text-[9px] font-black uppercase tracking-wider hover:bg-blue-100 transition-colors">
+                      <Button variant="outline" size="lg" className="shrink-0"
+                        onClick={() => { setSelectedCustomerId(c.id); setCustomerName(c.name); setShowCustomerLookup(false); }}>
                         Usar
-                      </button>
+                      </Button>
                     </div>
                   ))
                 )}
@@ -4586,55 +4362,51 @@ export default function PDV() {
               className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[500]" />
             <motion.div initial={{ x: "100%" }} animate={{ x: 0 }} exit={{ x: "100%" }}
               transition={{ type: "spring", damping: 26, stiffness: 200 }}
-              className="fixed inset-y-0 right-0 w-full max-w-sm bg-white z-[510] shadow-2xl flex flex-col">
+              className="fixed inset-y-0 right-0 w-full max-w-sm bg-white z-[510] shadow-sm flex flex-col">
               <div className="flex items-center justify-between px-5 py-4 border-b border-slate-200 shrink-0">
                 <div>
-                  <h2 className="font-black text-slate-900 text-[15px]">Consultar Consignado</h2>
+                  <h2 className="font-semibold text-slate-900 text-[15px]">Consultar Consignado</h2>
                   <p className="text-[11px] text-slate-500">Buscar sacolas por cliente ou número</p>
                 </div>
-                <button onClick={() => setShowConsignmentLookup(false)} className="p-2 hover:bg-slate-100 rounded-lg text-slate-500"><X size={18} /></button>
+                <IconButton variant="ghost" onClick={() => setShowConsignmentLookup(false)} aria-label="Fechar" className="h-9 w-9"><X size={18} /></IconButton>
               </div>
               <div className="p-4 border-b border-slate-100 shrink-0">
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={13} />
-                  <input value={consignmentSearch}
-                    onChange={(e) => setConsignmentSearch(e.target.value)}
-                    onKeyDown={(e) => { if (e.key === "Enter") searchConsignments(); }}
-                    placeholder="Buscar por cliente ou número..." autoFocus
-                    className="w-full pl-9 pr-3 h-10 rounded-xl border border-slate-200 text-[12px] font-medium focus:outline-none focus:border-blue-400" />
-                </div>
+                <Input value={consignmentSearch}
+                  onChange={(e) => setConsignmentSearch(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === "Enter") searchConsignments(); }}
+                  placeholder="Buscar por cliente ou número..." autoFocus
+                  aria-label="Buscar consignado"
+                  iconLeft={<Search size={13} />} />
               </div>
               <div className="flex-1 overflow-y-auto p-3 space-y-2">
                 {consignmentLoading ? (
                   <div className="flex items-center justify-center h-32"><Loader2 size={20} className="animate-spin text-slate-300" /></div>
                 ) : consignmentResults.length === 0 ? (
-                  <div className="text-center py-10 text-[11px] font-bold text-slate-400">Nenhuma sacola encontrada</div>
+                  <div className="text-center py-10 text-[11px] font-semibold text-slate-400">Nenhuma sacola encontrada</div>
                 ) : (
                   consignmentResults.map((c) => {
                     const isExpanded = consignmentExpandedId === c.id;
                     const overdue = c.status === "aberta" && new Date(c.due_date).getTime() < Date.now();
                     return (
-                      <div key={c.id} className="rounded-xl border border-slate-200 overflow-hidden">
+                      <div key={c.id} className="rounded-lg border border-slate-200 overflow-hidden">
                         <button onClick={() => setConsignmentExpandedId(isExpanded ? null : c.id)}
                           className="w-full flex items-center justify-between gap-2 px-3 py-2.5 hover:bg-slate-50 transition-colors text-left">
                           <div className="flex items-center gap-1.5 min-w-0">
                             {isExpanded ? <ChevronDown size={13} className="text-slate-400 shrink-0" /> : <ChevronRight size={13} className="text-slate-400 shrink-0" />}
                             <div className="min-w-0">
-                              <p className="text-[12px] font-bold text-slate-700 truncate">#{String(c.number).padStart(4, "0")} · {c.customer_name}</p>
-                              <p className="text-[10px] text-slate-400">{new Date(c.due_date).toLocaleDateString("pt-BR")}</p>
+                              <p className="text-[12px] font-semibold text-slate-700 truncate">#{String(c.number).padStart(4, "0")} · {c.customer_name}</p>
+                              <p className="text-[11px] text-slate-400">{new Date(c.due_date).toLocaleDateString("pt-BR")}</p>
                             </div>
                           </div>
-                          <span className={cn("text-[9px] font-black uppercase tracking-wider px-2 py-1 rounded-lg shrink-0",
-                            overdue ? "text-red-600 bg-red-50" :
-                            c.status === "aberta" ? "text-blue-600 bg-blue-50" :
-                            c.status === "fechada" ? "text-emerald-600 bg-emerald-50" : "text-slate-500 bg-slate-100")}>
+                          <Badge size="sm" className="shrink-0"
+                            color={overdue ? "danger" : c.status === "aberta" ? "info" : c.status === "fechada" ? "success" : "default"}>
                             {overdue ? "Atrasada" : c.status}
-                          </span>
+                          </Badge>
                         </button>
                         {isExpanded && (
                           <div className="px-3 pb-3 pt-0 space-y-1 bg-slate-50 border-t border-slate-100">
                             {c.items.map((it) => (
-                              <div key={it.id} className="flex justify-between text-[10px] text-slate-600 pt-2">
+                              <div key={it.id} className="flex justify-between text-[11px] text-slate-600 pt-2">
                                 <span>{it.name} × {it.quantity} {it.resolution !== "pending" && `(${it.resolution === "kept" ? "ficou" : "voltou"})`}</span>
                                 <span className="font-mono">R$ {(Number(it.unit_price) * it.quantity).toFixed(2)}</span>
                               </div>
@@ -4676,20 +4448,20 @@ export default function PDV() {
               className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[500]" />
             <motion.div initial={{ x: "100%" }} animate={{ x: 0 }} exit={{ x: "100%" }}
               transition={{ type: "spring", damping: 26, stiffness: 200 }}
-              className="fixed inset-y-0 right-0 w-full max-w-sm bg-white z-[510] shadow-2xl flex flex-col">
+              className="fixed inset-y-0 right-0 w-full max-w-sm bg-white z-[510] shadow-sm flex flex-col">
               <div className="flex items-center justify-between px-5 py-4 border-b border-slate-200 shrink-0">
                 <div>
-                  <h2 className="font-black text-slate-900 text-[15px]">Adicionar Produto</h2>
+                  <h2 className="font-semibold text-slate-900 text-[15px]">Adicionar Produto</h2>
                   <p className="text-[11px] text-slate-500">Busque e adicione sem sair do pagamento</p>
                 </div>
-                <button onClick={() => setShowAddProductModal(false)} className="p-2 hover:bg-slate-100 rounded-lg text-slate-500"><X size={18} /></button>
+                <IconButton variant="ghost" onClick={() => setShowAddProductModal(false)} aria-label="Fechar" className="h-9 w-9"><X size={18} /></IconButton>
               </div>
               <div className="p-4 border-b border-slate-100 shrink-0">
                 <div className="relative">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={13} />
                   <input id="pdv-add-product-search" value={addProductSearch} onChange={(e) => setAddProductSearch(e.target.value)}
                     placeholder="Buscar produto por nome, código ou código de barras..." autoFocus
-                    className="w-full pl-9 pr-3 h-10 rounded-xl border border-slate-200 text-[12px] font-medium focus:outline-none focus:border-blue-400" />
+                    className="w-full pl-9 pr-3 h-10 rounded-lg border border-slate-200 text-[12px] font-medium focus:outline-none focus:border-blue-400" />
                 </div>
               </div>
               <div className="flex-1 overflow-y-auto p-3 space-y-1.5">
@@ -4703,11 +4475,11 @@ export default function PDV() {
                       || (p.barcode ?? "").toLowerCase().includes(q))
                     .slice(0, 50);
                   if (filtered.length === 0) {
-                    return <div className="text-center py-10 text-[11px] font-bold text-slate-400">Nenhum produto encontrado</div>;
+                    return <div className="text-center py-10 text-[11px] font-semibold text-slate-400">Nenhum produto encontrado</div>;
                   }
                   return filtered.map((p) => (
                     <button key={p.id} onClick={() => { addToCart(p); setShowAddProductModal(false); setAddProductSearch(""); }}
-                      className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl border border-slate-100 hover:border-blue-200 hover:bg-blue-50/40 transition-colors text-left">
+                      className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg border border-slate-100 hover:border-blue-200 hover:bg-blue-50/40 transition-colors text-left">
                       {p.image_url ? (
                         <img src={p.image_url} alt={p.name} className="w-8 h-8 rounded-lg object-contain shrink-0 border border-slate-100 p-0.5 bg-slate-50" />
                       ) : (
@@ -4716,8 +4488,8 @@ export default function PDV() {
                         </div>
                       )}
                       <div className="flex-1 min-w-0">
-                        <p className="text-[12px] font-bold text-slate-700 truncate">{p.name}</p>
-                        <p className="text-[10px] text-slate-400">R$ {Number(p.price).toFixed(2)}</p>
+                        <p className="text-[12px] font-semibold text-slate-700 truncate">{p.name}</p>
+                        <p className="text-[11px] text-slate-400">R$ {Number(p.price).toFixed(2)}</p>
                       </div>
                     </button>
                   ));
@@ -4748,60 +4520,51 @@ export default function PDV() {
         />
       )}
 
-      {showNewSellerModal && (
-        <div className="fixed inset-0 z-[600] flex items-center justify-center bg-black/50 p-4">
-          <div className="w-full max-w-sm bg-white rounded-2xl border border-slate-200 shadow-2xl overflow-hidden">
-            <div className="flex items-center justify-between px-5 h-14 border-b border-slate-100">
-              <p className="text-[13px] font-black text-slate-800">Novo Vendedor</p>
-              <button onClick={() => { setShowNewSellerModal(false); setNewSellerName(""); }}
-                className="w-8 h-8 flex items-center justify-center rounded-xl hover:bg-slate-100 text-slate-400">
-                <X size={16} />
-              </button>
-            </div>
-            <div className="p-5 space-y-4">
+      <Modal
+        open={showNewSellerModal}
+        onClose={() => { setShowNewSellerModal(false); setNewSellerName(""); }}
+        title="Novo Vendedor"
+        size="sm"
+        zIndex={600}
+        footer={
+          <ModalFooter>
+            <Button variant="outline" size="lg" onClick={() => { setShowNewSellerModal(false); setNewSellerName(""); }}>Cancelar</Button>
+            <Button variant="primary" size="lg" onClick={handleCreateSeller}
+              disabled={!newSellerName.trim() || savingNewSeller} loading={savingNewSeller}>
+              {savingNewSeller ? "Salvando..." : "Cadastrar"}
+            </Button>
+          </ModalFooter>
+        }
+      >
+        <div className="space-y-4">
+          <Input
+            size="lg" label="Nome" type="text" autoFocus value={newSellerName}
+            onChange={(e) => setNewSellerName(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter") handleCreateSeller(); }}
+            placeholder="Nome do vendedor"
+          />
+          {(() => {
+            const suggestions = teamMembers.filter(
+              (u) => !sellers.some((s) => s.name.trim().toLowerCase() === u.name.trim().toLowerCase()),
+            );
+            if (suggestions.length === 0) return null;
+            return (
               <div>
-                <label className="text-[10px] font-bold uppercase tracking-widest text-slate-500 block mb-1">Nome</label>
-                <input
-                  type="text" autoFocus value={newSellerName}
-                  onChange={(e) => setNewSellerName(e.target.value)}
-                  onKeyDown={(e) => { if (e.key === "Enter") handleCreateSeller(); }}
-                  placeholder="Nome do vendedor"
-                  className="w-full h-11 px-3 rounded-xl border border-slate-200 text-[13px] font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400"
-                />
+                <p className="mb-1.5 text-[11px] text-slate-500">
+                  Ou escolha um usuário já cadastrado
+                </p>
+                <div className="flex flex-wrap gap-1.5">
+                  {suggestions.map((u) => (
+                    <Button key={u.id} variant="outline" size="lg" onClick={() => setNewSellerName(u.name)}>
+                      {u.name}
+                    </Button>
+                  ))}
+                </div>
               </div>
-              {(() => {
-                const suggestions = teamMembers.filter(
-                  (u) => !sellers.some((s) => s.name.trim().toLowerCase() === u.name.trim().toLowerCase()),
-                );
-                if (suggestions.length === 0) return null;
-                return (
-                  <div>
-                    <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-1.5">
-                      Ou escolha um usuário já cadastrado
-                    </p>
-                    <div className="flex flex-wrap gap-1.5">
-                      {suggestions.map((u) => (
-                        <button key={u.id} type="button" onClick={() => setNewSellerName(u.name)}
-                          className="px-2.5 py-1.5 rounded-lg bg-slate-100 hover:bg-blue-50 hover:text-blue-700 text-[11px] font-bold text-slate-600 transition-colors">
-                          {u.name}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                );
-              })()}
-              <button
-                onClick={handleCreateSeller}
-                disabled={!newSellerName.trim() || savingNewSeller}
-                className="w-full h-11 rounded-xl bg-slate-900 text-white text-[12px] font-black uppercase tracking-widest flex items-center justify-center gap-2 hover:bg-slate-800 transition-all disabled:opacity-40"
-              >
-                {savingNewSeller ? <Loader2 size={14} className="animate-spin" /> : null}
-                {savingNewSeller ? "Salvando..." : "Cadastrar"}
-              </button>
-            </div>
-          </div>
+            );
+          })()}
         </div>
-      )}
+      </Modal>
     </div>
   );
 }

@@ -18,6 +18,7 @@ import PageHeader from "../../components/layout/PageHeader";
 import { useToast } from "../../components/ui/Toast";
 import { getStoredUser } from "../../lib/session";
 import { cn } from "../../lib/utils";
+import { Button, IconButton, Select, Textarea, Badge } from "../../components/ui";
 
 type ConversationStatus = "bot" | "queued" | "assigned" | "closed";
 export type AtendimentoView = ConversationStatus;
@@ -290,42 +291,40 @@ export default function WhatsappAtendimento({ view }: { view: AtendimentoView })
         title={meta.title}
         subtitle={meta.subtitle}
         action={
-          <button onClick={() => void loadOverview()} className="h-10 rounded-xl border border-slate-200 bg-white px-4 text-[11px] font-black uppercase tracking-wider text-slate-600 hover:bg-slate-50 inline-flex items-center gap-2">
-            <RefreshCw size={14} /> Atualizar
-          </button>
+          <Button variant="outline" size="sm" onClick={() => void loadOverview()} iconLeft={<RefreshCw size={14} />}>Atualizar</Button>
         }
       />
 
-      <div className="min-h-[580px] overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm grid grid-cols-1 xl:grid-cols-[360px_minmax(0,1fr)]">
+      <div className="min-h-[580px] overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm grid grid-cols-1 xl:grid-cols-[360px_minmax(0,1fr)]">
         <aside className="border-b border-slate-200 xl:border-b-0 xl:border-r overflow-y-auto max-h-[360px] xl:max-h-[680px]">
           <div className="sticky top-0 z-10 flex items-center justify-between border-b border-slate-100 bg-white px-4 py-3">
             <div className="flex items-center gap-2">
-              <span className={cn("grid h-8 w-8 place-items-center rounded-xl border", meta.tone)}><Icon size={15} /></span>
+              <span className={cn("grid h-8 w-8 place-items-center rounded-lg border", meta.tone)}><Icon size={15} /></span>
               <div>
-                <p className="text-xs font-black text-slate-900">{meta.title}</p>
-                <p className="text-[10px] font-bold text-slate-400">{conversations.length} conversa{conversations.length === 1 ? "" : "s"}</p>
+                <p className="text-xs font-semibold text-slate-900">{meta.title}</p>
+                <p className="text-[11px] font-semibold text-slate-400">{conversations.length} conversa{conversations.length === 1 ? "" : "s"}</p>
               </div>
             </div>
-            <span className="grid h-7 min-w-7 place-items-center rounded-full bg-slate-100 px-2 text-[11px] font-black text-slate-600">{conversations.length}</span>
+            <span className="grid h-7 min-w-7 place-items-center rounded-full bg-slate-100 px-2 text-[11px] font-semibold text-slate-600">{conversations.length}</span>
           </div>
           {loading ? (
             <div className="grid min-h-48 place-items-center text-slate-400"><Loader2 className="animate-spin" size={20} /></div>
           ) : conversations.length === 0 ? (
             <div className="p-7 text-center">
               <Icon className="mx-auto text-slate-300" size={28} />
-              <p className="mt-3 text-sm font-bold text-slate-600">{meta.empty}</p>
+              <p className="mt-3 text-sm font-semibold text-slate-600">{meta.empty}</p>
             </div>
           ) : conversations.map((conversation) => (
             <button key={conversation.id} onClick={() => void loadConversation(conversation.id)} className={cn("w-full border-b border-slate-100 px-4 py-4 text-left transition hover:bg-slate-50", selectedId === conversation.id && "bg-blue-50/70 border-l-4 border-l-blue-600 pl-3") }>
               <div className="flex gap-3">
-                <span className={cn("grid h-10 w-10 shrink-0 place-items-center rounded-full text-sm font-black", view === "bot" ? "bg-violet-100 text-violet-700" : "bg-slate-100 text-slate-600")}>{view === "bot" ? <Bot size={18} /> : initials(conversation.customer_name)}</span>
+                <span className={cn("grid h-10 w-10 shrink-0 place-items-center rounded-full text-sm font-semibold", view === "bot" ? "bg-violet-100 text-violet-700" : "bg-slate-100 text-slate-600")}>{view === "bot" ? <Bot size={18} /> : initials(conversation.customer_name)}</span>
                 <span className="min-w-0 flex-1">
-                  <span className="flex items-center justify-between gap-2"><strong className="truncate text-[13px] text-slate-800">{conversation.customer_name || conversation.phone}</strong><small className="shrink-0 text-[10px] font-semibold text-slate-400">{formatTime(conversation.last_inbound_at || conversation.updated_at)}</small></span>
+                  <span className="flex items-center justify-between gap-2"><strong className="truncate text-[13px] text-slate-800">{conversation.customer_name || conversation.phone}</strong><small className="shrink-0 text-[11px] font-semibold text-slate-400">{formatTime(conversation.last_inbound_at || conversation.updated_at)}</small></span>
                   <span className="mt-1 block truncate text-[11px] text-slate-500">{conversation.last_message_preview || "Sem mensagens registradas"}</span>
                   <span className="mt-2 flex flex-wrap items-center gap-1.5">
-                    {conversation.queue_position && <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[9px] font-black text-amber-700">#{conversation.queue_position} na fila</span>}
-                    {conversation.assigned_agent && <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[9px] font-black text-emerald-700">{conversation.assigned_agent.name}</span>}
-                    {conversation.department_label && <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[9px] font-bold text-slate-500">{conversation.department_label}</span>}
+                    {conversation.queue_position && <Badge size="sm" color="warning">#{conversation.queue_position} na fila</Badge>}
+                    {conversation.assigned_agent && <Badge size="sm" color="success">{conversation.assigned_agent.name}</Badge>}
+                    {conversation.department_label && <Badge size="sm">{conversation.department_label}</Badge>}
                   </span>
                 </span>
               </div>
@@ -337,53 +336,52 @@ export default function WhatsappAtendimento({ view }: { view: AtendimentoView })
           {!selected ? (
             <div className="m-auto max-w-sm px-6 text-center">
               <MessageCircle className="mx-auto text-slate-200" size={44} />
-              <h3 className="mt-4 text-base font-black text-slate-700">Selecione uma conversa</h3>
+              <h3 className="mt-4 text-base font-semibold text-slate-700">Selecione uma conversa</h3>
               <p className="mt-2 text-sm leading-relaxed text-slate-400">Abra um cliente da lista para ver o histórico e responder por aqui.</p>
             </div>
           ) : (
             <>
               <div className="flex flex-wrap items-start justify-between gap-3 border-b border-slate-200 bg-white px-5 py-4">
                 <div className="min-w-0">
-                  <h3 className="truncate text-base font-black text-slate-900">{selected.customer_name || "Cliente sem nome"}</h3>
+                  <h3 className="truncate text-base font-semibold text-slate-900">{selected.customer_name || "Cliente sem nome"}</h3>
                   <p className="mt-1 flex items-center gap-1.5 text-xs text-slate-500"><Phone size={12} /> {selected.phone}</p>
                 </div>
                 <div className="flex items-center gap-2">
-                  {selected.status !== "closed" && <button disabled={saving} onClick={() => void close()} className="h-9 rounded-xl border border-red-200 bg-red-50 px-3 text-[10px] font-black uppercase tracking-wider text-red-700 hover:bg-red-100 disabled:opacity-50 inline-flex items-center gap-1.5"><XCircle size={13} /> Encerrar conversa</button>}
-                </div>
+                  {selected.status !== "closed" && <Button variant="danger" size="sm" disabled={saving} onClick={() => void close()} iconLeft={<XCircle size={14} />}>Encerrar conversa</Button>}                </div>
               </div>
 
               {selected.status !== "assigned" && selected.status !== "closed" && (
                 <div className="grid gap-2 border-b border-amber-100 bg-amber-50 px-5 py-3 md:grid-cols-[180px_minmax(0,1fr)_auto_auto]">
-                  <select value={department} onChange={(event) => { setDepartment(event.target.value); setAgentId(""); }} className="h-10 rounded-xl border border-amber-200 bg-white px-3 text-xs font-semibold text-slate-700">
+                  <Select aria-label="Setor" value={department} onChange={(event) => { setDepartment(event.target.value); setAgentId(""); }}>
                     <option value="">Selecionar setor</option>
                     {activeSectors.map((sector) => <option key={sector.id} value={sector.key}>{sector.name}</option>)}
-                  </select>
-                  <select value={agentId} onChange={(event) => setAgentId(Number(event.target.value) || "")} className="h-10 rounded-xl border border-amber-200 bg-white px-3 text-xs font-semibold text-slate-700">
+                  </Select>
+                  <Select aria-label="Atendente" value={agentId} onChange={(event) => setAgentId(Number(event.target.value) || "")}>
                     <option value="">Distribuir automaticamente no setor</option>
                     {availableAgents.map((agent) => <option key={agent.id} value={agent.id} disabled={!agent.is_available}>{agent.name} · {sectorNames.get(agent.department) || DEPARTMENT_LABELS[agent.department] || agent.department} ({agent.current_load}/{agent.max_concurrent_chats}){agent.is_available ? "" : " — indisponível"}</option>)}
-                  </select>
-                  <button disabled={saving || (!agentId && !department)} onClick={() => void assign()} className="h-10 rounded-xl bg-amber-500 px-4 text-[10px] font-black uppercase tracking-wider text-white hover:bg-amber-600 disabled:opacity-50 inline-flex items-center justify-center gap-1.5"><UserCheck size={14} /> {agentId ? "Enviar para pessoa" : "Distribuir no setor"}</button>
-                  <button disabled={saving || !agentId} onClick={() => void assign(true)} className="h-10 rounded-xl bg-blue-600 px-4 text-[10px] font-black uppercase tracking-wider text-white hover:bg-blue-700 disabled:opacity-50 inline-flex items-center justify-center gap-1.5"><UserCheck size={14} /> Assumir agora</button>
+                  </Select>
+                  <Button variant="outline" disabled={saving || (!agentId && !department)} onClick={() => void assign()} iconLeft={<UserCheck size={14} />}>{agentId ? "Enviar para pessoa" : "Distribuir no setor"}</Button>
+                  <Button disabled={saving || !agentId} onClick={() => void assign(true)} iconLeft={<UserCheck size={14} />}>Assumir agora</Button>
                 </div>
               )}
 
-              {selected.status === "assigned" && <div className="border-b border-emerald-100 bg-emerald-50 px-5 py-2.5 text-[11px] font-bold text-emerald-700 flex items-center gap-2"><UserCheck size={14} /> Atendimento em andamento com {selected.assigned_agent?.name || "a equipe"}.</div>}
-              {selected.status === "closed" && <div className="border-b border-slate-200 bg-slate-100 px-5 py-2.5 text-[11px] font-bold text-slate-500 flex items-center gap-2"><Check size={14} /> Atendimento finalizado{selected.closed_reason ? `: ${selected.closed_reason}` : "."}</div>}
+              {selected.status === "assigned" && <div className="border-b border-emerald-100 bg-emerald-50 px-5 py-2.5 text-[11px] font-semibold text-emerald-700 flex items-center gap-2"><UserCheck size={14} /> Atendimento em andamento com {selected.assigned_agent?.name || "a equipe"}.</div>}
+              {selected.status === "closed" && <div className="border-b border-slate-200 bg-slate-100 px-5 py-2.5 text-[11px] font-semibold text-slate-500 flex items-center gap-2"><Check size={14} /> Atendimento finalizado{selected.closed_reason ? `: ${selected.closed_reason}` : "."}</div>}
 
               <div className="flex-1 space-y-3 overflow-y-auto p-5 max-h-[420px] xl:max-h-[450px]">
                 {loadingDetail && !detail ? <div className="grid h-full place-items-center"><Loader2 className="animate-spin text-slate-400" size={20} /></div> : detail?.messages.map((message) => {
                   const mine = message.direction !== "customer";
-                  return <div key={message.id} className={cn("flex", mine ? "justify-end" : "justify-start")}><div className={cn("max-w-[82%] rounded-2xl border px-3.5 py-2.5 shadow-sm", mine ? message.direction === "bot" ? "border-violet-200 bg-violet-50 text-violet-950" : "border-blue-600 bg-blue-600 text-white" : "border-slate-200 bg-white text-slate-700")}><p className="whitespace-pre-wrap text-sm leading-relaxed">{message.body || "Mensagem sem conteúdo"}</p><p className={cn("mt-1 text-[9px] font-bold", mine && message.direction !== "bot" ? "text-blue-100" : "text-slate-400")}>{message.direction === "bot" ? "BOT · " : ""}{formatTime(message.created_at)}</p></div></div>;
+                  return <div key={message.id} className={cn("flex", mine ? "justify-end" : "justify-start")}><div className={cn("max-w-[82%] rounded-lg border px-3.5 py-2.5 shadow-sm", mine ? message.direction === "bot" ? "border-violet-200 bg-violet-50 text-violet-950" : "border-blue-600 bg-blue-600 text-white" : "border-slate-200 bg-white text-slate-700")}><p className="whitespace-pre-wrap text-sm leading-relaxed">{message.body || "Mensagem sem conteúdo"}</p><p className={cn("mt-1 text-[11px] font-medium", mine && message.direction !== "bot" ? "text-blue-100" : "text-slate-400")}>{message.direction === "bot" ? "BOT · " : ""}{formatTime(message.created_at)}</p></div></div>;
                 })}
               </div>
 
               {selected.status !== "closed" && (
                 <div className="border-t border-slate-200 bg-white p-4">
                   <div className="flex items-end gap-2">
-                    <textarea value={draft} onChange={(event) => setDraft(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); void send(); } }} rows={2} placeholder={selected.status === "assigned" ? "Escreva uma resposta…" : "Assuma o atendimento antes de responder…"} disabled={selected.status !== "assigned" || saving} className="min-h-11 flex-1 resize-none rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 disabled:cursor-not-allowed disabled:bg-slate-100" />
-                    <button onClick={() => void send()} disabled={selected.status !== "assigned" || saving || !draft.trim()} className="grid h-11 w-11 place-items-center rounded-xl bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50"><Send size={16} /></button>
+                    <Textarea value={draft} onChange={(event) => setDraft(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); void send(); } }} rows={2} placeholder={selected.status === "assigned" ? "Escreva uma resposta…" : "Assuma o atendimento antes de responder…"} disabled={selected.status !== "assigned" || saving} wrapperClassName="flex-1" className="min-h-11 resize-none" aria-label="Mensagem" />
+                    <IconButton variant="primary" size="lg" aria-label="Enviar mensagem" onClick={() => void send()} disabled={selected.status !== "assigned" || saving || !draft.trim()}><Send size={16} /></IconButton>
                   </div>
-                  <p className="mt-2 text-[10px] font-medium text-slate-400">Enter envia · Shift + Enter quebra a linha</p>
+                  <p className="mt-2 text-[11px] font-medium text-slate-400">Enter envia · Shift + Enter quebra a linha</p>
                 </div>
               )}
             </>

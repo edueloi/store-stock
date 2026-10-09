@@ -49,7 +49,7 @@ function buildSteps(): DriveStep[] {
       element: tourElement("stock-view-inventory-btn"),
       popover: {
         title: "Posição e Auditoria",
-        description: "\"Posição\" mostra a quantidade que você tem agora de cada produto. \"Auditoria\" mostra o histórico completo: toda compra, venda, perda ou ajuste que já aconteceu.",
+        description: "\"Posição\" mostra a quantidade que você tem agora de cada produto. \"Auditoria\"mostra o histórico completo: toda compra, venda, perda ou ajuste que já aconteceu.",
         side: "bottom",
         align: "start",
       },

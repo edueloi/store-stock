@@ -6,10 +6,13 @@ import {
   HelpCircle,
 } from "lucide-react";
 import ExcelJS from "exceljs";
-import { motion, AnimatePresence } from "motion/react";
+import { motion } from "motion/react";
 import { cn } from "../../lib/utils";
-import PageHeader from "../../components/layout/PageHeader";
-import Button from "../../components/ui/Button";
+import {
+  Alert, Badge, Button, IconButton, Input, Modal, PageWrapper, PanelCard, SectionTitle,
+  StatGrid, StatCard, GridTable, ContentCard, usePagination,
+} from "../../components/ui";
+import type { Column } from "../../components/ui";
 import type { Product, Tenant } from "../../types";
 import MarkupPageTour, { MARKUP_PAGE_TOUR_EVENTS, type MarkupPageTourHandle } from "../../components/onboarding/MarkupPageTour";
 
@@ -168,8 +171,8 @@ function DonutChart({ segments }: {
         {arcs.map((arc, i) => (
           <div key={i} className="flex items-center gap-1.5">
             <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: arc.color }} />
-            <span className="text-[10px] text-slate-600 font-semibold">{arc.label}</span>
-            <span className="text-[10px] font-black text-slate-800">{fmtPct(arc.pct)}</span>
+            <span className="text-[11px] text-slate-600 font-semibold">{arc.label}</span>
+            <span className="text-[11px] font-semibold text-slate-800">{fmtPct(arc.pct)}</span>
           </div>
         ))}
       </div>
@@ -211,23 +214,18 @@ function InputRow({
           </span>
         )}
       </div>
-      <div className="relative w-28 shrink-0">
-        <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[11px] text-slate-400 font-bold pointer-events-none">
-          {isCurrency ? "R$" : "%"}
-        </span>
-        <input
-          type="number"
-          min={0}
-          step={isCurrency ? "0.01" : "0.1"}
-          value={value || ""}
-          readOnly={readOnly}
-          onChange={(e) => onChange(Number(e.target.value))}
-          className={cn(
-            "w-full h-8 pl-8 pr-2 rounded-lg border text-sm text-right font-bold focus:outline-none focus:ring-2 focus:ring-blue-500",
-            readOnly ? "bg-slate-50 border-slate-200 text-slate-500 cursor-not-allowed" : "bg-white border-slate-200",
-          )}
-        />
-      </div>
+      <Input
+        type="number"
+        size="sm"
+        min={0}
+        step={isCurrency ? "0.01" : "0.1"}
+        value={value || ""}
+        readOnly={readOnly}
+        onChange={(e) => onChange(Number(e.target.value))}
+        addonLeft={isCurrency ? "R$" : "%"}
+        wrapperClassName="w-32 shrink-0"
+        className={cn("text-right font-semibold", readOnly && "cursor-not-allowed bg-slate-50 text-slate-500")}
+      />
     </div>
   );
 }
@@ -765,44 +763,81 @@ export default function Markup() {
   });
   const noCost = products.filter((p) => !p.cost_price || Number(p.cost_price) === 0);
 
+  const analysisPagination = usePagination(productsWithCost, 15);
+
+  const analysisColumns: Column<Product>[] = [
+    {
+      header: "Produto",
+      render: (p) => (
+        <div className="flex items-center gap-2">
+          {p.image_url
+            ? <img src={p.image_url} className="h-7 w-7 shrink-0 rounded-lg border border-slate-100 object-cover" />
+            : <div className="h-7 w-7 shrink-0 rounded-lg bg-slate-100" />}
+          <span className="max-w-[200px] truncate text-xs font-medium text-slate-800">{p.name}</span>
+        </div>
+      ),
+    },
+    { header: "Custo", headerClassName: "text-right", className: "text-right text-slate-500 tabular-nums", render: (p) => fmt(Number(p.cost_price)) },
+    { header: "Preço Atual", headerClassName: "text-right", className: "text-right font-semibold text-slate-800 tabular-nums", render: (p) => fmt(Number(p.price)) },
+    {
+      header: "Preço Sugerido", headerClassName: "text-right", className: "text-right font-semibold text-blue-600 tabular-nums",
+      render: (p) => fmt(calcMarkup({ ...inputs, cost_price: Number(p.cost_price) }).suggested_price),
+    },
+    {
+      header: "Margem Atual", headerClassName: "text-right", className: "text-right",
+      render: (p) => {
+        const price = Number(p.price);
+        const currentMargin = price > 0 ? ((price - Number(p.cost_price)) / price) * 100 : 0;
+        return <span className={cn("text-[11px] font-medium", currentMargin >= inputs.desired_margin ? "text-emerald-600" : "text-red-500")}>{fmtPct(currentMargin)}</span>;
+      },
+    },
+    {
+      header: "Lucro Líq.", headerClassName: "text-right", className: "text-right",
+      render: (p) => {
+        const diff = Number(p.price) - Number(p.cost_price);
+        return <span className={cn("text-[11px] font-medium", diff >= 0 ? "text-emerald-600" : "text-red-500")}>{fmt(diff)}</span>;
+      },
+    },
+    {
+      header: "Situação", headerClassName: "text-right", className: "text-right",
+      render: (p) => {
+        const suggested = calcMarkup({ ...inputs, cost_price: Number(p.cost_price) }).suggested_price;
+        const price = Number(p.price);
+        const isOk = price >= suggested * 0.95;
+        const isWarn = price >= suggested * 0.8 && !isOk;
+        return <Badge size="sm" color={isOk ? "success" : isWarn ? "warning" : "danger"}>{isOk ? "✓ OK" : isWarn ? "⚠ Atenção" : "✗ Baixo"}</Badge>;
+      },
+    },
+  ];
+
   return (
-    <div data-tour="markup-page" className="space-y-5">
-      <PageHeader
+    <PageWrapper data-tour="markup-page">
+    <div className="space-y-4">
+      <SectionTitle
         title="Calculadora de Markup"
-        subtitle="Precificação estratégica com DRE completo e análise de produtos"
+        description="Precificação estratégica com DRE completo e análise de produtos"
+        icon={Calculator}
         action={
-          <div className="flex gap-2 items-center">
-            <button
-              data-tour="markup-save-btn"
-              onClick={() => saveInputs(inputs)}
-              className={cn(
-                "h-9 px-3 rounded-lg flex items-center gap-2 text-[12px] font-bold transition-all shadow-md",
-                savedMsg
-                  ? "bg-emerald-500 text-white shadow-emerald-500/20"
-                  : "bg-blue-600 text-white hover:bg-blue-700 shadow-blue-500/20"
-              )}
-            >
-              {savedMsg ? <CheckCircle2 size={14} /> : <Save size={14} />}
-              {savedMsg ? "Salvo!" : "Salvar Config."}
-            </button>
-            <button
-              onClick={handleExportPDF}
-              disabled={exportingPdf}
-              className="h-9 px-3 bg-red-600 text-white rounded-lg flex items-center gap-2 text-[12px] font-bold hover:bg-red-700 transition-all shadow-md shadow-red-500/20 disabled:opacity-60"
-            >
-              <Download size={14} /> {exportingPdf ? "…" : "PDF"}
-            </button>
-            <button
-              onClick={handleExport}
-              disabled={exporting}
-              className="h-9 px-3 bg-emerald-600 text-white rounded-lg flex items-center gap-2 text-[12px] font-bold hover:bg-emerald-700 transition-all shadow-md shadow-emerald-500/20 disabled:opacity-60"
-            >
-              <Download size={14} /> {exporting ? "…" : "Excel"}
-            </button>
+          <div className="flex flex-wrap items-center gap-2">
             <Button
-              variant="secondary"
-              className="h-9 px-3 rounded-xl flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest border border-slate-200 bg-white text-slate-400 hover:text-blue-600 hover:bg-blue-50 hover:border-blue-300 transition-all"
-              icon={<HelpCircle size={14} />}
+              data-tour="markup-save-btn"
+              size="sm"
+              variant={savedMsg ? "success" : "primary"}
+              onClick={() => saveInputs(inputs)}
+              iconLeft={savedMsg ? <CheckCircle2 size={14} /> : <Save size={14} />}
+            >
+              {savedMsg ? "Salvo!" : "Salvar Config."}
+            </Button>
+            <Button size="sm" variant="danger" onClick={handleExportPDF} disabled={exportingPdf} iconLeft={<Download size={14} />}>
+              {exportingPdf ? "…" : "PDF"}
+            </Button>
+            <Button size="sm" variant="success" onClick={handleExport} disabled={exporting} iconLeft={<Download size={14} />}>
+              {exporting ? "…" : "Excel"}
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              iconLeft={<HelpCircle size={14} />}
               onClick={() => markupPageTourRef.current?.start()}
               title="Tour guiado desta página"
             >
@@ -816,48 +851,44 @@ export default function Markup() {
 
       {/* Alerts */}
       {!loading && (belowSuggested.length > 0 || noCost.length > 0) && (
-        <div className="flex flex-col sm:flex-row gap-2">
+        <div className="flex flex-col gap-2 sm:flex-row">
           {belowSuggested.length > 0 && (
-            <div className="flex items-center gap-2 bg-red-50 border border-red-200 rounded-xl px-4 py-2.5 text-[12px] font-semibold text-red-700">
-              <AlertTriangle size={14} className="shrink-0" />
-              <span><strong>{belowSuggested.length}</strong> produto(s) com preço abaixo do markup recomendado</span>
-            </div>
+            <Alert variant="error" className="flex-1">
+              <strong>{belowSuggested.length}</strong> produto(s) com preço abaixo do markup recomendado
+            </Alert>
           )}
           {noCost.length > 0 && (
-            <div className="flex items-center gap-2 bg-amber-50 border border-amber-200 rounded-xl px-4 py-2.5 text-[12px] font-semibold text-amber-700">
-              <AlertTriangle size={14} className="shrink-0" />
-              <span><strong>{noCost.length}</strong> produto(s) sem custo cadastrado</span>
-            </div>
+            <Alert variant="warning" className="flex-1">
+              <strong>{noCost.length}</strong> produto(s) sem custo cadastrado
+            </Alert>
           )}
         </div>
       )}
 
-      <div className="grid grid-cols-1 xl:grid-cols-2 gap-5">
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
 
         {/* ── LEFT: Inputs ──────────────────────────────────────────────────── */}
         <div className="space-y-4">
 
           {/* Product selector */}
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-4 space-y-3">
-            <div className="flex items-center justify-between">
-              <h3 className="font-black text-slate-800 text-[13px] flex items-center gap-2">
-                <Package size={14} className="text-blue-500" /> Produto (opcional)
-              </h3>
-              {selectedProduct && (
-                <button onClick={() => { setSelectedProduct(null); setAppliedMsg(false); }} className="text-slate-400 hover:text-red-400 transition-colors">
-                  <X size={14} />
-                </button>
-              )}
-            </div>
+          <PanelCard
+            title="Produto (opcional)"
+            icon={Package}
+            action={selectedProduct ? (
+              <IconButton size="xs" variant="ghost" aria-label="Remover produto selecionado" onClick={() => { setSelectedProduct(null); setAppliedMsg(false); }}>
+                <X size={14} />
+              </IconButton>
+            ) : undefined}
+          >
             {selectedProduct ? (
-              <div className="flex items-center gap-3 bg-blue-50 border border-blue-200 rounded-xl p-3">
-                <div className="w-10 h-10 rounded-xl bg-white border border-blue-200 flex items-center justify-center overflow-hidden shrink-0">
+              <div className="flex items-center gap-3 rounded-lg border border-blue-200 bg-blue-50 p-3">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-blue-200 bg-white">
                   {selectedProduct.image_url
-                    ? <img src={selectedProduct.image_url} className="w-full h-full object-cover" />
+                    ? <img src={selectedProduct.image_url} className="h-full w-full object-cover" />
                     : <Package size={16} className="text-blue-400" />}
                 </div>
                 <div className="min-w-0 flex-1">
-                  <p className="font-black text-slate-800 text-[13px] truncate">{selectedProduct.name}</p>
+                  <p className="truncate text-[13px] font-medium text-slate-800">{selectedProduct.name}</p>
                   <p className="text-[11px] text-slate-500">
                     Preço atual: <strong>{fmt(Number(selectedProduct.price))}</strong>
                     {selectedProduct.cost_price && <> · Custo: <strong>{fmt(Number(selectedProduct.cost_price))}</strong></>}
@@ -865,24 +896,23 @@ export default function Markup() {
                 </div>
               </div>
             ) : (
-              <button
+              <Button
                 data-tour="markup-select-product-btn"
+                variant="outline"
+                fullWidth
+                iconLeft={<Search size={13} />}
                 onClick={() => setShowProductPicker(true)}
-                className="w-full h-9 border-2 border-dashed border-slate-200 rounded-xl text-[12px] font-bold text-slate-500 hover:border-blue-400 hover:text-blue-600 transition-all flex items-center justify-center gap-1.5"
               >
-                <Search size={13} /> Selecionar produto do catálogo
-              </button>
+                Selecionar produto do catálogo
+              </Button>
             )}
-          </div>
+          </PanelCard>
 
           {/* Inputs: Costs */}
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-4">
-            <h3 className="font-black text-slate-800 text-[13px] mb-3 flex items-center gap-2">
-              <DollarSign size={14} className="text-red-500" /> Custos e Despesas
-            </h3>
+          <PanelCard title="Custos e Despesas" icon={DollarSign}>
             <InputRow label="(-) Custo do Produto" tooltip="Valor de compra/fabricação do produto" value={inputs.cost_price} onChange={set("cost_price")} isCurrency />
             <div className="mt-3 pt-3 border-t border-slate-100">
-              <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-2">Despesas Variáveis (%)</p>
+              <p className="text-[11px] font-medium text-slate-500 mb-2">Despesas Variáveis (%)</p>
               <div data-tour="markup-tax-field">
                 <InputRow label="% Imposto Sobre a Venda" tooltip="Simples, ISS, ICMS, etc." value={inputs.tax_pct} onChange={set("tax_pct")} />
               </div>
@@ -892,39 +922,33 @@ export default function Markup() {
               <InputRow label="% Frete" tooltip="Frete de entrega ao cliente" value={inputs.freight_pct} onChange={set("freight_pct")} />
             </div>
             <div className="mt-3 pt-3 border-t border-slate-100">
-              <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-2">Despesa Fixa (%)</p>
+              <p className="text-[11px] font-medium text-slate-500 mb-2">Despesa Fixa (%)</p>
               <InputRow label="% Despesas Fixas" tooltip="Aluguel, luz, funcionários, etc. rateados" value={inputs.fixed_cost_pct} onChange={set("fixed_cost_pct")} />
             </div>
             <div className="mt-3 pt-3 border-t border-slate-100">
-              <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-2">Despesa Financeira (%)</p>
+              <p className="text-[11px] font-medium text-slate-500 mb-2">Despesa Financeira (%)</p>
               <InputRow label="% Parcelas de Empréstimos" tooltip="Financiamentos e empréstimos" value={inputs.loan_pct} onChange={set("loan_pct")} />
             </div>
-          </div>
+          </PanelCard>
 
           {/* Margin */}
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-4">
-            <h3 className="font-black text-slate-800 text-[13px] mb-3 flex items-center gap-2">
-              <TrendingUp size={14} className="text-emerald-500" /> Margem de Lucro Desejada
-            </h3>
+          <PanelCard title="Margem de Lucro Desejada" icon={TrendingUp}>
             <div data-tour="markup-margin-field">
               <InputRow label="% Margem de Lucro Bruta" tooltip="Percentual de lucro sobre o preço de venda" value={inputs.desired_margin} onChange={set("desired_margin")} />
             </div>
             <div className="mt-2">
               <ProfitBar pct={inputs.desired_margin} color="#22c55e" />
             </div>
-            <button
+            <Button
+              className="mt-3"
+              fullWidth
+              variant={savedMsg ? "success" : "primary"}
               onClick={() => saveInputs(inputs)}
-              className={cn(
-                "mt-3 w-full h-9 px-3 rounded-lg flex items-center justify-center gap-2 text-[12px] font-bold transition-all shadow-md",
-                savedMsg
-                  ? "bg-emerald-500 text-white shadow-emerald-500/20"
-                  : "bg-blue-600 text-white hover:bg-blue-700 shadow-blue-500/20"
-              )}
+              iconLeft={savedMsg ? <CheckCircle2 size={14} /> : <Save size={14} />}
             >
-              {savedMsg ? <CheckCircle2 size={14} /> : <Save size={14} />}
               {savedMsg ? "Salvo!" : "Salvar Config."}
-            </button>
-          </div>
+            </Button>
+          </PanelCard>
         </div>
 
         {/* ── RIGHT: Results ────────────────────────────────────────────────── */}
@@ -935,12 +959,12 @@ export default function Markup() {
             key={result.suggested_price.toFixed(2)}
             initial={{ scale: 0.98 }} animate={{ scale: 1 }}
             className={cn(
-              "rounded-2xl border shadow-sm p-5 flex flex-col gap-1",
+              "rounded-lg border shadow-sm p-5 flex flex-col gap-1",
               result.net_profit >= 0 ? "bg-emerald-50 border-emerald-200" : "bg-red-50 border-red-200"
             )}
           >
-            <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">Preço de Venda Sugerido</p>
-            <p className={cn("text-4xl font-black", result.net_profit >= 0 ? "text-emerald-700" : "text-red-600")}>
+            <p className="text-[11px] font-semibold text-slate-500">Preço de Venda Sugerido</p>
+            <p className={cn("text-4xl font-semibold", result.net_profit >= 0 ? "text-emerald-700" : "text-red-600")}>
               {fmt(result.suggested_price)}
             </p>
             <div className="flex flex-wrap gap-3 mt-1">
@@ -958,66 +982,47 @@ export default function Markup() {
                 <span className="text-[11px] text-slate-500">
                   Preço atual: <strong>{fmt(Number(selectedProduct.price))}</strong>
                   {Number(selectedProduct.price) < result.suggested_price * 0.95 && (
-                    <span className="ml-1 text-red-500 font-bold">(abaixo ↓)</span>
+                    <span className="ml-1 text-red-500 font-semibold">(abaixo ↓)</span>
                   )}
                 </span>
                 {appliedMsg ? (
-                  <span className="flex items-center gap-1 text-[11px] text-emerald-600 font-bold bg-emerald-50 px-2 py-1 rounded-lg">
+                  <span className="flex items-center gap-1 text-[11px] text-emerald-600 font-semibold bg-emerald-50 px-2 py-1 rounded-lg">
                     <CheckCircle2 size={12} /> Preço aplicado!
                   </span>
                 ) : (
-                  <button
-                    onClick={applyPrice}
-                    disabled={applyingPrice}
-                    className="flex items-center gap-1.5 h-7 px-3 bg-blue-600 text-white rounded-lg text-[11px] font-bold hover:bg-blue-700 transition-all disabled:opacity-60"
-                  >
-                    <ArrowRight size={11} /> {applyingPrice ? "Aplicando…" : "Aplicar ao produto"}
-                  </button>
+                  <Button size="xs" onClick={applyPrice} disabled={applyingPrice} iconLeft={<ArrowRight size={11} />}>
+                    {applyingPrice ? "Aplicando…" : "Aplicar ao produto"}
+                  </Button>
                 )}
               </div>
             )}
           </motion.div>
 
           {/* Summary indicators */}
-          <div className="grid grid-cols-2 gap-3">
-            {[
-              { label: "Custo Total",          value: fmt(result.total_cost),               color: "text-red-600",     bg: "bg-red-50"     },
-              { label: "Margem Contribuição",  value: fmtPct(result.contribution_pct),      color: "text-blue-600",    bg: "bg-blue-50"    },
-              { label: "Lucro Operacional",    value: fmt(result.operating_profit),          color: "text-violet-600",  bg: "bg-violet-50"  },
-              { label: "Markup Divisor",       value: result.markup_divisor.toFixed(4),      color: "text-slate-700",   bg: "bg-slate-50"   },
-            ].map((s) => (
-              <div key={s.label} className={cn("rounded-xl p-3 border border-white/60 shadow-sm", s.bg)}>
-                <p className="text-[9px] font-black uppercase tracking-wider text-slate-400 leading-none">{s.label}</p>
-                <p className={cn("text-base font-black mt-0.5", s.color)}>{s.value}</p>
-              </div>
-            ))}
-          </div>
+          <StatGrid cols={2}>
+            <StatCard title="Custo Total" value={fmt(result.total_cost)} icon={DollarSign} color="danger" />
+            <StatCard title="Margem Contribuição" value={fmtPct(result.contribution_pct)} icon={TrendingUp} color="info" />
+            <StatCard title="Lucro Operacional" value={fmt(result.operating_profit)} icon={BarChart2} color="purple" />
+            <StatCard title="Markup Divisor" value={result.markup_divisor.toFixed(4)} icon={Calculator} color="default" />
+          </StatGrid>
 
           {/* Donut */}
-          <div data-tour="markup-donut-chart" className="bg-white rounded-2xl border border-slate-200 shadow-sm p-4">
-            <h3 className="font-black text-slate-800 text-[13px] mb-3 flex items-center gap-2">
-              <BarChart2 size={14} className="text-blue-500" /> Distribuição do Preço
-            </h3>
+          <PanelCard data-tour="markup-donut-chart" title="Distribuição do Preço" icon={BarChart2}>
             {inputs.cost_price > 0 ? (
               <DonutChart segments={donutSegments} />
             ) : (
-              <p className="text-sm text-slate-400 text-center py-4">Informe o custo do produto para ver o gráfico</p>
+              <p className="text-xs text-slate-500 text-center py-4">Informe o custo do produto para ver o gráfico</p>
             )}
-          </div>
+          </PanelCard>
 
           {/* DRE */}
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-            <div className="px-4 py-3 border-b border-slate-100 flex items-center gap-2">
-              <h3 className="font-black text-slate-800 text-[13px] flex items-center gap-2">
-                <Calculator size={14} className="text-slate-500" /> DRE da Precificação
-              </h3>
-            </div>
-            <table className="w-full text-sm">
+          <PanelCard title="DRE da Precificação" icon={Calculator} contentClassName="p-0">
+            <table className="w-full text-xs">
               <thead>
-                <tr className="bg-slate-800 text-white">
-                  <th className="px-4 py-2 text-left text-[10px] font-black uppercase tracking-wider">Item</th>
-                  <th className="px-4 py-2 text-right text-[10px] font-black uppercase tracking-wider">Valor</th>
-                  <th className="px-4 py-2 text-right text-[10px] font-black uppercase tracking-wider">%</th>
+                <tr className="bg-zinc-50 text-slate-500">
+                  <th className="px-4 py-2 text-left text-[11px] font-semibold">Item</th>
+                  <th className="px-4 py-2 text-right text-[11px] font-semibold">Valor</th>
+                  <th className="px-4 py-2 text-right text-[11px] font-semibold">%</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -1036,17 +1041,17 @@ export default function Markup() {
                   { label: "Lucro Líquido",               val: result.net_profit,           pct: result.net_pct,             bold: true,   bg: result.net_profit >= 0 ? "bg-emerald-100" : "bg-red-100" },
                 ].map((row) => (
                   <tr key={row.label} className={cn("transition-colors", row.bg)}>
-                    <td className={cn("px-4 py-2 text-[12px] text-slate-700", row.bold && "font-black text-slate-900")}>
+                    <td className={cn("px-4 py-2 text-[12px] text-slate-700", row.bold && "font-semibold text-slate-900")}>
                       {row.label}
                     </td>
                     <td className={cn(
-                      "px-4 py-2 text-right text-[12px] font-bold tabular-nums",
+                      "px-4 py-2 text-right text-[12px] font-semibold tabular-nums",
                       row.val < 0 ? "text-red-500" : row.val > 0 && row.bold ? "text-emerald-600" : "text-slate-700"
                     )}>
                       {row.val !== 0 ? fmt(row.val) : "R$ —"}
                     </td>
                     <td className={cn(
-                      "px-4 py-2 text-right text-[11px] font-black tabular-nums",
+                      "px-4 py-2 text-right text-[11px] font-semibold tabular-nums",
                       row.pct < 0 ? "text-red-400" : "text-slate-500"
                     )}>
                       {fmtPct(row.pct)}
@@ -1055,147 +1060,80 @@ export default function Markup() {
                 ))}
               </tbody>
             </table>
-          </div>
+          </PanelCard>
         </div>
       </div>
 
       {/* ── Product Analysis Table ─────────────────────────────────────────── */}
       {!loading && productsWithCost.length > 0 && (
-        <div data-tour="markup-analysis-table" className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-          <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between">
-            <h3 className="font-black text-slate-800 text-[13px] flex items-center gap-2">
-              <Package size={14} className="text-slate-500" /> Análise do Catálogo com Parâmetros Atuais
-            </h3>
-            <span className="text-[10px] text-slate-400 font-semibold">{productsWithCost.length} produtos com custo</span>
-          </div>
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm min-w-[600px]">
-              <thead>
-                <tr className="bg-slate-50 border-b border-slate-200">
-                  {["Produto", "Custo", "Preço Atual", "Preço Sugerido", "Margem Atual", "Lucro Líq.", ""].map((h) => (
-                    <th key={h} className={cn("px-4 py-2 text-[10px] font-black uppercase tracking-wider text-slate-500", h === "Produto" ? "text-left" : "text-right")}>{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {productsWithCost.map((p) => {
-                  const pRes = calcMarkup({ ...inputs, cost_price: Number(p.cost_price) });
-                  const price = Number(p.price);
-                  const currentMargin = price > 0 ? ((price - Number(p.cost_price)) / price) * 100 : 0;
-                  const netWithCurrentPrice = price - pRes.total_cost + pRes.suggested_price - price;
-                  const isOk = price >= pRes.suggested_price * 0.95;
-                  const isWarn = price >= pRes.suggested_price * 0.8 && !isOk;
-
-                  return (
-                    <tr key={p.id} className={cn(
-                      "hover:bg-slate-50 transition-colors",
-                      !isOk && !isWarn && "bg-red-50/40",
-                      isWarn && "bg-amber-50/40",
-                    )}>
-                      <td className="px-4 py-2.5">
-                        <div className="flex items-center gap-2">
-                          {p.image_url
-                            ? <img src={p.image_url} className="w-7 h-7 rounded-lg object-cover border border-slate-100 shrink-0" />
-                            : <div className="w-7 h-7 rounded-lg bg-slate-100 shrink-0" />}
-                          <span className="font-semibold text-slate-800 truncate max-w-[160px]">{p.name}</span>
-                        </div>
-                      </td>
-                      <td className="px-4 py-2.5 text-right text-slate-500">{fmt(Number(p.cost_price))}</td>
-                      <td className="px-4 py-2.5 text-right font-bold text-slate-800">{fmt(price)}</td>
-                      <td className="px-4 py-2.5 text-right font-bold text-blue-600">{fmt(pRes.suggested_price)}</td>
-                      <td className="px-4 py-2.5 text-right">
-                        <span className={cn("text-[11px] font-black", currentMargin >= inputs.desired_margin ? "text-emerald-600" : "text-red-500")}>
-                          {fmtPct(currentMargin)}
-                        </span>
-                      </td>
-                      <td className="px-4 py-2.5 text-right">
-                        <span className={cn("text-[11px] font-black", (price - Number(p.cost_price)) >= 0 ? "text-emerald-600" : "text-red-500")}>
-                          {fmt(price - Number(p.cost_price))}
-                        </span>
-                      </td>
-                      <td className="px-4 py-2.5 text-right">
-                        <span className={cn(
-                          "text-[10px] font-black px-2 py-0.5 rounded-full",
-                          isOk ? "text-emerald-700 bg-emerald-100" : isWarn ? "text-amber-700 bg-amber-100" : "text-red-700 bg-red-100"
-                        )}>
-                          {isOk ? "✓ OK" : isWarn ? "⚠ Atenção" : "✗ Baixo"}
-                        </span>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        </div>
+        <PanelCard
+          data-tour="markup-analysis-table"
+          title="Análise do Catálogo com Parâmetros Atuais"
+          icon={Package}
+          action={<span className="text-[11px] text-slate-500">{productsWithCost.length} produtos com custo</span>}
+          contentClassName="p-0"
+        >
+          <GridTable<Product>
+            noDesktopCard
+            data={analysisPagination.paginatedData}
+            keyExtractor={(p) => p.id}
+            columns={analysisColumns}
+            tableMinWidth={600}
+            pagination={{
+              total: productsWithCost.length,
+              page: analysisPagination.page,
+              pageSize: analysisPagination.pageSize,
+              onPageChange: analysisPagination.setPage,
+              onPageSizeChange: analysisPagination.setPageSize,
+            }}
+          />
+        </PanelCard>
       )}
 
       {/* ── Product Picker Modal ──────────────────────────────────────────── */}
-      <AnimatePresence>
-        {showProductPicker && (
-          <>
-            <motion.div
-              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-              onClick={() => setShowProductPicker(false)}
-              className="fixed inset-0 bg-slate-900/50 z-40 backdrop-blur-sm"
-            />
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }}
-              className="fixed inset-0 z-50 flex items-center justify-center p-4"
-            >
-              <div data-tour="markup-product-picker" className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-5 space-y-4">
-                <div className="flex items-center justify-between">
-                  <h3 className="font-black text-slate-900 text-[15px]">Selecionar Produto</h3>
-                  <button onClick={() => setShowProductPicker(false)} className="p-1.5 hover:bg-slate-100 rounded-lg text-slate-500">
-                    <X size={16} />
-                  </button>
-                </div>
-                <div className="relative">
-                  <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                  <input
-                    autoFocus
-                    value={search}
-                    onChange={(e) => setSearch(e.target.value)}
-                    placeholder="Buscar produto…"
-                    className="w-full pl-9 pr-3 h-9 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
-                </div>
-                <div className="max-h-72 overflow-y-auto space-y-1">
-                  {loading ? (
-                    <p className="text-sm text-slate-400 text-center py-4">Carregando…</p>
-                  ) : filteredProducts.length === 0 ? (
-                    <p className="text-sm text-slate-400 text-center py-4">Nenhum produto encontrado</p>
-                  ) : (
-                    filteredProducts.map((p) => (
-                      <button
-                        key={p.id}
-                        onClick={() => selectProduct(p)}
-                        className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-slate-50 text-left transition-colors"
-                      >
-                        <div className="w-9 h-9 rounded-lg bg-slate-100 overflow-hidden shrink-0">
-                          {p.image_url
-                            ? <img src={p.image_url} className="w-full h-full object-cover" />
-                            : <Package size={14} className="m-auto mt-2 text-slate-400" />}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="font-semibold text-slate-800 text-[13px] truncate">{p.name}</p>
-                          <p className="text-[11px] text-slate-400">
-                            Preço: {fmt(Number(p.price))}
-                            {p.cost_price ? ` · Custo: ${fmt(Number(p.cost_price))}` : " · Sem custo"}
-                          </p>
-                        </div>
-                        {!p.cost_price && (
-                          <span className="text-[9px] text-amber-500 font-bold bg-amber-50 px-1.5 py-0.5 rounded-full shrink-0">Sem custo</span>
-                        )}
-                      </button>
-                    ))
-                  )}
-                </div>
-              </div>
-            </motion.div>
-          </>
-        )}
-      </AnimatePresence>
+      <Modal open={showProductPicker} onClose={() => setShowProductPicker(false)} title="Selecionar Produto" size="md">
+        <div data-tour="markup-product-picker" className="space-y-3">
+          <Input
+            autoFocus
+            iconLeft={<Search size={14} />}
+            aria-label="Buscar produto"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Buscar produto…"
+          />
+          <div className="max-h-72 space-y-1 overflow-y-auto">
+            {loading ? (
+              <p className="py-4 text-center text-xs text-slate-500">Carregando…</p>
+            ) : filteredProducts.length === 0 ? (
+              <p className="py-4 text-center text-xs text-slate-500">Nenhum produto encontrado</p>
+            ) : (
+              filteredProducts.map((p) => (
+                <button
+                  key={p.id}
+                  type="button"
+                  onClick={() => selectProduct(p)}
+                  className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left transition-colors hover:bg-slate-50"
+                >
+                  <div className="h-9 w-9 shrink-0 overflow-hidden rounded-lg bg-slate-100">
+                    {p.image_url
+                      ? <img src={p.image_url} className="h-full w-full object-cover" />
+                      : <Package size={14} className="m-auto mt-2 text-slate-400" />}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-[13px] font-medium text-slate-800">{p.name}</p>
+                    <p className="text-[11px] text-slate-500">
+                      Preço: {fmt(Number(p.price))}
+                      {p.cost_price ? `· Custo: ${fmt(Number(p.cost_price))}` : " · Sem custo"}
+                    </p>
+                  </div>
+                  {!p.cost_price && <Badge size="sm" color="warning">Sem custo</Badge>}
+                </button>
+              ))
+            )}
+          </div>
+        </div>
+      </Modal>
     </div>
+    </PageWrapper>
   );
 }

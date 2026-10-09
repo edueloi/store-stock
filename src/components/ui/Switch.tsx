@@ -1,110 +1,76 @@
-import React, { ReactNode } from "react";
-import { motion } from "motion/react";
-import { cn } from "../../lib/utils";
+import React from "react";
+import { cn } from "@/src/lib/utils";
 
-// ── Switch ─────────────────────────────────────────────────────────────────
-
-type SwitchSize = "sm" | "md" | "lg";
-
-interface SwitchProps {
+interface SwitchProps extends Omit<React.ButtonHTMLAttributes<HTMLButtonElement>, "onChange"> {
   checked: boolean;
-  onChange: (checked: boolean) => void;
+  onCheckedChange?: (checked: boolean) => void;
+  /** Alias de onCheckedChange (API legada). */
+  onChange?: (checked: boolean) => void;
   label?: string;
   description?: string;
-  disabled?: boolean;
-  size?: SwitchSize;
-  /** Color when on */
-  accent?: "blue" | "emerald" | "amber" | "red" | "purple";
-  className?: string;
+  accent?: string;
+  size?: "sm" | "md";
 }
 
-const sizeConfig: Record<SwitchSize, { track: string; thumb: string; thumbOn: string }> = {
-  sm: { track: "w-7 h-4",   thumb: "w-2.5 h-2.5", thumbOn: "translate-x-3.5" },
-  md: { track: "w-10 h-6",  thumb: "w-4 h-4",      thumbOn: "translate-x-[18px]" },
-  lg: { track: "w-12 h-7",  thumb: "w-5 h-5",      thumbOn: "translate-x-[22px]" },
-};
-
-const accentOn: Record<string, string> = {
-  blue:    "bg-blue-500",
-  emerald: "bg-emerald-500",
-  amber:   "bg-amber-500",
-  red:     "bg-red-500",
-  purple:  "bg-purple-500",
-};
-
-export function Switch({
-  checked,
-  onChange,
-  label,
-  description,
-  disabled = false,
-  size = "md",
-  accent = "blue",
-  className,
-}: SwitchProps) {
-  const { track, thumb, thumbOn } = sizeConfig[size];
-
-  return (
-    <label className={cn(
-      "flex items-center gap-3 cursor-pointer select-none group",
-      disabled && "opacity-50 cursor-not-allowed",
-      className
-    )}>
+export const Switch = React.forwardRef<HTMLButtonElement, SwitchProps>(
+  ({ checked, onCheckedChange: onCheckedChangeProp, onChange, label, description, accent: _accent, size = "sm", className, disabled, onClick, ...props }, ref) => {
+    const onCheckedChange = onCheckedChangeProp ?? onChange;
+    const control = (
       <button
+        {...props}
+        aria-label={props["aria-label"] ?? label}
+        ref={ref}
         type="button"
         role="switch"
         aria-checked={checked}
         disabled={disabled}
-        onClick={() => onChange(!checked)}
+        onClick={(event) => {
+          onClick?.(event);
+          if (!event.defaultPrevented && !disabled) {
+            onCheckedChange?.(!checked);
+          }
+        }}
         className={cn(
-          "relative inline-flex items-center shrink-0 rounded-full transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 focus-visible:ring-offset-2",
-          track,
-          checked ? accentOn[accent] : "bg-slate-200 group-hover:bg-slate-300"
+          "relative inline-flex shrink-0 items-center rounded-full border transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/20 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60",
+          size === "sm" ? "h-4 w-7" : "h-5 w-9",
+          checked
+            ? "border-blue-600 bg-blue-600 shadow-none"
+            : "border-zinc-200 bg-zinc-200",
+          className
         )}
       >
-        <motion.span
-          layout
+        <span
           className={cn(
-            "absolute left-[3px] inline-block rounded-full bg-white shadow-sm",
-            thumb
+            "absolute top-0.5 rounded-full bg-white shadow-sm transition-all duration-200",
+            size === "sm" ? "h-2.5 w-2.5" : "h-3.5 w-3.5",
+            checked 
+              ? (size === "sm" ? "left-3.5" : "left-[18px]") 
+              : "left-1"
           )}
-          animate={{ x: checked ? parseInt(thumbOn.replace("translate-x-[", "").replace("px]", "").replace("translate-x-", "")) - 3 : 0 }}
-          transition={{ type: "spring", stiffness: 500, damping: 30 }}
         />
       </button>
-
-      {(label || description) && (
-        <div>
-          {label && (
-            <p className="text-xs font-semibold text-slate-800 leading-none">{label}</p>
-          )}
-          {description && (
-            <p className="text-[10px] text-slate-400 mt-0.5 leading-snug">{description}</p>
-          )}
+    );
+    if (!label && !description) return control;
+    return (
+      <div className="flex items-center gap-2.5">
+        {control}
+        <div className="min-w-0">
+          {label && <p className="text-xs font-medium leading-tight text-slate-800">{label}</p>}
+          {description && <p className="mt-0.5 text-[11px] leading-snug text-slate-500">{description}</p>}
         </div>
-      )}
-    </label>
-  );
-}
+      </div>
+    );
+  }
+);
 
-// ── SwitchGroup ────────────────────────────────────────────────────────────
+Switch.displayName = "Switch";
 
-interface SwitchGroupProps {
-  label?: string;
-  children: ReactNode;
-  className?: string;
-}
-
-export function SwitchGroup({ label, children, className }: SwitchGroupProps) {
+export function SwitchGroup({ label, children, className }: { label?: string; children: React.ReactNode; className?: string }) {
   return (
     <div className={cn("space-y-3", className)}>
-      {label && (
-        <p className="text-[10px] font-black text-slate-600 uppercase tracking-wider">{label}</p>
-      )}
-      <div className="space-y-3 divide-y divide-slate-100">
-        {React.Children.map(children, (child, i) => (
-          <div className={cn(i > 0 && "pt-3")}>{child}</div>
-        ))}
+      {label && <p className="text-xs font-medium text-slate-700">{label}</p>}
+      <div className="divide-y divide-slate-100">
+        {React.Children.map(children, (child, i) => <div className={cn(i > 0 && "pt-3", "pb-3 last:pb-0")}>{child}</div>)}
       </div>
     </div>
   );

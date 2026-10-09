@@ -5,6 +5,7 @@ import {
 } from "lucide-react";
 import PageHeader from "../../components/layout/PageHeader";
 import { cn } from "../../lib/utils";
+import { Button, Select, Badge, FilterLineSearch } from "../../components/ui";
 
 type TerminalTxStatus = "approved" | "denied" | "cancelled" | "pending" | "error";
 
@@ -25,12 +26,12 @@ interface TerminalTx {
   created_at: string;
 }
 
-const STATUS_META: Record<TerminalTxStatus, { label: string; color: string; bg: string; icon: React.ReactNode }> = {
-  approved:  { label: "Aprovada",  color: "text-emerald-600", bg: "bg-emerald-50", icon: <CheckCircle2 size={12} /> },
-  pending:   { label: "Pendente",  color: "text-blue-600",    bg: "bg-blue-50",    icon: <Clock size={12} /> },
-  denied:    { label: "Negada",    color: "text-rose-600",    bg: "bg-rose-50",    icon: <XCircle size={12} /> },
-  cancelled: { label: "Cancelada", color: "text-slate-500",   bg: "bg-slate-100",  icon: <Ban size={12} /> },
-  error:     { label: "Erro",      color: "text-rose-600",    bg: "bg-rose-50",    icon: <AlertTriangle size={12} /> },
+const STATUS_META: Record<TerminalTxStatus, { label: string; color: string; bg: string; icon: React.ReactNode; badge: "success" | "info" | "danger" | "default" }> = {
+  approved:  { label: "Aprovada", badge: "success",  color: "text-emerald-600", bg: "bg-emerald-50", icon: <CheckCircle2 size={12} /> },
+  pending:   { label: "Pendente", badge: "info",  color: "text-blue-600",    bg: "bg-blue-50",    icon: <Clock size={12} /> },
+  denied:    { label: "Negada", badge: "danger",    color: "text-rose-600",    bg: "bg-rose-50",    icon: <XCircle size={12} /> },
+  cancelled: { label: "Cancelada", badge: "default", color: "text-slate-500",   bg: "bg-slate-100",  icon: <Ban size={12} /> },
+  error:     { label: "Erro", badge: "danger",      color: "text-rose-600",    bg: "bg-rose-50",    icon: <AlertTriangle size={12} /> },
 };
 
 const PROVIDER_LABELS: Record<string, string> = {
@@ -148,17 +149,20 @@ export default function TerminalTransactions() {
         title="Relatório de Maquininha"
         subtitle="Transações de cartão nas maquininhas físicas conectadas · NSU, autorização e taxas"
         action={
-          <button
+          <Button
+            variant="outline"
+            size="sm"
             onClick={async () => { setExporting(true); try { await exportToExcel(filtered); } finally { setExporting(false); } }}
-            disabled={exporting || filtered.length === 0}
-            className="h-9 bg-white border border-slate-200 px-4 rounded-xl flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest hover:bg-slate-50 transition-all text-slate-600 shadow-sm disabled:opacity-40"
+            disabled={filtered.length === 0}
+            loading={exporting}
+            iconLeft={<Download size={14} />}
           >
-            {exporting ? <Loader2 size={13} className="animate-spin" /> : <Download size={13} />} Exportar
-          </button>
+            Exportar
+          </Button>
         }
       />
 
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm">
+      <div className="bg-white rounded-lg border border-slate-200 shadow-sm">
         <div className="flex items-center gap-0 border-b border-slate-100 divide-x divide-slate-100">
           {[
             { label: "Total",       value: counts.total,    color: "text-slate-900" },
@@ -167,57 +171,59 @@ export default function TerminalTransactions() {
             { label: "Com erro",    value: counts.error,    color: "text-rose-500" },
           ].map((k) => (
             <div key={k.label} className="flex-1 px-5 py-4 flex flex-col gap-0.5">
-              <span className={cn("text-2xl font-black tracking-tight font-mono leading-none", k.color)}>{k.value}</span>
-              <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">{k.label}</span>
+              <span className={cn("text-2xl font-semibold font-mono leading-none", k.color)}>{k.value}</span>
+              <span className="text-[11px] text-slate-500">{k.label}</span>
             </div>
           ))}
           <div className="flex-1 px-5 py-4 flex flex-col gap-0.5">
-            <span className="text-2xl font-black tracking-tight font-mono leading-none text-slate-900">
+            <span className="text-2xl font-semibold font-mono leading-none text-slate-900">
               {counts.volume.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
             </span>
-            <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Volume Aprovado</span>
+            <span className="text-[11px] text-slate-500">Volume Aprovado</span>
           </div>
         </div>
 
         <div className="flex items-center gap-2 px-4 py-3 flex-wrap">
-          <div className="relative flex-1 min-w-[180px]">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={13} />
-            <input
-              type="text"
+          <div className="flex-1 min-w-[180px]">
+            <FilterLineSearch
+              aria-label="Buscar transações"
               placeholder="Buscar por NSU, autorização, pedido..."
-              className="w-full pl-8 pr-3 h-9 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-400 text-[11px] font-medium placeholder:text-slate-300 transition-all"
               value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
+              onChange={setSearchTerm}
             />
           </div>
-          <select
+          <Select
+            aria-label="Filtrar por maquininha"
             value={providerFilter}
             onChange={(e) => setProviderFilter(e.target.value)}
-            className="h-9 px-3 bg-slate-50 border border-slate-200 rounded-xl text-[11px] font-bold outline-none focus:border-blue-400 transition-all"
+            wrapperClassName="min-w-[170px]"
+            size="sm"
           >
             <option value="all">Todas as maquininhas</option>
             {providersUsed.map((p) => (
               <option key={p} value={p}>{PROVIDER_LABELS[p] ?? p}</option>
             ))}
-          </select>
-          <select
+          </Select>
+          <Select
+            aria-label="Filtrar por status"
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value as TerminalTxStatus | "all")}
-            className="h-9 px-3 bg-slate-50 border border-slate-200 rounded-xl text-[11px] font-bold outline-none focus:border-blue-400 transition-all"
+            wrapperClassName="min-w-[150px]"
+            size="sm"
           >
             <option value="all">Todos os status</option>
             {Object.entries(STATUS_META).map(([key, meta]) => (
               <option key={key} value={key}>{meta.label}</option>
             ))}
-          </select>
+          </Select>
         </div>
 
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse">
             <thead>
-              <tr className="border-t border-slate-100 bg-slate-50/60">
+              <tr className="border-t border-slate-100 bg-zinc-50">
                 {["Data", "Maquininha", "Pedido", "Status", "Modo", "Bandeira", "NSU", "Autorização", "Valor"].map((h) => (
-                  <th key={h} className="px-4 py-2.5 text-[9px] font-black text-slate-400 uppercase tracking-widest whitespace-nowrap">{h}</th>
+                  <th key={h} className="px-4 py-2.5 text-[11px] text-slate-500 whitespace-nowrap">{h}</th>
                 ))}
               </tr>
             </thead>
@@ -235,22 +241,20 @@ export default function TerminalTransactions() {
                     <td className="px-4 py-2.5 text-xs text-slate-500 whitespace-nowrap">
                       {new Date(t.created_at).toLocaleString("pt-BR")}
                     </td>
-                    <td className="px-4 py-2.5 text-xs font-bold text-slate-700 flex items-center gap-1.5">
+                    <td className="px-4 py-2.5 text-xs font-semibold text-slate-700 flex items-center gap-1.5">
                       <Terminal size={12} className="text-slate-400" /> {PROVIDER_LABELS[t.provider] ?? t.provider}
                     </td>
                     <td className="px-4 py-2.5 text-xs font-mono text-blue-600">
                       {t.order_id ? `#${String(t.order_id).padStart(6, "0")}` : "—"}
                     </td>
                     <td className="px-4 py-2.5">
-                      <span className={cn("inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wide", meta.bg, meta.color)}>
-                        {meta.icon} {meta.label}
-                      </span>
+                      <Badge size="sm" color={meta.badge} icon={meta.icon}>{meta.label}</Badge>
                     </td>
                     <td className="px-4 py-2.5 text-xs text-slate-500">{t.mode === "debit" ? "Débito" : "Crédito"}{t.installments > 1 ? ` ${t.installments}x` : ""}</td>
-                    <td className="px-4 py-2.5 text-xs text-slate-500 uppercase">{t.brand ?? "—"}</td>
-                    <td className="px-4 py-2.5 text-[10px] font-mono text-slate-400">{t.nsu ?? "—"}</td>
-                    <td className="px-4 py-2.5 text-[10px] font-mono text-slate-400">{t.authorization_code ?? "—"}</td>
-                    <td className="px-4 py-2.5 text-xs font-bold font-mono text-slate-700">
+                    <td className="px-4 py-2.5 text-xs text-slate-500">{t.brand ?? "—"}</td>
+                    <td className="px-4 py-2.5 text-[11px] font-mono text-slate-400">{t.nsu ?? "—"}</td>
+                    <td className="px-4 py-2.5 text-[11px] font-mono text-slate-400">{t.authorization_code ?? "—"}</td>
+                    <td className="px-4 py-2.5 text-xs font-semibold font-mono text-slate-700">
                       {Number(t.amount).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
                     </td>
                   </tr>

@@ -58,7 +58,8 @@ export function buildDebtPaymentReceiptText(
   text += thermalRow("Data", dateTimeShort(paidAt)) + "\n";
   text += thermalRow("Cliente", receipt.customerName) + "\n";
   text += thermalRow("Referente a", receipt.debtDescription) + "\n";
-  text += thermalRow("Parcela", `${receipt.installmentNumber}/${receipt.installmentsTotal}`) + "\n";
+  // Pagamentos avulsos (sem parcela específica) não mostram a linha de parcela.
+  if (receipt.installmentNumber > 0) text += thermalRow("Parcela", `${receipt.installmentNumber}/${receipt.installmentsTotal}`) + "\n";
   text += `${thermalThin}\n`;
   text += thermalRow("Forma de pagamento", receipt.paymentMethod) + "\n";
   text += `${thermalRule}\n`;

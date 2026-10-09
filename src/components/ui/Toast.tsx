@@ -34,23 +34,11 @@ export function useToast() {
 
 // ── Config ─────────────────────────────────────────────────────────────────
 
-const variantConfig: Record<ToastVariant, { icon: ReactNode; classes: string }> = {
-  success: {
-    icon: <CheckCircle2 size={15} />,
-    classes: "bg-emerald-50 border-emerald-200 text-emerald-800",
-  },
-  error: {
-    icon: <XCircle size={15} />,
-    classes: "bg-red-50 border-red-200 text-red-800",
-  },
-  warning: {
-    icon: <AlertTriangle size={15} />,
-    classes: "bg-amber-50 border-amber-200 text-amber-800",
-  },
-  info: {
-    icon: <Info size={15} />,
-    classes: "bg-blue-50 border-blue-200 text-blue-800",
-  },
+const variantConfig: Record<ToastVariant, { icon: ReactNode }> = {
+  success: { icon: <CheckCircle2 size={20} color="#10b981" /> },
+  error: { icon: <XCircle size={20} color="#ef4444" /> },
+  warning: { icon: <AlertTriangle size={20} color="#f59e0b" /> },
+  info: { icon: <Info size={20} color="#60a5fa" /> },
 };
 
 // ── Provider ───────────────────────────────────────────────────────────────
@@ -63,7 +51,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const toast = useCallback(
-    (message: string, variant: ToastVariant = "info", duration = 4000) => {
+    (message: string, variant: ToastVariant = "info", duration = 3000) => {
       const id = Math.random().toString(36).slice(2);
       setToasts((prev) => [...prev, { id, message, variant, duration }]);
       setTimeout(() => dismiss(id), duration);
@@ -83,10 +71,10 @@ export function ToastProvider({ children }: { children: ReactNode }) {
     <ToastContext.Provider value={value}>
       {children}
       {/* Container */}
-      <div className="pointer-events-none fixed bottom-[calc(4rem+env(safe-area-inset-bottom,0px))] left-3 right-3 z-[200] flex flex-col gap-2 sm:bottom-4 sm:left-auto sm:right-4">
+      <div className="pointer-events-none fixed left-4 right-4 top-4 z-[200] flex flex-col items-end gap-2">
         <AnimatePresence initial={false}>
           {toasts.map((t) => {
-            const { icon, classes } = variantConfig[t.variant];
+            const { icon } = variantConfig[t.variant];
             return (
               <motion.div
                 key={t.id}
@@ -94,16 +82,14 @@ export function ToastProvider({ children }: { children: ReactNode }) {
                 animate={{ opacity: 1, y: 0, scale: 1 }}
                 exit={{ opacity: 0, y: 8, scale: 0.95 }}
                 transition={{ type: "spring", damping: 26, stiffness: 320 }}
-                className={cn(
-                  "pointer-events-auto flex w-full min-w-0 items-center gap-3 rounded-xl border px-4 py-3 shadow-lg sm:min-w-[220px] sm:max-w-[360px]",
-                  classes
-                )}
+                role={t.variant === "error" ? "alert" : "status"}
+                className="pointer-events-auto flex min-w-0 max-w-[min(350px,calc(100vw-32px))] items-center gap-2.5 rounded-lg bg-[#363636] px-2.5 py-2 text-[13px] font-semibold leading-snug text-white shadow-[0_3px_10px_rgb(0_0_0/10%),0_3px_3px_rgb(0_0_0/5%)]"
               >
                 <span className="shrink-0">{icon}</span>
                 <span className="min-w-0 flex-1 break-words leading-snug">{t.message}</span>
                 <button
                   onClick={() => dismiss(t.id)}
-                  className="shrink-0 opacity-60 hover:opacity-100 transition-opacity"
+                  aria-label="Fechar notificação" className="shrink-0 rounded p-1 opacity-60 transition-opacity hover:opacity-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-white"
                 >
                   <X size={13} />
                 </button>

@@ -1,5 +1,7 @@
 import { PlusCircle, X } from "lucide-react";
 import { cn } from "../lib/utils";
+import { Button, IconButton } from "./ui/Button";
+import { Input } from "./ui/Input";
 import { CARD_BRANDS, CardBrand } from "../lib/payment-constants";
 
 export interface PaymentSegment {
@@ -63,30 +65,31 @@ export default function PaymentSegmentsEditor({
   return (
     <div className="space-y-3">
       {segments.map((seg) => (
-        <div key={seg.id} className="bg-white border border-slate-200 rounded-2xl p-3 space-y-2.5 shadow-sm">
+        <div key={seg.id} className="bg-white border border-slate-200 rounded-lg p-3 space-y-2.5">
           <div className="flex items-center gap-2">
-            <div className="flex bg-slate-100 border border-slate-200 rounded-xl p-0.5 gap-0.5 flex-1">
+            <div className="flex bg-slate-100 border border-slate-200 rounded-lg p-0.5 gap-0.5 flex-1">
               {(["money", "pix", "debit", "credit"] as const).map((m) => {
                 const colors = METHOD_COLORS[m];
                 return (
                   <button key={m} onClick={() => setMethod(seg.id, m)}
-                    className={cn("flex-1 h-8 rounded-lg text-[9px] font-black uppercase tracking-wide transition-all cursor-pointer",
-                      seg.method === m ? `${colors.bg} text-white shadow-md` : "text-slate-500 hover:text-slate-700 hover:bg-white")}>
+                    className={cn("flex-1 h-8 rounded-lg text-[10px] font-semibold transition-all cursor-pointer",
+                      seg.method === m ? `${colors.bg} text-white shadow-sm` : "text-slate-500 hover:text-slate-700 hover:bg-white")}>
                     {METHOD_LABELS[m]}
                   </button>
                 );
               })}
             </div>
-            <input
+            <Input
               type="number" min="0" step="0.01" placeholder="0,00"
               value={seg.amount}
               onChange={(e) => updateSegment(seg.id, { amount: e.target.value })}
-              className="w-24 h-9 px-2.5 bg-white border border-slate-200 rounded-xl text-[13px] font-mono font-bold text-right focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 shadow-sm"
+              wrapperClassName="w-24 shrink-0"
+              className="font-mono text-right"
             />
             {segments.length > 1 && (
-              <button onClick={() => removeSegment(seg.id)} className="w-7 h-7 rounded-lg bg-slate-100 hover:bg-red-50 text-slate-400 hover:text-red-500 transition-colors shrink-0 flex items-center justify-center cursor-pointer">
+              <IconButton variant="ghost" size="sm" aria-label="Remover forma de pagamento" onClick={() => removeSegment(seg.id)}>
                 <X size={13} />
-              </button>
+              </IconButton>
             )}
           </div>
 
@@ -97,8 +100,8 @@ export default function PaymentSegmentsEditor({
               <div className={`grid ${cols} gap-1.5`}>
                 {activeB.map(({ key, label, color }) => (
                   <button key={key} onClick={() => updateSegment(seg.id, { cardBrand: key })}
-                    className={cn("h-8 rounded-xl border text-[8px] font-black uppercase tracking-widest transition-all cursor-pointer",
-                      seg.cardBrand === key ? "text-white border-transparent shadow-md" : "bg-white border-slate-200 text-slate-500 hover:border-slate-400")}
+                    className={cn("h-8 rounded-lg border text-[10px] font-semibold transition-all cursor-pointer",
+                      seg.cardBrand === key ? "text-white border-transparent shadow-sm" : "bg-white border-slate-200 text-slate-500 hover:border-slate-400")}
                     style={seg.cardBrand === key ? { backgroundColor: color } : {}}>
                     {label}
                   </button>
@@ -117,11 +120,11 @@ export default function PaymentSegmentsEditor({
                   const isActive = seg.installments === n;
                   return (
                     <button key={n} onClick={() => updateSegment(seg.id, { installments: n })}
-                      className={cn("rounded-xl border transition-all flex flex-col items-center justify-center py-2 px-1 gap-0.5 cursor-pointer",
-                        isActive ? "bg-emerald-600 border-emerald-500 text-white shadow-md" : "bg-white border-slate-200 text-slate-500 hover:border-emerald-300 hover:bg-emerald-50")}>
-                      <span className="text-[9px] font-black uppercase tracking-widest">{n === 1 ? "À vista" : `${n}×`}</span>
+                      className={cn("rounded-lg border transition-all flex flex-col items-center justify-center py-2 px-1 gap-0.5 cursor-pointer",
+                        isActive ? "bg-emerald-600 border-emerald-500 text-white shadow-sm" : "bg-white border-slate-200 text-slate-500 hover:border-emerald-300 hover:bg-emerald-50")}>
+                      <span className="text-[10px] font-semibold">{n === 1 ? "À vista" : `${n}×`}</span>
                       {rate > 0 && (
-                        <span className={cn("text-[7px] font-bold", isActive ? "text-emerald-200" : "text-amber-500")}>+{rate}%</span>
+                        <span className={cn("text-[7px] font-semibold", isActive ? "text-emerald-200" : "text-amber-500")}>+{rate}%</span>
                       )}
                     </button>
                   );
@@ -133,12 +136,11 @@ export default function PaymentSegmentsEditor({
       ))}
 
       <div className="flex items-center justify-between gap-2">
-        <button onClick={addSegment}
-          className="h-9 px-3.5 bg-white border border-slate-200 rounded-xl text-[10px] font-black uppercase tracking-wide text-slate-500 hover:border-blue-300 hover:text-blue-600 hover:bg-blue-50 transition-all flex items-center gap-1.5 cursor-pointer shadow-sm">
-          <PlusCircle size={14} /> Forma de pagamento
-        </button>
+        <Button variant="outline" size="md" iconLeft={<PlusCircle size={14} />} onClick={addSegment}>
+          Forma de pagamento
+        </Button>
         {Math.abs(diff) > 0.005 && (
-          <span className={cn("text-[10px] font-bold", diff > 0 ? "text-amber-600" : "text-red-600")}>
+          <span className={cn("text-[11px] font-semibold", diff > 0 ? "text-amber-600" : "text-red-600")}>
             {diff > 0
               ? allowPartial
                 ? `Pagamento parcial: R$ ${diff.toFixed(2)} permanecerá em aberto`

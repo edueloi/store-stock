@@ -24,10 +24,10 @@ import {
   ShieldAlert,
   HelpCircle,
 } from "lucide-react";
-import { motion, AnimatePresence } from "motion/react";
+import React from "react";
 import { cn } from "../../lib/utils";
-import PageHeader from "../../components/layout/PageHeader";
-import Button from "../../components/ui/Button";
+import { Button, IconButton, Input, Textarea, Select, Modal, ModalFooter, Badge, Alert, EmptyState, ContentCard, PanelCard, DetailField, SectionTitle, StatGrid, StatCard, Tabs, GridTable, usePagination, FilterLine, FilterLineSection, FilterLineSearch } from "../../components/ui";
+import type { Column } from "../../components/ui";
 import Combobox from "../../components/ui/Combobox";
 import { useToast } from "../../components/ui/Toast";
 import { onRealtime } from "../../lib/realtime";
@@ -207,6 +207,45 @@ function isOverdue(c: Consignment): boolean {
   return c.status === "aberta" && new Date(c.due_date).getTime() < Date.now();
 }
 
+const STATUS_BADGE: Record<DerivedStatus, "primary" | "success" | "danger" | "purple" | "warning"> = {
+  aberta: "primary",
+  fechada: "success",
+  cancelada: "danger",
+  parcial: "purple",
+  vencendo_hoje: "warning",
+  atrasada: "danger",
+};
+
+type ConsignmentFilter = "all" | "overdue" | "vencendo_hoje" | "parcial" | ConsignmentStatus;
+type CreateTab = "dados" | "produtos";
+type DetailTab = "items" | "history";
+type ResolveTab = "itens" | "pagamento";
+
+const STATUS_FILTER_TABS = [
+  { id: "all", label: "Todas", icon: ShoppingBag },
+  { id: "overdue", label: "Em Atraso", icon: AlertTriangle },
+  { id: "vencendo_hoje", label: "Vencendo Hoje", icon: Clock },
+  { id: "parcial", label: "Parcial", icon: Package },
+  { id: "aberta", label: "Aberta", icon: Clock },
+  { id: "fechada", label: "Fechada", icon: CheckCircle2 },
+  { id: "cancelada", label: "Cancelada", icon: XCircle },
+] as const satisfies readonly { id: ConsignmentFilter; label: string; icon: React.ElementType }[];
+
+const CREATE_TABS = [
+  { id: "dados", label: "Dados", icon: UserPlus },
+  { id: "produtos", label: "Produtos", icon: Package },
+] as const satisfies readonly { id: CreateTab; label: string; icon: React.ElementType; badge?: number }[];
+
+const DETAIL_TABS = [
+  { id: "items", label: "Itens", icon: Package },
+  { id: "history", label: "Histórico", icon: History },
+] as const satisfies readonly { id: DetailTab; label: string; icon: React.ElementType }[];
+
+const RESOLVE_TABS = [
+  { id: "itens", label: "Itens", icon: Package },
+  { id: "pagamento", label: "Pagamento", icon: Banknote },
+] as const satisfies readonly { id: ResolveTab; label: string; icon: React.ElementType; disabled?: boolean }[];
+
 // ─── Main Component ───────────────────────────────────────────────────────────
 
 export default function Consignments() {
@@ -219,7 +258,7 @@ export default function Consignments() {
   const [tenant, setTenant] = useState<Tenant | null>(null);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
-  const [statusFilter, setStatusFilter] = useState<"all" | "overdue" | "vencendo_hoje" | "parcial" | ConsignmentStatus>("all");
+  const [statusFilter, setStatusFilter] = useState<ConsignmentFilter>("all");
 
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState(emptyForm());
@@ -234,7 +273,7 @@ export default function Consignments() {
   const [productSearch, setProductSearch] = useState("");
 
   const [selected, setSelected] = useState<Consignment | null>(null);
-  const [detailTab, setDetailTab] = useState<"items" | "history">("items");
+  const [detailTab, setDetailTab] = useState<DetailTab>("items");
   const [resolutions, setResolutions] = useState<Record<number, ItemResolution>>({});
 
   const [showResolveModal, setShowResolveModal] = useState(false);
@@ -249,6 +288,11 @@ export default function Consignments() {
   const [savingEdit, setSavingEdit] = useState(false);
 
   const [reopening, setReopening] = useState(false);
+  const [createTab, setCreateTab] = useState<CreateTab>("dados");
+  const [resolveTab, setResolveTab] = useState<ResolveTab>("itens");
+
+  useEffect(() => { if (showForm) setCreateTab("dados"); }, [showForm]);
+  useEffect(() => { if (showResolveModal) setResolveTab("itens"); }, [showResolveModal]);
 
   const consignmentsPageTourRef = useRef<ConsignmentsPageTourHandle>(null);
 
@@ -579,24 +623,65 @@ export default function Consignments() {
   const dueTodayCount = consignments.filter((c) => displayStatus(c) === "vencendo_hoje").length;
   const partialCount = consignments.filter((c) => displayStatus(c) === "parcial").length;
 
+  const consignmentsPagination = usePagination(filtered, 15);
+  const statusTabItems = STATUS_FILTER_TABS.map((t) => ({
+    ...t,
+    badge:
+      t.id === "all" ? consignments.length :
+      t.id === "overdue" ? overdueCount :
+      t.id === "vencendo_hoje" ? dueTodayCount :
+      t.id === "parcial" ? partialCount :
+      statusCounts[t.id],
+  }));
+  const formatBagNumber = (n: number) => `#${String(n).padStart(4, "0")}`;
+
+  const columns: Column<Consignment>[] = [
+    { header: "Número", render: (c) => <span className="text-xs font-semibold tabular-nums text-slate-700">{formatBagNumber(c.number)}</span> },
+    { header: "Cliente", render: (c) => <span className="break-words text-xs font-medium text-slate-800">{c.customer_name}</span> },
+    { header: "Itens", render: (c) => <span className="text-xs text-slate-500">{c.items.length} item(ns)</span> },
+    {
+      header: "Status",
+      render: (c) => {
+        const d = displayStatus(c);
+        return <Badge color={STATUS_BADGE[d]} icon={DERIVED_STATUS_META[d].icon}>{DERIVED_STATUS_META[d].label}</Badge>;
+      },
+    },
+    {
+      header: "Prazo",
+      render: (c) => isOverdue(c)
+        ? <Badge color="danger" icon={<AlertTriangle size={11} />}>Em Atraso</Badge>
+        : <span className="text-xs text-slate-500">{new Date(c.due_date).toLocaleDateString("pt-BR")}</span>,
+    },
+    {
+      header: "Valor",
+      className: "text-right",
+      headerClassName: "text-right",
+      render: (c) => (
+        <span className="whitespace-nowrap text-xs font-semibold tabular-nums text-slate-700">
+          {fmt(c.items.reduce((s, it) => s + Number(it.unit_price) * it.quantity, 0))}
+        </span>
+      ),
+    },
+    { header: "Data", render: (c) => <span className="text-xs text-slate-500">{new Date(c.created_at).toLocaleDateString("pt-BR")}</span> },
+  ];
+
+  const sellerOptions = sellers.map((s) => <option key={s.id} value={s.id}>{s.name}</option>);
+
   return (
-    <div data-tour="consignments-page" className="space-y-5">
-      <PageHeader
+    <div data-tour="consignments-page" className="space-y-4">
+      <SectionTitle
         title="Consignação"
-        subtitle="Envie produtos para o cliente avaliar e fature o que ficou"
+        icon={ShoppingBag}
+        description="Envie produtos para o cliente avaliar e fature o que ficou"
         action={
-          <div className="flex gap-2 items-center flex-wrap">
-            <button
-              data-tour="consignments-new-btn"
-              onClick={() => setShowForm(true)}
-              className="h-9 px-4 bg-blue-600 text-white rounded-lg flex items-center gap-2 text-[12px] font-bold hover:bg-blue-700 transition-all shadow-md shadow-blue-500/20"
-            >
-              <Plus size={15} /> Nova Sacola
-            </button>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button data-tour="consignments-new-btn" size="sm" iconLeft={<Plus size={14} />} onClick={() => setShowForm(true)}>
+              Nova Sacola
+            </Button>
             <Button
-              variant="secondary"
-              className="text-slate-400 hover:text-blue-600 hover:bg-blue-50 border-slate-200 hover:border-blue-300"
-              icon={<HelpCircle size={14} />}
+              variant="outline"
+              size="sm"
+              iconLeft={<HelpCircle size={14} />}
               onClick={() => consignmentsPageTourRef.current?.start()}
               title="Tour guiado desta página"
             >
@@ -609,865 +694,609 @@ export default function Consignments() {
       <ConsignmentsPageTour ref={consignmentsPageTourRef} />
 
       {/* Stat cards */}
-      <div data-tour="consignments-stat-cards" className="grid grid-cols-2 lg:grid-cols-5 gap-3">
-        <div className="rounded-xl p-4 border border-blue-100 bg-blue-50/50 shadow-sm">
-          <p className="text-[9px] font-black uppercase tracking-widest text-blue-500 mb-1">Abertas</p>
-          <p className="text-[22px] font-black text-slate-800">{statusCounts.aberta ?? 0}</p>
-        </div>
-        <div className="rounded-xl p-4 border border-amber-100 bg-amber-50/50 shadow-sm">
-          <p className="text-[9px] font-black uppercase tracking-widest text-amber-500 mb-1">Vencendo Hoje</p>
-          <p className="text-[22px] font-black text-slate-800">{dueTodayCount}</p>
-        </div>
-        <div className="rounded-xl p-4 border border-red-100 bg-red-50/50 shadow-sm">
-          <p className="text-[9px] font-black uppercase tracking-widest text-red-500 mb-1">Em Atraso</p>
-          <p className="text-[22px] font-black text-slate-800">{overdueCount}</p>
-        </div>
-        <div className="rounded-xl p-4 border border-emerald-100 bg-emerald-50/50 shadow-sm">
-          <p className="text-[9px] font-black uppercase tracking-widest text-emerald-500 mb-1">Fechadas</p>
-          <p className="text-[22px] font-black text-slate-800">{statusCounts.fechada ?? 0}</p>
-        </div>
-        <div className="rounded-xl p-4 border border-slate-200 bg-slate-50 shadow-sm">
-          <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-1">Valor em Sacolas</p>
-          <p className="text-[22px] font-black text-slate-800">
-            {fmt(consignments.filter((c) => c.status === "aberta").reduce((sum, c) => sum + c.items.reduce((s, it) => s + Number(it.unit_price) * it.quantity, 0), 0))}
-          </p>
-        </div>
+      <div data-tour="consignments-stat-cards">
+        <StatGrid cols={4}>
+          <StatCard title="Abertas" value={statusCounts.aberta ?? 0} icon={Clock} color="info" />
+          <StatCard title="Vencendo Hoje" value={dueTodayCount} icon={AlertTriangle} color="warning" />
+          <StatCard title="Em Atraso" value={overdueCount} icon={AlertTriangle} color="danger" />
+          <StatCard
+            title="Valor em Sacolas"
+            value={fmt(consignments.filter((c) => c.status === "aberta").reduce((sum, c) => sum + c.items.reduce((s, it) => s + Number(it.unit_price) * it.quantity, 0), 0))}
+            icon={ShoppingBag}
+            color="default"
+          />
+        </StatGrid>
       </div>
 
       {/* Search */}
-      <div className="relative max-w-md">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
-        <input
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          placeholder="Buscar por número ou cliente..."
-          className="w-full pl-9 pr-4 h-10 bg-white rounded-xl text-[12px] font-medium border border-slate-200 focus:outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 transition-all"
-        />
-      </div>
+      <FilterLine>
+        <FilterLineSection grow>
+          <FilterLineSearch
+            aria-label="Buscar consignação"
+            value={searchTerm}
+            onChange={setSearchTerm}
+            placeholder="Buscar por número ou cliente..."
+          />
+        </FilterLineSection>
+        <FilterLineSection>
+          <span className="text-xs text-slate-500">{filtered.length} sacola(s)</span>
+        </FilterLineSection>
+      </FilterLine>
 
-      {/* Status tabs */}
-      <div data-tour="consignments-status-tabs" className="flex gap-1.5 overflow-x-auto pb-1">
-        <button
-          onClick={() => setStatusFilter("all")}
-          className={cn(
-            "shrink-0 h-8 px-3 rounded-lg text-[10px] font-black uppercase tracking-wider border transition-all",
-            statusFilter === "all" ? "bg-slate-900 border-slate-900 text-white" : "bg-white border-slate-200 text-slate-500 hover:border-slate-300"
-          )}
-        >
-          Todas ({consignments.length})
-        </button>
-        <button
-          onClick={() => setStatusFilter("overdue")}
-          className={cn(
-            "shrink-0 h-8 px-3 rounded-lg text-[10px] font-black uppercase tracking-wider border transition-all flex items-center gap-1.5",
-            statusFilter === "overdue" ? "bg-red-600 border-red-600 text-white" : "bg-white border-red-200 text-red-500 hover:border-red-300"
-          )}
-        >
-          <AlertTriangle size={12} /> Em Atraso ({overdueCount})
-        </button>
-        <button
-          onClick={() => setStatusFilter("vencendo_hoje")}
-          className={cn(
-            "shrink-0 h-8 px-3 rounded-lg text-[10px] font-black uppercase tracking-wider border transition-all flex items-center gap-1.5",
-            statusFilter === "vencendo_hoje" ? "bg-amber-600 border-amber-600 text-white" : "bg-white border-amber-200 text-amber-600 hover:border-amber-300"
-          )}
-        >
-          <AlertTriangle size={12} /> Vencendo Hoje ({dueTodayCount})
-        </button>
-        <button
-          onClick={() => setStatusFilter("parcial")}
-          className={cn(
-            "shrink-0 h-8 px-3 rounded-lg text-[10px] font-black uppercase tracking-wider border transition-all flex items-center gap-1.5",
-            statusFilter === "parcial" ? "bg-violet-600 border-violet-600 text-white" : "bg-white border-violet-200 text-violet-600 hover:border-violet-300"
-          )}
-        >
-          <ShoppingBag size={12} /> Parcial ({partialCount})
-        </button>
-        {STATUS_ORDER.map((s) => (
-          <button
-            key={s}
-            onClick={() => setStatusFilter(s)}
-            className={cn(
-              "shrink-0 h-8 px-3 rounded-lg text-[10px] font-black uppercase tracking-wider border transition-all flex items-center gap-1.5",
-              statusFilter === s ? "bg-slate-900 border-slate-900 text-white" : "bg-white border-slate-200 text-slate-500 hover:border-slate-300"
-            )}
-          >
-            {STATUS_META[s].icon} {STATUS_META[s].label} ({statusCounts[s]})
-          </button>
-        ))}
+      {/* Abas por situação */}
+      <div data-tour="consignments-status-tabs">
+        <Tabs<ConsignmentFilter> items={statusTabItems} value={statusFilter} onChange={setStatusFilter} label="Situação das sacolas">
+          {null}
+        </Tabs>
       </div>
 
       {/* List */}
-      <div data-tour="consignments-table" className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
-        {loading ? (
-          <div className="p-10 text-center text-slate-400 text-[12px] font-bold">Carregando...</div>
-        ) : filtered.length === 0 ? (
-          <div className="p-10 text-center text-slate-400 text-[12px] font-bold">Nenhuma consignação encontrada</div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-[12px]">
-              <thead>
-                <tr className="border-b border-slate-100 text-left text-[9px] font-black uppercase tracking-widest text-slate-400">
-                  <th className="px-4 py-3">Número</th>
-                  <th className="px-4 py-3">Cliente</th>
-                  <th className="px-4 py-3">Itens</th>
-                  <th className="px-4 py-3">Status</th>
-                  <th className="px-4 py-3">Prazo</th>
-                  <th className="px-4 py-3 text-right">Valor</th>
-                  <th className="px-4 py-3">Data</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filtered.map((c) => {
-                  const overdue = isOverdue(c);
-                  const dstatus = displayStatus(c);
-                  const total = c.items.reduce((s, it) => s + Number(it.unit_price) * it.quantity, 0);
-                  return (
-                    <tr
-                      key={c.id}
-                      onClick={() => openDetail(c)}
-                      className={cn(
-                        "border-b border-slate-50 last:border-0 hover:bg-slate-50 cursor-pointer transition-colors",
-                        overdue && "bg-red-50/40"
-                      )}
-                    >
-                      <td className="px-4 py-3 font-mono font-bold text-slate-700">#{String(c.number).padStart(4, "0")}</td>
-                      <td className="px-4 py-3 font-semibold text-slate-700">{c.customer_name}</td>
-                      <td className="px-4 py-3 text-slate-500">{c.items.length} item(ns)</td>
-                      <td className="px-4 py-3">
-                        <span className={cn("inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider", DERIVED_STATUS_META[dstatus].color)}>
-                          {DERIVED_STATUS_META[dstatus].icon} {DERIVED_STATUS_META[dstatus].label}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3">
-                        {overdue ? (
-                          <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider text-red-600 bg-red-50">
-                            <AlertTriangle size={11} /> Em Atraso
-                          </span>
-                        ) : (
-                          <span className="text-slate-400">{new Date(c.due_date).toLocaleDateString("pt-BR")}</span>
-                        )}
-                      </td>
-                      <td className="px-4 py-3 text-right font-mono font-bold text-slate-700">{fmt(total)}</td>
-                      <td className="px-4 py-3 text-slate-400">{new Date(c.created_at).toLocaleDateString("pt-BR")}</td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        )}
+      <div data-tour="consignments-table">
+        <ContentCard padding="none" className="overflow-hidden">
+          <GridTable<Consignment>
+            noDesktopCard
+            data={consignmentsPagination.paginatedData}
+            columns={columns}
+            keyExtractor={(c) => c.id}
+            isLoading={loading}
+            onRowClick={openDetail}
+            emptyMessage={<EmptyState icon={ShoppingBag} title="Nenhuma consignação encontrada" description={searchTerm ? "Ajuste a busca para ver outras sacolas." : undefined} />}
+            pagination={{
+              total: filtered.length,
+              page: consignmentsPagination.page,
+              pageSize: consignmentsPagination.pageSize,
+              onPageChange: consignmentsPagination.setPage,
+              onPageSizeChange: consignmentsPagination.setPageSize,
+            }}
+          />
+        </ContentCard>
       </div>
 
       {/* ── CREATE MODAL ─────────────────────────────────────────────────── */}
-      <AnimatePresence>
-        {showForm && (
-          <>
-            <motion.div
-              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-              onClick={() => setShowForm(false)}
-              className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[300]"
-            />
-            <motion.div
-              initial={{ opacity: 0, y: 16, scale: 0.98 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 12, scale: 0.98 }}
-              transition={{ type: "spring", damping: 32, stiffness: 300 }}
-              className="fixed inset-x-4 bottom-4 sm:inset-auto sm:top-1/2 sm:left-1/2 sm:-translate-x-1/2 sm:-translate-y-1/2 z-[301] bg-white flex flex-col overflow-hidden rounded-3xl"
-              style={{ width: "min(640px, calc(100vw - 32px))", height: "min(720px, calc(100vh - 48px))" }}
+      <Modal
+        open={showForm}
+        onClose={() => setShowForm(false)}
+        size="lg"
+        title="Nova Sacola de Consignação"
+        footer={
+          <ModalFooter>
+            <Button variant="outline" onClick={() => setShowForm(false)}>Cancelar</Button>
+            <Button
+              onClick={handleCreate}
+              loading={saving}
+              iconLeft={<ShoppingBag size={14} />}
+              disabled={saving || !form.customer_name || draftItems.length === 0 || !!selectedCustomer?.risk_flag || overLimit}
             >
-              <div className="shrink-0 flex items-center justify-between px-6 py-4 border-b border-slate-100">
-                <h2 className="text-[15px] font-black text-slate-800">Nova Sacola de Consignação</h2>
-                <button onClick={() => setShowForm(false)} className="w-9 h-9 rounded-xl bg-slate-100 hover:bg-slate-200 flex items-center justify-center">
-                  <X size={16} className="text-slate-500" />
-                </button>
-              </div>
-
-              <div className="flex-1 overflow-y-auto p-6 space-y-5">
-                {/* Cliente */}
-                <div data-tour="consignments-form-customer">
-                  <label className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400 mb-1.5 block">Cliente</label>
-                  <div className="flex gap-2">
-                    <div className="flex-1 min-w-0">
-                      <Combobox
-                        placeholder="Buscar por nome ou telefone..."
-                        searchPlaceholder="Nome ou telefone..."
-                        clearable
-                        freeInput
-                        value={form.customer_id !== null ? String(form.customer_id) : form.customer_name}
-                        onChange={(v) => {
-                          if (!v) {
-                            setForm((f) => ({ ...f, customer_id: null, customer_name: "" }));
-                            return;
-                          }
-                          const cust = customers.find((c) => String(c.id) === v);
-                          if (cust) {
-                            setForm((f) => ({ ...f, customer_id: cust.id, customer_name: cust.name, customer_phone: cust.phone ?? f.customer_phone }));
-                          } else {
-                            setForm((f) => ({ ...f, customer_id: null, customer_name: v }));
-                          }
-                        }}
-                        options={customers.map((c) => ({ value: String(c.id), label: c.name, description: c.phone }))}
-                        onAddNew={(q) => {
-                          setNcName(q); setNcPhone("");
-                          setShowNewCustomer(true);
-                        }}
-                      />
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => { setNcName(""); setNcPhone(""); setShowNewCustomer(true); }}
-                      className="h-10 w-10 rounded-xl bg-blue-50 border border-blue-200 text-blue-600 hover:bg-blue-100 flex items-center justify-center shrink-0 transition-colors"
-                      title="Cadastrar novo cliente"
-                    >
-                      <UserPlus size={15} />
-                    </button>
-                  </div>
-                  <input
-                    value={form.customer_phone}
-                    onChange={(e) => setForm((f) => ({ ...f, customer_phone: e.target.value }))}
-                    placeholder="Telefone"
-                    className="w-full mt-2 h-10 px-3 rounded-xl border border-slate-200 text-[12px] font-medium focus:outline-none focus:border-blue-400"
-                  />
-                  {customerOpenConsignments.length > 0 && (
-                    <div className="mt-2 flex items-start gap-2 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2.5 text-[11px] text-amber-700">
-                      <AlertTriangle size={14} className="shrink-0 mt-0.5" />
-                      <span>
-                        Este cliente já tem {customerOpenConsignments.length === 1 ? "uma sacola aberta" : `${customerOpenConsignments.length} sacolas abertas`} (
-                        {customerOpenConsignments.map((c) => `#${String(c.number).padStart(4, "0")}`).join(", ")}
-                        ). Você pode criar outra mesmo assim.
-                      </span>
-                    </div>
-                  )}
-                  {selectedCustomer?.risk_flag && (
-                    <div className="mt-2 flex items-start gap-2 bg-red-50 border border-red-200 rounded-xl px-3 py-2.5 text-[11px] text-red-700">
-                      <ShieldAlert size={14} className="shrink-0 mt-0.5" />
-                      <span>Este cliente está marcado como risco — não será possível criar consignação para ele.</span>
-                    </div>
-                  )}
-                  {consignmentLimit > 0 && (
-                    <div className={cn(
-                      "mt-2 grid grid-cols-3 gap-2 rounded-xl px-3 py-2.5 border text-[10px]",
-                      overLimit ? "bg-red-50 border-red-200" : "bg-slate-50 border-slate-200"
-                    )}>
-                      <div>
-                        <p className="font-black uppercase tracking-wider text-slate-400">Limite</p>
-                        <p className="font-mono font-bold text-slate-700">{fmt(consignmentLimit)}</p>
-                      </div>
-                      <div>
-                        <p className="font-black uppercase tracking-wider text-slate-400">Em Consignação</p>
-                        <p className="font-mono font-bold text-slate-700">{fmt(selectedCustomerOpenAmount + draftTotal)}</p>
-                      </div>
-                      <div>
-                        <p className="font-black uppercase tracking-wider text-slate-400">Disponível</p>
-                        <p className={cn("font-mono font-bold", overLimit ? "text-red-600" : "text-emerald-600")}>
-                          {fmt(Math.max(0, consignmentLimit - selectedCustomerOpenAmount - draftTotal))}
-                        </p>
-                      </div>
-                      {overLimit && (
-                        <p className="col-span-3 text-red-600 font-bold">Limite de consignação excedido — remova itens ou aumente o limite do cliente.</p>
-                      )}
-                    </div>
-                  )}
-                </div>
-
-                <div className="grid grid-cols-2 gap-2">
-                  <div data-tour="consignments-form-due-days">
-                    <label className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400 mb-1.5 block">Prazo (dias)</label>
-                    <input
-                      type="number" min="1"
-                      value={form.due_days}
-                      onChange={(e) => setForm((f) => ({ ...f, due_days: e.target.value }))}
-                      className="w-full h-10 px-3 rounded-xl border border-slate-200 text-[12px] font-medium focus:outline-none focus:border-blue-400"
+              Criar Sacola
+            </Button>
+          </ModalFooter>
+        }
+      >
+        <Tabs<CreateTab>
+          items={CREATE_TABS.map((t) => (t.id === "produtos" ? { ...t, badge: draftItems.length || undefined } : t))}
+          value={createTab}
+          onChange={setCreateTab}
+          label="Dados da nova sacola"
+        >
+          {createTab === "dados" && (
+            <div className="space-y-4">
+              {/* Cliente */}
+              <div data-tour="consignments-form-customer" className="space-y-2">
+                <span className="ds-label block">Cliente</span>
+                <div className="flex gap-2">
+                  <div className="min-w-0 flex-1">
+                    <Combobox
+                      placeholder="Buscar por nome ou telefone..."
+                      searchPlaceholder="Nome ou telefone..."
+                      clearable
+                      freeInput
+                      value={form.customer_id !== null ? String(form.customer_id) : form.customer_name}
+                      onChange={(v) => {
+                        if (!v) {
+                          setForm((f) => ({ ...f, customer_id: null, customer_name: "" }));
+                          return;
+                        }
+                        const cust = customers.find((c) => String(c.id) === v);
+                        if (cust) {
+                          setForm((f) => ({ ...f, customer_id: cust.id, customer_name: cust.name, customer_phone: cust.phone ?? f.customer_phone }));
+                        } else {
+                          setForm((f) => ({ ...f, customer_id: null, customer_name: v }));
+                        }
+                      }}
+                      options={customers.map((c) => ({ value: String(c.id), label: c.name, description: c.phone }))}
+                      onAddNew={(q) => {
+                        setNcName(q); setNcPhone("");
+                        setShowNewCustomer(true);
+                      }}
                     />
                   </div>
-                  <div>
-                    <label className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400 mb-1.5 block">Vendedor</label>
-                    <div className="relative">
-                      <select
-                        value={form.seller_id ?? ""}
-                        onChange={(e) => setForm((f) => ({ ...f, seller_id: e.target.value === "" ? null : Number(e.target.value) }))}
-                        className="w-full pl-3 pr-8 h-10 rounded-xl border border-slate-200 text-[11px] font-bold appearance-none focus:outline-none focus:border-blue-400 bg-white"
-                      >
-                        <option value="">Sem vendedor</option>
-                        {sellers.map((s) => (<option key={s.id} value={s.id}>{s.name}</option>))}
-                      </select>
-                      <ChevronDown size={12} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
-                    </div>
-                  </div>
+                  <IconButton
+                    variant="outline"
+                    onClick={() => { setNcName(""); setNcPhone(""); setShowNewCustomer(true); }}
+                    title="Cadastrar novo cliente"
+                    aria-label="Cadastrar novo cliente"
+                  >
+                    <UserPlus size={15} />
+                  </IconButton>
                 </div>
-
-                {/* Itens */}
-                <div>
-                  <label className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400 mb-1.5 block">Produtos da Sacola</label>
-                  <div className="relative">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={13} />
-                    <input
-                      value={productSearch}
-                      onChange={(e) => setProductSearch(e.target.value)}
-                      placeholder="Buscar produto por nome..."
-                      className="w-full pl-9 pr-3 h-10 rounded-xl border border-slate-200 text-[12px] font-medium focus:outline-none focus:border-blue-400"
-                    />
-                    {filteredProducts.length > 0 && (
-                      <div className="absolute z-10 mt-1 w-full bg-white border border-slate-200 rounded-xl shadow-lg max-h-48 overflow-y-auto">
-                        {filteredProducts.slice(0, 8).map((p) => (
-                          <button
-                            key={p.id}
-                            onClick={() => addDraftItem(p)}
-                            className="w-full text-left px-3 py-2 hover:bg-slate-50 flex items-center justify-between text-[12px] transition-colors"
-                          >
-                            <span className="font-semibold text-slate-700">{p.name}</span>
-                            <span className="text-slate-400 font-mono text-[11px]">{fmt(Number(p.discount_price ?? p.price))} · estoque {p.stock_quantity}</span>
-                          </button>
-                        ))}
-                      </div>
+                <Input
+                  aria-label="Telefone do cliente"
+                  value={form.customer_phone}
+                  onChange={(e) => setForm((f) => ({ ...f, customer_phone: e.target.value }))}
+                  placeholder="Telefone"
+                />
+                {customerOpenConsignments.length > 0 && (
+                  <Alert variant="warning">
+                    Este cliente já tem {customerOpenConsignments.length === 1 ? "uma sacola aberta" : `${customerOpenConsignments.length} sacolas abertas`} (
+                    {customerOpenConsignments.map((c) => formatBagNumber(c.number)).join(", ")}
+                    ). Você pode criar outra mesmo assim.
+                  </Alert>
+                )}
+                {selectedCustomer?.risk_flag && (
+                  <Alert variant="error">Este cliente está marcado como risco — não será possível criar consignação para ele.</Alert>
+                )}
+                {consignmentLimit > 0 && (
+                  <div className={cn(
+                    "grid grid-cols-3 gap-2 rounded-lg border px-3 py-2.5 text-[11px]",
+                    overLimit ? "border-red-200 bg-red-50" : "border-slate-200 bg-slate-50"
+                  )}>
+                    <div>
+                      <p className="text-slate-500">Limite</p>
+                      <p className="font-semibold tabular-nums text-slate-700">{fmt(consignmentLimit)}</p>
+                    </div>
+                    <div>
+                      <p className="text-slate-500">Em Consignação</p>
+                      <p className="font-semibold tabular-nums text-slate-700">{fmt(selectedCustomerOpenAmount + draftTotal)}</p>
+                    </div>
+                    <div>
+                      <p className="text-slate-500">Disponível</p>
+                      <p className={cn("font-semibold tabular-nums", overLimit ? "text-red-600" : "text-emerald-600")}>
+                        {fmt(Math.max(0, consignmentLimit - selectedCustomerOpenAmount - draftTotal))}
+                      </p>
+                    </div>
+                    {overLimit && (
+                      <p className="col-span-3 font-medium text-red-600">Limite de consignação excedido — remova itens ou aumente o limite do cliente.</p>
                     )}
                   </div>
+                )}
+              </div>
 
-                  {draftItems.length > 0 && (
-                    <div className="mt-3 space-y-2">
-                      {draftItems.map((d) => (
-                        <div key={d.product.id} className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2">
-                          <Package size={14} className="text-slate-400 shrink-0" />
-                          <span className="flex-1 text-[12px] font-semibold text-slate-700 truncate">{d.product.name}</span>
-                          <input
-                            type="number" min="1" max={d.product.stock_quantity}
-                            value={d.quantity}
-                            onChange={(e) => updateDraftQty(d.product.id, Number(e.target.value) || 1)}
-                            className="w-14 h-8 px-2 rounded-lg border border-slate-200 text-[11px] font-bold text-center"
-                          />
-                          <span className="text-[11px] font-mono text-slate-500 w-20 text-right">
-                            {fmt(Number(d.product.discount_price ?? d.product.price) * d.quantity)}
-                          </span>
-                          <button onClick={() => removeDraftItem(d.product.id)} className="text-slate-300 hover:text-red-500 transition-colors">
-                            <Trash2 size={14} />
-                          </button>
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <div data-tour="consignments-form-due-days">
+                  <Input
+                    label="Prazo (dias)"
+                    type="number" min="1"
+                    value={form.due_days}
+                    onChange={(e) => setForm((f) => ({ ...f, due_days: e.target.value }))}
+                  />
+                </div>
+                <Select
+                  label="Vendedor"
+                  value={form.seller_id ?? ""}
+                  onChange={(e) => setForm((f) => ({ ...f, seller_id: e.target.value === "" ? null : Number(e.target.value) }))}
+                >
+                  <option value="">Sem vendedor</option>
+                  {sellerOptions}
+                </Select>
+              </div>
+
+              <Textarea
+                label="Observações (opcional)"
+                value={form.notes}
+                onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))}
+                rows={2}
+              />
+            </div>
+          )}
+
+          {createTab === "produtos" && (
+            <div className="space-y-3">
+              <div className="relative">
+                <Input
+                  label="Produtos da Sacola"
+                  iconLeft={<Search size={13} />}
+                  value={productSearch}
+                  onChange={(e) => setProductSearch(e.target.value)}
+                  placeholder="Buscar produto por nome..."
+                />
+                {filteredProducts.length > 0 && (
+                  <div className="absolute z-10 mt-1 max-h-48 w-full overflow-y-auto rounded-lg border border-slate-200 bg-white">
+                    {filteredProducts.slice(0, 8).map((p) => (
+                      <button
+                        type="button"
+                        key={p.id}
+                        onClick={() => addDraftItem(p)}
+                        className="flex w-full items-center justify-between gap-2 px-3 py-2 text-left text-xs transition-colors hover:bg-slate-50"
+                      >
+                        <span className="min-w-0 break-words font-medium text-slate-700">{p.name}</span>
+                        <span className="shrink-0 text-[11px] tabular-nums text-slate-500">{fmt(Number(p.discount_price ?? p.price))} · estoque {p.stock_quantity}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {draftItems.length === 0 ? (
+                <EmptyState icon={Package} title="Nenhum produto adicionado" description="Busque um produto acima para incluir na sacola." />
+              ) : (
+                <div className="space-y-2">
+                  {draftItems.map((d) => (
+                    <div key={d.product.id} className="flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
+                      <Package size={14} className="shrink-0 text-slate-400" />
+                      <span className="min-w-0 flex-1 truncate text-xs font-medium text-slate-700">{d.product.name}</span>
+                      <Input
+                        size="sm"
+                        aria-label={`Quantidade de ${d.product.name}`}
+                        wrapperClassName="w-16"
+                        className="text-center"
+                        type="number" min="1" max={d.product.stock_quantity}
+                        value={d.quantity}
+                        onChange={(e) => updateDraftQty(d.product.id, Number(e.target.value) || 1)}
+                      />
+                      <span className="w-20 text-right text-[11px] tabular-nums text-slate-500">
+                        {fmt(Number(d.product.discount_price ?? d.product.price) * d.quantity)}
+                      </span>
+                      <IconButton size="xs" variant="danger" aria-label={`Remover ${d.product.name}`} onClick={() => removeDraftItem(d.product.id)}>
+                        <Trash2 size={14} />
+                      </IconButton>
+                    </div>
+                  ))}
+                  <p className="text-right text-xs font-semibold text-slate-700">Total: {fmt(draftTotal)}</p>
+                </div>
+              )}
+            </div>
+          )}
+        </Tabs>
+      </Modal>
+
+      {/* ── NEW CUSTOMER MODAL ───────────────────────────────────────────── */}
+      <Modal
+        open={showNewCustomer}
+        onClose={() => setShowNewCustomer(false)}
+        size="xs"
+        title="Novo Cliente"
+        footer={
+          <ModalFooter>
+            <Button variant="outline" onClick={() => setShowNewCustomer(false)}>Cancelar</Button>
+            <Button onClick={handleCreateCustomer} loading={savingNC} disabled={savingNC || !ncName.trim()}>Salvar</Button>
+          </ModalFooter>
+        }
+      >
+        <div className="space-y-3">
+          <Input label="Nome" value={ncName} onChange={(e) => setNcName(e.target.value)} placeholder="Nome" />
+          <Input label="Telefone" value={ncPhone} onChange={(e) => setNcPhone(e.target.value)} placeholder="Telefone" />
+        </div>
+      </Modal>
+
+      {/* ── DETAIL MODAL ────────────────────────────────────────────────── */}
+      <Modal
+        open={!!selected}
+        onClose={() => setSelected(null)}
+        size="lg"
+        title={selected ? `Sacola ${formatBagNumber(selected.number)}` : ""}
+        subtitle={selected?.customer_name}
+        footer={selected && selected.status === "aberta" ? (
+          <ModalFooter>
+            <Button variant="outline" iconLeft={<Pencil size={14} />} onClick={openEditModal}>Editar</Button>
+            <Button variant="danger" iconLeft={<Ban size={14} />} onClick={handleCancel}>Cancelar</Button>
+            <Button variant="success" iconLeft={<CheckCircle2 size={14} />} onClick={openResolveModal}>Resolver Sacola</Button>
+          </ModalFooter>
+        ) : selected && selected.status === "cancelada" && isAdmin ? (
+          <ModalFooter>
+            <Button iconLeft={<RotateCcw size={14} />} loading={reopening} disabled={reopening} onClick={handleReopen}>Reabrir Sacola</Button>
+          </ModalFooter>
+        ) : undefined}
+      >
+        {selected && (
+          <div className="space-y-3">
+            <div className="flex flex-wrap items-center gap-2">
+              <Badge size="md" color={STATUS_BADGE[displayStatus(selected)]} icon={DERIVED_STATUS_META[displayStatus(selected)].icon}>
+                {DERIVED_STATUS_META[displayStatus(selected)].label}
+              </Badge>
+            </div>
+
+            {isOverdue(selected) && (
+              <Alert variant="error">Prazo vencido em {new Date(selected.due_date).toLocaleDateString("pt-BR")}</Alert>
+            )}
+
+            <Tabs<DetailTab>
+              items={[
+                { ...DETAIL_TABS[0], badge: selected.items.length },
+                { ...DETAIL_TABS[1], badge: selected.actions?.length ?? 0 },
+              ]}
+              value={detailTab}
+              onChange={setDetailTab}
+              label="Detalhes da sacola"
+            >
+              {detailTab === "items" ? (
+                <div className="space-y-3">
+                  <PanelCard title="Dados da sacola">
+                    <dl className="grid grid-cols-1 gap-x-6 sm:grid-cols-2">
+                      <DetailField label="Prazo" value={`${new Date(selected.due_date).toLocaleDateString("pt-BR")} (${selected.due_days}d)`} />
+                      <DetailField label="Vendedor" value={selected.seller_name} />
+                    </dl>
+                  </PanelCard>
+
+                  {selected.notes && <Alert variant="warning" title="Observações">{selected.notes}</Alert>}
+
+                  <PanelCard title="Itens" icon={Package} contentClassName="p-0">
+                    <div className="divide-y divide-slate-100">
+                      {selected.items.map((it) => (
+                        <div key={it.id} className="flex items-center gap-3 px-3 py-2.5">
+                          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-slate-100">
+                            <Package size={15} className="text-slate-400" />
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <p className="truncate text-xs font-medium text-slate-700">{it.name} × {it.quantity}</p>
+                            <p className="text-[11px] tabular-nums text-slate-500">{fmt(Number(it.unit_price) * it.quantity)}</p>
+                          </div>
+                          {it.resolution !== "pending" ? (
+                            <Badge color={it.resolution === "kept" ? "success" : "default"}>{it.resolution === "kept" ? "Ficou" : "Voltou"}</Badge>
+                          ) : (
+                            <Badge color="primary">Pendente</Badge>
+                          )}
                         </div>
                       ))}
                     </div>
+                  </PanelCard>
+
+                  {selected.cancel_reason && (
+                    <Alert variant="error" title="Motivo do cancelamento">{selected.cancel_reason}</Alert>
                   )}
                 </div>
-
-                <textarea
-                  value={form.notes}
-                  onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))}
-                  placeholder="Observações (opcional)"
-                  rows={2}
-                  className="w-full px-3 py-2 rounded-xl border border-slate-200 text-[12px] font-medium focus:outline-none focus:border-blue-400 resize-none"
-                />
-              </div>
-
-              <div className="shrink-0 px-6 pb-6 pt-3 flex gap-2 border-t border-slate-100">
-                <button onClick={() => setShowForm(false)} className="flex-1 h-11 rounded-xl border border-slate-200 text-[10px] font-black uppercase tracking-widest text-slate-600 hover:bg-slate-50 transition-colors">
-                  Cancelar
-                </button>
-                <button
-                  onClick={handleCreate}
-                  disabled={saving || !form.customer_name || draftItems.length === 0 || !!selectedCustomer?.risk_flag || overLimit}
-                  className="flex-1 h-11 bg-blue-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-blue-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-                >
-                  {saving ? <Loader2 size={14} className="animate-spin" /> : <ShoppingBag size={14} />}
-                  Criar Sacola
-                </button>
-              </div>
-            </motion.div>
-          </>
-        )}
-      </AnimatePresence>
-
-      {/* ── NEW CUSTOMER MODAL ───────────────────────────────────────────── */}
-      <AnimatePresence>
-        {showNewCustomer && (
-          <>
-            <motion.div
-              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-              onClick={() => setShowNewCustomer(false)}
-              className="fixed inset-0 bg-slate-900/70 backdrop-blur-sm z-[400]"
-            />
-            <motion.div
-              initial={{ opacity: 0, y: 16, scale: 0.98 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 12, scale: 0.98 }}
-              transition={{ type: "spring", damping: 32, stiffness: 300 }}
-              className="fixed inset-x-4 bottom-4 sm:inset-auto sm:top-1/2 sm:left-1/2 sm:-translate-x-1/2 sm:-translate-y-1/2 z-[401] bg-white flex flex-col overflow-hidden rounded-3xl"
-              style={{ width: "min(400px, calc(100vw - 32px))" }}
-            >
-              <div className="shrink-0 flex items-center justify-between px-6 py-4 border-b border-slate-100">
-                <h2 className="text-[14px] font-black text-slate-800">Novo Cliente</h2>
-                <button onClick={() => setShowNewCustomer(false)} className="w-8 h-8 rounded-xl bg-slate-100 hover:bg-slate-200 flex items-center justify-center">
-                  <X size={14} className="text-slate-500" />
-                </button>
-              </div>
-              <div className="p-5 space-y-3">
-                <input value={ncName} onChange={(e) => setNcName(e.target.value)} placeholder="Nome" className="w-full h-10 px-3 rounded-xl border border-slate-200 text-[12px] font-medium focus:outline-none focus:border-blue-400" />
-                <input value={ncPhone} onChange={(e) => setNcPhone(e.target.value)} placeholder="Telefone" className="w-full h-10 px-3 rounded-xl border border-slate-200 text-[12px] font-medium focus:outline-none focus:border-blue-400" />
-              </div>
-              <div className="shrink-0 px-5 pb-5 pt-2 flex gap-2">
-                <button onClick={() => setShowNewCustomer(false)} className="flex-1 h-10 rounded-xl border border-slate-200 text-[10px] font-black uppercase tracking-widest text-slate-600 hover:bg-slate-50 transition-colors">
-                  Cancelar
-                </button>
-                <button onClick={handleCreateCustomer} disabled={savingNC || !ncName.trim()} className="flex-1 h-10 bg-blue-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-blue-700 transition-all disabled:opacity-50">
-                  {savingNC ? <Loader2 size={13} className="animate-spin mx-auto" /> : "Salvar"}
-                </button>
-              </div>
-            </motion.div>
-          </>
-        )}
-      </AnimatePresence>
-
-      {/* ── DETAIL / RESOLVE MODAL ──────────────────────────────────────── */}
-      <AnimatePresence>
-        {selected && (
-          <>
-            <motion.div
-              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-              onClick={() => setSelected(null)}
-              className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[300]"
-            />
-            <motion.div
-              initial={{ opacity: 0, y: 16, scale: 0.98 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 12, scale: 0.98 }}
-              transition={{ type: "spring", damping: 32, stiffness: 300 }}
-              className="fixed inset-x-4 bottom-4 sm:inset-auto sm:top-1/2 sm:left-1/2 sm:-translate-x-1/2 sm:-translate-y-1/2 z-[301] bg-white flex flex-col overflow-hidden rounded-3xl"
-              style={{ width: "min(600px, calc(100vw - 32px))", height: "min(760px, calc(100vh - 48px))" }}
-            >
-              <div className={cn(
-                "shrink-0 flex items-center justify-between px-6 py-5 border-b",
-                selected.status === "aberta" ? "bg-gradient-to-br from-blue-500 to-blue-700 border-blue-700" :
-                selected.status === "fechada" ? "bg-gradient-to-br from-emerald-500 to-emerald-700 border-emerald-700" :
-                "bg-gradient-to-br from-slate-500 to-slate-700 border-slate-700"
-              )}>
-                <div className="flex items-center gap-3">
-                  <div className="w-11 h-11 rounded-2xl bg-white/15 flex items-center justify-center shrink-0">
-                    <ShoppingBag size={20} className="text-white" />
-                  </div>
-                  <div>
-                    <h2 className="text-[16px] font-black text-white leading-tight">Sacola #{String(selected.number).padStart(4, "0")}</h2>
-                    <p className="text-[11px] text-white/80 font-medium">{selected.customer_name}</p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider bg-white/15 text-white">
-                    {DERIVED_STATUS_META[displayStatus(selected)].icon} {DERIVED_STATUS_META[displayStatus(selected)].label}
-                  </span>
-                  <button onClick={() => setSelected(null)} className="w-9 h-9 rounded-xl bg-white/15 hover:bg-white/25 flex items-center justify-center transition-colors">
-                    <X size={16} className="text-white" />
-                  </button>
-                </div>
-              </div>
-
-              {/* Abas Itens / Histórico */}
-              <div className="shrink-0 flex gap-1 px-6 pt-3 bg-white border-b border-slate-100">
-                <button
-                  onClick={() => setDetailTab("items")}
-                  className={cn(
-                    "px-3 pb-2.5 text-[10px] font-black uppercase tracking-widest border-b-2 transition-colors",
-                    detailTab === "items" ? "border-blue-600 text-blue-600" : "border-transparent text-slate-400 hover:text-slate-600"
-                  )}
-                >
-                  Itens ({selected.items.length})
-                </button>
-                <button
-                  onClick={() => setDetailTab("history")}
-                  className={cn(
-                    "px-3 pb-2.5 text-[10px] font-black uppercase tracking-widest border-b-2 transition-colors flex items-center gap-1.5",
-                    detailTab === "history" ? "border-blue-600 text-blue-600" : "border-transparent text-slate-400 hover:text-slate-600"
-                  )}
-                >
-                  <History size={12} /> Histórico ({selected.actions?.length ?? 0})
-                </button>
-              </div>
-
-              <div className="flex-1 overflow-y-auto p-6 space-y-4 bg-slate-50/50">
-                {isOverdue(selected) && (
-                  <div className="flex items-center gap-2 bg-red-50 border border-red-200 rounded-xl px-3 py-2.5 text-[11px] font-bold text-red-600 shadow-sm">
-                    <AlertTriangle size={14} /> Prazo vencido em {new Date(selected.due_date).toLocaleDateString("pt-BR")}
-                  </div>
-                )}
-
-                {detailTab === "items" ? (
-                  <>
-                    <div className="grid grid-cols-2 gap-2 text-[11px]">
-                      <div className="bg-white rounded-xl px-3 py-2.5 border border-slate-200 shadow-sm">
-                        <span className="text-slate-400 font-bold uppercase text-[9px] block mb-0.5">Prazo</span>
-                        <span className="font-semibold text-slate-700">{new Date(selected.due_date).toLocaleDateString("pt-BR")} ({selected.due_days}d)</span>
-                      </div>
-                      <div className="bg-white rounded-xl px-3 py-2.5 border border-slate-200 shadow-sm">
-                        <span className="text-slate-400 font-bold uppercase text-[9px] block mb-0.5">Vendedor</span>
-                        <span className="font-semibold text-slate-700">{selected.seller_name || "—"}</span>
-                      </div>
-                    </div>
-
-                    {selected.notes && (
-                      <div className="bg-amber-50 border border-amber-200 rounded-xl px-3 py-2.5 text-[11px] text-amber-800 shadow-sm">{selected.notes}</div>
-                    )}
-
-                    <div>
-                      <div className="space-y-1.5">
-                        {selected.items.map((it) => (
-                          <div key={it.id} className="flex items-center gap-3 bg-white border border-slate-200 rounded-xl px-3 py-2.5 shadow-sm">
-                            <div className="w-9 h-9 rounded-lg bg-slate-100 flex items-center justify-center shrink-0">
-                              <Package size={15} className="text-slate-400" />
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <p className="text-[12px] font-semibold text-slate-700 truncate">{it.name} × {it.quantity}</p>
-                              <p className="text-[10px] text-slate-400 font-mono">{fmt(Number(it.unit_price) * it.quantity)}</p>
-                            </div>
-                            {it.resolution !== "pending" ? (
-                              <span className={cn(
-                                "px-2 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider shrink-0",
-                                it.resolution === "kept" ? "text-emerald-600 bg-emerald-50" : "text-slate-500 bg-slate-100"
-                              )}>
-                                {it.resolution === "kept" ? "Ficou" : "Voltou"}
-                              </span>
-                            ) : (
-                              <span className="px-2 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider text-blue-600 bg-blue-50 shrink-0">Pendente</span>
-                            )}
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-
-                    {selected.cancel_reason && (
-                      <div className="bg-red-50 border border-red-200 rounded-xl px-3 py-2.5 text-[11px] text-red-600 shadow-sm">
-                        <strong>Motivo do cancelamento:</strong> {selected.cancel_reason}
-                      </div>
-                    )}
-                  </>
-                ) : (
-                  <div className="space-y-2">
-                    {(!selected.actions || selected.actions.length === 0) ? (
-                      <p className="text-[11px] text-slate-400 text-center py-8">Nenhum evento registrado ainda</p>
-                    ) : (
-                      selected.actions.map((a) => (
-                        <div key={a.id} className="flex items-start gap-3 bg-white border border-slate-200 rounded-xl px-3 py-2.5 shadow-sm">
-                          <div className="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center shrink-0 mt-0.5">
-                            <History size={13} className="text-slate-400" />
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <p className="text-[11px] font-bold text-slate-700">{ACTION_LABELS[a.action] ?? a.action}</p>
-                            {a.note && <p className="text-[10px] text-slate-500 mt-0.5">{a.note}</p>}
-                            <p className="text-[9px] text-slate-400 font-medium mt-1">
-                              {a.actor ?? "Sistema"} · {new Date(a.created_at).toLocaleString("pt-BR")}
-                            </p>
-                          </div>
+              ) : (
+                <div className="space-y-2">
+                  {(!selected.actions || selected.actions.length === 0) ? (
+                    <EmptyState icon={History} title="Nenhum evento registrado ainda" />
+                  ) : (
+                    selected.actions.map((a) => (
+                      <div key={a.id} className="flex items-start gap-3 rounded-lg border border-slate-200 bg-white px-3 py-2.5">
+                        <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-slate-100">
+                          <History size={13} className="text-slate-400" />
                         </div>
-                      ))
-                    )}
-                  </div>
-                )}
-              </div>
-
-              {selected.status === "aberta" && (
-                <div className="shrink-0 px-6 pb-6 pt-3 flex gap-2 border-t border-slate-100 bg-white">
-                  <button onClick={openEditModal} className="h-11 px-4 rounded-xl border border-slate-200 text-slate-600 text-[10px] font-black uppercase tracking-widest hover:bg-slate-50 transition-colors flex items-center gap-2">
-                    <Pencil size={14} /> Editar
-                  </button>
-                  <button onClick={handleCancel} className="h-11 px-4 rounded-xl border border-red-200 text-red-600 text-[10px] font-black uppercase tracking-widest hover:bg-red-50 transition-colors flex items-center gap-2">
-                    <Ban size={14} /> Cancelar
-                  </button>
-                  <button
-                    onClick={openResolveModal}
-                    className="flex-1 h-11 bg-emerald-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-emerald-700 transition-all flex items-center justify-center gap-2 shadow-md shadow-emerald-500/20"
-                  >
-                    <CheckCircle2 size={14} /> Resolver Sacola
-                  </button>
+                        <div className="min-w-0 flex-1">
+                          <p className="text-xs font-medium text-slate-700">{ACTION_LABELS[a.action] ?? a.action}</p>
+                          {a.note && <p className="mt-0.5 break-words text-[11px] text-slate-500">{a.note}</p>}
+                          <p className="mt-1 text-[11px] text-slate-500">
+                            {a.actor ?? "Sistema"} · {new Date(a.created_at).toLocaleString("pt-BR")}
+                          </p>
+                        </div>
+                      </div>
+                    ))
+                  )}
                 </div>
               )}
-              {selected.status === "cancelada" && isAdmin && (
-                <div className="shrink-0 px-6 pb-6 pt-3 flex gap-2 border-t border-slate-100 bg-white">
-                  <button
-                    onClick={handleReopen}
-                    disabled={reopening}
-                    className="flex-1 h-11 bg-slate-900 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-slate-700 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
-                  >
-                    {reopening ? <Loader2 size={14} className="animate-spin" /> : <RotateCcw size={14} />} Reabrir Sacola
-                  </button>
-                </div>
-              )}
-            </motion.div>
-          </>
+            </Tabs>
+          </div>
         )}
-      </AnimatePresence>
+      </Modal>
 
       {/* ── RESOLVE MODAL (ficou/voltou + pagamento) ────────────────────── */}
-      <AnimatePresence>
-        {showResolveModal && selected && (
-          <>
-            <motion.div
-              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-              onClick={() => setShowResolveModal(false)}
-              className="fixed inset-0 bg-slate-900/70 backdrop-blur-sm z-[400]"
-            />
-            <motion.div
-              initial={{ opacity: 0, y: 16, scale: 0.98 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 12, scale: 0.98 }}
-              transition={{ type: "spring", damping: 32, stiffness: 300 }}
-              className="fixed inset-x-4 bottom-4 sm:inset-auto sm:top-1/2 sm:left-1/2 sm:-translate-x-1/2 sm:-translate-y-1/2 z-[401] bg-white flex flex-col overflow-hidden rounded-3xl"
-              style={{ width: "min(500px, calc(100vw - 32px))", height: "min(760px, calc(100vh - 48px))" }}
+      <Modal
+        open={showResolveModal && !!selected}
+        onClose={() => setShowResolveModal(false)}
+        size="md"
+        title={selected ? `Resolver Sacola ${formatBagNumber(selected.number)}` : ""}
+        footer={
+          <ModalFooter>
+            <Button variant="outline" onClick={() => setShowResolveModal(false)}>Cancelar</Button>
+            <Button
+              variant="success"
+              iconLeft={<CheckCircle2 size={14} />}
+              loading={resolving}
+              onClick={handleResolve}
+              disabled={resolving || decidedCount === 0 || (hasKeptItems && paidTotal <= 0)}
             >
-              <div className="shrink-0 flex items-center justify-between px-6 py-4 border-b border-slate-100">
-                <h2 className="text-[14px] font-black text-slate-800">Resolver Sacola #{String(selected.number).padStart(4, "0")}</h2>
-                <button onClick={() => setShowResolveModal(false)} className="w-8 h-8 rounded-xl bg-slate-100 hover:bg-slate-200 flex items-center justify-center">
-                  <X size={14} className="text-slate-500" />
-                </button>
-              </div>
-
-              <div className="flex-1 overflow-y-auto p-5 space-y-4">
+              Confirmar
+            </Button>
+          </ModalFooter>
+        }
+      >
+        {selected && (
+          <Tabs<ResolveTab>
+            items={RESOLVE_TABS.map((t) => (t.id === "pagamento" ? { ...t, disabled: !hasKeptItems } : t))}
+            value={hasKeptItems ? resolveTab : "itens"}
+            onChange={setResolveTab}
+            label="Resolução da sacola"
+          >
+            {(!hasKeptItems || resolveTab === "itens") ? (
+              <div className="space-y-3">
                 {/* Ficou / Voltou por item */}
-                <div>
-                  <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2">Marque o que ficou, o que voltou — ou deixe pendente pra decidir depois</p>
-                  <div className="space-y-2">
-                    {selected.items.filter((it) => it.resolution === "pending").map((it) => (
-                      <div key={it.id} className="bg-slate-50 border border-slate-200 rounded-xl p-3">
-                        <div className="flex items-center justify-between mb-2">
-                          <span className="text-[12px] font-semibold text-slate-700">{it.name} × {it.quantity}</span>
-                          <span className="text-[11px] font-mono text-slate-500">{fmt(Number(it.unit_price) * it.quantity)}</span>
-                        </div>
-                        <div className="flex bg-white border border-slate-200 rounded-lg p-0.5 gap-0.5">
-                          <button
-                            onClick={() => toggleResolution(it.id, "kept")}
-                            className={cn("flex-1 h-8 rounded-md text-[10px] font-black uppercase tracking-wider transition-all", resolutions[it.id] === "kept" ? "bg-emerald-600 text-white" : "text-slate-500 hover:bg-slate-50")}
-                          >
-                            Ficou
-                          </button>
-                          <button
-                            onClick={() => toggleResolution(it.id, "returned")}
-                            className={cn("flex-1 h-8 rounded-md text-[10px] font-black uppercase tracking-wider transition-all", resolutions[it.id] === "returned" ? "bg-slate-600 text-white" : "text-slate-500 hover:bg-slate-50")}
-                          >
-                            Voltou
-                          </button>
-                          <button
-                            onClick={() => toggleResolution(it.id, "pending")}
-                            className={cn("flex-1 h-8 rounded-md text-[10px] font-black uppercase tracking-wider transition-all", resolutions[it.id] === "pending" ? "bg-blue-600 text-white" : "text-slate-500 hover:bg-slate-50")}
-                          >
-                            Pendente
-                          </button>
-                        </div>
+                <p className="text-[11px] text-slate-500">Marque o que ficou, o que voltou — ou deixe pendente pra decidir depois</p>
+                <div className="space-y-2">
+                  {selected.items.filter((it) => it.resolution === "pending").map((it) => (
+                    <div key={it.id} className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+                      <div className="mb-2 flex items-center justify-between gap-2">
+                        <span className="min-w-0 break-words text-xs font-medium text-slate-700">{it.name} × {it.quantity}</span>
+                        <span className="shrink-0 text-[11px] tabular-nums text-slate-500">{fmt(Number(it.unit_price) * it.quantity)}</span>
                       </div>
-                    ))}
-                  </div>
-                </div>
-
-                {hasKeptItems && (
-                  <>
-                    {/* Vendedor */}
-                    <div>
-                      <label className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400 mb-1.5 block">Vendedor</label>
-                      <div className="relative">
-                        <select value={invoiceSellerId} onChange={(e) => setInvoiceSellerId(e.target.value === "" ? "" : Number(e.target.value))}
-                          className="w-full pl-3 pr-8 h-10 rounded-xl border border-slate-200 text-[11px] font-bold appearance-none focus:outline-none focus:border-blue-400 bg-white">
-                          <option value="">Sem vendedor</option>
-                          {sellers.map((s) => (<option key={s.id} value={s.id}>{s.name}</option>))}
-                        </select>
-                        <ChevronDown size={12} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
-                      </div>
-                    </div>
-
-                    {/* Pagamentos */}
-                    <div>
-                      <div className="flex items-center justify-between mb-1.5">
-                        <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Formas de Pagamento</p>
-                        <button onClick={addInvoicePayment} className="flex items-center gap-1 h-6 px-2 bg-blue-50 border border-blue-200 rounded-lg text-[9px] font-black text-blue-600 uppercase tracking-widest hover:bg-blue-100 transition-all">
-                          <PlusCircle size={10} /> Adicionar
+                      <div className="flex gap-0.5 rounded-lg border border-slate-200 bg-white p-0.5">
+                        <button
+                          type="button"
+                          onClick={() => toggleResolution(it.id, "kept")}
+                          className={cn("h-8 flex-1 rounded-md text-[11px] font-medium transition-all", resolutions[it.id] === "kept" ? "bg-emerald-600 text-white" : "text-slate-500 hover:bg-slate-50")}
+                        >
+                          Ficou
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => toggleResolution(it.id, "returned")}
+                          className={cn("h-8 flex-1 rounded-md text-[11px] font-medium transition-all", resolutions[it.id] === "returned" ? "bg-slate-600 text-white" : "text-slate-500 hover:bg-slate-50")}
+                        >
+                          Voltou
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => toggleResolution(it.id, "pending")}
+                          className={cn("h-8 flex-1 rounded-md text-[11px] font-medium transition-all", resolutions[it.id] === "pending" ? "bg-blue-600 text-white" : "text-slate-500 hover:bg-slate-50")}
+                        >
+                          Pendente
                         </button>
                       </div>
-                      <div className="space-y-2.5">
-                        {invoicePayments.map((p, idx) => {
-                          const cardFees = tenant?.card_fees ?? {};
-                          const feeRate = p.method === "credit" ? (cardFees[p.cardBrand]?.[p.installments - 1] ?? 0) : 0;
-                          const pAmt = Number(p.amount) || 0;
-                          const pFee = feeRate > 0 && pAmt > 0 ? pAmt * (feeRate / 100) : 0;
-                          return (
-                            <div key={p.id} className="bg-slate-50 rounded-2xl border border-slate-200 p-3 space-y-2.5">
-                              <div className="flex items-center gap-2">
-                                {invoicePayments.length > 1 && (
-                                  <span className="w-5 h-5 bg-slate-200 rounded-full flex items-center justify-center text-[9px] font-black text-slate-600 shrink-0">{idx + 1}</span>
-                                )}
-                                <div className="grid grid-cols-4 gap-1.5 flex-1">
-                                  {(["money", "debit", "credit", "pix"] as PayMethod[]).map((key) => (
-                                    <button key={key} onClick={() => updateInvoicePayment(p.id, {
-                                      method: key, installments: 1,
-                                      amount: key !== "money" && keptTotal > 0 ? keptTotal.toFixed(2) : p.amount,
-                                    })}
-                                      className={cn("h-9 rounded-xl border text-[9px] font-black uppercase tracking-widest transition-all flex flex-col items-center justify-center gap-0.5",
-                                        p.method === key ? key === "credit" ? "bg-emerald-600 border-emerald-500 text-white" : "bg-blue-600 border-blue-500 text-white" : "bg-white border-slate-200 text-slate-500 hover:border-slate-400")}>
-                                      {key === "money" && <Banknote size={12} />}
-                                      {key === "debit" && <CreditCard size={12} />}
-                                      {key === "credit" && <CreditCard size={12} />}
-                                      {key === "pix" && <QrCode size={12} />}
-                                      {PM_LABEL[key]}
-                                    </button>
-                                  ))}
-                                </div>
-                                {invoicePayments.length > 1 && (
-                                  <button onClick={() => removeInvoicePayment(p.id)} className="text-slate-300 hover:text-red-500 transition-colors shrink-0">
-                                    <X size={14} />
-                                  </button>
-                                )}
-                              </div>
-
-                              {(p.method === "debit" || p.method === "credit") && (
-                                <div className="grid grid-cols-3 gap-1">
-                                  {CARD_BRANDS.map(({ key, label, color }) => (
-                                    <button key={key} onClick={() => updateInvoicePayment(p.id, { cardBrand: key })}
-                                      className={cn("h-7 rounded-lg border text-[8px] font-black uppercase tracking-widest transition-all", p.cardBrand === key ? "text-white border-transparent" : "bg-white border-slate-200 text-slate-500 hover:border-slate-400")}
-                                      style={p.cardBrand === key ? { backgroundColor: color } : {}}>
-                                      {label}
-                                    </button>
-                                  ))}
-                                </div>
-                              )}
-
-                              {p.method === "credit" && (
-                                <div className="grid grid-cols-4 gap-1">
-                                  {[1, 2, 3, 4, 5, 6, 10, 12].map((n) => {
-                                    const rate = cardFees[p.cardBrand]?.[n - 1] ?? 0;
-                                    const isActive = p.installments === n;
-                                    return (
-                                      <button key={n} onClick={() => updateInvoicePayment(p.id, { installments: n })}
-                                        className={cn("rounded-lg border transition-all flex flex-col items-center justify-center py-1.5 px-1 gap-0.5", isActive ? "bg-emerald-600 border-emerald-500 text-white" : "bg-white border-slate-200 text-slate-500 hover:border-slate-400")}>
-                                        <span className="text-[8px] font-black uppercase">{n === 1 ? "Vista" : `${n}×`}</span>
-                                        {rate > 0 && <span className={cn("text-[7px] font-bold", isActive ? "text-emerald-200" : "text-amber-500")}>+{rate}%</span>}
-                                      </button>
-                                    );
-                                  })}
-                                </div>
-                              )}
-
-                              <div className="flex gap-2">
-                                <div className="relative flex-1">
-                                  <Banknote className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={13} />
-                                  <input type="number" min="0" step="0.01"
-                                    placeholder={idx === 0 && remaining > 0 ? `R$ ${remaining.toFixed(2)}` : "Valor (R$)"}
-                                    className="w-full pl-9 pr-3 h-10 bg-white border border-slate-200 rounded-xl focus:outline-none focus:border-blue-500 text-[11px] font-medium text-slate-800 placeholder:text-slate-400 transition-all [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none"
-                                    value={p.amount} onChange={(e) => updateInvoicePayment(p.id, { amount: e.target.value })} />
-                                </div>
-                                {pFee > 0.005 && (
-                                  <div className="flex flex-col items-end gap-0.5 bg-amber-50 border border-amber-200 rounded-xl px-3 py-1.5 shrink-0">
-                                    <span className="text-[8px] font-black text-amber-600 uppercase">Taxa {feeRate}%</span>
-                                    <span className="text-[10px] font-mono font-black text-amber-700">− R$ {pFee.toFixed(2)}</span>
-                                  </div>
-                                )}
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
                     </div>
-
-                    {/* Resumo */}
-                    <div className="bg-slate-900 rounded-2xl p-4 space-y-2">
-                      <div className="flex justify-between text-[10px] font-bold uppercase text-slate-500">
-                        <span>Total dos itens que ficaram</span>
-                        <span className="font-mono">{fmt(keptTotal)}</span>
-                      </div>
-                      <div className="flex justify-between text-[10px] font-bold uppercase text-slate-400">
-                        <span>Pago</span>
-                        <span className="font-mono text-emerald-400">{fmt(paidTotal)}</span>
-                      </div>
-                      {remaining > 0.005 ? (
-                        <div className="flex justify-between text-[10px] font-black uppercase text-rose-400 pt-1 border-t border-slate-700">
-                          <span>Restante</span>
-                          <span className="font-mono">{fmt(remaining)}</span>
-                        </div>
-                      ) : (
-                        <div className="flex justify-between text-[10px] font-black uppercase text-emerald-400 pt-1 border-t border-slate-700">
-                          <span>Pagamento OK</span>
-                          <span className="font-mono">✓</span>
-                        </div>
-                      )}
-                    </div>
-                  </>
-                )}
+                  ))}
+                </div>
 
                 {leftPendingCount > 0 ? (
-                  <div className="bg-violet-50 border border-violet-200 rounded-xl px-3 py-3 text-[11px] text-violet-700 text-center">
+                  <Alert variant="info">
                     {leftPendingCount} item(ns) ficará(ão) pendente(s) — a sacola continua aberta como "parcial" até você decidir o restante.
-                  </div>
+                  </Alert>
                 ) : !hasKeptItems && (
-                  <div className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-3 text-[11px] text-slate-500 text-center">
+                  <Alert variant="info">
                     Nenhum item ficou — a sacola será fechada como devolução total, sem gerar venda.
-                  </div>
+                  </Alert>
                 )}
               </div>
+            ) : (
+              <div className="space-y-3">
+                {/* Vendedor */}
+                <Select
+                  label="Vendedor"
+                  value={invoiceSellerId}
+                  onChange={(e) => setInvoiceSellerId(e.target.value === "" ? "" : Number(e.target.value))}
+                >
+                  <option value="">Sem vendedor</option>
+                  {sellerOptions}
+                </Select>
 
-              <div className="shrink-0 px-6 pb-6 pt-3 flex gap-2 border-t border-slate-100">
-                <button onClick={() => setShowResolveModal(false)} className="flex-1 h-11 rounded-xl border border-slate-200 text-[10px] font-black uppercase tracking-widest text-slate-600 hover:bg-slate-50 transition-colors">
-                  Cancelar
-                </button>
-                <button onClick={handleResolve} disabled={resolving || decidedCount === 0 || (hasKeptItems && paidTotal <= 0)}
-                  className="flex-1 h-11 bg-emerald-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-emerald-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2">
-                  {resolving ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle2 size={14} />}
-                  Confirmar
-                </button>
-              </div>
-            </motion.div>
-          </>
-        )}
-      </AnimatePresence>
+                {/* Pagamentos */}
+                <div>
+                  <div className="mb-1.5 flex items-center justify-between">
+                    <span className="ds-label">Formas de Pagamento</span>
+                    <Button variant="outline" size="xs" iconLeft={<PlusCircle size={12} />} onClick={addInvoicePayment}>
+                      Adicionar
+                    </Button>
+                  </div>
+                  <div className="space-y-2.5">
+                    {invoicePayments.map((p, idx) => {
+                      const cardFees = tenant?.card_fees ?? {};
+                      const feeRate = p.method === "credit" ? (cardFees[p.cardBrand]?.[p.installments - 1] ?? 0) : 0;
+                      const pAmt = Number(p.amount) || 0;
+                      const pFee = feeRate > 0 && pAmt > 0 ? pAmt * (feeRate / 100) : 0;
+                      return (
+                        <div key={p.id} className="space-y-2.5 rounded-lg border border-slate-200 bg-slate-50 p-3">
+                          <div className="flex items-center gap-2">
+                            {invoicePayments.length > 1 && (
+                              <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-slate-200 text-[11px] font-semibold text-slate-600">{idx + 1}</span>
+                            )}
+                            <div className="grid flex-1 grid-cols-2 gap-1.5 sm:grid-cols-4">
+                              {(["money", "debit", "credit", "pix"] as PayMethod[]).map((key) => (
+                                <button type="button" key={key} onClick={() => updateInvoicePayment(p.id, {
+                                  method: key, installments: 1,
+                                  amount: key !== "money" && keptTotal > 0 ? keptTotal.toFixed(2) : p.amount,
+                                })}
+                                  className={cn("flex h-9 flex-col items-center justify-center gap-0.5 rounded-lg border text-[11px] font-medium transition-all",
+                                    p.method === key ? key === "credit" ? "border-emerald-500 bg-emerald-600 text-white" : "border-blue-500 bg-blue-600 text-white" : "border-slate-200 bg-white text-slate-500 hover:border-slate-400")}>
+                                  {key === "money" && <Banknote size={12} />}
+                                  {key === "debit" && <CreditCard size={12} />}
+                                  {key === "credit" && <CreditCard size={12} />}
+                                  {key === "pix" && <QrCode size={12} />}
+                                  {PM_LABEL[key]}
+                                </button>
+                              ))}
+                            </div>
+                            {invoicePayments.length > 1 && (
+                              <IconButton size="xs" variant="danger" aria-label="Remover forma de pagamento" onClick={() => removeInvoicePayment(p.id)}>
+                                <X size={14} />
+                              </IconButton>
+                            )}
+                          </div>
 
-      {/* ── EDIT MODAL (prazo/vendedor/observações de sacola aberta) ─────── */}
-      <AnimatePresence>
-        {showEditModal && selected && (
-          <>
-            <motion.div
-              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-              onClick={() => setShowEditModal(false)}
-              className="fixed inset-0 bg-slate-900/70 backdrop-blur-sm z-[400]"
-            />
-            <motion.div
-              initial={{ opacity: 0, y: 16, scale: 0.98 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 12, scale: 0.98 }}
-              transition={{ type: "spring", damping: 32, stiffness: 300 }}
-              className="fixed inset-x-4 bottom-4 sm:inset-auto sm:top-1/2 sm:left-1/2 sm:-translate-x-1/2 sm:-translate-y-1/2 z-[401] bg-white flex flex-col overflow-hidden rounded-3xl"
-              style={{ width: "min(420px, calc(100vw - 32px))" }}
-            >
-              <div className="shrink-0 flex items-center justify-between px-6 py-4 border-b border-slate-100">
-                <h2 className="text-[14px] font-black text-slate-800">Editar Sacola #{String(selected.number).padStart(4, "0")}</h2>
-                <button onClick={() => setShowEditModal(false)} className="w-8 h-8 rounded-xl bg-slate-100 hover:bg-slate-200 flex items-center justify-center">
-                  <X size={14} className="text-slate-500" />
-                </button>
-              </div>
-              <div className="p-5 space-y-3">
-                <div>
-                  <label className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400 mb-1.5 block">Prazo (dias, a partir da criação)</label>
-                  <input
-                    type="number" min="1"
-                    value={editDueDays}
-                    onChange={(e) => setEditDueDays(e.target.value)}
-                    className="w-full h-10 px-3 rounded-xl border border-slate-200 text-[12px] font-medium focus:outline-none focus:border-blue-400"
-                  />
-                </div>
-                <div>
-                  <label className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400 mb-1.5 block">Vendedor</label>
-                  <div className="relative">
-                    <select
-                      value={editSellerId ?? ""}
-                      onChange={(e) => setEditSellerId(e.target.value === "" ? null : Number(e.target.value))}
-                      className="w-full pl-3 pr-8 h-10 rounded-xl border border-slate-200 text-[11px] font-bold appearance-none focus:outline-none focus:border-blue-400 bg-white"
-                    >
-                      <option value="">Sem vendedor</option>
-                      {sellers.map((s) => (<option key={s.id} value={s.id}>{s.name}</option>))}
-                    </select>
-                    <ChevronDown size={12} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                          {(p.method === "debit" || p.method === "credit") && (
+                            <div className="grid grid-cols-3 gap-1">
+                              {CARD_BRANDS.map(({ key, label, color }) => (
+                                <button type="button" key={key} onClick={() => updateInvoicePayment(p.id, { cardBrand: key })}
+                                  className={cn("h-7 rounded-lg border text-[11px] font-medium transition-all", p.cardBrand === key ? "border-transparent text-white" : "border-slate-200 bg-white text-slate-500 hover:border-slate-400")}
+                                  style={p.cardBrand === key ? { backgroundColor: color } : {}}>
+                                  {label}
+                                </button>
+                              ))}
+                            </div>
+                          )}
+
+                          {p.method === "credit" && (
+                            <div className="grid grid-cols-4 gap-1">
+                              {[1, 2, 3, 4, 5, 6, 10, 12].map((n) => {
+                                const rate = cardFees[p.cardBrand]?.[n - 1] ?? 0;
+                                const isActive = p.installments === n;
+                                return (
+                                  <button type="button" key={n} onClick={() => updateInvoicePayment(p.id, { installments: n })}
+                                    className={cn("flex flex-col items-center justify-center gap-0.5 rounded-lg border px-1 py-1.5 transition-all", isActive ? "border-emerald-500 bg-emerald-600 text-white" : "border-slate-200 bg-white text-slate-500 hover:border-slate-400")}>
+                                    <span className="text-[11px] font-medium">{n === 1 ? "Vista" : `${n}×`}</span>
+                                    {rate > 0 && <span className={cn("text-[10px] font-medium", isActive ? "text-emerald-200" : "text-amber-500")}>+{rate}%</span>}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          )}
+
+                          <div className="flex gap-2">
+                            <Input
+                              wrapperClassName="flex-1"
+                              aria-label="Valor do pagamento"
+                              iconLeft={<Banknote size={13} />}
+                              type="number" min="0" step="0.01"
+                              placeholder={idx === 0 && remaining > 0 ? `R$ ${remaining.toFixed(2)}` : "Valor (R$)"}
+                              value={p.amount} onChange={(e) => updateInvoicePayment(p.id, { amount: e.target.value })}
+                            />
+                            {pFee > 0.005 && (
+                              <div className="flex shrink-0 flex-col items-end gap-0.5 rounded-lg border border-amber-200 bg-amber-50 px-3 py-1.5">
+                                <span className="text-[11px] font-medium text-amber-600">Taxa {feeRate}%</span>
+                                <span className="text-[11px] font-semibold tabular-nums text-amber-700">− R$ {pFee.toFixed(2)}</span>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
-                <div>
-                  <label className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400 mb-1.5 block">Observações</label>
-                  <textarea
-                    value={editNotes}
-                    onChange={(e) => setEditNotes(e.target.value)}
-                    rows={3}
-                    className="w-full px-3 py-2 rounded-xl border border-slate-200 text-[12px] font-medium focus:outline-none focus:border-blue-400 resize-none"
-                  />
-                </div>
+
+                {/* Resumo */}
+                <PanelCard title="Resumo">
+                  <dl className="grid grid-cols-1 gap-x-6 sm:grid-cols-3">
+                    <DetailField label="Total dos itens que ficaram" value={fmt(keptTotal)} />
+                    <DetailField label="Pago" value={fmt(paidTotal)} />
+                    <DetailField label={remaining > 0.005 ? "Restante" : "Pagamento"} value={remaining > 0.005 ? fmt(remaining) : "OK"} />
+                  </dl>
+                </PanelCard>
               </div>
-              <div className="shrink-0 px-5 pb-5 pt-2 flex gap-2">
-                <button onClick={() => setShowEditModal(false)} className="flex-1 h-10 rounded-xl border border-slate-200 text-[10px] font-black uppercase tracking-widest text-slate-600 hover:bg-slate-50 transition-colors">
-                  Cancelar
-                </button>
-                <button onClick={handleSaveEdit} disabled={savingEdit} className="flex-1 h-10 bg-blue-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-blue-700 transition-all disabled:opacity-50 flex items-center justify-center gap-2">
-                  {savingEdit ? <Loader2 size={13} className="animate-spin" /> : "Salvar"}
-                </button>
-              </div>
-            </motion.div>
-          </>
+            )}
+          </Tabs>
         )}
-      </AnimatePresence>
+      </Modal>
+
+      {/* ── EDIT MODAL (prazo/vendedor/observações de sacola aberta) ─────── */}
+      <Modal
+        open={showEditModal && !!selected}
+        onClose={() => setShowEditModal(false)}
+        size="sm"
+        title={selected ? `Editar Sacola ${formatBagNumber(selected.number)}` : ""}
+        footer={
+          <ModalFooter>
+            <Button variant="outline" onClick={() => setShowEditModal(false)}>Cancelar</Button>
+            <Button onClick={handleSaveEdit} loading={savingEdit} disabled={savingEdit}>Salvar</Button>
+          </ModalFooter>
+        }
+      >
+        <div className="space-y-3">
+          <Input
+            label="Prazo (dias, a partir da criação)"
+            type="number" min="1"
+            value={editDueDays}
+            onChange={(e) => setEditDueDays(e.target.value)}
+          />
+          <Select
+            label="Vendedor"
+            value={editSellerId ?? ""}
+            onChange={(e) => setEditSellerId(e.target.value === "" ? null : Number(e.target.value))}
+          >
+            <option value="">Sem vendedor</option>
+            {sellerOptions}
+          </Select>
+          <Textarea label="Observações" value={editNotes} onChange={(e) => setEditNotes(e.target.value)} rows={3} />
+        </div>
+      </Modal>
     </div>
   );
 }

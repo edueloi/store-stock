@@ -3,14 +3,25 @@ import { useNavigate } from "react-router-dom";
 import { ArrowRight, ClipboardList, FileText, Loader2, Trash2, History, Link2, Plus, ClipboardPlus, UserRound, CalendarClock, Wrench } from "lucide-react";
 import PageHeader from "../../components/layout/PageHeader";
 import ConfirmDialog from "../../components/ui/ConfirmDialog";
-import Modal from "../../components/ui/Modal";
-import Button from "../../components/ui/Button";
+import { Modal, ModalFooter, Button, IconButton, Input, Textarea, Tabs, Alert } from "../../components/ui";
 import { cn } from "../../lib/utils";
 import { getStoredUser } from "../../lib/session";
 import { authHeader, fmt, STATUS_ORDER, STATUS_META, type SOStatus } from "./serviceOrders.shared";
 import { onRealtimeAny } from "../../lib/realtime";
 
 type Tab = "ordens_servico" | "orcamentos" | "atividades" | "concluidos";
+
+const BOARD_TABS = [
+  { id: "ordens_servico", label: "Ordens de Serviço", icon: ClipboardList },
+  { id: "orcamentos", label: "Orçamentos", icon: FileText },
+  { id: "atividades", label: "Atividades", icon: ClipboardPlus },
+  { id: "concluidos", label: "Concluídos", icon: History },
+] as const;
+
+const HISTORY_TYPE_TABS = [
+  { id: "ordens_servico", label: "OS" },
+  { id: "orcamentos", label: "Orçamentos" },
+] as const;
 
 interface QuoteCard {
   id: number;
@@ -331,42 +342,48 @@ export default function WorkflowBoard() {
         draggable={movableHere || canMove(nextStage ?? "")}
         onDragStart={(e) => e.dataTransfer.setData("text/plain", JSON.stringify({ id: card.id, status: stage }))}
         onClick={() => openCard(card.id)}
-        className="bg-white rounded-xl border border-slate-200 p-3 cursor-pointer hover:border-blue-300 hover:shadow-sm transition-all group"
+        className="bg-white rounded-lg border border-slate-200 p-3 cursor-pointer hover:border-blue-300 hover:shadow-sm transition-all group"
       >
         <div className="flex items-center justify-between gap-2">
-          <p className="text-[9px] font-black text-slate-300 uppercase tracking-wider">#{String(card.number).padStart(4, "0")}</p>
+          <p className="text-[10px] font-semibold text-slate-300">#{String(card.number).padStart(4, "0")}</p>
           <div className="flex items-center gap-1">
             {meta && (
-              <span className={cn("px-1.5 py-0.5 rounded text-[8px] font-black uppercase flex items-center gap-1", meta.color)}>
+              <span className={cn("px-1.5 py-0.5 rounded text-[10px] font-semibold flex items-center gap-1", meta.color)}>
                 {meta.icon} {meta.label}
               </span>
             )}
-            <button
+            <IconButton
+              variant="ghost"
+              size="xs"
+              aria-label="Excluir"
               onClick={(e) => { e.stopPropagation(); setDeleteTarget({ id: card.id, isOrder: effectiveTab === "ordens_servico" }); }}
-              className="opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded-lg text-red-400 hover:bg-red-50"
+              className="opacity-0 group-hover:opacity-100 transition-opacity text-red-400 hover:bg-red-50"
               title="Excluir"
             >
               <Trash2 size={12} />
-            </button>
+            </IconButton>
           </div>
         </div>
-        <p className="text-[12px] font-bold text-slate-800 truncate mt-1">{card.title}</p>
+        <p className="text-[12px] font-semibold text-slate-800 truncate mt-1">{card.title}</p>
         {card.quoteNumber && (
-          <p className="text-[9px] font-bold text-blue-400 flex items-center gap-1 mt-0.5">
+          <p className="text-[10px] font-semibold text-blue-400 flex items-center gap-1 mt-0.5">
             <Link2 size={10} /> Orç. #{String(card.quoteNumber).padStart(4, "0")}
           </p>
         )}
         <div className="flex items-center justify-between mt-1.5">
-          <span className="text-[11px] font-mono font-bold text-slate-500">{card.subtitle}</span>
+          <span className="text-[11px] font-mono font-semibold text-slate-500">{card.subtitle}</span>
           {nextStage && (
-            <button
+            <IconButton
+              variant="ghost"
+              size="xs"
+              aria-label="Avançar etapa"
               onClick={(e) => { e.stopPropagation(); moveCard(card.id, stage, nextStage); }}
               disabled={movingId === card.id || !canMove(nextStage)}
               title={canMove(nextStage) ? `Avançar para ${labelFor(nextStage)}` : "Sem permissão para esta etapa"}
-              className="opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded-lg text-blue-500 hover:bg-blue-50 disabled:opacity-30 disabled:cursor-not-allowed"
+              className="opacity-0 group-hover:opacity-100 transition-opacity text-blue-500 hover:bg-blue-50"
             >
               {movingId === card.id ? <Loader2 size={13} className="animate-spin" /> : <ArrowRight size={13} />}
-            </button>
+            </IconButton>
           )}
         </div>
       </div>
@@ -374,25 +391,25 @@ export default function WorkflowBoard() {
   };
 
   const renderTaskCard = (task: ProductionTask, stage: string, nextStage: string | undefined) => (
-    <div key={task.id} className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm transition-all hover:-translate-y-0.5 hover:border-blue-300 hover:shadow-md">
+    <div key={task.id} className="rounded-lg border border-slate-200 bg-white p-3 shadow-sm transition-all hover:-translate-y-0.5 hover:border-blue-300 hover:shadow-sm">
       <div className="flex items-start justify-between gap-2">
-        <span className="text-[9px] font-black tracking-wider text-slate-400">ATV #{String(task.number).padStart(4, "0")}</span>
-        <span className={cn("rounded-full px-2 py-0.5 text-[8px] font-black uppercase", task.priority === "urgente" ? "bg-rose-100 text-rose-600" : "bg-blue-50 text-blue-600")}>{task.priority}</span>
+        <span className="text-[10px] font-semibold text-slate-400">ATV #{String(task.number).padStart(4, "0")}</span>
+        <span className={cn("rounded-full px-2 py-0.5 text-[10px] font-semibold", task.priority === "urgente" ? "bg-rose-100 text-rose-600" : "bg-blue-50 text-blue-600")}>{task.priority}</span>
       </div>
-      <p className="mt-2 text-[12px] font-black text-slate-800">{task.title}</p>
-      {task.description && <p className="mt-1 line-clamp-2 text-[10px] leading-relaxed text-slate-500">{task.description}</p>}
-      {task.expected_result && <p className="mt-1 line-clamp-1 text-[9px] font-semibold text-violet-600">Entrega: {task.expected_result}</p>}
-      {!!task.planned_items?.length && <p className="mt-2 line-clamp-2 rounded-lg bg-slate-50 px-2 py-1.5 text-[9px] text-slate-500">Itens: {task.planned_items.map((item) => item.name).filter(Boolean).join(" · ")}</p>}
-      <div className="mt-3 space-y-1 border-t border-slate-100 pt-2 text-[9px] font-semibold text-slate-500">
+      <p className="mt-2 text-[12px] font-semibold text-slate-800">{task.title}</p>
+      {task.description && <p className="mt-1 line-clamp-2 text-[11px] leading-relaxed text-slate-500">{task.description}</p>}
+      {task.expected_result && <p className="mt-1 line-clamp-1 text-[10px] font-semibold text-violet-600">Entrega: {task.expected_result}</p>}
+      {!!task.planned_items?.length && <p className="mt-2 line-clamp-2 rounded-lg bg-slate-50 px-2 py-1.5 text-[10px] text-slate-500">Itens: {task.planned_items.map((item) => item.name).filter(Boolean).join(" · ")}</p>}
+      <div className="mt-3 space-y-1 border-t border-slate-100 pt-2 text-[10px] font-semibold text-slate-500">
         {task.customer_name && <p className="flex items-center gap-1"><UserRound size={10} /> {task.customer_name}</p>}
         {task.assignee_name && <p className="flex items-center gap-1"><Wrench size={10} /> {task.assignee_name}</p>}
         {task.due_at && <p className="flex items-center gap-1 text-amber-600"><CalendarClock size={10} /> {new Date(`${task.due_at}T12:00:00`).toLocaleDateString("pt-BR")}</p>}
       </div>
       <div className="mt-3 flex items-center justify-between gap-2">
-        <button onClick={() => createTaskServiceOrder(task)} className="text-[9px] font-black uppercase tracking-wide text-violet-600 hover:text-violet-800">
+        <Button variant="ghost" size="xs" onClick={() => createTaskServiceOrder(task)}>
           {task.service_order_id ? "Abrir OS" : "Criar OS"}
-        </button>
-        {nextStage && <button onClick={() => moveTask(task, nextStage)} className="flex h-7 items-center gap-1 rounded-lg bg-blue-600 px-2 text-[9px] font-black uppercase text-white hover:bg-blue-700">Avançar <ArrowRight size={11} /></button>}
+        </Button>
+        {nextStage && <Button size="xs" onClick={() => moveTask(task, nextStage)} iconRight={<ArrowRight size={11} />}>Avançar</Button>}
       </div>
     </div>
   );
@@ -402,87 +419,33 @@ export default function WorkflowBoard() {
       <PageHeader
         title="Fluxo de Produção"
         subtitle={graficaEnabled ? "Acompanhe os trabalhos por etapa" : "Acompanhe Ordens de Serviço e Orçamentos por etapa"}
-        action={<div className="flex gap-2">
-          <button onClick={openTask} className="h-9 px-3 bg-violet-600 text-white rounded-lg flex items-center gap-2 text-[11px] font-bold hover:bg-violet-700 transition-all"><ClipboardPlus size={15} /> Nova Atividade</button>
-          <button onClick={openQuickQuote} className="h-9 px-3 bg-blue-600 text-white rounded-lg flex items-center gap-2 text-[11px] font-bold hover:bg-blue-700 transition-all shadow-md shadow-blue-500/20"><Plus size={15} /> Novo Orçamento</button>
+        action={<div className="flex flex-wrap gap-2">
+          <Button size="sm" variant="outline" onClick={openTask} iconLeft={<ClipboardPlus size={14} />}>Nova Atividade</Button>
+          <Button size="sm" onClick={openQuickQuote} iconLeft={<Plus size={14} />}>Novo Orçamento</Button>
         </div>}
       />
 
-      <div className="flex items-center gap-2 flex-wrap">
-        {!graficaEnabled && (
-          <>
-            <button
-              onClick={() => setTab("ordens_servico")}
-              className={cn("h-9 px-4 rounded-xl text-[11px] font-black uppercase tracking-wider flex items-center gap-2 transition-all",
-                tab === "ordens_servico" ? "bg-blue-600 text-white" : "bg-white border border-slate-200 text-slate-500 hover:bg-slate-50")}
-            >
-              <ClipboardList size={13} /> Ordens de Serviço
-            </button>
-            <button
-              onClick={() => setTab("orcamentos")}
-              className={cn("h-9 px-4 rounded-xl text-[11px] font-black uppercase tracking-wider flex items-center gap-2 transition-all",
-                tab === "orcamentos" ? "bg-blue-600 text-white" : "bg-white border border-slate-200 text-slate-500 hover:bg-slate-50")}
-            >
-              <FileText size={13} /> Orçamentos
-            </button>
-          </>
-        )}
-        <button
-          onClick={() => setTab("atividades")}
-          className={cn("h-9 px-4 rounded-xl text-[11px] font-black uppercase tracking-wider flex items-center gap-2 transition-all",
-            tab === "atividades" ? "bg-violet-600 text-white" : "bg-white border border-slate-200 text-slate-500 hover:bg-slate-50")}
-        >
-          <ClipboardPlus size={13} /> Atividades
-        </button>
-        <button
-          onClick={() => setTab("concluidos")}
-          className={cn("h-9 px-4 rounded-xl text-[11px] font-black uppercase tracking-wider flex items-center gap-2 transition-all",
-            tab === "concluidos" ? "bg-blue-600 text-white" : "bg-white border border-slate-200 text-slate-500 hover:bg-slate-50")}
-        >
-          <History size={13} /> Concluídos
-        </button>
-      </div>
-
+      <Tabs<Tab> items={graficaEnabled ? BOARD_TABS.filter((t) => t.id === "atividades" || t.id === "concluidos") : BOARD_TABS} value={tab} onChange={setTab} label="Etapas do fluxo de produção">
       {error && (
-        <div className="px-4 py-2.5 rounded-xl bg-red-50 border border-red-200 text-[11px] font-bold text-red-600">
-          {error}
-        </div>
+        <Alert variant="error">{error}</Alert>
       )}
 
       {tab === "concluidos" ? (
         <div className="space-y-4">
-          <div className="flex items-end gap-3 flex-wrap bg-white rounded-2xl border border-slate-200 p-4">
+          <div className="flex items-end gap-3 flex-wrap bg-white rounded-lg border border-slate-200 p-4">
             {!graficaEnabled && (
               <div>
-                <label className="text-[9px] font-black uppercase tracking-widest text-slate-400 block mb-1">Tipo</label>
-                <div className="flex gap-1.5">
-                  <button onClick={() => setHistoryType("ordens_servico")}
-                    className={cn("h-9 px-3 rounded-lg text-[10px] font-black uppercase transition-all",
-                      historyType === "ordens_servico" ? "bg-blue-600 text-white" : "bg-slate-100 text-slate-500")}>
-                    OS
-                  </button>
-                  <button onClick={() => setHistoryType("orcamentos")}
-                    className={cn("h-9 px-3 rounded-lg text-[10px] font-black uppercase transition-all",
-                      historyType === "orcamentos" ? "bg-blue-600 text-white" : "bg-slate-100 text-slate-500")}>
-                    Orçamentos
-                  </button>
-                </div>
+                <label className="ds-label mb-1 block">Tipo</label>
+                <Tabs<"ordens_servico" | "orcamentos"> items={HISTORY_TYPE_TABS} value={historyType} onChange={setHistoryType} label="Tipo de registro concluído">{null}</Tabs>
               </div>
             )}
             <div>
-              <label className="text-[9px] font-black uppercase tracking-widest text-slate-400 block mb-1">De</label>
-              <input type="date" value={historyFrom} onChange={(e) => setHistoryFrom(e.target.value)}
-                className="h-9 px-3 rounded-lg border border-slate-200 text-[12px] focus:outline-none focus:ring-2 focus:ring-blue-500" />
+              <Input label="De" type="date" value={historyFrom} onChange={(e) => setHistoryFrom(e.target.value)} />
             </div>
             <div>
-              <label className="text-[9px] font-black uppercase tracking-widest text-slate-400 block mb-1">Até</label>
-              <input type="date" value={historyTo} onChange={(e) => setHistoryTo(e.target.value)}
-                className="h-9 px-3 rounded-lg border border-slate-200 text-[12px] focus:outline-none focus:ring-2 focus:ring-blue-500" />
+              <Input label="Até" type="date" value={historyTo} onChange={(e) => setHistoryTo(e.target.value)} />
             </div>
-            <button onClick={loadHistory} disabled={historyLoading}
-              className="h-9 px-4 rounded-lg bg-slate-800 text-white text-[10px] font-black uppercase tracking-wider hover:bg-slate-900 transition-all disabled:opacity-50">
-              {historyLoading ? <Loader2 size={13} className="animate-spin" /> : "Filtrar"}
-            </button>
+            <Button onClick={loadHistory} loading={historyLoading}>Filtrar</Button>
           </div>
 
           {historyLoading ? (
@@ -497,19 +460,19 @@ export default function WorkflowBoard() {
                 return (
                   <div key={h.id}
                     onClick={() => navigate(isOrder ? `/admin/ordens-servico/${h.id}` : `/admin/orcamentos/${h.id}`)}
-                    className="bg-white rounded-xl border border-slate-200 p-3 flex items-center justify-between gap-3 cursor-pointer hover:border-blue-300 transition-all">
+                    className="bg-white rounded-lg border border-slate-200 p-3 flex items-center justify-between gap-3 cursor-pointer hover:border-blue-300 transition-all">
                     <div className="min-w-0">
-                      <p className="text-[9px] font-black text-slate-300 uppercase tracking-wider">#{String(h.number).padStart(4, "0")}</p>
-                      <p className="text-[12px] font-bold text-slate-800 truncate">{h.customer_name || "Sem cliente"}</p>
-                      {h.updated_at && <p className="text-[9px] text-slate-400">{new Date(h.updated_at).toLocaleDateString("pt-BR")}</p>}
+                      <p className="text-[10px] font-semibold text-slate-300">#{String(h.number).padStart(4, "0")}</p>
+                      <p className="text-[12px] font-semibold text-slate-800 truncate">{h.customer_name || "Sem cliente"}</p>
+                      {h.updated_at && <p className="text-[10px] text-slate-400">{new Date(h.updated_at).toLocaleDateString("pt-BR")}</p>}
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
                       {meta ? (
-                        <span className={cn("px-1.5 py-0.5 rounded text-[8px] font-black uppercase flex items-center gap-1", meta.color)}>{meta.icon} {meta.label}</span>
+                        <span className={cn("px-1.5 py-0.5 rounded text-[10px] font-semibold flex items-center gap-1", meta.color)}>{meta.icon} {meta.label}</span>
                       ) : (
-                        <span className="px-1.5 py-0.5 rounded text-[8px] font-black uppercase bg-slate-100 text-slate-500">{QUOTE_LABELS[h.status] ?? h.status}</span>
+                        <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-slate-100 text-slate-500">{QUOTE_LABELS[h.status] ?? h.status}</span>
                       )}
-                      <span className="text-[11px] font-mono font-bold text-slate-500">{fmt(h.total_amount)}</span>
+                      <span className="text-[11px] font-mono font-semibold text-slate-500">{fmt(h.total_amount)}</span>
                     </div>
                   </div>
                 );
@@ -521,8 +484,8 @@ export default function WorkflowBoard() {
         <div className="flex gap-3 overflow-x-auto pb-4">
           {columns.map((stage, idx) => {
             const stageTasks = taskCardsByStage.get(stage) ?? [];
-            return <div key={stage} className="flex w-72 shrink-0 flex-col gap-2 rounded-2xl border border-violet-100 bg-violet-50/40 p-3">
-              <div className="flex items-center justify-between px-1"><p className="text-[10px] font-black uppercase tracking-widest text-violet-700">{labelFor(stage)}</p><span className="rounded-full bg-white px-2 py-0.5 text-[9px] font-black text-violet-500">{stageTasks.length}</span></div>
+            return <div key={stage} className="flex w-72 shrink-0 flex-col gap-2 rounded-lg border border-violet-100 bg-violet-50/40 p-3">
+              <div className="flex items-center justify-between px-1"><p className="text-[11px] font-semibold text-violet-700">{labelFor(stage)}</p><span className="rounded-full bg-white px-2 py-0.5 text-[10px] font-semibold text-violet-500">{stageTasks.length}</span></div>
               <div className="flex min-h-[80px] flex-col gap-2">{stageTasks.map((task) => renderTaskCard(task, stage, columns[idx + 1]))}</div>
             </div>;
           })}
@@ -552,13 +515,13 @@ export default function WorkflowBoard() {
                     moveCard(id, status, stage);
                   }}
                   className={cn(
-                    "shrink-0 w-72 rounded-2xl border bg-slate-50/60 p-3 flex flex-col gap-2 transition-colors",
+                    "shrink-0 w-72 rounded-lg border bg-slate-50/60 p-3 flex flex-col gap-2 transition-colors",
                     dragOverStage === stage ? "border-blue-400 bg-blue-50/60" : "border-slate-200"
                   )}
                 >
                   <div className="flex items-center justify-between px-1">
-                    <p className="text-[10px] font-black uppercase tracking-widest text-slate-600">{labelFor(stage)}</p>
-                    <span className="text-[9px] font-black text-slate-400 bg-white border border-slate-200 rounded-full px-2 py-0.5">{cards.length}</span>
+                    <p className="text-[11px] font-semibold text-slate-600">{labelFor(stage)}</p>
+                    <span className="text-[10px] font-semibold text-slate-400 bg-white border border-slate-200 rounded-full px-2 py-0.5">{cards.length}</span>
                   </div>
 
                   <div className="flex flex-col gap-2 min-h-[60px]">
@@ -571,21 +534,12 @@ export default function WorkflowBoard() {
 
           {/* Mobile: seletor de etapa (pill row) + lista vertical de uma etapa por vez */}
           <div className="md:hidden space-y-3">
-            <div className="flex gap-1.5 overflow-x-auto pb-1">
-              {columns.map((stage) => {
-                const count = (cardsByStage.get(stage) ?? []).length;
-                return (
-                  <button
-                    key={stage}
-                    onClick={() => setMobileStage(stage)}
-                    className={cn("shrink-0 h-8 px-3 rounded-full text-[10px] font-black uppercase tracking-wider flex items-center gap-1.5 transition-all",
-                      mobileStage === stage ? "bg-blue-600 text-white" : "bg-white border border-slate-200 text-slate-500")}
-                  >
-                    {labelFor(stage)} <span className="opacity-70">({count})</span>
-                  </button>
-                );
-              })}
-            </div>
+            <Tabs<string>
+              items={columns.map((stage) => ({ id: stage, label: `${labelFor(stage)} (${(cardsByStage.get(stage) ?? []).length})` }))}
+              value={mobileStage ?? ""}
+              onChange={setMobileStage}
+              label="Etapas do fluxo"
+            >{null}</Tabs>
             <div className="flex flex-col gap-2">
               {(cardsByStage.get(mobileStage ?? "") ?? []).length === 0 ? (
                 <p className="text-[11px] text-slate-400 text-center py-8">Nenhum card nesta etapa</p>
@@ -597,6 +551,8 @@ export default function WorkflowBoard() {
           </div>
         </>
       )}
+
+      </Tabs>
 
       <ConfirmDialog
         open={!!deleteTarget}
@@ -617,35 +573,31 @@ export default function WorkflowBoard() {
         size="sm"
         persistent={quickQuoteCreating}
         footer={
-          <div className="flex gap-3 w-full">
-            <Button variant="secondary" onClick={closeQuickQuote} className="flex-1" disabled={quickQuoteCreating}>
+          <ModalFooter>
+            <Button variant="ghost" size="sm" onClick={closeQuickQuote} disabled={quickQuoteCreating}>
               Cancelar
             </Button>
             <Button
-              variant="primary"
+              size="sm"
               onClick={submitQuickQuote}
               loading={quickQuoteCreating}
               disabled={!quickQuoteName.trim()}
-              className="flex-1"
             >
               Criar
             </Button>
-          </div>
+          </ModalFooter>
         }
       >
         <div className="space-y-2">
-          <label className="text-[9px] font-black uppercase tracking-widest text-slate-400 block">Nome do Cliente</label>
-          <input
+          <Input
+            label="Nome do Cliente"
             autoFocus
             value={quickQuoteName}
             onChange={(e) => { setQuickQuoteName(e.target.value); if (quickQuoteError) setQuickQuoteError(""); }}
             onKeyDown={(e) => { if (e.key === "Enter" && quickQuoteName.trim() && !quickQuoteCreating) submitQuickQuote(); }}
             placeholder="Ex: João da Silva"
-            className="w-full h-10 px-3 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            error={quickQuoteError || undefined}
           />
-          {quickQuoteError && (
-            <p className="text-[11px] font-bold text-red-500">{quickQuoteError}</p>
-          )}
         </div>
       </Modal>
 
@@ -656,20 +608,26 @@ export default function WorkflowBoard() {
         subtitle="Crie um card independente e transforme em OS quando precisar"
         size="lg"
         persistent={taskSaving}
-        footer={<div className="flex w-full gap-3"><Button variant="secondary" className="flex-1" onClick={() => setTaskOpen(false)} disabled={taskSaving}>Cancelar</Button><Button variant="primary" className="flex-1" onClick={submitTask} loading={taskSaving}>Criar atividade</Button></div>}
+        footer={<ModalFooter><Button variant="ghost" size="sm" onClick={() => setTaskOpen(false)} disabled={taskSaving}>Cancelar</Button><Button size="sm" onClick={submitTask} loading={taskSaving}>Criar atividade</Button></ModalFooter>}
       >
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <div className="sm:col-span-2"><label className="mb-1 block text-[9px] font-black uppercase tracking-widest text-slate-400">Atividade *</label><input autoFocus value={taskForm.title} onChange={(e) => setTaskForm({ ...taskForm, title: e.target.value })} placeholder="Ex.: Produzir fachada e instalar até sexta" className="h-10 w-full rounded-xl border border-slate-200 px-3 text-[12px] focus:outline-none focus:border-violet-400" /></div>
-          <div><label className="mb-1 block text-[9px] font-black uppercase tracking-widest text-slate-400">Cliente</label><input value={taskForm.customer_name} onChange={(e) => setTaskForm({ ...taskForm, customer_name: e.target.value })} placeholder="Nome do cliente" className="h-10 w-full rounded-xl border border-slate-200 px-3 text-[12px]" /></div>
-          <div><label className="mb-1 block text-[9px] font-black uppercase tracking-widest text-slate-400">Quem vai fazer</label><input value={taskForm.assignee_name} onChange={(e) => setTaskForm({ ...taskForm, assignee_name: e.target.value })} placeholder="Responsável pela atividade" className="h-10 w-full rounded-xl border border-slate-200 px-3 text-[12px]" /></div>
-          <div><label className="mb-1 block text-[9px] font-black uppercase tracking-widest text-slate-400">Telefone</label><input value={taskForm.customer_phone} onChange={(e) => setTaskForm({ ...taskForm, customer_phone: e.target.value })} placeholder="(00) 00000-0000" className="h-10 w-full rounded-xl border border-slate-200 px-3 text-[12px]" /></div>
-          <div><label className="mb-1 block text-[9px] font-black uppercase tracking-widest text-slate-400">Prazo</label><input type="date" value={taskForm.due_at} onChange={(e) => setTaskForm({ ...taskForm, due_at: e.target.value })} className="h-10 w-full rounded-xl border border-slate-200 px-3 text-[12px]" /></div>
-          <div><label className="mb-1 block text-[9px] font-black uppercase tracking-widest text-slate-400">Prioridade</label><div className="flex gap-2"><button onClick={() => setTaskForm({ ...taskForm, priority: "normal" })} className={cn("h-10 flex-1 rounded-xl text-[10px] font-black uppercase", taskForm.priority === "normal" ? "bg-blue-600 text-white" : "bg-slate-100 text-slate-500")}>Normal</button><button onClick={() => setTaskForm({ ...taskForm, priority: "urgente" })} className={cn("h-10 flex-1 rounded-xl text-[10px] font-black uppercase", taskForm.priority === "urgente" ? "bg-rose-600 text-white" : "bg-slate-100 text-slate-500")}>Urgente</button></div></div>
-          <div><label className="mb-1 block text-[9px] font-black uppercase tracking-widest text-slate-400">E-mail do cliente</label><input type="email" value={taskForm.customer_email} onChange={(e) => setTaskForm({ ...taskForm, customer_email: e.target.value })} placeholder="cliente@empresa.com" className="h-10 w-full rounded-xl border border-slate-200 px-3 text-[12px]" /></div>
-          <div className="sm:col-span-2"><label className="mb-1 block text-[9px] font-black uppercase tracking-widest text-slate-400">O que precisa ser feito</label><textarea value={taskForm.description} onChange={(e) => setTaskForm({ ...taskForm, description: e.target.value })} rows={3} placeholder="Detalhes da atividade, medidas, orientações e observações" className="w-full rounded-xl border border-slate-200 px-3 py-2 text-[12px]" /></div>
-          <div className="sm:col-span-2"><label className="mb-1 block text-[9px] font-black uppercase tracking-widest text-slate-400">Produtos / serviços planejados</label><textarea value={taskForm.planned_items} onChange={(e) => setTaskForm({ ...taskForm, planned_items: e.target.value })} rows={2} placeholder="Um item por linha" className="w-full rounded-xl border border-slate-200 px-3 py-2 text-[12px]" /></div>
-          <div className="sm:col-span-2"><label className="mb-1 block text-[9px] font-black uppercase tracking-widest text-slate-400">Resultado esperado</label><textarea value={taskForm.expected_result} onChange={(e) => setTaskForm({ ...taskForm, expected_result: e.target.value })} rows={2} placeholder="Como deve ficar ao concluir" className="w-full rounded-xl border border-slate-200 px-3 py-2 text-[12px]" /></div>
-          {taskError && <p className="sm:col-span-2 text-[11px] font-bold text-rose-600">{taskError}</p>}
+          <Input label="Atividade *" wrapperClassName="sm:col-span-2" autoFocus value={taskForm.title} onChange={(e) => setTaskForm({ ...taskForm, title: e.target.value })} placeholder="Ex.: Produzir fachada e instalar até sexta" />
+          <Input label="Cliente" value={taskForm.customer_name} onChange={(e) => setTaskForm({ ...taskForm, customer_name: e.target.value })} placeholder="Nome do cliente" />
+          <Input label="Quem vai fazer" value={taskForm.assignee_name} onChange={(e) => setTaskForm({ ...taskForm, assignee_name: e.target.value })} placeholder="Responsável pela atividade" />
+          <Input label="Telefone" value={taskForm.customer_phone} onChange={(e) => setTaskForm({ ...taskForm, customer_phone: e.target.value })} placeholder="(00) 00000-0000" />
+          <Input label="Prazo" type="date" value={taskForm.due_at} onChange={(e) => setTaskForm({ ...taskForm, due_at: e.target.value })} />
+          <div>
+            <label className="ds-label mb-1 block">Prioridade</label>
+            <div className="flex gap-2">
+              <Button size="md" variant={taskForm.priority === "normal" ? "primary" : "outline"} className="flex-1" onClick={() => setTaskForm({ ...taskForm, priority: "normal" })}>Normal</Button>
+              <Button size="md" variant={taskForm.priority === "urgente" ? "danger" : "outline"} className="flex-1" onClick={() => setTaskForm({ ...taskForm, priority: "urgente" })}>Urgente</Button>
+            </div>
+          </div>
+          <Input label="E-mail do cliente" type="email" value={taskForm.customer_email} onChange={(e) => setTaskForm({ ...taskForm, customer_email: e.target.value })} placeholder="cliente@empresa.com" />
+          <Textarea label="O que precisa ser feito" wrapperClassName="sm:col-span-2" value={taskForm.description} onChange={(e) => setTaskForm({ ...taskForm, description: e.target.value })} rows={3} placeholder="Detalhes da atividade, medidas, orientações e observações" />
+          <Textarea label="Produtos / serviços planejados" wrapperClassName="sm:col-span-2" value={taskForm.planned_items} onChange={(e) => setTaskForm({ ...taskForm, planned_items: e.target.value })} rows={2} placeholder="Um item por linha" />
+          <Textarea label="Resultado esperado" wrapperClassName="sm:col-span-2" value={taskForm.expected_result} onChange={(e) => setTaskForm({ ...taskForm, expected_result: e.target.value })} rows={2} placeholder="Como deve ficar ao concluir" />
+          {taskError && <Alert variant="error" className="sm:col-span-2">{taskError}</Alert>}
         </div>
       </Modal>
     </div>

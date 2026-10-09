@@ -125,6 +125,7 @@ export async function getTenant(req: Request, res: Response) {
         secure: Boolean((email_config as Record<string, unknown>).secure),
         from_name: (email_config as Record<string, unknown>).from_name || "",
       } : null,
+      email_sender_mode: tenant.email_sender_mode === "system" ? "system" : "own",
       public_url: buildTenantAccessUrl(tenant.subdomain || tenant.slug),
     });
   } catch {
@@ -273,10 +274,21 @@ export async function updateTenant(req: Request, res: Response) {
           select: { name: true, email_config: true },
         });
         data.email_config = prepareEmailConnection(b.email_connection as EmailConnectionInput, current?.email_config, current?.name);
+        // Salvar a conta própria ativa o modo "own" (exclusivo com o envio pelo sistema),
+        // salvo se o próprio request já definir o modo explicitamente.
+        if (b.email_sender_mode === undefined) data.email_sender_mode = "own";
       } else {
         res.status(422).json({ error: "Configuração de e-mail inválida." });
         return;
       }
+    }
+
+    if (b.email_sender_mode !== undefined) {
+      if (b.email_sender_mode !== "own" && b.email_sender_mode !== "system") {
+        res.status(422).json({ error: "Modo de envio de e-mail inválido." });
+        return;
+      }
+      data.email_sender_mode = b.email_sender_mode;
     }
 
     // Dados fiscais

@@ -117,6 +117,8 @@ export interface Tenant {
     secure: boolean;
     from_name: string;
   } | null;
+  /** "own" = conta de e-mail própria da loja | "system" = SMTP do sistema (contato@boxsys.com.br). */
+  email_sender_mode?: 'own' | 'system';
   // Dados fiscais
   razao_social?: string;
   inscricao_estadual?: string;

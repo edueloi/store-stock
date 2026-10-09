@@ -24,17 +24,17 @@ const accentBorder: Record<NonNullable<CardProps["accent"]>, string> = {
 
 const paddingClasses: Record<NonNullable<CardProps["padding"]>, string> = {
   none: "",
-  sm:   "p-4",
-  md:   "p-5 lg:p-6",
-  lg:   "p-6 lg:p-8",
+  sm:   "p-3",
+  md:   "p-3",
+  lg:   "p-4",
 };
 
 export function Card({ children, className, accent, hover = false, padding = "md" }: CardProps) {
   return (
     <div
       className={cn(
-        "bg-white rounded-2xl border border-slate-200 shadow-sm transition-all duration-200",
-        hover && "hover:shadow-lg hover:-translate-y-0.5 cursor-pointer",
+        "bg-white rounded-lg border border-slate-200 transition-all duration-200",
+        hover && "hover:border-slate-300 cursor-pointer",
         accent && accentBorder[accent],
         paddingClasses[padding],
         className
@@ -80,12 +80,12 @@ export function StatCard({
       )}
 
       <div className="relative z-10">
-        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">
+        <p className="text-[11px] font-semibold text-slate-400 mb-2">
           {label}
         </p>
         <p
           className={cn(
-            "text-2xl lg:text-3xl font-black tracking-tighter leading-none",
+            "text-base font-medium leading-none",
             mono && "font-mono",
             accent === "emerald" ? "text-emerald-600"
               : accent === "red" ? "text-red-600"
@@ -99,7 +99,7 @@ export function StatCard({
         {trend !== undefined && (
           <div
             className={cn(
-              "flex items-center gap-1 mt-3 text-[10px] font-bold",
+              "flex items-center gap-1 mt-3 text-[11px] font-semibold",
               isPositive ? "text-emerald-600" : "text-red-500"
             )}
           >

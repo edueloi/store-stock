@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { Button } from "./ui/Button";
 // @ts-expect-error -- virtual module provided by vite-plugin-pwa at build time
 import { useRegisterSW } from "virtual:pwa-register/react";
 
@@ -76,19 +77,16 @@ export default function PwaUpdateBanner() {
   if (!visible) return null;
 
   return (
-    <div className="fixed bottom-4 left-4 z-[300] flex items-center gap-3 bg-slate-900 text-white rounded-2xl shadow-xl px-4 py-3 max-w-sm">
+    <div className="fixed bottom-4 left-4 z-[300] flex items-center gap-3 bg-slate-900 text-white rounded-lg shadow-sm px-4 py-3 max-w-sm">
       <div className="flex-1 min-w-0">
-        <p className="text-xs font-black uppercase tracking-wide">Nova versão disponível</p>
+        <p className="text-xs font-semibold">Nova versão disponível</p>
         <p className="text-[11px] text-slate-300 mt-0.5">
           Atualize quando concluir a operação atual. Nenhum dado em andamento será interrompido.
         </p>
       </div>
-      <button
-        onClick={applyUpdate}
-        className="shrink-0 h-9 px-3 bg-blue-600 hover:bg-blue-700 rounded-xl text-[10px] font-black uppercase tracking-widest transition-colors"
-      >
+      <Button size="sm" onClick={applyUpdate} className="shrink-0">
         Atualizar agora
-      </button>
+      </Button>
     </div>
   );
 }

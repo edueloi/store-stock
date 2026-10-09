@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { Monitor, Trash2, Loader2, LinkIcon } from "lucide-react";
 import { useToast } from "../../components/ui/Toast";
+import { Button, IconButton, Input } from "../../components/ui";
 
 interface DesktopTerminal {
   id: number;
@@ -100,71 +101,79 @@ export default function DesktopTerminalsSection() {
   };
 
   return (
-    <div className="bg-white border border-slate-200 rounded-2xl p-5 space-y-5">
+    <div className="bg-white border border-slate-200 rounded-lg p-5 space-y-5">
       <div>
-        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Vincular Dispositivos</p>
+        <p className="text-[11px] font-semibold text-slate-400 mb-1">Vincular Dispositivos</p>
         <p className="text-[11px] text-slate-500 leading-relaxed">
-          No app desktop, abra o menu <span className="font-bold text-slate-700">PDV → Vincular Dispositivo...</span> pra
+          No app desktop, abra o menu <span className="font-semibold text-slate-700">PDV → Vincular Dispositivo...</span> pra
           gerar um código de 6 dígitos. Digite esse código aqui e dê um nome pra esse terminal (ex: "Escritório", "Caixa 1")
           — assim você sabe exatamente qual computador vai receber notificações e impressões remotas.
         </p>
       </div>
 
       <div className="flex flex-col sm:flex-row gap-2.5">
-        <input
+        <Input
           type="text"
           inputMode="numeric"
           maxLength={6}
+          showCount={false}
           placeholder="Código de 6 dígitos"
           value={code}
           onChange={(e) => setCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
-          className="w-full sm:w-40 h-11 px-4 bg-slate-50 border border-slate-200 rounded-xl text-sm font-mono font-black text-center tracking-widest outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-500/10 transition-all"
+          wrapperClassName="w-full sm:w-40"
+          className="font-mono text-center"
         />
-        <input
+        <Input
           type="text"
           placeholder="Nome do terminal (ex: Escritório)"
           value={name}
           onChange={(e) => setName(e.target.value)}
-          className="flex-1 h-11 px-4 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-500/10 transition-all"
+          wrapperClassName="flex-1"
         />
-        <button
+        <Button
           onClick={handlePair}
           disabled={pairing}
-          className="h-11 px-5 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-all shrink-0"
+          loading={pairing}
+          iconLeft={<LinkIcon size={14} />}
+          className="shrink-0"
         >
-          {pairing ? <Loader2 size={14} className="animate-spin" /> : <LinkIcon size={14} />} Vincular
-        </button>
+          Vincular
+        </Button>
       </div>
 
       <div className="border-t border-slate-100 pt-4 space-y-2">
         {loading ? (
           <div className="flex items-center justify-center py-6"><Loader2 size={18} className="animate-spin text-slate-300" /></div>
         ) : terminals.length === 0 ? (
-          <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest text-center py-4">Nenhum terminal vinculado ainda</p>
+          <p className="text-[11px] text-slate-400 font-semibold text-center py-4">Nenhum terminal vinculado ainda</p>
         ) : (
           terminals.map((t) => {
             const presence = getTerminalPresence(t.last_seen_at);
             return (
-            <div key={t.id} className="flex items-center gap-3 px-4 py-3 bg-slate-50 rounded-xl">
-              <div className="w-9 h-9 rounded-xl bg-white border border-slate-200 flex items-center justify-center shrink-0">
+            <div key={t.id} className="flex items-center gap-3 px-4 py-3 bg-slate-50 rounded-lg">
+              <div className="w-9 h-9 rounded-lg bg-white border border-slate-200 flex items-center justify-center shrink-0">
                 <Monitor size={16} className="text-slate-400" />
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-[12px] font-bold text-slate-900 truncate">{t.name}</p>
-                <p className="text-[9px] text-slate-400 font-bold uppercase mt-0.5 flex items-center gap-1.5">
+                <p className="text-[12px] font-semibold text-slate-900 truncate">{t.name}</p>
+                <p className="text-[11px] text-slate-500 mt-0.5 flex items-center gap-1.5">
                   <span className={presence.online ? "w-1.5 h-1.5 rounded-full bg-emerald-500" : "w-1.5 h-1.5 rounded-full bg-slate-300"} />
                   <span className={presence.online ? "text-emerald-600" : undefined}>{presence.label}</span>
                   <span className="text-slate-300">·</span>
                   {t.printers.length} impressora{t.printers.length !== 1 ? "s" : ""}
                 </p>
               </div>
-              <button
+              <IconButton
+                variant="ghost"
+                size="sm"
+                aria-label="Desvincular terminal"
                 onClick={() => handleDelete(t.id)}
                 disabled={deletingId === t.id}
-                className="w-8 h-8 shrink-0 flex items-center justify-center rounded-lg text-slate-400 hover:bg-rose-50 hover:text-rose-500 transition-all disabled:opacity-50"
+                loading={deletingId === t.id}
+                className="shrink-0 hover:bg-rose-50 hover:text-rose-500"
               >
-                {deletingId === t.id ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
-              </button>
+                <Trash2 size={14} />
+              </IconButton>
             </div>
             );
           })

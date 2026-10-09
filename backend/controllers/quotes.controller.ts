@@ -6,6 +6,8 @@ import { localDateString } from "../utils/date";
 import { canMoveToStage, syncLinkedStatus } from "../utils/stage-permissions";
 import { isWorkflowStage, WORKFLOW_STAGES, GRAFICA_ONLY_STAGES } from "../utils/workflow-stages";
 import { emitToTenant } from "../services/realtime.service";
+import { buildMethodSummary } from "../utils/payment-method";
+import { computeSalePaymentTotals, assertCrediarioAllowed, createCrediarioDebt, SalePaymentError } from "../utils/sale-payment";
 
 function getTenantId(req: Request) {
   return (req as AuthenticatedRequest).user.tenantId;
@@ -620,29 +622,6 @@ export async function deleteQuoteFileHandler(req: Request, res: Response) {
   }
 }
 
-// ── shared helpers (mirrored from sales.controller) ─────────────────────────
-function parsePaymentMethod(pm: string) {
-  return pm.split("|").map((seg) => {
-    const [methodPart, amountStr] = seg.split(":");
-    const tokens = methodPart.split("-");
-    return {
-      method:       tokens[0] ?? "money",
-      brand:        tokens[1] ?? "other",
-      installments: tokens[2] ? parseInt(tokens[2].replace("x", ""), 10) : 1,
-      amount:       parseFloat(amountStr ?? "0") || 0,
-    };
-  });
-}
-
-function buildMethodSummary(pm: string) {
-  const labels: Record<string, string> = { money: "Dinheiro", pix: "PIX", debit: "Débito", credit: "Crédito" };
-  return parsePaymentMethod(pm).map(({ method, brand, installments }) => {
-    const b = brand && brand !== "other" ? `/${brand.toUpperCase()}` : "";
-    const i = method === "credit" && installments > 1 ? ` ${installments}X` : "";
-    return `${labels[method] ?? method}${b}${i}`;
-  }).join(" + ");
-}
-
 export async function convertToOrder(req: Request, res: Response) {
   try {
     const tenantId = getTenantId(req);
@@ -655,34 +634,48 @@ export async function convertToOrder(req: Request, res: Response) {
     if (!quote) return res.status(404).json({ error: "Orçamento não encontrado" });
     if (quote.status === "converted") return res.status(400).json({ error: "Orçamento já foi convertido em venda" });
 
-    const { payment_method, seller_id } = req.body as {
+    const body = req.body as {
       payment_method?: string;
       seller_id?: number;
+      discount?: number; surcharge?: number; change_amount?: number;
+      crediario_installments?: number; crediario_first_due_date?: string;
     };
+    const { seller_id } = body;
 
-    const pmString = payment_method || "money";
+    const pmString = body.payment_method || "money";
 
     // Load tenant card fees to compute machine fee
     const tenantData = await prisma.tenant.findUnique({
       where: { id: tenantId },
-      select: { card_fees: true },
+      select: { card_fees: true, pass_fee_to_customer: true, pass_fee_by_method: true },
     });
     const cardFees = (tenantData?.card_fees ?? {}) as Record<string, number[]>;
 
-    // Calculate machine fee from credit segments
-    const pmSegments = parsePaymentMethod(pmString);
-    const machineFee = pmSegments.reduce((sum, seg) => {
-      if (seg.method !== "credit" || seg.amount <= 0) return sum;
-      const rate = cardFees[seg.brand]?.[seg.installments - 1] ?? 0;
-      return sum + seg.amount * (rate / 100);
-    }, 0);
-    const roundedFee  = Math.round(machineFee * 100) / 100;
-    const totalAmount = Number(quote.total_amount);
+    const quoteTotal    = Number(quote.total_amount);
     const depositAmount = Number(quote.deposit_amount ?? 0);
-    const amountDue   = Math.max(0, Math.round((totalAmount - depositAmount) * 100) / 100);
-    const discountVal = Number(quote.discount_value ?? 0);
-    const grossAmount = Math.round((totalAmount + discountVal) * 100) / 100;
-    const netAmount   = Math.round((amountDue - roundedFee) * 100) / 100;
+    const amountDue     = Math.max(0, Math.round((quoteTotal - depositAmount) * 100) / 100);
+    const quoteDiscount = Number(quote.discount_value ?? 0);
+
+    // Mesmo cálculo do PDV: taxa de maquininha (crédito/débito/PIX), repasse ao cliente,
+    // desconto/acréscimo extra e parte fiada (crediário).
+    const calc = computeSalePaymentTotals({
+      baseAmount: amountDue,
+      pmString,
+      cardFees,
+      discount: body.discount,
+      surcharge: body.surcharge,
+      passFeeToCustomer: tenantData?.pass_fee_to_customer,
+      passFeeByMethod: (tenantData?.pass_fee_by_method ?? null) as Record<string, boolean> | null,
+    });
+    const { crediarioAmount, discountVal: extraDiscount, surchargeVal, roundedFee, roundedPassedFee } = calc;
+    await assertCrediarioAllowed(tenantId, quote.customer_id, crediarioAmount);
+
+    // Total do pedido = total do orçamento ajustado pelo que mudou neste pagamento.
+    const totalAmount = Math.round((quoteTotal - extraDiscount + surchargeVal + roundedPassedFee) * 100) / 100;
+    const discountVal = Math.round((quoteDiscount + extraDiscount) * 100) / 100;
+    const grossAmount = Math.round((totalAmount + discountVal - surchargeVal) * 100) / 100;
+    const netAmount   = calc.netAmount;
+    const changeAmount = Number(body.change_amount) > 0 ? Number(body.change_amount) : 0;
 
     // Load seller name
     let sellerName: string | null = null;
@@ -697,10 +690,14 @@ export async function convertToOrder(req: Request, res: Response) {
         seller_id:       seller_id ?? null,
         seller_name:     sellerName,
         customer_name:   quote.customer_name,
+        customer_id:     quote.customer_id ?? null,
         customer_phone:  quote.customer_phone || undefined,
         total_amount:    totalAmount,
         gross_amount:    grossAmount,
         discount_amount: discountVal > 0 ? discountVal : null,
+        surcharge_amount: surchargeVal > 0 ? surchargeVal : null,
+        passed_fee_amount: roundedPassedFee > 0 ? roundedPassedFee : null,
+        change_amount:   changeAmount > 0 ? changeAmount : null,
         fee_amount:      roundedFee > 0 ? roundedFee : null,
         status:          "completed",
         payment_method:  pmString,
@@ -742,18 +739,36 @@ export async function convertToOrder(req: Request, res: Response) {
 
     const methodSummary = buildMethodSummary(pmString);
     const depositNote = depositAmount > 0 ? ` (saldo após entrada de ${depositAmount.toFixed(2)})` : "";
-    await prisma.finance.create({
-      data: {
-        tenant_id:       tenantId,
-        type:            "income",
-        description:     `Venda (Orç. #${quote.number}) — ${methodSummary}${depositNote}`,
-        amount:          netAmount,
-        gross_amount:    grossAmount,
-        fee_amount:      roundedFee > 0 ? roundedFee : null,
-        discount_amount: discountVal > 0 ? discountVal : null,
-        date:            localDateString(),
-      },
-    });
+    const extraNote = `${extraDiscount > 0 ? ` (desc. R$ ${extraDiscount.toFixed(2)})` : ""}${surchargeVal > 0 ? ` (acrés. R$ ${surchargeVal.toFixed(2)})` : ""}${roundedPassedFee > 0 ? ` (taxa repassada R$ ${roundedPassedFee.toFixed(2)})` : ""}`;
+    // A parte fiada (crediário) só vira receita quando o cliente pagar a dívida.
+    const nonCrediarioNet = Math.round((netAmount - crediarioAmount) * 100) / 100;
+    if (nonCrediarioNet > 0.009) {
+      await prisma.finance.create({
+        data: {
+          tenant_id:       tenantId,
+          type:            "income",
+          description:     `Venda (Orç. #${quote.number}) — ${methodSummary}${depositNote}${extraNote}`,
+          amount:          nonCrediarioNet,
+          gross_amount:    Math.round((grossAmount - crediarioAmount) * 100) / 100,
+          fee_amount:      roundedFee > 0 ? roundedFee : null,
+          discount_amount: discountVal > 0 ? discountVal : null,
+          payment_method:  pmString,
+          date:            localDateString(),
+        },
+      });
+    }
+
+    if (crediarioAmount > 0 && quote.customer_id) {
+      await createCrediarioDebt({
+        tenantId,
+        customerId: quote.customer_id,
+        orderId: order.id,
+        description: `Venda (Orç. #${quote.number})`,
+        crediarioAmount,
+        installments: body.crediario_installments,
+        firstDueDate: body.crediario_first_due_date,
+      });
+    }
 
     await prisma.quote.update({
       where: { id: quoteId },
@@ -769,6 +784,9 @@ export async function convertToOrder(req: Request, res: Response) {
 
     res.json({ success: true, orderId: order.id });
   } catch (err) {
+    if (err instanceof SalePaymentError) {
+      return res.status(err.status).json({ error: err.message, ...(err.extra ?? {}) });
+    }
     console.error(err);
     res.status(500).json({ error: "Falha ao converter orçamento" });
   }

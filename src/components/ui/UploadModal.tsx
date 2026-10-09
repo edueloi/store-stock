@@ -119,23 +119,23 @@ export default function UploadModal({
         onDrop={handleDrop}
         onClick={() => inputRef.current?.click()}
         className={cn(
-          "border-2 border-dashed rounded-2xl p-8 flex flex-col items-center justify-center gap-3 cursor-pointer transition-all",
+          "border-2 border-dashed rounded-lg p-8 flex flex-col items-center justify-center gap-3 cursor-pointer transition-all",
           dragging
             ? "border-blue-400 bg-blue-50 text-blue-600"
             : "border-slate-200 hover:border-blue-300 hover:bg-slate-50 text-slate-400"
         )}
       >
-        <div className={cn("w-12 h-12 rounded-2xl flex items-center justify-center transition-colors",
+        <div className={cn("w-12 h-12 rounded-lg flex items-center justify-center transition-colors",
           dragging ? "bg-blue-100" : "bg-slate-100")}>
           <Upload size={22} strokeWidth={1.5} />
         </div>
         <div className="text-center">
-          <p className="text-xs font-black uppercase tracking-wider text-slate-700">
+          <p className="text-xs font-semibold text-slate-700">
             {dragging ? "Solte aqui" : "Arraste ou clique para selecionar"}
           </p>
-          {hint && <p className="text-[10px] text-slate-400 mt-1">{hint}</p>}
+          {hint && <p className="text-[11px] text-slate-400 mt-1">{hint}</p>}
           {accept && (
-            <p className="text-[10px] text-slate-400 mt-0.5 uppercase">{accept} · máx {maxSizeMB}MB</p>
+            <p className="text-[11px] text-slate-400 mt-0.5">{accept} · máx {maxSizeMB}MB</p>
           )}
         </div>
         <input
@@ -158,7 +158,7 @@ export default function UploadModal({
             exit={{ opacity: 0, height: 0 }}
             className="overflow-hidden"
           >
-            <div className="flex items-center gap-3 p-3 bg-slate-50 border border-slate-200 rounded-xl mt-2">
+            <div className="flex items-center gap-3 p-3 bg-slate-50 border border-slate-200 rounded-lg mt-2">
               <div className={cn("w-8 h-8 rounded-lg flex items-center justify-center shrink-0",
                 f.status === "done" ? "bg-emerald-100 text-emerald-600" :
                 f.status === "error" ? "bg-red-100 text-red-500" : "bg-slate-200 text-slate-500")}>
@@ -168,11 +168,11 @@ export default function UploadModal({
                  <File size={15} />}
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-[11px] font-bold text-slate-800 truncate">{f.file.name}</p>
+                <p className="text-[11px] font-semibold text-slate-800 truncate">{f.file.name}</p>
                 {f.error ? (
-                  <p className="text-[10px] text-red-500">{f.error}</p>
+                  <p className="text-[11px] text-red-500">{f.error}</p>
                 ) : (
-                  <p className="text-[10px] text-slate-400">
+                  <p className="text-[11px] text-slate-400">
                     {(f.file.size / 1024).toFixed(0)} KB · {f.status === "done" ? "Concluído" : f.status === "uploading" ? "Enviando..." : "Aguardando"}
                   </p>
                 )}

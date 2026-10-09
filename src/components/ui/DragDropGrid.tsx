@@ -90,7 +90,7 @@ export default function DragDropGrid<T extends DragDropItem>({
             className={cn(
               "relative group transition-all",
               isDragging && "opacity-40 scale-95",
-              isOver && "ring-2 ring-blue-400 ring-offset-2 rounded-2xl",
+              isOver && "ring-2 ring-blue-400 ring-offset-2 rounded-lg",
               itemClassName
             )}
           >

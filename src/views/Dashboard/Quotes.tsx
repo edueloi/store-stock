@@ -3,7 +3,6 @@ import { useNavigate } from "react-router-dom";
 import {
   FileText,
   Plus,
-  Search,
   Trash2,
   Download,
   CheckCircle2,
@@ -13,12 +12,17 @@ import {
   PenTool,
   HelpCircle,
 } from "lucide-react";
-import { cn } from "../../lib/utils";
-import PageHeader from "../../components/layout/PageHeader";
-import Button from "../../components/ui/Button";
+import {
+  Button, IconButton, Badge, SectionTitle, StatGrid, StatCard, ContentCard, EmptyState,
+  FilterLine, FilterLineSection, FilterLineItem, FilterLineSearch, FilterLineSegmented,
+  GridTable, usePagination,
+} from "../../components/ui";
+import type { Column } from "../../components/ui";
 import { generateQuotePDF } from "../../lib/quotePdf";
 import type { DocumentTenant } from "../../lib/documentPdf";
 import QuotesPageTour, { type QuotesPageTourHandle } from "../../components/onboarding/QuotesPageTour";
+
+type BadgeColor = "default" | "primary" | "success" | "warning" | "danger" | "info" | "purple" | "orange" | "teal";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -72,20 +76,28 @@ const authHeader = () => ({
   "Content-Type": "application/json",
 });
 
-function statusLabel(s: string) {
-  const map: Record<string, { label: string; color: string; icon: React.ReactNode }> = {
-    rascunho:  { label: "Rascunho",   color: "text-slate-500 bg-slate-100", icon: <Clock size={12} /> },
-    orcamento_enviado: { label: "Aberto", color: "text-blue-600 bg-blue-50",    icon: <Clock size={12} /> },
-    aguardando_aprovacao: { label: "Aguardando Aprovação", color: "text-amber-600 bg-amber-50", icon: <Clock size={12} /> },
-    aprovado: { label: "Aprovado", color: "text-teal-600 bg-teal-50", icon: <CheckCircle2 size={12} /> },
-    aguardando_arte: { label: "Aguardando Arte", color: "text-fuchsia-600 bg-fuchsia-50", icon: <Palette size={12} /> },
-    arte_finalizada: { label: "Arte Finalizada", color: "text-pink-600 bg-pink-50", icon: <PenTool size={12} /> },
-    converted: { label: "Convertido", color: "text-emerald-600 bg-emerald-50", icon: <CheckCircle2 size={12} /> },
-    cancelled: { label: "Cancelado",  color: "text-red-600 bg-red-50",      icon: <XCircle size={12} /> },
-    expired:   { label: "Expirado",   color: "text-orange-600 bg-orange-50",icon: <Clock size={12} /> },
+function statusLabel(s: string): { label: string; color: BadgeColor; icon: React.ReactNode } {
+  const map: Record<string, { label: string; color: BadgeColor; icon: React.ReactNode }> = {
+    rascunho:  { label: "Rascunho",   color: "default", icon: <Clock size={12} /> },
+    orcamento_enviado: { label: "Aberto", color: "info",    icon: <Clock size={12} /> },
+    aguardando_aprovacao: { label: "Aguardando Aprovação", color: "warning", icon: <Clock size={12} /> },
+    aprovado: { label: "Aprovado", color: "teal", icon: <CheckCircle2 size={12} /> },
+    aguardando_arte: { label: "Aguardando Arte", color: "purple", icon: <Palette size={12} /> },
+    arte_finalizada: { label: "Arte Finalizada", color: "purple", icon: <PenTool size={12} /> },
+    converted: { label: "Convertido", color: "success", icon: <CheckCircle2 size={12} /> },
+    cancelled: { label: "Cancelado",  color: "danger",      icon: <XCircle size={12} /> },
+    expired:   { label: "Expirado",   color: "orange",icon: <Clock size={12} /> },
   };
   return map[s] ?? map.orcamento_enviado;
 }
+
+const STATUS_FILTERS = [
+  { value: "all", label: "Todos" },
+  { value: "rascunho", label: "Rascunhos" },
+  { value: "orcamento_enviado", label: "Abertos" },
+  { value: "converted", label: "Convertidos" },
+  { value: "cancelled", label: "Cancelados" },
+];
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 
@@ -147,155 +159,105 @@ export default function Quotes() {
     totalValue: quotes.filter((q) => q.status === "orcamento_enviado").reduce((s, q) => s + Number(q.total_amount), 0),
   };
 
+  const pg = usePagination(filtered, 15);
+
+  const columns: Column<Quote>[] = [
+    { header: "Nº", render: (q) => <span className="font-mono text-xs text-slate-500">#{String(q.number).padStart(4, "0")}</span> },
+    { header: "Cliente", render: (q) => <span className="text-xs font-medium text-slate-800">{q.customer_name || "—"}</span> },
+    { header: "Data", className: "hidden md:table-cell", headerClassName: "hidden md:table-cell", render: (q) => <span className="text-xs whitespace-nowrap text-slate-500">{new Date(q.created_at).toLocaleDateString("pt-BR")}</span> },
+    { header: "Validade", className: "hidden lg:table-cell", headerClassName: "hidden lg:table-cell", render: (q) => <span className="text-xs text-slate-500">{q.validity_days}d</span> },
+    { header: "Total", className: "text-right", headerClassName: "text-right", render: (q) => <span className="text-xs font-semibold tabular-nums whitespace-nowrap text-slate-800">{fmt(Number(q.total_amount))}</span> },
+    { header: "Status", render: (q) => { const st = statusLabel(q.status); return <Badge color={st.color} size="sm" icon={st.icon}>{st.label}</Badge>; } },
+    {
+      header: "Ações",
+      className: "text-right",
+      headerClassName: "text-right",
+      render: (q) => (
+        <div className="flex items-center justify-end gap-1" onClick={(e) => e.stopPropagation()}>
+          {q.status !== "rascunho" && (
+            <IconButton size="xs" variant="ghost" aria-label="Baixar PDF" title="Baixar PDF" onClick={() => handleDownloadPDF(q)}>
+              <Download size={14} />
+            </IconButton>
+          )}
+          <IconButton size="xs" variant="ghost" aria-label="Excluir" title="Excluir" onClick={() => handleDelete(q.id)}>
+            <Trash2 size={14} />
+          </IconButton>
+        </div>
+      ),
+    },
+  ];
+
   return (
-    <div data-tour="quotes-page" className="space-y-5">
-      <PageHeader
+    <div data-tour="quotes-page" className="space-y-4">
+      <SectionTitle
         title="Orçamentos"
-        subtitle="Crie orçamentos profissionais e converta em vendas"
+        description="Crie orçamentos profissionais e converta em vendas"
+        icon={FileText}
         action={
-          <div className="flex gap-2 items-center flex-wrap">
-            <button
-              data-tour="quotes-new-btn"
-              onClick={() => navigate("/admin/orcamentos/novo")}
-              className="h-9 px-4 bg-blue-600 text-white rounded-lg flex items-center gap-2 text-[12px] font-bold hover:bg-blue-700 transition-all shadow-md shadow-blue-500/20"
-            >
-              <Plus size={15} /> Novo Orçamento
-            </button>
+          <>
             <Button
-              variant="secondary"
-              className="text-slate-400 hover:text-blue-600 hover:bg-blue-50 border-slate-200 hover:border-blue-300"
-              icon={<HelpCircle size={14} />}
+              size="sm"
+              data-tour="quotes-new-btn"
+              iconLeft={<Plus size={14} />}
+              onClick={() => navigate("/admin/orcamentos/novo")}
+            >
+              Novo Orçamento
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              iconLeft={<HelpCircle size={14} />}
               onClick={() => quotesPageTourRef.current?.start()}
               title="Tour guiado desta página"
             >
               <span className="sr-only sm:not-sr-only">Ajuda</span>
             </Button>
-          </div>
+          </>
         }
       />
 
       <QuotesPageTour ref={quotesPageTourRef} />
 
-      {/* Stats */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        {[
-          { label: "Total", value: stats.total, color: "text-slate-700", bg: "bg-slate-50" },
-          { label: "Em Aberto", value: stats.open, color: "text-blue-600", bg: "bg-blue-50" },
-          { label: "Convertidos", value: stats.converted, color: "text-emerald-600", bg: "bg-emerald-50" },
-          { label: "Valor em Aberto", value: fmt(stats.totalValue), color: "text-amber-600", bg: "bg-amber-50" },
-        ].map((s) => (
-          <div key={s.label} className={cn("rounded-xl p-4 border border-white/60 shadow-sm", s.bg)}>
-            <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">{s.label}</p>
-            <p className={cn("text-xl font-black mt-0.5", s.color)}>{s.value}</p>
-          </div>
-        ))}
-      </div>
+      <StatGrid cols={4}>
+        <StatCard title="Total" value={stats.total} icon={FileText} color="info" />
+        <StatCard title="Em Aberto" value={stats.open} icon={Clock} color="info" />
+        <StatCard title="Convertidos" value={stats.converted} icon={CheckCircle2} color="success" />
+        <StatCard title="Valor em Aberto" value={fmt(stats.totalValue)} icon={FileText} color="warning" />
+      </StatGrid>
 
-      {/* Search & filter */}
-      <div className="flex gap-2 flex-wrap">
-        <div className="relative flex-1 min-w-[200px]">
-          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-          <input
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            placeholder="Buscar por cliente ou número..."
-            className="w-full pl-9 pr-3 h-9 rounded-lg border border-slate-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
-        </div>
-        {["all", "rascunho", "orcamento_enviado", "converted", "cancelled"].map((s) => (
-          <button
-            key={s}
-            onClick={() => setStatusFilter(s)}
-            className={cn(
-              "h-9 px-3 rounded-lg text-[11px] font-bold border transition-all",
-              statusFilter === s
-                ? "bg-blue-600 text-white border-blue-600"
-                : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50"
-            )}
-          >
-            {{ all: "Todos", rascunho: "Rascunhos", orcamento_enviado: "Abertos", converted: "Convertidos", cancelled: "Cancelados" }[s]}
-          </button>
-        ))}
-      </div>
+      <FilterLine>
+        <FilterLineSection grow>
+          <FilterLineItem grow minWidth={200}>
+            <FilterLineSearch
+              value={searchTerm}
+              onChange={setSearchTerm}
+              placeholder="Buscar por cliente ou número..."
+              aria-label="Buscar orçamentos"
+            />
+          </FilterLineItem>
+          <FilterLineSegmented value={statusFilter} onChange={(v) => setStatusFilter(String(v))} options={STATUS_FILTERS} />
+        </FilterLineSection>
+      </FilterLine>
 
-      {/* Table */}
-      {loading ? (
-        <div className="flex justify-center py-16 text-slate-400 text-sm">Carregando…</div>
-      ) : filtered.length === 0 ? (
-        <div className="flex flex-col items-center py-16 text-slate-400 gap-3">
-          <FileText size={36} strokeWidth={1} />
-          <p className="text-sm font-medium">Nenhum orçamento encontrado</p>
-          <button
-            onClick={() => navigate("/admin/orcamentos/novo")}
-            className="mt-1 h-8 px-4 bg-blue-600 text-white rounded-lg text-xs font-bold hover:bg-blue-700"
-          >
-            Criar primeiro orçamento
-          </button>
-        </div>
-      ) : (
-        <div data-tour="quotes-table" className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="bg-slate-50 border-b border-slate-200">
-                <th className="px-4 py-3 text-left text-[10px] font-black uppercase tracking-wider text-slate-500">Nº</th>
-                <th className="px-4 py-3 text-left text-[10px] font-black uppercase tracking-wider text-slate-500">Cliente</th>
-                <th className="px-4 py-3 text-left text-[10px] font-black uppercase tracking-wider text-slate-500 hidden md:table-cell">Data</th>
-                <th className="px-4 py-3 text-left text-[10px] font-black uppercase tracking-wider text-slate-500 hidden lg:table-cell">Validade</th>
-                <th className="px-4 py-3 text-right text-[10px] font-black uppercase tracking-wider text-slate-500">Total</th>
-                <th className="px-4 py-3 text-center text-[10px] font-black uppercase tracking-wider text-slate-500">Status</th>
-                <th className="px-4 py-3 text-right text-[10px] font-black uppercase tracking-wider text-slate-500">Ações</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {filtered.map((q) => {
-                const st = statusLabel(q.status);
-                return (
-                  <tr key={q.id} onClick={() => navigate(`/admin/orcamentos/${q.id}`)} className="hover:bg-slate-50 transition-colors cursor-pointer">
-                    <td className="px-4 py-3 font-mono text-slate-500 text-xs">
-                      #{String(q.number).padStart(4, "0")}
-                    </td>
-                    <td className="px-4 py-3 font-semibold text-slate-800">{q.customer_name || "—"}</td>
-                    <td className="px-4 py-3 text-slate-500 hidden md:table-cell">
-                      {new Date(q.created_at).toLocaleDateString("pt-BR")}
-                    </td>
-                    <td className="px-4 py-3 text-slate-500 hidden lg:table-cell">
-                      {q.validity_days}d
-                    </td>
-                    <td className="px-4 py-3 text-right font-bold text-slate-800">
-                      {fmt(Number(q.total_amount))}
-                    </td>
-                    <td className="px-4 py-3 text-center">
-                      <span className={cn("inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold", st.color)}>
-                        {st.icon} {st.label}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
-                      <div className="flex items-center justify-end gap-1">
-                        {q.status !== "rascunho" && (
-                          <button
-                            onClick={() => handleDownloadPDF(q)}
-                            title="Baixar PDF"
-                            className="p-1.5 hover:bg-blue-50 text-blue-500 rounded-lg transition-colors"
-                          >
-                            <Download size={14} />
-                          </button>
-                        )}
-                        <button
-                          onClick={() => handleDelete(q.id)}
-                          title="Excluir"
-                          className="p-1.5 hover:bg-red-50 text-red-400 rounded-lg transition-colors"
-                        >
-                          <Trash2 size={14} />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      )}
+      <ContentCard padding="none" data-tour="quotes-table">
+        <GridTable
+          noDesktopCard
+          data={pg.paginatedData}
+          keyExtractor={(q) => q.id}
+          isLoading={loading}
+          columns={columns}
+          onRowClick={(q) => navigate(`/admin/orcamentos/${q.id}`)}
+          emptyMessage={
+            <EmptyState
+              icon={FileText}
+              title="Nenhum orçamento encontrado"
+              description={searchTerm || statusFilter !== "all" ? "Ajuste a busca ou o filtro." : "Crie o primeiro orçamento para começar."}
+              action={<Button size="sm" onClick={() => navigate("/admin/orcamentos/novo")}>Criar primeiro orçamento</Button>}
+            />
+          }
+          pagination={{ total: filtered.length, page: pg.page, pageSize: pg.pageSize, onPageChange: pg.setPage, onPageSizeChange: pg.setPageSize }}
+        />
+      </ContentCard>
     </div>
   );
 }

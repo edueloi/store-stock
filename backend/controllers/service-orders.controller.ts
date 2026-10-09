@@ -8,6 +8,8 @@ import { advanceServiceOrderToNotaEmitida, canMoveToStage, syncLinkedStatus } fr
 import { getWorkflowStagesForTenant } from "../utils/workflow-stages";
 import { cancelarNfce } from "../services/nfce/cancelar";
 import { emitToTenant } from "../services/realtime.service";
+import { buildMethodSummary } from "../utils/payment-method";
+import { computeSalePaymentTotals, assertCrediarioAllowed, createCrediarioDebt, SalePaymentError } from "../utils/sale-payment";
 
 function getTenantId(req: Request) {
   return (req as AuthenticatedRequest).user.tenantId;
@@ -1078,28 +1080,6 @@ export async function bulkDeleteServiceOrders(req: Request, res: Response) {
 // ── Invoicing ("Faturar") ────────────────────────────────────────────────────
 // Mirrors quotes.controller.ts convertToOrder
 
-function parsePaymentMethod(pm: string) {
-  return pm.split("|").map((seg) => {
-    const [methodPart, amountStr] = seg.split(":");
-    const tokens = methodPart.split("-");
-    return {
-      method: tokens[0] ?? "money",
-      brand: tokens[1] ?? "other",
-      installments: tokens[2] ? parseInt(tokens[2].replace("x", ""), 10) : 1,
-      amount: parseFloat(amountStr ?? "0") || 0,
-    };
-  });
-}
-
-function buildMethodSummary(pm: string) {
-  const labels: Record<string, string> = { money: "Dinheiro", pix: "PIX", debit: "Débito", credit: "Crédito" };
-  return parsePaymentMethod(pm).map(({ method, brand, installments }) => {
-    const b = brand && brand !== "other" ? `/${brand.toUpperCase()}` : "";
-    const i = method === "credit" && installments > 1 ? ` ${installments}X` : "";
-    return `${labels[method] ?? method}${b}${i}`;
-  }).join(" + ");
-}
-
 const LABOR_SERVICE_NAME = "Mão de obra técnica";
 
 export async function invoiceServiceOrder(req: Request, res: Response) {
@@ -1118,21 +1098,38 @@ export async function invoiceServiceOrder(req: Request, res: Response) {
       return res.status(400).json({ error: "Só é possível faturar uma ordem de serviço finalizada" });
     }
 
-    const { payment_method, seller_id } = req.body as { payment_method?: string; seller_id?: number };
-    const pmString = payment_method || "money";
+    const body = req.body as {
+      payment_method?: string; seller_id?: number;
+      discount?: number; surcharge?: number; change_amount?: number;
+      crediario_installments?: number; crediario_first_due_date?: string;
+    };
+    const { seller_id } = body;
+    const pmString = body.payment_method || "money";
 
-    const tenantData = await prisma.tenant.findUnique({ where: { id: tenantId }, select: { card_fees: true } });
+    const tenantData = await prisma.tenant.findUnique({
+      where: { id: tenantId },
+      select: { card_fees: true, pass_fee_to_customer: true, pass_fee_by_method: true },
+    });
     const cardFees = (tenantData?.card_fees ?? {}) as Record<string, number[]>;
 
-    const pmSegments = parsePaymentMethod(pmString);
-    const machineFee = pmSegments.reduce((sum, seg) => {
-      if (seg.method !== "credit" || seg.amount <= 0) return sum;
-      const rate = cardFees[seg.brand]?.[seg.installments - 1] ?? 0;
-      return sum + seg.amount * (rate / 100);
-    }, 0);
-    const roundedFee = Math.round(machineFee * 100) / 100;
-    const totalAmount = Number(order.total_amount);
-    const netAmount = Math.round((totalAmount - roundedFee) * 100) / 100;
+    const orderBase = Number(order.total_amount);
+    const calc = computeSalePaymentTotals({
+      baseAmount: orderBase,
+      pmString,
+      cardFees,
+      discount: body.discount,
+      surcharge: body.surcharge,
+      passFeeToCustomer: tenantData?.pass_fee_to_customer,
+      passFeeByMethod: (tenantData?.pass_fee_by_method ?? null) as Record<string, boolean> | null,
+    });
+    const { crediarioAmount, discountVal, surchargeVal, roundedFee, roundedPassedFee } = calc;
+    await assertCrediarioAllowed(tenantId, order.customer_id, crediarioAmount);
+
+    const roundedFeeFinal = roundedFee;
+    const totalAmount = calc.payableTotal;
+    const grossAmount = Math.round((totalAmount + discountVal - surchargeVal) * 100) / 100;
+    const netAmount = calc.netAmount;
+    const changeAmount = Number(body.change_amount) > 0 ? Number(body.change_amount) : 0;
 
     let sellerName: string | null = null;
     const effectiveSellerId = seller_id ?? order.seller_id ?? undefined;
@@ -1198,8 +1195,12 @@ export async function invoiceServiceOrder(req: Request, res: Response) {
         customer_name: order.customer_name,
         customer_phone: order.customer_phone || undefined,
         total_amount: totalAmount,
-        gross_amount: totalAmount,
-        fee_amount: roundedFee > 0 ? roundedFee : null,
+        gross_amount: grossAmount,
+        discount_amount: discountVal > 0 ? discountVal : null,
+        surcharge_amount: surchargeVal > 0 ? surchargeVal : null,
+        passed_fee_amount: roundedPassedFee > 0 ? roundedPassedFee : null,
+        change_amount: changeAmount > 0 ? changeAmount : null,
+        fee_amount: roundedFeeFinal > 0 ? roundedFeeFinal : null,
         status: "completed",
         order_type: "service",
         payment_method: pmString,
@@ -1218,18 +1219,40 @@ export async function invoiceServiceOrder(req: Request, res: Response) {
     // Stock for parts was already decremented when each part was added to the OS — no decrement here.
 
     const methodSummary = buildMethodSummary(pmString);
-    await prisma.finance.create({
-      data: {
-        tenant_id: tenantId,
-        type: "income",
-        description: `Faturamento OS #${order.number} — ${methodSummary}`,
-        amount: netAmount,
-        gross_amount: totalAmount,
-        fee_amount: roundedFee > 0 ? roundedFee : null,
-        date: localDateString(),
-        order_id: newOrder.id,
-      },
-    });
+    const discountNote = discountVal > 0 ? ` (desc. R$ ${discountVal.toFixed(2)})` : "";
+    const surchargeNote = surchargeVal > 0 ? ` (acrés. R$ ${surchargeVal.toFixed(2)})` : "";
+    const feeNote = roundedPassedFee > 0 ? ` (taxa repassada R$ ${roundedPassedFee.toFixed(2)})` : "";
+    // A parte fiada (crediário) só vira receita quando o cliente pagar a dívida.
+    const nonCrediarioNet = Math.round((netAmount - crediarioAmount) * 100) / 100;
+    const nonCrediarioGross = Math.round((grossAmount - crediarioAmount) * 100) / 100;
+    if (nonCrediarioNet > 0.009) {
+      await prisma.finance.create({
+        data: {
+          tenant_id: tenantId,
+          type: "income",
+          description: `Faturamento OS #${order.number} — ${methodSummary}${discountNote}${surchargeNote}${feeNote}`,
+          amount: nonCrediarioNet,
+          gross_amount: nonCrediarioGross,
+          fee_amount: roundedFeeFinal > 0 ? roundedFeeFinal : null,
+          discount_amount: discountVal > 0 ? discountVal : null,
+          payment_method: pmString,
+          date: localDateString(),
+          order_id: newOrder.id,
+        },
+      });
+    }
+
+    if (crediarioAmount > 0 && order.customer_id) {
+      await createCrediarioDebt({
+        tenantId,
+        customerId: order.customer_id,
+        orderId: newOrder.id,
+        description: `Faturamento OS #${order.number}`,
+        crediarioAmount,
+        installments: body.crediario_installments,
+        firstDueDate: body.crediario_first_due_date,
+      });
+    }
 
     await prisma.serviceOrder.update({
       where: { id },
@@ -1258,6 +1281,9 @@ export async function invoiceServiceOrder(req: Request, res: Response) {
 
     res.json({ success: true, orderId: newOrder.id });
   } catch (err) {
+    if (err instanceof SalePaymentError) {
+      return res.status(err.status).json({ error: err.message, ...(err.extra ?? {}) });
+    }
     console.error(err);
     res.status(500).json({ error: "Falha ao faturar ordem de serviço" });
   }

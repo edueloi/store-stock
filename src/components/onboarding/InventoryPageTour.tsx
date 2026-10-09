@@ -207,7 +207,7 @@ function buildSteps(): DriveStep[] {
       element: tourElement("inventory-new-product-btn"),
       popover: {
         title: "Visualização em Grade ou em Tabela",
-        description: "O botão ao lado do \"Novo Produto\" alterna como a lista aparece na tela: em Tabela você vê mais dados de cada produto lado a lado; em Grade o foco fica nas fotos, como uma vitrine.",
+        description: "O botão ao lado do \"Novo Produto\"alterna como a lista aparece na tela: em Tabela você vê mais dados de cada produto lado a lado; em Grade o foco fica nas fotos, como uma vitrine.",
         side: "bottom",
         align: "end",
       },

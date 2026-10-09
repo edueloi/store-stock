@@ -1,8 +1,7 @@
 import { useState, useEffect, useMemo, useRef } from "react";
-import PageHeader from "../../components/layout/PageHeader";
-import Button from "../../components/ui/Button";
+import { Badge, Button, ContentCard, FilterLine, FilterLineSection, FilterLineSegmented, Modal, PageWrapper, SectionTitle, Select, StatCard, StatGrid } from "../../components/ui";
 import {
-  ChevronLeft, ChevronRight, ArrowDownCircle, ArrowUpCircle, Loader2, X, Layers, Repeat, HelpCircle,
+  ChevronLeft, ChevronRight, ArrowDownCircle, ArrowUpCircle, Loader2, Layers, Repeat, HelpCircle, CalendarDays, Wallet,
 } from "lucide-react";
 import { AccountPayable, AccountReceivable } from "../../types";
 import { cn } from "../../lib/utils";
@@ -159,213 +158,147 @@ export default function CalendarioFinanceiro() {
 
   const selectedEntries = selectedDay ? (byDay.get(selectedDay) ?? []).filter((e) => matchesEntryFilter(e.status)) : [];
 
+  const filterOptions = [
+    { value: "all", label: "Todos" },
+    { value: "pending", label: "Pendentes" },
+    { value: "overdue", label: "Vencidos" },
+    { value: "settled", label: "Histórico (pago/recebido)" },
+  ];
+
   return (
-    <div data-tour="calendario-financeiro-page" className="space-y-6">
-      <PageHeader
-        title="Calendário Financeiro"
-        subtitle="Contas a pagar e a receber juntas, por dia"
-        action={
-          <div className="flex gap-2 items-center flex-wrap">
-            <button
-              onClick={goToday}
-              className="h-9 px-4 bg-slate-900 text-white rounded-xl flex items-center gap-2 text-[10px] font-black uppercase tracking-widest hover:bg-slate-800 transition-all active:scale-95"
-            >
-              Hoje
-            </button>
-            <Button
-              variant="secondary"
-              className="text-slate-400 hover:text-blue-600 hover:bg-blue-50 border-slate-200 hover:border-blue-300"
-              icon={<HelpCircle size={14} />}
-              onClick={() => tourRef.current?.start()}
-              title="Tour guiado desta página"
-            >
-              <span className="sr-only sm:not-sr-only">Ajuda</span>
-            </Button>
-          </div>
-        }
-      />
+    <PageWrapper data-tour="calendario-financeiro-page">
+      <div className="space-y-4">
+        <SectionTitle
+          icon={CalendarDays}
+          title="Calendário Financeiro"
+          description="Contas a pagar e a receber juntas, por dia"
+          action={
+            <>
+              <Button size="sm" onClick={goToday}>Hoje</Button>
+              <Button size="sm" variant="outline" iconLeft={<HelpCircle size={14} />} onClick={() => tourRef.current?.start()} title="Tour guiado desta página">
+                <span className="sr-only sm:not-sr-only">Ajuda</span>
+              </Button>
+            </>
+          }
+        />
 
-      <CalendarioFinanceiroPageTour ref={tourRef} />
+        <CalendarioFinanceiroPageTour ref={tourRef} />
 
-      {/* Totais do mês visível */}
-      <div data-tour="calendario-totais" className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-        <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm relative overflow-hidden">
-          <div className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2">A Pagar no Mês</div>
-          <div className="text-2xl font-mono font-black text-rose-600">R$ {fmt(monthTotals.pagar)}</div>
-          <div className="absolute right-4 top-4 w-10 h-10 rounded-xl bg-rose-50 flex items-center justify-center text-rose-400">
-            <ArrowUpCircle size={20} />
-          </div>
-        </div>
-        <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm relative overflow-hidden">
-          <div className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2">A Receber no Mês</div>
-          <div className="text-2xl font-mono font-black text-emerald-600">R$ {fmt(monthTotals.receber)}</div>
-          <div className="absolute right-4 top-4 w-10 h-10 rounded-xl bg-emerald-50 flex items-center justify-center text-emerald-400">
-            <ArrowDownCircle size={20} />
-          </div>
-        </div>
-        <div className={cn("p-5 rounded-2xl shadow-xl relative overflow-hidden", monthTotals.saldo >= 0 ? "bg-slate-900" : "bg-rose-900")}>
-          <div className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2">Saldo Projetado</div>
-          <div className={cn("text-2xl font-mono font-black", monthTotals.saldo >= 0 ? "text-emerald-400" : "text-rose-300")}>
-            {monthTotals.saldo >= 0 ? "" : "− "}R$ {fmt(Math.abs(monthTotals.saldo))}
-          </div>
-        </div>
-      </div>
+        <StatGrid cols={3} data-tour="calendario-totais">
+          <StatCard title="A Pagar no Mês" value={`R$ ${fmt(monthTotals.pagar)}`} icon={ArrowUpCircle} color="danger" />
+          <StatCard title="A Receber no Mês" value={`R$ ${fmt(monthTotals.receber)}`} icon={ArrowDownCircle} color="success" />
+          <StatCard className="col-span-2 sm:col-span-1" title="Saldo Projetado" value={`${monthTotals.saldo >= 0 ? "" : "− "}R$ ${fmt(Math.abs(monthTotals.saldo))}`} icon={Wallet} color={monthTotals.saldo >= 0 ? "info" : "danger"} />
+        </StatGrid>
 
-      {/* Navegação mês/ano */}
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-4">
-        <div data-tour="calendario-nav" className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-2">
-            <button onClick={() => shiftMonth(-1)} className="h-9 w-9 rounded-xl border border-slate-200 flex items-center justify-center text-slate-500 hover:bg-slate-50 transition-all">
-              <ChevronLeft size={16} />
-            </button>
-            <h3 className="text-sm font-black uppercase tracking-wide text-slate-800 w-44 text-center">
-              {MONTHS[viewMonth]} {viewYear}
-            </h3>
-            <button onClick={() => shiftMonth(1)} className="h-9 w-9 rounded-xl border border-slate-200 flex items-center justify-center text-slate-500 hover:bg-slate-50 transition-all">
-              <ChevronRight size={16} />
-            </button>
-          </div>
-          <select
-            value={viewYear}
-            onChange={(e) => { setViewYear(Number(e.target.value)); setSelectedDay(null); }}
-            className="h-9 px-3 bg-slate-50 border border-slate-200 rounded-xl text-[11px] font-bold outline-none focus:border-blue-400 transition-all"
-          >
-            {Array.from({ length: 7 }, (_, i) => now.getFullYear() - 3 + i).map((y) => (
-              <option key={y} value={y}>{y}</option>
-            ))}
-          </select>
-        </div>
-
-        <div data-tour="calendario-filtro" className="flex gap-1.5 flex-wrap mb-4">
-          {([
-            ["all", "Todos"],
-            ["pending", "Pendentes"],
-            ["overdue", "Vencidos"],
-            ["settled", "Histórico (pago/recebido)"],
-          ] as const).map(([k, l]) => (
-            <button
-              key={k}
-              onClick={() => setEntryFilter(k)}
-              className={cn(
-                "h-8 px-3 rounded-lg text-[9px] font-black uppercase tracking-widest border transition-all",
-                entryFilter === k
-                  ? "bg-slate-900 text-white border-slate-900"
-                  : "bg-white text-slate-400 border-slate-200 hover:border-slate-400"
-              )}
-            >{l}</button>
-          ))}
-        </div>
-
-        {loading ? (
-          <div className="flex items-center justify-center py-16">
-            <Loader2 size={22} className="animate-spin text-slate-300" />
-          </div>
-        ) : (
-          <div data-tour="calendario-grid" className="grid grid-cols-7 gap-1.5">
-            {WEEKDAYS.map((w) => (
-              <div key={w} className="text-center text-[9px] font-black text-slate-400 uppercase tracking-widest py-1.5">{w}</div>
-            ))}
-            {grid.map((cell, idx) => {
-              const key = dateKey(cell.year, cell.month, cell.day);
-              const allEntries = byDay.get(key) ?? [];
-              const entries = allEntries.filter((e) => matchesEntryFilter(e.status));
-              const pagar = entries.filter((e) => e.kind === "payable" && e.status !== "cancelled").reduce((a, e) => a + e.amount, 0);
-              const receber = entries.filter((e) => e.kind === "receivable" && e.status !== "cancelled").reduce((a, e) => a + e.amount, 0);
-              const isToday = key === dateKey(now.getFullYear(), now.getMonth(), now.getDate());
-              const isSelected = key === selectedDay;
-              return (
-                <button
-                  key={idx}
-                  onClick={() => entries.length > 0 && setSelectedDay(isSelected ? null : key)}
-                  className={cn(
-                    "min-h-[76px] rounded-xl border p-1.5 flex flex-col items-start text-left transition-all",
-                    cell.inMonth ? "bg-white border-slate-200" : "bg-slate-50/50 border-slate-100",
-                    isSelected && "ring-2 ring-blue-400 border-blue-300",
-                    entries.length > 0 && "hover:border-blue-300 cursor-pointer",
-                  )}
-                >
-                  <span className={cn(
-                    "text-[10px] font-black mb-1",
-                    !cell.inMonth ? "text-slate-300" : isToday ? "text-blue-600" : "text-slate-600",
-                  )}>
-                    {isToday ? <span className="bg-blue-600 text-white rounded-md px-1.5 py-0.5">{cell.day}</span> : cell.day}
-                  </span>
-                  <div className="space-y-0.5 w-full">
-                    {pagar > 0 && (
-                      <div className="text-[8.5px] font-bold text-rose-600 bg-rose-50 rounded px-1 py-0.5 truncate">
-                        R$ {fmt(pagar)}
-                      </div>
-                    )}
-                    {receber > 0 && (
-                      <div className="text-[8.5px] font-bold text-emerald-600 bg-emerald-50 rounded px-1 py-0.5 truncate">
-                        R$ {fmt(receber)}
-                      </div>
-                    )}
-                  </div>
-                </button>
-              );
-            })}
-          </div>
-        )}
-      </div>
-
-      {/* Painel do dia selecionado */}
-      {selectedDay && selectedEntries.length > 0 && (
-        <div className="fixed inset-0 z-[200] flex items-end sm:items-center justify-center sm:p-4">
-          <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={() => setSelectedDay(null)} />
-          <div className="relative w-full sm:max-w-md bg-white sm:rounded-2xl rounded-t-2xl shadow-2xl overflow-hidden max-h-[85vh] flex flex-col">
-            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 shrink-0">
-              <div>
-                <h2 className="text-[13px] font-black uppercase tracking-widest text-slate-900">
-                  {new Date(selectedDay + "T12:00:00").toLocaleDateString("pt-BR", { day: "2-digit", month: "long", year: "numeric" })}
-                </h2>
-                <p className="text-[10px] text-slate-400 mt-0.5">{selectedEntries.length} lançamento{selectedEntries.length > 1 ? "s" : ""}</p>
-              </div>
-              <button onClick={() => setSelectedDay(null)} className="w-8 h-8 rounded-xl flex items-center justify-center text-slate-400 hover:bg-slate-100 transition-all">
-                <X size={16} />
-              </button>
+        <ContentCard>
+          <div data-tour="calendario-nav" className="mb-3 flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <Button variant="outline" size="sm" className="!min-w-0 !px-2" aria-label="Mês anterior" onClick={() => shiftMonth(-1)}><ChevronLeft size={14} /></Button>
+              <h3 className="w-40 text-center text-[13px] font-medium text-slate-800">{MONTHS[viewMonth]} {viewYear}</h3>
+              <Button variant="outline" size="sm" className="!min-w-0 !px-2" aria-label="Próximo mês" onClick={() => shiftMonth(1)}><ChevronRight size={14} /></Button>
             </div>
-            <div className="px-4 py-3 space-y-2 overflow-y-auto flex-1">
-              {selectedEntries.map((e) => (
-                <div key={`${e.kind}-${e.id}`} className={cn(
-                  "rounded-xl border p-3 flex items-start gap-3",
-                  e.kind === "payable" ? "bg-rose-50/50 border-rose-100" : "bg-emerald-50/50 border-emerald-100",
-                )}>
-                  <div className={cn("w-8 h-8 rounded-lg flex items-center justify-center shrink-0", e.kind === "payable" ? "bg-rose-100 text-rose-600" : "bg-emerald-100 text-emerald-600")}>
-                    {e.kind === "payable" ? <ArrowUpCircle size={15} /> : <ArrowDownCircle size={15} />}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-[12px] font-bold text-slate-800 truncate">{e.description}</p>
-                    <p className="text-[10px] text-slate-400 truncate">{e.party || (e.kind === "payable" ? "Sem fornecedor" : "Sem cliente")}</p>
-                    <div className="flex items-center gap-1.5 mt-1 flex-wrap">
-                      <span className={cn(
-                        "text-[9px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded",
-                        e.status === "paid" || e.status === "received" ? "bg-emerald-100 text-emerald-700"
-                          : e.status === "cancelled" ? "bg-slate-100 text-slate-500" : "bg-amber-100 text-amber-700",
-                      )}>
-                        {e.status === "paid" ? "Pago" : e.status === "received" ? "Recebido" : e.status === "cancelled" ? "Cancelado" : "Pendente"}
-                      </span>
-                      {e.seriesLabel && (
-                        <span className="inline-flex items-center gap-0.5 text-[9px] font-black text-violet-500 bg-violet-50 border border-violet-100 px-1.5 py-0.5 rounded">
-                          <Layers size={8} /> {e.seriesLabel}
-                        </span>
+            <Select
+              aria-label="Ano"
+              size="sm"
+              wrapperClassName="w-24"
+              value={viewYear}
+              onChange={(e) => { setViewYear(Number(e.target.value)); setSelectedDay(null); }}
+              options={Array.from({ length: 7 }, (_, i) => now.getFullYear() - 3 + i).map((y) => ({ value: y, label: String(y) }))}
+            />
+          </div>
+
+          <div data-tour="calendario-filtro" className="mb-3">
+            <FilterLine>
+              <FilterLineSection grow>
+                <FilterLineSegmented value={entryFilter as string} onChange={(v) => setEntryFilter(v as typeof entryFilter)} options={filterOptions} />
+              </FilterLineSection>
+            </FilterLine>
+          </div>
+
+          {loading ? (
+            <div role="status" className="flex items-center justify-center gap-2 py-12 text-sm text-slate-500">
+              <Loader2 size={18} className="animate-spin" />Carregando calendário…
+            </div>
+          ) : (
+            <div data-tour="calendario-grid" className="grid grid-cols-7 gap-1">
+              {WEEKDAYS.map((w) => (
+                <div key={w} className="py-1 text-center text-[11px] font-medium text-slate-500">{w}</div>
+              ))}
+              {grid.map((cell, idx) => {
+                const key = dateKey(cell.year, cell.month, cell.day);
+                const allEntries = byDay.get(key) ?? [];
+                const entries = allEntries.filter((e) => matchesEntryFilter(e.status));
+                const pagar = entries.filter((e) => e.kind === "payable" && e.status !== "cancelled").reduce((a, e) => a + e.amount, 0);
+                const receber = entries.filter((e) => e.kind === "receivable" && e.status !== "cancelled").reduce((a, e) => a + e.amount, 0);
+                const isToday = key === dateKey(now.getFullYear(), now.getMonth(), now.getDate());
+                const isSelected = key === selectedDay;
+                return (
+                  <button
+                    key={idx}
+                    onClick={() => entries.length > 0 && setSelectedDay(isSelected ? null : key)}
+                    className={cn(
+                      "flex min-h-[64px] min-w-0 flex-col items-start rounded-lg border p-1 text-left transition-all sm:min-h-[76px] sm:p-1.5",
+                      cell.inMonth ? "border-slate-200 bg-white" : "border-slate-100 bg-slate-50/50",
+                      isSelected && "border-blue-300 ring-2 ring-blue-400",
+                      entries.length > 0 && "cursor-pointer hover:border-blue-300",
+                    )}
+                  >
+                    <span className={cn(
+                      "mb-1 text-[11px] font-medium",
+                      !cell.inMonth ? "text-slate-300" : isToday ? "text-blue-600" : "text-slate-600",
+                    )}>
+                      {isToday ? <span className="rounded-md bg-blue-600 px-1.5 py-0.5 text-white">{cell.day}</span> : cell.day}
+                    </span>
+                    <div className="w-full space-y-0.5">
+                      {pagar > 0 && (
+                        <div className="truncate rounded bg-rose-50 px-1 py-0.5 text-[11px] font-medium text-rose-600">R$ {fmt(pagar)}</div>
                       )}
-                      {e.isRecurring && (
-                        <span className="inline-flex items-center gap-0.5 text-[9px] font-black text-blue-500 bg-blue-50 border border-blue-100 px-1.5 py-0.5 rounded">
-                          <Repeat size={8} /> Recorrente
-                        </span>
+                      {receber > 0 && (
+                        <div className="truncate rounded bg-emerald-50 px-1 py-0.5 text-[11px] font-medium text-emerald-600">R$ {fmt(receber)}</div>
                       )}
                     </div>
-                  </div>
-                  <span className={cn("font-mono font-black text-sm shrink-0", e.kind === "payable" ? "text-rose-600" : "text-emerald-600")}>
-                    R$ {fmt(e.amount)}
-                  </span>
-                </div>
-              ))}
+                  </button>
+                );
+              })}
             </div>
-          </div>
+          )}
+        </ContentCard>
+      </div>
+
+      <Modal
+        isOpen={!!(selectedDay && selectedEntries.length > 0)}
+        onClose={() => setSelectedDay(null)}
+        size="md"
+        title={selectedDay ? new Date(selectedDay + "T12:00:00").toLocaleDateString("pt-BR", { day: "2-digit", month: "long", year: "numeric" }) : ""}
+        subtitle={`${selectedEntries.length} lançamento${selectedEntries.length > 1 ? "s" : ""}`}
+      >
+        <div className="space-y-2">
+          {selectedEntries.map((e) => (
+            <div key={`${e.kind}-${e.id}`} className={cn(
+              "flex items-start gap-3 rounded-lg border p-3",
+              e.kind === "payable" ? "border-rose-100 bg-rose-50/50" : "border-emerald-100 bg-emerald-50/50",
+            )}>
+              <div className={cn("flex h-7 w-7 shrink-0 items-center justify-center rounded-md", e.kind === "payable" ? "bg-rose-100 text-rose-600" : "bg-emerald-100 text-emerald-600")}>
+                {e.kind === "payable" ? <ArrowUpCircle size={14} /> : <ArrowDownCircle size={14} />}
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-xs font-medium text-slate-800">{e.description}</p>
+                <p className="truncate text-[11px] text-slate-500">{e.party || (e.kind === "payable" ? "Sem fornecedor" : "Sem cliente")}</p>
+                <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                  <Badge color={e.status === "paid" || e.status === "received" ? "success" : e.status === "cancelled" ? "default" : "warning"}>
+                    {e.status === "paid" ? "Pago" : e.status === "received" ? "Recebido" : e.status === "cancelled" ? "Cancelado" : "Pendente"}
+                  </Badge>
+                  {e.seriesLabel && <Badge color="purple" icon={<Layers size={10} />}>{e.seriesLabel}</Badge>}
+                  {e.isRecurring && <Badge color="primary" icon={<Repeat size={10} />}>Recorrente</Badge>}
+                </div>
+              </div>
+              <span className={cn("shrink-0 text-xs font-semibold tabular-nums", e.kind === "payable" ? "text-rose-600" : "text-emerald-600")}>
+                R$ {fmt(e.amount)}
+              </span>
+            </div>
+          ))}
         </div>
-      )}
-    </div>
+      </Modal>
+    </PageWrapper>
   );
 }

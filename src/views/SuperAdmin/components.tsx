@@ -1,5 +1,10 @@
 import { type ReactNode } from "react";
-import { Copy, RefreshCcw } from "lucide-react";
+import { Copy } from "lucide-react";
+import { Input, Select } from "../../components/ui/Input";
+import { Button } from "../../components/ui/Button";
+import { Badge as UiBadge } from "../../components/ui/Badge";
+import { EmptyState as UiEmptyState } from "../../components/ui/EmptyState";
+import { Alert as UiAlert } from "../../components/ui/Alert";
 
 export function Field({
   label,
@@ -17,20 +22,15 @@ export function Field({
   disabled?: boolean;
 }) {
   return (
-    <div className="space-y-2">
-      <label className="text-[10px] font-bold uppercase tracking-[0.16em] text-slate-600">
-        {label}
-      </label>
-      <input
-        type={type}
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
-        placeholder={placeholder}
-        disabled={disabled}
-        className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3.5 text-sm font-semibold text-slate-900 placeholder-slate-400 outline-none transition-all focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 disabled:bg-slate-50 disabled:text-slate-400"
-        required={type !== "date"}
-      />
-    </div>
+    <Input
+      label={label}
+      type={type}
+      value={value}
+      onChange={(event) => onChange(event.target.value)}
+      placeholder={placeholder}
+      disabled={disabled}
+      required={type !== "date"}
+    />
   );
 }
 
@@ -48,23 +48,13 @@ export function SelectField({
   disabled?: boolean;
 }) {
   return (
-    <div className="space-y-2">
-      <label className="text-[10px] font-bold uppercase tracking-[0.16em] text-slate-600">
-        {label}
-      </label>
-      <select
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
-        disabled={disabled}
-        className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3.5 text-sm font-semibold text-slate-900 outline-none transition-all focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 disabled:bg-slate-50 disabled:text-slate-400"
-      >
-        {options.map((option) => (
-          <option key={option.value} value={option.value}>
-            {option.label}
-          </option>
-        ))}
-      </select>
-    </div>
+    <Select
+      label={label}
+      value={value}
+      onChange={(event) => onChange(event.target.value)}
+      disabled={disabled}
+      options={options}
+    />
   );
 }
 
@@ -78,14 +68,14 @@ export function MiniInfo({
   value: string;
 }) {
   return (
-    <div className="rounded-xl border border-slate-100 bg-slate-50/50 px-3 py-2.5">
+    <div className="rounded-lg border border-slate-100 bg-slate-50/50 px-3 py-2.5">
       <div className="flex items-center gap-2 text-slate-400">
         {icon}
-        <span className="text-[9px] font-bold uppercase tracking-[0.18em]">
+        <span className="text-[10px] font-semibold">
           {label}
         </span>
       </div>
-      <p className="mt-2 text-sm font-semibold text-slate-700">{value}</p>
+      <p className="mt-2 text-sm font-medium text-slate-700">{value}</p>
     </div>
   );
 }
@@ -98,11 +88,11 @@ export function InfoLine({
   value: string;
 }) {
   return (
-    <div className="rounded-xl border border-slate-100 bg-slate-50/50 px-3 py-2.5">
-      <p className="text-[9px] font-bold uppercase tracking-[0.18em] text-slate-400">
+    <div className="rounded-lg border border-slate-100 bg-slate-50/50 px-3 py-2.5">
+      <p className="text-[10px] font-semibold text-slate-400">
         {label}
       </p>
-      <p className="mt-2 break-all text-sm font-semibold text-slate-700">
+      <p className="mt-2 break-all text-sm font-medium text-slate-700">
         {value}
       </p>
     </div>
@@ -120,22 +110,14 @@ export function ActionButton({
   variant?: "primary" | "secondary";
   disabled?: boolean;
 }) {
-  const baseClasses =
-    "inline-flex h-10 items-center gap-2 rounded-lg px-4 text-[10px] font-bold uppercase tracking-[0.18em] transition-all disabled:opacity-50 disabled:cursor-not-allowed";
-
-  const variantClasses =
-    variant === "primary"
-      ? "bg-blue-600 text-white hover:bg-blue-700"
-      : "border border-slate-200 bg-white text-slate-600 hover:bg-slate-50";
-
   return (
-    <button
+    <Button
       onClick={onClick}
       disabled={disabled}
-      className={`${baseClasses} ${variantClasses}`}
+      variant={variant === "primary" ? "primary" : "outline"}
     >
       {children}
-    </button>
+    </Button>
   );
 }
 
@@ -149,12 +131,12 @@ export function StatCard({
   icon?: ReactNode;
 }) {
   return (
-    <div className="rounded-xl border border-slate-100 bg-gradient-to-br from-slate-50 to-slate-100/50 p-4">
+    <div className="rounded-lg border border-slate-100 bg-gradient-to-br from-slate-50 to-slate-100/50 p-4">
       {icon && <div className="text-slate-400 mb-2">{icon}</div>}
-      <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-slate-600">
+      <p className="text-[11px] font-semibold text-slate-600">
         {label}
       </p>
-      <p className="mt-2 text-3xl font-black tracking-[-0.02em] text-slate-900">
+      <p className="mt-2 text-3xl font-semibold text-slate-900">
         {value}
       </p>
     </div>
@@ -166,46 +148,17 @@ export function Badge({
 }: {
   status: "pending" | "used" | "expired";
 }) {
-  const statusConfig = {
-    pending: {
-      bg: "bg-amber-50",
-      text: "text-amber-700",
-      border: "border-amber-200",
-    },
-    used: {
-      bg: "bg-emerald-50",
-      text: "text-emerald-700",
-      border: "border-emerald-200",
-    },
-    expired: {
-      bg: "bg-red-50",
-      text: "text-red-700",
-      border: "border-red-200",
-    },
-  };
-
-  const config = statusConfig[status];
-  const labelMap = {
-    pending: "Pendente",
-    used: "Usado",
-    expired: "Expirado",
-  };
-
-  return (
-    <span
-      className={`inline-flex rounded-lg border px-2.5 py-1 text-[9px] font-bold uppercase tracking-[0.16em] ${config.bg} ${config.text} ${config.border}`}
-    >
-      {labelMap[status]}
-    </span>
-  );
+  const config = {
+    pending: { color: "warning", label: "Pendente" },
+    used: { color: "success", label: "Usado" },
+    expired: { color: "danger", label: "Expirado" },
+  } as const;
+  const { color, label } = config[status];
+  return <UiBadge color={color}>{label}</UiBadge>;
 }
 
 export function EmptyState({ message }: { message: string }) {
-  return (
-    <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 px-5 py-10 text-center text-sm text-slate-500">
-      {message}
-    </div>
-  );
+  return <UiEmptyState title={message} />;
 }
 
 export function Alert({
@@ -215,26 +168,7 @@ export function Alert({
   type: "error" | "success";
   message: string;
 }) {
-  const config =
-    type === "error"
-      ? {
-          bg: "bg-red-50",
-          border: "border-red-200",
-          text: "text-red-600",
-        }
-      : {
-          bg: "bg-emerald-50",
-          border: "border-emerald-200",
-          text: "text-emerald-700",
-        };
-
-  return (
-    <div
-      className={`rounded-lg border px-4 py-3 text-sm font-semibold ${config.bg} ${config.border} ${config.text}`}
-    >
-      {message}
-    </div>
-  );
+  return <UiAlert variant={type}>{message}</UiAlert>;
 }
 
 export function CopyButton({ value, label }: { value: string; label: string }) {
@@ -247,13 +181,14 @@ export function CopyButton({ value, label }: { value: string; label: string }) {
   };
 
   return (
-    <button
+    <Button
+      variant="outline"
       onClick={handleCopy}
       title={value}
-      className="group inline-flex h-10 flex-1 items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-[10px] font-bold uppercase tracking-[0.16em] text-slate-600 transition-all hover:bg-slate-50"
+      iconLeft={<Copy size={13} />}
+      className="flex-1"
     >
-      <Copy size={13} />
       {label}
-    </button>
+    </Button>
   );
 }

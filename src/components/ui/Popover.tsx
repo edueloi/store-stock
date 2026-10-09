@@ -141,7 +141,7 @@ export default function Popover({
           transition={{ type: "spring", damping: 28, stiffness: 350 }}
           style={{ position: "absolute", top: coords.top, left: coords.left, zIndex: 9999 }}
           className={cn(
-            "max-h-[calc(100dvh-1rem)] max-w-[calc(100vw-1rem)] overflow-y-auto rounded-2xl border border-slate-200 bg-white shadow-xl",
+            "max-h-[calc(100dvh-1rem)] max-w-[calc(100vw-1rem)] overflow-y-auto rounded-lg border border-slate-200 bg-white shadow-sm",
             className
           )}
         >

@@ -1,15 +1,15 @@
 import { useState, useEffect, useMemo, useRef } from "react";
 import ExcelJS from "exceljs";
 import {
-  Search, Wallet, CheckCircle2, Clock, X, Loader2, User, Calendar, ChevronRight, Printer,
+  Search, Wallet, CheckCircle2, Clock, X, Loader2, User, Calendar, ChevronRight, Printer, ChevronLeft,
   Download, FileSpreadsheet, FileText, PieChart as PieChartIcon, ListOrdered, BarChart3, DollarSign, HelpCircle,
 } from "lucide-react";
 import {
   PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
 } from "recharts";
 import PageHeader from "../../components/layout/PageHeader";
-import Button from "../../components/ui/Button";
-import Modal from "../../components/ui/Modal";
+import { Button, IconButton, Input, Select, Modal, ModalFooter, Tabs, FilterLineSearch, FilterLineSegmented } from "../../components/ui";
+import Drawer from "../../components/ui/Drawer";
 import { cn } from "../../lib/utils";
 import {
   buildCashCloseReceiptText, printThermalText, thermalThin, thermalCenter, thermalRow,
@@ -18,6 +18,17 @@ import CashHistoryPageTour, { CASH_HISTORY_PAGE_TOUR_EVENTS, type CashHistoryPag
 
 // Mesmo padrão de filtro de período já usado em Fluxo de Caixa/Contas a
 // Pagar/Contas a Receber — navegador de mês/ano com atalho pra período livre.
+const MAIN_TABS = [
+  { id: "sessions", label: "Sessões", icon: Wallet, dataTour: "cash-history-sessions-tab-btn" },
+  { id: "report", label: "Relatório", icon: BarChart3, dataTour: "cash-history-report-tab-btn" },
+] as const;
+
+const PRESET_OPTIONS = [
+  { value: "all", label: "Tudo" },
+  { value: "month", label: "Mês" },
+  { value: "year", label: "Ano" },
+];
+
 type PeriodPreset = "month" | "year" | "custom" | "all";
 const MONTHS = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
 
@@ -572,7 +583,7 @@ export default function CashSessionHistory() {
       ];
       wsSessions.getRow(1).getCell(1).value = "Sessões de Caixa";
       wsSessions.getRow(1).getCell(1).font = font({ bold: true, size: 14, color: "1E3A5F" });
-      wsSessions.getRow(2).getCell(1).value = `Período: ${periodLabel}  ·  ${filtered.length} sessão(ões)`;
+      wsSessions.getRow(2).getCell(1).value = `Período: ${periodLabel} · ${filtered.length} sessão(ões)`;
       wsSessions.getRow(2).getCell(1).font = font({ size: 9, italic: true, color: "94A3B8" });
       wsSessions.getRow(3).height = 4;
 
@@ -617,7 +628,7 @@ export default function CashSessionHistory() {
       ];
       wsItems.getRow(1).getCell(1).value = "Itens Vendidos";
       wsItems.getRow(1).getCell(1).font = font({ bold: true, size: 14, color: "1E3A5F" });
-      wsItems.getRow(2).getCell(1).value = `Período: ${periodLabel}  ·  ${soldItems.length} item(ns)`;
+      wsItems.getRow(2).getCell(1).value = `Período: ${periodLabel} · ${soldItems.length} item(ns)`;
       wsItems.getRow(2).getCell(1).font = font({ size: 9, italic: true, color: "94A3B8" });
       wsItems.getRow(3).height = 4;
 
@@ -720,15 +731,15 @@ export default function CashSessionHistory() {
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: 'Segoe UI', Arial, sans-serif; color: #1e293b; padding: 32px; font-size: 12px; }
   .header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 24px; border-bottom: 3px solid #1e3a5f; padding-bottom: 16px; }
-  .header h1 { font-size: 20px; font-weight: 900; text-transform: uppercase; letter-spacing: 0.1em; }
+  .header h1 { font-size: 20px; font-weight: 900; text-transform: ; letter-spacing: 0.1em; }
   .meta { text-align: right; font-size: 10px; color: #64748b; }
-  .summary-title { font-size: 13px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.08em; margin: 20px 0 10px; color: #1e3a5f; }
+  .summary-title { font-size: 13px; font-weight: 800; text-transform: ; letter-spacing: 0.08em; margin: 20px 0 10px; color: #1e3a5f; }
   .fin-summary { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 20px; }
   .fin-card { padding: 12px 14px; border-radius: 10px; border: 1px solid #e2e8f0; }
-  .fin-card label { font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; display: block; margin-bottom: 4px; color: #94a3b8; }
+  .fin-card label { font-size: 9px; font-weight: 700; text-transform: ; letter-spacing: 0.1em; display: block; margin-bottom: 4px; color: #94a3b8; }
   .fin-card .val { font-size: 16px; font-weight: 900; font-family: monospace; }
   table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
-  th { background: #f8fafc; border-bottom: 2px solid #e2e8f0; padding: 10px 12px; text-align: left; font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; color: #94a3b8; }
+  th { background: #f8fafc; border-bottom: 2px solid #e2e8f0; padding: 10px 12px; text-align: left; font-size: 9px; font-weight: 700; text-transform: ; letter-spacing: 0.1em; color: #94a3b8; }
   td { padding: 9px 12px; border-bottom: 1px solid #f1f5f9; font-size: 11px; }
   .total-row td { font-weight: 900; background: #f1f5f9; border-top: 2px solid #1e3a5f; }
   @media print { body { padding: 16px; } table { page-break-inside: auto; } tr { page-break-inside: avoid; } }
@@ -813,13 +824,13 @@ export default function CashSessionHistory() {
         subtitle="Todas as aberturas e fechamentos de caixa — quem abriu, quem fechou e a diferença apurada"
         action={
           <div className="flex gap-2 items-center flex-wrap">
-            <Button data-tour="cash-history-export-btn" variant="secondary" icon={<Download size={14} />} onClick={openExportModal}>
+            <Button data-tour="cash-history-export-btn" variant="outline" size="sm" iconLeft={<Download size={14} />} onClick={openExportModal}>
               Exportar
             </Button>
             <Button
-              variant="secondary"
-              className="text-slate-400 hover:text-blue-600 hover:bg-blue-50 border-slate-200 hover:border-blue-300"
-              icon={<HelpCircle size={14} />}
+              variant="ghost"
+              size="sm"
+              iconLeft={<HelpCircle size={14} />}
               onClick={() => tourRef.current?.start()}
               title="Tour guiado desta página"
             >
@@ -831,28 +842,11 @@ export default function CashSessionHistory() {
 
       <CashHistoryPageTour ref={tourRef} />
 
-      {/* Abas principais */}
-      <div data-tour="cash-history-tabs" className="flex gap-1 bg-slate-100 p-1 rounded-xl w-fit">
-        {([
-          { value: "sessions", label: "Sessões", icon: Wallet },
-          { value: "report", label: "Relatório", icon: BarChart3 },
-        ] as { value: "sessions" | "report"; label: string; icon: React.FC<{ size: number }> }[]).map((t) => (
-          <button
-            key={t.value}
-            data-tour={t.value === "report" ? "cash-history-report-tab-btn" : "cash-history-sessions-tab-btn"}
-            onClick={() => setMainTab(t.value)}
-            className={cn(
-              "flex items-center gap-1.5 px-4 py-2 rounded-lg text-[12px] font-bold transition-all",
-              mainTab === t.value ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"
-            )}
-          >
-            <t.icon size={13} /> {t.label}
-          </button>
-        ))}
-      </div>
-
+      {/* Abas principais (data-tour mantido no wrapper; botões individuais ficam sem data-tour) */}
+      <div data-tour="cash-history-tabs">
+      <Tabs<"sessions" | "report"> items={MAIN_TABS} value={mainTab} onChange={setMainTab} label="Histórico de caixa">
       {mainTab === "sessions" && (
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm">
+      <div className="bg-white rounded-lg border border-slate-200 shadow-sm">
         <div data-tour="cash-history-kpis" className="flex items-center gap-0 border-b border-slate-100 divide-x divide-slate-100">
           {[
             { label: "Total",              value: counts.total,          color: "text-slate-900" },
@@ -861,32 +855,27 @@ export default function CashSessionHistory() {
             { label: "Com Diferença",      value: counts.withDifference, color: "text-rose-500" },
           ].map((k) => (
             <div key={k.label} className="flex-1 px-5 py-4 flex flex-col gap-0.5">
-              <span className={cn("text-2xl font-black tracking-tight font-mono leading-none", k.color)}>{k.value}</span>
-              <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">{k.label}</span>
+              <span className={cn("text-2xl font-semibold font-mono leading-none", k.color)}>{k.value}</span>
+              <span className="text-[11px] text-slate-500">{k.label}</span>
             </div>
           ))}
         </div>
 
         <div className="flex items-center gap-2 px-4 py-3 flex-wrap">
-          <div className="relative flex-1 min-w-[180px]">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={13} />
-            <input
-              type="text"
-              placeholder="Buscar por operador..."
-              className="w-full pl-8 pr-3 h-9 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-400 text-[11px] font-medium placeholder:text-slate-300 transition-all"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-            />
+          <div className="flex-1 min-w-[180px]">
+            <FilterLineSearch aria-label="Buscar por operador" placeholder="Buscar por operador..." value={searchTerm} onChange={setSearchTerm} />
           </div>
-          <select
+          <Select
+            aria-label="Filtrar por status"
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value as "all" | "open" | "closed")}
-            className="h-9 px-3 bg-slate-50 border border-slate-200 rounded-xl text-[11px] font-bold outline-none focus:border-blue-400 transition-all"
+            wrapperClassName="min-w-[160px]"
+            size="sm"
           >
             <option value="all">Todos os status</option>
             <option value="open">Aberto</option>
             <option value="closed">Fechado</option>
-          </select>
+          </Select>
         </div>
 
         <div data-tour="cash-history-table" className="overflow-x-auto">
@@ -894,7 +883,7 @@ export default function CashSessionHistory() {
             <thead>
               <tr className="border-t border-slate-100 bg-slate-50/60">
                 {["Abertura", "Aberto por", "Fechado por", "Status", "Valor Inicial", "Contado", "Diferença", ""].map((h) => (
-                  <th key={h} className="px-4 py-2.5 text-[9px] font-black text-slate-400 uppercase tracking-widest whitespace-nowrap">{h}</th>
+                  <th key={h} className="px-4 py-2.5 text-[11px] text-slate-500 whitespace-nowrap">{h}</th>
                 ))}
               </tr>
             </thead>
@@ -913,24 +902,24 @@ export default function CashSessionHistory() {
                     <td className="px-4 py-2.5 text-xs text-slate-500 whitespace-nowrap">
                       {new Date(s.opened_at).toLocaleString("pt-BR")}
                     </td>
-                    <td className="px-4 py-2.5 text-xs font-bold text-slate-700 flex items-center gap-1.5">
+                    <td className="px-4 py-2.5 text-xs font-semibold text-slate-700 flex items-center gap-1.5">
                       <User size={12} className="text-slate-400" /> {s.opened_by_name}
                     </td>
                     <td className="px-4 py-2.5 text-xs text-slate-500">{s.closed_by_name ?? "—"}</td>
                     <td className="px-4 py-2.5">
                       {s.status === "open" ? (
-                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wide bg-blue-50 text-blue-600">
+                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-blue-50 text-blue-600">
                           <Clock size={12} /> Aberto
                         </span>
                       ) : (
-                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wide bg-emerald-50 text-emerald-600">
+                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-emerald-50 text-emerald-600">
                           <CheckCircle2 size={12} /> Fechado
                         </span>
                       )}
                     </td>
                     <td className="px-4 py-2.5 text-xs font-mono text-slate-600">{money(s.opening_amount)}</td>
                     <td className="px-4 py-2.5 text-xs font-mono text-slate-600">{s.counted_amount != null ? money(s.counted_amount) : "—"}</td>
-                    <td className="px-4 py-2.5 text-xs font-mono font-bold">
+                    <td className="px-4 py-2.5 text-xs font-mono font-semibold">
                       {s.status === "closed" ? (
                         <span className={diff === 0 ? "text-slate-400" : diff > 0 ? "text-emerald-600" : "text-rose-600"}>
                           {diff > 0 ? "+" : ""}{money(diff)}
@@ -954,53 +943,28 @@ export default function CashSessionHistory() {
           {/* Filtro de período */}
           <div data-tour="cash-history-report-period" className="flex items-center gap-2 flex-wrap">
             {(periodPreset === "month" || periodPreset === "year") && (
-              <div className="flex items-center gap-1 bg-slate-50 border border-slate-200 rounded-xl p-1">
-                <button onClick={() => navigatePeriod(-1)} className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-500 hover:bg-white hover:text-slate-900 transition-all">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
-                </button>
-                <span className="px-3 h-7 flex items-center rounded-lg text-[11px] font-black uppercase tracking-widest bg-slate-900 text-white min-w-[140px] justify-center">
+              <div className="flex w-fit items-center gap-1 rounded-lg border border-slate-200 bg-zinc-50 p-1">
+                <IconButton variant="ghost" size="xs" aria-label="Período anterior" onClick={() => navigatePeriod(-1)}><ChevronLeft size={14} /></IconButton>
+                <span className="flex h-7 min-w-[140px] items-center justify-center rounded-lg bg-white px-3 text-[11px] font-medium text-slate-800">
                   {periodPreset === "year" ? navYear : `${MONTHS[navMonth]} ${navYear}`}
                 </span>
-                <button onClick={() => navigatePeriod(1)} className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-500 hover:bg-white hover:text-slate-900 transition-all">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
-                </button>
+                <IconButton variant="ghost" size="xs" aria-label="Próximo período" onClick={() => navigatePeriod(1)}><ChevronRight size={14} /></IconButton>
               </div>
             )}
-            <div className="flex items-center gap-1 bg-slate-50 border border-slate-200 rounded-xl p-1">
-              {([["all", "Tudo"], ["month", "Mês"], ["year", "Ano"]] as const).map(([k, l]) => (
-                <button
-                  key={k}
-                  onClick={() => applyPeriodPreset(k)}
-                  className={cn(
-                    "h-7 px-3 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all",
-                    periodPreset === k ? "bg-slate-900 text-white shadow-sm" : "text-slate-500 hover:text-slate-700"
-                  )}
-                >{l}</button>
-              ))}
-            </div>
-            <button
-              onClick={() => setPeriodPreset(periodPreset === "custom" ? "month" : "custom")}
-              className={cn(
-                "h-9 px-3 rounded-xl flex items-center gap-1.5 text-[9px] font-black uppercase tracking-widest border transition-all",
-                periodPreset === "custom" ? "bg-blue-600 text-white border-blue-600" : "bg-white text-slate-400 border-slate-200 hover:border-slate-400"
-              )}
-            >
-              <Calendar size={12} /> Período Livre
-            </button>
+            <FilterLineSegmented<string> options={PRESET_OPTIONS} value={periodPreset} onChange={(v) => applyPeriodPreset(v as PeriodPreset)} className="w-fit" />
+            <Button variant={periodPreset === "custom" ? "primary" : "outline"} size="sm" onClick={() => setPeriodPreset(periodPreset === "custom" ? "month" : "custom")} iconLeft={<Calendar size={13} />}>Período Livre</Button>
             {periodPreset === "custom" && (
               <div className="flex items-center gap-2">
-                <input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)}
-                  className="pl-3 pr-3 h-9 bg-slate-50 border border-slate-200 rounded-xl text-[11px] font-bold focus:outline-none focus:border-blue-400 transition-all w-[148px]" />
-                <span className="text-[10px] font-black text-slate-300 uppercase">até</span>
-                <input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)}
-                  className="pl-3 pr-3 h-9 bg-slate-50 border border-slate-200 rounded-xl text-[11px] font-bold focus:outline-none focus:border-blue-400 transition-all w-[148px]" />
+                <Input type="date" aria-label="Data" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} wrapperClassName="w-[148px]" />
+                <span className="text-[11px] font-semibold text-slate-300">até</span>
+                <Input type="date" aria-label="Data" value={dateTo} onChange={(e) => setDateTo(e.target.value)} wrapperClassName="w-[148px]" />
               </div>
             )}
             {loadingReport && <Loader2 size={16} className="animate-spin text-slate-400" />}
           </div>
 
           {sessionsForReport.length === 0 ? (
-            <div className="bg-white rounded-2xl border border-slate-200 shadow-sm py-16 text-center text-slate-400 text-sm">
+            <div className="bg-white rounded-lg border border-slate-200 shadow-sm py-16 text-center text-slate-400 text-sm">
               Nenhuma sessão de caixa nesse período
             </div>
           ) : (
@@ -1008,29 +972,29 @@ export default function CashSessionHistory() {
               {/* Cards por forma de pagamento/bandeira */}
               <div data-tour="cash-history-report-cards" className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
                 {paymentByMethodBrand.map((seg) => (
-                  <div key={`${seg.method}-${seg.brand}`} className="bg-white rounded-2xl border border-slate-200 shadow-sm p-4">
-                    <div className={cn("w-9 h-9 rounded-xl flex items-center justify-center mb-2.5", PM_ICON_BG[seg.method] ?? "bg-slate-100 text-slate-500")}>
+                  <div key={`${seg.method}-${seg.brand}`} className="bg-white rounded-lg border border-slate-200 shadow-sm p-4">
+                    <div className={cn("w-9 h-9 rounded-lg flex items-center justify-center mb-2.5", PM_ICON_BG[seg.method] ?? "bg-slate-100 text-slate-500")}>
                       <Wallet size={16} />
                     </div>
-                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">{methodBrandLabel(seg.method, seg.brand)}</p>
-                    <p className="text-xl font-black text-slate-800 mt-0.5 font-mono">{money(seg.amount)}</p>
+                    <p className="text-[11px] text-slate-500">{methodBrandLabel(seg.method, seg.brand)}</p>
+                    <p className="text-xl font-semibold text-slate-800 mt-0.5 font-mono">{money(seg.amount)}</p>
                   </div>
                 ))}
-                <div className="bg-slate-900 rounded-2xl p-4">
-                  <div className="w-9 h-9 rounded-xl bg-white/10 flex items-center justify-center mb-2.5">
+                <div className="bg-slate-900 rounded-lg p-4">
+                  <div className="w-9 h-9 rounded-lg bg-white/10 flex items-center justify-center mb-2.5">
                     <DollarSign size={16} className="text-white" />
                   </div>
-                  <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Total do Período</p>
-                  <p className="text-xl font-black text-white mt-0.5 font-mono">{money(grandTotal)}</p>
+                  <p className="text-[11px] text-slate-500">Total do Período</p>
+                  <p className="text-xl font-semibold text-white mt-0.5 font-mono">{money(grandTotal)}</p>
                 </div>
               </div>
 
               {/* Gráficos: pizza por forma de pagamento + evolução diária */}
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                <div data-tour="cash-history-report-pie" className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
+                <div data-tour="cash-history-report-pie" className="bg-white rounded-lg border border-slate-200 shadow-sm p-5">
                   <div className="flex items-center gap-2 mb-4">
                     <PieChartIcon size={14} className="text-slate-400" />
-                    <h3 className="text-[11px] font-black uppercase tracking-widest text-slate-700">Por Forma de Pagamento</h3>
+                    <h3 className="text-[11px] font-semibold text-slate-700">Por Forma de Pagamento</h3>
                   </div>
                   {paymentByMethodBrand.length > 0 ? (
                     <div className="h-64">
@@ -1045,7 +1009,7 @@ export default function CashSessionHistory() {
                             ))}
                           </Pie>
                           <Tooltip formatter={(v: number) => money(v)} contentStyle={{ borderRadius: 10, border: "1px solid #f1f5f9", fontSize: 11, fontWeight: 700 }} />
-                          <Legend iconType="circle" iconSize={7} formatter={(v) => <span style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase" }}>{v}</span>} />
+                          <Legend iconType="circle" iconSize={7} formatter={(v) => <span style={{ fontSize: 9, fontWeight: 700, textTransform: "" }}>{v}</span>} />
                         </PieChart>
                       </ResponsiveContainer>
                     </div>
@@ -1054,10 +1018,10 @@ export default function CashSessionHistory() {
                   )}
                 </div>
 
-                <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
+                <div className="bg-white rounded-lg border border-slate-200 shadow-sm p-5">
                   <div className="flex items-center gap-2 mb-4">
                     <BarChart3 size={14} className="text-slate-400" />
-                    <h3 className="text-[11px] font-black uppercase tracking-widest text-slate-700">Evolução Diária</h3>
+                    <h3 className="text-[11px] font-semibold text-slate-700">Evolução Diária</h3>
                   </div>
                   {salesByDay.length > 0 ? (
                     <div className="h-64">
@@ -1083,32 +1047,18 @@ export default function CashSessionHistory() {
               </div>
 
               {/* Tabela de itens vendidos */}
-              <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+              <div className="bg-white rounded-lg border border-slate-200 shadow-sm overflow-hidden">
                 <div className="flex items-center justify-between gap-3 px-5 py-4 border-b border-slate-100 flex-wrap">
                   <div className="flex items-center gap-2">
                     <ListOrdered size={14} className="text-slate-400" />
-                    <h3 className="text-[11px] font-black uppercase tracking-widest text-slate-700">Itens Vendidos ({filteredSoldItems.length})</h3>
+                    <h3 className="text-[11px] font-semibold text-slate-700">Itens Vendidos ({filteredSoldItems.length})</h3>
                   </div>
                   {availablePaymentMethods.length > 0 && (
-                    <div className="flex items-center gap-1 bg-slate-50 border border-slate-200 rounded-xl p-1 flex-wrap">
-                      <button
-                        onClick={() => setItemsPaymentFilter("all")}
-                        className={cn(
-                          "h-7 px-3 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all",
-                          itemsPaymentFilter === "all" ? "bg-slate-900 text-white shadow-sm" : "text-slate-500 hover:text-slate-700"
-                        )}
-                      >Todos</button>
-                      {availablePaymentMethods.map((m) => (
-                        <button
-                          key={m}
-                          onClick={() => setItemsPaymentFilter(m)}
-                          className={cn(
-                            "h-7 px-3 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all",
-                            itemsPaymentFilter === m ? "bg-slate-900 text-white shadow-sm" : "text-slate-500 hover:text-slate-700"
-                          )}
-                        >{PM_LABEL[m] ?? m}</button>
-                      ))}
-                    </div>
+                    <FilterLineSegmented<string>
+                      options={[{ value: "all", label: "Todos" }, ...availablePaymentMethods.map((m) => ({ value: m, label: PM_LABEL[m] ?? m }))]}
+                      value={itemsPaymentFilter}
+                      onChange={setItemsPaymentFilter}
+                    />
                   )}
                 </div>
                 <div className="overflow-x-auto max-h-[420px] overflow-y-auto">
@@ -1116,7 +1066,7 @@ export default function CashSessionHistory() {
                     <thead className="sticky top-0 z-10">
                       <tr className="bg-slate-50">
                         {["Pedido", "Produto", "Qtd", "Total", "Desconto", "Taxa", "Data", "Cliente", "Vendedor", "Pagamento"].map((h) => (
-                          <th key={h} className="px-4 py-2.5 text-[9px] font-black text-slate-400 uppercase tracking-widest whitespace-nowrap bg-slate-50 border-b border-slate-200">{h}</th>
+                          <th key={h} className="px-4 py-2.5 text-[11px] text-slate-500 whitespace-nowrap bg-slate-50 border-b border-slate-200">{h}</th>
                         ))}
                       </tr>
                     </thead>
@@ -1129,7 +1079,7 @@ export default function CashSessionHistory() {
                           <td className="px-4 py-2 text-xs font-mono text-slate-400 whitespace-nowrap">#{String(it.orderId).padStart(6, "0")}</td>
                           <td className="px-4 py-2 text-xs font-semibold text-slate-700">{it.productName}</td>
                           <td className="px-4 py-2 text-xs text-slate-500 text-center">{it.quantity}</td>
-                          <td className="px-4 py-2 text-xs font-mono font-bold text-slate-800 whitespace-nowrap">{money(it.total)}</td>
+                          <td className="px-4 py-2 text-xs font-mono font-semibold text-slate-800 whitespace-nowrap">{money(it.total)}</td>
                           <td className="px-4 py-2 text-xs font-mono text-rose-500 whitespace-nowrap">{it.discountAmount > 0 ? money(it.discountAmount) : "—"}</td>
                           <td className="px-4 py-2 text-xs font-mono text-rose-500 whitespace-nowrap">{it.feeAmount > 0 ? money(it.feeAmount) : "—"}</td>
                           <td className="px-4 py-2 text-xs text-slate-400 whitespace-nowrap">{new Date(it.createdAt).toLocaleString("pt-BR")}</td>
@@ -1147,6 +1097,9 @@ export default function CashSessionHistory() {
         </div>
       )}
 
+      </Tabs>
+      </div>
+
       {/* Modal de exportação — escolhe o período antes de gerar o arquivo */}
       <Modal
         open={showExportModal}
@@ -1158,63 +1111,38 @@ export default function CashSessionHistory() {
           <p className="text-[11px] text-slate-500">Escolha o período que deseja exportar.</p>
 
           {(exportPreset === "month" || exportPreset === "year") && (
-            <div className="flex items-center gap-1 bg-slate-50 border border-slate-200 rounded-xl p-1 w-fit">
-              <button onClick={() => navigateExportPeriod(-1)} className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-500 hover:bg-white hover:text-slate-900 transition-all">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
-              </button>
-              <span className="px-3 h-7 flex items-center rounded-lg text-[11px] font-black uppercase tracking-widest bg-slate-900 text-white min-w-[140px] justify-center">
+            <div className="flex w-fit items-center gap-1 rounded-lg border border-slate-200 bg-zinc-50 p-1">
+              <IconButton variant="ghost" size="xs" aria-label="Período anterior" onClick={() => navigateExportPeriod(-1)}><ChevronLeft size={14} /></IconButton>
+              <span className="flex h-7 min-w-[140px] items-center justify-center rounded-lg bg-white px-3 text-[11px] font-medium text-slate-800">
                 {exportPreset === "year" ? exportNavYear : `${MONTHS[exportNavMonth]} ${exportNavYear}`}
               </span>
-              <button onClick={() => navigateExportPeriod(1)} className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-500 hover:bg-white hover:text-slate-900 transition-all">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
-              </button>
+              <IconButton variant="ghost" size="xs" aria-label="Próximo período" onClick={() => navigateExportPeriod(1)}><ChevronRight size={14} /></IconButton>
             </div>
           )}
 
-          <div className="flex items-center gap-1 bg-slate-50 border border-slate-200 rounded-xl p-1 w-fit">
-            {([["all", "Tudo"], ["month", "Mês"], ["year", "Ano"]] as const).map(([k, l]) => (
-              <button
-                key={k}
-                onClick={() => applyExportPreset(k)}
-                className={cn(
-                  "h-7 px-3 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all",
-                  exportPreset === k ? "bg-slate-900 text-white shadow-sm" : "text-slate-500 hover:text-slate-700"
-                )}
-              >{l}</button>
-            ))}
-          </div>
+          <FilterLineSegmented<string> options={PRESET_OPTIONS} value={exportPreset} onChange={(v) => applyExportPreset(v as PeriodPreset)} className="w-fit" />
 
-          <button
-            onClick={() => applyExportPreset(exportPreset === "custom" ? "month" : "custom")}
-            className={cn(
-              "h-9 px-3 rounded-xl flex items-center gap-1.5 text-[9px] font-black uppercase tracking-widest border transition-all w-fit",
-              exportPreset === "custom" ? "bg-blue-600 text-white border-blue-600" : "bg-white text-slate-400 border-slate-200 hover:border-slate-400"
-            )}
-          >
-            <Calendar size={12} /> Dia específico / Período Livre
-          </button>
+          <Button variant={exportPreset === "custom" ? "primary" : "outline"} size="sm" className="w-fit" onClick={() => applyExportPreset(exportPreset === "custom" ? "month" : "custom")} iconLeft={<Calendar size={13} />}>Dia específico / Período Livre</Button>
           {exportPreset === "custom" && (
             <div className="flex items-center gap-2">
-              <input type="date" value={exportFrom} onChange={(e) => { setExportFrom(e.target.value); setExportTo((prev) => prev || e.target.value); }}
-                className="pl-3 pr-3 h-9 bg-slate-50 border border-slate-200 rounded-xl text-[11px] font-bold focus:outline-none focus:border-blue-400 transition-all w-[148px]" />
-              <span className="text-[10px] font-black text-slate-300 uppercase">até</span>
-              <input type="date" value={exportTo} onChange={(e) => setExportTo(e.target.value)}
-                className="pl-3 pr-3 h-9 bg-slate-50 border border-slate-200 rounded-xl text-[11px] font-bold focus:outline-none focus:border-blue-400 transition-all w-[148px]" />
+              <Input type="date" aria-label="Data" value={exportFrom} onChange={(e) => { setExportFrom(e.target.value); setExportTo((prev) => prev || e.target.value); }} wrapperClassName="w-[148px]" />
+              <span className="text-[11px] font-semibold text-slate-300">até</span>
+              <Input type="date" aria-label="Data" value={exportTo} onChange={(e) => setExportTo(e.target.value)} wrapperClassName="w-[148px]" />
             </div>
           )}
 
-          <div className="flex gap-2 pt-2 border-t border-slate-100">
+          <div className="flex flex-wrap gap-2 border-t border-slate-100 pt-3">
             <Button
-              variant="secondary"
-              icon={exporting ? <Loader2 size={14} className="animate-spin" /> : <FileSpreadsheet size={14} className="text-emerald-600" />}
+              variant="outline" size="sm"
+              iconLeft={exporting ? <Loader2 size={14} className="animate-spin" /> : <FileSpreadsheet size={14} className="text-emerald-600" />}
               onClick={exportSessionsToExcel}
               disabled={exporting}
             >
               Excel (.xlsx)
             </Button>
             <Button
-              variant="secondary"
-              icon={exporting ? <Loader2 size={14} className="animate-spin" /> : <FileText size={14} className="text-rose-600" />}
+              variant="outline" size="sm"
+              iconLeft={exporting ? <Loader2 size={14} className="animate-spin" /> : <FileText size={14} className="text-rose-600" />}
               onClick={exportSessionsToPDF}
               disabled={exporting}
             >
@@ -1224,27 +1152,17 @@ export default function CashSessionHistory() {
         </div>
       </Modal>
 
-      {/* Modal de detalhe */}
-      {(detail || detailLoading) && (
-        <>
-          <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[500]" onClick={() => setDetail(null)} />
-          <div className="fixed inset-y-0 right-0 w-full max-w-md bg-white z-[510] shadow-2xl flex flex-col">
-            <div className="flex items-center justify-between px-5 py-4 border-b border-slate-200 shrink-0">
-              <div className="flex items-center gap-2">
-                <Wallet size={16} className="text-blue-600" />
-                <h2 className="font-black text-slate-900 text-[15px]">Sessão de Caixa</h2>
-              </div>
-              <div className="flex items-center gap-1">
-                {detail && detail.status === "closed" && (
-                  <button onClick={() => printSessionReceipt(detail)}
-                    className="p-2 hover:bg-slate-100 rounded-lg text-slate-500" title="Imprimir via térmica">
-                    <Printer size={16} />
-                  </button>
-                )}
-                <button onClick={() => setDetail(null)} className="p-2 hover:bg-slate-100 rounded-lg text-slate-500"><X size={18} /></button>
-              </div>
-            </div>
-
+      {/* Detalhe da sessão */}
+      <Drawer
+        open={!!(detail || detailLoading)}
+        onClose={() => setDetail(null)}
+        title="Sessão de Caixa"
+        footer={detail && detail.status === "closed" ? (
+          <ModalFooter>
+            <Button variant="outline" size="sm" iconLeft={<Printer size={14} />} onClick={() => printSessionReceipt(detail)} title="Imprimir via térmica">Imprimir</Button>
+          </ModalFooter>
+        ) : undefined}
+      >
             {detailLoading && (
               <div className="flex-1 flex items-center justify-center">
                 <Loader2 size={22} className="animate-spin text-slate-300" />
@@ -1252,45 +1170,45 @@ export default function CashSessionHistory() {
             )}
 
             {detail && !detailLoading && (
-              <div className="flex-1 overflow-y-auto p-5 space-y-4">
+              <div className="space-y-4">
                 <div className="grid grid-cols-2 gap-3">
-                  <div className="bg-slate-50 rounded-xl p-3 border border-slate-100">
-                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Aberto por</p>
-                    <p className="text-[12px] font-bold text-slate-800">{detail.opened_by_name}</p>
-                    <p className="text-[10px] text-slate-400 mt-0.5 flex items-center gap-1"><Calendar size={9} /> {new Date(detail.opened_at).toLocaleString("pt-BR")}</p>
+                  <div className="bg-slate-50 rounded-lg p-3 border border-slate-100">
+                    <p className="text-[11px] text-slate-500 mb-1">Aberto por</p>
+                    <p className="text-[12px] font-semibold text-slate-800">{detail.opened_by_name}</p>
+                    <p className="text-[11px] text-slate-400 mt-0.5 flex items-center gap-1"><Calendar size={9} /> {new Date(detail.opened_at).toLocaleString("pt-BR")}</p>
                   </div>
-                  <div className="bg-slate-50 rounded-xl p-3 border border-slate-100">
-                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Fechado por</p>
-                    <p className="text-[12px] font-bold text-slate-800">{detail.closed_by_name ?? "Ainda aberto"}</p>
+                  <div className="bg-slate-50 rounded-lg p-3 border border-slate-100">
+                    <p className="text-[11px] text-slate-500 mb-1">Fechado por</p>
+                    <p className="text-[12px] font-semibold text-slate-800">{detail.closed_by_name ?? "Ainda aberto"}</p>
                     {detail.closed_at && (
-                      <p className="text-[10px] text-slate-400 mt-0.5 flex items-center gap-1"><Calendar size={9} /> {new Date(detail.closed_at).toLocaleString("pt-BR")}</p>
+                      <p className="text-[11px] text-slate-400 mt-0.5 flex items-center gap-1"><Calendar size={9} /> {new Date(detail.closed_at).toLocaleString("pt-BR")}</p>
                     )}
                   </div>
                 </div>
 
-                <div className="bg-slate-900 rounded-2xl p-4 space-y-1.5">
-                  <div className="flex justify-between text-[11px] font-bold text-slate-400">
+                <div className="bg-slate-900 rounded-lg p-4 space-y-1.5">
+                  <div className="flex justify-between text-[11px] font-semibold text-slate-400">
                     <span>Valor inicial</span>
                     <span className="font-mono text-white">{money(detail.opening_amount)}</span>
                   </div>
                   {detail.status === "closed" && (
                     <>
-                      <div className="flex justify-between text-[11px] font-bold text-slate-400">
+                      <div className="flex justify-between text-[11px] font-semibold text-slate-400">
                         <span>Vendas em dinheiro</span>
                         <span className="font-mono text-white">
                           {money(Math.round((Number(detail.expected_amount) - Number(detail.opening_amount)) * 100) / 100)}
                         </span>
                       </div>
-                      <div className="flex justify-between text-[11px] font-bold text-slate-400 pt-1 border-t border-slate-800">
+                      <div className="flex justify-between text-[11px] font-semibold text-slate-400 pt-1 border-t border-slate-800">
                         <span>Esperado</span>
                         <span className="font-mono text-white">{money(detail.expected_amount)}</span>
                       </div>
-                      <div className="flex justify-between text-[11px] font-bold text-slate-400">
+                      <div className="flex justify-between text-[11px] font-semibold text-slate-400">
                         <span>Contado</span>
                         <span className="font-mono text-white">{money(detail.counted_amount)}</span>
                       </div>
-                      <div className="flex justify-between text-[13px] font-black pt-1.5 border-t border-slate-700">
-                        <span className="text-white uppercase">Diferença</span>
+                      <div className="flex justify-between text-[13px] font-semibold pt-1.5 border-t border-slate-700">
+                        <span className="text-white">Diferença</span>
                         <span className={cn("font-mono", Number(detail.difference_amount) === 0 ? "text-slate-300" : Number(detail.difference_amount) > 0 ? "text-emerald-400" : "text-rose-400")}>
                           {Number(detail.difference_amount) > 0 ? "+" : ""}{money(detail.difference_amount)}
                         </span>
@@ -1306,26 +1224,26 @@ export default function CashSessionHistory() {
                   const totalFee = validOrders.reduce((sum, o) => sum + Number(o.fee_amount ?? 0), 0);
                   if (totalDiscount === 0 && totalFee === 0) return null;
                   return (
-                    <div className="bg-slate-50 rounded-xl border border-slate-100 p-3.5 space-y-1.5">
-                      <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Vendas do período</p>
-                      <div className="flex justify-between text-[11px] font-bold text-slate-500">
+                    <div className="bg-slate-50 rounded-lg border border-slate-100 p-3.5 space-y-1.5">
+                      <p className="text-[11px] text-slate-500 mb-1">Vendas do período</p>
+                      <div className="flex justify-between text-[11px] font-semibold text-slate-500">
                         <span>Vendas (bruto)</span>
                         <span className="font-mono text-slate-700">{money(totalGross)}</span>
                       </div>
                       {totalDiscount > 0 && (
-                        <div className="flex justify-between text-[11px] font-bold text-rose-500">
+                        <div className="flex justify-between text-[11px] font-semibold text-rose-500">
                           <span>(-) Descontos</span>
                           <span className="font-mono">{money(totalDiscount)}</span>
                         </div>
                       )}
                       {totalFee > 0 && (
-                        <div className="flex justify-between text-[11px] font-bold text-rose-500">
+                        <div className="flex justify-between text-[11px] font-semibold text-rose-500">
                           <span>(-) Taxa maquininha</span>
                           <span className="font-mono">{money(totalFee)}</span>
                         </div>
                       )}
-                      <div className="flex justify-between text-[12px] font-black pt-1 border-t border-slate-200">
-                        <span className="text-slate-700 uppercase">Vendas (líquido)</span>
+                      <div className="flex justify-between text-[12px] font-semibold pt-1 border-t border-slate-200">
+                        <span className="text-slate-700">Vendas (líquido)</span>
                         <span className="font-mono text-slate-900">{money(totalGross - totalDiscount - totalFee)}</span>
                       </div>
                     </div>
@@ -1333,12 +1251,12 @@ export default function CashSessionHistory() {
                 })()}
 
                 {detail.status === "closed" && detail.payment_breakdown && (
-                  <div className="rounded-xl border border-slate-200 overflow-hidden">
-                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest px-3 py-2 bg-slate-50 border-b border-slate-100">
+                  <div className="rounded-lg border border-slate-200 overflow-hidden">
+                    <p className="text-[11px] text-slate-500 px-3 py-2 bg-slate-50 border-b border-slate-100">
                       Por forma de pagamento
                     </p>
                     <table className="w-full text-[11px]">
-                      <thead className="bg-slate-50 text-slate-400 uppercase tracking-widest text-[9px] font-bold">
+                      <thead className="bg-slate-50 text-slate-400 text-[10px] font-semibold">
                         <tr>
                           <td className="px-3 py-2">Forma</td>
                           <td className="px-3 py-2 text-right">Esperado</td>
@@ -1349,13 +1267,13 @@ export default function CashSessionHistory() {
                       <tbody>
                         {Object.entries(detail.payment_breakdown).map(([method, entry]) => (
                           <tr key={method} className="border-t border-slate-100">
-                            <td className="px-3 py-2 font-bold text-slate-700">{PM_LABEL[method] ?? method}</td>
+                            <td className="px-3 py-2 font-semibold text-slate-700">{PM_LABEL[method] ?? method}</td>
                             <td className="px-3 py-2 text-right font-mono text-slate-600">{money(entry.expected)}</td>
                             <td className="px-3 py-2 text-right font-mono text-slate-600">
                               {entry.counted !== undefined ? money(entry.counted) : "—"}
                             </td>
                             <td className={cn(
-                              "px-3 py-2 text-right font-mono font-bold",
+                              "px-3 py-2 text-right font-mono font-semibold",
                               entry.difference === undefined ? "text-slate-300" :
                               entry.difference === 0 ? "text-slate-500" : entry.difference > 0 ? "text-blue-600" : "text-rose-500",
                             )}>
@@ -1369,29 +1287,22 @@ export default function CashSessionHistory() {
                 )}
 
                 {detail.opening_note && (
-                  <div className="text-[11px] text-slate-500"><span className="font-bold text-slate-700">Obs. abertura:</span> {detail.opening_note}</div>
+                  <div className="text-[11px] text-slate-500"><span className="font-semibold text-slate-700">Obs. abertura:</span> {detail.opening_note}</div>
                 )}
                 {detail.closing_note && (
-                  <div className="text-[11px] text-slate-500"><span className="font-bold text-slate-700">Obs. fechamento:</span> {detail.closing_note}</div>
+                  <div className="text-[11px] text-slate-500"><span className="font-semibold text-slate-700">Obs. fechamento:</span> {detail.closing_note}</div>
                 )}
 
-                <div className="bg-slate-50 rounded-xl border border-slate-100 p-3.5 flex items-center justify-between gap-3">
+                <div className="bg-slate-50 rounded-lg border border-slate-100 p-3.5 flex items-center justify-between gap-3">
                   <div>
-                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Vendas nesta sessão</p>
-                    <p className="text-[15px] font-black text-slate-800">{detail.orders.length}</p>
+                    <p className="text-[11px] text-slate-500 mb-1">Vendas nesta sessão</p>
+                    <p className="text-[15px] font-semibold text-slate-800">{detail.orders.length}</p>
                   </div>
-                  <button
-                    onClick={() => goToReportForSession(detail)}
-                    className="flex items-center gap-1.5 h-9 px-3 bg-blue-600 text-white rounded-xl text-[11px] font-bold hover:bg-blue-700 active:scale-95 transition-all shrink-0"
-                  >
-                    Ver Relatório de Vendas <ChevronRight size={14} />
-                  </button>
+                  <Button size="sm" className="shrink-0" onClick={() => goToReportForSession(detail)} iconRight={<ChevronRight size={14} />}>Ver Relatório de Vendas</Button>
                 </div>
               </div>
             )}
-          </div>
-        </>
-      )}
+      </Drawer>
     </div>
   );
 }

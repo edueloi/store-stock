@@ -78,6 +78,9 @@ model Tenant {
   // Conta de envio própria da loja. A senha de aplicativo fica criptografada
   // dentro deste JSON e jamais é devolvida pela API ao painel.
   email_config            Json?
+  // Quem envia os e-mails de documentos aos clientes: "own" = conta própria da loja
+  // (email_config) | "system" = SMTP do sistema (contato@boxsys.com.br). Exclusivos.
+  email_sender_mode       String  @default("own")
 
   // --- Módulos habilitados por tenant (liberado manualmente pelo Super Admin) ---
   fluxo_producao_enabled Boolean @default(false)

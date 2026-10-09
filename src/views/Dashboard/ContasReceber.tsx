@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import ExcelJS from "exceljs";
-import PageHeader from "../../components/layout/PageHeader";
 import {
   Plus,
   Search,
@@ -29,13 +28,20 @@ import {
   FileSpreadsheet,
   Upload,
   HelpCircle,
+  Wallet,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 import { AccountReceivable, AccountStatus, Tenant } from "../../types";
 import { cn } from "../../lib/utils";
 import { useToast } from "../../components/ui/Toast";
 import { onRealtime } from "../../lib/realtime";
 import Combobox from "../../components/ui/Combobox";
-import Button from "../../components/ui/Button";
+import {
+  Button, IconButton, Input, Select, Textarea, Modal, ModalFooter, ConfirmModal, Switch, Badge,
+  Tabs, PageWrapper, SectionTitle, StatGrid, ContentCard, PanelCard, StatCard, EmptyState,
+  FilterLine, FilterLineSection, FilterLineSearch, FilterLineSegmented,
+} from "../../components/ui";
 import ContasReceberPageTour, { CONTAS_RECEBER_PAGE_TOUR_EVENTS, type ContasReceberPageTourHandle } from "../../components/onboarding/ContasReceberPageTour";
 
 const fmt = (v: number) =>
@@ -125,7 +131,7 @@ async function exportReceivablesToExcel(items: AccountReceivable[], tenant: Part
   ws.getRow(3).height = 18;
 
   const total = items.reduce((a, r) => a + Number(r.amount), 0);
-  ws.getRow(4).getCell(1).value = `${items.length} lançamento(s)  ·  Total: R$ ${fmt(total)}`;
+  ws.getRow(4).getCell(1).value = `${items.length} lançamento(s) · Total: R$ ${fmt(total)}`;
   ws.getRow(4).getCell(1).font = font({ size: 9, italic: true, color: "94A3B8" });
 
   ws.getRow(5).height = 4;
@@ -199,18 +205,18 @@ function exportReceivablesToPDF(items: AccountReceivable[], tenant: Partial<Tena
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: 'Segoe UI', Arial, sans-serif; color: #1e293b; padding: 32px; font-size: 12px; }
   .header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 24px; border-bottom: 3px solid #1e3a5f; padding-bottom: 16px; }
-  .header h1 { font-size: 20px; font-weight: 900; text-transform: uppercase; letter-spacing: 0.1em; }
+  .header h1 { font-size: 20px; font-weight: 900; text-transform: ; letter-spacing: 0.1em; }
   .header p { font-size: 10px; color: #64748b; margin-top: 2px; }
   .meta { text-align: right; font-size: 10px; color: #64748b; }
   .summary { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 24px; }
   .card { padding: 14px 16px; border-radius: 10px; border: 1px solid #e2e8f0; }
-  .card label { font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.15em; display: block; margin-bottom: 4px; color: #94a3b8; }
+  .card label { font-size: 9px; font-weight: 700; text-transform: ; letter-spacing: 0.15em; display: block; margin-bottom: 4px; color: #94a3b8; }
   .card .val { font-size: 18px; font-weight: 900; font-family: monospace; }
   .card.overdue { background: #fff1f2; border-color: #fecdd3; } .card.overdue .val { color: #e11d48; }
   .card.received { background: #ecfdf5; border-color: #a7f3d0; } .card.received .val { color: #059669; }
   .card.total { background: #1e293b; border-color: #1e293b; } .card.total label { color: #64748b; } .card.total .val { color: #fff; }
   table { width: 100%; border-collapse: collapse; }
-  th { background: #f8fafc; border-bottom: 2px solid #e2e8f0; padding: 10px 12px; text-align: left; font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.15em; color: #94a3b8; }
+  th { background: #f8fafc; border-bottom: 2px solid #e2e8f0; padding: 10px 12px; text-align: left; font-size: 9px; font-weight: 700; text-transform: ; letter-spacing: 0.15em; color: #94a3b8; }
   td { padding: 9px 12px; border-bottom: 1px solid #f1f5f9; font-size: 11px; }
   @media print { body { padding: 16px; } }
 </style></head>
@@ -266,6 +272,36 @@ function monthRange(year: number, month: number): { from: string; to: string } {
 
 function yearRange(year: number): { from: string; to: string } {
   return { from: `${year}-01-01`, to: `${year}-12-31` };
+}
+
+const MAIN_TABS = [
+  { id: "admin", label: "Administrativo", icon: FileText },
+  { id: "crediario", label: "Crediário", icon: Wallet },
+] as const;
+type MainTabId = typeof MAIN_TABS[number]["id"];
+
+const STATUS_TABS = [
+  { id: "all", label: "Todos", icon: FileText },
+  { id: "pending", label: "Pendentes", icon: Clock },
+  { id: "overdue", label: "Vencidos", icon: AlertCircle },
+  { id: "received", label: "Recebidos", icon: CheckCircle2 },
+  { id: "cancelled", label: "Cancelados", icon: XCircle },
+] as const;
+type StatusTabId = typeof STATUS_TABS[number]["id"];
+
+const FORM_TABS = [
+  { id: "dados", label: "Dados", icon: FileText },
+  { id: "lancamento", label: "Lançamento", icon: Repeat },
+] as const;
+type FormTabId = typeof FORM_TABS[number]["id"];
+
+function DetailRow({ label, value, valueClass }: { label: string; value: React.ReactNode; valueClass?: string }) {
+  return (
+    <div className="flex items-center justify-between gap-3 text-xs">
+      <dt className="text-[11px] text-slate-500">{label}</dt>
+      <dd className={cn("text-right font-medium text-slate-700", valueClass)}>{value}</dd>
+    </div>
+  );
 }
 
 type ModalMode = "create" | "edit" | "receive" | "delete" | null;
@@ -351,104 +387,78 @@ function CrediarioTab() {
 
   return (
     <div className="space-y-4">
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-        <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm relative overflow-hidden">
-          <div className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2">Em Aberto</div>
-          <div className="text-2xl font-mono font-black text-slate-800">R$ {fmt(totalOpen)}</div>
-          <div className="mt-1 text-[9px] font-bold text-slate-400 uppercase">{withOverdue.length} parcelas</div>
-        </div>
-        <div className="bg-white p-5 rounded-2xl border border-rose-200 shadow-sm relative overflow-hidden">
-          <div className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2">Vencidas</div>
-          <div className="text-2xl font-mono font-black text-rose-600">R$ {fmt(totalOverdue)}</div>
-          <div className="mt-1 text-[9px] font-bold text-slate-400 uppercase">{overdueList.length} parcelas vencidas</div>
-          <div className="absolute right-4 top-4 w-10 h-10 rounded-xl bg-rose-50 flex items-center justify-center text-rose-400">
-            <AlertCircle size={20} />
-          </div>
-        </div>
-        <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm relative overflow-hidden">
-          <div className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2">Clientes Devedores</div>
-          <div className="text-2xl font-mono font-black text-slate-800">{new Set(withOverdue.map((i) => i.customer_id)).size}</div>
-          <div className="mt-1 text-[9px] font-bold text-slate-400 uppercase">com parcela em aberto</div>
-        </div>
-      </div>
+      <StatGrid cols={3}>
+        <StatCard title="Em Aberto" value={`R$ ${fmt(totalOpen)}`} description={`${withOverdue.length} parcelas`} icon={Wallet} color="info" />
+        <StatCard title="Vencidas" value={`R$ ${fmt(totalOverdue)}`} description={`${overdueList.length} parcelas vencidas`} icon={AlertCircle} color="danger" />
+        <StatCard title="Clientes Devedores" value={new Set(withOverdue.map((i) => i.customer_id)).size} description="com parcela em aberto" icon={User} color="default" />
+      </StatGrid>
 
-      <div data-tour="contas-receber-crediario-table" className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-        <div className="px-5 py-3 border-b border-slate-100 flex items-center gap-3 flex-wrap">
-          <div className="relative flex-1 min-w-[200px]">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={12} />
-            <input
-              type="text"
+      <div data-tour="contas-receber-crediario-table" className="space-y-3">
+        <FilterLine>
+          <FilterLineSection grow>
+            <FilterLineSearch
+              aria-label="Buscar parcelas do crediário"
               placeholder="Buscar por cliente ou descrição..."
               value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="w-full pl-8 pr-3 h-9 bg-slate-50 border border-slate-200 rounded-lg text-[10px] font-bold uppercase tracking-widest placeholder:text-slate-300 focus:outline-none focus:border-blue-400 transition-all"
+              onChange={setSearch}
             />
-          </div>
-          <div className="flex gap-1.5">
-            {([["all", "Todas"], ["overdue", "Vencidas"]] as const).map(([k, l]) => (
-              <button
-                key={k}
-                onClick={() => setStatusFilter(k)}
-                className={cn(
-                  "h-9 px-3 rounded-lg text-[9px] font-black uppercase tracking-widest border transition-all",
-                  statusFilter === k
-                    ? "bg-slate-900 text-white border-slate-900"
-                    : "bg-white text-slate-400 border-slate-200 hover:border-slate-400"
-                )}
-              >{l}</button>
-            ))}
-          </div>
-        </div>
+          </FilterLineSection>
+          <FilterLineSection>
+            <FilterLineSegmented<string>
+              value={statusFilter}
+              onChange={(v) => setStatusFilter(v as "all" | "overdue")}
+              options={[{ value: "all", label: "Todas" }, { value: "overdue", label: "Vencidas" }]}
+            />
+          </FilterLineSection>
+        </FilterLine>
 
-        <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse">
-            <thead>
-              <tr className="bg-slate-50">
-                {["Cliente", "Descrição", "Parcela", "Vencimento", "Valor Restante", "Status", ""].map((h) => (
-                  <th key={h} className="px-4 py-2.5 text-[9px] font-black text-slate-400 uppercase tracking-widest whitespace-nowrap border-b border-slate-200">{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.length === 0 && (
-                <tr><td colSpan={7} className="px-4 py-8 text-center text-slate-400 text-xs">Nenhuma parcela em aberto</td></tr>
-              )}
-              {filtered.map((i) => (
-                <tr
-                  key={i.id}
-                  onClick={() => navigate(`/admin/customers/${i.customer_id}?tab=fiado`)}
-                  className="border-t border-slate-100 hover:bg-blue-50/40 cursor-pointer transition-colors"
-                  title="Ver crediário deste cliente"
-                >
-                  <td className="px-4 py-2.5 text-xs font-bold text-slate-700 whitespace-nowrap">
-                    {i.customer_name}
-                    {i.risk_flag && <AlertTriangle size={11} className="inline ml-1.5 text-rose-400" />}
-                  </td>
-                  <td className="px-4 py-2.5 text-xs text-slate-500">{i.description}</td>
-                  <td className="px-4 py-2.5 text-xs text-slate-500 text-center whitespace-nowrap">{i.number}</td>
-                  <td className="px-4 py-2.5 text-xs text-slate-500 whitespace-nowrap">{formatDateBR(i.due_date)}</td>
-                  <td className="px-4 py-2.5 text-xs font-mono font-bold text-slate-800 whitespace-nowrap">R$ {fmt(i.remaining)}</td>
-                  <td className="px-4 py-2.5 whitespace-nowrap">
-                    {i.isOverdue ? (
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-widest bg-rose-50 border border-rose-200 text-rose-600">
-                        <AlertCircle size={10} /> Vencida há {i.daysLate}d
-                      </span>
-                    ) : (
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-widest bg-amber-50 border border-amber-200 text-amber-600">
-                        <Clock size={10} /> Em aberto
-                      </span>
-                    )}
-                  </td>
-                  <td className="px-4 py-2.5 whitespace-nowrap text-right">
-                    <span className="inline-flex items-center gap-1 text-[9px] font-black uppercase tracking-widest text-blue-600">
-                      Ver Cliente <ChevronDown size={11} className="-rotate-90" />
-                    </span>
-                  </td>
+        <ContentCard padding="none" className="overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full border-collapse text-left">
+              <thead>
+                <tr className="bg-zinc-50">
+                  {["Cliente", "Descrição", "Parcela", "Vencimento", "Valor Restante", "Status", ""].map((h) => (
+                    <th key={h} className="whitespace-nowrap border-b border-slate-200 px-4 py-2 text-[11px] font-medium text-slate-500">{h}</th>
+                  ))}
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody>
+                {filtered.length === 0 && (
+                  <tr><td colSpan={7}><EmptyState icon={Wallet} title="Nenhuma parcela em aberto" description="Ajuste a busca ou o filtro." /></td></tr>
+                )}
+                {filtered.map((i) => (
+                  <tr
+                    key={i.id}
+                    onClick={() => navigate(`/admin/customers/${i.customer_id}?tab=fiado`)}
+                    className="cursor-pointer border-t border-slate-100 transition-colors hover:bg-blue-50/40"
+                    title="Ver crediário deste cliente"
+                  >
+                    <td className="whitespace-nowrap px-4 py-2 text-xs font-medium text-slate-700">
+                      {i.customer_name}
+                      {i.risk_flag && <AlertTriangle size={11} className="ml-1.5 inline text-rose-400" />}
+                    </td>
+                    <td className="px-4 py-2 text-xs text-slate-500">{i.description}</td>
+                    <td className="whitespace-nowrap px-4 py-2 text-center text-xs text-slate-500">{i.number}</td>
+                    <td className="whitespace-nowrap px-4 py-2 text-xs text-slate-500">{formatDateBR(i.due_date)}</td>
+                    <td className="whitespace-nowrap px-4 py-2 text-xs font-semibold tabular-nums text-slate-800">R$ {fmt(i.remaining)}</td>
+                    <td className="whitespace-nowrap px-4 py-2">
+                      {i.isOverdue ? (
+                        <Badge size="sm" color="danger" icon={<AlertCircle size={10} />}>Vencida há {i.daysLate}d</Badge>
+                      ) : (
+                        <Badge size="sm" color="warning" icon={<Clock size={10} />}>Em aberto</Badge>
+                      )}
+                    </td>
+                    <td className="whitespace-nowrap px-4 py-2 text-right">
+                      <span className="inline-flex items-center gap-1 text-[11px] font-medium text-blue-600">
+                        Ver Cliente <ChevronDown size={11} className="-rotate-90" />
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </ContentCard>
       </div>
     </div>
   );
@@ -459,7 +469,7 @@ export default function ContasReceber() {
   // = parcelas de venda fiado (CustomerDebtInstallment) — sistema separado no
   // banco (sem FK entre os dois), por isso vive num componente à parte
   // (CrediarioTab) em vez de misturado na mesma lista/filtros.
-  const [mainTab, setMainTab] = useState<"admin" | "crediario">("admin");
+  const [mainTab, setMainTab] = useState<MainTabId>("admin");
   const { success, error: toastError } = useToast();
   const [items, setItems] = useState<AccountReceivable[]>([]);
   const [loading, setLoading] = useState(true);
@@ -1032,577 +1042,560 @@ export default function ContasReceber() {
   const totalDueSoon = dueSoonItems.reduce((a, i) => a + Number(i.amount), 0);
 
   const isFormModal = modalMode === "create" || modalMode === "edit";
+  const statusCounts = items.reduce<Record<string, number>>((acc, i) => {
+    const eff = isOverdue(i.due_date, i.status as AccountStatus) ? "overdue" : i.status;
+    acc[eff] = (acc[eff] || 0) + 1;
+    return acc;
+  }, {});
+  const statusTabItems = STATUS_TABS.map((t) => ({ ...t, badge: t.id === "all" ? items.length : (statusCounts[t.id] || 0) }));
+  const [formTab, setFormTab] = useState<FormTabId>("dados");
+  useEffect(() => { if (!isFormModal) setFormTab("dados"); }, [isFormModal]);
+
+  // O componente Tabs não repassa atributos aos botões; o tour do produto clica
+  // nas abas por data-tour, então marcamos os botões após cada render.
+  const tabsWrapRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const tabs = tabsWrapRef.current?.querySelectorAll<HTMLElement>('[role="tab"]');
+    tabs?.forEach((el, idx) => {
+      el.setAttribute("data-tour", idx === 1 ? "contas-receber-crediario-tab-btn" : "contas-receber-admin-tab-btn");
+    });
+  }, [mainTab]);
 
   return (
-    <div data-tour="contas-receber-page" className="space-y-6">
-      <PageHeader
-        title="Contas a Receber"
-        subtitle="Controle de recebimentos e vencimentos"
-        action={
-          <div className="flex gap-2 items-center flex-wrap">
+    <PageWrapper>
+      <div data-tour="contas-receber-page" className="space-y-4">
+        <SectionTitle
+          title="Contas a Receber"
+          description="Controle de recebimentos e vencimentos"
+          icon={Wallet}
+          action={
+            <div className="flex flex-wrap items-center gap-2">
+              {mainTab === "admin" && (
+                <Button
+                  data-tour="contas-receber-new-btn"
+                  size="sm"
+                  variant="success"
+                  onClick={openCreate}
+                  iconLeft={<Plus size={14} />}
+                >
+                  Nova Conta
+                </Button>
+              )}
+              <Button
+                size="sm"
+                variant="outline"
+                iconLeft={<HelpCircle size={14} />}
+                onClick={() => tourRef.current?.start()}
+                title="Tour guiado desta página"
+              >
+                <span className="sr-only sm:not-sr-only">Ajuda</span>
+              </Button>
+            </div>
+          }
+        />
+
+        <ContasReceberPageTour ref={tourRef} />
+
+        <div data-tour="contas-receber-tabs" ref={tabsWrapRef}>
+          <Tabs<MainTabId> items={MAIN_TABS} value={mainTab} onChange={setMainTab} label="Contas a receber">
+            {mainTab === "crediario" && <CrediarioTab />}
+
             {mainTab === "admin" && (
-              <button
-                data-tour="contas-receber-new-btn"
-                onClick={openCreate}
-                className="h-9 px-4 bg-emerald-600 text-white rounded-xl flex items-center gap-2 text-[10px] font-black uppercase tracking-widest hover:bg-emerald-500 transition-all active:scale-95"
-              >
-                <Plus size={13} strokeWidth={3} /> Nova Conta
-              </button>
-            )}
-            <Button
-              variant="secondary"
-              className="text-slate-400 hover:text-blue-600 hover:bg-blue-50 border-slate-200 hover:border-blue-300"
-              icon={<HelpCircle size={14} />}
-              onClick={() => tourRef.current?.start()}
-              title="Tour guiado desta página"
-            >
-              <span className="sr-only sm:not-sr-only">Ajuda</span>
-            </Button>
-          </div>
-        }
-      />
+              <div className="space-y-4">
+                {/* Summary cards */}
+                <StatGrid cols={4} data-tour="contas-receber-summary-cards">
+                  <StatCard
+                    title="A Receber"
+                    value={`R$ ${fmt(totalPending)}`}
+                    description={`${items.filter(i => i.status === "pending" && !isOverdue(i.due_date, i.status as AccountStatus)).length} contas pendentes`}
+                    icon={Clock}
+                    color="warning"
+                  />
+                  <StatCard
+                    title="Vencendo em Breve"
+                    value={`R$ ${fmt(totalDueSoon)}`}
+                    description={`${dueSoonItems.length} nos próximos ${DUE_SOON_DAYS} dias`}
+                    icon={AlertCircle}
+                    color="warning"
+                  />
+                  <StatCard
+                    title="Vencidas"
+                    value={`R$ ${fmt(totalOverdue)}`}
+                    description={`${items.filter(i => isOverdue(i.due_date, i.status as AccountStatus)).length} contas vencidas`}
+                    icon={AlertCircle}
+                    color="danger"
+                  />
+                  <StatCard
+                    title="Recebido"
+                    value={`R$ ${fmt(totalReceived)}`}
+                    description={`${items.filter(i => i.status === "received").length} contas recebidas`}
+                    icon={TrendingUp}
+                    color="success"
+                  />
+                </StatGrid>
 
-      <ContasReceberPageTour ref={tourRef} />
+                <div data-tour="contas-receber-status-filters">
 
-      <div data-tour="contas-receber-tabs" className="flex items-center gap-1 bg-slate-100 border border-slate-200 rounded-xl p-1 w-fit">
-        {([["admin", "Administrativo"], ["crediario", "Crediário"]] as const).map(([k, l]) => (
-          <button
-            key={k}
-            data-tour={k === "crediario" ? "contas-receber-crediario-tab-btn" : "contas-receber-admin-tab-btn"}
-            onClick={() => setMainTab(k)}
-            className={cn(
-              "h-8 px-4 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all",
-              mainTab === k ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"
-            )}
-          >{l}</button>
-        ))}
-      </div>
+                <Tabs<StatusTabId> items={statusTabItems} value={statusFilter as StatusTabId} onChange={setStatusFilter} label="Filtrar por situação">
 
-      {mainTab === "crediario" && <CrediarioTab />}
+                <div className="space-y-4">
 
-      {mainTab === "admin" && (
-      <>
-      {/* Summary cards */}
-      <div data-tour="contas-receber-summary-cards" className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-        <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm relative overflow-hidden">
-          <div className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2">A Receber</div>
-          <div className="text-2xl font-mono font-black text-amber-600">R$ {fmt(totalPending)}</div>
-          <div className="mt-1 text-[9px] font-bold text-slate-400 uppercase">
-            {items.filter(i => i.status === "pending" && !isOverdue(i.due_date, i.status as AccountStatus)).length} contas pendentes
-          </div>
-          <div className="absolute right-4 top-4 w-10 h-10 rounded-xl bg-amber-50 flex items-center justify-center text-amber-400">
-            <Clock size={20} />
-          </div>
-        </div>
+                {/* Filtros */}
+                <div className="space-y-3">
+                  <FilterLine>
+                    <FilterLineSection grow>
+                      <FilterLineSearch
+                        aria-label="Buscar contas a receber"
+                        placeholder="Buscar por descrição ou cliente..."
+                        value={search}
+                        onChange={setSearch}
+                      />
+                    </FilterLineSection>
+                  </FilterLine>
 
-        <div className="bg-white p-5 rounded-2xl border border-amber-200 shadow-sm relative overflow-hidden">
-          <div className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2">Vencendo em Breve</div>
-          <div className="text-2xl font-mono font-black text-amber-700">R$ {fmt(totalDueSoon)}</div>
-          <div className="mt-1 text-[9px] font-bold text-slate-400 uppercase">
-            {dueSoonItems.length} nos próximos {DUE_SOON_DAYS} dias
-          </div>
-          <div className="absolute right-4 top-4 w-10 h-10 rounded-xl bg-amber-100 flex items-center justify-center text-amber-600">
-            <AlertCircle size={20} />
-          </div>
-        </div>
-
-        <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm relative overflow-hidden">
-          <div className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2">Vencidas</div>
-          <div className="text-2xl font-mono font-black text-rose-600">R$ {fmt(totalOverdue)}</div>
-          <div className="mt-1 text-[9px] font-bold text-slate-400 uppercase">
-            {items.filter(i => isOverdue(i.due_date, i.status as AccountStatus)).length} contas vencidas
-          </div>
-          <div className="absolute right-4 top-4 w-10 h-10 rounded-xl bg-rose-50 flex items-center justify-center text-rose-400">
-            <AlertCircle size={20} />
-          </div>
-        </div>
-
-        <div className="bg-slate-900 p-5 rounded-2xl shadow-xl relative overflow-hidden">
-          <div className="text-[9px] font-black text-slate-500 uppercase tracking-[0.2em] mb-2">Recebido</div>
-          <div className="text-2xl font-mono font-black text-emerald-400">R$ {fmt(totalReceived)}</div>
-          <div className="mt-1 text-[9px] font-bold text-slate-600 uppercase">
-            {items.filter(i => i.status === "received").length} contas recebidas
-          </div>
-          <div className="absolute right-4 top-4 w-10 h-10 rounded-xl bg-white/5 flex items-center justify-center text-emerald-600">
-            <TrendingUp size={20} />
-          </div>
-        </div>
-      </div>
-
-      {/* Table */}
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-        {/* Toolbar */}
-        <div className="px-5 py-3 border-b border-slate-100 flex flex-col gap-3">
-          <div className="flex items-center gap-3 flex-wrap">
-            <div className="relative flex-1 min-w-[200px]">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={12} />
-              <input
-                type="text"
-                placeholder="Buscar por descrição ou cliente..."
-                value={search}
-                onChange={e => setSearch(e.target.value)}
-                className="w-full pl-8 pr-3 h-9 bg-slate-50 border border-slate-200 rounded-lg text-[10px] font-bold uppercase tracking-widest placeholder:text-slate-300 focus:outline-none focus:border-blue-400 transition-all"
-              />
-            </div>
-            <div data-tour="contas-receber-status-filters" className="flex gap-1.5 flex-wrap">
-              {([["all","Todos"], ["pending","Pendentes"], ["overdue","Vencidos"], ["received","Recebidos"], ["cancelled","Cancelados"]] as const).map(([k, l]) => (
-                <button
-                  key={k}
-                  onClick={() => setStatusFilter(k)}
-                  className={cn(
-                    "h-9 px-3 rounded-lg text-[9px] font-black uppercase tracking-widest border transition-all",
-                    statusFilter === k
-                      ? "bg-slate-900 text-white border-slate-900"
-                      : "bg-white text-slate-400 border-slate-200 hover:border-slate-400"
-                  )}
-                >{l}</button>
-              ))}
-            </div>
-          </div>
-          <div data-tour="contas-receber-period-nav" className="flex items-center gap-2 flex-wrap">
-            {/* ← Mês/Ano → navigator — só faz sentido com Mês ou Ano selecionado */}
-            {(periodPreset === "month" || periodPreset === "year") && (
-              <div className="flex items-center gap-1 bg-slate-50 border border-slate-200 rounded-xl p-1">
-                <button
-                  onClick={() => navigatePeriod(-1)}
-                  className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-500 hover:bg-white hover:text-slate-900 transition-all"
-                >
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
-                </button>
-                <span className="px-3 h-7 flex items-center rounded-lg text-[11px] font-black uppercase tracking-widest bg-slate-900 text-white min-w-[140px] justify-center">
-                  {periodPreset === "year" ? navYear : `${MONTHS[navMonth]} ${navYear}`}
-                </span>
-                <button
-                  onClick={() => navigatePeriod(1)}
-                  className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-500 hover:bg-white hover:text-slate-900 transition-all"
-                >
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
-                </button>
-              </div>
-            )}
-
-            {/* Tudo / Mês / Ano / Período Livre */}
-            <div className="flex items-center gap-1 bg-slate-50 border border-slate-200 rounded-xl p-1">
-              {([["all", "Tudo"], ["month", "Mês"], ["year", "Ano"]] as const).map(([k, l]) => (
-                <button
-                  key={k}
-                  onClick={() => applyPeriodPreset(k)}
-                  className={cn(
-                    "h-7 px-3 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all",
-                    periodPreset === k ? "bg-slate-900 text-white shadow-sm" : "text-slate-500 hover:text-slate-700"
-                  )}
-                >{l}</button>
-              ))}
-            </div>
-            <button
-              onClick={() => setPeriodPreset(periodPreset === "custom" ? "all" : "custom")}
-              className={cn(
-                "h-9 px-3 rounded-xl flex items-center gap-1.5 text-[9px] font-black uppercase tracking-widest border transition-all",
-                periodPreset === "custom" ? "bg-blue-600 text-white border-blue-600" : "bg-white text-slate-400 border-slate-200 hover:border-slate-400"
-              )}
-            >
-              <Calendar size={12} /> Período Livre
-            </button>
-            {periodPreset === "custom" && (
-              <div className="flex items-center gap-2">
-                <input
-                  type="date" value={dateFrom}
-                  onChange={(e) => setDateFrom(e.target.value)}
-                  className="pl-3 pr-3 h-9 bg-slate-50 border border-slate-200 rounded-xl text-[11px] font-bold focus:outline-none focus:border-blue-400 transition-all w-[148px]"
-                />
-                <span className="text-[10px] font-black text-slate-300 uppercase">até</span>
-                <input
-                  type="date" value={dateTo}
-                  onChange={(e) => setDateTo(e.target.value)}
-                  className="pl-3 pr-3 h-9 bg-slate-50 border border-slate-200 rounded-xl text-[11px] font-bold focus:outline-none focus:border-blue-400 transition-all w-[148px]"
-                />
-              </div>
-            )}
-            <div className="relative ml-auto" ref={exportRef}>
-              <button
-                data-tour="contas-receber-export-btn"
-                onClick={() => setShowExport(!showExport)}
-                className="h-9 px-3 rounded-lg flex items-center gap-1.5 text-[9px] font-black uppercase tracking-widest border border-slate-200 bg-white text-slate-500 hover:border-slate-400 transition-all"
-              >
-                <Download size={12} />
-                <span className="hidden sm:block">Exportar</span>
-                <ChevronDown size={10} />
-              </button>
-              {showExport && (
-                <div className="absolute right-0 top-10 w-52 bg-white border border-slate-200 rounded-xl shadow-xl z-50 overflow-hidden">
-                  <button
-                    onClick={() => { exportReceivablesToExcel(filtered, tenant); setShowExport(false); }}
-                    className="w-full flex items-center gap-3 px-4 py-3 text-[10px] font-bold uppercase tracking-widest text-slate-700 hover:bg-slate-50 transition-colors"
-                  >
-                    <FileSpreadsheet size={14} className="text-emerald-600" /> Excel (.xlsx)
-                  </button>
-                  <div className="h-px bg-slate-100 mx-3" />
-                  <button
-                    onClick={() => { exportReceivablesToPDF(filtered, tenant); setShowExport(false); }}
-                    className="w-full flex items-center gap-3 px-4 py-3 text-[10px] font-bold uppercase tracking-widest text-slate-700 hover:bg-slate-50 transition-colors"
-                  >
-                    <FileText size={14} className="text-rose-600" /> PDF / Imprimir
-                  </button>
-                  <div className="h-px bg-slate-100 mx-3" />
-                  <button
-                    onClick={() => { setImportResult(null); setShowImportModal(true); setShowExport(false); }}
-                    className="w-full flex items-center gap-3 px-4 py-3 text-[10px] font-bold uppercase tracking-widest text-slate-700 hover:bg-slate-50 transition-colors"
-                  >
-                    <Upload size={14} className="text-blue-600" /> Importar Planilha
-                  </button>
-                </div>
-              )}
-            </div>
-          </div>
-          {selectedIds.size > 0 && (
-            <div className="flex items-center gap-2 px-1">
-              <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest mr-1">
-                {selectedIds.size} selecionada{selectedIds.size > 1 ? "s" : ""}
-              </span>
-              <button
-                onClick={handleBulkReceive}
-                disabled={bulkReceiving}
-                className="h-8 px-3 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white rounded-lg text-[9px] font-black uppercase tracking-widest flex items-center gap-1.5 transition-all"
-              >
-                {bulkReceiving ? <Loader2 size={12} className="animate-spin" /> : <CheckCircle2 size={12} />}
-                Marcar como recebida(s)
-              </button>
-              <button
-                onClick={() => setShowBulkDeleteConfirm(true)}
-                className="h-8 px-3 bg-white border border-rose-200 hover:bg-rose-50 text-rose-600 rounded-lg text-[9px] font-black uppercase tracking-widest flex items-center gap-1.5 transition-all"
-              >
-                <Trash2 size={12} /> Excluir selecionada(s)
-              </button>
-              <button onClick={() => setSelectedIds(new Set())} className="text-[9px] font-bold text-slate-400 hover:text-slate-600 uppercase">
-                Limpar
-              </button>
-            </div>
-          )}
-        </div>
-
-        {/* Desktop table */}
-        <div data-tour="contas-receber-table" className="hidden lg:block overflow-x-auto">
-          {loading ? (
-            <div className="flex items-center justify-center py-16">
-              <Loader2 size={22} className="animate-spin text-slate-300" />
-            </div>
-          ) : (
-            <table className="w-full text-left border-collapse whitespace-nowrap">
-              <thead>
-                <tr className="bg-slate-50/80 border-b border-slate-100">
-                  <th className="px-5 py-3 w-8">
-                    <input
-                      type="checkbox"
-                      checked={filtered.length > 0 && filtered.every((i) => selectedIds.has(i.id))}
-                      onChange={() => {
-                        setSelectedIds((prev) => {
-                          const allSelected = filtered.length > 0 && filtered.every((i) => prev.has(i.id));
-                          return allSelected ? new Set() : new Set(filtered.map((i) => i.id));
-                        });
-                      }}
-                      className="rounded border-slate-300"
-                    />
-                  </th>
-                  <th className="px-5 py-3 text-[9px] font-black text-slate-400 uppercase tracking-widest">Descrição</th>
-                  <th className="px-5 py-3 text-[9px] font-black text-slate-400 uppercase tracking-widest">Cliente</th>
-                  <th className="px-5 py-3 text-[9px] font-black text-slate-400 uppercase tracking-widest">Vencimento</th>
-                  <th className="px-5 py-3 text-[9px] font-black text-slate-400 uppercase tracking-widest">Recebimento</th>
-                  <th className="px-5 py-3 text-[9px] font-black text-slate-400 uppercase tracking-widest">Status</th>
-                  <th className="px-5 py-3 text-[9px] font-black text-slate-400 uppercase tracking-widest text-right">Valor</th>
-                  <th className="px-5 py-3 text-[9px] font-black text-slate-400 uppercase tracking-widest text-center">Ações</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filtered.map((item, idx) => {
-                  const st = STATUS_CONFIG[item.status];
-                  return (
-                    <tr key={item.id} className={cn("border-b border-slate-50 hover:bg-slate-50/50 transition-colors", idx % 2 !== 0 && "bg-slate-50/20")}>
-                      <td className="px-5 py-3">
-                        <input type="checkbox" checked={selectedIds.has(item.id)} onChange={() => toggleSelected(item.id)} className="rounded border-slate-300" />
-                      </td>
-                      <td className="px-5 py-3">
-                        <span className="text-[11px] font-bold text-slate-800 uppercase">{item.description}</span>
-                        {item.category && (
-                          <span className="ml-2 text-[9px] font-black uppercase tracking-widest text-indigo-500 bg-indigo-50 border border-indigo-100 px-1.5 py-0.5 rounded">
-                            {item.category}
+                  <FilterLine data-tour="contas-receber-period-nav">
+                    <FilterLineSection wrap>
+                      {/* ← Mês/Ano → navigator — só faz sentido com Mês ou Ano selecionado */}
+                      {(periodPreset === "month" || periodPreset === "year") && (
+                        <div className="flex items-center gap-1 rounded-lg border border-slate-200 bg-white p-0.5">
+                          <IconButton size="sm" aria-label="Período anterior" onClick={() => navigatePeriod(-1)}>
+                            <ChevronLeft size={14} />
+                          </IconButton>
+                          <span className="flex h-8 min-w-[140px] items-center justify-center px-3 text-xs font-medium text-slate-800">
+                            {periodPreset === "year" ? navYear : `${MONTHS[navMonth]} ${navYear}`}
                           </span>
-                        )}
-                        {item.series && (
-                          <span className="ml-2 inline-flex items-center gap-1 text-[9px] font-black uppercase tracking-widest text-violet-500 bg-violet-50 border border-violet-100 px-1.5 py-0.5 rounded">
-                            <Layers size={9} /> {item.installment_number}/{item.series.installments_count}
-                          </span>
-                        )}
-                        {item.is_recurring && (
-                          <span className="ml-2 inline-flex items-center gap-1 text-[9px] font-black uppercase tracking-widest text-blue-500 bg-blue-50 border border-blue-100 px-1.5 py-0.5 rounded">
-                            <Repeat size={9} /> Recorrente
-                          </span>
-                        )}
-                      </td>
-                      <td className="px-5 py-3 text-[10px] text-slate-500 font-bold">{item.customer_name || "—"}</td>
-                      <td className="px-5 py-3">
-                        <span className={cn(
-                          "text-[10px] font-mono font-bold px-2 py-0.5 rounded-md",
-                          item.status === "overdue" ? "bg-rose-50 text-rose-600"
-                            : isDueSoon(item.due_date, item.status) ? "bg-amber-50 text-amber-700"
-                            : "bg-slate-100 text-slate-500"
-                        )}>
-                          {formatDateBR(item.due_date)}
-                        </span>
-                      </td>
-                      <td className="px-5 py-3">
-                        <span className="text-[10px] font-mono font-bold text-slate-400 bg-slate-50 px-2 py-0.5 rounded-md">
-                          {formatDateBR(item.received_date)}
-                        </span>
-                      </td>
-                      <td className="px-5 py-3">
-                        <span className={cn("inline-flex items-center gap-1 text-[9px] font-black uppercase tracking-widest px-2 py-1 rounded-lg border", st.bg, st.color)}>
-                          {st.icon}{st.label}
-                        </span>
-                      </td>
-                      <td className="px-5 py-3 text-right">
-                        <span className="font-mono font-black text-sm text-emerald-600">R$ {fmt(Number(item.amount))}</span>
-                      </td>
-                      <td className="px-5 py-3">
-                        <div className="flex items-center justify-center gap-1">
-                          {item.status === "pending" || item.status === "overdue" ? (
-                            <button
-                              onClick={() => openReceive(item)}
-                              className="h-7 px-2.5 bg-emerald-600 text-white rounded-lg text-[9px] font-black uppercase tracking-widest hover:bg-emerald-500 transition-all flex items-center gap-1"
-                            >
-                              <CheckCircle2 size={11} /> Receber
-                            </button>
-                          ) : null}
-                          {item.status === "overdue" && (item.series?.interest_rate ?? 0) > 0 && (
-                            <button
-                              onClick={() => openApplyInterest(item)}
-                              title="Aplicar juros"
-                              className="h-7 px-2 bg-amber-50 border border-amber-200 text-amber-600 rounded-lg text-[9px] font-black uppercase tracking-widest hover:bg-amber-100 transition-all flex items-center gap-1"
-                            >
-                              <Percent size={11} />
-                            </button>
-                          )}
-                          <button onClick={() => openEdit(item)} className="h-7 w-7 flex items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 transition-all">
-                            <Edit2 size={13} />
-                          </button>
-                          <button onClick={() => openDelete(item)} className="h-7 w-7 flex items-center justify-center rounded-lg text-slate-400 hover:bg-rose-50 hover:text-rose-500 transition-all">
-                            <Trash2 size={13} />
-                          </button>
+                          <IconButton size="sm" aria-label="Próximo período" onClick={() => navigatePeriod(1)}>
+                            <ChevronRight size={14} />
+                          </IconButton>
                         </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-                {filtered.length === 0 && (
-                  <tr>
-                    <td colSpan={8} className="px-5 py-14 text-center text-[10px] font-black uppercase tracking-widest text-slate-300">
-                      Nenhuma conta encontrada
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          )}
-        </div>
+                      )}
 
-        {/* Mobile list */}
-        <div className="lg:hidden divide-y divide-slate-50">
-          {loading ? (
-            <div className="flex items-center justify-center py-10"><Loader2 size={20} className="animate-spin text-slate-300" /></div>
-          ) : filtered.length === 0 ? (
-            <div className="px-4 py-12 text-center text-[10px] font-black uppercase tracking-widest text-slate-300">Nenhuma conta</div>
-          ) : filtered.map(item => {
-            const st = STATUS_CONFIG[item.status];
-            return (
-              <button
-                key={item.id}
-                onClick={() => setDetailItem(item)}
-                className="w-full px-4 py-3.5 flex items-center gap-3 text-left active:bg-slate-50 transition-colors"
-              >
-                <div className={cn("w-9 h-9 rounded-xl flex items-center justify-center shrink-0", item.status === "received" ? "bg-emerald-100 text-emerald-600" : item.status === "overdue" ? "bg-rose-100 text-rose-600" : "bg-amber-100 text-amber-600")}>
-                  {st.icon}
+                      {/* Tudo / Mês / Ano / Período Livre */}
+                      <FilterLineSegmented<string>
+                        value={periodPreset === "custom" ? "" : periodPreset}
+                        onChange={(v) => applyPeriodPreset(v as "all" | "month" | "year")}
+                        options={[
+                          { value: "all", label: "Tudo" },
+                          { value: "month", label: "Mês" },
+                          { value: "year", label: "Ano" },
+                        ]}
+                      />
+                      <Button
+                        size="sm"
+                        variant={periodPreset === "custom" ? "primary" : "outline"}
+                        onClick={() => setPeriodPreset(periodPreset === "custom" ? "all" : "custom")}
+                        iconLeft={<Calendar size={14} />}
+                      >
+                        Período Livre
+                      </Button>
+                      {periodPreset === "custom" && (
+                        <div className="flex flex-wrap items-center gap-2">
+                          <Input
+                            type="date" aria-label="Data inicial" value={dateFrom}
+                            onChange={(e) => setDateFrom(e.target.value)}
+                            wrapperClassName="w-[148px]"
+                          />
+                          <span className="text-xs text-slate-500">até</span>
+                          <Input
+                            type="date" aria-label="Data final" value={dateTo}
+                            onChange={(e) => setDateTo(e.target.value)}
+                            wrapperClassName="w-[148px]"
+                          />
+                        </div>
+                      )}
+                    </FilterLineSection>
+                    <FilterLineSection align="right">
+                      <div className="relative" ref={exportRef}>
+                        <Button
+                          data-tour="contas-receber-export-btn"
+                          size="sm"
+                          variant="outline"
+                          onClick={() => setShowExport(!showExport)}
+                          iconLeft={<Download size={14} />}
+                          iconRight={<ChevronDown size={12} />}
+                        >
+                          <span className="hidden sm:block">Exportar</span>
+                        </Button>
+                        {showExport && (
+                          <div className="absolute right-0 top-10 z-50 w-52 overflow-hidden rounded-lg border border-slate-200 bg-white">
+                            <button
+                              type="button"
+                              onClick={() => { exportReceivablesToExcel(filtered, tenant); setShowExport(false); }}
+                              className="flex w-full items-center gap-3 px-4 py-2.5 text-xs font-medium text-slate-700 transition-colors hover:bg-slate-50"
+                            >
+                              <FileSpreadsheet size={14} className="text-emerald-600" /> Excel (.xlsx)
+                            </button>
+                            <div className="mx-3 h-px bg-slate-100" />
+                            <button
+                              type="button"
+                              onClick={() => { exportReceivablesToPDF(filtered, tenant); setShowExport(false); }}
+                              className="flex w-full items-center gap-3 px-4 py-2.5 text-xs font-medium text-slate-700 transition-colors hover:bg-slate-50"
+                            >
+                              <FileText size={14} className="text-rose-600" /> PDF / Imprimir
+                            </button>
+                            <div className="mx-3 h-px bg-slate-100" />
+                            <button
+                              type="button"
+                              onClick={() => { setImportResult(null); setShowImportModal(true); setShowExport(false); }}
+                              className="flex w-full items-center gap-3 px-4 py-2.5 text-xs font-medium text-slate-700 transition-colors hover:bg-slate-50"
+                            >
+                              <Upload size={14} className="text-blue-600" /> Importar Planilha
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    </FilterLineSection>
+                  </FilterLine>
+
+                  {selectedIds.size > 0 && (
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="mr-1 text-xs font-medium text-slate-500">
+                        {selectedIds.size} selecionada{selectedIds.size > 1 ? "s" : ""}
+                      </span>
+                      <Button
+                        size="sm"
+                        variant="success"
+                        onClick={handleBulkReceive}
+                        loading={bulkReceiving}
+                        iconLeft={<CheckCircle2 size={14} />}
+                      >
+                        Marcar como recebida(s)
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="danger"
+                        onClick={() => setShowBulkDeleteConfirm(true)}
+                        iconLeft={<Trash2 size={14} />}
+                      >
+                        Excluir selecionada(s)
+                      </Button>
+                      <Button size="sm" variant="ghost" onClick={() => setSelectedIds(new Set())}>
+                        Limpar
+                      </Button>
+                    </div>
+                  )}
                 </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-[11px] font-bold text-slate-900 uppercase truncate">
-                    {item.description}
-                    {item.series && (
-                      <span className="ml-1.5 text-[9px] font-black text-violet-500">{item.installment_number}/{item.series.installments_count}</span>
+
+                {/* Table */}
+                <ContentCard padding="none" className="overflow-hidden">
+                  {/* Desktop table */}
+                  <div data-tour="contas-receber-table" className="hidden overflow-x-auto lg:block">
+                    {loading ? (
+                      <div role="status" className="flex items-center justify-center gap-2 py-12 text-sm text-slate-500">
+                        <Loader2 size={18} className="animate-spin" /> Carregando contas…
+                      </div>
+                    ) : (
+                      <table className="w-full whitespace-nowrap border-collapse text-left">
+                        <thead>
+                          <tr className="border-b border-slate-200 bg-zinc-50">
+                            <th className="w-8 px-4 py-2">
+                              <input
+                                type="checkbox"
+                                aria-label="Selecionar todas"
+                                checked={filtered.length > 0 && filtered.every((i) => selectedIds.has(i.id))}
+                                onChange={() => {
+                                  setSelectedIds((prev) => {
+                                    const allSelected = filtered.length > 0 && filtered.every((i) => prev.has(i.id));
+                                    return allSelected ? new Set() : new Set(filtered.map((i) => i.id));
+                                  });
+                                }}
+                                className="h-4 w-4 accent-blue-600"
+                              />
+                            </th>
+                            <th className="px-4 py-2 text-[11px] font-medium text-slate-500">Descrição</th>
+                            <th className="px-4 py-2 text-[11px] font-medium text-slate-500">Cliente</th>
+                            <th className="px-4 py-2 text-[11px] font-medium text-slate-500">Vencimento</th>
+                            <th className="px-4 py-2 text-[11px] font-medium text-slate-500">Recebimento</th>
+                            <th className="px-4 py-2 text-[11px] font-medium text-slate-500">Status</th>
+                            <th className="px-4 py-2 text-right text-[11px] font-medium text-slate-500">Valor</th>
+                            <th className="px-4 py-2 text-center text-[11px] font-medium text-slate-500">Ações</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {filtered.map((item) => {
+                            const st = STATUS_CONFIG[item.status];
+                            return (
+                              <tr key={item.id} className="border-b border-slate-100 transition-colors hover:bg-slate-50/60">
+                                <td className="px-4 py-2">
+                                  <input type="checkbox" aria-label="Selecionar conta" checked={selectedIds.has(item.id)} onChange={() => toggleSelected(item.id)} className="h-4 w-4 accent-blue-600" />
+                                </td>
+                                <td className="px-4 py-2">
+                                  <span className="text-xs font-medium text-slate-800">{item.description}</span>
+                                  {item.category && (
+                                    <Badge size="sm" color="primary" className="ml-2">{item.category}</Badge>
+                                  )}
+                                  {item.series && (
+                                    <Badge size="sm" color="purple" className="ml-2" icon={<Layers size={10} />}>
+                                      {item.installment_number}/{item.series.installments_count}
+                                    </Badge>
+                                  )}
+                                  {item.is_recurring && (
+                                    <Badge size="sm" color="info" className="ml-2" icon={<Repeat size={10} />}>Recorrente</Badge>
+                                  )}
+                                </td>
+                                <td className="px-4 py-2 text-xs text-slate-500">{item.customer_name || "—"}</td>
+                                <td className="px-4 py-2">
+                                  <span className={cn(
+                                    "rounded-md px-2 py-0.5 text-xs tabular-nums",
+                                    item.status === "overdue" ? "bg-rose-50 text-rose-600"
+                                      : isDueSoon(item.due_date, item.status) ? "bg-amber-50 text-amber-700"
+                                      : "bg-slate-100 text-slate-500"
+                                  )}>
+                                    {formatDateBR(item.due_date)}
+                                  </span>
+                                </td>
+                                <td className="px-4 py-2">
+                                  <span className="text-xs tabular-nums text-slate-500">
+                                    {formatDateBR(item.received_date)}
+                                  </span>
+                                </td>
+                                <td className="px-4 py-2">
+                                  <span className={cn("inline-flex items-center gap-1 rounded-lg border px-2 py-0.5 text-[11px] font-medium", st.bg, st.color)}>
+                                    {st.icon}{st.label}
+                                  </span>
+                                </td>
+                                <td className="px-4 py-2 text-right">
+                                  <span className="text-xs font-semibold tabular-nums text-emerald-700">R$ {fmt(Number(item.amount))}</span>
+                                </td>
+                                <td className="px-4 py-2">
+                                  <div className="flex items-center justify-center gap-1">
+                                    {item.status === "pending" || item.status === "overdue" ? (
+                                      <Button
+                                        size="xs"
+                                        variant="success"
+                                        onClick={() => openReceive(item)}
+                                        iconLeft={<CheckCircle2 size={12} />}
+                                      >
+                                        Receber
+                                      </Button>
+                                    ) : null}
+                                    {item.status === "overdue" && (item.series?.interest_rate ?? 0) > 0 && (
+                                      <IconButton
+                                        size="xs"
+                                        variant="outline"
+                                        onClick={() => openApplyInterest(item)}
+                                        title="Aplicar juros"
+                                        aria-label="Aplicar juros"
+                                      >
+                                        <Percent size={12} />
+                                      </IconButton>
+                                    )}
+                                    <IconButton size="xs" onClick={() => openEdit(item)} aria-label="Editar conta">
+                                      <Edit2 size={13} />
+                                    </IconButton>
+                                    <IconButton size="xs" onClick={() => openDelete(item)} aria-label="Excluir conta" className="hover:bg-rose-50 hover:text-rose-500">
+                                      <Trash2 size={13} />
+                                    </IconButton>
+                                  </div>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                          {filtered.length === 0 && (
+                            <tr>
+                              <td colSpan={8}>
+                                <EmptyState icon={Wallet} title="Nenhuma conta encontrada" description="Ajuste os filtros ou cadastre uma nova conta." />
+                              </td>
+                            </tr>
+                          )}
+                        </tbody>
+                      </table>
                     )}
-                  </p>
-                  <p className="text-[9px] text-slate-400 font-bold uppercase mt-0.5">
-                    Vence: {formatDateBR(item.due_date)} · {item.customer_name || "Sem cliente"}
-                  </p>
+                  </div>
+
+                  {/* Mobile list */}
+                  <div className="divide-y divide-slate-100 lg:hidden">
+                    {loading ? (
+                      <div role="status" className="flex items-center justify-center py-10"><Loader2 size={18} className="animate-spin text-slate-400" /></div>
+                    ) : filtered.length === 0 ? (
+                      <EmptyState icon={Wallet} title="Nenhuma conta" description="Ajuste os filtros ou cadastre uma nova conta." />
+                    ) : filtered.map(item => {
+                      const st = STATUS_CONFIG[item.status];
+                      return (
+                        <button
+                          key={item.id}
+                          type="button"
+                          onClick={() => setDetailItem(item)}
+                          className="flex w-full items-center gap-3 px-3 py-3 text-left transition-colors active:bg-slate-50"
+                        >
+                          <div className={cn("flex h-8 w-8 shrink-0 items-center justify-center rounded-lg", item.status === "received" ? "bg-emerald-100 text-emerald-600" : item.status === "overdue" ? "bg-rose-100 text-rose-600" : "bg-amber-100 text-amber-600")}>
+                            {st.icon}
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <p className="truncate text-xs font-medium text-slate-900">
+                              {item.description}
+                              {item.series && (
+                                <span className="ml-1.5 text-[11px] text-violet-500">{item.installment_number}/{item.series.installments_count}</span>
+                              )}
+                            </p>
+                            <p className="mt-0.5 text-[11px] text-slate-500">
+                              Vence: {formatDateBR(item.due_date)} · {item.customer_name || "Sem cliente"}
+                            </p>
+                          </div>
+                          <div className="shrink-0 text-right">
+                            <p className="text-xs font-semibold tabular-nums text-emerald-700">R$ {fmt(Number(item.amount))}</p>
+                            <span className={cn("mt-0.5 inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] font-medium", st.bg, st.color)}>
+                              {st.label}
+                            </span>
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </ContentCard>
+
                 </div>
-                <div className="text-right shrink-0">
-                  <p className="text-sm font-mono font-black text-emerald-600">R$ {fmt(Number(item.amount))}</p>
-                  <span className={cn("inline-flex items-center gap-1 text-[8px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded mt-0.5", st.bg, st.color)}>
-                    {st.label}
-                  </span>
+
+                </Tabs>
+
                 </div>
-              </button>
-            );
-          })}
+              </div>
+            )}
+          </Tabs>
         </div>
       </div>
-
-      {/* Mobile detail/actions sheet */}
-      {detailItem && (
-        <div className="fixed inset-0 z-[190] flex items-end sm:items-center justify-center lg:hidden">
-          <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={() => setDetailItem(null)} />
-          <div className="relative w-full sm:max-w-md bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl overflow-hidden">
-            <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100">
-              <div className="min-w-0">
-                <h3 className="text-[12px] font-black uppercase text-slate-900 truncate">{detailItem.description}</h3>
-                <span className={cn("inline-flex items-center gap-1 text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-lg border mt-1", STATUS_CONFIG[detailItem.status].bg, STATUS_CONFIG[detailItem.status].color)}>
-                  {STATUS_CONFIG[detailItem.status].icon}{STATUS_CONFIG[detailItem.status].label}
-                </span>
-              </div>
-              <button onClick={() => setDetailItem(null)} className="w-8 h-8 shrink-0 flex items-center justify-center rounded-xl text-slate-400 hover:bg-slate-100 transition-all">
-                <X size={16} />
-              </button>
-            </div>
-
-            <div className="px-5 py-4 space-y-2.5">
-              <div className="flex items-center justify-between text-xs">
-                <span className="text-slate-400 font-bold uppercase text-[9px] tracking-widest">Valor</span>
-                <span className="font-mono font-black text-emerald-600">R$ {fmt(Number(detailItem.amount))}</span>
-              </div>
-              <div className="flex items-center justify-between text-xs">
-                <span className="text-slate-400 font-bold uppercase text-[9px] tracking-widest">Vencimento</span>
-                <span className="font-mono font-bold text-slate-700">{formatDateBR(detailItem.due_date)}</span>
-              </div>
-              {detailItem.received_date && (
-                <div className="flex items-center justify-between text-xs">
-                  <span className="text-slate-400 font-bold uppercase text-[9px] tracking-widest">Recebido em</span>
-                  <span className="font-mono font-bold text-slate-700">{formatDateBR(detailItem.received_date)}</span>
-                </div>
-              )}
-              <div className="flex items-center justify-between text-xs">
-                <span className="text-slate-400 font-bold uppercase text-[9px] tracking-widest">Cliente</span>
-                <span className="font-bold text-slate-700">{detailItem.customer_name || "—"}</span>
-              </div>
-              {detailItem.category && (
-                <div className="flex items-center justify-between text-xs">
-                  <span className="text-slate-400 font-bold uppercase text-[9px] tracking-widest">Categoria</span>
-                  <span className="font-bold text-slate-700">{detailItem.category}</span>
-                </div>
-              )}
-              {detailItem.series && (
-                <div className="flex items-center justify-between text-xs">
-                  <span className="text-slate-400 font-bold uppercase text-[9px] tracking-widest">Parcela</span>
-                  <span className="font-bold text-violet-600">{detailItem.installment_number}/{detailItem.series.installments_count}</span>
-                </div>
-              )}
-              {detailItem.notes && (
-                <div className="pt-1.5 border-t border-slate-100 mt-2">
-                  <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest mb-1">Observações</p>
-                  <p className="text-xs text-slate-600">{detailItem.notes}</p>
-                </div>
-              )}
-            </div>
-
-            <div className="px-5 pb-5 pt-1 flex flex-col gap-2">
-              {(detailItem.status === "pending" || detailItem.status === "overdue") && (
-                <button
-                  onClick={() => { openReceive(detailItem); setDetailItem(null); }}
-                  className="h-11 bg-emerald-600 text-white rounded-xl text-[11px] font-black uppercase tracking-widest flex items-center justify-center gap-2 active:scale-95 transition-all"
-                >
-                  <CheckCircle2 size={14} /> Marcar como Recebida
-                </button>
-              )}
-              {detailItem.status === "overdue" && (detailItem.series?.interest_rate ?? 0) > 0 && (
-                <button
-                  onClick={() => { openApplyInterest(detailItem); setDetailItem(null); }}
-                  className="h-11 bg-amber-50 border border-amber-200 text-amber-700 rounded-xl text-[11px] font-black uppercase tracking-widest flex items-center justify-center gap-2 active:scale-95 transition-all"
-                >
-                  <Percent size={14} /> Aplicar Juros
-                </button>
-              )}
-              <div className="flex gap-2">
-                <button
-                  onClick={() => { openEdit(detailItem); setDetailItem(null); }}
-                  className="flex-1 h-11 bg-slate-100 text-slate-700 rounded-xl text-[11px] font-black uppercase tracking-widest flex items-center justify-center gap-2 active:scale-95 transition-all"
-                >
-                  <Edit2 size={14} /> Editar
-                </button>
-                <button
-                  onClick={() => { openDelete(detailItem); setDetailItem(null); }}
-                  className="flex-1 h-11 bg-white border border-rose-200 text-rose-600 rounded-xl text-[11px] font-black uppercase tracking-widest flex items-center justify-center gap-2 active:scale-95 transition-all"
-                >
-                  <Trash2 size={14} /> Excluir
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* ─────────────────────── MODALS ─────────────────────────────── */}
 
-      {/* Create / Edit Modal */}
-      {isFormModal && (
-        <div className="fixed inset-0 z-[200] flex items-end sm:items-center justify-center sm:p-4">
-          <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={closeModal} />
-          <div className="relative w-full sm:max-w-lg bg-white sm:rounded-2xl rounded-t-2xl shadow-2xl overflow-hidden max-h-[92vh] flex flex-col">
-            {/* Header */}
-            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
-              <div>
-                <h2 className="text-[13px] font-black uppercase tracking-widest text-slate-900">
-                  {modalMode === "create" ? "Nova Conta a Receber" : "Editar Conta"}
-                </h2>
-                <p className="text-[10px] text-slate-400 mt-0.5">Preencha os dados da conta</p>
-              </div>
-              <button onClick={closeModal} className="w-8 h-8 rounded-xl flex items-center justify-center text-slate-400 hover:bg-slate-100 transition-all">
-                <X size={16} />
-              </button>
+      {/* Mobile detail/actions sheet */}
+      <Modal
+        isOpen={!!detailItem}
+        onClose={() => setDetailItem(null)}
+        size="sm"
+        mobileStyle="bottom-sheet"
+        title={detailItem?.description}
+        footer={detailItem ? (
+          <div className="flex w-full flex-col gap-2">
+            {(detailItem.status === "pending" || detailItem.status === "overdue") && (
+              <Button
+                variant="success"
+                fullWidth
+                onClick={() => { openReceive(detailItem); setDetailItem(null); }}
+                iconLeft={<CheckCircle2 size={14} />}
+              >
+                Marcar como Recebida
+              </Button>
+            )}
+            {detailItem.status === "overdue" && (detailItem.series?.interest_rate ?? 0) > 0 && (
+              <Button
+                variant="outline"
+                fullWidth
+                onClick={() => { openApplyInterest(detailItem); setDetailItem(null); }}
+                iconLeft={<Percent size={14} />}
+              >
+                Aplicar Juros
+              </Button>
+            )}
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                className="flex-1"
+                onClick={() => { openEdit(detailItem); setDetailItem(null); }}
+                iconLeft={<Edit2 size={14} />}
+              >
+                Editar
+              </Button>
+              <Button
+                variant="danger"
+                className="flex-1"
+                onClick={() => { openDelete(detailItem); setDetailItem(null); }}
+                iconLeft={<Trash2 size={14} />}
+              >
+                Excluir
+              </Button>
             </div>
+          </div>
+        ) : undefined}
+      >
+        {detailItem && (
+          <div className="space-y-2.5">
+            <span className={cn("inline-flex items-center gap-1 rounded-lg border px-2 py-0.5 text-[11px] font-medium", STATUS_CONFIG[detailItem.status].bg, STATUS_CONFIG[detailItem.status].color)}>
+              {STATUS_CONFIG[detailItem.status].icon}{STATUS_CONFIG[detailItem.status].label}
+            </span>
+            <dl className="space-y-2">
+              <DetailRow label="Valor" value={`R$ ${fmt(Number(detailItem.amount))}`} valueClass="font-semibold tabular-nums text-emerald-700" />
+              <DetailRow label="Vencimento" value={formatDateBR(detailItem.due_date)} />
+              {detailItem.received_date && (
+                <DetailRow label="Recebido em" value={formatDateBR(detailItem.received_date)} />
+              )}
+              <DetailRow label="Cliente" value={detailItem.customer_name || "—"} />
+              {detailItem.category && <DetailRow label="Categoria" value={detailItem.category} />}
+              {detailItem.series && (
+                <DetailRow label="Parcela" value={`${detailItem.installment_number}/${detailItem.series.installments_count}`} valueClass="font-medium text-violet-600" />
+              )}
+            </dl>
+            {detailItem.notes && (
+              <div className="mt-2 border-t border-slate-100 pt-2">
+                <p className="mb-1 text-[11px] text-slate-500">Observações</p>
+                <p className="text-xs text-slate-600">{detailItem.notes}</p>
+              </div>
+            )}
+          </div>
+        )}
+      </Modal>
 
-            {/* Body */}
-            <form id="ar-form" onSubmit={handleSave} className="px-6 py-5 space-y-4 overflow-y-auto flex-1">
-              {/* Descrição */}
-              <div data-tour="contas-receber-form-description" className="space-y-1.5">
-                <label className="flex items-center gap-1.5 text-[9px] font-black text-slate-400 uppercase tracking-[0.18em]">
-                  <FileText size={10} /> Descrição *
-                </label>
-                <input
+      {/* Create / Edit Modal */}
+      <Modal
+        isOpen={isFormModal}
+        onClose={closeModal}
+        size="lg"
+        title={modalMode === "create" ? "Nova Conta a Receber" : "Editar Conta"}
+        subtitle="Preencha os dados da conta"
+        footer={
+          <ModalFooter>
+            <Button variant="ghost" size="sm" onClick={closeModal}>Cancelar</Button>
+            <Button form="ar-form" type="submit" size="sm" loading={saving}>
+              {modalMode === "create" ? "Cadastrar" : "Salvar"}
+            </Button>
+          </ModalFooter>
+        }
+      >
+        <form
+          id="ar-form"
+          onSubmit={handleSave}
+          onInvalidCapture={(ev) => {
+            // Campo obrigatório vazio em aba oculta: o navegador não consegue focar, então trocamos de aba.
+            const tabId = (ev.target as HTMLElement).closest("[data-form-tab]")?.getAttribute("data-form-tab") as FormTabId | null | undefined;
+            if (tabId && tabId !== formTab) {
+              setFormTab(tabId);
+              const f = ev.currentTarget;
+              requestAnimationFrame(() => f.reportValidity());
+            }
+          }}
+        >
+          <Tabs<FormTabId> items={FORM_TABS} value={formTab} onChange={setFormTab} label="Dados da conta a receber">
+            <div data-form-tab="dados" className={cn("space-y-4", formTab !== "dados" && "hidden")}>
+              <div data-tour="contas-receber-form-description">
+                <Input
+                  label="Descrição *"
+                  iconLeft={<FileText size={14} />}
                   type="text" required placeholder="Ex: Venda para cliente, serviço prestado..."
                   value={form.description}
                   onChange={e => setForm({ ...form, description: e.target.value })}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 h-11 text-xs font-bold focus:ring-2 focus:ring-emerald-500/10 focus:border-emerald-400 outline-none transition-all"
                 />
               </div>
 
               {/* Valor + Vencimento */}
-              <div data-tour="contas-receber-form-amount-due" className="grid grid-cols-2 gap-3">
-                <div className="space-y-1.5">
-                  <label className="flex items-center gap-1.5 text-[9px] font-black text-slate-400 uppercase tracking-[0.18em]">
-                    <DollarSign size={10} /> Valor (R$) *
-                  </label>
-                  <input
-                    type="number" step="0.01" min="0.01" required placeholder="0,00"
-                    value={form.amount}
-                    onChange={e => setForm({ ...form, amount: e.target.value })}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 h-11 text-sm font-mono font-bold focus:ring-2 focus:ring-emerald-500/10 focus:border-emerald-400 outline-none transition-all"
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <label className="flex items-center gap-1.5 text-[9px] font-black text-slate-400 uppercase tracking-[0.18em]">
-                    <Calendar size={10} /> Vencimento *
-                  </label>
-                  <input
-                    type="date" required
-                    value={form.due_date}
-                    onChange={e => setForm({ ...form, due_date: e.target.value })}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 h-11 text-xs font-bold focus:ring-2 focus:ring-emerald-500/10 focus:border-emerald-400 outline-none transition-all"
-                  />
-                </div>
+              <div data-tour="contas-receber-form-amount-due" className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <Input
+                  label="Valor (R$) *"
+                  iconLeft={<DollarSign size={14} />}
+                  type="number" step="0.01" min="0.01" required placeholder="0,00"
+                  value={form.amount}
+                  onChange={e => setForm({ ...form, amount: e.target.value })}
+                />
+                <Input
+                  label="Vencimento *"
+                  type="date" required
+                  value={form.due_date}
+                  onChange={e => setForm({ ...form, due_date: e.target.value })}
+                />
               </div>
 
               {/* Cliente + Categoria */}
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <div className="space-y-1.5">
-                  <label className="flex items-center gap-1.5 text-[9px] font-black text-slate-400 uppercase tracking-[0.18em]">
-                    <User size={10} /> Cliente
-                  </label>
+                  <label className="ds-label">Cliente</label>
                   <Combobox
                     placeholder="Selecionar ou digitar cliente..."
                     searchPlaceholder="Buscar cliente..."
@@ -1613,489 +1606,367 @@ export default function ContasReceber() {
                     options={customersList.map((c) => ({ value: c.name, label: c.name }))}
                     onAddNew={handleCreateCustomer}
                   />
-                  <p className="text-[9px] text-slate-400 px-1">Não achou? Digite o nome e clique em "Adicionar" pra cadastrar.</p>
+                  <p className="text-[11px] text-slate-500">Não achou? Digite o nome e clique em "Adicionar" pra cadastrar.</p>
                 </div>
-                <div className="space-y-1.5">
-                  <label className="flex items-center gap-1.5 text-[9px] font-black text-slate-400 uppercase tracking-[0.18em]">
-                    <Tag size={10} /> Categoria
-                  </label>
-                  <select
-                    value={form.category}
-                    onChange={e => setForm({ ...form, category: e.target.value })}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 h-11 text-xs font-bold focus:ring-2 focus:ring-emerald-500/10 focus:border-emerald-400 outline-none transition-all appearance-none"
-                  >
-                    <option value="">Selecionar...</option>
-                    {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
-                  </select>
-                </div>
+                <Select
+                  label="Categoria"
+                  value={form.category}
+                  onChange={e => setForm({ ...form, category: e.target.value })}
+                >
+                  <option value="">Selecionar...</option>
+                  {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+                </Select>
               </div>
 
+              <Textarea
+                label="Observações"
+                placeholder="Observações adicionais..."
+                rows={2}
+                value={form.notes}
+                onChange={e => setForm({ ...form, notes: e.target.value })}
+              />
+            </div>
+
+            <div data-form-tab="lancamento" className={cn("space-y-3", formTab !== "lancamento" && "hidden")}>
               {(modalMode === "create" || modalMode === "edit") && (
-                <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-3.5 space-y-3">
-                  <div className="space-y-1.5">
-                    <label className="flex items-center gap-1.5 text-[9px] font-black text-slate-400 uppercase tracking-[0.16em]">
-                      <Repeat size={10} /> Tipo de lançamento
-                    </label>
-                    <div className={cn("grid gap-1 bg-white border border-slate-200 rounded-lg p-0.5", modalMode === "create" ? "grid-cols-3" : "grid-cols-2")}>
-                      {(modalMode === "create"
-                        ? ([["single", "Única"], ["installments", "Parcelada"], ["recurring", "Recorrente"]] as const)
-                        : ([["single", "Única"], ["recurring", "Recorrente"]] as const)
-                      ).map(([mode, label]) => {
-                        const active = mode === "installments" ? recurrenceEnabled : mode === "recurring" ? recurringVariable : (!recurrenceEnabled && !recurringVariable);
-                        return (
-                          <button
-                            key={mode} type="button"
-                            onClick={() => {
-                              setRecurrenceEnabled(mode === "installments");
-                              setRecurringVariable(mode === "recurring");
-                              if (mode === "installments" && valueMode === "variable") syncVariableAmounts(Number(installmentsCount) || 2, form.amount);
-                            }}
-                            className={cn("h-8 px-1 rounded-md text-[9px] font-black uppercase tracking-wide transition-all whitespace-nowrap", active ? "bg-emerald-600 text-white" : "text-slate-500")}
-                          >{label}</button>
-                        );
-                      })}
-                    </div>
-                    <p className="text-[9px] text-slate-400">
+                <PanelCard title="Tipo de lançamento">
+                  <div className="space-y-3">
+                    <FilterLineSegmented<string>
+                      value={recurrenceEnabled ? "installments" : recurringVariable ? "recurring" : "single"}
+                      onChange={(mode) => {
+                        setRecurrenceEnabled(mode === "installments");
+                        setRecurringVariable(mode === "recurring");
+                        if (mode === "installments" && valueMode === "variable") syncVariableAmounts(Number(installmentsCount) || 2, form.amount);
+                      }}
+                      options={modalMode === "create"
+                        ? [{ value: "single", label: "Única" }, { value: "installments", label: "Parcelada" }, { value: "recurring", label: "Recorrente" }]
+                        : [{ value: "single", label: "Única" }, { value: "recurring", label: "Recorrente" }]}
+                    />
+                    <p className="text-[11px] text-slate-500">
                       {recurrenceEnabled
                         ? "Nº de parcelas e valores já conhecidos (ex.: venda parcelada)."
                         : recurringVariable
                           ? "Repete indefinidamente até você encerrar a recorrência."
                           : "Um lançamento avulso, sem repetição."}
                     </p>
-                  </div>
 
-                  {recurringVariable && (
-                    <div className="space-y-3 pt-1">
-                      <div className="space-y-1.5">
-                        <label className="text-[9px] font-black text-slate-400 uppercase tracking-[0.16em]">Valor</label>
-                        <div className="flex bg-white border border-slate-200 rounded-lg p-0.5 gap-0.5 w-fit">
-                          {([["fixed", "Fixo"], ["variable", "Variável"]] as const).map(([m, l]) => (
-                            <button
-                              key={m} type="button"
-                              onClick={() => setRecurringValueMode(m)}
-                              className={cn("h-8 px-3 rounded-md text-[9px] font-black uppercase tracking-wide transition-all", recurringValueMode === m ? "bg-emerald-600 text-white" : "text-slate-500")}
-                            >{l}</button>
-                          ))}
-                        </div>
-                        <p className="text-[9px] text-slate-400">
-                          {recurringValueMode === "fixed"
-                            ? "Mesmo valor sempre (ex.: mensalidade, aluguel recebido)."
-                            : "Valor muda a cada vez — edite o valor antes de receber cada lançamento."}
-                        </p>
-                      </div>
-
-                      <div className="space-y-1.5">
-                        <label className="text-[9px] font-black text-slate-400 uppercase tracking-[0.16em]">Repete a cada</label>
-                        <div className="flex gap-1.5 w-1/2">
-                          <input
-                            type="number" min={1} value={intervalCount}
-                            onChange={(e) => setIntervalCount(e.target.value)}
-                            className="w-14 bg-white border border-slate-200 rounded-lg px-2 h-9 text-xs font-bold outline-none focus:border-emerald-400"
+                    {recurringVariable && (
+                      <div className="space-y-3 pt-1">
+                        <div className="space-y-1.5">
+                          <label className="ds-label">Valor</label>
+                          <FilterLineSegmented<string>
+                            value={recurringValueMode}
+                            onChange={(m) => setRecurringValueMode(m as "fixed" | "variable")}
+                            options={[{ value: "fixed", label: "Fixo" }, { value: "variable", label: "Variável" }]}
                           />
-                          <select
-                            value={intervalUnit}
-                            onChange={(e) => setIntervalUnit(e.target.value as "day" | "week" | "month")}
-                            className="flex-1 bg-white border border-slate-200 rounded-lg px-2 h-9 text-xs font-bold outline-none focus:border-emerald-400 appearance-none"
-                          >
-                            <option value="day">Dia(s)</option>
-                            <option value="week">Semana(s)</option>
-                            <option value="month">Mês(es)</option>
-                          </select>
+                          <p className="text-[11px] text-slate-500">
+                            {recurringValueMode === "fixed"
+                              ? "Mesmo valor sempre (ex.: mensalidade, aluguel recebido)."
+                              : "Valor muda a cada vez — edite o valor antes de receber cada lançamento."}
+                          </p>
                         </div>
-                        <p className="text-[9px] text-slate-400">
-                          Ao marcar essa conta como recebida, o próximo lançamento é criado automaticamente com o mesmo valor{recurringValueMode === "variable" ? " (só como estimativa — edite o valor real antes de receber esse próximo)" : ""}.
-                        </p>
-                      </div>
-                    </div>
-                  )}
 
-                  {modalMode === "create" && recurrenceEnabled && (
-                    <div className="space-y-3 pt-1">
-                      <div className="grid grid-cols-2 gap-3">
-                        <div className="space-y-1">
-                          <label className="text-[9px] font-black text-slate-400 uppercase tracking-[0.16em]">Nº de parcelas</label>
-                          <input
+                        <div className="space-y-1.5">
+                          <label className="ds-label">Repete a cada</label>
+                          <div className="flex gap-2 sm:w-2/3">
+                            <Input
+                              aria-label="Intervalo"
+                              type="number" min={1} value={intervalCount}
+                              onChange={(e) => setIntervalCount(e.target.value)}
+                              wrapperClassName="w-20"
+                            />
+                            <Select
+                              aria-label="Unidade do intervalo"
+                              value={intervalUnit}
+                              onChange={(e) => setIntervalUnit(e.target.value as "day" | "week" | "month")}
+                              wrapperClassName="flex-1"
+                            >
+                              <option value="day">Dia(s)</option>
+                              <option value="week">Semana(s)</option>
+                              <option value="month">Mês(es)</option>
+                            </Select>
+                          </div>
+                          <p className="text-[11px] text-slate-500">
+                            Ao marcar essa conta como recebida, o próximo lançamento é criado automaticamente com o mesmo valor{recurringValueMode === "variable" ? " (só como estimativa — edite o valor real antes de receber esse próximo)" : ""}.
+                          </p>
+                        </div>
+                      </div>
+                    )}
+
+                    {modalMode === "create" && recurrenceEnabled && (
+                      <div className="space-y-3 pt-1">
+                        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                          <Input
+                            label="Nº de parcelas"
                             type="number" min={2} value={installmentsCount}
                             onChange={(e) => {
                               setInstallmentsCount(e.target.value);
                               if (valueMode === "variable") syncVariableAmounts(Number(e.target.value) || 2, form.amount);
                             }}
-                            className="w-full bg-white border border-slate-200 rounded-lg px-3 h-9 text-xs font-bold outline-none focus:border-emerald-400"
+                          />
+                          <div className="space-y-1.5">
+                            <label className="ds-label">A cada</label>
+                            <div className="flex gap-2">
+                              <Input
+                                aria-label="Intervalo"
+                                type="number" min={1} value={intervalCount}
+                                onChange={(e) => setIntervalCount(e.target.value)}
+                                wrapperClassName="w-20"
+                              />
+                              <Select
+                                aria-label="Unidade do intervalo"
+                                value={intervalUnit}
+                                onChange={(e) => setIntervalUnit(e.target.value as "day" | "week" | "month")}
+                                wrapperClassName="flex-1"
+                              >
+                                <option value="day">Dia(s)</option>
+                                <option value="week">Semana(s)</option>
+                                <option value="month">Mês(es)</option>
+                              </Select>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="space-y-1.5">
+                          <label className="ds-label">Valor das parcelas</label>
+                          <FilterLineSegmented<string>
+                            value={valueMode}
+                            onChange={(m) => {
+                              setValueMode(m as "fixed" | "variable");
+                              if (m === "variable") syncVariableAmounts(Number(installmentsCount) || 2, form.amount);
+                            }}
+                            options={[{ value: "fixed", label: "Dividir igualmente" }, { value: "variable", label: "Personalizar valores" }]}
                           />
                         </div>
-                        <div className="space-y-1">
-                          <label className="text-[9px] font-black text-slate-400 uppercase tracking-[0.16em]">A cada</label>
-                          <div className="flex gap-1.5">
-                            <input
-                              type="number" min={1} value={intervalCount}
-                              onChange={(e) => setIntervalCount(e.target.value)}
-                              className="w-14 bg-white border border-slate-200 rounded-lg px-2 h-9 text-xs font-bold outline-none focus:border-emerald-400"
+
+                        {valueMode === "variable" && (
+                          <div className="max-h-40 space-y-1.5 overflow-y-auto pr-1">
+                            {variableAmounts.map((v, i) => (
+                              <div key={i} className="flex items-center gap-2">
+                                <span className="w-6 shrink-0 text-[11px] text-slate-500">{i + 1}ª</span>
+                                <Input
+                                  aria-label={`Valor da parcela ${i + 1}`}
+                                  type="number" step="0.01" min="0" value={v}
+                                  onChange={(e) => setVariableAmounts((prev) => prev.map((p, idx) => idx === i ? e.target.value : p))}
+                                  wrapperClassName="flex-1"
+                                />
+                              </div>
+                            ))}
+                            <p className={cn("text-right text-[11px] font-medium", variableMismatch ? "text-rose-500" : "text-emerald-600")}>
+                              Soma: R$ {fmt(variableSum)} {variableMismatch && `(total informado: R$ ${fmt(Number(form.amount) || 0)})`}
+                            </p>
+                          </div>
+                        )}
+
+                        <div className="space-y-1.5 border-t border-slate-200 pt-3">
+                          <label className="ds-label">Juros por atraso (opcional)</label>
+                          <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+                            <Input
+                              label="Taxa (%)"
+                              type="number" step="0.01" min="0" value={interestRate} onChange={(e) => setInterestRate(e.target.value)}
                             />
-                            <select
-                              value={intervalUnit}
-                              onChange={(e) => setIntervalUnit(e.target.value as "day" | "week" | "month")}
-                              className="flex-1 bg-white border border-slate-200 rounded-lg px-2 h-9 text-xs font-bold outline-none focus:border-emerald-400 appearance-none"
+                            <Select
+                              label="Por"
+                              value={interestPeriod} onChange={(e) => setInterestPeriod(e.target.value as "day" | "month")}
                             >
-                              <option value="day">Dia(s)</option>
-                              <option value="week">Semana(s)</option>
-                              <option value="month">Mês(es)</option>
-                            </select>
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="space-y-1.5">
-                        <label className="text-[9px] font-black text-slate-400 uppercase tracking-[0.16em]">Valor das parcelas</label>
-                        <div className="flex bg-white border border-slate-200 rounded-lg p-0.5 gap-0.5 w-fit">
-                          {([["fixed", "Dividir igualmente"], ["variable", "Personalizar valores"]] as const).map(([m, l]) => (
-                            <button
-                              key={m} type="button"
-                              onClick={() => {
-                                setValueMode(m);
-                                if (m === "variable") syncVariableAmounts(Number(installmentsCount) || 2, form.amount);
-                              }}
-                              className={cn("h-8 px-3 rounded-md text-[9px] font-black uppercase tracking-wide transition-all", valueMode === m ? "bg-emerald-600 text-white" : "text-slate-500")}
-                            >{l}</button>
-                          ))}
-                        </div>
-                      </div>
-
-                      {valueMode === "variable" && (
-                        <div className="space-y-1.5 max-h-40 overflow-y-auto pr-1">
-                          {variableAmounts.map((v, i) => (
-                            <div key={i} className="flex items-center gap-2">
-                              <span className="text-[9px] font-black text-slate-400 w-6 shrink-0">{i + 1}ª</span>
-                              <input
-                                type="number" step="0.01" min="0" value={v}
-                                onChange={(e) => setVariableAmounts((prev) => prev.map((p, idx) => idx === i ? e.target.value : p))}
-                                className="flex-1 bg-white border border-slate-200 rounded-lg px-3 h-8 text-xs font-mono font-bold outline-none focus:border-emerald-400"
-                              />
-                            </div>
-                          ))}
-                          <p className={cn("text-[9px] font-bold text-right", variableMismatch ? "text-rose-500" : "text-emerald-600")}>
-                            Soma: R$ {fmt(variableSum)} {variableMismatch && `(total informado: R$ ${fmt(Number(form.amount) || 0)})`}
-                          </p>
-                        </div>
-                      )}
-
-                      <div className="pt-1 border-t border-slate-200 space-y-1.5">
-                        <label className="flex items-center gap-1.5 text-[9px] font-black text-slate-400 uppercase tracking-[0.16em]">
-                          <Percent size={10} /> Juros por atraso (opcional)
-                        </label>
-                        <div className="grid grid-cols-3 gap-2">
-                          <div>
-                            <label className="text-[8px] font-bold text-slate-400 uppercase">Taxa (%)</label>
-                            <input type="number" step="0.01" min="0" value={interestRate} onChange={(e) => setInterestRate(e.target.value)}
-                              className="w-full bg-white border border-slate-200 rounded-lg px-2 h-9 text-xs font-bold outline-none focus:border-emerald-400" />
-                          </div>
-                          <div>
-                            <label className="text-[8px] font-bold text-slate-400 uppercase">Por</label>
-                            <select value={interestPeriod} onChange={(e) => setInterestPeriod(e.target.value as "day" | "month")}
-                              className="w-full bg-white border border-slate-200 rounded-lg px-2 h-9 text-xs font-bold outline-none focus:border-emerald-400 appearance-none">
                               <option value="day">Dia</option>
                               <option value="month">Mês</option>
-                            </select>
-                          </div>
-                          <div>
-                            <label className="text-[8px] font-bold text-slate-400 uppercase">Carência (dias)</label>
-                            <input type="number" min="0" value={interestGraceDays} onChange={(e) => setInterestGraceDays(e.target.value)}
-                              className="w-full bg-white border border-slate-200 rounded-lg px-2 h-9 text-xs font-bold outline-none focus:border-emerald-400" />
+                            </Select>
+                            <Input
+                              label="Carência (dias)"
+                              type="number" min="0" value={interestGraceDays} onChange={(e) => setInterestGraceDays(e.target.value)}
+                            />
                           </div>
                         </div>
                       </div>
-                    </div>
-                  )}
-                </div>
+                    )}
+                  </div>
+                </PanelCard>
               )}
-
-              {/* Observações */}
-              <div className="space-y-1.5">
-                <label className="flex items-center gap-1.5 text-[9px] font-black text-slate-400 uppercase tracking-[0.18em]">
-                  <StickyNote size={10} /> Observações
-                </label>
-                <textarea
-                  placeholder="Observações adicionais..."
-                  rows={2}
-                  value={form.notes}
-                  onChange={e => setForm({ ...form, notes: e.target.value })}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-xs font-bold focus:ring-2 focus:ring-emerald-500/10 focus:border-emerald-400 outline-none transition-all resize-none"
-                />
-              </div>
-            </form>
-
-            {/* Footer */}
-            <div className="px-6 pb-5 flex gap-3">
-              <button
-                type="button" onClick={closeModal}
-                className="flex-1 h-11 border border-slate-200 text-[10px] font-black uppercase tracking-widest rounded-xl hover:bg-slate-50 transition-colors"
-              >
-                Cancelar
-              </button>
-              <button
-                form="ar-form" type="submit" disabled={saving}
-                className="flex-1 h-11 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shadow-lg shadow-emerald-200 flex items-center justify-center gap-2"
-              >
-                {saving ? <Loader2 size={14} className="animate-spin" /> : modalMode === "create" ? "Cadastrar" : "Salvar"}
-              </button>
             </div>
-          </div>
-        </div>
-      )}
+          </Tabs>
+        </form>
+      </Modal>
 
       {/* Receive Modal */}
-      {modalMode === "receive" && selected && (
-        <div className="fixed inset-0 z-[200] flex items-end sm:items-center justify-center sm:p-4">
-          <div className="absolute inset-0 bg-slate-900/70 backdrop-blur-sm" onClick={closeModal} />
-          <div className="relative w-full sm:max-w-md bg-[#0f172a] sm:rounded-2xl rounded-t-2xl shadow-2xl overflow-hidden border border-white/10 max-h-[92vh] flex flex-col">
-            {/* Header dark */}
-            <div className="flex items-center justify-between px-6 py-4 border-b border-white/10">
-              <div>
-                <p className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-500">Confirmar Recebimento</p>
-                <h2 className="text-[15px] font-black uppercase tracking-wider text-white mt-0.5">Baixar Conta</h2>
+      <Modal
+        isOpen={modalMode === "receive" && !!selected}
+        onClose={closeModal}
+        size="sm"
+        title="Baixar Conta"
+        subtitle="Confirmar recebimento"
+        footer={
+          <ModalFooter>
+            <Button variant="ghost" size="sm" onClick={closeModal}>Cancelar</Button>
+            <Button form="receive-form" type="submit" size="sm" variant="success" loading={saving} iconLeft={<CheckCircle2 size={14} />}>
+              Confirmar Recebimento
+            </Button>
+          </ModalFooter>
+        }
+      >
+        {selected && (
+          <div className="space-y-3">
+            <div className="space-y-2 rounded-lg border border-slate-200 bg-zinc-50 p-3">
+              <div className="flex items-start justify-between gap-3">
+                <span className="text-xs text-slate-500">Conta</span>
+                <span className="max-w-[200px] break-words text-right text-xs font-medium text-slate-800">{selected.description}</span>
               </div>
-              <button onClick={closeModal} className="w-8 h-8 rounded-xl flex items-center justify-center text-slate-500 hover:bg-white/10 transition-all">
-                <X size={16} />
-              </button>
-            </div>
-
-            {/* Resumo */}
-            <div className="px-6 py-5 space-y-3 overflow-y-auto flex-1">
-              <div className="bg-white/5 rounded-xl p-4 space-y-2">
-                <div className="flex justify-between items-start">
-                  <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Conta</span>
-                  <span className="text-[11px] font-bold text-white text-right max-w-[200px]">{selected.description}</span>
+              {selected.customer_name && (
+                <div className="flex justify-between gap-3">
+                  <span className="text-xs text-slate-500">Cliente</span>
+                  <span className="text-xs font-medium text-slate-700">{selected.customer_name}</span>
                 </div>
-                {selected.customer_name && (
-                  <div className="flex justify-between">
-                    <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Cliente</span>
-                    <span className="text-[11px] font-bold text-slate-300">{selected.customer_name}</span>
-                  </div>
-                )}
-                <div className="flex justify-between">
-                  <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Vencimento</span>
-                  <span className={cn("text-[11px] font-bold", selected.status === "overdue" ? "text-rose-400" : "text-slate-300")}>
-                    {formatDateBR(selected.due_date)}
-                  </span>
-                </div>
-              </div>
-
-              {/* Valor em destaque */}
-              <div className="bg-emerald-600/20 border border-emerald-500/30 rounded-xl p-4 text-center">
-                <p className="text-[9px] font-black uppercase tracking-[0.2em] text-emerald-400/70 mb-1">Valor Recebido</p>
-                <p className="text-3xl font-mono font-black text-emerald-400">R$ {fmt(Number(selected.amount))}</p>
-              </div>
-
-              {selected.is_recurring && (
-                <button
-                  type="button"
-                  onClick={() => setContinueRecurring((v) => !v)}
-                  className="w-full flex items-center gap-2.5 bg-white/5 border border-white/10 rounded-xl px-3 py-2.5 text-left"
-                >
-                  <Repeat size={13} className="text-slate-400 shrink-0" />
-                  <p className="text-[10px] text-slate-400 flex-1">
-                    {continueRecurring
-                      ? "Gerar o próximo lançamento automaticamente após confirmar."
-                      : "Não gerar mais lançamentos — encerra a recorrência aqui."}
-                  </p>
-                  <span className={cn("w-9 h-5 rounded-full relative transition-all shrink-0", continueRecurring ? "bg-emerald-500" : "bg-slate-600")}>
-                    <span className={cn("absolute top-0.5 h-4 w-4 rounded-full bg-white shadow-sm transition-all", continueRecurring ? "left-4" : "left-0.5")} />
-                  </span>
-                </button>
               )}
-
-              {/* Data recebimento */}
-              <form id="receive-form" onSubmit={handleReceive}>
-                <div className="space-y-1.5">
-                  <label className="flex items-center gap-1.5 text-[9px] font-black text-slate-400 uppercase tracking-[0.18em]">
-                    <Calendar size={10} /> Data do Recebimento
-                  </label>
-                  <input
-                    type="date" value={receiveDate}
-                    onChange={e => setReceiveDate(e.target.value)}
-                    className="w-full bg-white/5 border border-white/10 rounded-xl px-4 h-11 text-xs font-bold text-white focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500/50 outline-none transition-all"
-                  />
-                </div>
-              </form>
+              <div className="flex justify-between gap-3">
+                <span className="text-xs text-slate-500">Vencimento</span>
+                <span className={cn("text-xs font-medium", selected.status === "overdue" ? "text-rose-600" : "text-slate-700")}>
+                  {formatDateBR(selected.due_date)}
+                </span>
+              </div>
             </div>
 
-            {/* Footer */}
-            <div className="px-6 pb-6 flex gap-3">
-              <button
-                type="button" onClick={closeModal}
-                className="flex-1 h-12 border border-white/10 text-[10px] font-black uppercase tracking-widest rounded-xl text-slate-400 hover:bg-white/5 transition-colors"
-              >
-                Cancelar
-              </button>
-              <button
-                form="receive-form" type="submit" disabled={saving}
-                className="flex-1 h-12 bg-emerald-500 hover:bg-emerald-400 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 shadow-lg shadow-emerald-900/50"
-              >
-                {saving ? <Loader2 size={14} className="animate-spin" /> : <><CheckCircle2 size={14} /> Confirmar Recebimento</>}
-              </button>
+            {/* Valor em destaque */}
+            <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-center">
+              <p className="mb-1 text-[11px] text-emerald-700">Valor Recebido</p>
+              <p className="text-2xl font-semibold tabular-nums text-emerald-700">R$ {fmt(Number(selected.amount))}</p>
             </div>
+
+            {selected.is_recurring && (
+              <div className="flex items-center gap-2.5 rounded-lg border border-slate-200 px-3 py-2.5">
+                <Repeat size={14} className="shrink-0 text-slate-400" />
+                <p className="flex-1 text-xs text-slate-600">
+                  {continueRecurring
+                    ? "Gerar o próximo lançamento automaticamente após confirmar."
+                    : "Não gerar mais lançamentos — encerra a recorrência aqui."}
+                </p>
+                <Switch checked={continueRecurring} onCheckedChange={setContinueRecurring} aria-label="Gerar próximo lançamento" />
+              </div>
+            )}
+
+            {/* Data recebimento */}
+            <form id="receive-form" onSubmit={handleReceive}>
+              <Input
+                label="Data do Recebimento"
+                type="date" value={receiveDate}
+                onChange={e => setReceiveDate(e.target.value)}
+              />
+            </form>
           </div>
-        </div>
-      )}
+        )}
+      </Modal>
 
       {/* Delete Modal */}
-      {modalMode === "delete" && selected && (
-        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={closeModal} />
-          <div className="relative w-full max-w-sm bg-white rounded-2xl shadow-2xl overflow-hidden">
-            <div className="px-6 py-5 text-center">
-              <div className="w-14 h-14 bg-rose-50 rounded-2xl flex items-center justify-center mx-auto mb-4">
-                <Trash2 size={24} className="text-rose-500" />
-              </div>
-              <h2 className="text-[13px] font-black uppercase tracking-widest text-slate-900 mb-1">Excluir Conta?</h2>
-              <p className="text-xs text-slate-500">{selected.description}</p>
-              <p className="text-sm font-mono font-black text-rose-600 mt-1">R$ {fmt(Number(selected.amount))}</p>
-            </div>
-            <div className="px-6 pb-5 flex gap-3">
-              <button onClick={closeModal} className="flex-1 h-11 border border-slate-200 text-[10px] font-black uppercase tracking-widest rounded-xl hover:bg-slate-50 transition-colors">
-                Cancelar
-              </button>
-              <button
-                onClick={handleDelete} disabled={saving}
-                className="flex-1 h-11 bg-rose-600 hover:bg-rose-500 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2"
-              >
-                {saving ? <Loader2 size={14} className="animate-spin" /> : "Excluir"}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <ConfirmModal
+        isOpen={modalMode === "delete" && !!selected}
+        onClose={closeModal}
+        onConfirm={handleDelete}
+        loading={saving}
+        variant="danger"
+        title="Excluir conta?"
+        confirmLabel="Excluir"
+        message={selected ? (
+          <>
+            <span className="block">{selected.description}</span>
+            <span className="mt-1 block font-semibold tabular-nums text-rose-600">R$ {fmt(Number(selected.amount))}</span>
+          </>
+        ) : ""}
+      />
 
       {/* Bulk Delete Confirm Modal */}
-      {showBulkDeleteConfirm && (
-        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={() => setShowBulkDeleteConfirm(false)} />
-          <div className="relative w-full max-w-sm bg-white rounded-2xl shadow-2xl overflow-hidden">
-            <div className="px-6 py-5 text-center">
-              <div className="w-14 h-14 bg-rose-50 rounded-2xl flex items-center justify-center mx-auto mb-4">
-                <Trash2 size={24} className="text-rose-500" />
-              </div>
-              <h2 className="text-[13px] font-black uppercase tracking-widest text-slate-900 mb-1">Excluir {selectedIds.size} Conta{selectedIds.size > 1 ? "s" : ""}?</h2>
-              <p className="text-xs text-slate-500">Essa ação não pode ser desfeita.</p>
-            </div>
-            <div className="px-6 pb-5 flex gap-3">
-              <button onClick={() => setShowBulkDeleteConfirm(false)} className="flex-1 h-11 border border-slate-200 text-[10px] font-black uppercase tracking-widest rounded-xl hover:bg-slate-50 transition-colors">
-                Cancelar
-              </button>
-              <button
-                onClick={handleBulkDelete} disabled={bulkDeleting}
-                className="flex-1 h-11 bg-rose-600 hover:bg-rose-500 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2"
-              >
-                {bulkDeleting ? <Loader2 size={14} className="animate-spin" /> : "Excluir"}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <ConfirmModal
+        isOpen={showBulkDeleteConfirm}
+        onClose={() => setShowBulkDeleteConfirm(false)}
+        onConfirm={handleBulkDelete}
+        loading={bulkDeleting}
+        variant="danger"
+        title={`Excluir ${selectedIds.size} conta${selectedIds.size > 1 ? "s" : ""}?`}
+        confirmLabel="Excluir"
+        message="Essa ação não pode ser desfeita."
+      />
 
       {/* Apply Interest Modal */}
-      {interestTarget && (
-        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={() => setInterestTarget(null)} />
-          <div className="relative w-full max-w-sm bg-white rounded-2xl shadow-2xl overflow-hidden">
-            <div className="px-6 py-5">
-              <div className="w-14 h-14 bg-amber-50 rounded-2xl flex items-center justify-center mx-auto mb-4">
-                <Percent size={22} className="text-amber-500" />
-              </div>
-              <h2 className="text-[13px] font-black uppercase tracking-widest text-slate-900 mb-1 text-center">Aplicar Juros</h2>
-              <p className="text-xs text-slate-500 text-center">{interestTarget.description}</p>
-              <p className="text-[10px] text-slate-400 text-center mt-1">
+      <Modal
+        isOpen={!!interestTarget}
+        onClose={() => setInterestTarget(null)}
+        size="sm"
+        title="Aplicar Juros"
+        footer={
+          <ModalFooter>
+            <Button variant="ghost" size="sm" onClick={() => setInterestTarget(null)}>Cancelar</Button>
+            <Button size="sm" onClick={handleApplyInterest} loading={applyingInterest}>Aplicar Juros</Button>
+          </ModalFooter>
+        }
+      >
+        {interestTarget && (
+          <div className="space-y-3">
+            <div>
+              <p className="text-xs font-medium text-slate-800">{interestTarget.description}</p>
+              <p className="mt-1 text-[11px] text-slate-500">
                 Vencida em {formatDateBR(interestTarget.due_date)} · Valor atual R$ {fmt(Number(interestTarget.amount))}
               </p>
-              <div className="mt-4 space-y-1.5">
-                <label className="text-[9px] font-black text-slate-400 uppercase tracking-[0.16em]">Valor do juros (R$)</label>
-                <input
-                  type="number" step="0.01" min="0.01" autoFocus
-                  value={interestValue}
-                  onChange={(e) => setInterestValue(e.target.value)}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 h-11 text-sm font-mono font-bold outline-none focus:ring-2 focus:ring-amber-500/10 focus:border-amber-400 transition-all"
-                />
-                <p className="text-[9px] text-slate-400">
-                  Novo valor da conta: R$ {fmt(Number(interestTarget.amount) + (Number(interestValue) || 0))}. Essa ação não pode ser desfeita.
-                </p>
-              </div>
             </div>
-            <div className="px-6 pb-5 flex gap-3">
-              <button onClick={() => setInterestTarget(null)} className="flex-1 h-11 border border-slate-200 text-[10px] font-black uppercase tracking-widest rounded-xl hover:bg-slate-50 transition-colors">
-                Cancelar
-              </button>
-              <button
-                onClick={handleApplyInterest} disabled={applyingInterest}
-                className="flex-1 h-11 bg-amber-500 hover:bg-amber-400 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2"
-              >
-                {applyingInterest ? <Loader2 size={14} className="animate-spin" /> : "Aplicar Juros"}
-              </button>
-            </div>
+            <Input
+              label="Valor do juros (R$)"
+              type="number" step="0.01" min="0.01" autoFocus
+              value={interestValue}
+              onChange={(e) => setInterestValue(e.target.value)}
+              hint={`Novo valor da conta: R$ ${fmt(Number(interestTarget.amount) + (Number(interestValue) || 0))}. Essa ação não pode ser desfeita.`}
+            />
           </div>
-        </div>
-      )}
+        )}
+      </Modal>
 
       {/* Import Modal */}
-      {showImportModal && (
-        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={() => setShowImportModal(false)} />
-          <div className="relative w-full max-w-md bg-white rounded-2xl shadow-2xl overflow-hidden">
-            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
-              <div>
-                <h2 className="text-[13px] font-black uppercase tracking-widest text-slate-900">Importar Planilha</h2>
-                <p className="text-[10px] text-slate-400 mt-0.5">Excel (.xlsx) com contas a receber em massa</p>
-              </div>
-              <button onClick={() => setShowImportModal(false)} className="w-8 h-8 rounded-xl flex items-center justify-center text-slate-400 hover:bg-slate-100 transition-all">
-                <X size={16} />
-              </button>
-            </div>
-            <div className="px-6 py-5 space-y-4">
-              <button
-                onClick={downloadImportTemplate}
-                className="w-full flex items-center justify-center gap-2 h-10 rounded-xl border border-slate-200 text-[10px] font-black uppercase tracking-widest text-slate-600 hover:bg-slate-50 transition-all"
-              >
-                <FileSpreadsheet size={13} /> Baixar Modelo de Planilha
-              </button>
-              <p className="text-[9px] text-slate-400 text-center">
-                Colunas: Descrição, Valor, Vencimento, Cliente, Categoria.
-              </p>
+      <Modal
+        isOpen={showImportModal}
+        onClose={() => setShowImportModal(false)}
+        size="md"
+        title="Importar Planilha"
+        subtitle="Excel (.xlsx) com contas a receber em massa"
+        footer={
+          <ModalFooter>
+            <Button variant="ghost" size="sm" onClick={() => setShowImportModal(false)}>Fechar</Button>
+          </ModalFooter>
+        }
+      >
+        <div className="space-y-4">
+          <Button variant="outline" fullWidth onClick={downloadImportTemplate} iconLeft={<FileSpreadsheet size={14} />}>
+            Baixar Modelo de Planilha
+          </Button>
+          <p className="text-center text-[11px] text-slate-500">
+            Colunas: Descrição, Valor, Vencimento, Cliente, Categoria.
+          </p>
 
-              <input
-                ref={fileInputRef} type="file" accept=".xlsx" className="hidden"
-                onChange={(e) => { const f = e.target.files?.[0]; if (f) handleImportFile(f); e.target.value = ""; }}
-              />
-              <button
-                onClick={() => fileInputRef.current?.click()}
-                disabled={importing}
-                className="w-full h-24 rounded-xl border-2 border-dashed border-slate-300 flex flex-col items-center justify-center gap-2 text-slate-400 hover:border-emerald-400 hover:text-emerald-500 transition-all disabled:opacity-60"
-              >
-                {importing ? <Loader2 size={20} className="animate-spin" /> : <Upload size={20} />}
-                <span className="text-[10px] font-black uppercase tracking-widest">{importing ? "Importando..." : "Selecionar arquivo .xlsx"}</span>
-              </button>
+          <input
+            ref={fileInputRef} type="file" accept=".xlsx" className="hidden" aria-label="Arquivo .xlsx"
+            onChange={(e) => { const f = e.target.files?.[0]; if (f) handleImportFile(f); e.target.value = ""; }}
+          />
+          <Button
+            variant="outline"
+            fullWidth
+            className="h-20 flex-col border-dashed"
+            onClick={() => fileInputRef.current?.click()}
+            loading={importing}
+            iconLeft={importing ? undefined : <Upload size={18} />}
+          >
+            {importing ? "Importando..." : "Selecionar arquivo .xlsx"}
+          </Button>
 
-              {importResult && (
-                <div className="rounded-xl border border-slate-200 p-3 space-y-1.5 max-h-40 overflow-y-auto">
-                  <p className="text-[10px] font-black text-emerald-600 uppercase tracking-widest">{importResult.created} conta(s) importada(s)</p>
-                  {importResult.errors.length > 0 && (
-                    <>
-                      <p className="text-[10px] font-black text-rose-500 uppercase tracking-widest">{importResult.errors.length} linha(s) com erro</p>
-                      {importResult.errors.map((e, i) => (
-                        <p key={i} className="text-[9px] text-slate-400">Linha {e.row}: {e.error}</p>
-                      ))}
-                    </>
-                  )}
-                </div>
+          {importResult && (
+            <div className="max-h-40 space-y-1.5 overflow-y-auto rounded-lg border border-slate-200 p-3">
+              <p className="text-xs font-medium text-emerald-700">{importResult.created} conta(s) importada(s)</p>
+              {importResult.errors.length > 0 && (
+                <>
+                  <p className="text-xs font-medium text-rose-600">{importResult.errors.length} linha(s) com erro</p>
+                  {importResult.errors.map((e, i) => (
+                    <p key={i} className="text-[11px] text-slate-500">Linha {e.row}: {e.error}</p>
+                  ))}
+                </>
               )}
             </div>
-            <div className="px-6 pb-5">
-              <button onClick={() => setShowImportModal(false)} className="w-full h-11 border border-slate-200 text-[10px] font-black uppercase tracking-widest rounded-xl hover:bg-slate-50 transition-colors">
-                Fechar
-              </button>
-            </div>
-          </div>
+          )}
         </div>
-      )}
-      </>
-      )}
-    </div>
+      </Modal>
+    </PageWrapper>
   );
 }

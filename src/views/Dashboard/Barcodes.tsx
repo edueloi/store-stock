@@ -2,10 +2,13 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import {
   Barcode, Search, Printer, Download, RefreshCw,
   Package, ChevronDown, Tag, Plus, Minus, Check,
-  HelpCircle,
+  HelpCircle, PenLine,
 } from "lucide-react";
-import PageHeader from "../../components/layout/PageHeader";
-import Button from "../../components/ui/Button";
+import { EmptyState } from "../../components/layout/EmptyState";
+import {
+  Button, IconButton, Input, Select, Textarea, Badge, Alert, Tabs, PageWrapper, SectionTitle, PanelCard,
+  FilterLine, FilterLineSection, FilterLineItem, FilterLineSearch, FilterLineSegmented,
+} from "../../components/ui";
 import { Product } from "../../types";
 import { cn } from "../../lib/utils";
 import BarcodesPageTour, { BARCODES_PAGE_TOUR_EVENTS, type BarcodesPageTourHandle } from "../../components/onboarding/BarcodesPageTour";
@@ -97,26 +100,26 @@ function LabelCard({
   };
 
   return (
-    <div data-label-card className={cn("bg-white border border-slate-200 rounded-xl p-2 flex flex-col items-center gap-1 shadow-sm", sizeMap[labelSize])}>
+    <div data-label-card className={cn("bg-white border border-slate-200 rounded-lg p-2 flex flex-col items-center gap-1 shadow-sm", sizeMap[labelSize])}>
       {fields.showName && (
-        <p className="text-[9px] font-black text-slate-800 uppercase tracking-wide text-center line-clamp-2 leading-tight w-full">
+        <p className="text-[10px] font-semibold text-slate-800 text-center line-clamp-2 leading-tight w-full">
           {product.name}
         </p>
       )}
       {fields.showPrice && (
-        <p className="text-[10px] font-black text-blue-600 font-mono">
+        <p className="text-[11px] font-semibold text-blue-600 font-mono">
           R$ {Number(product.price).toFixed(2)}
         </p>
       )}
       {fields.showSku && code && (
-        <p className="text-[8px] text-slate-400 font-mono tracking-wide">{code}</p>
+        <p className="text-[10px] text-slate-400 font-mono">{code}</p>
       )}
       {fields.showBarcode && (
         code ? (
           <svg ref={svgRef} className="w-full" />
         ) : (
           <div className="w-full h-12 flex items-center justify-center bg-slate-50 rounded border border-dashed border-slate-200">
-            <p className="text-[8px] text-slate-400 font-bold uppercase">Sem código</p>
+            <p className="text-[10px] text-slate-400 font-semibold">Sem código</p>
           </div>
         )
       )}
@@ -187,22 +190,22 @@ function CustomLabelCard({ data, labelSize, fields }: { data: CustomLabelData; l
 
   const sizeMap = { small: "w-36", medium: "w-48", large: "w-60" };
   return (
-    <div data-custom-label className={cn("flex min-h-28 flex-col items-center gap-1 rounded-xl border border-slate-200 bg-white p-2 shadow-sm", sizeMap[labelSize])}>
-      <p className="w-full text-center text-[10px] font-black uppercase leading-tight tracking-wide text-slate-900">{data.title || "Etiqueta personalizada"}</p>
-      {fields.showCustomer && data.customer && <p className="w-full truncate text-center text-[9px] font-bold text-slate-700">{data.customer}</p>}
-      {fields.showReference && data.reference && <p className="w-full text-center text-[8px] font-mono font-bold text-blue-600">{data.reference}</p>}
-      {fields.showDocument && data.document && <p className="text-center text-[8px] text-slate-500">{data.document}</p>}
-      {fields.showPhone && data.phone && <p className="text-center text-[8px] text-slate-500">{data.phone}</p>}
-      {fields.showAddress && data.address && <p className="line-clamp-2 text-center text-[8px] text-slate-500">{data.address}</p>}
-      {fields.showNotes && data.notes && <p className="line-clamp-2 text-center text-[8px] italic text-slate-500">{data.notes}</p>}
-      {fields.showBarcode && (code ? <svg ref={svgRef} className="mt-auto w-full" /> : <div className="mt-auto w-full rounded border border-dashed border-slate-200 py-2 text-center text-[8px] font-bold uppercase text-slate-400">Inclua código ou referência</div>)}
+    <div data-custom-label className={cn("flex min-h-28 flex-col items-center gap-1 rounded-lg border border-slate-200 bg-white p-2 shadow-sm", sizeMap[labelSize])}>
+      <p className="w-full text-center text-[11px] font-semibold leading-tight text-slate-900">{data.title || "Etiqueta personalizada"}</p>
+      {fields.showCustomer && data.customer && <p className="w-full truncate text-center text-[10px] font-semibold text-slate-700">{data.customer}</p>}
+      {fields.showReference && data.reference && <p className="w-full text-center text-[10px] font-mono font-semibold text-blue-600">{data.reference}</p>}
+      {fields.showDocument && data.document && <p className="text-center text-[10px] text-slate-500">{data.document}</p>}
+      {fields.showPhone && data.phone && <p className="text-center text-[10px] text-slate-500">{data.phone}</p>}
+      {fields.showAddress && data.address && <p className="line-clamp-2 text-center text-[10px] text-slate-500">{data.address}</p>}
+      {fields.showNotes && data.notes && <p className="line-clamp-2 text-center text-[10px] italic text-slate-500">{data.notes}</p>}
+      {fields.showBarcode && (code ? <svg ref={svgRef} className="mt-auto w-full" /> : <div className="mt-auto w-full rounded border border-dashed border-slate-200 py-2 text-center text-[10px] font-semibold text-slate-400">Inclua código ou referência</div>)}
       {fields.showQrCode && code && <canvas ref={canvasRef} className="max-w-full" />}
     </div>
   );
 }
 
 function escapeHtml(value: string) {
-  return value.replace(/[&<>'"]/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "'": "&#039;", '"': "&quot;" }[char] || char));
+  return value.replace(/[&<>'"]/g, (char) => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", "'":"&#039;", '"': "&quot;" }[char] || char));
 }
 
 // ── Componente preview de barcode para seleção ────────────────────────────────
@@ -215,7 +218,7 @@ function BarcodePreview({ code }: { code: string }) {
 
   if (!code) return (
     <div className="h-10 flex items-center justify-center bg-slate-50 rounded-lg border border-dashed border-slate-200">
-      <span className="text-[9px] text-slate-400 font-bold uppercase">Sem código</span>
+      <span className="text-[10px] text-slate-400 font-semibold">Sem código</span>
     </div>
   );
   return <svg ref={svgRef} className="w-full" />;
@@ -250,26 +253,30 @@ const LAYOUT_COLS: Record<LabelLayout, number> = { "1x1": 1, "2x2": 2, "3x3": 3,
 
 function LabelInput({ label, value, onChange, placeholder, hint }: { label: string; value: string; onChange: (value: string) => void; placeholder?: string; hint?: string }) {
   return (
-    <label className="block">
-      <span className="mb-1.5 block text-[9px] font-black uppercase tracking-widest text-slate-400">{label}</span>
-      <input value={value} onChange={(event) => onChange(event.target.value)} placeholder={placeholder} className="h-10 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 text-xs font-medium outline-none transition-all focus:border-blue-400" />
-      {hint && <span className="mt-1 block text-[9px] text-slate-400">{hint}</span>}
-    </label>
+    <Input label={label} hint={hint} value={value} onChange={(event) => onChange(event.target.value)} placeholder={placeholder} />
   );
 }
 
 function OptionButtons<T extends string>({ label, value, options, onChange }: { label: string; value: T; options: [T, string][]; onChange: (value: T) => void }) {
   return (
-    <div>
-      <p className="mb-2 text-[9px] font-black uppercase tracking-widest text-slate-400">{label}</p>
-      <div className="flex rounded-xl border border-slate-200 bg-slate-50 p-1">
-        {options.map(([option, text]) => <button key={option} onClick={() => onChange(option)} className={cn("h-8 min-w-0 flex-1 rounded-lg px-1 text-[9px] font-black uppercase tracking-wide transition-all", value === option ? "bg-slate-900 text-white shadow-sm" : "text-slate-500 hover:bg-white")}>{text}</button>)}
-      </div>
+    <div className="space-y-1">
+      <p className="ds-label">{label}</p>
+      <FilterLineSegmented<T>
+        size="sm"
+        value={value}
+        options={options.map(([option, text]) => ({ value: option, label: text }))}
+        onChange={onChange}
+      />
     </div>
   );
 }
 
 // ── Componente principal ──────────────────────────────────────────────────────
+const LABEL_MODE_TABS = [
+  { id: "products", label: "Etiquetas de produtos", icon: Tag },
+  { id: "custom", label: "Criar etiqueta própria", icon: PenLine },
+] as const;
+
 export default function Barcodes() {
   const [labelMode, setLabelMode]   = useState<"products" | "custom">("products");
   const [products, setProducts]     = useState<Product[]>([]);
@@ -404,10 +411,10 @@ export default function Barcodes() {
   body { background: #fff; font-family: Arial, sans-serif; }
   .grid { display: grid; grid-template-columns: ${colsCSS}; gap: 6px; padding: 12px; }
   .label { border: 1px solid #ccc; border-radius: 6px; padding: 4px; display: flex; flex-direction: column; align-items: center; gap: 2px; width: ${labelW}; }
-  .label-name { font-size: 7px; font-weight: 900; text-transform: uppercase; text-align: center; line-height: 1.2; color: #111; }
+  .label-name { font-size: 7px; font-weight: 900; text-transform: ; text-align: center; line-height: 1.2; color: #111; }
   .label-price { font-size: 9px; font-weight: 900; color: #2563eb; font-family: monospace; }
   .label-sku { font-size: 7px; color: #666; font-family: monospace; }
-  .label-nocode { font-size: 7px; color: #999; text-transform: uppercase; font-weight: 700; }
+  .label-nocode { font-size: 7px; color: #999; text-transform: ; font-weight: 700; }
   svg { width: 100%; }
   .label-qr { width: 40px; height: 40px; }
   @media print { @page { margin: 8mm; } body { background: #fff; } }
@@ -450,7 +457,7 @@ ${cardsHtml}
     if (!w) return;
     w.document.open();
     w.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>Etiquetas personalizadas</title><style>
-      *{box-sizing:border-box;margin:0;padding:0} body{font-family:Arial,sans-serif;background:#fff}.grid{display:grid;grid-template-columns:repeat(${cols},${labelW});gap:6px;padding:12px}.label{width:${labelW};min-height:88px;border:1px solid #bbb;border-radius:5px;padding:5px;display:flex;flex-direction:column;align-items:center;gap:2px;text-align:center}.label-title{font-size:8px;font-weight:900;text-transform:uppercase;line-height:1.2}.label-customer{font-size:8px;font-weight:700}.label-reference{font:700 8px monospace;color:#2563eb}.label-text,.label-notes{font-size:7px;color:#555;line-height:1.25}.label-notes{font-style:italic}svg{width:100%;margin-top:auto}.label-qr{width:42px;height:42px}@media print{@page{margin:8mm}}
+      *{box-sizing:border-box;margin:0;padding:0} body{font-family:Arial,sans-serif;background:#fff}.grid{display:grid;grid-template-columns:repeat(${cols},${labelW});gap:6px;padding:12px}.label{width:${labelW};min-height:88px;border:1px solid #bbb;border-radius:5px;padding:5px;display:flex;flex-direction:column;align-items:center;gap:2px;text-align:center}.label-title{font-size:8px;font-weight:900;;line-height:1.2}.label-customer{font-size:8px;font-weight:700}.label-reference{font:700 8px monospace;color:#2563eb}.label-text,.label-notes{font-size:7px;color:#555;line-height:1.25}.label-notes{font-style:italic}svg{width:100%;margin-top:auto}.label-qr{width:42px;height:42px}@media print{@page{margin:8mm}}
     </style></head><body><div class="grid">${cards}</div></body></html>`);
     w.document.close();
     setTimeout(() => { w.focus(); w.print(); }, 600);
@@ -460,101 +467,76 @@ ${cardsHtml}
   const setCustom = (patch: Partial<CustomLabelData>) => setCustomLabel((current) => ({ ...current, ...patch }));
 
   return (
-    <div data-tour="barcodes-page" className="space-y-5">
-      <PageHeader
+    <PageWrapper data-tour="barcodes-page">
+    <div className="space-y-4">
+      <SectionTitle
         title="Etiquetas & Códigos de Barras"
-        subtitle="Gere, visualize e imprima etiquetas com código de barras"
+        description="Gere, visualize e imprima etiquetas com código de barras"
         action={
-          <div className="flex gap-2 items-center">
+          <>
             {labelMode === "products" && selected.length > 0 && (
-              <button
-                onClick={handlePrint}
-                className="flex items-center gap-2 bg-slate-900 text-white px-5 h-10 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-slate-700 transition-all shadow-lg"
-              >
-                <Printer size={14} strokeWidth={2.5} />
+              <Button variant="primary" iconLeft={<Printer size={14} />} onClick={handlePrint}>
                 Imprimir {totalLabels} etiqueta{totalLabels !== 1 ? "s" : ""}
-              </button>
+              </Button>
             )}
             {labelMode === "custom" && (
-              <button onClick={handlePrintCustom} className="flex h-9 items-center gap-2 rounded-xl bg-slate-900 px-4 text-[10px] font-black uppercase tracking-widest text-white shadow-lg transition-all hover:bg-slate-700">
-                <Printer size={14} strokeWidth={2.5} /> Imprimir {customLabel.quantity || 1}
-              </button>
+              <Button variant="primary" iconLeft={<Printer size={14} />} onClick={handlePrintCustom}>
+                Imprimir {customLabel.quantity || 1}
+              </Button>
             )}
             <Button
-              variant="secondary"
-              className="h-9 px-3 rounded-xl flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest border border-slate-200 bg-white text-slate-400 hover:text-blue-600 hover:bg-blue-50 hover:border-blue-300 transition-all"
+              variant="outline"
               icon={<HelpCircle size={14} />}
               onClick={() => barcodesPageTourRef.current?.start()}
               title="Tour guiado desta página"
             >
               <span className="sr-only sm:not-sr-only">Ajuda</span>
             </Button>
-          </div>
+          </>
         }
       />
 
       <BarcodesPageTour ref={barcodesPageTourRef} />
 
-      <div className="flex w-full rounded-xl border border-slate-200 bg-white p-1 shadow-sm sm:w-fit">
-        <button onClick={() => setLabelMode("products")} className={cn("h-9 flex-1 rounded-lg px-3 text-[10px] font-black uppercase tracking-widest transition-all sm:flex-none", labelMode === "products" ? "bg-blue-600 text-white shadow-sm" : "text-slate-500 hover:bg-slate-50")}>
-          Etiquetas de produtos
-        </button>
-        <button onClick={() => setLabelMode("custom")} className={cn("h-9 flex-1 rounded-lg px-3 text-[10px] font-black uppercase tracking-widest transition-all sm:flex-none", labelMode === "custom" ? "bg-blue-600 text-white shadow-sm" : "text-slate-500 hover:bg-slate-50")}>
-          Criar etiqueta própria
-        </button>
-      </div>
-
+      <Tabs<typeof LABEL_MODE_TABS[number]["id"]> items={LABEL_MODE_TABS} value={labelMode} onChange={setLabelMode} label="Tipo de etiqueta">
       <div className={cn("flex flex-col gap-4 xl:flex-row", labelMode !== "products" && "hidden")}>
 
         {/* ── PAINEL ESQUERDO — seleção de produtos ──────────────────────── */}
         <div className="flex-1 min-w-0 space-y-3">
 
           {/* filtros */}
-          <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-4 space-y-3">
-            <div className="flex flex-col sm:flex-row gap-2">
-              <div className="relative flex-1">
-                <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                <input
-                  type="text"
+          <FilterLine>
+            <FilterLineSection grow>
+              <FilterLineItem grow minWidth={200}>
+                <FilterLineSearch
                   placeholder="Buscar produto ou código..."
-                  className="w-full pl-9 pr-4 h-10 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium outline-none focus:border-blue-400 transition-all"
                   value={search}
-                  onChange={(e) => setSearch(e.target.value)}
+                  onChange={setSearch}
                 />
-              </div>
-              <select
-                value={showOnly}
-                onChange={(e) => setShowOnly(e.target.value as typeof showOnly)}
-                className="h-10 px-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold outline-none focus:border-blue-400 appearance-none pr-8 transition-all"
-              >
-                <option value="all">Todos os produtos</option>
-                <option value="with">Com código de barras</option>
-                <option value="without">Sem código de barras</option>
-              </select>
-            </div>
-
-            <div className="flex items-center justify-between">
-              <p className="text-[9px] font-black uppercase tracking-widest text-slate-400">
-                {filtered.length} produto{filtered.length !== 1 ? "s" : ""}
-              </p>
-              <div className="flex gap-2">
-                <button
-                  onClick={selectAll}
-                  className="text-[9px] font-black uppercase tracking-widest text-blue-600 hover:text-blue-800 transition-colors"
+              </FilterLineItem>
+              <FilterLineItem>
+                <Select
+                  size="sm"
+                  aria-label="Filtrar por código de barras"
+                  value={showOnly}
+                  onChange={(e) => setShowOnly(e.target.value as typeof showOnly)}
                 >
-                  Selecionar com código
-                </button>
-                {selected.length > 0 && (
-                  <button
-                    onClick={clearAll}
-                    className="text-[9px] font-black uppercase tracking-widest text-slate-400 hover:text-slate-600 transition-colors"
-                  >
-                    Limpar
-                  </button>
-                )}
-              </div>
-            </div>
-          </div>
+                  <option value="all">Todos os produtos</option>
+                  <option value="with">Com código de barras</option>
+                  <option value="without">Sem código de barras</option>
+                </Select>
+              </FilterLineItem>
+            </FilterLineSection>
+            <FilterLineSection align="right">
+              <span className="text-[11px] font-medium text-slate-400">
+                {filtered.length} produto{filtered.length !== 1 ? "s" : ""}
+              </span>
+              <Button variant="ghost" size="xs" onClick={selectAll}>Selecionar com código</Button>
+              {selected.length > 0 && (
+                <Button variant="ghost" size="xs" onClick={clearAll}>Limpar</Button>
+              )}
+            </FilterLineSection>
+          </FilterLine>
 
           {/* lista de produtos */}
           {loading ? (
@@ -570,15 +552,18 @@ ${cardsHtml}
                   <div
                     key={p.id}
                     className={cn(
-                      "bg-white rounded-xl border transition-all",
+                      "bg-white rounded-lg border transition-all",
                       sel
-                        ? "border-blue-400 shadow-md shadow-blue-500/10"
-                        : "border-slate-100 hover:border-slate-200 shadow-sm",
+                        ? "border-blue-400 shadow-sm"
+                        : "border-slate-200 hover:border-slate-300",
                     )}
                   >
                     <div className="flex items-center gap-3 p-3">
                       {/* checkbox */}
                       <button
+                        type="button"
+                        aria-label={sel ? "Desmarcar produto" : "Selecionar produto"}
+                        aria-pressed={sel}
                         {...(idx === 0 ? { "data-tour": "barcodes-select-sample-btn" } : {})}
                         onClick={() => toggleSelect(p)}
                         className={cn(
@@ -600,18 +585,16 @@ ${cardsHtml}
 
                       {/* info */}
                       <div className="flex-1 min-w-0">
-                        <p className="text-xs font-bold text-slate-800 truncate">{p.name}</p>
+                        <p className="text-xs font-medium text-slate-800 truncate">{p.name}</p>
                         <div className="flex items-center gap-2 mt-0.5">
                           {(p.barcode || p.sku) ? (
-                            <span className="text-[9px] font-mono text-slate-500 bg-slate-50 px-1.5 py-0.5 rounded border border-slate-100">
+                            <span className="text-[11px] font-mono text-slate-500 bg-slate-50 px-1.5 py-0.5 rounded border border-slate-100">
                               {p.barcode || p.sku}
                             </span>
                           ) : (
-                            <span className="text-[9px] text-amber-500 font-bold uppercase tracking-wide">
-                              Sem código
-                            </span>
+                            <Badge color="warning">Sem código</Badge>
                           )}
-                          <span className="text-[9px] font-bold text-blue-600 font-mono">
+                          <span className="text-[11px] font-medium text-blue-600 font-mono">
                             R$ {Number(p.price).toFixed(2)}
                           </span>
                         </div>
@@ -620,21 +603,15 @@ ${cardsHtml}
                       {/* qty control (só quando selecionado) */}
                       {sel && (
                         <div className="flex items-center gap-1 shrink-0">
-                          <button
-                            onClick={() => updateQty(p.id, -1)}
-                            className="w-7 h-7 rounded-lg bg-slate-100 hover:bg-slate-200 flex items-center justify-center transition-all"
-                          >
+                          <IconButton variant="secondary" size="sm" aria-label="Diminuir quantidade" onClick={() => updateQty(p.id, -1)}>
                             <Minus size={11} />
-                          </button>
-                          <span className="w-8 text-center text-xs font-black text-slate-900 tabular-nums">
+                          </IconButton>
+                          <span className="w-8 text-center text-xs font-medium text-slate-900 tabular-nums">
                             {item?.qty}
                           </span>
-                          <button
-                            onClick={() => updateQty(p.id, 1)}
-                            className="w-7 h-7 rounded-lg bg-slate-100 hover:bg-slate-200 flex items-center justify-center transition-all"
-                          >
+                          <IconButton variant="secondary" size="sm" aria-label="Aumentar quantidade" onClick={() => updateQty(p.id, 1)}>
                             <Plus size={11} />
-                          </button>
+                          </IconButton>
                         </div>
                       )}
 
@@ -650,12 +627,7 @@ ${cardsHtml}
               })}
 
               {filtered.length === 0 && (
-                <div className="flex flex-col items-center justify-center py-16 gap-3">
-                  <Barcode size={36} strokeWidth={1} className="text-slate-200" />
-                  <p className="text-[10px] font-black uppercase tracking-widest text-slate-300">
-                    Nenhum produto encontrado
-                  </p>
-                </div>
+                <EmptyState bordered={false} icon={<Barcode size={28} strokeWidth={1} />} title="Nenhum produto encontrado" />
               )}
             </div>
           )}
@@ -665,56 +637,36 @@ ${cardsHtml}
         <div className="w-full shrink-0 space-y-4 xl:w-80">
 
           {/* Configurações de impressão */}
-          <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5 space-y-4">
-            <p className="text-[10px] font-black uppercase tracking-widest text-slate-700 border-l-4 border-blue-500 pl-3">
-              Configurações de Impressão
-            </p>
-
+          <PanelCard title="Configurações de Impressão" contentClassName="space-y-4">
             {/* Tamanho da etiqueta */}
-            <div data-tour="barcodes-label-size" className="space-y-2">
-              <p className="text-[9px] font-black uppercase tracking-widest text-slate-400">Tamanho da Etiqueta</p>
-              <div className="grid grid-cols-3 gap-1.5">
-                {(["small", "medium", "large"] as LabelSize[]).map((s) => (
-                  <button
-                    key={s}
-                    onClick={() => setLabelSize(s)}
-                    className={cn(
-                      "h-9 rounded-xl border text-[9px] font-black uppercase tracking-widest transition-all",
-                      labelSize === s
-                        ? "bg-slate-900 border-slate-900 text-white shadow-sm"
-                        : "border-slate-200 text-slate-500 hover:border-slate-400 bg-white",
-                    )}
-                  >
-                    {s === "small" ? "Pequena" : s === "medium" ? "Média" : "Grande"}
-                  </button>
-                ))}
-              </div>
+            <div data-tour="barcodes-label-size" className="space-y-1">
+              <p className="ds-label">Tamanho da Etiqueta</p>
+              <FilterLineSegmented<LabelSize>
+                size="sm"
+                value={labelSize}
+                options={[
+                  { value: "small", label: "Pequena" },
+                  { value: "medium", label: "Média" },
+                  { value: "large", label: "Grande" },
+                ]}
+                onChange={setLabelSize}
+              />
             </div>
 
             {/* Layout da folha */}
-            <div data-tour="barcodes-layout" className="space-y-2">
-              <p className="text-[9px] font-black uppercase tracking-widest text-slate-400">Colunas por Linha</p>
-              <div className="grid grid-cols-4 gap-1.5">
-                {(["1x1", "2x2", "3x3", "4x4"] as LabelLayout[]).map((l) => (
-                  <button
-                    key={l}
-                    onClick={() => setLayout(l)}
-                    className={cn(
-                      "h-9 rounded-xl border text-[9px] font-black uppercase tracking-widest transition-all",
-                      layout === l
-                        ? "bg-blue-600 border-blue-500 text-white shadow-sm"
-                        : "border-slate-200 text-slate-500 hover:border-slate-400 bg-white",
-                    )}
-                  >
-                    {l[0]}×
-                  </button>
-                ))}
-              </div>
+            <div data-tour="barcodes-layout" className="space-y-1">
+              <p className="ds-label">Colunas por Linha</p>
+              <FilterLineSegmented<LabelLayout>
+                size="sm"
+                value={layout}
+                options={(["1x1", "2x2", "3x3", "4x4"] as LabelLayout[]).map((l) => ({ value: l, label: `${l[0]}×` }))}
+                onChange={setLayout}
+              />
             </div>
 
             {/* Campos da etiqueta */}
-            <div data-tour="barcodes-fields" className="space-y-2">
-              <p className="text-[9px] font-black uppercase tracking-widest text-slate-400">Campos da Etiqueta</p>
+            <div data-tour="barcodes-fields" className="space-y-1">
+              <p className="ds-label">Campos da Etiqueta</p>
               <div className="grid grid-cols-2 gap-1.5">
                 {([
                   ["showName", "Nome"],
@@ -723,56 +675,48 @@ ${cardsHtml}
                   ["showQrCode", "QR Code"],
                   ["showSku", "Número/SKU"],
                 ] as [keyof LabelFields, string][]).map(([key, label]) => (
-                  <button
+                  <Button
                     key={key}
+                    size="sm"
+                    variant={fields[key] ? "success" : "outline"}
+                    aria-pressed={fields[key]}
+                    iconLeft={fields[key] ? <Check size={11} strokeWidth={3} /> : undefined}
                     onClick={() => setFields((f) => ({ ...f, [key]: !f[key] }))}
-                    className={cn(
-                      "h-9 rounded-xl border text-[9px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-1.5 px-2",
-                      fields[key]
-                        ? "bg-emerald-600 border-emerald-500 text-white shadow-sm"
-                        : "border-slate-200 text-slate-500 hover:border-slate-400 bg-white",
-                    )}
                   >
-                    {fields[key] && <Check size={11} strokeWidth={3} />}
                     {label}
-                  </button>
+                  </Button>
                 ))}
               </div>
             </div>
 
             {/* Resumo */}
-            <div className="bg-slate-50 rounded-xl p-3 space-y-1">
-              <div className="flex justify-between text-[9px] font-bold uppercase tracking-widest">
+            <div className="bg-slate-50 rounded-lg p-3 space-y-1">
+              <div className="flex justify-between text-[11px] font-medium">
                 <span className="text-slate-400">Produtos selecionados</span>
                 <span className="text-slate-700">{selected.length}</span>
               </div>
-              <div className="flex justify-between text-[9px] font-bold uppercase tracking-widest">
+              <div className="flex justify-between text-[11px] font-medium">
                 <span className="text-slate-400">Total de etiquetas</span>
                 <span className="text-blue-600">{totalLabels}</span>
               </div>
             </div>
 
-            <button
+            <Button
               data-tour="barcodes-print-btn"
+              variant="primary"
+              fullWidth
+              size="lg"
+              iconLeft={<Printer size={15} />}
               onClick={handlePrint}
               disabled={totalLabels === 0}
-              className="w-full h-10 bg-slate-900 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-slate-700 transition-all disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2 shadow-lg"
             >
-              <Printer size={15} strokeWidth={2.5} />
               Imprimir Etiquetas
-            </button>
-          </div>
+            </Button>
+          </PanelCard>
 
           {/* Preview das etiquetas */}
           {selected.length > 0 && (
-            <div data-tour="barcodes-preview" className="bg-white rounded-2xl border border-slate-100 shadow-sm p-4 space-y-3">
-              <div className="flex items-center justify-between">
-                <p className="text-[10px] font-black uppercase tracking-widest text-slate-700 border-l-4 border-emerald-500 pl-3">
-                  Pré-visualização
-                </p>
-                <Tag size={14} className="text-slate-300" />
-              </div>
-
+            <PanelCard data-tour="barcodes-preview" title="Pré-visualização" icon={Tag} contentClassName="space-y-3">
               {/* grid de etiquetas */}
               <div
                 ref={printRef}
@@ -789,37 +733,29 @@ ${cardsHtml}
                   />
                 ))}
               </div>
-            </div>
+            </PanelCard>
           )}
 
           {/* Dica de leitor */}
-          <div className="bg-blue-50 border border-blue-100 rounded-2xl p-4 space-y-2">
-            <p className="text-[9px] font-black uppercase tracking-widest text-blue-600">
-              Leitor de código de barras
-            </p>
-            <p className="text-[10px] text-blue-700 leading-relaxed font-medium">
-              Conecte seu leitor USB ao computador. No PDV, o campo de busca detecta automaticamente o scan — o produto é adicionado ao carrinho sem precisar clicar.
-            </p>
-            <p className="text-[10px] text-blue-500 font-bold">
-              Funciona com qualquer leitor HID (plug-and-play).
-            </p>
-          </div>
+          <Alert variant="info" title="Leitor de código de barras">
+            Conecte seu leitor USB ao computador. No PDV, o campo de busca detecta automaticamente o scan — o produto é adicionado ao carrinho sem precisar clicar. Funciona com qualquer leitor HID (plug-and-play).
+          </Alert>
         </div>
       </div>
 
       {labelMode === "custom" && (
         <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
-          <section className="min-w-0 space-y-4 rounded-2xl border border-slate-100 bg-white p-4 shadow-sm sm:p-5">
-            <div className="flex flex-col gap-1 border-b border-slate-100 pb-4 sm:flex-row sm:items-center sm:justify-between">
-              <div>
-                <p className="text-sm font-black text-slate-900">Monte sua etiqueta</p>
-                <p className="mt-0.5 text-[11px] text-slate-400">Preencha livremente com os dados de cliente, pedido, ordem de serviço ou orçamento.</p>
-              </div>
-              <button onClick={() => { setCustomLabel(DEFAULT_CUSTOM_LABEL); setCustomFields(DEFAULT_CUSTOM_FIELDS); }} className="mt-2 h-8 self-start rounded-lg px-2.5 text-[9px] font-black uppercase tracking-widest text-slate-500 hover:bg-slate-100 sm:mt-0">
+          <PanelCard
+            className="min-w-0"
+            title="Monte sua etiqueta"
+            description="Preencha livremente com os dados de cliente, pedido, ordem de serviço ou orçamento."
+            contentClassName="space-y-4"
+            action={
+              <Button variant="ghost" size="sm" onClick={() => { setCustomLabel(DEFAULT_CUSTOM_LABEL); setCustomFields(DEFAULT_CUSTOM_FIELDS); }}>
                 Limpar campos
-              </button>
-            </div>
-
+              </Button>
+            }
+          >
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <LabelInput label="Título da etiqueta" value={customLabel.title} onChange={(value) => setCustom({ title: value })} placeholder="Ex.: Retirada de pedido" />
               <LabelInput label="Cliente / destinatário" value={customLabel.customer} onChange={(value) => setCustom({ customer: value })} placeholder="Nome do cliente" />
@@ -829,54 +765,59 @@ ${cardsHtml}
               <LabelInput label="Telefone" value={customLabel.phone} onChange={(value) => setCustom({ phone: value })} placeholder="Opcional" />
               <div className="sm:col-span-2"><LabelInput label="Endereço / local de entrega" value={customLabel.address} onChange={(value) => setCustom({ address: value })} placeholder="Rua, número, bairro, cidade" /></div>
               <div className="sm:col-span-2">
-                <label className="mb-1.5 block text-[9px] font-black uppercase tracking-widest text-slate-400">Observação</label>
-                <textarea value={customLabel.notes} onChange={(event) => setCustom({ notes: event.target.value })} placeholder="Ex.: Separar para retirada no balcão" rows={3} className="w-full resize-none rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-xs font-medium outline-none transition-all focus:border-blue-400" />
+                <Textarea label="Observação" value={customLabel.notes} onChange={(event) => setCustom({ notes: event.target.value })} placeholder="Ex.: Separar para retirada no balcão" rows={3} />
               </div>
             </div>
 
             <div className="grid grid-cols-1 gap-4 border-t border-slate-100 pt-4 sm:grid-cols-3">
-              <div>
-                <p className="mb-2 text-[9px] font-black uppercase tracking-widest text-slate-400">Quantidade</p>
-                <div className="flex h-10 w-fit items-center rounded-xl border border-slate-200 bg-slate-50 p-1">
-                  <button onClick={() => setCustom({ quantity: Math.max(1, customLabel.quantity - 1) })} className="grid h-8 w-8 place-items-center rounded-lg text-slate-600 hover:bg-white"><Minus size={13} /></button>
-                  <span className="w-9 text-center text-xs font-black tabular-nums">{customLabel.quantity}</span>
-                  <button onClick={() => setCustom({ quantity: Math.min(500, customLabel.quantity + 1) })} className="grid h-8 w-8 place-items-center rounded-lg text-slate-600 hover:bg-white"><Plus size={13} /></button>
+              <div className="space-y-1">
+                <p className="ds-label">Quantidade</p>
+                <div className="flex w-fit items-center gap-1 rounded-lg border border-slate-200 bg-white p-1">
+                  <IconButton variant="ghost" aria-label="Diminuir quantidade" onClick={() => setCustom({ quantity: Math.max(1, customLabel.quantity - 1) })}><Minus size={13} /></IconButton>
+                  <span className="w-9 text-center text-xs font-medium tabular-nums">{customLabel.quantity}</span>
+                  <IconButton variant="ghost" aria-label="Aumentar quantidade" onClick={() => setCustom({ quantity: Math.min(500, customLabel.quantity + 1) })}><Plus size={13} /></IconButton>
                 </div>
               </div>
               <OptionButtons label="Tamanho" value={labelSize} options={[ ["small", "Pequena"], ["medium", "Média"], ["large", "Grande"] ] as [LabelSize, string][]} onChange={(value) => setLabelSize(value as LabelSize)} />
               <OptionButtons label="Colunas" value={layout} options={[ ["1x1", "1×"], ["2x2", "2×"], ["3x3", "3×"], ["4x4", "4×"] ] as [LabelLayout, string][]} onChange={(value) => setLayout(value as LabelLayout)} />
             </div>
 
-            <div className="border-t border-slate-100 pt-4">
-              <p className="mb-2 text-[9px] font-black uppercase tracking-widest text-slate-400">Dados que aparecerão na etiqueta</p>
+            <div className="space-y-1 border-t border-slate-100 pt-4">
+              <p className="ds-label">Dados que aparecerão na etiqueta</p>
               <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-4">
                 {([ ["showCustomer", "Cliente"], ["showReference", "Pedido / OS"], ["showDocument", "CPF / CNPJ"], ["showPhone", "Telefone"], ["showAddress", "Endereço"], ["showNotes", "Observação"], ["showBarcode", "Barras"], ["showQrCode", "QR Code"] ] as [keyof CustomLabelFields, string][]).map(([key, label]) => (
-                  <button key={key} onClick={() => setCustomFields((current) => ({ ...current, [key]: !current[key] }))} className={cn("flex h-9 items-center justify-center gap-1 rounded-xl border px-2 text-[9px] font-black uppercase tracking-wide transition-all", customFields[key] ? "border-emerald-500 bg-emerald-600 text-white" : "border-slate-200 bg-white text-slate-500 hover:border-slate-300")}>
-                    {customFields[key] && <Check size={11} strokeWidth={3} />}{label}
-                  </button>
+                  <Button
+                    key={key}
+                    size="sm"
+                    variant={customFields[key] ? "success" : "outline"}
+                    aria-pressed={customFields[key]}
+                    iconLeft={customFields[key] ? <Check size={11} strokeWidth={3} /> : undefined}
+                    onClick={() => setCustomFields((current) => ({ ...current, [key]: !current[key] }))}
+                  >
+                    {label}
+                  </Button>
                 ))}
               </div>
             </div>
-          </section>
+          </PanelCard>
 
           <aside className="space-y-4 xl:sticky xl:top-4 xl:self-start">
-            <section className="rounded-2xl border border-slate-100 bg-white p-4 shadow-sm">
-              <div className="mb-3 flex items-center justify-between">
-                <div><p className="text-[10px] font-black uppercase tracking-widest text-slate-700">Como vai ficar</p><p className="mt-1 text-[10px] text-slate-400">Pré-visualização em tempo real</p></div>
-                <Tag size={15} className="text-blue-500" />
-              </div>
-              <div ref={customPrintRef} className="flex max-h-[420px] justify-center overflow-auto rounded-xl bg-slate-50 p-4">
+            <PanelCard title="Como vai ficar" description="Pré-visualização em tempo real" icon={Tag} contentClassName="space-y-3">
+              <div ref={customPrintRef} className="flex max-h-[420px] justify-center overflow-auto rounded-lg bg-slate-50 p-4">
                 <CustomLabelCard data={customLabel} labelSize={labelSize} fields={customFields} />
               </div>
-              <button onClick={handlePrintCustom} className="mt-3 flex h-10 w-full items-center justify-center gap-2 rounded-xl bg-slate-900 text-[10px] font-black uppercase tracking-widest text-white transition-all hover:bg-slate-700"><Printer size={14} /> Imprimir {customLabel.quantity} etiqueta{customLabel.quantity !== 1 ? "s" : ""}</button>
-            </section>
-            <div className="rounded-2xl border border-blue-100 bg-blue-50 p-4 text-[10px] leading-relaxed text-blue-700">
-              <p className="mb-1 font-black uppercase tracking-widest text-blue-600">Dica rápida</p>
+              <Button variant="primary" fullWidth size="lg" iconLeft={<Printer size={14} />} onClick={handlePrintCustom}>
+                Imprimir {customLabel.quantity} etiqueta{customLabel.quantity !== 1 ? "s" : ""}
+              </Button>
+            </PanelCard>
+            <Alert variant="info" title="Dica rápida">
               Cadastre os dados que desejar, escolha o que aparece e imprima. Seu rascunho fica salvo neste dispositivo para continuar depois.
-            </div>
+            </Alert>
           </aside>
         </div>
       )}
+      </Tabs>
     </div>
+    </PageWrapper>
   );
 }

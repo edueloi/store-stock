@@ -47,6 +47,7 @@ import {
 import { motion, AnimatePresence } from "motion/react";
 import { cn } from "../../lib/utils";
 import { ToastProvider, useToast } from "../../components/ui/Toast";
+import { Button, IconButton, PageWrapper } from "../../components/ui";
 import { getStoredUser } from "../../lib/session";
 import { listHeldSales, type HeldSale } from "../../lib/heldSales";
 import OnboardingTour, { maybeAutoStartTour, type OnboardingTourHandle } from "../../components/onboarding/OnboardingTour";
@@ -118,7 +119,7 @@ function SidebarTooltip({ anchorRef, label }: { anchorRef: RefObject<HTMLElement
   return createPortal(
     <div
       style={{ position: "fixed", top: coords.top, left: coords.left, transform: "translateY(-50%)", zIndex: 9999 }}
-      className="whitespace-nowrap rounded-lg bg-slate-800 border border-slate-700 px-2.5 py-1.5 text-[11px] font-bold text-white shadow-xl pointer-events-none"
+      className="whitespace-nowrap rounded-lg bg-slate-800 border border-slate-700 px-2.5 py-1.5 text-[11px] font-medium text-white pointer-events-none"
     >
       {label}
     </div>,
@@ -150,23 +151,23 @@ function SidebarNavItem({
         to={to}
         data-tour={dataTour}
         className={cn(
-          "flex items-center gap-3 rounded-xl px-3 py-2.5 text-[13px] font-semibold transition-all duration-200 relative",
+          "flex items-center gap-3 rounded-lg px-3 py-2.5 text-[13px] font-medium transition-all duration-200 relative",
           isActive
-            ? "bg-[#297ed1] text-white shadow-[0_8px_18px_rgba(41,126,209,0.25)] before:absolute before:left-0 before:top-2 before:bottom-2 before:w-1 before:rounded-r-full before:bg-[#f7920c]"
+            ? "bg-[#297ed1] text-white before:absolute before:left-0 before:top-2 before:bottom-2 before:w-1 before:rounded-r-full before:bg-[#f7920c]"
             : "text-slate-400 hover:bg-white/[0.06] hover:text-white"
         )}
       >
         <span className="relative shrink-0">
           <Icon size={16} />
           {hasBadge && !isSidebarOpen && (
-            <span className={cn("absolute -top-1.5 -right-1.5 min-w-[14px] h-[14px] px-0.5 rounded-full text-[8px] font-black flex items-center justify-center leading-none", badgeClass)}>
+            <span className={cn("absolute -top-1.5 -right-1.5 min-w-[14px] h-[14px] px-0.5 rounded-full text-[11px] font-semibold flex items-center justify-center leading-none", badgeClass)}>
               {badge > 9 ? "9+" : badge}
             </span>
           )}
         </span>
         {isSidebarOpen && <span className="truncate flex-1">{label}</span>}
         {hasBadge && isSidebarOpen && (
-          <span className={cn("shrink-0 min-w-[18px] h-[18px] px-1 rounded-full text-[9px] font-black flex items-center justify-center leading-none", badgeClass)}>
+          <span className={cn("shrink-0 min-w-[18px] h-[18px] px-1 rounded-full text-[11px] font-semibold flex items-center justify-center leading-none", badgeClass)}>
             {badge > 99 ? "99+" : badge}
           </span>
         )}
@@ -193,7 +194,7 @@ function SidebarFooterButton({
         ref={ref}
         onClick={onClick}
         className={cn(
-          "flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-[13px] font-semibold text-slate-400 transition-all duration-200",
+          "flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-[13px] font-medium text-slate-400 transition-all duration-200",
           danger ? "hover:bg-red-500/10 hover:text-red-400" : "hover:bg-white/[0.06] hover:text-white"
         )}
       >
@@ -528,6 +529,11 @@ function DueSoonInstallmentsToastWatcher({ installments }: { installments: Overd
   }, [installments, warning]);
 
   return null;
+}
+
+// PDV ocupa a tela toda; as demais telas recebem o espaçamento padrão uma única vez.
+function AdminPage({ pdv, children }: { pdv: boolean; children: React.ReactNode }) {
+  return pdv ? <>{children}</> : <PageWrapper>{children}</PageWrapper>;
 }
 
 export default function AdminDashboard() {
@@ -927,15 +933,15 @@ export default function AdminDashboard() {
           "flex items-center gap-3 border-b border-white/10 h-[72px] shrink-0",
           isSidebarOpen ? "px-4" : "px-0 justify-center"
         )}>
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white/10 ring-1 ring-white/10">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-white/10 ring-1 ring-white/10">
             <img src="/system/favicon.png" alt="BoxSys" className="h-8 w-8 object-contain" />
           </div>
           {isSidebarOpen && (
             <div className="min-w-0">
-              <p className="text-[11px] font-black tracking-[0.08em] leading-none">
+              <p className="text-[11px] font-semibold leading-none">
                 <span className="text-[#f58d0a]">Store</span><span className="text-[#297ed1]"> BoxSys</span>
               </p>
-              <p className="text-[13px] font-bold text-white leading-tight truncate mt-1">{tenantName}</p>
+              <p className="text-[13px] font-medium text-white leading-tight truncate mt-1">{tenantName}</p>
             </div>
           )}
         </div>
@@ -945,7 +951,7 @@ export default function AdminDashboard() {
           {menuGroups.map((group) => (
             <div key={group.label}>
               {isSidebarOpen && (
-                <p className="mb-1.5 px-2.5 text-[9px] font-black uppercase tracking-[0.2em] text-slate-500">
+                <p className="mb-1.5 px-2.5 text-[11px] font-semibold text-slate-500">
                   {group.label}
                 </p>
               )}
@@ -1018,19 +1024,19 @@ export default function AdminDashboard() {
             data-tour="sidebar"
             initial={{ x: "-100%" }} animate={{ x: 0 }} exit={{ x: "-100%" }}
             transition={{ type: "spring", damping: 28, stiffness: 220 }}
-            className="fixed inset-y-0 left-0 w-[280px] bg-[#0b1327] text-slate-300 flex flex-col z-[101] lg:hidden border-r border-white/10 shadow-2xl"
+            className="fixed inset-y-0 left-0 w-[280px] bg-[#0b1327] text-slate-300 flex flex-col z-[101] lg:hidden border-r border-white/10"
           >
             {/* Logo mobile */}
             <div className="flex items-center justify-between border-b border-white/10 px-4 h-[72px] shrink-0">
               <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white/10 ring-1 ring-white/10">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-white/10 ring-1 ring-white/10">
                   <img src="/system/favicon.png" alt="BoxSys" className="h-8 w-8 object-contain" />
                 </div>
                 <div>
-                  <p className="text-[11px] font-black tracking-[0.08em] leading-none">
+                  <p className="text-[11px] font-semibold leading-none">
                     <span className="text-[#f58d0a]">Store</span><span className="text-[#297ed1]"> BoxSys</span>
                   </p>
-                  <p className="text-[13px] font-bold text-white leading-tight truncate mt-1">{tenantName}</p>
+                  <p className="text-[13px] font-medium text-white leading-tight truncate mt-1">{tenantName}</p>
                 </div>
               </div>
               <button onClick={() => setIsSidebarOpen(false)} className="p-1.5 text-slate-500 hover:text-white rounded-lg hover:bg-white/5">
@@ -1041,7 +1047,7 @@ export default function AdminDashboard() {
             <nav className="flex-1 overflow-y-auto pdv-scroll-dark py-3 px-2.5 space-y-4">
               {menuGroups.map((group) => (
                 <div key={group.label}>
-                  <p className="mb-1.5 px-2.5 text-[9px] font-black uppercase tracking-[0.2em] text-slate-500">
+                  <p className="mb-1.5 px-2.5 text-[11px] font-semibold text-slate-500">
                     {group.label}
                   </p>
                   <div className="space-y-px">
@@ -1062,15 +1068,15 @@ export default function AdminDashboard() {
                         <Link key={item.path} to={item.path} onClick={() => setIsSidebarOpen(false)}
                           data-tour={tourDataAttr[item.key]}
                           className={cn(
-                            "relative flex items-center gap-3 rounded-xl px-3 py-2.5 text-[13px] font-semibold transition-all duration-200",
+                            "relative flex items-center gap-3 rounded-lg px-3 py-2.5 text-[13px] font-medium transition-all duration-200",
                             isActive
-                              ? "bg-[#297ed1] text-white shadow-[0_8px_18px_rgba(41,126,209,0.25)] before:absolute before:left-0 before:top-2 before:bottom-2 before:w-1 before:rounded-r-full before:bg-[#f7920c]"
+                              ? "bg-[#297ed1] text-white before:absolute before:left-0 before:top-2 before:bottom-2 before:w-1 before:rounded-r-full before:bg-[#f7920c]"
                               : "text-slate-400 hover:bg-white/[0.06] hover:text-white"
                           )}>
                           <item.icon size={16} />
                           <span className="flex-1">{item.label}</span>
                           {!!badge && (
-                            <span className={cn("shrink-0 min-w-[18px] h-[18px] px-1 rounded-full text-[9px] font-black flex items-center justify-center leading-none", item.path.startsWith("/admin/atendimento/") ? "bg-[#d3a21a] text-slate-950" : "bg-red-500 text-white")}>
+                            <span className={cn("shrink-0 min-w-[18px] h-[18px] px-1 rounded-full text-[11px] font-semibold flex items-center justify-center leading-none", item.path.startsWith("/admin/atendimento/") ? "bg-[#d3a21a] text-slate-950" : "bg-red-500 text-white")}>
                               {badge > 99 ? "99+" : badge}
                             </span>
                           )}
@@ -1084,19 +1090,19 @@ export default function AdminDashboard() {
 
             <div className="border-t border-white/10 p-2.5 space-y-0.5">
               <button onClick={() => onboardingTourRef.current?.start()}
-                className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-[13px] font-semibold text-slate-400 transition-all hover:bg-white/5 hover:text-white">
+                className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-[13px] font-medium text-slate-400 transition-all hover:bg-white/5 hover:text-white">
                 <HelpCircle size={16} /><span>Tour guiado</span>
               </button>
               <button onClick={() => { setIsSidebarOpen(false); navigate("/admin/meu-perfil"); }}
-                className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-[13px] font-semibold text-slate-400 transition-all hover:bg-white/5 hover:text-white">
+                className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-[13px] font-medium text-slate-400 transition-all hover:bg-white/5 hover:text-white">
                 <UserCircle size={16} /><span>Meu Perfil</span>
               </button>
               <button onClick={() => { setIsSidebarOpen(false); viewPublicStore(); }}
-                className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-[13px] font-semibold text-slate-400 transition-all hover:bg-white/5 hover:text-white">
+                className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-[13px] font-medium text-slate-400 transition-all hover:bg-white/5 hover:text-white">
                 <Package size={16} /><span>Ver Loja</span>
               </button>
               <button onClick={handleLogout}
-                className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-[13px] font-semibold text-slate-400 transition-all hover:bg-red-500/10 hover:text-red-400">
+                className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-[13px] font-medium text-slate-400 transition-all hover:bg-red-500/10 hover:text-red-400">
                 <LogOut size={16} /><span>Sair</span>
               </button>
             </div>
@@ -1108,38 +1114,36 @@ export default function AdminDashboard() {
       <main className="flex-1 flex flex-col overflow-hidden w-full min-w-0">
 
         {/* Header */}
-        <header className="h-12 bg-white border-b border-slate-200 flex items-center justify-between px-4 shrink-0 shadow-sm z-10">
-          <div className="flex items-center gap-3">
+        <header className="z-10 flex h-12 shrink-0 items-center justify-between border-b border-slate-200 bg-white px-3 sm:px-4">
+          <div className="flex min-w-0 items-center gap-3">
             {/* Toggle sidebar desktop */}
-            <button onClick={() => toggleSidebar(!isSidebarOpen)}
-              className="hidden lg:flex p-1.5 hover:bg-slate-100 rounded-lg text-slate-500 border border-slate-200 transition-all">
-              <Menu size={17} />
-            </button>
+            <IconButton variant="outline" size="sm" aria-label="Alternar menu lateral" onClick={() => toggleSidebar(!isSidebarOpen)}
+              className="hidden lg:inline-flex !border-slate-200 !text-slate-500">
+              <Menu size={16} />
+            </IconButton>
             {/* Open drawer mobile */}
-            <button onClick={() => setIsSidebarOpen(true)}
-              className="lg:hidden p-1.5 hover:bg-slate-100 rounded-lg text-slate-500">
-              <Menu size={17} />
-            </button>
-            <h1 className="text-[11px] font-black text-slate-900 uppercase tracking-widest leading-none">
+            <IconButton variant="ghost" size="sm" aria-label="Abrir menu" onClick={() => setIsSidebarOpen(true)}
+              className="lg:hidden">
+              <Menu size={16} />
+            </IconButton>
+            <h1 className="truncate text-sm font-medium leading-none text-slate-900">
               {menuItems.find(m => m.path === location.pathname)?.label || "Dashboard"}
             </h1>
-            <span className="hidden sm:flex text-[9px] text-blue-600 font-black uppercase tracking-widest items-center gap-1.5 leading-none">
-              <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse" />
+            <span className="hidden items-center gap-1.5 text-[11px] font-medium leading-none text-blue-600 sm:flex">
+              <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-blue-500" />
               Produção Ativa
             </span>
           </div>
 
           <div className="flex items-center gap-2">
-            <button onClick={viewPublicStore}
-              className="h-8 px-3 bg-white border border-slate-200 rounded-lg flex items-center gap-1.5 hover:bg-slate-50 text-slate-600 transition-all text-[10px] font-bold uppercase tracking-tight">
-              <BarChart3 size={13} />
+            <Button variant="outline" size="sm" onClick={viewPublicStore} iconLeft={<BarChart3 size={14} />}>
               <span className="hidden sm:inline">Loja</span>
-            </button>
-            <Link to="/admin/pdv"
-              className="h-8 px-3 bg-blue-600 text-white rounded-lg flex items-center gap-1.5 shadow-md shadow-blue-500/25 transition-all hover:bg-blue-700 active:scale-95 text-[10px] font-black uppercase tracking-widest">
-              <ShoppingCart size={13} />
+              <span className="sr-only sm:hidden">Loja</span>
+            </Button>
+            <Button size="sm" onClick={() => navigate("/admin/pdv")} iconLeft={<ShoppingCart size={14} />}>
               <span className="hidden sm:inline">Nova Venda</span>
-            </Link>
+              <span className="sr-only sm:hidden">Nova Venda</span>
+            </Button>
           </div>
         </header>
 
@@ -1148,12 +1152,13 @@ export default function AdminDashboard() {
           "flex-1 min-h-0",
           isPDV
             ? "overflow-hidden flex flex-col"
-            : "overflow-y-auto admin-scroll p-4 lg:p-6 bg-[#f8fafc]"
+            : "overflow-y-auto admin-scroll bg-[#f8fafc]"
         )}>
           <div className={isPDV ? "flex-1 min-h-0 flex flex-col" : ""}>
+            <AdminPage pdv={isPDV}>
             <Routes>
               <Route index element={<Home />} />
-              <Route path="catalog" element={<Inventory />} />
+              <Route path="catalog/*" element={<Inventory />} />
               <Route path="categories" element={<Categories />} />
               <Route path="stock" element={<Stock />} />
               <Route path="pdv" element={<PDV />} />
@@ -1197,17 +1202,18 @@ export default function AdminDashboard() {
               <Route path="loyalty" element={<Loyalty />} />
               <Route path="inventory" element={<Stock />} />
             </Routes>
+            </AdminPage>
           </div>
         </div>
 
         {/* Status bar desktop */}
         <footer className="hidden lg:flex h-7 bg-slate-900 border-t border-slate-800 px-5 items-center justify-between shrink-0">
-          <span className="text-[9px] text-slate-500 font-bold uppercase tracking-widest truncate">
+          <span className="text-[11px] text-slate-500 font-semibold truncate">
             BoxSys Store · Sistema de Gestão para Lojas
           </span>
           <div className="flex gap-4 shrink-0">
-            <span className="text-[9px] text-emerald-400 font-bold uppercase">Online</span>
-            <span className="text-[9px] text-slate-600 font-bold uppercase">v.BoxSys-1.0</span>
+            <span className="text-[11px] text-emerald-400 font-semibold">Online</span>
+            <span className="text-[11px] text-slate-600 font-semibold">v.BoxSys-1.0</span>
           </div>
         </footer>
 
@@ -1227,14 +1233,14 @@ export default function AdminDashboard() {
                 className={cn("flex-1 flex flex-col items-center justify-center gap-0.5 py-2 transition-colors",
                   isActive ? "text-blue-600" : "text-slate-400")}>
                 <item.icon size={19} strokeWidth={isActive ? 2.5 : 1.5} />
-                <span className="text-[8px] font-bold uppercase tracking-wide leading-none">{item.label}</span>
+                <span className="text-[11px] font-semibold leading-none">{item.label}</span>
               </Link>
             );
           })}
           <button onClick={() => setIsSidebarOpen(true)}
             className="flex-1 flex flex-col items-center justify-center gap-0.5 py-2 text-slate-400">
             <Menu size={19} strokeWidth={1.5} />
-            <span className="text-[8px] font-bold uppercase tracking-wide leading-none">Mais</span>
+            <span className="text-[11px] font-semibold leading-none">Mais</span>
           </button>
         </nav>
       </main>

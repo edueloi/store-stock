@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef } from "react";
 import ExcelJS from "exceljs";
-import PageHeader from "../../components/layout/PageHeader";
-import Button from "../../components/ui/Button";
+import { Badge, Button, EmptyState, FilterLine, FilterLineSection, FilterLineSegmented, PageWrapper, PanelCard, SectionTitle, Select, StatCard, StatGrid, Tabs } from "../../components/ui";
 import {
   ChevronLeft, ChevronRight, Loader2, Download, FileSpreadsheet, FileText,
   ChevronDown, TrendingUp, TrendingDown, Wallet, Calendar, LayoutGrid, Printer,
@@ -209,7 +208,7 @@ async function exportToExcel(report: YearlyReport, tenant: Partial<Tenant> | nul
   }
 
   const origemSuffix = origemFiltro === "todas" ? "" : `_${ORIGEM_LABELS[origemFiltro]}`;
-  const origemSubtitle = origemFiltro === "todas" ? "" : ` · Origem: ${ORIGEM_LABELS[origemFiltro]}`;
+  const origemSubtitle = origemFiltro === "todas" ? "" : `· Origem: ${ORIGEM_LABELS[origemFiltro]}`;
 
   let filenameSuffix = "";
   if (scope.view === "day") {
@@ -254,7 +253,7 @@ function exportToPDF(report: YearlyReport, tenant: Partial<Tenant> | null, scope
   <tbody>${costRows(items)}<tr><td class="tot">TOTAL</td><td></td><td class="tot">R$ ${fmt(total)}</td></tr></tbody></table>`;
 
   const resultadoSection = (resultado: number) => `
-  <div class="resultado ${resultado >= 0 ? "pos" : "neg"}">RESULTADO DO PERÍODO: R$ ${fmt(resultado)}</div>`;
+  <div class="resultado ${resultado >= 0 ? "pos":"neg"}">RESULTADO DO PERÍODO: R$ ${fmt(resultado)}</div>`;
 
   const yearSection = (entradasByMonth: EntradasBucket[]) => {
     const yearRows = ([
@@ -270,7 +269,7 @@ function exportToPDF(report: YearlyReport, tenant: Partial<Tenant> | null, scope
       const values = report.months.map(getter);
       const total = values.reduce((a, b) => a + b, 0);
       const isHighlight = label === "Total Entradas" || label === "Resultado";
-      return `<tr><td class="${isHighlight ? "tot" : ""}">${label}</td>${values.map(v => `<td>R$ ${fmt(v)}</td>`).join("")}<td class="tot">R$ ${fmt(total)}</td></tr>`;
+      return `<tr><td class="${isHighlight ? "tot":""}">${label}</td>${values.map(v => `<td>R$ ${fmt(v)}</td>`).join("")}<td class="tot">R$ ${fmt(total)}</td></tr>`;
     }).join("");
     return `
   <h2>Resumo Anual — ${report.year}</h2>
@@ -278,7 +277,7 @@ function exportToPDF(report: YearlyReport, tenant: Partial<Tenant> | null, scope
   <tbody>${yearRows}</tbody></table>`;
   };
 
-  const origemMeta = origemFiltro === "todas" ? "" : ` · Origem: ${ORIGEM_LABELS[origemFiltro]}`;
+  const origemMeta = origemFiltro === "todas" ? "" : `· Origem: ${ORIGEM_LABELS[origemFiltro]}`;
 
   let body = "";
   if (scope.view === "day") {
@@ -303,17 +302,17 @@ function exportToPDF(report: YearlyReport, tenant: Partial<Tenant> | null, scope
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: 'Segoe UI', Arial, sans-serif; color: #1e293b; padding: 32px; font-size: 11px; }
-  h1 { font-size: 20px; font-weight: 900; text-transform: uppercase; letter-spacing: 0.08em; }
+  h1 { font-size: 20px; font-weight: 900; text-transform: ; letter-spacing: 0.08em; }
   .meta { font-size: 10px; color: #64748b; margin-top: 4px; }
   .header { border-bottom: 3px solid #1e40af; padding-bottom: 12px; margin-bottom: 20px; }
-  h2 { font-size: 13px; text-transform: uppercase; letter-spacing: 0.1em; margin: 20px 0 8px; color: #1e293b; }
+  h2 { font-size: 13px; text-transform: ; letter-spacing: 0.1em; margin: 20px 0 8px; color: #1e293b; }
   table { width: 100%; border-collapse: collapse; margin-bottom: 8px; }
-  th { background: #1e3a5f; color: #fff; padding: 6px 10px; text-align: right; font-size: 9px; text-transform: uppercase; letter-spacing: 0.08em; }
+  th { background: #1e3a5f; color: #fff; padding: 6px 10px; text-align: right; font-size: 9px; text-transform: ; letter-spacing: 0.08em; }
   th:first-child, td:first-child { text-align: left; }
   td { padding: 6px 10px; border-bottom: 1px solid #f1f5f9; text-align: right; }
   td.tot { font-weight: 700; }
   tr:last-child td { border-top: 2px solid #1e293b; font-weight: 700; }
-  .resultado { margin-top: 16px; padding: 12px 16px; border-radius: 6px; font-size: 13px; font-weight: 900; text-transform: uppercase; letter-spacing: 0.06em; text-align: right; }
+  .resultado { margin-top: 16px; padding: 12px 16px; border-radius: 6px; font-size: 13px; font-weight: 900; text-transform: ; letter-spacing: 0.06em; text-align: right; }
   .resultado.pos { background: #d1fae5; color: #065f46; }
   .resultado.neg { background: #ffe4e6; color: #9f1239; }
   @media print { body { padding: 16px; } }
@@ -326,7 +325,7 @@ function exportToPDF(report: YearlyReport, tenant: Partial<Tenant> | null, scope
 <body>
   <div class="header">
     <h1>${tenant?.name || "BoxSys Store"}</h1>
-    <p class="meta">${(tenant as any)?.cnpj ? `CNPJ: ${(tenant as any).cnpj} · ` : ""}Relatório Financeiro${origemMeta} · Gerado em ${new Date().toLocaleString("pt-BR")}</p>
+    <p class="meta">${(tenant as any)?.cnpj ? `CNPJ: ${(tenant as any).cnpj} ·` : ""}Relatório Financeiro${origemMeta} · Gerado em ${new Date().toLocaleString("pt-BR")}</p>
   </div>
   ${body}
 </body></html>`;
@@ -343,88 +342,96 @@ function exportToPDF(report: YearlyReport, tenant: Partial<Tenant> | null, scope
 }
 
 // ── sub-componentes reaproveitados entre as visões Dia/Mês ──────────────────
+const thClass = "px-3 py-2 text-[11px] font-medium text-slate-500 whitespace-nowrap";
+
 function EntradasTable({ data, onPrint }: { data: EntradasBucket; onPrint?: () => void }) {
   return (
-    <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-      <div className="px-4 sm:px-5 py-3 border-b border-slate-100 flex items-center justify-between gap-2">
-        <h3 className="text-[11px] font-black text-slate-700 uppercase tracking-widest">Entradas por Operador</h3>
-        {onPrint && (
-          <button onClick={onPrint}
-            className="flex items-center gap-1.5 h-7 px-2.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-[9px] font-black text-slate-600 uppercase tracking-widest transition-colors shrink-0">
-            <Printer size={11} /> Imprimir
-          </button>
-        )}
-      </div>
+    <PanelCard
+      title="Entradas por Operador"
+      contentClassName="p-0"
+      action={onPrint ? <Button variant="outline" size="xs" iconLeft={<Printer size={12} />} onClick={onPrint}>Imprimir</Button> : undefined}
+    >
       <div className="overflow-x-auto">
-        <div className="min-w-[560px]">
-          <table className="w-full text-left border-collapse">
-            <thead>
-              <tr className="bg-slate-50/80 border-b border-slate-100">
-                <th className="px-3 sm:px-5 py-2.5 text-[9px] font-black text-slate-400 uppercase tracking-widest whitespace-nowrap">Operador</th>
-                {PM_KEYS.map(k => <th key={k} className="px-3 sm:px-5 py-2.5 text-[9px] font-black text-slate-400 uppercase tracking-widest text-right whitespace-nowrap">{PM_LABELS[k]}</th>)}
-                <th className="px-3 sm:px-5 py-2.5 text-[9px] font-black text-slate-400 uppercase tracking-widest text-right whitespace-nowrap">Total</th>
-              </tr>
-            </thead>
-            <tbody>
-              {Object.entries(data.byOperator).map(([op, pm]) => {
-                const total = PM_KEYS.reduce((s, k) => s + pm[k], 0);
-                return (
-                  <tr key={op} className="border-b border-slate-50">
-                    <td className="px-3 sm:px-5 py-2.5 text-xs font-bold text-slate-700 whitespace-nowrap">{op}</td>
-                    {PM_KEYS.map(k => <td key={k} className="px-3 sm:px-5 py-2.5 text-xs font-mono text-slate-600 text-right whitespace-nowrap">R$ {fmt(pm[k])}</td>)}
-                    <td className="px-3 sm:px-5 py-2.5 text-xs font-mono font-black text-slate-800 text-right whitespace-nowrap">R$ {fmt(total)}</td>
-                  </tr>
-                );
-              })}
-              {Object.keys(data.byOperator).length === 0 && (
-                <tr><td colSpan={6} className="px-5 py-8 text-center text-[10px] font-black uppercase tracking-widest text-slate-300">Nenhuma entrada no período</td></tr>
-              )}
-            </tbody>
-            <tfoot>
-              <tr className="bg-emerald-50/60">
-                <td className="px-3 sm:px-5 py-2.5 text-xs font-black text-emerald-700 uppercase whitespace-nowrap">Total</td>
-                {PM_KEYS.map(k => <td key={k} className="px-3 sm:px-5 py-2.5 text-xs font-mono font-black text-emerald-700 text-right whitespace-nowrap">R$ {fmt(data.totalByMethod[k])}</td>)}
-                <td className="px-3 sm:px-5 py-2.5 text-xs font-mono font-black text-emerald-700 text-right whitespace-nowrap">R$ {fmt(data.total)}</td>
-              </tr>
-            </tfoot>
-          </table>
-        </div>
+        <table className="w-full min-w-[560px] border-collapse text-left">
+          <thead>
+            <tr className="border-b border-slate-100 bg-zinc-50">
+              <th className={thClass}>Operador</th>
+              {PM_KEYS.map(k => <th key={k} className={cn(thClass, "text-right")}>{PM_LABELS[k]}</th>)}
+              <th className={cn(thClass, "text-right")}>Total</th>
+            </tr>
+          </thead>
+          <tbody>
+            {Object.entries(data.byOperator).map(([op, pm]) => {
+              const total = PM_KEYS.reduce((s, k) => s + pm[k], 0);
+              return (
+                <tr key={op} className="border-b border-slate-50">
+                  <td className="whitespace-nowrap px-3 py-2 text-xs font-medium text-slate-700">{op}</td>
+                  {PM_KEYS.map(k => <td key={k} className="whitespace-nowrap px-3 py-2 text-right text-xs tabular-nums text-slate-600">R$ {fmt(pm[k])}</td>)}
+                  <td className="whitespace-nowrap px-3 py-2 text-right text-xs font-semibold tabular-nums text-slate-800">R$ {fmt(total)}</td>
+                </tr>
+              );
+            })}
+            {Object.keys(data.byOperator).length === 0 && (
+              <tr><td colSpan={6} className="p-3"><EmptyState title="Nenhuma entrada no período" /></td></tr>
+            )}
+          </tbody>
+          <tfoot>
+            <tr className="bg-emerald-50/60">
+              <td className="whitespace-nowrap px-3 py-2 text-xs font-medium text-emerald-700">Total</td>
+              {PM_KEYS.map(k => <td key={k} className="whitespace-nowrap px-3 py-2 text-right text-xs font-semibold tabular-nums text-emerald-700">R$ {fmt(data.totalByMethod[k])}</td>)}
+              <td className="whitespace-nowrap px-3 py-2 text-right text-xs font-semibold tabular-nums text-emerald-700">R$ {fmt(data.total)}</td>
+            </tr>
+          </tfoot>
+        </table>
       </div>
-    </div>
+    </PanelCard>
   );
 }
 
 function CustoCards({ custoVariavel, custoFixo }: { custoVariavel: { total: number; items: CostItem[] }; custoFixo: { total: number; items: CostItem[] } }) {
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+    <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
       {([
-        ["Custo Variável", custoVariavel, "amber"],
-        ["Custo Fixo", custoFixo, "violet"],
-      ] as const).map(([label, data, accent]) => (
-        <div key={label} className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-          <div className={cn("px-5 py-3 border-b flex items-center justify-between",
-            accent === "amber" ? "bg-amber-50/60 border-amber-100" : "bg-violet-50/60 border-violet-100")}>
-            <h3 className="text-[11px] font-black text-slate-700 uppercase tracking-widest">{label}</h3>
-            <span className={cn("text-sm font-mono font-black", accent === "amber" ? "text-amber-700" : "text-violet-700")}>R$ {fmt(data.total)}</span>
-          </div>
-          <div className="max-h-72 overflow-y-auto divide-y divide-slate-50">
+        ["Custo Variável", custoVariavel, "warning"],
+        ["Custo Fixo", custoFixo, "purple"],
+      ] as const).map(([label, data, tone]) => (
+        <PanelCard key={label} title={label} contentClassName="p-0"
+          action={<Badge color={tone} size="md">R$ {fmt(data.total)}</Badge>}>
+          <div className="max-h-72 divide-y divide-slate-100 overflow-y-auto">
             {data.items.length === 0 ? (
-              <div className="px-5 py-8 text-center text-[10px] font-black uppercase tracking-widest text-slate-300">Nenhum lançamento</div>
+              <div className="p-3"><EmptyState title="Nenhum lançamento" /></div>
             ) : data.items.map((it, i) => (
-              <div key={i} className="px-5 py-2.5 flex items-center justify-between gap-3">
+              <div key={i} className="flex items-center justify-between gap-3 px-3 py-2">
                 <div className="min-w-0">
-                  <p className="text-xs font-semibold text-slate-700 truncate">{it.description}</p>
-                  <p className="text-[10px] text-slate-400">{fmtDateBR(it.date)} · {it.source === "contas_pagar" ? "Contas a Pagar" : "Financeiro"}</p>
+                  <p className="truncate text-xs font-medium text-slate-700">{it.description}</p>
+                  <p className="mt-0.5 text-[11px] text-slate-500">{fmtDateBR(it.date)} · {it.source === "contas_pagar" ? "Contas a Pagar" : "Financeiro"}</p>
                 </div>
-                <span className="text-xs font-mono font-bold text-slate-700 shrink-0">R$ {fmt(it.amount)}</span>
+                <span className="shrink-0 text-xs font-semibold tabular-nums text-slate-700">R$ {fmt(it.amount)}</span>
               </div>
             ))}
           </div>
-        </div>
+        </PanelCard>
       ))}
     </div>
   );
 }
+
+function ResumoCards({ entradasLabel, custosLabel, resultadoLabel, entradas, custos, resultado }: { entradasLabel: string; custosLabel: string; resultadoLabel: string; entradas: number; custos: number; resultado: number }) {
+  return (
+    <StatGrid cols={3}>
+      <StatCard title={entradasLabel} value={`R$ ${fmt(entradas)}`} icon={TrendingUp} color="success" />
+      <StatCard title={custosLabel} value={`R$ ${fmt(custos)}`} icon={TrendingDown} color="danger" />
+      <StatCard className="col-span-2 sm:col-span-1" title={resultadoLabel} value={`R$ ${fmt(resultado)}`} icon={Wallet} color={resultado >= 0 ? "info" : "danger"} />
+    </StatGrid>
+  );
+}
+
+const VIEW_TABS = [
+  { id: "day", label: "Dia", icon: Calendar, dataTour: "relatorio-day-view-btn" },
+  { id: "month", label: "Mês", icon: Calendar, dataTour: "relatorio-month-view-btn" },
+  { id: "year", label: "Resumo Anual", icon: LayoutGrid, dataTour: "relatorio-year-view-btn" },
+] as const;
+type ViewId = typeof VIEW_TABS[number]["id"];
 
 // ── component ───────────────────────────────────────────────────────────────
 export default function RelatorioFinanceiro() {
@@ -432,7 +439,7 @@ export default function RelatorioFinanceiro() {
   const [year, setYear] = useState(new Date().getFullYear());
   const [month, setMonth] = useState(new Date().getMonth());
   const [day, setDay] = useState(new Date().getDate());
-  const [view, setView] = useState<"day" | "month" | "year">("month");
+  const [view, setView] = useState<ViewId>("month");
   const [origemFiltro, setOrigemFiltro] = useState<OrigemFiltro>("todas");
   const [report, setReport] = useState<YearlyReport | null>(null);
   const [loading, setLoading] = useState(true);
@@ -569,301 +576,226 @@ export default function RelatorioFinanceiro() {
     return () => window.removeEventListener(RELATORIO_FINANCEIRO_PAGE_TOUR_EVENTS.goToMonthView, onGoToMonthView);
   }, []);
 
+  const monthOptions = MONTHS.map((label, i) => ({ value: i, label }));
+
   return (
-    <div data-tour="relatorio-financeiro-page" className="space-y-6">
-      <PageHeader
-        title="Relatório Financeiro"
-        subtitle="Entradas, custo fixo e custo variável — mensal e anual"
-        action={
-          <div className="flex items-center gap-2 w-full sm:w-auto flex-wrap">
-            <div data-tour="relatorio-year-nav" className="flex items-center gap-1 bg-white border border-slate-200 rounded-xl px-1 h-9 shrink-0">
-              <button onClick={() => setYear(y => y - 1)} className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-slate-100 text-slate-500">
-                <ChevronLeft size={14} />
-              </button>
-              <span className="text-xs font-black text-slate-700 w-12 text-center">{year}</span>
-              <button onClick={() => setYear(y => y + 1)} className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-slate-100 text-slate-500">
-                <ChevronRight size={14} />
-              </button>
-            </div>
-            <div className="relative flex-1 sm:flex-none min-w-0">
-              <button
-                data-tour="relatorio-export-btn"
-                onClick={() => setShowExport(v => !v)}
-                disabled={!report}
-                className="h-9 px-3 rounded-xl flex items-center justify-center gap-1.5 text-[10px] font-black uppercase tracking-widest border border-slate-200 bg-white text-slate-500 hover:border-slate-400 transition-all disabled:opacity-40 w-full sm:w-auto"
-              >
-                <Download size={12} /> Exportar <ChevronDown size={10} className={cn("transition-transform", showExport && "rotate-180")} />
-              </button>
-              {showExport && report && (
-                <div className="absolute right-0 top-10 w-64 max-w-[calc(100vw-2rem)] bg-white border border-slate-200 rounded-xl shadow-xl z-50 overflow-hidden">
-                  <div className="px-4 py-2.5 bg-slate-50 border-b border-slate-100">
-                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Escopo do arquivo</p>
-                    <p className="text-[10px] font-bold text-slate-600 mt-0.5">{exportScopeLabel}</p>
+    <PageWrapper data-tour="relatorio-financeiro-page">
+      <div className="space-y-4">
+        <SectionTitle
+          icon={FileText}
+          title="Relatório Financeiro"
+          description="Entradas, custo fixo e custo variável — mensal e anual"
+          action={
+            <>
+              <div data-tour="relatorio-year-nav" className="flex h-8 shrink-0 items-center gap-1 rounded-md border border-slate-200 bg-white px-1">
+                <button type="button" aria-label="Ano anterior" onClick={() => setYear(y => y - 1)} className="flex h-6 w-6 items-center justify-center rounded-md text-slate-500 hover:bg-slate-100">
+                  <ChevronLeft size={14} />
+                </button>
+                <span className="w-12 text-center text-xs font-medium text-slate-700">{year}</span>
+                <button type="button" aria-label="Próximo ano" onClick={() => setYear(y => y + 1)} className="flex h-6 w-6 items-center justify-center rounded-md text-slate-500 hover:bg-slate-100">
+                  <ChevronRight size={14} />
+                </button>
+              </div>
+              <div className="relative min-w-0 flex-1 sm:flex-none">
+                <Button
+                  data-tour="relatorio-export-btn"
+                  variant="outline"
+                  size="sm"
+                  fullWidth
+                  onClick={() => setShowExport(v => !v)}
+                  disabled={!report}
+                  iconLeft={<Download size={14} />}
+                  iconRight={<ChevronDown size={12} className={cn("transition-transform", showExport && "rotate-180")} />}
+                >
+                  Exportar
+                </Button>
+                {showExport && report && (
+                  <div className="absolute right-0 top-9 z-50 w-64 max-w-[calc(100vw-2rem)] overflow-hidden rounded-lg border border-slate-200 bg-white shadow-lg">
+                    <div className="border-b border-slate-100 bg-zinc-50 px-3 py-2">
+                      <p className="text-[11px] text-slate-500">Escopo do arquivo</p>
+                      <p className="mt-0.5 text-xs font-medium text-slate-700">{exportScopeLabel}</p>
+                    </div>
+                    <button
+                      onClick={() => { exportToExcel(report, tenant, buildExportScope(), origemFiltro); setShowExport(false); }}
+                      className="flex w-full items-center gap-3 px-3 py-2.5 text-xs font-medium text-slate-700 transition-colors hover:bg-slate-50"
+                    >
+                      <FileSpreadsheet size={14} className="shrink-0 text-emerald-600" /> Excel (.xlsx)
+                    </button>
+                    <div className="mx-3 h-px bg-slate-100" />
+                    <button
+                      onClick={() => { exportToPDF(report, tenant, buildExportScope(), origemFiltro); setShowExport(false); }}
+                      className="flex w-full items-center gap-3 px-3 py-2.5 text-xs font-medium text-slate-700 transition-colors hover:bg-slate-50"
+                    >
+                      <FileText size={14} className="shrink-0 text-rose-600" /> PDF / Imprimir
+                    </button>
                   </div>
-                  <button
-                    onClick={() => { exportToExcel(report, tenant, buildExportScope(), origemFiltro); setShowExport(false); }}
-                    className="w-full flex items-center gap-3 px-4 py-3 text-[10px] font-bold uppercase tracking-widest text-slate-700 hover:bg-slate-50 transition-colors"
-                  >
-                    <FileSpreadsheet size={14} className="text-emerald-600 shrink-0" /> Excel (.xlsx)
-                  </button>
-                  <div className="h-px bg-slate-100 mx-3" />
-                  <button
-                    onClick={() => { exportToPDF(report, tenant, buildExportScope(), origemFiltro); setShowExport(false); }}
-                    className="w-full flex items-center gap-3 px-4 py-3 text-[10px] font-bold uppercase tracking-widest text-slate-700 hover:bg-slate-50 transition-colors"
-                  >
-                    <FileText size={14} className="text-rose-600 shrink-0" /> PDF / Imprimir
-                  </button>
-                </div>
-              )}
-            </div>
-            <Button
-              variant="secondary"
-              className="text-slate-400 hover:text-blue-600 hover:bg-blue-50 border-slate-200 hover:border-blue-300"
-              icon={<HelpCircle size={14} />}
-              onClick={() => tourRef.current?.start()}
-              title="Tour guiado desta página"
-            >
-              <span className="sr-only sm:not-sr-only">Ajuda</span>
-            </Button>
-          </div>
-        }
-      />
+                )}
+              </div>
+              <Button variant="outline" size="sm" iconLeft={<HelpCircle size={14} />} onClick={() => tourRef.current?.start()} title="Tour guiado desta página">
+                <span className="sr-only sm:not-sr-only">Ajuda</span>
+              </Button>
+            </>
+          }
+        />
 
-      <RelatorioFinanceiroPageTour ref={tourRef} />
+        <RelatorioFinanceiroPageTour ref={tourRef} />
 
-      {/* view toggle + filtro de origem (Tudo/Catálogo/Serviço) */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2.5">
-        <div data-tour="relatorio-view-toggle" className="flex gap-1.5 flex-wrap">
-          <button onClick={() => setView("day")}
-            className={cn("h-9 px-4 rounded-xl text-[10px] font-black uppercase tracking-widest border flex items-center gap-1.5 transition-all shrink-0",
-              view === "day" ? "bg-slate-900 text-white border-slate-900" : "bg-white text-slate-400 border-slate-200")}>
-            <Calendar size={12} /> Dia
-          </button>
-          <button data-tour="relatorio-month-view-btn" onClick={() => setView("month")}
-            className={cn("h-9 px-4 rounded-xl text-[10px] font-black uppercase tracking-widest border flex items-center gap-1.5 transition-all shrink-0",
-              view === "month" ? "bg-slate-900 text-white border-slate-900" : "bg-white text-slate-400 border-slate-200")}>
-            <Calendar size={12} /> Mês
-          </button>
-          <button onClick={() => setView("year")}
-            className={cn("h-9 px-4 rounded-xl text-[10px] font-black uppercase tracking-widest border flex items-center gap-1.5 transition-all shrink-0",
-              view === "year" ? "bg-slate-900 text-white border-slate-900" : "bg-white text-slate-400 border-slate-200")}>
-            <LayoutGrid size={12} /> Resumo Anual
-          </button>
+        {/* filtro de origem (Tudo/Catálogo/Serviço) — filtro real, não troca de seção */}
+        <div data-tour="relatorio-origem-filtro">
+          <FilterLine>
+            <FilterLineSection>
+              <FilterLineSegmented value={origemFiltro as string} onChange={(v) => setOrigemFiltro(v as OrigemFiltro)}
+                options={ORIGEM_FILTROS.map(({ key, label, icon: Icon }) => ({ value: key, label, icon: <Icon size={13} /> }))} />
+            </FilterLineSection>
+          </FilterLine>
         </div>
 
-        <div data-tour="relatorio-origem-filtro" className="flex gap-1 bg-slate-100 rounded-xl p-1 w-full sm:w-auto overflow-x-auto">
-          {ORIGEM_FILTROS.map(({ key, label, icon: Icon }) => (
-            <button key={key} onClick={() => setOrigemFiltro(key)}
-              className={cn("h-8 px-3 rounded-lg text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-1.5 transition-all flex-1 sm:flex-none whitespace-nowrap",
-                origemFiltro === key ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700")}>
-              <Icon size={12} /> {label}
-            </button>
-          ))}
+        <div data-tour="relatorio-view-toggle">
+          <Tabs<ViewId> items={VIEW_TABS} value={view} onChange={setView} label="Visão do relatório financeiro">
+            {loading || !report ? (
+              <div role="status" className="flex items-center justify-center gap-2 py-12 text-sm text-slate-500">
+                <Loader2 size={18} className="animate-spin" />Carregando relatório…
+              </div>
+            ) : view === "month" ? (
+              <div className="space-y-3">
+                <Select aria-label="Mês" size="sm" wrapperClassName="w-40" value={month} onChange={(e) => setMonth(Number(e.target.value))} options={monthOptions} />
+
+                <div data-tour="relatorio-summary-cards">
+                  <ResumoCards entradasLabel="Entradas" custosLabel="Custos (Fixo + Variável)" resultadoLabel="Resultado do Mês"
+                    entradas={mEntradas!.total} custos={m!.custoFixo.total + m!.custoVariavel.total} resultado={resultado} />
+                </div>
+
+                <div data-tour="relatorio-entradas-table">
+                  <EntradasTable data={mEntradas!} />
+                </div>
+                <div data-tour="relatorio-custo-cards">
+                  <CustoCards custoVariavel={m!.custoVariavel} custoFixo={m!.custoFixo} />
+                </div>
+              </div>
+            ) : view === "day" ? (
+              <div className="space-y-3">
+                <div className="flex flex-wrap items-center gap-2">
+                  <Select aria-label="Mês" size="sm" wrapperClassName="w-40" value={month} onChange={(e) => { setMonth(Number(e.target.value)); setDay(1); }} options={monthOptions} />
+                  <div className="flex h-8 items-center gap-1 rounded-md border border-slate-200 bg-white px-1">
+                    <button type="button" aria-label="Dia anterior" onClick={() => setDay(d => Math.max(1, d - 1))} className="flex h-6 w-6 items-center justify-center rounded-md text-slate-500 hover:bg-slate-100">
+                      <ChevronLeft size={14} />
+                    </button>
+                    <span className="w-8 text-center text-xs font-medium text-slate-700">{day}</span>
+                    <button type="button" aria-label="Próximo dia" onClick={() => setDay(d => Math.min(daysInMonth, d + 1))} className="flex h-6 w-6 items-center justify-center rounded-md text-slate-500 hover:bg-slate-100">
+                      <ChevronRight size={14} />
+                    </button>
+                  </div>
+                  <span className="text-[11px] text-slate-500">{fmtDateBR(dayKey)}</span>
+                </div>
+
+                <ResumoCards entradasLabel="Entradas" custosLabel="Custos (Fixo + Variável)" resultadoLabel="Resultado do Dia"
+                  entradas={dEntradas.total} custos={dCustoFixoTotal + dCustoVariavelTotal} resultado={dResultado} />
+
+                <EntradasTable data={dEntradas} onPrint={printDayReport} />
+                <CustoCards custoVariavel={{ total: dCustoVariavelTotal, items: dCustoVariavel }} custoFixo={{ total: dCustoFixoTotal, items: dCustoFixo }} />
+              </div>
+            ) : (
+              /* ── resumo anual ── */
+              <div className="space-y-3">
+                {yearTotals && (
+                  <ResumoCards entradasLabel="Entradas do Ano" custosLabel="Custos do Ano (Fixo + Variável)" resultadoLabel="Resultado do Ano"
+                    entradas={yearTotals.entradas} custos={yearTotals.fixo + yearTotals.variavel} resultado={yearTotals.entradas - yearTotals.fixo - yearTotals.variavel} />
+                )}
+
+                {/* Mobile: cards por mês (a tabela de 14 colunas não cabe em telas pequenas) */}
+                <div className="grid grid-cols-1 gap-2 sm:hidden">
+                  {report.months.map((mo, i) => {
+                    const entradas = pickBucket(mo.entradas, mo.entradasByOrigem, origemFiltro);
+                    const custos = mo.custoFixo.total + mo.custoVariavel.total;
+                    const resultadoMes = entradas.total - custos;
+                    const isCurrent = i === month;
+                    return (
+                      <button
+                        key={i}
+                        onClick={() => { setMonth(i); setView("month"); }}
+                        className={cn(
+                          "rounded-lg border bg-white p-3 text-left transition-all",
+                          isCurrent ? "border-blue-400 ring-1 ring-blue-400" : "border-slate-200"
+                        )}
+                      >
+                        <div className="mb-2 flex items-center justify-between">
+                          <span className="text-xs font-medium text-slate-800">{MONTHS[i]}</span>
+                          <span className={cn("text-xs font-semibold tabular-nums", resultadoMes >= 0 ? "text-emerald-600" : "text-rose-600")}>
+                            R$ {fmt(resultadoMes)}
+                          </span>
+                        </div>
+                        <div className="grid grid-cols-2 gap-2 text-[11px]">
+                          <div>
+                            <p className="mb-0.5 text-[11px] text-slate-500">Entradas</p>
+                            <p className="font-semibold tabular-nums text-emerald-600">R$ {fmt(entradas.total)}</p>
+                          </div>
+                          <div>
+                            <p className="mb-0.5 text-[11px] text-slate-500">Custos</p>
+                            <p className="font-semibold tabular-nums text-rose-600">R$ {fmt(custos)}</p>
+                          </div>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {/* Desktop/tablet largo: tabela completa */}
+                <div className="hidden sm:block">
+                  <PanelCard
+                    title={`Controle Mensal — ${year}`}
+                    contentClassName="p-0"
+                    action={yearTotals ? (
+                      <span className="text-[11px] text-slate-500">
+                        Total ano: <span className="text-emerald-600">R$ {fmt(yearTotals.entradas)}</span> entradas · <span className="text-rose-600">R$ {fmt(yearTotals.fixo + yearTotals.variavel)}</span> custos
+                      </span>
+                    ) : undefined}
+                  >
+                    <div className="overflow-x-auto">
+                      <table className="w-full min-w-[1320px] border-collapse text-left">
+                        <thead>
+                          <tr className="border-b border-slate-100 bg-zinc-50">
+                            <th className={cn(thClass, "sticky left-0 bg-zinc-50")}>&nbsp;</th>
+                            {MONTHS_SHORT.map(lbl => <th key={lbl} className={cn(thClass, "text-right")}>{lbl}</th>)}
+                            <th className={cn(thClass, "text-right text-slate-700")}>Total Ano</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {([
+                            ["Dinheiro", (mo: MonthReport) => pickBucket(mo.entradas, mo.entradasByOrigem, origemFiltro).totalByMethod.money, ""],
+                            ["PIX", (mo: MonthReport) => pickBucket(mo.entradas, mo.entradasByOrigem, origemFiltro).totalByMethod.pix, ""],
+                            ["Débito", (mo: MonthReport) => pickBucket(mo.entradas, mo.entradasByOrigem, origemFiltro).totalByMethod.debit, ""],
+                            ["Crédito", (mo: MonthReport) => pickBucket(mo.entradas, mo.entradasByOrigem, origemFiltro).totalByMethod.credit, ""],
+                            ["Total Entradas", (mo: MonthReport) => pickBucket(mo.entradas, mo.entradasByOrigem, origemFiltro).total, "bg-emerald-50/60 text-emerald-700 font-semibold"],
+                            ["Custo Fixo", (mo: MonthReport) => mo.custoFixo.total, "text-violet-700"],
+                            ["Custo Variável", (mo: MonthReport) => mo.custoVariavel.total, "text-amber-700"],
+                            ["Resultado", (mo: MonthReport) => pickBucket(mo.entradas, mo.entradasByOrigem, origemFiltro).total - mo.custoFixo.total - mo.custoVariavel.total, "bg-slate-50 font-semibold"],
+                          ] as const).map(([label, getter, rowClass]) => {
+                            const values = report.months.map(getter);
+                            const total = values.reduce((a, b) => a + b, 0);
+                            return (
+                              <tr key={label} className={cn("border-b border-slate-50", rowClass)}>
+                                <td className="sticky left-0 whitespace-nowrap bg-white px-3 py-2 text-xs font-medium">{label}</td>
+                                {values.map((v, i) => (
+                                  <td key={i} className={cn("whitespace-nowrap px-3 py-2 text-right text-xs tabular-nums", label === "Resultado" && (v >= 0 ? "text-emerald-700" : "text-rose-700"))}>
+                                    R$ {fmt(v)}
+                                  </td>
+                                ))}
+                                <td className={cn("whitespace-nowrap px-3 py-2 text-right text-xs font-semibold tabular-nums", label === "Resultado" && (total >= 0 ? "text-emerald-700" : "text-rose-700"))}>
+                                  R$ {fmt(total)}
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  </PanelCard>
+                </div>
+              </div>
+            )}
+          </Tabs>
         </div>
       </div>
-
-      {loading || !report ? (
-        <div className="flex items-center justify-center py-24">
-          <Loader2 size={24} className="animate-spin text-slate-300" />
-        </div>
-      ) : view === "month" ? (
-        <>
-          {/* month picker */}
-          <div className="flex gap-1.5 overflow-x-auto pb-1">
-            {MONTHS.map((label, i) => (
-              <button key={label} onClick={() => setMonth(i)}
-                className={cn("h-8 px-3 rounded-lg text-[10px] font-bold uppercase whitespace-nowrap transition-all shrink-0",
-                  month === i ? "bg-blue-600 text-white" : "bg-white border border-slate-200 text-slate-500 hover:border-blue-300")}>
-                {label}
-              </button>
-            ))}
-          </div>
-
-          {/* summary cards */}
-          <div data-tour="relatorio-summary-cards" className="grid grid-cols-1 xs:grid-cols-2 sm:grid-cols-3 gap-3">
-            <div className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200 shadow-sm relative overflow-hidden min-w-0">
-              <div className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2">Entradas</div>
-              <div className="text-xl sm:text-2xl font-mono font-black text-emerald-600 truncate pr-10">R$ {fmt(mEntradas!.total)}</div>
-              <div className="absolute right-4 top-4 w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-emerald-50 flex items-center justify-center text-emerald-500"><TrendingUp size={18} /></div>
-            </div>
-            <div className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200 shadow-sm relative overflow-hidden min-w-0">
-              <div className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2">Custos (Fixo + Variável)</div>
-              <div className="text-xl sm:text-2xl font-mono font-black text-rose-600 truncate pr-10">R$ {fmt(m!.custoFixo.total + m!.custoVariavel.total)}</div>
-              <div className="absolute right-4 top-4 w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-rose-50 flex items-center justify-center text-rose-500"><TrendingDown size={18} /></div>
-            </div>
-            <div className={cn("p-4 sm:p-5 rounded-2xl shadow-xl relative overflow-hidden min-w-0 xs:col-span-2 sm:col-span-1", resultado >= 0 ? "bg-slate-900" : "bg-rose-950")}>
-              <div className="text-[9px] font-black text-slate-500 uppercase tracking-[0.2em] mb-2">Resultado do Mês</div>
-              <div className={cn("text-xl sm:text-2xl font-mono font-black truncate pr-10", resultado >= 0 ? "text-emerald-400" : "text-rose-400")}>R$ {fmt(resultado)}</div>
-              <div className="absolute right-4 top-4 w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-white/5 flex items-center justify-center text-white/70"><Wallet size={18} /></div>
-            </div>
-          </div>
-
-          <div data-tour="relatorio-entradas-table">
-            <EntradasTable data={mEntradas!} />
-          </div>
-          <div data-tour="relatorio-custo-cards">
-            <CustoCards custoVariavel={m!.custoVariavel} custoFixo={m!.custoFixo} />
-          </div>
-        </>
-      ) : view === "day" ? (
-        <>
-          {/* day picker */}
-          <div className="flex items-center gap-2 flex-wrap">
-            <select value={month} onChange={(e) => { setMonth(Number(e.target.value)); setDay(1); }}
-              className="h-9 px-3 bg-white border border-slate-200 rounded-xl text-[11px] font-bold outline-none focus:border-blue-400">
-              {MONTHS.map((label, i) => <option key={label} value={i}>{label}</option>)}
-            </select>
-            <div className="flex items-center gap-1 bg-white border border-slate-200 rounded-xl px-1 h-9">
-              <button onClick={() => setDay(d => Math.max(1, d - 1))} className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-slate-100 text-slate-500">
-                <ChevronLeft size={14} />
-              </button>
-              <span className="text-xs font-black text-slate-700 w-8 text-center">{day}</span>
-              <button onClick={() => setDay(d => Math.min(daysInMonth, d + 1))} className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-slate-100 text-slate-500">
-                <ChevronRight size={14} />
-              </button>
-            </div>
-            <span className="text-[11px] font-bold text-slate-400">{fmtDateBR(dayKey)}</span>
-          </div>
-
-          {/* summary cards */}
-          <div className="grid grid-cols-1 xs:grid-cols-2 sm:grid-cols-3 gap-3">
-            <div className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200 shadow-sm relative overflow-hidden min-w-0">
-              <div className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2">Entradas</div>
-              <div className="text-xl sm:text-2xl font-mono font-black text-emerald-600 truncate pr-10">R$ {fmt(dEntradas.total)}</div>
-              <div className="absolute right-4 top-4 w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-emerald-50 flex items-center justify-center text-emerald-500"><TrendingUp size={18} /></div>
-            </div>
-            <div className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200 shadow-sm relative overflow-hidden min-w-0">
-              <div className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2">Custos (Fixo + Variável)</div>
-              <div className="text-xl sm:text-2xl font-mono font-black text-rose-600 truncate pr-10">R$ {fmt(dCustoFixoTotal + dCustoVariavelTotal)}</div>
-              <div className="absolute right-4 top-4 w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-rose-50 flex items-center justify-center text-rose-500"><TrendingDown size={18} /></div>
-            </div>
-            <div className={cn("p-4 sm:p-5 rounded-2xl shadow-xl relative overflow-hidden min-w-0 xs:col-span-2 sm:col-span-1", dResultado >= 0 ? "bg-slate-900" : "bg-rose-950")}>
-              <div className="text-[9px] font-black text-slate-500 uppercase tracking-[0.2em] mb-2">Resultado do Dia</div>
-              <div className={cn("text-xl sm:text-2xl font-mono font-black truncate pr-10", dResultado >= 0 ? "text-emerald-400" : "text-rose-400")}>R$ {fmt(dResultado)}</div>
-              <div className="absolute right-4 top-4 w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-white/5 flex items-center justify-center text-white/70"><Wallet size={18} /></div>
-            </div>
-          </div>
-
-          <EntradasTable data={dEntradas} onPrint={printDayReport} />
-          <CustoCards custoVariavel={{ total: dCustoVariavelTotal, items: dCustoVariavel }} custoFixo={{ total: dCustoFixoTotal, items: dCustoFixo }} />
-        </>
-      ) : (
-        /* ── resumo anual ── */
-        <>
-          {/* summary cards — mesmo padrão das visões Dia/Mês */}
-          {yearTotals && (
-            <div className="grid grid-cols-1 xs:grid-cols-2 sm:grid-cols-3 gap-3">
-              <div className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200 shadow-sm relative overflow-hidden min-w-0">
-                <div className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2">Entradas do Ano</div>
-                <div className="text-xl sm:text-2xl font-mono font-black text-emerald-600 truncate pr-10">R$ {fmt(yearTotals.entradas)}</div>
-                <div className="absolute right-4 top-4 w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-emerald-50 flex items-center justify-center text-emerald-500"><TrendingUp size={18} /></div>
-              </div>
-              <div className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200 shadow-sm relative overflow-hidden min-w-0">
-                <div className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2">Custos do Ano (Fixo + Variável)</div>
-                <div className="text-xl sm:text-2xl font-mono font-black text-rose-600 truncate pr-10">R$ {fmt(yearTotals.fixo + yearTotals.variavel)}</div>
-                <div className="absolute right-4 top-4 w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-rose-50 flex items-center justify-center text-rose-500"><TrendingDown size={18} /></div>
-              </div>
-              <div className={cn("p-4 sm:p-5 rounded-2xl shadow-xl relative overflow-hidden min-w-0 xs:col-span-2 sm:col-span-1", (yearTotals.entradas - yearTotals.fixo - yearTotals.variavel) >= 0 ? "bg-slate-900" : "bg-rose-950")}>
-                <div className="text-[9px] font-black text-slate-500 uppercase tracking-[0.2em] mb-2">Resultado do Ano</div>
-                <div className={cn("text-xl sm:text-2xl font-mono font-black truncate pr-10", (yearTotals.entradas - yearTotals.fixo - yearTotals.variavel) >= 0 ? "text-emerald-400" : "text-rose-400")}>
-                  R$ {fmt(yearTotals.entradas - yearTotals.fixo - yearTotals.variavel)}
-                </div>
-                <div className="absolute right-4 top-4 w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-white/5 flex items-center justify-center text-white/70"><Wallet size={18} /></div>
-              </div>
-            </div>
-          )}
-
-          {/* Mobile/tablet: cards por mês (a tabela de 14 colunas não cabe em telas pequenas) */}
-          <div className="grid grid-cols-1 sm:hidden gap-3">
-            {report.months.map((mo, i) => {
-              const entradas = pickBucket(mo.entradas, mo.entradasByOrigem, origemFiltro);
-              const custos = mo.custoFixo.total + mo.custoVariavel.total;
-              const resultado = entradas.total - custos;
-              const isCurrent = i === month;
-              return (
-                <button
-                  key={i}
-                  onClick={() => { setMonth(i); setView("month"); }}
-                  className={cn(
-                    "bg-white rounded-2xl border shadow-sm p-4 text-left transition-all",
-                    isCurrent ? "border-slate-900 ring-1 ring-slate-900" : "border-slate-200"
-                  )}
-                >
-                  <div className="flex items-center justify-between mb-3">
-                    <span className="text-xs font-black text-slate-800 uppercase tracking-wide">{MONTHS[i]}</span>
-                    <span className={cn("text-xs font-mono font-black", resultado >= 0 ? "text-emerald-600" : "text-rose-600")}>
-                      R$ {fmt(resultado)}
-                    </span>
-                  </div>
-                  <div className="grid grid-cols-2 gap-2 text-[11px]">
-                    <div>
-                      <p className="text-slate-400 font-bold uppercase tracking-wider text-[9px] mb-0.5">Entradas</p>
-                      <p className="font-mono font-bold text-emerald-600">R$ {fmt(entradas.total)}</p>
-                    </div>
-                    <div>
-                      <p className="text-slate-400 font-bold uppercase tracking-wider text-[9px] mb-0.5">Custos</p>
-                      <p className="font-mono font-bold text-rose-600">R$ {fmt(custos)}</p>
-                    </div>
-                  </div>
-                </button>
-              );
-            })}
-          </div>
-
-          {/* Desktop/tablet largo: tabela completa */}
-          <div className="hidden sm:block bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-            <div className="px-5 py-3 border-b border-slate-100 flex items-center justify-between flex-wrap gap-2">
-              <h3 className="text-[11px] font-black text-slate-700 uppercase tracking-widest">Controle Mensal — {year}</h3>
-              {yearTotals && (
-                <span className="text-[10px] font-bold text-slate-400 uppercase">
-                  Total ano: <span className="text-emerald-600">R$ {fmt(yearTotals.entradas)}</span> entradas · <span className="text-rose-600">R$ {fmt(yearTotals.fixo + yearTotals.variavel)}</span> custos
-                </span>
-              )}
-            </div>
-            <div className="overflow-x-auto">
-              <div className="min-w-[1320px]">
-                <table className="w-full text-left border-collapse">
-                  <thead>
-                    <tr className="bg-slate-50/80 border-b border-slate-100">
-                      <th className="px-4 py-2.5 text-[9px] font-black text-slate-400 uppercase tracking-widest sticky left-0 bg-slate-50 whitespace-nowrap">&nbsp;</th>
-                      {MONTHS_SHORT.map(lbl => <th key={lbl} className="px-4 py-2.5 text-[9px] font-black text-slate-400 uppercase tracking-widest text-right whitespace-nowrap">{lbl}</th>)}
-                      <th className="px-4 py-2.5 text-[9px] font-black text-slate-600 uppercase tracking-widest text-right whitespace-nowrap">Total Ano</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {([
-                      ["Dinheiro", (mo: MonthReport) => pickBucket(mo.entradas, mo.entradasByOrigem, origemFiltro).totalByMethod.money, ""],
-                      ["PIX", (mo: MonthReport) => pickBucket(mo.entradas, mo.entradasByOrigem, origemFiltro).totalByMethod.pix, ""],
-                      ["Débito", (mo: MonthReport) => pickBucket(mo.entradas, mo.entradasByOrigem, origemFiltro).totalByMethod.debit, ""],
-                      ["Crédito", (mo: MonthReport) => pickBucket(mo.entradas, mo.entradasByOrigem, origemFiltro).totalByMethod.credit, ""],
-                      ["Total Entradas", (mo: MonthReport) => pickBucket(mo.entradas, mo.entradasByOrigem, origemFiltro).total, "bg-emerald-50/60 text-emerald-700 font-black"],
-                      ["Custo Fixo", (mo: MonthReport) => mo.custoFixo.total, "text-violet-700"],
-                      ["Custo Variável", (mo: MonthReport) => mo.custoVariavel.total, "text-amber-700"],
-                      ["Resultado", (mo: MonthReport) => pickBucket(mo.entradas, mo.entradasByOrigem, origemFiltro).total - mo.custoFixo.total - mo.custoVariavel.total, "bg-slate-50 font-black"],
-                    ] as const).map(([label, getter, rowClass]) => {
-                      const values = report.months.map(getter);
-                      const total = values.reduce((a, b) => a + b, 0);
-                      return (
-                        <tr key={label} className={cn("border-b border-slate-50", rowClass)}>
-                          <td className="px-4 py-2.5 text-xs font-bold sticky left-0 bg-white whitespace-nowrap">{label}</td>
-                          {values.map((v, i) => (
-                            <td key={i} className={cn("px-4 py-2.5 text-xs font-mono text-right whitespace-nowrap", label === "Resultado" && (v >= 0 ? "text-emerald-700" : "text-rose-700"))}>
-                              R$ {fmt(v)}
-                            </td>
-                          ))}
-                          <td className={cn("px-4 py-2.5 text-xs font-mono font-black text-right whitespace-nowrap", label === "Resultado" && (total >= 0 ? "text-emerald-700" : "text-rose-700"))}>
-                            R$ {fmt(total)}
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </div>
-        </>
-      )}
-    </div>
+    </PageWrapper>
   );
 }

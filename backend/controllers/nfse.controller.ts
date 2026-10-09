@@ -8,7 +8,8 @@ import { cancelarNfse } from "../services/nfse/cancelar";
 import type { MotivoCancelamentoNfse } from "../services/nfse/eventoXmlBuilder";
 import { emitToTenant } from "../services/realtime.service";
 import { sendWhatsappDocument } from "../services/whatsapp.service";
-import { sendStoreEmail } from "../services/store-email.service";
+import { loadEmailSignature, sendTenantEmail } from "../services/store-email.service";
+import { buildNfseEmail } from "../utils/document-email-text";
 
 function getTenantId(req: Request) {
   return (req as AuthenticatedRequest).user.tenantId;
@@ -512,20 +513,25 @@ export async function sendNfseEmail(req: Request, res: Response) {
       : null;
     const recipient = requestedEmail || customer?.nfe_email?.trim() || customer?.email?.trim() || "";
     if (!/^\S+@\S+\.\S+$/.test(recipient)) {
-      res.status(422).json({ error: "Informe um e-mail válido — esta OS não tem e-mail fiscal de cliente cadastrado." });
+      res.status(422).json({ code: "recipient_required", error: "Informe um e-mail válido — esta OS não tem e-mail fiscal de cliente cadastrado." });
       return;
     }
 
-    const tenant = await prisma.tenant.findUnique({ where: { id: tenantId }, select: { name: true } });
-    const storeName = tenant?.name || "Sua loja";
-    const customerName = serviceOrder?.customer_name?.trim() || "cliente";
+    const { signature, replyTo } = await loadEmailSignature(tenantId, (req as AuthenticatedRequest).user.userId);
     const pdfBuffer = fs.readFileSync(invoice.nfse_pdf_path);
-    const invoiceLabel = `NFS-e nº ${invoice.numero} — série ${invoice.serie}`;
+    const email = buildNfseEmail({
+      customerName: serviceOrder?.customer_name,
+      numero: invoice.numero,
+      serie: invoice.serie,
+      value: invoice.valor_servico,
+      signature,
+    });
 
-    await sendStoreEmail(tenantId, {
+    await sendTenantEmail(tenantId, {
       to: recipient,
-      subject: `${invoiceLabel} · ${storeName}`,
-      text: `Olá, ${customerName}.\n\nA ${storeName} enviou a sua ${invoiceLabel}.\nO PDF da nota fiscal está anexado a esta mensagem.\n\nAtenciosamente,\n${storeName}`,
+      subject: email.subject,
+      text: email.text,
+      replyTo,
       attachments: [{
         filename: `nfse-${invoice.chave_acesso ?? serviceOrderId}.pdf`,
         content: pdfBuffer,

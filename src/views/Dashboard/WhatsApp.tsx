@@ -27,6 +27,8 @@ import {
 } from "lucide-react";
 
 import PageHeader from "../../components/layout/PageHeader";
+import { Button, IconButton, Input, Textarea, Select, Switch, Tabs, Badge, Modal, ModalFooter, PanelCard, StatGrid, StatCard, FilterLineSegmented } from "../../components/ui";
+import Drawer from "../../components/ui/Drawer";
 import { useToast } from "../../components/ui/Toast";
 import { getStoredUser } from "../../lib/session";
 import { cn } from "../../lib/utils";
@@ -198,6 +200,16 @@ interface AgentFormState {
   notes: string;
 }
 
+type WaTab = "conexao" | "config" | "menus" | "equipe" | "conversas";
+
+const WA_TABS = [
+  { id: "conexao", label: "Conexão", icon: QrCode },
+  { id: "config", label: "Configurações", icon: Settings2 },
+  { id: "menus", label: "Menus e mensagens", icon: MessageSquare },
+  { id: "equipe", label: "Equipe", icon: Users },
+  { id: "conversas", label: "Fila e conversas", icon: CircleDashed },
+] as const;
+
 const DEPARTMENTS = [
   { value: "sales", label: "Vendas" },
   { value: "support", label: "Atendimento" },
@@ -240,52 +252,8 @@ function fmtDate(value?: string | null) {
   return new Date(value).toLocaleString("pt-BR");
 }
 
-function SectionCard({
-  title,
-  subtitle,
-  icon,
-  children,
-  action,
-}: {
-  title: string;
-  subtitle?: string;
-  icon?: ReactNode;
-  action?: ReactNode;
-  children: ReactNode;
-}) {
-  return (
-    <section className="bg-white border border-slate-200 rounded-3xl shadow-sm overflow-hidden">
-      <div className="px-5 py-4 border-b border-slate-100 flex items-start justify-between gap-4">
-        <div className="flex items-start gap-3 min-w-0">
-          {icon && (
-            <div className="w-10 h-10 rounded-2xl bg-slate-100 text-slate-600 flex items-center justify-center shrink-0">
-              {icon}
-            </div>
-          )}
-          <div className="min-w-0">
-            <h3 className="text-sm font-black uppercase tracking-widest text-slate-900 truncate">
-              {title}
-            </h3>
-            {subtitle && (
-              <p className="text-[10px] text-slate-400 font-semibold uppercase tracking-wider mt-1">
-                {subtitle}
-              </p>
-            )}
-          </div>
-        </div>
-        {action && <div className="shrink-0">{action}</div>}
-      </div>
-      <div className="p-5">{children}</div>
-    </section>
-  );
-}
-
 function Label({ children }: { children: React.ReactNode }) {
-  return (
-    <label className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500 block mb-1.5">
-      {children}
-    </label>
-  );
+  return <label className="ds-label mb-1 block">{children}</label>;
 }
 
 function Toggle({
@@ -300,29 +268,13 @@ function Toggle({
   hint?: string;
 }) {
   return (
-    <button
-      type="button"
-      onClick={() => onChange(!checked)}
-      className="w-full flex items-start justify-between gap-3 rounded-2xl border border-slate-200 px-4 py-3 text-left hover:border-slate-300 transition-colors"
-    >
-      <div>
-        <p className="text-[11px] font-black uppercase tracking-wider text-slate-800">{label}</p>
-        {hint && <p className="text-[11px] text-slate-500 mt-1 leading-relaxed">{hint}</p>}
+    <div className="flex w-full items-start justify-between gap-3 rounded-lg border border-slate-200 px-3 py-2.5">
+      <div className="min-w-0">
+        <p className="text-xs font-medium text-slate-800">{label}</p>
+        {hint && <p className="mt-0.5 text-[11px] leading-relaxed text-slate-500">{hint}</p>}
       </div>
-      <div
-        className={cn(
-          "w-11 h-6 rounded-full relative transition-all shrink-0 mt-0.5",
-          checked ? "bg-emerald-500" : "bg-slate-300",
-        )}
-      >
-        <span
-          className={cn(
-            "absolute top-1 h-4 w-4 rounded-full bg-white shadow-sm transition-all",
-            checked ? "left-6" : "left-1",
-          )}
-        />
-      </div>
-    </button>
+      <Switch checked={checked} onChange={onChange} aria-label={label} className="mt-0.5" />
+    </div>
   );
 }
 
@@ -346,6 +298,7 @@ export default function WhatsApp() {
   const [testPhone, setTestPhone] = useState("");
   const [regenerateSecret, setRegenerateSecret] = useState(false);
   const [filter, setFilter] = useState<"all" | ConversationStatus>("all");
+  const [waTab, setWaTab] = useState<WaTab>("conexao");
 
   const [showAgentModal, setShowAgentModal] = useState(false);
   const [editingAgent, setEditingAgent] = useState<Agent | null>(null);
@@ -881,38 +834,39 @@ export default function WhatsApp() {
         subtitle="Bot, filas e atendimento pelo WhatsApp"
         action={
           <div className="flex flex-wrap gap-2">
-            <button
-              onClick={() => void loadOverview()}
-              className="h-10 px-4 rounded-xl border border-slate-200 bg-white text-slate-600 text-[11px] font-black uppercase tracking-wider flex items-center gap-2 hover:bg-slate-50"
-            >
-              <RefreshCw size={14} />
+            <Button variant="outline" size="sm" iconLeft={<RefreshCw size={14} />} onClick={() => void loadOverview()}>
               Atualizar
-            </button>
-            <button
-              onClick={saveWorkspace}
-              disabled={saving}
-              className="h-10 px-5 rounded-xl bg-blue-600 text-white text-[11px] font-black uppercase tracking-wider flex items-center gap-2 hover:bg-blue-700 disabled:opacity-50"
-            >
-              {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
+            </Button>
+            <Button variant="primary" size="sm" iconLeft={<Save size={14} />} loading={saving} onClick={saveWorkspace}>
               Salvar módulo
-            </button>
+            </Button>
           </div>
         }
       />
 
-      <section className="rounded-3xl border border-slate-200 shadow-sm overflow-hidden bg-white">
+      <StatGrid cols={4} className="sm:grid-cols-3 xl:grid-cols-5">
+        <StatCard title="Atendentes online" value={overview.stats.online_agents} icon={Users} color="info" />
+        <StatCard title="Conversas abertas" value={overview.stats.open_conversations} icon={MessageSquare} color="default" />
+        <StatCard title="No bot" value={overview.stats.bot_conversations} icon={Bot} color="info" />
+        <StatCard title="Na fila" value={overview.stats.queued_conversations} icon={Clock3} color="warning" />
+        <StatCard title="Com atendente" value={overview.stats.assigned_conversations} icon={ShieldCheck} color="success" />
+      </StatGrid>
+
+      <Tabs<WaTab> items={WA_TABS} value={waTab} onChange={setWaTab} label="Módulos do WhatsApp">
+      {waTab === "conexao" && (
+      <section className="rounded-lg border border-slate-200 shadow-sm overflow-hidden bg-white">
         <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between gap-4 bg-gradient-to-r from-emerald-50 to-white">
           <div className="flex items-center gap-3 min-w-0">
             <div
               className={cn(
-                "w-11 h-11 rounded-2xl flex items-center justify-center shrink-0",
+                "w-11 h-11 rounded-lg flex items-center justify-center shrink-0",
                 connectionStatus?.connected ? "bg-emerald-500 text-white" : "bg-slate-900 text-white",
               )}
             >
               {connectionStatus?.connected ? <CheckCircle2 size={20} /> : <QrCode size={20} />}
             </div>
             <div className="min-w-0">
-              <h3 className="text-sm font-black uppercase tracking-widest text-slate-900">
+              <h3 className="text-sm font-semibold text-slate-900">
                 {connectionStatus?.connected ? "WhatsApp conectado" : "Conectar WhatsApp"}
               </h3>
               <p className="text-[11px] text-slate-500 font-semibold mt-0.5">
@@ -924,30 +878,26 @@ export default function WhatsApp() {
               </p>
             </div>
           </div>
-          <button
-            onClick={() => void loadConnectionStatus()}
-            disabled={loadingConnection}
-            className="h-9 px-4 rounded-xl border border-slate-200 bg-white text-[10px] font-black uppercase tracking-widest text-slate-600 hover:bg-slate-50 flex items-center gap-2 disabled:opacity-50 shrink-0"
-          >
+          <Button variant="outline" size="sm" onClick={() => void loadConnectionStatus()} disabled={loadingConnection} className="shrink-0">
             {loadingConnection ? <Loader2 size={13} className="animate-spin" /> : <RefreshCw size={13} />}
             Atualizar
-          </button>
+          </Button>
         </div>
 
         <div className="p-6">
           {connectionError ? (
             <div className="flex flex-col items-center text-center gap-4 py-6">
-              <div className="w-14 h-14 rounded-2xl bg-slate-100 text-slate-400 flex items-center justify-center">
+              <div className="w-14 h-14 rounded-lg bg-slate-100 text-slate-400 flex items-center justify-center">
                 <Smartphone size={24} />
               </div>
               <div className="max-w-sm">
-                <p className="text-sm font-black text-slate-800">Não foi possível conectar agora</p>
+                <p className="text-sm font-semibold text-slate-800">Não foi possível conectar agora</p>
                 <p className="text-[12px] text-slate-500 mt-1.5 leading-relaxed">
                   Tente novamente em instantes clicando em <strong>Atualizar</strong>. Se o problema
                   continuar, fale com o suporte.
                 </p>
                 {isSuperAdmin && (
-                  <p className="text-[11px] text-amber-600 mt-3 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2">
+                  <p className="text-[11px] text-amber-600 mt-3 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
                     {connectionError}
                   </p>
                 )}
@@ -955,12 +905,12 @@ export default function WhatsApp() {
             </div>
           ) : connectionStatus?.connected ? (
             <div className="flex items-center gap-4 py-2">
-              <div className="w-14 h-14 rounded-2xl bg-emerald-500 text-white flex items-center justify-center shrink-0">
+              <div className="w-14 h-14 rounded-lg bg-emerald-500 text-white flex items-center justify-center shrink-0">
                 <CheckCircle2 size={26} />
               </div>
               <div>
                 {connectionStatus.phoneNumber && (
-                  <p className="text-sm font-black text-slate-800 mb-1">
+                  <p className="text-sm font-semibold text-slate-800 mb-1">
                     +{connectionStatus.phoneNumber}
                   </p>
                 )}
@@ -973,7 +923,7 @@ export default function WhatsApp() {
             </div>
           ) : connectionStatus?.qrCode ? (
             <div className="grid grid-cols-1 md:grid-cols-[auto_1fr] gap-8 items-center">
-              <div className="mx-auto md:mx-0 p-4 bg-white border-2 border-slate-100 rounded-3xl shadow-sm">
+              <div className="mx-auto md:mx-0 p-4 bg-white border-2 border-slate-100 rounded-lg shadow-sm">
                 <img
                   src={connectionStatus.qrCode}
                   alt="QR code para conectar o WhatsApp"
@@ -989,7 +939,7 @@ export default function WhatsApp() {
                     "Pronto — esta tela detecta e confirma a conexão automaticamente.",
                   ].map((step, i) => (
                     <li key={i} className="flex gap-3 items-start">
-                      <span className="w-6 h-6 rounded-full bg-slate-900 text-white text-[11px] font-black flex items-center justify-center shrink-0">
+                      <span className="w-6 h-6 rounded-full bg-slate-900 text-white text-[11px] font-semibold flex items-center justify-center shrink-0">
                         {i + 1}
                       </span>
                       <span className="text-[13px] text-slate-700 leading-snug pt-0.5">{step}</span>
@@ -997,22 +947,22 @@ export default function WhatsApp() {
                   ))}
                 </ol>
                 {connectionStatus.pairingCode && (
-                  <div className="rounded-2xl bg-slate-50 border border-slate-200 px-4 py-3">
-                    <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Ou digite o código</p>
-                    <p className="text-lg font-black font-mono text-slate-800 mt-1">{connectionStatus.pairingCode}</p>
+                  <div className="rounded-lg bg-slate-50 border border-slate-200 px-4 py-3">
+                    <p className="text-[11px] font-semibold text-slate-400">Ou digite o código</p>
+                    <p className="text-lg font-semibold font-mono text-slate-800 mt-1">{connectionStatus.pairingCode}</p>
                   </div>
                 )}
-                <p className="text-[10px] text-slate-400">
+                <p className="text-[11px] text-slate-400">
                   O código se renova sozinho aqui — não é preciso ficar clicando em Atualizar.
                 </p>
               </div>
             </div>
           ) : (
             <div className="flex flex-col items-center text-center gap-3 py-6">
-              <div className="w-14 h-14 rounded-2xl bg-slate-100 text-slate-300 flex items-center justify-center">
+              <div className="w-14 h-14 rounded-lg bg-slate-100 text-slate-300 flex items-center justify-center">
                 <Smartphone size={24} />
               </div>
-              <p className="text-sm font-black text-slate-700">
+              <p className="text-sm font-semibold text-slate-700">
                 {loadingConnection ? "Gerando QR code…" : "Nenhum QR code disponível ainda"}
               </p>
               <p className="text-[12px] text-slate-500 max-w-sm">
@@ -1022,111 +972,39 @@ export default function WhatsApp() {
           )}
         </div>
       </section>
+      )}
 
-      <div className="grid grid-cols-2 xl:grid-cols-5 gap-3">
-        {[
-          {
-            label: "Atendentes online",
-            value: overview.stats.online_agents,
-            icon: <Users size={16} />,
-            color: "text-blue-700",
-            box: "bg-blue-50 border-blue-100",
-          },
-          {
-            label: "Conversas abertas",
-            value: overview.stats.open_conversations,
-            icon: <MessageSquare size={16} />,
-            color: "text-slate-800",
-            box: "bg-white border-slate-200",
-          },
-          {
-            label: "No bot",
-            value: overview.stats.bot_conversations,
-            icon: <Bot size={16} />,
-            color: "text-cyan-700",
-            box: "bg-cyan-50 border-cyan-100",
-          },
-          {
-            label: "Na fila",
-            value: overview.stats.queued_conversations,
-            icon: <Clock3 size={16} />,
-            color: "text-amber-700",
-            box: "bg-amber-50 border-amber-100",
-          },
-          {
-            label: "Com atendente",
-            value: overview.stats.assigned_conversations,
-            icon: <ShieldCheck size={16} />,
-            color: "text-emerald-700",
-            box: "bg-emerald-50 border-emerald-100",
-          },
-        ].map((card) => (
-          <div key={card.label} className={cn("rounded-3xl border px-4 py-4 shadow-sm", card.box)}>
-            <div className={cn("mb-2", card.color)}>{card.icon}</div>
-            <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">{card.label}</p>
-            <p className={cn("text-2xl font-black mt-1", card.color)}>{card.value}</p>
-          </div>
-        ))}
-      </div>
-
+      {waTab === "config" && (
       <div className="grid grid-cols-1 2xl:grid-cols-[1.1fr_0.9fr] gap-6">
         {isSuperAdmin && (
-        <SectionCard
+        <PanelCard
           title="Instância e automação"
-          subtitle="Evolution, webhook, timeout, botões e fallback numérico"
-          icon={<Settings2 size={18} />}
+          description="Evolution, webhook, timeout, botões e fallback numérico"
+          icon={Settings2}
           action={
-            <button
-              onClick={pingProvider}
-              disabled={pinging}
-              className="h-9 px-4 rounded-xl border border-slate-200 text-[10px] font-black uppercase tracking-widest text-slate-600 hover:bg-slate-50 flex items-center gap-2 disabled:opacity-50"
-            >
+            <Button variant="outline" size="sm" onClick={pingProvider} disabled={pinging}>
               {pinging ? <Loader2 size={13} className="animate-spin" /> : <PlugZap size={13} />}
               Testar Evolution
-            </button>
+            </Button>
           }
         >
           <div className="space-y-5">
             <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
               <div>
-                <Label>URL Base do Evolution</Label>
-                <input
-                  value={workspace.evolution_base_url}
-                  onChange={(e) => handleWorkspaceField("evolution_base_url", e.target.value)}
-                  placeholder="https://seu-evolution.exemplo.com"
-                  className="w-full h-11 rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm font-medium"
-                />
+                <Input label="URL Base do Evolution" value={workspace.evolution_base_url} onChange={(e) => handleWorkspaceField("evolution_base_url", e.target.value)} placeholder="https://seu-evolution.exemplo.com"  />
               </div>
               <div>
-                <Label>Instância</Label>
-                <input
-                  value={workspace.evolution_instance}
-                  onChange={(e) => handleWorkspaceField("evolution_instance", e.target.value)}
-                  placeholder="minha-loja-whatsapp"
-                  className="w-full h-11 rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm font-medium"
-                />
+                <Input label="Instância" value={workspace.evolution_instance} onChange={(e) => handleWorkspaceField("evolution_instance", e.target.value)} placeholder="minha-loja-whatsapp"  />
               </div>
               <div className="xl:col-span-2">
-                <Label>API Key do Evolution</Label>
-                <input
-                  value={workspace.evolution_api_key}
-                  onChange={(e) => handleWorkspaceField("evolution_api_key", e.target.value)}
-                  placeholder="Cole a API key da instância"
-                  className="w-full h-11 rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm font-medium"
-                />
+                <Input label="API Key do Evolution" value={workspace.evolution_api_key} onChange={(e) => handleWorkspaceField("evolution_api_key", e.target.value)} placeholder="Cole a API key da instância"  />
               </div>
               <div>
-                <Label>Telefone fallback</Label>
-                <input
-                  value={workspace.fallback_phone}
-                  onChange={(e) => handleWorkspaceField("fallback_phone", e.target.value)}
-                  placeholder="5511999999999"
-                  className="w-full h-11 rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm font-medium"
-                />
+                <Input label="Telefone fallback" value={workspace.fallback_phone} onChange={(e) => handleWorkspaceField("fallback_phone", e.target.value)} placeholder="5511999999999"  />
               </div>
               <div>
                 <Label>Modo</Label>
-                <div className="w-full h-11 rounded-2xl border border-slate-200 bg-slate-50 px-4 flex items-center">
+                <div className="w-full h-11 rounded-lg border border-slate-200 bg-slate-50 px-4 flex items-center">
                   <span className="text-sm font-semibold text-slate-700">
                     {workspace.is_enabled ? "Ativo" : "Desativado"} — controlado no card "Atendimento Automático" acima
                   </span>
@@ -1136,28 +1014,14 @@ export default function WhatsApp() {
 
             <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
               <div>
-                <Label>Timeout de inatividade (min)</Label>
-                <input
-                  type="number"
-                  min={1}
-                  value={workspace.settings.inactivity_timeout_minutes}
-                  onChange={(e) =>
+                <Input label="Timeout de inatividade (min)" type="number" min={1} value={workspace.settings.inactivity_timeout_minutes} onChange={(e) =>
                     handleSettingsField("inactivity_timeout_minutes", Number(e.target.value))
-                  }
-                  className="w-full h-11 rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm font-medium"
-                />
+                  }  />
               </div>
               <div>
-                <Label>Timer marketing por contato (seg)</Label>
-                <input
-                  type="number"
-                  min={10}
-                  value={workspace.settings.marketing_interval_seconds}
-                  onChange={(e) =>
+                <Input label="Timer marketing por contato (seg)" type="number" min={10} value={workspace.settings.marketing_interval_seconds} onChange={(e) =>
                     handleSettingsField("marketing_interval_seconds", Number(e.target.value))
-                  }
-                  className="w-full h-11 rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm font-medium"
-                />
+                  }  />
               </div>
             </div>
 
@@ -1190,264 +1054,150 @@ export default function WhatsApp() {
 
             <div className="grid grid-cols-1 xl:grid-cols-[1fr_auto] gap-3">
               <div>
-                <Label>Webhook do Evolution</Label>
-                <input
-                  readOnly
-                  value={workspace.webhook_url}
-                  className="w-full h-11 rounded-2xl border border-slate-200 bg-slate-100 px-4 text-xs font-mono text-slate-600"
-                />
+                <Input label="Webhook do Evolution" readOnly value={workspace.webhook_url}  className="font-mono" />
               </div>
               <div className="xl:min-w-[280px]">
                 <Label>Header secreto</Label>
                 <div className="flex gap-2">
-                  <input
-                    value={workspace.webhook_secret}
-                    onChange={(e) => handleWorkspaceField("webhook_secret", e.target.value)}
-                    className="flex-1 h-11 rounded-2xl border border-slate-200 bg-slate-50 px-4 text-xs font-mono text-slate-700"
-                  />
-                  <button
+                  <Input value={workspace.webhook_secret} onChange={(e) => handleWorkspaceField("webhook_secret", e.target.value)} wrapperClassName="flex-1" className="font-mono" />
+                  <Button
+                    variant="outline"
                     onClick={() => setRegenerateSecret(true)}
-                    className={cn(
-                      "h-11 px-4 rounded-2xl border text-[10px] font-black uppercase tracking-widest",
-                      regenerateSecret
-                        ? "border-amber-200 bg-amber-50 text-amber-700"
-                        : "border-slate-200 text-slate-600 hover:bg-slate-50",
-                    )}
+                    className={regenerateSecret ? "border-amber-200 bg-amber-50 text-amber-700" : undefined}
                   >
                     Novo
-                  </button>
+                  </Button>
                 </div>
-                <p className="text-[10px] text-slate-400 mt-1">
+                <p className="text-[11px] text-slate-400 mt-1">
                   Envie no header <strong>{workspace.secret_header_name}</strong>.
                 </p>
               </div>
             </div>
 
-            <div className="rounded-3xl border border-slate-200 bg-slate-50 p-4">
-              <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-2">
+            <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
+              <p className="text-[11px] font-semibold text-slate-500 mb-2">
                 Envio de teste
               </p>
               <div className="flex flex-col xl:flex-row gap-3">
-                <input
-                  value={testPhone}
-                  onChange={(e) => setTestPhone(e.target.value)}
-                  placeholder="5511999999999"
-                  className="flex-1 h-11 rounded-2xl border border-slate-200 bg-white px-4 text-sm"
-                />
-                <button
-                  onClick={sendTestMenu}
-                  disabled={sendingTest}
-                  className="h-11 px-5 rounded-2xl bg-emerald-600 text-white text-[11px] font-black uppercase tracking-wider flex items-center justify-center gap-2 hover:bg-emerald-700 disabled:opacity-50"
-                >
+                <Input value={testPhone} onChange={(e) => setTestPhone(e.target.value)} placeholder="5511999999999" wrapperClassName="flex-1" />
+                <Button variant="success" size="lg" onClick={sendTestMenu} disabled={sendingTest}>
                   {sendingTest ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}
                   Enviar menu teste
-                </button>
+                </Button>
               </div>
             </div>
           </div>
-        </SectionCard>
+        </PanelCard>
         )}
 
-        <SectionCard
+        <PanelCard
           title="Atendimento Automático"
-          subtitle="O robô que responde clientes (menu, oi, encerramento por inatividade, fidelidade)"
-          icon={<Bot size={18} />}
+          description="O robô que responde clientes (menu, oi, encerramento por inatividade, fidelidade)"
+          icon={Bot}
         >
           <div className="space-y-4">
-            <div className="flex items-center justify-between gap-4 p-4 bg-slate-50 border border-slate-100 rounded-2xl">
+            <div className="flex items-center justify-between gap-4 p-4 bg-slate-50 border border-slate-100 rounded-lg">
               <div>
-                <p className="text-sm font-bold text-slate-700">
+                <p className="text-sm font-semibold text-slate-700">
                   {workspace.is_enabled ? "Ativo — respondendo clientes" : "Desativado — não responde clientes"}
                 </p>
                 <p className="text-xs text-slate-400 mt-0.5">
                   Desativar não desconecta o número — a conexão continua ligada para os envios manuais (alertas financeiros, NF por WhatsApp), só o robô de conversa para de responder.
                 </p>
               </div>
-              <button
-                type="button"
-                onClick={toggleAutoReply}
-                className={cn(
-                  "w-11 h-6 rounded-full relative transition-all shrink-0",
-                  workspace.is_enabled ? "bg-emerald-500" : "bg-slate-300",
-                )}
-              >
-                <span
-                  className={cn(
-                    "absolute top-1 h-4 w-4 rounded-full bg-white shadow-sm transition-all",
-                    workspace.is_enabled ? "left-6" : "left-1",
-                  )}
-                />
-              </button>
+              <Switch checked={workspace.is_enabled} onClick={toggleAutoReply} />
             </div>
-            <div className="rounded-2xl border border-violet-100 bg-violet-50/60 p-4">
+            <div className="rounded-lg border border-violet-100 bg-violet-50/60 p-4">
               <div className="flex items-start justify-between gap-4">
                 <div>
-                  <p className="text-sm font-bold text-slate-700">Modo inteligente Zé</p>
+                  <p className="text-sm font-semibold text-slate-700">Modo inteligente Zé</p>
                   <p className="mt-0.5 text-xs leading-relaxed text-slate-500">
                     O Zé entende mensagens sobre pedidos, orçamentos, pagamentos, promoções e pedidos por atendente. Ele também reconhece clientes cadastrados pelo telefone e usa o nome do cadastro na conversa.
                   </p>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => handleSettingsField("smart_bot_enabled", !workspace.settings.smart_bot_enabled)}
-                  className={cn(
-                    "w-11 h-6 rounded-full relative transition-all shrink-0",
-                    workspace.settings.smart_bot_enabled ? "bg-violet-600" : "bg-slate-300",
-                  )}
-                  aria-label={workspace.settings.smart_bot_enabled ? "Desativar modo inteligente Zé" : "Ativar modo inteligente Zé"}
-                >
-                  <span className={cn("absolute top-1 h-4 w-4 rounded-full bg-white shadow-sm transition-all", workspace.settings.smart_bot_enabled ? "left-6" : "left-1")} />
-                </button>
+                <Switch checked={workspace.settings.smart_bot_enabled} onClick={() => handleSettingsField("smart_bot_enabled", !workspace.settings.smart_bot_enabled)} aria-label={workspace.settings.smart_bot_enabled ? "Desativar modo inteligente Zé" : "Ativar modo inteligente Zé"} />
               </div>
               <div className="mt-4 max-w-sm">
-                <Label>Nome do assistente</Label>
-                <input
-                  value={workspace.settings.bot_name}
-                  onChange={(e) => handleSettingsField("bot_name", e.target.value)}
-                  maxLength={40}
-                  placeholder="Zé"
-                  className="w-full h-10 rounded-xl border border-violet-200 bg-white px-3 text-sm font-semibold text-slate-700"
-                />
-                <p className="mt-1 text-[10px] font-medium text-slate-400">Clique em “Salvar módulo” no topo para aplicar esta configuração.</p>
+                <Input label="Nome do assistente" value={workspace.settings.bot_name} onChange={(e) => handleSettingsField("bot_name", e.target.value)} maxLength={40} placeholder="Zé" showCount={false}  />
+                <p className="mt-1 text-[11px] font-medium text-slate-400">Clique em “Salvar módulo” no topo para aplicar esta configuração.</p>
               </div>
               <div className="mt-5 border-t border-violet-100 pt-5">
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div>
-                    <p className="text-xs font-black uppercase tracking-wider text-violet-800">IA generativa opcional</p>
+                    <p className="text-xs font-semibold text-violet-800">IA generativa opcional</p>
                     <p className="mt-1 text-xs text-slate-500">Para respostas livres, sem perder as consultas seguras de pedidos, notas e orçamentos.</p>
                   </div>
-                  {workspace.settings.ai_api_key_configured && <span className="rounded-full bg-emerald-100 px-2.5 py-1 text-[9px] font-black uppercase tracking-wider text-emerald-700">Chave salva</span>}
+                  {workspace.settings.ai_api_key_configured && <span className="rounded-full bg-emerald-100 px-2.5 py-1 text-[10px] font-semibold text-emerald-700">Chave salva</span>}
                 </div>
                 <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2">
                   <div>
-                    <Label>Provedor</Label>
-                    <select
-                      value={workspace.settings.ai_provider}
-                      onChange={(e) => handleSettingsField("ai_provider", e.target.value as WorkspaceSettings["ai_provider"])}
-                      className="w-full h-10 rounded-xl border border-violet-200 bg-white px-3 text-sm font-semibold text-slate-700"
-                    >
+                    <Select label="Provedor" value={workspace.settings.ai_provider} onChange={(e) => handleSettingsField("ai_provider", e.target.value as WorkspaceSettings["ai_provider"])} >
                       <option value="rules">Somente regras inteligentes</option>
                       <option value="gemini">Google Gemini</option>
                       <option value="openai">OpenAI GPT</option>
-                    </select>
+                    </Select>
                   </div>
                   <div>
-                    <Label>Modelo</Label>
-                    <input
-                      value={workspace.settings.ai_model}
-                      onChange={(e) => handleSettingsField("ai_model", e.target.value)}
-                      placeholder={workspace.settings.ai_provider === "openai" ? "gpt-4o-mini" : "gemini-2.0-flash"}
-                      disabled={workspace.settings.ai_provider === "rules"}
-                      className="w-full h-10 rounded-xl border border-violet-200 bg-white px-3 text-sm font-semibold text-slate-700 disabled:bg-slate-100"
-                    />
+                    <Input label="Modelo" value={workspace.settings.ai_model} onChange={(e) => handleSettingsField("ai_model", e.target.value)} placeholder={workspace.settings.ai_provider === "openai" ? "gpt-4o-mini" : "gemini-2.0-flash"} disabled={workspace.settings.ai_provider === "rules"}  />
                   </div>
                   <div className="md:col-span-2">
-                    <Label>Chave da API</Label>
-                    <input
-                      type="password"
-                      autoComplete="new-password"
-                      value={workspace.settings.ai_api_key}
-                      onChange={(e) => handleSettingsField("ai_api_key", e.target.value)}
-                      placeholder={workspace.settings.ai_api_key_configured ? "Deixe em branco para manter a chave salva" : "Cole a chave da API aqui"}
-                      disabled={workspace.settings.ai_provider === "rules"}
-                      className="w-full h-10 rounded-xl border border-violet-200 bg-white px-3 text-sm text-slate-700 disabled:bg-slate-100"
-                    />
-                    <p className="mt-1 text-[10px] font-medium text-slate-400">A chave é enviada ao servidor para uso do bot e não é exibida novamente no painel.</p>
+                    <Input label="Chave da API" type="password" autoComplete="new-password" value={workspace.settings.ai_api_key} onChange={(e) => handleSettingsField("ai_api_key", e.target.value)} placeholder={workspace.settings.ai_api_key_configured ? "Deixe em branco para manter a chave salva" : "Cole a chave da API aqui"} disabled={workspace.settings.ai_provider === "rules"}  />
+                    <p className="mt-1 text-[11px] font-medium text-slate-400">A chave é enviada ao servidor para uso do bot e não é exibida novamente no painel.</p>
                   </div>
                   <div className="md:col-span-2">
-                    <Label>Como o {workspace.settings.bot_name || "Zé"} deve falar e atuar</Label>
-                    <textarea
-                      rows={4}
-                      value={workspace.settings.ai_system_prompt}
-                      onChange={(e) => handleSettingsField("ai_system_prompt", e.target.value)}
-                      disabled={workspace.settings.ai_provider === "rules"}
-                      className="w-full resize-none rounded-xl border border-violet-200 bg-white px-3 py-2.5 text-sm text-slate-700 disabled:bg-slate-100"
-                    />
+                    <Textarea label={`Como o ${workspace.settings.bot_name || "Zé"} deve falar e atuar`} rows={4} value={workspace.settings.ai_system_prompt} onChange={(e) => handleSettingsField("ai_system_prompt", e.target.value)} disabled={workspace.settings.ai_provider === "rules"}  className="resize-none" />
                   </div>
                 </div>
                 <div className="mt-3 flex flex-wrap items-center gap-3">
-                  <button
-                    type="button"
-                    onClick={testAi}
-                    disabled={testingAi || workspace.settings.ai_provider === "rules" || (!workspace.settings.ai_api_key && !workspace.settings.ai_api_key_configured)}
-                    className="h-9 rounded-xl border border-violet-200 bg-white px-3 text-[10px] font-black uppercase tracking-wider text-violet-700 hover:bg-violet-100 disabled:opacity-50 inline-flex items-center gap-2"
-                  >
+                  <Button variant="outline" size="sm" type="button" onClick={testAi} disabled={testingAi || workspace.settings.ai_provider === "rules" || (!workspace.settings.ai_api_key && !workspace.settings.ai_api_key_configured)}>
                     {testingAi ? <Loader2 size={13} className="animate-spin" /> : <Bot size={13} />} Testar IA
-                  </button>
+                  </Button>
                   {aiTestReply && <span className="text-xs font-semibold text-emerald-700">Resposta: {aiTestReply}</span>}
                 </div>
               </div>
             </div>
           </div>
-        </SectionCard>
+        </PanelCard>
 
-        <SectionCard
+        <PanelCard
           title="Alertas Financeiros"
-          subtitle="Avisa por WhatsApp sobre contas a pagar, a receber e crediário vencendo"
-          icon={<BadgeAlert size={18} />}
+          description="Avisa por WhatsApp sobre contas a pagar, a receber e crediário vencendo"
+          icon={BadgeAlert}
         >
           <div className="space-y-5">
             <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
               <div>
-                <Label>Número que recebe os alertas</Label>
-                <input
-                  value={workspace.finance_alerts_phone}
-                  onChange={(e) => handleWorkspaceField("finance_alerts_phone", e.target.value)}
-                  placeholder="5511999999999"
-                  className="w-full h-11 rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm font-medium"
-                />
+                <Input label="Número que recebe os alertas" value={workspace.finance_alerts_phone} onChange={(e) => handleWorkspaceField("finance_alerts_phone", e.target.value)} placeholder="5511999999999"  />
               </div>
               <div>
                 <Label>Envio automático diário</Label>
-                <div className="w-full h-11 rounded-2xl border border-slate-200 bg-slate-50 px-4 flex items-center justify-between">
+                <div className="w-full h-11 rounded-lg border border-slate-200 bg-slate-50 px-4 flex items-center justify-between">
                   <span className="text-sm font-semibold text-slate-700">
                     {workspace.finance_alerts_enabled ? "Ativo" : "Desativado"}
                   </span>
-                  <button
-                    type="button"
-                    onClick={() => handleWorkspaceField("finance_alerts_enabled", !workspace.finance_alerts_enabled)}
-                    className={cn(
-                      "w-11 h-6 rounded-full relative transition-all",
-                      workspace.finance_alerts_enabled ? "bg-emerald-500" : "bg-slate-300",
-                    )}
-                  >
-                    <span
-                      className={cn(
-                        "absolute top-1 h-4 w-4 rounded-full bg-white shadow-sm transition-all",
-                        workspace.finance_alerts_enabled ? "left-6" : "left-1",
-                      )}
-                    />
-                  </button>
+                  <Switch checked={workspace.finance_alerts_enabled} onClick={() => handleWorkspaceField("finance_alerts_enabled", !workspace.finance_alerts_enabled)} />
                 </div>
               </div>
             </div>
             <p className="text-xs text-slate-400">
               Resumo enviado uma vez por dia com contas a pagar, a receber e parcelas de crediário vencendo nos próximos 3 dias (ou já vencidas). Salve o número antes de testar.
             </p>
-            <button
-              onClick={handleSendFinanceAlertsNow}
-              disabled={sendingFinanceAlerts}
-              className="h-10 px-4 rounded-xl border border-slate-200 text-[10px] font-black uppercase tracking-widest text-slate-600 hover:bg-slate-50 flex items-center gap-2 disabled:opacity-50"
-            >
+            <Button variant="outline" size="md" onClick={handleSendFinanceAlertsNow} disabled={sendingFinanceAlerts}>
               {sendingFinanceAlerts ? <Loader2 size={13} className="animate-spin" /> : <Send size={13} />}
               Enviar Agora
-            </button>
+            </Button>
           </div>
-        </SectionCard>
+        </PanelCard>
 
-        <SectionCard
+        <PanelCard
           title="Logs de Envios Automáticos"
-          subtitle="Alertas financeiros por WhatsApp e relatórios por email — o que foi enviado e quando"
-          icon={<Clock3 size={18} />}
+          description="Alertas financeiros por WhatsApp e relatórios por email — o que foi enviado e quando"
+          icon={Clock3}
           action={
-            <button
-              onClick={loadAutomatedLogs}
-              disabled={loadingAutomatedLogs}
-              className="h-9 px-4 rounded-xl border border-slate-200 text-[10px] font-black uppercase tracking-widest text-slate-600 hover:bg-slate-50 flex items-center gap-2 disabled:opacity-50"
-            >
+            <Button variant="outline" size="sm" onClick={loadAutomatedLogs} disabled={loadingAutomatedLogs}>
               {loadingAutomatedLogs ? <Loader2 size={13} className="animate-spin" /> : <RefreshCw size={13} />}
               Atualizar
-            </button>
+            </Button>
           }
         >
           {automatedLogs.length === 0 ? (
@@ -1455,36 +1205,40 @@ export default function WhatsApp() {
           ) : (
             <div className="space-y-2 max-h-96 overflow-y-auto">
               {automatedLogs.map((log) => (
-                <div key={log.id} className="flex items-start justify-between gap-3 p-3 bg-slate-50 border border-slate-100 rounded-xl">
+                <div key={log.id} className="flex items-start justify-between gap-3 p-3 bg-slate-50 border border-slate-100 rounded-lg">
                   <div className="min-w-0">
-                    <p className="text-[11px] font-bold text-slate-700">
+                    <p className="text-[11px] font-semibold text-slate-700">
                       {AUTOMATED_LOG_LABEL[log.kind] ?? log.kind}
                       <span className="text-slate-400 font-medium"> · {log.recipient}</span>
                     </p>
-                    {log.summary && <p className="text-[10px] text-slate-400 mt-0.5 truncate">{log.summary}</p>}
-                    {log.error && <p className="text-[10px] text-rose-500 mt-0.5">{log.error}</p>}
+                    {log.summary && <p className="text-[11px] text-slate-400 mt-0.5 truncate">{log.summary}</p>}
+                    {log.error && <p className="text-[11px] text-rose-500 mt-0.5">{log.error}</p>}
                   </div>
                   <div className="flex flex-col items-end gap-1 shrink-0">
                     <span className={cn(
-                      "text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full",
+                      "text-[10px] font-semibold px-2 py-0.5 rounded-full",
                       log.status === "sent" ? "bg-emerald-50 text-emerald-600" :
                       log.status === "failed" ? "bg-rose-50 text-rose-600" : "bg-amber-50 text-amber-600",
                     )}>
                       {log.status === "sent" ? "Enviado" : log.status === "failed" ? "Falhou" : "Pulado"}
                     </span>
-                    <span className="text-[9px] text-slate-400">{new Date(log.created_at).toLocaleString("pt-BR")}</span>
+                    <span className="text-[10px] text-slate-400">{new Date(log.created_at).toLocaleString("pt-BR")}</span>
                   </div>
                 </div>
               ))}
             </div>
           )}
-        </SectionCard>
+        </PanelCard>
 
+      </div>
+      )}
+
+      {waTab === "menus" && (
         <div className="space-y-6">
-          <SectionCard
+          <PanelCard
             title="Menus prontos"
-            subtitle="Pedidos, notas, valores, promoções e transferência"
-            icon={<Bot size={18} />}
+            description="Pedidos, notas, valores, promoções e transferência"
+            icon={Bot}
           >
             <div className="space-y-3">
               {workspace.menus
@@ -1493,56 +1247,34 @@ export default function WhatsApp() {
                 .map((menu) => (
                   <div
                     key={menu.id}
-                    className="rounded-3xl border border-slate-200 p-4 bg-slate-50/70 space-y-3"
+                    className="rounded-lg border border-slate-200 p-4 bg-slate-50/70 space-y-3"
                   >
                     <div className="flex items-center justify-between gap-3">
                       <div className="min-w-0">
-                        <p className="text-[11px] font-black uppercase tracking-widest text-slate-700 truncate">
+                        <p className="text-[11px] font-semibold text-slate-700 truncate">
                           {menu.action === "department"
                             ? `${menu.label} • ${menu.department}`
                             : menu.label}
                         </p>
-                        <p className="text-[10px] text-slate-400 font-semibold uppercase tracking-wide mt-1">
+                        <p className="text-[11px] text-slate-400 font-semibold mt-1">
                           {menu.id}
                         </p>
                       </div>
-                      <button
-                        type="button"
-                        onClick={() => handleMenuField(menu.id, { enabled: !menu.enabled })}
-                        className={cn(
-                          "w-11 h-6 rounded-full relative transition-all shrink-0",
-                          menu.enabled ? "bg-emerald-500" : "bg-slate-300",
-                        )}
-                      >
-                        <span
-                          className={cn(
-                            "absolute top-1 h-4 w-4 rounded-full bg-white shadow-sm transition-all",
-                            menu.enabled ? "left-6" : "left-1",
-                          )}
-                        />
-                      </button>
+                      <Switch checked={menu.enabled} onClick={() => handleMenuField(menu.id, { enabled: !menu.enabled })} />
                     </div>
                     <div className="grid grid-cols-1 gap-3">
-                      <input
-                        value={menu.label}
-                        onChange={(e) => handleMenuField(menu.id, { label: e.target.value })}
-                        className="w-full h-10 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-semibold"
-                      />
-                      <input
-                        value={menu.description}
-                        onChange={(e) => handleMenuField(menu.id, { description: e.target.value })}
-                        className="w-full h-10 rounded-2xl border border-slate-200 bg-white px-4 text-sm"
-                      />
+                      <Input value={menu.label} onChange={(e) => handleMenuField(menu.id, { label: e.target.value })}  />
+                      <Input value={menu.description} onChange={(e) => handleMenuField(menu.id, { description: e.target.value })}  />
                     </div>
                   </div>
                 ))}
             </div>
-          </SectionCard>
+          </PanelCard>
 
-          <SectionCard
+          <PanelCard
             title="Templates do bot"
-            subtitle="Textos principais usados no fluxo"
-            icon={<MessageSquare size={18} />}
+            description="Textos principais usados no fluxo"
+            icon={MessageSquare}
           >
             <div className="space-y-4">
               {[
@@ -1557,48 +1289,40 @@ export default function WhatsApp() {
                 ["points_reminder", "Lembrete de pontos parados"],
               ].map(([key, label]) => (
                 <div key={key}>
-                  <Label>{label}</Label>
-                  <textarea
-                    rows={3}
-                    value={workspace.templates[key as keyof WorkspaceTemplates]}
-                    onChange={(e) =>
+                  <Textarea label={label} rows={3} value={workspace.templates[key as keyof WorkspaceTemplates]} onChange={(e) =>
                       handleTemplateField(key as keyof WorkspaceTemplates, e.target.value)
-                    }
-                    className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm resize-none"
-                  />
+                    }  className="resize-none" />
                 </div>
               ))}
-              <div className="rounded-2xl border border-blue-100 bg-blue-50 px-4 py-3">
+              <div className="rounded-lg border border-blue-100 bg-blue-50 px-4 py-3">
                 <p className="text-[11px] font-semibold text-blue-700 leading-relaxed">
                   Placeholders suportados:{" "}
-                  <span className="font-black">
+                  <span className="font-semibold">
                     {"{{customerName}}"} {"{{storeName}}"} {"{{departmentLabel}}"} {"{{agentName}}"} {"{{position}}"} {"{{points}}"} {"{{balance}}"}
                   </span>
                 </p>
               </div>
             </div>
-          </SectionCard>
+          </PanelCard>
         </div>
-      </div>
+      )}
 
-      <div className="grid grid-cols-1 2xl:grid-cols-[0.9fr_1.1fr] gap-6">
-        <SectionCard
+      <div className="space-y-6">
+        {waTab === "equipe" && (
+        <PanelCard
           title="Equipe de atendimento"
-          subtitle="Vendas, atendimento, financeiro e disponibilidade"
-          icon={<Users size={18} />}
+          description="Vendas, atendimento, financeiro e disponibilidade"
+          icon={Users}
           action={
-            <button
-              onClick={openNewAgent}
-              className="h-9 px-4 rounded-xl bg-blue-600 text-white text-[10px] font-black uppercase tracking-widest flex items-center gap-2 hover:bg-blue-700"
-            >
+            <Button variant="primary" size="sm" onClick={openNewAgent}>
               <UserPlus size={13} />
               Novo atendente
-            </button>
+            </Button>
           }
         >
           <div className="space-y-3">
             {overview.agents.length === 0 ? (
-              <div className="rounded-3xl border border-dashed border-slate-300 p-8 text-center">
+              <div className="rounded-lg border border-dashed border-slate-300 p-8 text-center">
                 <p className="text-sm font-semibold text-slate-500">
                   Nenhum atendente cadastrado no módulo.
                 </p>
@@ -1607,11 +1331,11 @@ export default function WhatsApp() {
               overview.agents.map((agent) => (
                 <div
                   key={agent.id}
-                  className="rounded-3xl border border-slate-200 bg-slate-50/80 px-4 py-4 flex items-start gap-4"
+                  className="rounded-lg border border-slate-200 bg-slate-50/80 px-4 py-4 flex items-start gap-4"
                 >
                   <div
                     className={cn(
-                      "w-11 h-11 rounded-2xl flex items-center justify-center font-black text-white shrink-0",
+                      "w-11 h-11 rounded-lg flex items-center justify-center font-semibold text-white shrink-0",
                       agent.is_available ? "bg-emerald-500" : agent.is_online ? "bg-amber-500" : "bg-slate-400",
                     )}
                   >
@@ -1619,8 +1343,8 @@ export default function WhatsApp() {
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
-                      <p className="text-sm font-black text-slate-900 truncate">{agent.name}</p>
-                      <span className="px-2 py-1 rounded-full text-[9px] font-black uppercase tracking-widest bg-white border border-slate-200 text-slate-600">
+                      <p className="text-sm font-semibold text-slate-900 truncate">{agent.name}</p>
+                      <span className="px-2 py-1 rounded-full text-[10px] font-semibold bg-white border border-slate-200 text-slate-600">
                         {DEPARTMENTS.find((item) => item.value === agent.department)?.label ?? agent.department}
                       </span>
                     </div>
@@ -1630,7 +1354,7 @@ export default function WhatsApp() {
                     <div className="flex flex-wrap gap-2 mt-3">
                       <span
                         className={cn(
-                          "px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-widest border",
+                          "px-2.5 py-1 rounded-full text-[10px] font-semibold border",
                           agent.is_available
                             ? "bg-emerald-50 text-emerald-700 border-emerald-200"
                             : agent.is_online
@@ -1641,58 +1365,43 @@ export default function WhatsApp() {
                         {agent.is_available ? "Disponível" : agent.is_online ? "Ocupado" : "Offline"}
                       </span>
                       {!agent.is_active && (
-                        <span className="px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-widest border bg-red-50 text-red-700 border-red-200">
+                        <span className="px-2.5 py-1 rounded-full text-[10px] font-semibold border bg-red-50 text-red-700 border-red-200">
                           Inativo
                         </span>
                       )}
                     </div>
                   </div>
                   <div className="flex items-center gap-1">
-                    <button
-                      onClick={() => openEditAgent(agent)}
-                      className="w-9 h-9 rounded-xl border border-slate-200 bg-white text-slate-500 hover:text-blue-600 hover:border-blue-200"
-                    >
-                      <Edit2 size={14} className="mx-auto" />
-                    </button>
-                    <button
-                      onClick={() => void deleteAgent(agent.id)}
-                      className="w-9 h-9 rounded-xl border border-slate-200 bg-white text-slate-500 hover:text-red-600 hover:border-red-200"
-                    >
-                      <Trash2 size={14} className="mx-auto" />
-                    </button>
+                    <IconButton variant="outline" size="sm" aria-label="Editar atendente" onClick={() => openEditAgent(agent)}>
+                      <Edit2 size={14} />
+                    </IconButton>
+                    <IconButton variant="outline" size="sm" aria-label="Excluir atendente" onClick={() => void deleteAgent(agent.id)} className="hover:text-red-600 hover:border-red-200">
+                      <Trash2 size={14} />
+                    </IconButton>
                   </div>
                 </div>
               ))
             )}
           </div>
-        </SectionCard>
+        </PanelCard>
+        )}
 
-        <SectionCard
+        {waTab === "conversas" && (
+        <PanelCard
           title="Fila e conversas"
-          subtitle="Monitoramento do bot e handoff para o time"
-          icon={<CircleDashed size={18} />}
+          description="Monitoramento do bot e handoff para o time"
+          icon={CircleDashed}
         >
           <div className="space-y-4">
-            <div className="flex flex-wrap gap-2">
-              {FILTERS.map((item) => (
-                <button
-                  key={item.key}
-                  onClick={() => setFilter(item.key)}
-                  className={cn(
-                    "h-9 px-4 rounded-full text-[10px] font-black uppercase tracking-widest border transition-all",
-                    filter === item.key
-                      ? "bg-slate-900 text-white border-slate-900"
-                      : "bg-white text-slate-500 border-slate-200 hover:border-slate-300",
-                  )}
-                >
-                  {item.label}
-                </button>
-              ))}
-            </div>
+            <FilterLineSegmented<string>
+              options={FILTERS.map((item) => ({ value: item.key, label: item.label }))}
+              value={filter}
+              onChange={(v) => setFilter(v as "all" | ConversationStatus)}
+            />
 
             <div className="space-y-3 max-h-[780px] overflow-y-auto pr-1">
               {filteredConversations.length === 0 ? (
-                <div className="rounded-3xl border border-dashed border-slate-300 p-8 text-center">
+                <div className="rounded-lg border border-dashed border-slate-300 p-8 text-center">
                   <p className="text-sm font-semibold text-slate-500">
                     Nenhuma conversa encontrada neste filtro.
                   </p>
@@ -1703,7 +1412,7 @@ export default function WhatsApp() {
                     key={conversation.id}
                     onClick={() => void loadConversation(conversation.id)}
                     className={cn(
-                      "w-full rounded-3xl border px-4 py-4 text-left transition-all",
+                      "w-full rounded-lg border px-4 py-4 text-left transition-all",
                       selectedConversationId === conversation.id
                         ? "border-blue-300 bg-blue-50/70"
                         : "border-slate-200 bg-white hover:border-slate-300",
@@ -1712,12 +1421,12 @@ export default function WhatsApp() {
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
                         <div className="flex flex-wrap items-center gap-2">
-                          <p className="text-sm font-black text-slate-900 truncate">
+                          <p className="text-sm font-semibold text-slate-900 truncate">
                             {conversation.customer_name || "Cliente sem nome"}
                           </p>
                           <span
                             className={cn(
-                              "px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-widest border",
+                              "px-2.5 py-1 rounded-full text-[10px] font-semibold border",
                               statusMeta(conversation.status),
                             )}
                           >
@@ -1730,15 +1439,15 @@ export default function WhatsApp() {
                       </div>
                       <div className="text-right shrink-0">
                         {conversation.queue_position ? (
-                          <p className="text-xs font-black text-amber-700">Fila {conversation.queue_position}</p>
+                          <p className="text-xs font-semibold text-amber-700">Fila {conversation.queue_position}</p>
                         ) : conversation.assigned_agent ? (
-                          <p className="text-xs font-black text-emerald-700">
+                          <p className="text-xs font-semibold text-emerald-700">
                             {conversation.assigned_agent.name}
                           </p>
                         ) : (
-                          <p className="text-xs font-black text-blue-700">Bot ativo</p>
+                          <p className="text-xs font-semibold text-blue-700">Bot ativo</p>
                         )}
-                        <p className="text-[10px] text-slate-400 mt-1">{fmtDate(conversation.updated_at)}</p>
+                        <p className="text-[11px] text-slate-400 mt-1">{fmtDate(conversation.updated_at)}</p>
                       </div>
                     </div>
                     <p className="text-[12px] text-slate-600 mt-3 leading-relaxed line-clamp-2">
@@ -1749,111 +1458,67 @@ export default function WhatsApp() {
               )}
             </div>
           </div>
-        </SectionCard>
+        </PanelCard>
+        )}
       </div>
+      </Tabs>
 
-      {showAgentModal && (
-        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-slate-900/55 backdrop-blur-sm">
-          <div className="w-full max-w-xl bg-white rounded-3xl border border-slate-200 shadow-2xl overflow-hidden">
-            <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between">
-              <div>
-                <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">
-                  {editingAgent ? "Editar atendente" : "Novo atendente"}
-                </p>
-                <h3 className="text-base font-black text-slate-900 mt-1">
-                  {editingAgent ? "Atualizar operação da fila" : "Cadastrar pessoa para handoff"}
-                </h3>
-              </div>
-              <button
-                onClick={() => setShowAgentModal(false)}
-                className="w-10 h-10 rounded-2xl hover:bg-slate-100 text-slate-500"
-              >
-                <X size={16} className="mx-auto" />
-              </button>
-            </div>
-            <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-4">
+      <Modal
+        open={showAgentModal}
+        onClose={() => setShowAgentModal(false)}
+        title={editingAgent ? "Atualizar operação da fila" : "Cadastrar pessoa para handoff"}
+        subtitle={editingAgent ? "Editar atendente" : "Novo atendente"}
+        size="lg"
+        footer={
+          <ModalFooter>
+            <Button variant="ghost" size="sm" onClick={() => setShowAgentModal(false)}>
+              Cancelar
+            </Button>
+            <Button size="sm" iconLeft={<Save size={14} />} loading={agentSaving} onClick={saveAgent}>
+              {editingAgent ? "Salvar" : "Cadastrar"}
+            </Button>
+          </ModalFooter>
+        }
+      >
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
               <div className="md:col-span-2">
-                <Label>Nome</Label>
-                <input
-                  value={agentForm.name}
-                  onChange={(e) => setAgentForm((current) => ({ ...current, name: e.target.value }))}
-                  className="w-full h-11 rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm"
-                />
+                <Input label="Nome" value={agentForm.name} onChange={(e) => setAgentForm((current) => ({ ...current, name: e.target.value }))}  />
               </div>
               <div>
-                <Label>Departamento</Label>
-                <select
-                  value={agentForm.department}
-                  onChange={(e) =>
+                <Select label="Departamento" value={agentForm.department} onChange={(e) =>
                     setAgentForm((current) => ({ ...current, department: e.target.value }))
-                  }
-                  className="w-full h-11 rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm"
-                >
+                  } >
                   {DEPARTMENTS.map((department) => (
                     <option key={department.value} value={department.value}>
                       {department.label}
                     </option>
                   ))}
-                </select>
+                </Select>
               </div>
               <div>
-                <Label>Função</Label>
-                <input
-                  value={agentForm.role}
-                  onChange={(e) => setAgentForm((current) => ({ ...current, role: e.target.value }))}
-                  className="w-full h-11 rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm"
-                />
+                <Input label="Função" value={agentForm.role} onChange={(e) => setAgentForm((current) => ({ ...current, role: e.target.value }))}  />
               </div>
               <div>
-                <Label>Telefone</Label>
-                <input
-                  value={agentForm.phone}
-                  onChange={(e) => setAgentForm((current) => ({ ...current, phone: e.target.value }))}
-                  className="w-full h-11 rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm"
-                />
+                <Input label="Telefone" value={agentForm.phone} onChange={(e) => setAgentForm((current) => ({ ...current, phone: e.target.value }))}  />
               </div>
               <div>
-                <Label>E-mail</Label>
-                <input
-                  value={agentForm.email}
-                  onChange={(e) => setAgentForm((current) => ({ ...current, email: e.target.value }))}
-                  className="w-full h-11 rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm"
-                />
+                <Input label="E-mail" value={agentForm.email} onChange={(e) => setAgentForm((current) => ({ ...current, email: e.target.value }))}  />
               </div>
               <div>
-                <Label>Máx. conversas</Label>
-                <input
-                  type="number"
-                  min={1}
-                  value={agentForm.max_concurrent_chats}
-                  onChange={(e) =>
+                <Input label="Máx. conversas" type="number" min={1} value={agentForm.max_concurrent_chats} onChange={(e) =>
                     setAgentForm((current) => ({
                       ...current,
                       max_concurrent_chats: Number(e.target.value),
                     }))
-                  }
-                  className="w-full h-11 rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm"
-                />
+                  }  />
               </div>
               <div>
-                <Label>Prioridade</Label>
-                <input
-                  type="number"
-                  value={agentForm.priority}
-                  onChange={(e) =>
+                <Input label="Prioridade" type="number" value={agentForm.priority} onChange={(e) =>
                     setAgentForm((current) => ({ ...current, priority: Number(e.target.value) }))
-                  }
-                  className="w-full h-11 rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm"
-                />
+                  }  />
               </div>
               <div className="md:col-span-2">
-                <Label>Observações</Label>
-                <textarea
-                  rows={3}
-                  value={agentForm.notes}
-                  onChange={(e) => setAgentForm((current) => ({ ...current, notes: e.target.value }))}
-                  className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm resize-none"
-                />
+                <Textarea label="Observações" rows={3} value={agentForm.notes} onChange={(e) => setAgentForm((current) => ({ ...current, notes: e.target.value }))}  className="resize-none" />
               </div>
               <div className="md:col-span-2 grid grid-cols-1 md:grid-cols-3 gap-3">
                 <Toggle
@@ -1878,35 +1543,17 @@ export default function WhatsApp() {
                 />
               </div>
             </div>
-            <div className="px-6 pb-6 flex justify-end gap-3">
-              <button
-                onClick={() => setShowAgentModal(false)}
-                className="h-11 px-5 rounded-2xl border border-slate-200 text-[11px] font-black uppercase tracking-wider text-slate-600 hover:bg-slate-50"
-              >
-                Cancelar
-              </button>
-              <button
-                onClick={saveAgent}
-                disabled={agentSaving}
-                className="h-11 px-5 rounded-2xl bg-blue-600 text-white text-[11px] font-black uppercase tracking-wider flex items-center gap-2 hover:bg-blue-700 disabled:opacity-50"
-              >
-                {agentSaving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
-                {editingAgent ? "Salvar" : "Cadastrar"}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      </Modal>
 
       {selectedConversationId && (
         <div className="fixed inset-0 z-[210] bg-slate-900/50 backdrop-blur-sm flex justify-end">
-          <div className="w-full max-w-2xl h-full bg-[#f8fafc] border-l border-slate-200 shadow-2xl flex flex-col">
+          <div className="w-full max-w-2xl h-full bg-[#f8fafc] border-l border-slate-200 shadow-sm flex flex-col">
             <div className="px-6 py-5 border-b border-slate-200 bg-white flex items-start justify-between gap-4">
               <div>
-                <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+                <p className="text-[11px] font-semibold text-slate-400">
                   Atendimento WhatsApp
                 </p>
-                <h3 className="text-lg font-black text-slate-900 mt-1">
+                <h3 className="text-lg font-semibold text-slate-900 mt-1">
                   {conversationDetail?.conversation.customer_name || "Cliente sem nome"}
                 </h3>
                 <p className="text-[12px] text-slate-500 mt-1 flex items-center gap-2">
@@ -1914,15 +1561,16 @@ export default function WhatsApp() {
                   {conversationDetail?.conversation.phone}
                 </p>
               </div>
-              <button
+              <IconButton
+                variant="ghost"
+                aria-label="Fechar conversa"
                 onClick={() => {
                   setSelectedConversationId(null);
                   setConversationDetail(null);
                 }}
-                className="w-10 h-10 rounded-2xl hover:bg-slate-100 text-slate-500"
               >
-                <X size={16} className="mx-auto" />
-              </button>
+                <X size={16} />
+              </IconButton>
             </div>
 
             {loadingConversation && !conversationDetail ? (
@@ -1932,32 +1580,22 @@ export default function WhatsApp() {
             ) : (
               <>
                 <div className="px-6 py-4 bg-white border-b border-slate-100 grid grid-cols-1 md:grid-cols-[1fr_auto_auto] gap-3">
-                  <select
-                    value={assigningAgentId}
-                    onChange={(e) => setAssigningAgentId(Number(e.target.value) || "")}
-                    className="h-11 rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm"
-                  >
+                  <Select value={assigningAgentId} onChange={(e) => setAssigningAgentId(Number(e.target.value) || "")}>
                     <option value="">Selecionar atendente</option>
                     {overview.agents.map((agent) => (
                       <option key={agent.id} value={agent.id}>
                         {agent.name} • {DEPARTMENTS.find((d) => d.value === agent.department)?.label ?? agent.department}
                       </option>
                     ))}
-                  </select>
-                  <button
-                    onClick={assignConversation}
-                    className="h-11 px-4 rounded-2xl bg-emerald-600 text-white text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 hover:bg-emerald-700"
-                  >
+                  </Select>
+                  <Button variant="success" size="lg" onClick={assignConversation}>
                     <ArrowRightLeft size={13} />
                     Transferir
-                  </button>
-                  <button
-                    onClick={closeConversation}
-                    className="h-11 px-4 rounded-2xl border border-red-200 bg-red-50 text-red-700 text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 hover:bg-red-100"
-                  >
+                  </Button>
+                  <Button variant="ghost" size="lg" onClick={closeConversation}>
                     <Power size={13} />
                     Encerrar
-                  </button>
+                  </Button>
                 </div>
 
                 <div className="flex-1 overflow-y-auto p-6 space-y-3">
@@ -1971,7 +1609,7 @@ export default function WhatsApp() {
                     >
                       <div
                         className={cn(
-                          "max-w-[82%] rounded-3xl px-4 py-3 shadow-sm border",
+                          "max-w-[82%] rounded-lg px-4 py-3 shadow-sm border",
                           message.direction === "customer" &&
                             "bg-white border-slate-200 text-slate-800 rounded-tl-md",
                           message.direction === "bot" &&
@@ -1983,39 +1621,36 @@ export default function WhatsApp() {
                         )}
                       >
                         <div className="flex items-center gap-2 mb-1">
-                          <span className="text-[9px] font-black uppercase tracking-widest opacity-70">
+                          <span className="text-[10px] font-semibold opacity-70">
                             {message.direction}
                           </span>
                           {message.direction === "system" && <BadgeAlert size={12} />}
                         </div>
                         <p className="text-sm whitespace-pre-wrap leading-relaxed">{message.body || "Sem texto"}</p>
-                        <p className="text-[10px] opacity-60 mt-2">{fmtDate(message.created_at)}</p>
+                        <p className="text-[11px] opacity-60 mt-2">{fmtDate(message.created_at)}</p>
                       </div>
                     </div>
                   ))}
                 </div>
 
                 <div className="p-6 border-t border-slate-200 bg-white">
-                  <div className="rounded-3xl border border-slate-200 bg-slate-50 p-3">
-                    <textarea
+                  <div className="space-y-3">
+                    <Textarea
                       rows={4}
+                      aria-label="Resposta"
                       value={replyText}
                       onChange={(e) => setReplyText(e.target.value)}
                       placeholder="Responder por dentro do sistema. A conversa continua registrada aqui."
-                      className="w-full bg-transparent resize-none text-sm outline-none"
+                      className="resize-none"
                     />
                     <div className="pt-3 border-t border-slate-200 flex justify-between gap-3">
                       <p className="text-[11px] text-slate-500 leading-relaxed">
                         O cliente continua falando com o bot, mas a operação humana segue por dentro do painel.
                       </p>
-                      <button
-                        onClick={sendReply}
-                        disabled={sendingReply || !replyText.trim()}
-                        className="h-11 px-5 rounded-2xl bg-blue-600 text-white text-[11px] font-black uppercase tracking-wider flex items-center gap-2 hover:bg-blue-700 disabled:opacity-50 shrink-0"
-                      >
+                      <Button variant="primary" size="lg" onClick={sendReply} disabled={sendingReply || !replyText.trim()} className="shrink-0">
                         {sendingReply ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}
                         Enviar
-                      </button>
+                      </Button>
                     </div>
                   </div>
                 </div>

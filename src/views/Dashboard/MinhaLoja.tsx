@@ -24,7 +24,9 @@ import {
   Wallet,
 } from "lucide-react";
 
-import PageHeader from "../../components/layout/PageHeader";
+import {
+  Alert, Badge, Button, DetailField, EmptyState, Input, Modal, ModalFooter, PageWrapper, PanelCard, SectionTitle, Select, StatCard, StatGrid, Tabs,
+} from "../../components/ui";
 import { cn } from "../../lib/utils";
 import type { Tenant } from "../../types";
 
@@ -96,6 +98,18 @@ const deliveryLabel: Record<string, string> = {
   to_confirm: "A combinar",
 };
 
+const MINHA_LOJA_TABS = [
+  { id: "visao", label: "Visão geral", icon: LayoutDashboard },
+  { id: "vendas", label: "Vendas online", icon: ShoppingCart },
+  { id: "faturamento", label: "Faturamento", icon: BarChart3 },
+  { id: "configurar", label: "Configurar loja", icon: Settings2 },
+] as const;
+
+const statusBadgeColor = (status: string): "success" | "warning" | "default" =>
+  status === "completed" ? "success" : status === "pending" ? "warning" : "default";
+
+const thClass = "px-3 py-2 text-[11px] font-medium text-slate-500 whitespace-nowrap";
+
 export default function MinhaLoja() {
   const navigate = useNavigate();
   const [tab, setTab] = useState<Tab>("visao");
@@ -137,25 +151,25 @@ export default function MinhaLoja() {
         label: "Faturamento confirmado",
         value: money(data?.summary.confirmed_revenue || 0),
         icon: CircleDollarSign,
-        tone: "text-emerald-600 bg-emerald-50",
+        color: "success" as const,
       },
       {
         label: "Pedidos online",
         value: String(data?.summary.orders || 0),
         icon: ShoppingBag,
-        tone: "text-blue-600 bg-blue-50",
+        color: "info" as const,
       },
       {
         label: "Unidades vendidas",
         value: String(data?.summary.units_sold || 0),
         icon: Package,
-        tone: "text-violet-600 bg-violet-50",
+        color: "purple" as const,
       },
       {
         label: "Aguardando confirmação",
         value: String(data?.summary.pending_orders || 0),
         icon: Wallet,
-        tone: "text-amber-600 bg-amber-50",
+        color: "warning" as const,
       },
     ],
     [data],
@@ -165,351 +179,191 @@ export default function MinhaLoja() {
     navigate(`/admin/minha-loja/configurar?tab=${section}`);
 
   return (
-    <div className="space-y-6">
-      <PageHeader
-        title="Minha Loja"
-        subtitle="Central da sua vitrine: catálogo, checkout, vendas e faturamento online."
-        action={
-          <a
-            href={storeLink}
-            target="_blank"
-            rel="noreferrer"
-            className="inline-flex h-10 items-center gap-2 rounded-xl bg-slate-950 px-4 text-[11px] font-black uppercase tracking-wider text-white hover:bg-slate-800"
-          >
-            <ExternalLink size={14} /> Ver minha loja
-          </a>
-        }
-      />
+    <PageWrapper>
+      <div className="space-y-4">
+        <SectionTitle
+          icon={Store}
+          title="Minha Loja"
+          description="Central da sua vitrine: catálogo, checkout, vendas e faturamento online."
+          action={
+            <a href={storeLink} target="_blank" rel="noreferrer">
+              <Button size="sm" iconLeft={<ExternalLink size={14} />}>Ver minha loja</Button>
+            </a>
+          }
+        />
 
-      <div className="flex gap-1 overflow-x-auto rounded-xl border border-slate-200 bg-white p-1">
-        {[
-          ["visao", "Visão geral", LayoutDashboard],
-          ["vendas", "Vendas online", ShoppingCart],
-          ["faturamento", "Faturamento", BarChart3],
-          ["configurar", "Configurar loja", Settings2],
-        ].map(([id, label, Icon]) => (
-          <button
-            key={id as string}
-            onClick={() => setTab(id as Tab)}
-            className={cn(
-              "flex h-10 shrink-0 items-center gap-2 rounded-lg px-4 text-[11px] font-black transition",
-              tab === id
-                ? "bg-blue-600 text-white shadow-sm"
-                : "text-slate-500 hover:bg-slate-50",
-            )}
-          >
-            <Icon size={14} />
-            {label}
-          </button>
-        ))}
-      </div>
-
-      {loading ? (
-        <div className="flex h-64 items-center justify-center">
-          <Loader2 className="animate-spin text-slate-300" />
-        </div>
-      ) : (
-        <>
-          {tab === "visao" && (
-            <div className="space-y-5">
-              <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                {metrics.map(({ label, value, icon: Icon, tone }) => (
-                  <div
-                    key={label}
-                    className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"
-                  >
-                    <div
-                      className={cn(
-                        "mb-5 flex h-10 w-10 items-center justify-center rounded-xl",
-                        tone,
-                      )}
-                    >
-                      <Icon size={19} />
-                    </div>
-                    <p className="text-2xl font-black tracking-tight text-slate-900">
-                      {value}
-                    </p>
-                    <p className="mt-1 text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                      {label}
-                    </p>
-                  </div>
-                ))}
-              </section>
-              <section className="grid gap-5 xl:grid-cols-[1.15fr_.85fr]">
-                <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-                  <div className="flex items-start justify-between gap-4">
-                    <div>
-                      <p className="text-[10px] font-black uppercase tracking-[.18em] text-blue-600">
-                        Vitrine pública
-                      </p>
-                      <h2 className="mt-2 text-xl font-black text-slate-900">
-                        {tenant?.name || "Sua loja"}
-                      </h2>
-                      <p className="mt-2 max-w-lg text-sm leading-relaxed text-slate-500">
+        <Tabs<Tab> items={MINHA_LOJA_TABS} value={tab} onChange={setTab} label="Seções da minha loja">
+          {loading ? (
+            <div role="status" className="flex items-center justify-center gap-2 py-12 text-sm text-slate-500">
+              <Loader2 size={18} className="animate-spin" />Carregando loja…
+            </div>
+          ) : (
+            <>
+              {tab === "visao" && (
+                <div className="space-y-3">
+                  <StatGrid cols={4}>
+                    {metrics.map(({ label, value, icon, color }) => (
+                      <StatCard key={label} title={label} value={value} icon={icon} color={color} />
+                    ))}
+                  </StatGrid>
+                  <section className="grid gap-3 xl:grid-cols-[1.15fr_.85fr]">
+                    <PanelCard title={tenant?.name || "Sua loja"} description="Vitrine pública" icon={Store}
+                      action={
+                        tenant?.logo_url ? (
+                          <img className="h-10 w-10 rounded-lg border border-slate-100 object-contain" src={tenant.logo_url} alt="Logo da loja" />
+                        ) : undefined
+                      }>
+                      <p className="max-w-lg text-[13px] leading-relaxed text-slate-600">
                         {onlineActive
                           ? "Checkout online ativo. Os clientes podem informar entrega e enviar o pedido pela vitrine."
                           : "A vitrine está no modo atendimento. Ative o checkout online quando as regras de entrega e pagamento estiverem prontas."}
                       </p>
-                    </div>
-                    {tenant?.logo_url ? (
-                      <img
-                        className="h-14 w-14 rounded-xl border border-slate-100 object-contain"
-                        src={tenant.logo_url}
-                        alt="Logo da loja"
-                      />
-                    ) : (
-                      <div className="flex h-14 w-14 items-center justify-center rounded-xl bg-slate-100 text-slate-400">
-                        <Store size={22} />
+                      <div className="mt-4 flex flex-wrap gap-2">
+                        <Button size="sm" iconLeft={<ShoppingCart size={14} />} onClick={() => goSettings("storefront")}>Configurar checkout</Button>
+                        <Button size="sm" variant="outline" iconLeft={<Palette size={14} />} onClick={() => goSettings("design")}>Editar visual</Button>
                       </div>
-                    )}
-                  </div>
-                  <div className="mt-6 flex flex-wrap gap-2">
-                    <button
-                      onClick={() => goSettings("storefront")}
-                      className="inline-flex h-10 items-center gap-2 rounded-lg bg-blue-600 px-4 text-[10px] font-black uppercase tracking-wider text-white"
-                    >
-                      <ShoppingCart size={14} /> Configurar checkout
-                    </button>
-                    <button
-                      onClick={() => goSettings("design")}
-                      className="inline-flex h-10 items-center gap-2 rounded-lg border border-slate-200 px-4 text-[10px] font-black uppercase tracking-wider text-slate-700"
-                    >
-                      <Palette size={14} /> Editar visual
-                    </button>
-                  </div>
-                </div>
-                <div className="rounded-2xl border border-slate-200 bg-slate-950 p-6 text-white shadow-sm">
-                  <p className="text-[10px] font-black uppercase tracking-[.18em] text-blue-300">
-                    Status do checkout
-                  </p>
-                  <div className="mt-5 space-y-4">
-                    <div className="flex items-center justify-between border-b border-white/10 pb-4">
-                      <span className="text-sm text-slate-300">
-                        Vendas online
-                      </span>
-                      <span
-                        className={cn(
-                          "rounded-full px-3 py-1 text-[10px] font-black uppercase",
-                          onlineActive
-                            ? "bg-emerald-400 text-emerald-950"
-                            : "bg-amber-300 text-amber-950",
-                        )}
-                      >
-                        {onlineActive ? "Ativo" : "Atendimento"}
-                      </span>
-                    </div>
-                    <div>
-                      <p className="text-xs font-bold text-white">
-                        Formas configuradas
-                      </p>
-                      <p className="mt-1 text-xs text-slate-400">
-                        {activePayments.length
-                          ? activePayments.join(" · ")
-                          : "Nenhuma forma manual configurada"}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-xs font-bold text-white">
-                        Pedidos em aberto
-                      </p>
-                      <p className="mt-1 text-2xl font-black">
-                        {data?.summary.pending_orders || 0}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              </section>
-              <RecentOrders orders={(data?.recent_orders || []).slice(0, 5)} />
-            </div>
-          )}
-
-          {tab === "vendas" && (
-            <div className="space-y-5">
-              <OnlineOrders orders={data?.recent_orders || []} />
-              <div className="grid gap-5 lg:grid-cols-2">
-                <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-                  <p className="text-[10px] font-black uppercase tracking-[.18em] text-slate-400">
-                    Produtos mais vendidos
-                  </p>
-                  <h2 className="mt-2 text-lg font-black text-slate-900">
-                    Unidades da loja online
-                  </h2>
-                  <div className="mt-5 divide-y divide-slate-100">
-                    {data?.top_products.length ? (
-                      data.top_products.map((product, index) => (
-                        <div
-                          key={`${product.name}-${index}`}
-                          className="flex items-center justify-between gap-4 py-3"
-                        >
-                          <div>
-                            <p className="text-sm font-bold text-slate-800">
-                              {product.name}
-                            </p>
-                            <p className="mt-1 text-[10px] text-slate-400">
-                              {product.sku ? `SKU ${product.sku} · ` : ""}
-                              {product.units} unidades
-                            </p>
-                          </div>
-                          <p className="text-sm font-black text-slate-900">
-                            {money(product.revenue)}
-                          </p>
+                    </PanelCard>
+                    <PanelCard title="Status do checkout" icon={ShoppingBag}>
+                      <dl className="space-y-3">
+                        <div className="flex items-center justify-between gap-2 border-b border-slate-100 pb-3">
+                          <dt className="text-xs text-slate-600">Vendas online</dt>
+                          <dd><Badge color={onlineActive ? "success" : "warning"} dot>{onlineActive ? "Ativo" : "Atendimento"}</Badge></dd>
                         </div>
-                      ))
-                    ) : (
-                      <Empty text="Os produtos vendidos pela vitrine aparecerão aqui." />
-                    )}
+                        <div>
+                          <dt className="text-[11px] text-slate-500">Formas configuradas</dt>
+                          <dd className="mt-0.5 text-[13px] text-slate-800">
+                            {activePayments.length ? activePayments.join(" · ") : "Nenhuma forma manual configurada"}
+                          </dd>
+                        </div>
+                        <div>
+                          <dt className="text-[11px] text-slate-500">Pedidos em aberto</dt>
+                          <dd className="mt-0.5 text-base font-medium text-slate-900">{data?.summary.pending_orders || 0}</dd>
+                        </div>
+                      </dl>
+                    </PanelCard>
+                  </section>
+                  <RecentOrders orders={(data?.recent_orders || []).slice(0, 5)} />
+                </div>
+              )}
+
+              {tab === "vendas" && (
+                <div className="space-y-3">
+                  <OnlineOrders orders={data?.recent_orders || []} />
+                  <div className="grid gap-3 lg:grid-cols-2">
+                    <PanelCard title="Unidades da loja online" description="Produtos mais vendidos" contentClassName="p-0">
+                      <div className="divide-y divide-slate-100">
+                        {data?.top_products.length ? (
+                          data.top_products.map((product, index) => (
+                            <div key={`${product.name}-${index}`} className="flex items-center justify-between gap-4 px-3 py-2">
+                              <div className="min-w-0">
+                                <p className="truncate text-xs font-medium text-slate-800">{product.name}</p>
+                                <p className="mt-0.5 text-[11px] text-slate-500">
+                                  {product.sku ? `SKU ${product.sku} · ` : ""}
+                                  {product.units} unidades
+                                </p>
+                              </div>
+                              <p className="shrink-0 text-xs font-semibold tabular-nums text-slate-900">{money(product.revenue)}</p>
+                            </div>
+                          ))
+                        ) : (
+                          <div className="p-3"><Empty text="Os produtos vendidos pela vitrine aparecerão aqui." /></div>
+                        )}
+                      </div>
+                    </PanelCard>
+                    <Alert variant="info" title="Pedidos com informação completa">
+                      Selecione qualquer pedido acima para conferir cliente, endereço, itens, valores, desconto, frete,
+                      pagamento e situação. Os dados ficam disponíveis por até 12 meses.
+                    </Alert>
                   </div>
                 </div>
-                <div className="rounded-2xl border border-blue-100 bg-blue-50/60 p-6">
-                  <p className="text-[10px] font-black uppercase tracking-[.18em] text-blue-600">
-                    Conferência rápida
-                  </p>
-                  <h2 className="mt-2 text-lg font-black text-slate-900">
-                    Pedidos com informação completa
-                  </h2>
-                  <p className="mt-2 max-w-xl text-sm leading-relaxed text-slate-600">
-                    Selecione qualquer pedido acima para conferir cliente,
-                    endereço, itens, valores, desconto, frete, pagamento e
-                    situação. Os dados ficam disponíveis por até 12 meses.
-                  </p>
+              )}
+
+              {tab === "faturamento" && (
+                <div className="space-y-3">
+                  <StatGrid cols={4}>
+                    <StatCard title="Faturamento confirmado" value={money(data?.summary.confirmed_revenue || 0)} icon={CircleDollarSign} color="success" />
+                    <StatCard title="Em pedidos ativos" value={money(data?.summary.potential_revenue || 0)} icon={Wallet} color="info" />
+                    <StatCard title="Descontos aplicados" value={money(data?.summary.discounts || 0)} icon={ShoppingBag} color="warning" />
+                    <StatCard title="Pedidos confirmados" value={String(data?.summary.confirmed_orders || 0)} icon={CheckCircle2} color="purple" />
+                  </StatGrid>
+                  <PanelCard title="Últimos 30 dias da loja online" description="Leitura do período">
+                    <p className="max-w-2xl text-[13px] leading-relaxed text-slate-600">
+                      Faturamento confirmado considera somente pedidos concluídos.
+                      Pedidos pendentes ficam separados para que você não conte uma
+                      venda antes de receber ou confirmar o pagamento.
+                    </p>
+                    <dl className="mt-4 grid gap-x-6 gap-y-3 md:grid-cols-3">
+                      <DetailField
+                        label="Ticket médio confirmado"
+                        value={
+                          data?.summary.confirmed_orders
+                            ? money((data.summary.confirmed_revenue || 0) / data.summary.confirmed_orders)
+                            : money(0)
+                        }
+                      />
+                      <DetailField label="Unidades vendidas" value={String(data?.summary.units_sold || 0)} />
+                      <DetailField label="Pedidos aguardando" value={String(data?.summary.pending_orders || 0)} />
+                    </dl>
+                  </PanelCard>
                 </div>
-              </div>
-            </div>
-          )}
+              )}
 
-          {tab === "faturamento" && (
-            <div className="space-y-5">
-              <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                <Metric
-                  label="Faturamento confirmado"
-                  value={money(data?.summary.confirmed_revenue || 0)}
-                />
-                <Metric
-                  label="Em pedidos ativos"
-                  value={money(data?.summary.potential_revenue || 0)}
-                />
-                <Metric
-                  label="Descontos aplicados"
-                  value={money(data?.summary.discounts || 0)}
-                />
-                <Metric
-                  label="Pedidos confirmados"
-                  value={String(data?.summary.confirmed_orders || 0)}
-                />
-              </section>
-              <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-                <p className="text-[10px] font-black uppercase tracking-[.18em] text-slate-400">
-                  Leitura do período
-                </p>
-                <h2 className="mt-2 text-lg font-black text-slate-900">
-                  Últimos 30 dias da loja online
-                </h2>
-                <p className="mt-2 max-w-2xl text-sm leading-relaxed text-slate-500">
-                  Faturamento confirmado considera somente pedidos concluídos.
-                  Pedidos pendentes ficam separados para que você não conte uma
-                  venda antes de receber ou confirmar o pagamento.
-                </p>
-                <div className="mt-6 grid gap-3 md:grid-cols-3">
-                  <Info
-                    label="Ticket médio confirmado"
-                    value={
-                      data?.summary.confirmed_orders
-                        ? money(
-                            (data.summary.confirmed_revenue || 0) /
-                              data.summary.confirmed_orders,
-                          )
-                        : money(0)
-                    }
+              {tab === "configurar" && (
+                <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                  <ConfigCard
+                    icon={Image}
+                    title="Identidade da loja"
+                    text="Nome, logo, endereço, redes sociais e dados que aparecem para o cliente."
+                    action="Editar identidade"
+                    onClick={() => goSettings("identity")}
                   />
-                  <Info
-                    label="Unidades vendidas"
-                    value={String(data?.summary.units_sold || 0)}
+                  <ConfigCard
+                    icon={Palette}
+                    title="Visual da vitrine"
+                    text="Modelo, cores, imagens de capa, textos da home e experiência do catálogo."
+                    action="Personalizar visual"
+                    onClick={() => goSettings("design")}
                   />
-                  <Info
-                    label="Pedidos aguardando"
-                    value={String(data?.summary.pending_orders || 0)}
+                  <ConfigCard
+                    icon={Box}
+                    title="Catálogo e categorias"
+                    text="Produtos, fotos, variações, descrições, preços, estoque e categorias da loja."
+                    action="Abrir catálogo"
+                    onClick={() => navigate("/admin/catalog")}
+                  />
+                  <ConfigCard
+                    icon={ShoppingCart}
+                    title="Checkout e entrega"
+                    text="WhatsApp, reserva, checkout, CEP atendido, retirada e formas de pagamento."
+                    action="Configurar checkout"
+                    onClick={() => goSettings("storefront")}
+                  />
+                  <ConfigCard
+                    icon={CircleDollarSign}
+                    title="Contas de recebimento"
+                    text="Conecte a conta própria da loja no Mercado Pago ou Asaas. Tokens ficam protegidos."
+                    action="Ver integrações"
+                    onClick={() => goSettings("storefront")}
+                  />
+                  <ConfigCard
+                    icon={BarChart3}
+                    title="Vendas online"
+                    text="Acompanhe pedidos, faturamento, descontos, produtos e unidades vendidas."
+                    action="Ver vendas"
+                    onClick={() => setTab("vendas")}
                   />
                 </div>
-              </div>
-            </div>
+              )}
+            </>
           )}
-
-          {tab === "configurar" && (
-            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-              <ConfigCard
-                icon={Image}
-                title="Identidade da loja"
-                text="Nome, logo, endereço, redes sociais e dados que aparecem para o cliente."
-                action="Editar identidade"
-                onClick={() => goSettings("identity")}
-              />
-              <ConfigCard
-                icon={Palette}
-                title="Visual da vitrine"
-                text="Modelo, cores, imagens de capa, textos da home e experiência do catálogo."
-                action="Personalizar visual"
-                onClick={() => goSettings("design")}
-              />
-              <ConfigCard
-                icon={Box}
-                title="Catálogo e categorias"
-                text="Produtos, fotos, variações, descrições, preços, estoque e categorias da loja."
-                action="Abrir catálogo"
-                onClick={() => navigate("/admin/catalog")}
-              />
-              <ConfigCard
-                icon={ShoppingCart}
-                title="Checkout e entrega"
-                text="WhatsApp, reserva, checkout, CEP atendido, retirada e formas de pagamento."
-                action="Configurar checkout"
-                onClick={() => goSettings("storefront")}
-              />
-              <ConfigCard
-                icon={CircleDollarSign}
-                title="Contas de recebimento"
-                text="Conecte a conta própria da loja no Mercado Pago ou Asaas. Tokens ficam protegidos."
-                action="Ver integrações"
-                onClick={() => goSettings("storefront")}
-              />
-              <ConfigCard
-                icon={BarChart3}
-                title="Vendas online"
-                text="Acompanhe pedidos, faturamento, descontos, produtos e unidades vendidas."
-                action="Ver vendas"
-                onClick={() => setTab("vendas")}
-              />
-            </div>
-          )}
-        </>
-      )}
-    </div>
+        </Tabs>
+      </div>
+    </PageWrapper>
   );
 }
 
-function Metric({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-      <p className="text-2xl font-black tracking-tight text-slate-900">
-        {value}
-      </p>
-      <p className="mt-2 text-[10px] font-bold uppercase tracking-wider text-slate-400">
-        {label}
-      </p>
-    </div>
-  );
-}
-function Info({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-xl bg-slate-50 p-4">
-      <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
-        {label}
-      </p>
-      <p className="mt-2 text-lg font-black text-slate-900">{value}</p>
-    </div>
-  );
-}
 function Empty({ text }: { text: string }) {
-  return <p className="py-10 text-center text-sm text-slate-400">{text}</p>;
+  return <EmptyState title={text} />;
 }
 function ConfigCard({
   icon: Icon,
@@ -527,18 +381,18 @@ function ConfigCard({
   return (
     <button
       onClick={onClick}
-      className="group rounded-2xl border border-slate-200 bg-white p-6 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-blue-300 hover:shadow-md"
+      className="group rounded-lg border border-slate-200 bg-white p-3 text-left transition hover:border-blue-300"
     >
-      <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-blue-50 text-blue-600">
-        <Icon size={20} />
+      <div className="flex h-8 w-8 items-center justify-center rounded-lg border border-blue-100 bg-blue-50 text-blue-600">
+        <Icon size={15} />
       </div>
-      <h2 className="mt-5 text-base font-black text-slate-900">{title}</h2>
-      <p className="mt-2 min-h-10 text-sm leading-relaxed text-slate-500">
+      <h2 className="mt-3 text-sm font-medium text-slate-900">{title}</h2>
+      <p className="mt-1 min-h-10 text-xs leading-relaxed text-slate-500">
         {text}
       </p>
-      <span className="mt-5 inline-flex items-center gap-2 text-[10px] font-black uppercase tracking-wider text-blue-600">
+      <span className="mt-3 inline-flex items-center gap-1.5 text-xs font-medium text-blue-600">
         {action}
-        <ArrowUpRight size={14} />
+        <ArrowUpRight size={14} className="transition-transform group-hover:translate-x-0.5" />
       </span>
     </button>
   );
@@ -590,40 +444,28 @@ function OnlineOrders({
   };
 
   return (
-    <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-      <div className="flex flex-col justify-between gap-4 border-b border-slate-100 p-5 sm:flex-row sm:items-center sm:p-6">
-        <div>
-          <p className="text-[10px] font-black uppercase tracking-[.18em] text-blue-600">
-            Central de pedidos
-          </p>
-          <h2 className="mt-2 text-xl font-black text-slate-900">
-            Vendas online
-          </h2>
-          <p className="mt-1 text-sm text-slate-500">
-            Selecione um pedido para consultar todos os dados da venda, da
-            entrega e do pagamento.
-          </p>
-        </div>
-        <span className="inline-flex w-fit items-center gap-2 rounded-full bg-slate-100 px-3 py-2 text-[10px] font-black uppercase tracking-wider text-slate-600">
-          <ClipboardList size={14} /> {orders.length} pedido(s) nos últimos 12
-          meses
-        </span>
-      </div>
+    <PanelCard
+      icon={ClipboardList}
+      title="Vendas online"
+      description="Selecione um pedido para consultar todos os dados da venda, da entrega e do pagamento."
+      action={<Badge>{orders.length} pedido(s) nos últimos 12 meses</Badge>}
+      contentClassName="p-0"
+    >
       {!orders.length ? (
-        <Empty text="Nenhuma venda online neste período." />
+        <div className="p-3"><Empty text="Nenhuma venda online neste período." /></div>
       ) : (
         <div className="grid xl:grid-cols-[minmax(0,1.1fr)_minmax(360px,.9fr)]">
           <div className="border-b border-slate-100 xl:border-b-0 xl:border-r">
             <div className="max-h-[620px] overflow-auto">
               <table className="w-full min-w-[720px] text-left">
-                <thead className="sticky top-0 z-10 bg-slate-50">
-                  <tr className="text-[10px] font-black uppercase tracking-wider text-slate-400">
-                    <th className="px-5 py-3">Pedido</th>
-                    <th className="px-3 py-3">Cliente</th>
-                    <th className="px-3 py-3">Entrega</th>
-                    <th className="px-3 py-3">Pagamento</th>
-                    <th className="px-3 py-3">Status</th>
-                    <th className="px-5 py-3 text-right">Total</th>
+                <thead className="sticky top-0 z-10 bg-zinc-50">
+                  <tr>
+                    <th className={thClass}>Pedido</th>
+                    <th className={thClass}>Cliente</th>
+                    <th className={thClass}>Entrega</th>
+                    <th className={thClass}>Pagamento</th>
+                    <th className={thClass}>Status</th>
+                    <th className={cn(thClass, "text-right")}>Total</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -632,61 +474,37 @@ function OnlineOrders({
                       key={order.id}
                       onClick={() => setSelectedId(order.id)}
                       className={cn(
-                        "cursor-pointer border-t border-slate-100 text-sm transition",
+                        "cursor-pointer border-t border-slate-100 text-xs transition",
                         selected?.id === order.id
                           ? "bg-blue-50/80"
                           : "hover:bg-slate-50",
                       )}
                     >
-                      <td className="px-5 py-4">
-                        <p className="font-black text-slate-900">#{order.id}</p>
-                        <p className="mt-1 text-[10px] text-slate-400">
-                          {new Date(order.created_at).toLocaleDateString(
-                            "pt-BR",
-                          )}{" "}
-                          ·{" "}
-                          {new Date(order.created_at).toLocaleTimeString(
-                            "pt-BR",
-                            { hour: "2-digit", minute: "2-digit" },
-                          )}
+                      <td className="px-3 py-2">
+                        <p className="font-medium text-slate-900">#{order.id}</p>
+                        <p className="mt-0.5 text-[11px] text-slate-500">
+                          {new Date(order.created_at).toLocaleDateString("pt-BR")} ·{" "}
+                          {new Date(order.created_at).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
                         </p>
                       </td>
-                      <td className="px-3 py-4">
-                        <p className="max-w-[150px] truncate font-bold text-slate-700">
+                      <td className="px-3 py-2">
+                        <p className="max-w-[150px] truncate font-medium text-slate-700">
                           {order.customer_name || "Cliente não identificado"}
                         </p>
-                        <p className="mt-1 text-[10px] text-slate-400">
-                          {order.items.reduce(
-                            (sum, item) => sum + item.quantity,
-                            0,
-                          )}{" "}
-                          item(ns)
+                        <p className="mt-0.5 text-[11px] text-slate-500">
+                          {order.items.reduce((sum, item) => sum + item.quantity, 0)} item(ns)
                         </p>
                       </td>
-                      <td className="px-3 py-4 text-xs font-medium text-slate-600">
-                        {deliveryLabel[order.delivery_method || ""] ||
-                          "A combinar"}
+                      <td className="px-3 py-2 text-xs text-slate-600">
+                        {deliveryLabel[order.delivery_method || ""] || "A combinar"}
                       </td>
-                      <td className="px-3 py-4 text-xs font-medium text-slate-600">
-                        {paymentLabel[order.payment_method || ""] ||
-                          order.payment_method ||
-                          "—"}
+                      <td className="px-3 py-2 text-xs text-slate-600">
+                        {paymentLabel[order.payment_method || ""] || order.payment_method || "—"}
                       </td>
-                      <td className="px-3 py-4">
-                        <span
-                          className={cn(
-                            "rounded-full px-2.5 py-1 text-[9px] font-black uppercase",
-                            order.status === "completed"
-                              ? "bg-emerald-100 text-emerald-700"
-                              : order.status === "pending"
-                                ? "bg-amber-100 text-amber-700"
-                                : "bg-slate-100 text-slate-600",
-                          )}
-                        >
-                          {statusLabel[order.status] || order.status}
-                        </span>
+                      <td className="px-3 py-2">
+                        <Badge color={statusBadgeColor(order.status)}>{statusLabel[order.status] || order.status}</Badge>
                       </td>
-                      <td className="px-5 py-4 text-right font-black text-slate-900">
+                      <td className="px-3 py-2 text-right text-xs font-semibold tabular-nums text-slate-900">
                         {money(order.total_amount)}
                       </td>
                     </tr>
@@ -696,30 +514,15 @@ function OnlineOrders({
             </div>
           </div>
           {selected && (
-            <aside className="bg-slate-50/70 p-5 sm:p-6">
+            <aside className="space-y-3 bg-slate-50/70 p-3">
               <div className="flex items-start justify-between gap-4">
                 <div>
-                  <p className="text-[10px] font-black uppercase tracking-[.18em] text-blue-600">
-                    Detalhes do pedido
-                  </p>
-                  <h3 className="mt-1 text-2xl font-black text-slate-900">
-                    #{selected.id}
-                  </h3>
+                  <p className="text-[11px] font-medium text-blue-600">Detalhes do pedido</p>
+                  <h3 className="mt-0.5 text-base font-medium text-slate-900">#{selected.id}</h3>
                 </div>
-                <span
-                  className={cn(
-                    "rounded-full px-3 py-1.5 text-[10px] font-black uppercase",
-                    selected.status === "completed"
-                      ? "bg-emerald-100 text-emerald-700"
-                      : selected.status === "pending"
-                        ? "bg-amber-100 text-amber-700"
-                        : "bg-slate-200 text-slate-600",
-                  )}
-                >
-                  {statusLabel[selected.status] || selected.status}
-                </span>
+                <Badge color={statusBadgeColor(selected.status)}>{statusLabel[selected.status] || selected.status}</Badge>
               </div>
-              <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
+              <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-1">
                 <DetailCard
                   icon={UserRound}
                   label="Cliente"
@@ -738,10 +541,7 @@ function OnlineOrders({
                 <DetailCard
                   icon={Truck}
                   label="Entrega"
-                  value={
-                    deliveryLabel[selected.delivery_method || ""] ||
-                    "A combinar"
-                  }
+                  value={deliveryLabel[selected.delivery_method || ""] || "A combinar"}
                   detail={selected.customer_address || "Endereço não informado"}
                 />
                 <DetailCard
@@ -769,36 +569,28 @@ function OnlineOrders({
                   }
                 />
               </div>
-              <div className="mt-5 rounded-xl border border-slate-200 bg-white p-4">
+              <div className="rounded-lg border border-slate-200 bg-white p-3">
                 <div className="flex items-center justify-between">
-                  <p className="text-[10px] font-black uppercase tracking-wider text-slate-500">
-                    Itens do pedido
-                  </p>
-                  <p className="text-xs font-bold text-slate-500">
-                    {selected.items.length} produto(s)
-                  </p>
+                  <p className="text-xs font-medium text-slate-700">Itens do pedido</p>
+                  <p className="text-[11px] text-slate-500">{selected.items.length} produto(s)</p>
                 </div>
-                <div className="mt-3 divide-y divide-slate-100">
+                <div className="mt-2 divide-y divide-slate-100">
                   {selected.items.map((item, index) => (
                     <div
                       key={`${item.product?.sku || item.name || "item"}-${index}`}
-                      className="py-3 first:pt-0 last:pb-0"
+                      className="py-2 first:pt-0 last:pb-0"
                     >
                       <div className="flex items-start justify-between gap-3">
-                        <div>
-                          <p className="text-sm font-bold text-slate-800">
-                            {item.product?.name ||
-                              item.name ||
-                              "Produto removido"}
+                        <div className="min-w-0">
+                          <p className="break-words text-xs font-medium text-slate-800">
+                            {item.product?.name || item.name || "Produto removido"}
                           </p>
-                          <p className="mt-1 text-[10px] text-slate-400">
-                            {item.product?.sku
-                              ? `SKU ${item.product.sku} · `
-                              : ""}
+                          <p className="mt-0.5 text-[11px] text-slate-500">
+                            {item.product?.sku ? `SKU ${item.product.sku} · ` : ""}
                             {item.quantity} × {money(item.unit_price)}
                           </p>
                         </div>
-                        <p className="shrink-0 text-sm font-black text-slate-900">
+                        <p className="shrink-0 text-xs font-semibold tabular-nums text-slate-900">
                           {money(item.quantity * item.unit_price)}
                         </p>
                       </div>
@@ -806,95 +598,59 @@ function OnlineOrders({
                   ))}
                 </div>
               </div>
-              <div className="mt-5 rounded-xl bg-slate-950 p-4 text-white">
-                <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">
-                  Resumo financeiro
-                </p>
-                <div className="mt-3 space-y-2 text-sm">
-                  <div className="flex justify-between text-slate-300">
+              <div className="rounded-lg border border-slate-200 bg-white p-3">
+                <p className="text-xs font-medium text-slate-700">Resumo financeiro</p>
+                <div className="mt-2 space-y-1.5 text-xs">
+                  <div className="flex justify-between text-slate-600">
                     <span>Produtos</span>
-                    <span>
-                      {money(
-                        selected.items.reduce(
-                          (sum, item) => sum + item.quantity * item.unit_price,
-                          0,
-                        ),
-                      )}
+                    <span className="tabular-nums">
+                      {money(selected.items.reduce((sum, item) => sum + item.quantity * item.unit_price, 0))}
                     </span>
                   </div>
-                  <div className="flex justify-between text-slate-300">
+                  <div className="flex justify-between text-slate-600">
                     <span>Frete</span>
-                    <span>
-                      {selected.shipping_amount
-                        ? money(selected.shipping_amount)
-                        : "Grátis / não informado"}
+                    <span className="tabular-nums">
+                      {selected.shipping_amount ? money(selected.shipping_amount) : "Grátis / não informado"}
                     </span>
                   </div>
                   {selected.discount_amount ? (
-                    <div className="flex justify-between text-emerald-300">
+                    <div className="flex justify-between text-emerald-600">
                       <span>Desconto</span>
-                      <span>− {money(selected.discount_amount)}</span>
+                      <span className="tabular-nums">− {money(selected.discount_amount)}</span>
                     </div>
                   ) : null}
-                  <div className="flex justify-between border-t border-white/10 pt-3 text-base font-black">
+                  <div className="flex justify-between border-t border-slate-100 pt-2 text-[13px] font-semibold text-slate-900">
                     <span>Total do pedido</span>
-                    <span>{money(selected.total_amount)}</span>
+                    <span className="tabular-nums">{money(selected.total_amount)}</span>
                   </div>
                 </div>
               </div>
-              {!["completed", "cancelled", "canceled"].includes(
-                selected.status,
-              ) && (
-                <div className="mt-4 rounded-xl border border-blue-100 bg-blue-50 p-4">
-                  <p className="text-[10px] font-black uppercase tracking-wider text-blue-700">
-                    Conferir e finalizar
-                  </p>
-                  <p className="mt-2 text-xs leading-relaxed text-slate-600">
-                    Enquanto estiver aguardando, você pode corrigir cliente,
-                    itens, valores, frete e condições antes de confirmar.
-                  </p>
+              {!["completed", "cancelled", "canceled"].includes(selected.status) && (
+                <Alert variant="info" title="Conferir e finalizar">
+                  Enquanto estiver aguardando, você pode corrigir cliente, itens, valores, frete e condições antes de confirmar.
                   {selected.status === "pending" && (
-                    <>
-                      <button
-                        onClick={() => setEditingRequest(true)}
-                        className="mt-4 flex h-10 w-full items-center justify-center gap-2 rounded-lg border border-blue-200 bg-white text-[10px] font-black uppercase tracking-wider text-blue-700"
-                      >
-                        <Pencil size={13} /> Editar solicitação
-                      </button>
-                      <button
-                        disabled={actionLoading}
-                        onClick={() => updateOrder("confirmed")}
-                        className="mt-2 h-10 w-full rounded-lg border border-blue-200 bg-white text-[10px] font-black uppercase tracking-wider text-blue-700 disabled:opacity-60"
-                      >
-                        {actionLoading ? "Atualizando..." : "Confirmar pedido"}
-                      </button>
-                    </>
+                    <div className="mt-3 space-y-2">
+                      <Button size="sm" variant="outline" fullWidth iconLeft={<Pencil size={13} />} onClick={() => setEditingRequest(true)}>Editar solicitação</Button>
+                      <Button size="sm" variant="outline" fullWidth loading={actionLoading} onClick={() => updateOrder("confirmed")}>Confirmar pedido</Button>
+                    </div>
                   )}
-                  <div className="mt-3 grid grid-cols-[1fr_auto] gap-2">
-                    <select
+                  <div className="mt-3 grid grid-cols-[1fr_auto] items-end gap-2">
+                    <Select
+                      aria-label="Forma de pagamento"
+                      size="sm"
                       value={paymentMethod}
                       onChange={(event) => setPaymentMethod(event.target.value)}
-                      className="h-10 rounded-lg border border-blue-200 bg-white px-3 text-xs font-bold text-slate-700"
-                    >
-                      <option value="pix">PIX</option>
-                      <option value="money">Dinheiro</option>
-                      <option value="debit">Cartão de débito</option>
-                      <option value="credit">Cartão de crédito</option>
-                    </select>
-                    <button
-                      disabled={actionLoading}
-                      onClick={() => updateOrder("completed")}
-                      className="h-10 rounded-lg bg-blue-600 px-4 text-[10px] font-black uppercase tracking-wider text-white disabled:opacity-60"
-                    >
-                      Faturar agora
-                    </button>
+                      options={[
+                        { value: "pix", label: "PIX" },
+                        { value: "money", label: "Dinheiro" },
+                        { value: "debit", label: "Cartão de débito" },
+                        { value: "credit", label: "Cartão de crédito" },
+                      ]}
+                    />
+                    <Button size="sm" disabled={actionLoading} onClick={() => updateOrder("completed")}>Faturar agora</Button>
                   </div>
-                  {actionError && (
-                    <p className="mt-3 text-xs font-semibold text-red-600">
-                      {actionError}
-                    </p>
-                  )}
-                </div>
+                  {actionError && <p className="mt-3 text-xs font-medium text-red-600">{actionError}</p>}
+                </Alert>
               )}
             </aside>
           )}
@@ -911,9 +667,16 @@ function OnlineOrders({
           )}
         </div>
       )}
-    </section>
+    </PanelCard>
   );
 }
+
+const EDITOR_TABS = [
+  { id: "cliente", label: "Cliente e entrega", icon: UserRound },
+  { id: "itens", label: "Itens", icon: Package },
+] as const;
+type EditorTabId = typeof EDITOR_TABS[number]["id"];
+
 function PendingOrderEditor({
   order,
   onClose,
@@ -923,6 +686,7 @@ function PendingOrderEditor({
   onClose: () => void;
   onSaved: () => Promise<void>;
 }) {
+  const [editorTab, setEditorTab] = useState<EditorTabId>("cliente");
   const [customerName, setCustomerName] = useState(order.customer_name || "");
   const [customerPhone, setCustomerPhone] = useState(
     order.customer_phone || "",
@@ -1002,168 +766,128 @@ function PendingOrderEditor({
     }
   };
   return (
-    <div className="fixed inset-0 z-[90] flex items-end justify-center bg-slate-950/45 p-0 backdrop-blur-sm sm:items-center sm:p-5">
-      <div className="max-h-[94vh] w-full max-w-3xl overflow-y-auto rounded-t-3xl bg-white shadow-2xl sm:rounded-3xl">
-        <div className="flex items-start justify-between border-b border-slate-100 p-5 sm:p-6">
-          <div>
-            <p className="text-[10px] font-black uppercase tracking-[.18em] text-blue-600">
-              Editar solicitação
-            </p>
-            <h2 className="mt-1 text-xl font-black text-slate-900">
-              Pedido #{order.id}
-            </h2>
-            <p className="mt-1 text-xs text-slate-500">
-              Alterações permitidas antes da confirmação e do faturamento.
-            </p>
+    <Modal
+      isOpen
+      onClose={onClose}
+      size="lg"
+      title={`Editar solicitação — Pedido #${order.id}`}
+      subtitle="Alterações permitidas antes da confirmação e do faturamento."
+      footer={
+        <ModalFooter align="between">
+          <p className="text-xs text-slate-600">
+            Total atualizado: <span className="font-semibold text-blue-700">{money(total)}</span>
+          </p>
+          <div className="flex gap-2">
+            <Button variant="ghost" size="sm" onClick={onClose}>Cancelar</Button>
+            <Button size="sm" loading={saving} onClick={save}>Salvar alterações</Button>
           </div>
-          <button
-            onClick={onClose}
-            className="rounded-lg border border-slate-200 px-3 py-2 text-[10px] font-black uppercase text-slate-600"
-          >
-            Fechar
-          </button>
-        </div>
-        <div className="space-y-6 p-5 sm:p-6">
-          <section>
-            <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">
-              Cliente e entrega
-            </p>
-            <div className="mt-3 grid gap-3 sm:grid-cols-2">
-              <input
+        </ModalFooter>
+      }
+    >
+      <div className="space-y-3">
+        <Tabs<EditorTabId> items={EDITOR_TABS} value={editorTab} onChange={setEditorTab} label="Edição da solicitação">
+          {editorTab === "cliente" && (
+            <div className="grid gap-3 sm:grid-cols-2">
+              <Input
+                label="Nome do cliente"
                 value={customerName}
                 onChange={(event) => setCustomerName(event.target.value)}
                 placeholder="Nome do cliente"
-                className="h-11 rounded-xl border border-slate-200 px-3 text-sm outline-none focus:border-blue-500"
               />
-              <input
+              <Input
+                label="WhatsApp"
                 value={customerPhone}
                 onChange={(event) =>
-                  setCustomerPhone(
-                    event.target.value.replace(/\D/g, "").slice(0, 15),
-                  )
+                  setCustomerPhone(event.target.value.replace(/\D/g, "").slice(0, 15))
                 }
                 placeholder="WhatsApp"
-                className="h-11 rounded-xl border border-slate-200 px-3 text-sm outline-none focus:border-blue-500"
               />
-              <input
+              <Input
+                wrapperClassName="sm:col-span-2"
+                label="Endereço ou referência"
                 value={customerAddress}
                 onChange={(event) => setCustomerAddress(event.target.value)}
                 placeholder="Endereço ou referência"
-                className="h-11 rounded-xl border border-slate-200 px-3 text-sm outline-none focus:border-blue-500 sm:col-span-2"
               />
-              <select
+              <Select
+                label="Entrega"
                 value={delivery}
                 onChange={(event) => setDelivery(event.target.value)}
-                className="h-11 rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold"
-              >
-                <option value="to_confirm">Entrega a combinar</option>
-                <option value="pickup">Retirada na loja</option>
-                <option value="delivery">Entrega no endereço</option>
-              </select>
-              <select
+                options={[
+                  { value: "to_confirm", label: "Entrega a combinar" },
+                  { value: "pickup", label: "Retirada na loja" },
+                  { value: "delivery", label: "Entrega no endereço" },
+                ]}
+              />
+              <Select
+                label="Pagamento"
                 value={payment}
                 onChange={(event) => setPayment(event.target.value)}
-                className="h-11 rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold"
-              >
-                <option value="to_confirm">Pagamento a confirmar</option>
-                <option value="pix">PIX</option>
-                <option value="money">Dinheiro</option>
-                <option value="debit">Cartão de débito</option>
-                <option value="credit">Cartão de crédito</option>
-              </select>
+                options={[
+                  { value: "to_confirm", label: "Pagamento a confirmar" },
+                  { value: "pix", label: "PIX" },
+                  { value: "money", label: "Dinheiro" },
+                  { value: "debit", label: "Cartão de débito" },
+                  { value: "credit", label: "Cartão de crédito" },
+                ]}
+              />
             </div>
-          </section>
-          <section>
-            <div className="flex items-center justify-between">
-              <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">
-                Itens do pedido
-              </p>
-              <span className="text-xs font-bold text-slate-500">
-                Ajuste quantidade e valor
-              </span>
-            </div>
-            <div className="mt-3 space-y-2">
-              {items.map((item, index) => (
-                <div
-                  key={`${item.product_id}-${index}`}
-                  className="grid gap-2 rounded-xl border border-slate-200 p-3 sm:grid-cols-[1fr_88px_110px_auto] sm:items-center"
-                >
-                  <p className="text-sm font-bold text-slate-800">
-                    {item.product?.name || item.name || "Produto"}
-                  </p>
-                  <input
-                    type="number"
-                    min="1"
-                    value={item.quantity}
-                    onChange={(event) =>
-                      updateItem(index, "quantity", event.target.value)
-                    }
-                    className="h-10 rounded-lg border border-slate-200 px-2 text-sm"
-                  />
-                  <input
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    value={item.unit_price}
-                    onChange={(event) =>
-                      updateItem(index, "unit_price", event.target.value)
-                    }
-                    className="h-10 rounded-lg border border-slate-200 px-2 text-sm"
-                  />
-                  <button
-                    onClick={() =>
-                      setItems((current) =>
-                        current.filter((_, itemIndex) => itemIndex !== index),
-                      )
-                    }
-                    className="h-10 rounded-lg bg-red-50 px-3 text-[10px] font-black uppercase text-red-600"
-                  >
-                    Remover
-                  </button>
-                </div>
-              ))}
-            </div>
-            <div className="mt-3 grid gap-3 sm:grid-cols-[1fr_180px]">
-              <p className="self-center text-sm font-bold text-slate-700">
-                Total atualizado:{" "}
-                <span className="text-blue-700">{money(total)}</span>
-              </p>
-              <label className="text-[10px] font-black uppercase tracking-wider text-slate-400">
-                Frete
-                <input
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  value={shipping}
-                  onChange={(event) => setShipping(event.target.value)}
-                  className="mt-1 h-10 w-full rounded-lg border border-slate-200 px-3 text-sm font-bold text-slate-700"
-                />
-              </label>
-            </div>
-          </section>
-          {error && (
-            <p className="rounded-xl bg-red-50 p-3 text-sm font-semibold text-red-700">
-              {error}
-            </p>
           )}
-          <div className="flex justify-end gap-3 border-t border-slate-100 pt-5">
-            <button
-              onClick={onClose}
-              className="h-11 rounded-xl border border-slate-200 px-4 text-[10px] font-black uppercase text-slate-600"
-            >
-              Cancelar
-            </button>
-            <button
-              disabled={saving}
-              onClick={save}
-              className="h-11 rounded-xl bg-blue-600 px-5 text-[10px] font-black uppercase tracking-wider text-white disabled:opacity-60"
-            >
-              {saving ? "Salvando..." : "Salvar alterações"}
-            </button>
-          </div>
-        </div>
+
+          {editorTab === "itens" && (
+            <div className="space-y-3">
+              <p className="text-[11px] text-slate-500">Ajuste quantidade e valor</p>
+              <div className="space-y-2">
+                {items.map((item, index) => (
+                  <div
+                    key={`${item.product_id}-${index}`}
+                    className="grid gap-2 rounded-lg border border-slate-200 p-3 sm:grid-cols-[1fr_88px_110px_auto] sm:items-center"
+                  >
+                    <p className="break-words text-xs font-medium text-slate-800">
+                      {item.product?.name || item.name || "Produto"}
+                    </p>
+                    <Input
+                      aria-label="Quantidade"
+                      size="sm"
+                      type="number"
+                      min="1"
+                      value={item.quantity}
+                      onChange={(event) => updateItem(index, "quantity", event.target.value)}
+                    />
+                    <Input
+                      aria-label="Valor unitário"
+                      size="sm"
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={item.unit_price}
+                      onChange={(event) => updateItem(index, "unit_price", event.target.value)}
+                    />
+                    <Button
+                      variant="danger"
+                      size="xs"
+                      onClick={() => setItems((current) => current.filter((_, itemIndex) => itemIndex !== index))}
+                    >
+                      Remover
+                    </Button>
+                  </div>
+                ))}
+              </div>
+              <Input
+                wrapperClassName="sm:w-44"
+                label="Frete"
+                type="number"
+                min="0"
+                step="0.01"
+                value={shipping}
+                onChange={(event) => setShipping(event.target.value)}
+              />
+            </div>
+          )}
+        </Tabs>
+        {error && <Alert variant="error">{error}</Alert>}
       </div>
-    </div>
+    </Modal>
   );
 }
 
@@ -1179,15 +903,13 @@ function DetailCard({
   detail: string;
 }) {
   return (
-    <div className="rounded-xl border border-slate-200 bg-white p-3.5">
+    <div className="rounded-lg border border-slate-200 bg-white p-3">
       <div className="flex items-center gap-2 text-blue-600">
         <Icon size={14} />
-        <p className="text-[10px] font-black uppercase tracking-wider">
-          {label}
-        </p>
+        <p className="text-[11px] font-medium">{label}</p>
       </div>
-      <p className="mt-2 text-sm font-black text-slate-800">{value}</p>
-      <p className="mt-1 break-words text-[11px] leading-relaxed text-slate-500">
+      <p className="mt-1.5 text-xs font-medium text-slate-800">{value}</p>
+      <p className="mt-0.5 break-words text-[11px] leading-relaxed text-slate-500">
         {detail}
       </p>
     </div>
@@ -1201,76 +923,54 @@ function RecentOrders({
   full?: boolean;
 }) {
   return (
-    <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-      <div className="flex items-center justify-between">
-        <div>
-          <p className="text-[10px] font-black uppercase tracking-[.18em] text-slate-400">
-            Pedidos online
-          </p>
-          <h2 className="mt-2 text-lg font-black text-slate-900">
-            {full ? "Todas as vendas recentes" : "Últimas vendas"}
-          </h2>
-        </div>
-        <CheckCircle2 size={20} className="text-emerald-500" />
-      </div>
-      <div className="mt-5 overflow-x-auto">
+    <PanelCard
+      title={full ? "Todas as vendas recentes" : "Últimas vendas"}
+      description="Pedidos online"
+      action={<CheckCircle2 size={18} className="text-emerald-500" />}
+      contentClassName="p-0"
+    >
+      <div className="overflow-x-auto">
         <table className="w-full min-w-[620px] text-left">
           <thead>
-            <tr className="border-b border-slate-100 text-[10px] font-black uppercase tracking-wider text-slate-400">
-              <th className="pb-3">Pedido</th>
-              <th className="pb-3">Cliente</th>
-              <th className="pb-3">Itens</th>
-              <th className="pb-3">Pagamento</th>
-              <th className="pb-3">Status</th>
-              <th className="pb-3 text-right">Total</th>
+            <tr className="border-b border-slate-100 bg-zinc-50">
+              <th className={thClass}>Pedido</th>
+              <th className={thClass}>Cliente</th>
+              <th className={thClass}>Itens</th>
+              <th className={thClass}>Pagamento</th>
+              <th className={thClass}>Status</th>
+              <th className={cn(thClass, "text-right")}>Total</th>
             </tr>
           </thead>
           <tbody>
             {orders.length ? (
               orders.map((order) => (
-                <tr key={order.id} className="border-b border-slate-50 text-sm">
-                  <td className="py-4 font-black text-slate-800">
-                    #{order.id}
-                  </td>
-                  <td className="py-4">
-                    <p className="font-bold text-slate-700">
+                <tr key={order.id} className="border-b border-slate-50 text-xs">
+                  <td className="px-3 py-2 font-medium text-slate-800">#{order.id}</td>
+                  <td className="px-3 py-2">
+                    <p className="font-medium text-slate-700">
                       {order.customer_name || "Cliente não identificado"}
                     </p>
-                    <p className="text-[10px] text-slate-400">
+                    <p className="text-[11px] text-slate-500">
                       {new Date(order.created_at).toLocaleDateString("pt-BR")}
                     </p>
                   </td>
-                  <td className="py-4 text-xs text-slate-600">
-                    {order.items.reduce((sum, item) => sum + item.quantity, 0)}{" "}
-                    unidade(s)
+                  <td className="px-3 py-2 text-xs text-slate-600">
+                    {order.items.reduce((sum, item) => sum + item.quantity, 0)} unidade(s)
                   </td>
-                  <td className="py-4 text-xs text-slate-600">
-                    {paymentLabel[order.payment_method || ""] ||
-                      order.payment_method ||
-                      "—"}
+                  <td className="px-3 py-2 text-xs text-slate-600">
+                    {paymentLabel[order.payment_method || ""] || order.payment_method || "—"}
                   </td>
-                  <td className="py-4">
-                    <span
-                      className={cn(
-                        "rounded-full px-2.5 py-1 text-[9px] font-black uppercase",
-                        order.status === "completed"
-                          ? "bg-emerald-100 text-emerald-700"
-                          : order.status === "pending"
-                            ? "bg-amber-100 text-amber-700"
-                            : "bg-slate-100 text-slate-600",
-                      )}
-                    >
-                      {statusLabel[order.status] || order.status}
-                    </span>
+                  <td className="px-3 py-2">
+                    <Badge color={statusBadgeColor(order.status)}>{statusLabel[order.status] || order.status}</Badge>
                   </td>
-                  <td className="py-4 text-right font-black text-slate-900">
+                  <td className="px-3 py-2 text-right text-xs font-semibold tabular-nums text-slate-900">
                     {money(order.total_amount)}
                   </td>
                 </tr>
               ))
             ) : (
               <tr>
-                <td colSpan={6}>
+                <td colSpan={6} className="p-3">
                   <Empty text="Nenhuma venda online neste período." />
                 </td>
               </tr>
@@ -1278,6 +978,6 @@ function RecentOrders({
           </tbody>
         </table>
       </div>
-    </section>
+    </PanelCard>
   );
 }

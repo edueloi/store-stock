@@ -1,5 +1,6 @@
 @import url("https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=Manrope:wght@400;500;600;700;800&family=Poppins:wght@400;500;600;700;800&family=Sora:wght@500;600;700;800&display=swap");
 @import "tailwindcss";
+@import "./components/ui/styles.css";
 
 html, body, #root {
   height: 100%;

@@ -288,16 +288,16 @@ export default function XmlImportModal({ open, onClose, onImported, autoLoadUrl 
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.95, y: 16 }}
           transition={{ type: "spring", damping: 26, stiffness: 340 }}
-          className="relative bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden"
+          className="relative bg-white rounded-lg shadow-sm w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden"
         >
           {/* header */}
           <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 shrink-0">
             <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-xl bg-violet-50 flex items-center justify-center">
+              <div className="w-9 h-9 rounded-lg bg-violet-50 flex items-center justify-center">
                 <FileCode size={16} className="text-violet-500" />
               </div>
               <div>
-                <h2 className="text-sm font-bold text-slate-800">Importar XML de NF-e</h2>
+                <h2 className="text-sm font-semibold text-slate-800">Importar XML de NF-e</h2>
                 <p className="text-[11px] text-slate-400">
                   {step === "upload" && "Selecione o(s) XML da nota fiscal de entrada"}
                   {step === "preview" && `${products.length} produto${products.length !== 1 ? "s" : ""} — ${updateCount} atualizar · ${newCount} novo${newCount !== 1 ? "s" : ""}`}
@@ -323,7 +323,7 @@ export default function XmlImportModal({ open, onClose, onImported, autoLoadUrl 
                   onDragLeave={() => setDragging(false)}
                   onDrop={onDrop}
                   onClick={() => fileRef.current?.click()}
-                  className={`border-2 border-dashed rounded-2xl p-12 flex flex-col items-center gap-4 cursor-pointer transition-all
+                  className={`border-2 border-dashed rounded-lg p-12 flex flex-col items-center gap-4 cursor-pointer transition-all
                     ${dragging ? "border-violet-400 bg-violet-50" : "border-slate-200 hover:border-violet-300 hover:bg-slate-50"}`}
                 >
                   {parsing
@@ -340,7 +340,7 @@ export default function XmlImportModal({ open, onClose, onImported, autoLoadUrl 
                 <input ref={fileRef} type="file" accept=".xml" multiple className="hidden" onChange={onFileChange} />
 
                 {parseError && (
-                  <div className="mt-4 flex items-start gap-2 p-3 rounded-xl bg-red-50 border border-red-100">
+                  <div className="mt-4 flex items-start gap-2 p-3 rounded-lg bg-red-50 border border-red-100">
                     <AlertCircle size={14} className="text-red-500 shrink-0 mt-0.5" />
                     <p className="text-xs text-red-600">{parseError}</p>
                   </div>
@@ -360,12 +360,12 @@ export default function XmlImportModal({ open, onClose, onImported, autoLoadUrl 
                     </div>
                     <div className="flex items-center gap-3">
                       {updateCount > 0 && (
-                        <span className="flex items-center gap-1 text-[10px] font-bold text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full">
+                        <span className="flex items-center gap-1 text-[11px] font-semibold text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full">
                           <RefreshCw size={9} /> {updateCount} atualizar estoque
                         </span>
                       )}
                       {newCount > 0 && (
-                        <span className="flex items-center gap-1 text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full">
+                        <span className="flex items-center gap-1 text-[11px] font-semibold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full">
                           <PackagePlus size={9} /> {newCount} novo{newCount !== 1 ? "s" : ""}
                         </span>
                       )}
@@ -373,10 +373,10 @@ export default function XmlImportModal({ open, onClose, onImported, autoLoadUrl 
                   </div>
                 )}
 
-                <div data-tour="xml-import-preview" className="rounded-xl border border-slate-100 overflow-x-auto">
+                <div data-tour="xml-import-preview" className="rounded-lg border border-slate-100 overflow-x-auto">
                   <div className="min-w-[560px]">
                   {/* table header */}
-                  <div className="grid grid-cols-[auto_1fr_52px_52px_80px_80px_32px] gap-2 px-3 py-2 bg-slate-50 text-[10px] font-bold text-slate-500 uppercase tracking-wide">
+                  <div className="grid grid-cols-[auto_1fr_52px_52px_80px_80px_32px] gap-2 px-3 py-2 bg-slate-50 text-[11px] font-semibold text-slate-500">
                     <div />
                     <div>Produto</div>
                     <div className="text-center">Und</div>
@@ -415,35 +415,35 @@ export default function XmlImportModal({ open, onClose, onImported, autoLoadUrl 
                           <div className="flex items-center gap-1.5 flex-wrap">
                             <p className="font-semibold text-slate-800 truncate leading-tight">{p.name}</p>
                             {!p.done && !p.error && p.existingId && (
-                              <span className="shrink-0 text-[9px] font-bold text-amber-600 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded-full">
+                              <span className="shrink-0 text-[11px] font-semibold text-amber-600 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded-full">
                                 ATUALIZAR +{p.qty}un{p.price > (p.existingCost ?? 0) ? " · novo custo" : ""}
                               </span>
                             )}
                             {!p.done && !p.error && !p.existingId && (
-                              <span className="shrink-0 text-[9px] font-bold text-emerald-600 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded-full">
+                              <span className="shrink-0 text-[11px] font-semibold text-emerald-600 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded-full">
                                 NOVO
                               </span>
                             )}
                           </div>
                           <div className="flex items-center gap-2 mt-0.5 flex-wrap">
-                            <p className="text-[10px] text-slate-400 font-mono">{p.sku}</p>
-                            {p.ncm && <p className="text-[10px] text-slate-400">NCM {p.ncm}</p>}
-                            {p.cfop && <p className="text-[10px] text-slate-400">CFOP {p.cfop}</p>}
-                            {p.cest && <p className="text-[10px] text-slate-400">CEST {p.cest}</p>}
+                            <p className="text-[11px] text-slate-400 font-mono">{p.sku}</p>
+                            {p.ncm && <p className="text-[11px] text-slate-400">NCM {p.ncm}</p>}
+                            {p.cfop && <p className="text-[11px] text-slate-400">CFOP {p.cfop}</p>}
+                            {p.cest && <p className="text-[11px] text-slate-400">CEST {p.cest}</p>}
                             {p.existingStock !== undefined && !p.done && (
-                              <p className="text-[10px] text-amber-500">estoque atual: {p.existingStock}</p>
+                              <p className="text-[11px] text-amber-500">estoque atual: {p.existingStock}</p>
                             )}
-                            {p.doneLabel && <p className="text-[10px] text-emerald-600 font-semibold">{p.doneLabel}</p>}
-                            {p.error && <p className="text-[10px] text-red-500">{p.error}</p>}
+                            {p.doneLabel && <p className="text-[11px] text-emerald-600 font-semibold">{p.doneLabel}</p>}
+                            {p.error && <p className="text-[11px] text-red-500">{p.error}</p>}
                           </div>
                         </div>
 
                         <div className="text-center text-slate-500 font-medium">{p.unit}</div>
-                        <div className="text-center font-bold text-slate-700">{p.qty}</div>
+                        <div className="text-center font-semibold text-slate-700">{p.qty}</div>
                         <div className="text-right text-slate-700">
                           R$ {p.price.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
                         </div>
-                        <div className="text-right font-bold text-slate-800">
+                        <div className="text-right font-semibold text-slate-800">
                           R$ {p.total.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
                         </div>
 
@@ -463,7 +463,7 @@ export default function XmlImportModal({ open, onClose, onImported, autoLoadUrl 
                 {/* summary */}
                 <div className="mt-3 flex items-center justify-between px-1">
                   <span className="text-[11px] text-slate-400">{products.filter(p => p.selected).length} de {products.length} selecionado{products.length !== 1 ? "s" : ""}</span>
-                  <span className="text-[11px] font-bold text-slate-700">
+                  <span className="text-[11px] font-semibold text-slate-700">
                     Total: R$ {products.filter(p => p.selected).reduce((s, p) => s + p.total, 0).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
                   </span>
                 </div>

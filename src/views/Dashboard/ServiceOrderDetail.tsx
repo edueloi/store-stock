@@ -31,10 +31,12 @@ import {
   ExternalLink,
   Mail,
   Send,
+  Wrench,
+  Camera as CameraIcon,
+  History as HistoryIcon,
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { cn } from "../../lib/utils";
-import PageHeader from "../../components/layout/PageHeader";
 import Modal from "../../components/ui/Modal";
 import Combobox from "../../components/ui/Combobox";
 import { useToast } from "../../components/ui/Toast";
@@ -50,10 +52,6 @@ import {
   Seller,
   Technician,
   Tenant,
-  InvoicePayment,
-  PayMethod,
-  PM_LABEL,
-  CARD_BRANDS,
   fmt,
   maskPhone,
   maskDoc,
@@ -62,15 +60,40 @@ import {
   STATUS_META,
   getStatusOrderForTenant,
   downloadServiceOrderPdf,
-  newPayment,
-  buildPmString,
   NfseInvoice,
 } from "./serviceOrders.shared";
+import SalePaymentForm, { SalePaymentFormState, newSalePaymentFormState, parseSalePaymentSettings, computeSalePayment, buildSalePayload } from "../../components/SalePaymentForm";
+import { ContentCard, Button, IconButton, Input, Textarea, Badge, Tabs, EmptyState } from "../../components/ui";
+
+type BadgeColor = "default" | "primary" | "success" | "warning" | "danger" | "info" | "purple" | "orange" | "teal";
+
+const STATUS_BADGE: Record<string, BadgeColor> = {
+  rascunho: "default",
+  orcamento_enviado: "info",
+  aguardando_aprovacao: "warning",
+  aprovado: "teal",
+  aguardando_arte: "purple",
+  arte_finalizada: "purple",
+  em_producao: "purple",
+  finalizado: "teal",
+  nota_emitida: "primary",
+  entregue: "success",
+  cancelada: "danger",
+};
+
+const OS_TABS = [
+  { id: "atendimento", label: "Atendimento", icon: Wrench },
+  { id: "itens", label: "Itens", icon: Receipt },
+  { id: "arquivos", label: "Fotos e arquivos", icon: CameraIcon },
+  { id: "historico", label: "Histórico", icon: HistoryIcon },
+] as const;
+type OsTabId = typeof OS_TABS[number]["id"];
 
 export default function ServiceOrderDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const toast = useToast();
+  const [activeTab, setActiveTab] = useState<OsTabId>("atendimento");
   const orderId = Number(id);
 
   const [selected, setSelected] = useState<ServiceOrder | null>(null);
@@ -166,8 +189,7 @@ export default function ServiceOrderDetail() {
   const provaInputRef = useRef<HTMLInputElement>(null);
 
   const [showInvoiceModal, setShowInvoiceModal] = useState(false);
-  const [invoicePayments, setInvoicePayments] = useState<InvoicePayment[]>([newPayment()]);
-  const [invoiceSellerId, setInvoiceSellerId] = useState<number | "">("");
+  const [invoiceForm, setInvoiceForm] = useState<SalePaymentFormState>(() => newSalePaymentFormState());
   const [invoicing, setInvoicing] = useState(false);
   const [showReceivableModal, setShowReceivableModal] = useState(false);
   const [receivableDueDate, setReceivableDueDate] = useState("");
@@ -657,29 +679,28 @@ export default function ServiceOrderDetail() {
   };
 
   // ── Invoice ("Faturar") ────────────────────────────────────────────────
-  const paidTotal = invoicePayments.reduce((s, p) => s + (Number(p.amount) || 0), 0);
-  const remaining = selected ? Math.max(0, Number(selected.total_amount) - paidTotal) : 0;
+  const invoiceSettings = parseSalePaymentSettings(tenant);
+  const invoiceBase = selected ? Number(selected.total_amount) : 0;
+  const invoiceCalc = computeSalePayment(invoiceBase, invoiceForm, invoiceSettings);
+  const invoiceHasCrediarioWithoutCustomer = invoiceForm.payments.some((p) => p.method === "crediario") && !selected?.customer_id;
 
-  const updateInvoicePayment = (id: string, patch: Partial<InvoicePayment>) => {
-    setInvoicePayments((prev) => prev.map((p) => (p.id === id ? { ...p, ...patch } : p)));
+  const openInvoiceModal = () => {
+    setInvoiceForm(newSalePaymentFormState(invoiceBase > 0 ? invoiceBase.toFixed(2) : ""));
+    setShowInvoiceModal(true);
   };
-  const addInvoicePayment = () => setInvoicePayments((prev) => [...prev, newPayment()]);
-  const removeInvoicePayment = (id: string) => setInvoicePayments((prev) => prev.filter((p) => p.id !== id));
 
   const handleInvoice = async () => {
     if (!selected) return;
     setInvoicing(true);
     try {
-      const pmString = buildPmString(invoicePayments) || "money";
       const res = await fetch(`/api/service-orders/${selected.id}/faturar`, {
         method: "POST",
         headers: authHeader(),
-        body: JSON.stringify({ payment_method: pmString, seller_id: invoiceSellerId || undefined }),
+        body: JSON.stringify(buildSalePayload(invoiceBase, invoiceForm, invoiceSettings)),
       });
       if (res.ok) {
         setShowInvoiceModal(false);
-        setInvoicePayments([newPayment()]);
-        setInvoiceSellerId("");
+        setInvoiceForm(newSalePaymentFormState());
         await fetchOrder(true);
       } else {
         const err = await res.json().catch(() => ({}));
@@ -730,84 +751,103 @@ export default function ServiceOrderDetail() {
   );
 
   if (loading) {
-    return <div className="p-10 text-center text-slate-400 text-[12px] font-bold">Carregando...</div>;
+    return (
+      <div role="status" className="flex items-center justify-center gap-2 py-12 text-sm text-slate-500">
+        <Loader2 size={18} className="animate-spin" />Carregando ordem de serviço…
+      </div>
+    );
   }
   if (notFound || !selected) {
     return (
-      <div className="flex flex-col items-center justify-center gap-3 py-24">
-        <AlertTriangle className="text-red-500" size={28} />
-        <p className="text-[12px] font-bold text-slate-600">Ordem de serviço não encontrada</p>
-        <button onClick={() => navigate("/admin/ordens-servico")} className="h-9 px-4 bg-slate-900 text-white rounded-lg text-[11px] font-black uppercase tracking-wider hover:bg-slate-800 transition-all">
-          Voltar
-        </button>
-      </div>
+      <ContentCard>
+        <EmptyState
+          icon={AlertTriangle}
+          title="Ordem de serviço não encontrada"
+          description="A ordem pode ter sido removida."
+          action={<Button variant="outline" onClick={() => navigate("/admin/ordens-servico")}>Voltar para ordens de serviço</Button>}
+        />
+      </ContentCard>
     );
   }
 
   return (
-    <div className="space-y-5 pb-10">
-      <PageHeader
-        title={isDraft ? "Nova Ordem de Serviço (Rascunho)" : `OS #${String(selected.number).padStart(4, "0")} — ${selected.customer_name}`}
-        subtitle={isDraft ? "Preencha os dados abaixo — tudo é salvo automaticamente" : "Ordem de Serviço"}
-        action={
-          <button
-            onClick={() => navigate("/admin/ordens-servico")}
-            className="h-9 px-4 bg-slate-100 hover:bg-slate-200 rounded-lg flex items-center gap-2 text-[12px] font-bold text-slate-600 transition-all"
-          >
-            <ChevronLeft size={15} /> Voltar
-          </button>
-        }
-      />
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <Button variant="ghost" size="sm" iconLeft={<ChevronLeft size={14} />} onClick={() => navigate("/admin/ordens-servico")}>
+          Voltar para ordens de serviço
+        </Button>
+        <div className="text-[11px] text-slate-500" role="status">
+          {savingField && <span>Salvando…</span>}
+          {!savingField && savedPulse && (
+            <span className="flex items-center gap-1 text-emerald-600"><CheckCircle2 size={12} /> Salvo</span>
+          )}
+        </div>
+      </div>
 
-      {savingField && (
-        <p className="text-[10px] font-bold text-slate-400">Salvando…</p>
-      )}
-      {!savingField && savedPulse && (
-        <p className="text-[10px] font-bold text-emerald-500 flex items-center gap-1"><CheckCircle2 size={12} /> Salvo</p>
-      )}
-
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
-        <div className="lg:col-span-2 space-y-5">
-          {/* Status */}
-          <div className="bg-white rounded-2xl border border-slate-200 p-5">
-            <div className="flex items-center justify-between mb-3">
-              <div className="flex items-center gap-2">
-                <span className={cn("inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-wider", STATUS_META[selected.status].color)}>
-                  {STATUS_META[selected.status].icon} {STATUS_META[selected.status].label}
-                </span>
-                {selected.priority === "urgente" && (
-                  <span className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-wider bg-red-50 text-red-600">
-                    <AlertTriangle size={12} /> Urgente
-                  </span>
-                )}
-              </div>
+      <ContentCard padding="md">
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-lg border border-blue-100 bg-blue-50 text-blue-700">
+            <Wrench size={22} />
+          </div>
+          <div className="min-w-0 flex-1">
+            <h1 className="truncate text-base font-semibold text-slate-900 sm:text-lg">
+              {isDraft ? "Nova ordem de serviço (rascunho)" : `OS #${String(selected.number).padStart(4, "0")}`}
+            </h1>
+            <p className="mt-0.5 text-xs text-slate-500">
+              {[
+                selected.customer_name,
+                new Date(selected.created_at).toLocaleDateString("pt-BR"),
+                isDraft ? "Preencha os dados abaixo — tudo é salvo automaticamente" : "",
+              ].filter(Boolean).join(" · ")}
+            </p>
+            <div className="mt-1.5 flex flex-wrap items-center gap-2">
+              <Badge color={STATUS_BADGE[selected.status] ?? "default"} size="sm" dot>{STATUS_META[selected.status].label}</Badge>
+              {selected.priority === "urgente" && <Badge color="danger" size="sm" icon={<AlertTriangle size={11} />}>Urgente</Badge>}
               {selected.invoiced_order_id && (
-                <span className="text-[10px] font-bold text-emerald-600">Faturada — Pedido #{selected.invoiced_order_id}</span>
+                <span className="text-xs text-emerald-700">Faturada — Pedido #{selected.invoiced_order_id}</span>
+              )}
+            </div>
+          </div>
+          <div className="text-right">
+            <p className="text-[11px] text-slate-500">Total</p>
+            <p className="text-base font-semibold tabular-nums text-slate-900">{fmt(selected.total_amount)}</p>
+          </div>
+        </div>
+      </ContentCard>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 lg:items-start">
+        <div className="min-w-0 lg:col-span-2">
+          <Tabs<OsTabId> items={OS_TABS} value={activeTab} onChange={setActiveTab} label="Detalhes da ordem de serviço">
+            {activeTab === "atendimento" && (
+              <div className="space-y-3">
+          {/* Status */}
+          <ContentCard padding="md">
+            <div className="flex items-center justify-between mb-3">
+              <p className="text-xs font-medium text-slate-700">Andamento da ordem</p>
+              {selected.invoiced_order_id && (
+                <span className="text-[11px] font-semibold text-emerald-600">Faturada — Pedido #{selected.invoiced_order_id}</span>
               )}
             </div>
 
             {selected.status === "cancelada" ? (
-              <div className="bg-red-50 border border-red-200 rounded-2xl p-3 space-y-2">
-                <p className="text-[11px] font-black text-red-600 uppercase tracking-wider flex items-center gap-1.5"><Ban size={13} /> Ordem Cancelada</p>
+              <div className="bg-red-50 border border-red-200 rounded-lg p-3 space-y-2">
+                <p className="text-[11px] font-semibold text-red-600 flex items-center gap-1.5"><Ban size={13} /> Ordem Cancelada</p>
                 {selected.cancel_reason && <p className="text-[11px] text-red-500 mt-1">Motivo: {selected.cancel_reason}</p>}
-                <button onClick={() => setShowDiscardModal(true)} className="text-[10px] font-bold text-red-400 hover:text-red-600 transition-colors">
+                <Button variant="ghost" size="sm" onClick={() => setShowDiscardModal(true)}>
                   Excluir Ordem de Serviço
-                </button>
+                </Button>
               </div>
             ) : isDraft ? (
               <div className="flex items-center gap-2 flex-wrap">
-                <button
-                  onClick={() => changeStatus("orcamento_enviado")}
-                  disabled={!canStartService}
-                  className="h-9 px-4 rounded-xl bg-blue-600 hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed text-white text-[10px] font-black uppercase tracking-wider flex items-center gap-1.5 transition-all"
-                >
+                <Button variant="primary" size="sm" onClick={() => changeStatus("orcamento_enviado")}
+                  disabled={!canStartService}>
                   Marcar Orçamento como Enviado <ArrowRight size={13} />
-                </button>
-                <button onClick={() => setShowDiscardModal(true)} className="text-[10px] font-bold text-slate-400 hover:text-red-500 transition-colors">
+                </Button>
+                <Button variant="ghost" size="sm" onClick={() => setShowDiscardModal(true)}>
                   Descartar rascunho
-                </button>
+                </Button>
                 {!canStartService && (
-                  <span className="text-[10px] text-slate-400">
+                  <span className="text-[11px] text-slate-400">
                     {hasEquipment ? "Preencha cliente, categoria e detalhes do atendimento" : "Preencha cliente e detalhes do atendimento"}
                   </span>
                 )}
@@ -833,7 +873,7 @@ export default function ServiceOrderDetail() {
                     const isCurrent = idx === currentIdx;
                     const isDone = idx < currentIdx;
                     return (
-                      <span key={s} className={cn("text-[9px] font-bold px-1.5 py-0.5 rounded",
+                      <span key={s} className={cn("text-[10px] font-semibold px-1.5 py-0.5 rounded",
                         isCurrent ? "bg-blue-100 text-blue-700" : isDone ? "text-emerald-600" : "text-slate-300")}>
                         {STATUS_META[s].label}
                       </span>
@@ -847,41 +887,37 @@ export default function ServiceOrderDetail() {
                     // Faturada só pode seguir para "entregue" — as demais ações (cancelar/excluir/pular etapa) ficam bloqueadas.
                     if (selected.invoiced_order_id) {
                       return next === "entregue" ? (
-                        <button onClick={() => changeStatus(next)}
-                          className="h-9 px-4 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-[10px] font-black uppercase tracking-wider flex items-center gap-1.5 transition-all">
+                        <Button variant="primary" size="sm" onClick={() => changeStatus(next)}>
                           Avançar para: {STATUS_META[next].label} <ArrowRight size={13} />
-                        </button>
+                        </Button>
                       ) : (
-                        <span className="text-[10px] font-bold text-emerald-600 flex items-center gap-1"><CheckCircle2 size={13} /> Concluída</span>
+                        <span className="text-[11px] font-semibold text-emerald-600 flex items-center gap-1"><CheckCircle2 size={13} /> Concluída</span>
                       );
                     }
                     return next && next !== "cancelada" ? (
                       <>
-                        <button onClick={() => changeStatus(next)}
-                          className="h-9 px-4 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-[10px] font-black uppercase tracking-wider flex items-center gap-1.5 transition-all shrink-0">
+                        <Button variant="primary" size="sm" onClick={() => changeStatus(next)} className="shrink-0">
                           Avançar para: {STATUS_META[next].label} <ArrowRight size={13} />
-                        </button>
-                        <button onClick={() => setShowCancelModal(true)}
-                          className="text-[10px] font-bold text-slate-400 hover:text-red-500 transition-colors">
+                        </Button>
+                        <Button variant="ghost" size="sm" onClick={() => setShowCancelModal(true)}>
                           Cancelar Ordem
-                        </button>
-                        <button onClick={() => setShowDiscardModal(true)}
-                          className="text-[10px] font-bold text-slate-400 hover:text-red-500 transition-colors">
+                        </Button>
+                        <Button variant="ghost" size="sm" onClick={() => setShowDiscardModal(true)}>
                           Excluir Ordem de Serviço
-                        </button>
+                        </Button>
                       </>
                     ) : (
-                      <span className="text-[10px] font-bold text-emerald-600 flex items-center gap-1"><CheckCircle2 size={13} /> Concluída</span>
+                      <span className="text-[11px] font-semibold text-emerald-600 flex items-center gap-1"><CheckCircle2 size={13} /> Concluída</span>
                     );
                   })()}
                 </div>
               </>
             )}
-          </div>
+          </ContentCard>
 
           {/* Cliente */}
-          <div className="bg-white rounded-2xl border border-slate-200 p-5 space-y-3">
-            <p className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400">Cliente</p>
+          <ContentCard padding="md" className="space-y-3">
+            <p className="text-[10px] font-semibold text-slate-400">Cliente</p>
             <div className="flex gap-2">
               <div className="flex-1 min-w-0">
                 <Combobox
@@ -916,28 +952,23 @@ export default function ServiceOrderDetail() {
                   }}
                 />
               </div>
-              <button
-                type="button"
+              <IconButton variant="outline" size="sm" type="button"
                 onClick={() => { setNcName(""); setNcPhone(""); setNcDoc(""); setNcEmail(""); setShowNewCustomer(true); }}
-                className="h-10 w-10 rounded-xl bg-blue-50 border border-blue-200 text-blue-600 hover:bg-blue-100 flex items-center justify-center shrink-0 transition-colors"
-                title="Cadastrar novo cliente"
-              >
+                
+                title="Cadastrar novo cliente" className="justify-center shrink-0" aria-label="Cadastrar novo cliente">
                 <UserPlus size={15} />
-              </button>
+              </IconButton>
             </div>
-            <input
-              value={customerPhone}
+            <Input value={customerPhone}
               onChange={(e) => setCustomerPhone(e.target.value)}
               onBlur={() => autosaveField({ customer_phone: customerPhone || null }, "customer_phone")}
-              placeholder="Telefone"
-              className="w-full h-10 px-3 rounded-xl border border-slate-200 text-[12px] font-medium focus:outline-none focus:border-blue-400"
-            />
-          </div>
+              placeholder="Telefone" />
+          </ContentCard>
 
           {/* Equipamento */}
-          <div className="bg-white rounded-2xl border border-slate-200 p-5 space-y-3">
+          <ContentCard padding="md" className="space-y-3">
             <div className="flex items-center justify-between gap-2">
-              <p className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400">
+              <p className="text-[10px] font-semibold text-slate-400">
                 {hasEquipment ? "Equipamento" : "Detalhes do Atendimento"}
               </p>
               <div className="flex items-center gap-1 bg-slate-100 rounded-lg p-0.5">
@@ -953,7 +984,7 @@ export default function ServiceOrderDetail() {
                       autosaveField({ has_equipment: v }, "has_equipment");
                     }}
                     className={cn(
-                      "h-6 px-2 rounded-md text-[8px] font-black uppercase tracking-wide transition-all",
+                      "h-6 px-2 rounded-md text-[10px] font-semibold transition-all",
                       hasEquipment === v ? "bg-slate-900 text-white shadow-sm" : "text-slate-500 hover:text-slate-700"
                     )}
                   >
@@ -978,58 +1009,50 @@ export default function ServiceOrderDetail() {
                       hint={categoryOptions.length === 0 ? "Nenhuma categoria ainda — clique em + para criar" : undefined}
                     />
                   </div>
-                  <button
-                    type="button"
+                  <IconButton variant="outline" size="sm" type="button"
                     onClick={() => { setNcatName(""); setNcatItems([""]); setShowNewCategory(true); }}
-                    className="h-10 w-10 rounded-xl bg-blue-50 border border-blue-200 text-blue-600 hover:bg-blue-100 flex items-center justify-center shrink-0 transition-colors"
-                    title="Criar nova categoria"
-                  >
+                    
+                    title="Criar nova categoria" className="justify-center shrink-0" aria-label="Criar nova categoria">
                     <PlusCircle size={15} />
-                  </button>
+                  </IconButton>
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                  <input value={equipmentType} onChange={(e) => setEquipmentType(e.target.value)} onBlur={() => autosaveField({ equipment_type: equipmentType || null }, "equipment_type")} placeholder="Tipo (ex: Notebook Gamer)" className="h-10 px-3 rounded-xl border border-slate-200 text-[12px] font-medium focus:outline-none focus:border-blue-400" />
-                  <input value={equipmentBrand} onChange={(e) => setEquipmentBrand(e.target.value)} onBlur={() => autosaveField({ equipment_brand: equipmentBrand || null }, "equipment_brand")} placeholder="Marca" className="h-10 px-3 rounded-xl border border-slate-200 text-[12px] font-medium focus:outline-none focus:border-blue-400" />
-                  <input value={equipmentModel} onChange={(e) => setEquipmentModel(e.target.value)} onBlur={() => autosaveField({ equipment_model: equipmentModel || null }, "equipment_model")} placeholder="Modelo" className="h-10 px-3 rounded-xl border border-slate-200 text-[12px] font-medium focus:outline-none focus:border-blue-400" />
-                  <input value={equipmentSerial} onChange={(e) => setEquipmentSerial(e.target.value)} onBlur={() => autosaveField({ equipment_serial: equipmentSerial || null }, "equipment_serial")} placeholder="Série / IMEI" className="h-10 px-3 rounded-xl border border-slate-200 text-[12px] font-medium focus:outline-none focus:border-blue-400" />
+                  <Input value={equipmentType} onChange={(e) => setEquipmentType(e.target.value)} onBlur={() => autosaveField({ equipment_type: equipmentType || null }, "equipment_type")} placeholder="Tipo (ex: Notebook Gamer)" />
+                  <Input value={equipmentBrand} onChange={(e) => setEquipmentBrand(e.target.value)} onBlur={() => autosaveField({ equipment_brand: equipmentBrand || null }, "equipment_brand")} placeholder="Marca" />
+                  <Input value={equipmentModel} onChange={(e) => setEquipmentModel(e.target.value)} onBlur={() => autosaveField({ equipment_model: equipmentModel || null }, "equipment_model")} placeholder="Modelo" />
+                  <Input value={equipmentSerial} onChange={(e) => setEquipmentSerial(e.target.value)} onBlur={() => autosaveField({ equipment_serial: equipmentSerial || null }, "equipment_serial")} placeholder="Série / IMEI" />
                 </div>
-                <textarea
-                  value={equipmentAccessories}
+                <Textarea value={equipmentAccessories}
                   onChange={(e) => setEquipmentAccessories(e.target.value)}
                   onBlur={() => autosaveField({ equipment_accessories: equipmentAccessories || null }, "equipment_accessories")}
                   placeholder="Acessórios entregues junto (carregador, capa, etc.)"
-                  rows={2}
-                  className="w-full px-3 py-2 rounded-xl border border-slate-200 text-[12px] font-medium focus:outline-none focus:border-blue-400 resize-none"
-                />
+                  rows={2} />
               </>
             )}
 
             <div>
-              <label className="text-[9px] font-black uppercase tracking-[0.2em] text-amber-500 mb-1.5 block">Detalhes do Atendimento</label>
-              <textarea
-                value={reportedIssue}
+              <label className="text-[10px] font-semibold text-amber-500 mb-1.5 block">Detalhes do Atendimento</label>
+              <Textarea value={reportedIssue}
                 onChange={(e) => setReportedIssue(e.target.value)}
                 onBlur={() => autosaveField({ reported_issue: reportedIssue || null }, "reported_issue")}
                 placeholder="Descreva a solicitação, observações ou detalhes informados pelo cliente..."
-                rows={2}
-                className="w-full px-3 py-2 rounded-xl border border-amber-200 bg-amber-50/50 text-[12px] font-medium focus:outline-none focus:border-amber-400 resize-none"
-              />
+                rows={2} />
             </div>
-          </div>
+          </ContentCard>
 
           {/* Checklist */}
           {selected.checklist_items.length > 0 && (
-            <div className="bg-white rounded-2xl border border-slate-200 p-5">
-              <p className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400 mb-2">Checklist de Entrada</p>
+            <ContentCard padding="md">
+              <p className="text-[10px] font-semibold text-slate-400 mb-2">Checklist de Entrada</p>
               <div className="space-y-2">
                 {selected.checklist_items.sort((a, b) => a.position - b.position).map((item) => (
-                  <div key={item.id} className="bg-slate-50 rounded-xl border border-slate-200 p-3">
+                  <div key={item.id} className="bg-slate-50 rounded-lg border border-slate-200 p-3">
                     <div className="flex items-center justify-between gap-2 mb-2">
                       <p className="text-[12px] font-semibold text-slate-700 flex-1">{item.label}</p>
                       <div className="flex bg-slate-100 border border-slate-200 rounded-lg p-0.5 gap-0.5 shrink-0">
                         {(["sim", "nao", "na"] as const).map((a) => (
                           <button key={a} onClick={() => updateChecklistItem(item.id, { answer: a })}
-                            className={cn("h-6 px-2 rounded-md text-[9px] font-black transition-all",
+                            className={cn("h-6 px-2 rounded-md text-[10px] font-semibold transition-all",
                               item.answer === a
                                 ? a === "sim" ? "bg-emerald-600 text-white" : a === "nao" ? "bg-red-500 text-white" : "bg-slate-500 text-white"
                                 : "text-slate-400")}>
@@ -1038,79 +1061,134 @@ export default function ServiceOrderDetail() {
                         ))}
                       </div>
                     </div>
-                    <input
-                      value={item.observation ?? ""}
+                    <Input value={item.observation ?? ""}
                       onChange={(e) => updateChecklistItem(item.id, { observation: e.target.value })}
-                      placeholder="Observação (opcional)"
-                      className="w-full h-8 px-2 rounded-lg border border-slate-200 text-[11px] focus:outline-none focus:border-blue-400"
-                    />
+                      placeholder="Observação (opcional)" />
                   </div>
                 ))}
               </div>
-              <button onClick={saveChecklist} className="mt-2 h-8 px-3 rounded-lg bg-blue-50 border border-blue-200 text-blue-600 text-[10px] font-black uppercase tracking-wider hover:bg-blue-100 transition-all">
+              <Button variant="outline" size="sm" onClick={saveChecklist} className="mt-2">
                 Salvar Checklist
-              </button>
-            </div>
+              </Button>
+            </ContentCard>
           )}
 
+              </div>
+            )}
+            {activeTab === "itens" && (
+              <div className="space-y-3">
           {/* Orçamento vinculado */}
           {linkedQuote && (
-            <div className="bg-white rounded-2xl border border-slate-200 p-5">
+            <ContentCard padding="md">
               <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
-                <p className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400">
+                <p className="text-[10px] font-semibold text-slate-400">
                   Orçamento vinculado #{String(linkedQuote.number).padStart(4, "0")}
                 </p>
-                <button onClick={() => navigate(`/admin/orcamentos/${linkedQuote.id}`)}
-                  className="h-7 px-2.5 rounded-lg bg-slate-100 text-slate-600 text-[9px] font-black uppercase tracking-wider flex items-center gap-1 hover:bg-slate-200 transition-all">
+                <Button variant="outline" size="xs" onClick={() => navigate(`/admin/orcamentos/${linkedQuote.id}`)}>
                   Ver orçamento completo <ExternalLink size={11} />
-                </button>
+                </Button>
               </div>
               <div className="flex flex-col gap-1.5">
                 {linkedQuote.items.map((item) => (
                   <div key={`item-${item.id}`} className="flex items-center justify-between text-[11px]">
                     <span className="text-slate-600 truncate">{item.name} {item.dimensions_label && <span className="text-blue-400 font-mono">{item.dimensions_label}</span>} × {item.quantity}</span>
-                    <span className="font-mono font-bold text-slate-700 shrink-0 ml-2">{fmt(item.total)}</span>
+                    <span className="font-mono font-semibold text-slate-700 shrink-0 ml-2">{fmt(item.total)}</span>
                   </div>
                 ))}
                 {linkedQuote.services.map((svc) => (
                   <div key={`svc-${svc.id}`} className="flex items-center justify-between text-[11px]">
                     <span className="text-slate-600 truncate">{svc.name} {svc.dimensions_label && <span className="text-blue-400 font-mono">{svc.dimensions_label}</span>} × {svc.quantity}</span>
-                    <span className="font-mono font-bold text-slate-700 shrink-0 ml-2">{fmt(svc.total)}</span>
+                    <span className="font-mono font-semibold text-slate-700 shrink-0 ml-2">{fmt(svc.total)}</span>
                   </div>
                 ))}
               </div>
               <div className="flex items-center justify-between mt-3 pt-3 border-t border-slate-100">
-                <span className="text-[10px] font-black uppercase text-slate-400">Total do orçamento</span>
-                <span className="font-mono font-black text-slate-900">{fmt(linkedQuote.total_amount)}</span>
+                <span className="text-[11px] font-semibold text-slate-400">Total do orçamento</span>
+                <span className="font-mono font-semibold text-slate-900">{fmt(linkedQuote.total_amount)}</span>
               </div>
-            </div>
+            </ContentCard>
           )}
 
+          {/* Peças */}
+          <ContentCard padding="md">
+            <div className="flex items-center justify-between mb-3">
+              <p className="text-[10px] font-semibold text-slate-400">Peças / Itens / Serviços</p>
+              {!selected.invoiced_order_id && (
+                <Button variant="primary" size="sm" onClick={openAddPartModal}>
+                  <Plus size={13} /> Adicionar item
+                </Button>
+              )}
+            </div>
+            {selected.parts.length === 0 ? (
+              <p className="text-[11px] text-slate-400">Nenhum item adicionado</p>
+            ) : (
+              <div className="space-y-1.5">
+                {selected.parts.map((part) => {
+                  const hasDiscount = !part.no_charge && Number(part.discount_value) > 0 && Number(part.total) < Number(part.total_before_discount);
+                  return (
+                    <div key={part.id} className="flex items-center justify-between bg-slate-50 rounded-lg px-3 py-2 border border-slate-200">
+                      <div className="min-w-0">
+                        <p className="text-[12px] font-semibold text-slate-700 truncate">{part.name}</p>
+                        {part.dimensions_label ? (
+                          <p className="text-[11px] text-blue-500 font-mono">{part.dimensions_label}</p>
+                        ) : (
+                          <p className="text-[11px] text-slate-400">{part.quantity} {part.unit} × {fmt(part.unit_price)}</p>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0">
+                        {part.no_charge ? (
+                          <span className="text-[10px] font-semibold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded">Sem cobrança</span>
+                        ) : hasDiscount ? (
+                          <div className="flex flex-col items-end">
+                            <span className="text-[10px] font-mono text-slate-400 line-through">{fmt(part.total_before_discount)}</span>
+                            <span className="text-[12px] font-mono font-semibold text-emerald-600">{fmt(part.total)}</span>
+                          </div>
+                        ) : (
+                          <span className="text-[12px] font-mono font-semibold text-slate-700">{fmt(part.total)}</span>
+                        )}
+                        {!selected.invoiced_order_id && (
+                          <>
+                            <IconButton variant="ghost" size="sm" onClick={() => openEditDiscount(part)} title="Desconto" aria-label="Desconto">
+                              <Percent size={13} />
+                            </IconButton>
+                            <IconButton variant="ghost" size="sm" onClick={() => handleRemovePart(part.id)} aria-label="Remover item">
+                              <Trash2 size={13} />
+                            </IconButton>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </ContentCard>
+
+              </div>
+            )}
+            {activeTab === "arquivos" && (
+              <div className="space-y-3">
           {/* Fotos / Anexos */}
-          <div className="bg-white rounded-2xl border border-slate-200 p-5">
+          <ContentCard padding="md">
             <div className="flex items-center justify-between mb-2 flex-wrap gap-2">
-              <p className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400">
+              <p className="text-[10px] font-semibold text-slate-400">
                 {tenant?.grafica_enabled ? "Fotos e Arquivos" : "Fotos"}
               </p>
               <div className="flex gap-1.5 flex-wrap">
-                <button onClick={() => fileInputRef.current?.click()} disabled={photoUploading}
-                  className="h-7 px-2.5 rounded-lg bg-slate-100 text-slate-600 text-[9px] font-black uppercase tracking-wider flex items-center gap-1 hover:bg-slate-200 transition-all disabled:opacity-50">
+                <Button variant="outline" size="xs" onClick={() => fileInputRef.current?.click()} disabled={photoUploading}>
                   <ImagePlus size={11} /> Galeria
-                </button>
-                <button onClick={() => cameraInputRef.current?.click()} disabled={photoUploading}
-                  className="h-7 px-2.5 rounded-lg bg-blue-50 text-blue-600 text-[9px] font-black uppercase tracking-wider flex items-center gap-1 hover:bg-blue-100 transition-all disabled:opacity-50">
+                </Button>
+                <Button variant="outline" size="xs" onClick={() => cameraInputRef.current?.click()} disabled={photoUploading}>
                   <Camera size={11} /> Câmera
-                </button>
+                </Button>
                 {tenant?.grafica_enabled && (
                   <>
-                    <button onClick={() => arteInputRef.current?.click()} disabled={photoUploading}
-                      className="h-7 px-2.5 rounded-lg bg-violet-50 text-violet-600 text-[9px] font-black uppercase tracking-wider flex items-center gap-1 hover:bg-violet-100 transition-all disabled:opacity-50">
+                    <Button variant="outline" size="xs" onClick={() => arteInputRef.current?.click()} disabled={photoUploading}>
                       <Palette size={11} /> Arte final
-                    </button>
-                    <button onClick={() => provaInputRef.current?.click()} disabled={photoUploading}
-                      className="h-7 px-2.5 rounded-lg bg-emerald-50 text-emerald-600 text-[9px] font-black uppercase tracking-wider flex items-center gap-1 hover:bg-emerald-100 transition-all disabled:opacity-50">
+                    </Button>
+                    <Button variant="outline" size="xs" onClick={() => provaInputRef.current?.click()} disabled={photoUploading}>
                       <FileCheck2 size={11} /> Prova
-                    </button>
+                    </Button>
                   </>
                 )}
               </div>
@@ -1123,7 +1201,7 @@ export default function ServiceOrderDetail() {
               <input ref={provaInputRef} type="file" accept="image/*,application/pdf" multiple className="hidden"
                 onChange={(e) => { const files = e.target.files; if (files) Array.from(files).forEach((f) => handlePhotoFile(f, "prova")); e.target.value = ""; }} />
             </div>
-            {photoUploading && <p className="text-[10px] text-slate-400 mb-2">Enviando arquivo...</p>}
+            {photoUploading && <p className="text-[11px] text-slate-400 mb-2">Enviando arquivo...</p>}
             {selected.photos.length === 0 ? (
               <p className="text-[11px] text-slate-400">Nenhum arquivo anexado</p>
             ) : (
@@ -1139,16 +1217,16 @@ export default function ServiceOrderDetail() {
                   const meta = kindMeta[photo.kind] ?? kindMeta.intake;
                   return (
                     <a key={photo.id} href={photo.url} target="_blank" rel="noreferrer"
-                      className="relative group rounded-xl overflow-hidden border border-slate-200 aspect-square block">
+                      className="relative group rounded-lg overflow-hidden border border-slate-200 aspect-square block">
                       {isPdf ? (
                         <div className="w-full h-full flex flex-col items-center justify-center gap-1 bg-slate-50 text-slate-400">
                           <FileText size={22} />
-                          <span className="text-[8px] font-bold uppercase">PDF</span>
+                          <span className="text-[10px] font-semibold">PDF</span>
                         </div>
                       ) : (
                         <img src={photo.url} alt={photo.caption ?? ""} className="w-full h-full object-cover" />
                       )}
-                      <span className={cn("absolute top-1 left-1 px-1.5 py-0.5 rounded text-[8px] font-black uppercase", meta.className)}>
+                      <span className={cn("absolute top-1 left-1 px-1.5 py-0.5 rounded text-[10px] font-semibold", meta.className)}>
                         {meta.label}
                       </span>
                       <button onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleRemovePhoto(photo.id); }}
@@ -1160,68 +1238,15 @@ export default function ServiceOrderDetail() {
                 })}
               </div>
             )}
-          </div>
+          </ContentCard>
 
-          {/* Peças */}
-          <div className="bg-white rounded-2xl border border-slate-200 p-5">
-            <div className="flex items-center justify-between mb-3">
-              <p className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400">Peças / Itens / Serviços</p>
-              {!selected.invoiced_order_id && (
-                <button onClick={openAddPartModal}
-                  className="h-8 px-3 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-[10px] font-black uppercase tracking-wide flex items-center gap-1.5 transition-all">
-                  <Plus size={13} /> Adicionar item
-                </button>
-              )}
-            </div>
-            {selected.parts.length === 0 ? (
-              <p className="text-[11px] text-slate-400">Nenhum item adicionado</p>
-            ) : (
-              <div className="space-y-1.5">
-                {selected.parts.map((part) => {
-                  const hasDiscount = !part.no_charge && Number(part.discount_value) > 0 && Number(part.total) < Number(part.total_before_discount);
-                  return (
-                    <div key={part.id} className="flex items-center justify-between bg-slate-50 rounded-xl px-3 py-2 border border-slate-200">
-                      <div className="min-w-0">
-                        <p className="text-[12px] font-semibold text-slate-700 truncate">{part.name}</p>
-                        {part.dimensions_label ? (
-                          <p className="text-[10px] text-blue-500 font-mono">{part.dimensions_label}</p>
-                        ) : (
-                          <p className="text-[10px] text-slate-400">{part.quantity} {part.unit} × {fmt(part.unit_price)}</p>
-                        )}
-                      </div>
-                      <div className="flex items-center gap-2 shrink-0">
-                        {part.no_charge ? (
-                          <span className="text-[9px] font-black uppercase tracking-wide text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded">Sem cobrança</span>
-                        ) : hasDiscount ? (
-                          <div className="flex flex-col items-end">
-                            <span className="text-[9px] font-mono text-slate-400 line-through">{fmt(part.total_before_discount)}</span>
-                            <span className="text-[12px] font-mono font-bold text-emerald-600">{fmt(part.total)}</span>
-                          </div>
-                        ) : (
-                          <span className="text-[12px] font-mono font-bold text-slate-700">{fmt(part.total)}</span>
-                        )}
-                        {!selected.invoiced_order_id && (
-                          <>
-                            <button onClick={() => openEditDiscount(part)} title="Desconto"
-                              className="text-slate-300 hover:text-blue-500 transition-colors">
-                              <Percent size={13} />
-                            </button>
-                            <button onClick={() => handleRemovePart(part.id)} className="text-slate-300 hover:text-red-500 transition-colors">
-                              <Trash2 size={13} />
-                            </button>
-                          </>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })}
               </div>
             )}
-          </div>
-
-          {selected.actions && selected.actions.length > 0 && (
-            <div className="bg-white rounded-2xl border border-slate-200 p-5">
-              <p className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400 mb-2">Histórico</p>
+            {activeTab === "historico" && (
+              <div className="space-y-3">
+          {selected.actions && selected.actions.length > 0 ? (
+            <ContentCard padding="md">
+              <p className="text-[10px] font-semibold text-slate-400 mb-2">Histórico</p>
               <div className="space-y-2">
                 {selected.actions.map((a) => (
                   <div key={a.id} className="flex items-start gap-2 text-[11px]">
@@ -1234,21 +1259,26 @@ export default function ServiceOrderDetail() {
                          a.action === "part_removed" ? `Peça removida${a.note ? `: ${a.note}` : ""}` :
                          a.action === "invoiced" ? "Ordem de serviço faturada" : a.action}
                       </p>
-                      <p className="text-slate-400 text-[10px]">{a.actor ?? "Sistema"} · {new Date(a.created_at).toLocaleString("pt-BR")}</p>
+                      <p className="text-slate-400 text-[11px]">{a.actor ?? "Sistema"} · {new Date(a.created_at).toLocaleString("pt-BR")}</p>
                     </div>
                   </div>
                 ))}
               </div>
-            </div>
+            </ContentCard>
+          ) : (
+            <ContentCard><EmptyState icon={HistoryIcon} title="Nenhum registro no histórico" /></ContentCard>
           )}
+              </div>
+            )}
+          </Tabs>
         </div>
 
         {/* Sidebar */}
         <div className="space-y-5">
           {/* Responsável / Prioridade / Previsão */}
-          <div className="bg-white rounded-2xl border border-slate-200 p-5 space-y-3">
-            <p className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400">Responsável</p>
-            <div className="flex bg-slate-100 border border-slate-200 rounded-xl p-0.5 gap-0.5 w-fit">
+          <ContentCard padding="md" className="space-y-3">
+            <p className="text-[10px] font-semibold text-slate-400">Responsável</p>
+            <div className="flex bg-slate-100 border border-slate-200 rounded-lg p-0.5 gap-0.5 w-fit">
               {(["seller", "technician", "external"] as const).map((m) => (
                 <button key={m} onClick={() => {
                   setResponsibleMode(m);
@@ -1256,7 +1286,7 @@ export default function ServiceOrderDetail() {
                   else if (m === "technician") autosaveField({ seller_id: null, technician_name: null }, "responsible");
                   else autosaveField({ seller_id: null, technician_id: null }, "responsible");
                 }}
-                  className={cn("h-8 px-3 rounded-lg text-[10px] font-black transition-all", responsibleMode === m ? "bg-blue-600 text-white" : "text-slate-500")}>
+                  className={cn("h-8 px-3 rounded-lg text-[11px] font-semibold transition-all", responsibleMode === m ? "bg-blue-600 text-white" : "text-slate-500")}>
                   {m === "seller" ? "Vendedor" : m === "technician" ? "Técnico" : "Externo"}
                 </button>
               ))}
@@ -1288,20 +1318,17 @@ export default function ServiceOrderDetail() {
                 options={technicians.map((t) => ({ value: String(t.id), label: t.name }))}
               />
             ) : (
-              <input
-                value={technicianName}
+              <Input value={technicianName}
                 onChange={(e) => setTechnicianName(e.target.value)}
                 onBlur={() => autosaveField({ technician_name: technicianName || null }, "technician_name")}
-                placeholder="Nome do técnico/prestador externo"
-                className="w-full h-10 px-3 rounded-xl border border-slate-200 text-[12px] font-medium focus:outline-none focus:border-blue-400"
-              />
+                placeholder="Nome do técnico/prestador externo" />
             )}
 
-            <p className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400 pt-2">Prioridade</p>
-            <div className="flex bg-slate-100 border border-slate-200 rounded-xl p-0.5 gap-0.5">
+            <p className="text-[10px] font-semibold text-slate-400 pt-2">Prioridade</p>
+            <div className="flex bg-slate-100 border border-slate-200 rounded-lg p-0.5 gap-0.5">
               {(["normal", "urgente"] as const).map((p) => (
                 <button key={p} type="button" onClick={() => { setPriority(p); autosaveField({ priority: p }, "priority"); }}
-                  className={cn("flex-1 h-9 rounded-lg text-[10px] font-black transition-all flex items-center justify-center gap-1",
+                  className={cn("flex-1 h-9 rounded-lg text-[11px] font-semibold transition-all flex items-center justify-center gap-1",
                     priority === p ? (p === "urgente" ? "bg-red-500 text-white" : "bg-blue-600 text-white") : "text-slate-500")}>
                   {p === "urgente" && <AlertTriangle size={11} />}
                   {p === "normal" ? "Normal" : "Urgente"}
@@ -1309,7 +1336,7 @@ export default function ServiceOrderDetail() {
               ))}
             </div>
 
-            <p className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400 pt-2">Previsão de Entrega</p>
+            <p className="text-[10px] font-semibold text-slate-400 pt-2">Previsão de Entrega</p>
             <div className="relative">
               <CalendarClock className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
               <input
@@ -1317,14 +1344,14 @@ export default function ServiceOrderDetail() {
                 value={promisedAt}
                 onChange={(e) => setPromisedAt(e.target.value)}
                 onBlur={() => autosaveField({ promised_at: promisedAt || null }, "promised_at")}
-                className="w-full pl-9 pr-3 h-10 rounded-xl border border-slate-200 text-[12px] font-medium focus:outline-none focus:border-blue-400"
+                className="w-full pl-9 pr-3 h-10 rounded-lg border border-slate-200 text-[12px] font-medium focus:outline-none focus:border-blue-400"
               />
             </div>
-          </div>
+          </ContentCard>
 
           {/* Valor / total */}
-          <div className="bg-white rounded-2xl border border-slate-200 p-5 space-y-3">
-            <p className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400">Valor da Mão de Obra</p>
+          <ContentCard padding="md" className="space-y-3">
+            <p className="text-[10px] font-semibold text-slate-400">Valor da Mão de Obra</p>
             <div className="relative">
               <Banknote className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
               <input
@@ -1334,25 +1361,22 @@ export default function ServiceOrderDetail() {
                 onBlur={() => autosaveField({ service_value: Number(serviceValue) || 0 }, "service_value")}
                 placeholder="0,00"
                 disabled={!!selected.invoiced_order_id}
-                className="w-full pl-9 pr-3 h-10 rounded-xl border border-slate-200 text-[13px] font-mono font-bold focus:outline-none focus:border-blue-400 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none disabled:bg-slate-50 disabled:text-slate-400"
+                className="w-full pl-9 pr-3 h-10 rounded-lg border border-slate-200 text-[13px] font-mono font-semibold focus:outline-none focus:border-blue-400 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none disabled:bg-slate-50 disabled:text-slate-400"
               />
             </div>
 
             <div>
-              <label className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400 mb-1.5 block">Descrição do Serviço</label>
-              <textarea
-                value={serviceDescription}
+              <label className="text-[10px] font-semibold text-slate-400 mb-1.5 block">Descrição do Serviço</label>
+              <Textarea value={serviceDescription}
                 onChange={(e) => setServiceDescription(e.target.value)}
                 onBlur={() => autosaveField({ service_description: serviceDescription || null }, "service_description")}
                 placeholder="O que foi feito — ex.: troca de tela, limpeza interna, revisão elétrica..."
                 rows={2}
-                disabled={!!selected.invoiced_order_id}
-                className="w-full px-3 py-2 rounded-xl border border-slate-200 text-[12px] font-medium focus:outline-none focus:border-blue-400 resize-none disabled:bg-slate-50 disabled:text-slate-400"
-              />
+                disabled={!!selected.invoiced_order_id} />
             </div>
 
             <div>
-              <label className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400 mb-1.5 block">Desconto total da OS</label>
+              <label className="text-[10px] font-semibold text-slate-400 mb-1.5 block">Desconto total da OS</label>
               <div className="flex gap-1">
                 <button disabled={!!selected.invoiced_order_id} onClick={() => { setDiscountType("percent"); autosaveField({ discount_type: "percent" }, "discount"); }}
                   className={cn("h-9 w-9 rounded-lg border flex items-center justify-center transition-all disabled:opacity-40",
@@ -1364,106 +1388,101 @@ export default function ServiceOrderDetail() {
                     discountType === "fixed" ? "bg-blue-600 text-white border-blue-600" : "bg-white border-slate-200 text-slate-500 hover:bg-slate-50")}>
                   <DollarSign size={14} />
                 </button>
-                <input type="number" min={0} value={discountValue || ""}
+                <Input type="number" min={0} value={discountValue || ""}
                   onChange={(e) => setDiscountValue(Number(e.target.value))}
                   onBlur={() => autosaveField({ discount_value: discountValue }, "discount")}
                   placeholder={discountType === "percent" ? "%" : "R$"}
-                  disabled={!!selected.invoiced_order_id}
-                  className="flex-1 h-9 px-3 rounded-lg border border-slate-200 text-sm font-mono focus:outline-none focus:border-blue-400 disabled:bg-slate-50 disabled:text-slate-400" />
+                  disabled={!!selected.invoiced_order_id} wrapperClassName="flex-1" className="font-mono" />
               </div>
             </div>
 
-            <div className="bg-slate-900 rounded-2xl p-4 space-y-1.5">
+            <div className="bg-slate-900 rounded-lg p-4 space-y-1.5">
               {linkedQuote && (
-                <div className="flex justify-between text-[10px] font-bold uppercase text-blue-300">
+                <div className="flex justify-between text-[11px] font-semibold text-blue-300">
                   <span>Orçamento #{String(linkedQuote.number).padStart(4, "0")}</span>
                   <span className="font-mono">{fmt(linkedQuote.total_amount)}</span>
                 </div>
               )}
-              <div className="flex justify-between text-[10px] font-bold uppercase text-slate-400">
+              <div className="flex justify-between text-[11px] font-semibold text-slate-400">
                 <span>Mão de obra</span>
                 <span className="font-mono text-slate-200">{fmt(selected.service_value)}</span>
               </div>
-              <div className="flex justify-between text-[10px] font-bold uppercase text-slate-400">
+              <div className="flex justify-between text-[11px] font-semibold text-slate-400">
                 <span>Peças adicionais</span>
                 <span className="font-mono text-slate-200">{fmt(selected.parts_total)}</span>
               </div>
               {Number(selected.discount_value) > 0 && (
-                <div className="flex justify-between text-[10px] font-bold uppercase text-amber-400">
+                <div className="flex justify-between text-[11px] font-semibold text-amber-400">
                   <span>Desconto</span>
                   <span className="font-mono">
                     {selected.discount_type === "percent" ? `-${selected.discount_value}%` : `-${fmt(selected.discount_value)}`}
                   </span>
                 </div>
               )}
-              <div className="flex justify-between text-[13px] font-black uppercase text-white pt-1.5 border-t border-slate-700">
+              <div className="flex justify-between text-[13px] font-semibold text-white pt-1.5 border-t border-slate-700">
                 <span>Total</span>
                 <span className="font-mono">{fmt(selected.total_amount)}</span>
               </div>
             </div>
-          </div>
+          </ContentCard>
 
           {/* NFS-e — emitida sobre a mão de obra (peças já geram NFC-e na venda) */}
           {Number(selected.service_value) > 0 && (
-            <div className="bg-white rounded-2xl border border-slate-200 p-5 space-y-3">
-              <p className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400">NFS-e (Serviço)</p>
+            <ContentCard padding="md" className="space-y-3">
+              <p className="text-[10px] font-semibold text-slate-400">NFS-e (Serviço)</p>
               {nfseInvoice?.status === "authorized" ? (
                 <div className="space-y-2">
-                  <div className="flex items-center gap-2 text-emerald-600 bg-emerald-50 rounded-xl px-3 py-2.5">
+                  <div className="flex items-center gap-2 text-emerald-600 bg-emerald-50 rounded-lg px-3 py-2.5">
                     <CheckCircle2 size={14} />
-                    <span className="text-[11px] font-bold">
+                    <span className="text-[11px] font-semibold">
                       NFS-e autorizada — Série {nfseInvoice.serie}/{nfseInvoice.numero}
                     </span>
                   </div>
-                  <button onClick={handleOpenNfsePdf}
-                    className="w-full h-9 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all">
+                  <Button variant="outline" size="sm" onClick={handleOpenNfsePdf} className="w-full">
                     Ver PDF da NFS-e
-                  </button>
+                  </Button>
                 </div>
               ) : selected.status !== "finalizado" && selected.status !== "nota_emitida" ? (
-                <p className="text-[10px] font-bold text-slate-400">Disponível quando a ordem estiver finalizada.</p>
+                <p className="text-[11px] font-semibold text-slate-400">Disponível quando a ordem estiver finalizada.</p>
               ) : (
                 <>
                   {nfseInvoice && (nfseInvoice.status === "pending" || nfseInvoice.status === "processing") && (
-                    <div className="flex items-center gap-2 text-amber-600 bg-amber-50 rounded-xl px-3 py-2.5">
+                    <div className="flex items-center gap-2 text-amber-600 bg-amber-50 rounded-lg px-3 py-2.5">
                       <Loader2 size={14} className="animate-spin" />
-                      <span className="text-[11px] font-bold">Processando emissão…</span>
+                      <span className="text-[11px] font-semibold">Processando emissão…</span>
                     </div>
                   )}
                   {nfseInvoice?.status === "rejected" || nfseInvoice?.status === "error" ? (
-                    <p className="text-[10px] font-bold text-red-600">{nfseInvoice.rejection_reason || "Falha na emissão"}</p>
+                    <p className="text-[11px] font-semibold text-red-600">{nfseInvoice.rejection_reason || "Falha na emissão"}</p>
                   ) : null}
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                     <div>
-                      <label className="text-[9px] font-black text-slate-400 uppercase tracking-wide block mb-1">Cód. Serviço</label>
-                      <input value={nfseCodigoServico} onChange={(e) => setNfseCodigoServico(e.target.value.replace(/\D/g, "").slice(0, 6))}
-                        placeholder="140601"
-                        className="w-full h-9 px-2 rounded-lg border border-slate-200 text-[12px] font-mono focus:outline-none focus:border-blue-400" />
+                      <label className="text-[10px] font-semibold text-slate-400 block mb-1">Cód. Serviço</label>
+                      <Input value={nfseCodigoServico} onChange={(e) => setNfseCodigoServico(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                        placeholder="140601" className="font-mono" />
                       <div className="mt-1.5">
                         <FiscalCodeLookup kind="nfse-service" token={localStorage.getItem("token")} onSelect={(item) => { setNfseCodigoServico(item.code); setNfseDescricao((current) => current || item.description); }} />
                       </div>
                     </div>
                     <div>
-                      <label className="text-[9px] font-black text-slate-400 uppercase tracking-wide block mb-1">Descrição do Serviço</label>
-                      <input value={nfseDescricao} onChange={(e) => setNfseDescricao(e.target.value)}
-                        placeholder="O que foi feito — obrigatório para a prefeitura"
-                        className="w-full h-9 px-2 rounded-lg border border-slate-200 text-[12px] focus:outline-none focus:border-blue-400" />
+                      <label className="text-[10px] font-semibold text-slate-400 block mb-1">Descrição do Serviço</label>
+                      <Input value={nfseDescricao} onChange={(e) => setNfseDescricao(e.target.value)}
+                        placeholder="O que foi feito — obrigatório para a prefeitura" />
                     </div>
                   </div>
-                  <button onClick={handleEmitNfse} disabled={nfseEmitting || !nfseCodigoServico || !nfseDescricao.trim()}
-                    className="w-full h-10 bg-violet-600 hover:bg-violet-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all disabled:opacity-50 flex items-center justify-center gap-2">
+                  <Button variant="ghost" size="sm" onClick={handleEmitNfse} disabled={nfseEmitting || !nfseCodigoServico || !nfseDescricao.trim()} className="w-full justify-center">
                     {nfseEmitting ? <Loader2 size={13} className="animate-spin" /> : null}
                     {nfseEmitting ? "Emitindo…" : "Emitir NFS-e"}
-                  </button>
-                  {nfseError && <p className="text-[10px] font-bold text-red-600">{nfseError}</p>}
+                  </Button>
+                  {nfseError && <p className="text-[11px] font-semibold text-red-600">{nfseError}</p>}
                 </>
               )}
-            </div>
+            </ContentCard>
           )}
 
           {/* Garantia */}
-          <div className="bg-white rounded-2xl border border-slate-200 p-5 space-y-3">
-            <p className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400">Termo de Garantia (opcional)</p>
+          <ContentCard padding="md" className="space-y-3">
+            <p className="text-[10px] font-semibold text-slate-400">Termo de Garantia (opcional)</p>
             <div className="flex gap-2">
               <div className="relative w-24 shrink-0">
                 <ShieldCheck className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
@@ -1473,70 +1492,58 @@ export default function ServiceOrderDetail() {
                   onChange={(e) => setWarrantyDays(e.target.value)}
                   onBlur={() => autosaveField({ warranty_days: warrantyDays ? Number(warrantyDays) : null }, "warranty_days")}
                   placeholder="Dias"
-                  className="w-full pl-8 pr-2 h-10 rounded-xl border border-slate-200 text-[12px] font-mono font-bold focus:outline-none focus:border-blue-400 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none"
+                  className="w-full pl-8 pr-2 h-10 rounded-lg border border-slate-200 text-[12px] font-mono font-semibold focus:outline-none focus:border-blue-400 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none"
                 />
               </div>
-              <input
-                value={warrantyTerms}
+              <Input value={warrantyTerms}
                 onChange={(e) => setWarrantyTerms(e.target.value)}
                 onBlur={() => autosaveField({ warranty_terms: warrantyTerms || null }, "warranty_terms")}
-                placeholder="Condições da garantia"
-                className="flex-1 h-10 px-3 rounded-xl border border-slate-200 text-[12px] font-medium focus:outline-none focus:border-blue-400"
-              />
+                placeholder="Condições da garantia" wrapperClassName="flex-1" />
             </div>
-          </div>
+          </ContentCard>
 
           {/* Observações */}
-          <div className="bg-white rounded-2xl border border-slate-200 p-5 space-y-2">
-            <p className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400">Observações Internas do Técnico</p>
-            <textarea
-              value={observations}
+          <ContentCard padding="md" className="space-y-2">
+            <p className="text-[10px] font-semibold text-slate-400">Observações Internas do Técnico</p>
+            <Textarea value={observations}
               onChange={(e) => setObservations(e.target.value)}
               onBlur={() => autosaveField({ observations: observations || null }, "observations")}
               placeholder="Anotações internas, diagnóstico, etc."
-              rows={3}
-              className="w-full px-3 py-2 rounded-xl border border-slate-200 text-[12px] font-medium focus:outline-none focus:border-blue-400 resize-none"
-            />
-          </div>
+              rows={3} />
+          </ContentCard>
 
           {/* Ações */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-            <button onClick={handleGeneratePdf} disabled={generatingPdf}
-              className="h-11 bg-slate-100 hover:bg-slate-200 rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 text-slate-700 transition-all disabled:opacity-60">
+            <Button variant="outline" size="md" onClick={handleGeneratePdf} disabled={generatingPdf} className="justify-center">
               {generatingPdf ? <Loader2 size={14} className="animate-spin" /> : <FileDown size={14} />} Gerar PDF
-            </button>
+            </Button>
             {customerEmail ? (
-              <button onClick={handleSendServiceOrderEmail} disabled={sendingEmail}
-                className="h-11 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-all disabled:opacity-60">
-                {sendingEmail ? <Loader2 size={14} className="animate-spin" /> : emailDelivery?.sent ? <Send size={14} /> : <Mail size={14} />}
+              <Button variant="primary" size="md" onClick={handleSendServiceOrderEmail} loading={sendingEmail} iconLeft={emailDelivery?.sent ? <Send size={14} /> : <Mail size={14} />} className="justify-center">
                 {emailDelivery?.sent ? "Reenviar por E-mail" : "Enviar por E-mail"}
-              </button>
+              </Button>
             ) : (
-              <div className="flex items-center justify-center rounded-xl border border-amber-200 bg-amber-50 px-3 text-center text-[9px] font-bold text-amber-700">Cadastre o e-mail do cliente para enviar a OS.</div>
+              <div className="flex items-center justify-center rounded-lg border border-amber-200 bg-amber-50 px-3 text-center text-[10px] font-semibold text-amber-700">Cadastre o e-mail do cliente para enviar a OS.</div>
             )}
             {!selected.invoiced_order_id && (selected.status === "finalizado" || selected.status === "nota_emitida") && (
-              <button onClick={() => setShowInvoiceModal(true)}
-                className="h-11 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-all">
+              <Button variant="success" size="md" onClick={openInvoiceModal} className="justify-center">
                 <Receipt size={14} /> Faturar
-              </button>
+              </Button>
             )}
           </div>
-          {emailDelivery?.sent && emailDelivery.sent_at && <p className="text-center text-[9px] font-bold text-emerald-600">Enviado para {emailDelivery.recipient} em {new Date(emailDelivery.sent_at).toLocaleString("pt-BR")}</p>}
+          {emailDelivery?.sent && emailDelivery.sent_at && <p className="text-center text-[10px] font-semibold text-emerald-600">Enviado para {emailDelivery.recipient} em {new Date(emailDelivery.sent_at).toLocaleString("pt-BR")}</p>}
 
           {!selected.invoiced_order_id && (selected.status === "finalizado" || selected.status === "nota_emitida") && (
             receivable ? (
-              <div className="flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl bg-amber-50 border border-amber-200">
+              <div className="flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-lg bg-amber-50 border border-amber-200">
                 <CalendarClock size={13} className="text-amber-600" />
-                <span className="text-[10px] font-black text-amber-700 uppercase tracking-wider">
+                <span className="text-[11px] font-semibold text-amber-700">
                   A receber — vence em {formatDueDate(receivable.due_date)}
                 </span>
               </div>
             ) : (
-              <button
-                onClick={() => { setReceivableDueDate(defaultReceivableDueDate()); setShowReceivableModal(true); }}
-                className="w-full h-11 bg-amber-500 hover:bg-amber-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-all">
+              <Button variant="ghost" size="md" onClick={() => { setReceivableDueDate(defaultReceivableDueDate()); setShowReceivableModal(true); }} className="w-full justify-center">
                 <CalendarClock size={14} /> Lançar a Receber
-              </button>
+              </Button>
             )
           )}
         </div>
@@ -1550,11 +1557,10 @@ export default function ServiceOrderDetail() {
         subtitle="Cadastro CRM"
         footer={
           <>
-            <button onClick={() => setShowNewCustomer(false)} className="flex-1 h-9 rounded-lg border border-slate-200 text-sm font-semibold text-slate-600 hover:bg-slate-100">
+            <Button variant="outline" size="sm" onClick={() => setShowNewCustomer(false)} className="flex-1">
               Cancelar
-            </button>
-            <button
-              disabled={savingNC || !ncName.trim()}
+            </Button>
+            <Button variant="primary" size="sm" disabled={savingNC || !ncName.trim()}
               onClick={async () => {
                 if (!ncName.trim()) return;
                 setSavingNC(true);
@@ -1581,37 +1587,31 @@ export default function ServiceOrderDetail() {
                 } finally {
                   setSavingNC(false);
                 }
-              }}
-              className="flex-1 h-9 bg-blue-600 text-white rounded-lg text-sm font-bold hover:bg-blue-700 disabled:opacity-50 transition-all"
-            >
+              }} className="flex-1">
               {savingNC ? "Cadastrando…" : "Criar Cliente"}
-            </button>
+            </Button>
           </>
         }
       >
         <div>
-          <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block mb-1">Nome *</label>
-          <input value={ncName} onChange={(e) => setNcName(e.target.value)} placeholder="Nome completo"
-            className="w-full h-9 px-3 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+          <label className="text-[11px] font-semibold text-slate-500 block mb-1">Nome *</label>
+          <Input value={ncName} onChange={(e) => setNcName(e.target.value)} placeholder="Nome completo" />
         </div>
         <div className="grid grid-cols-2 gap-2">
           <div>
-            <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block mb-1">Telefone</label>
-            <input value={ncPhone} onChange={(e) => setNcPhone(maskPhone(e.target.value))} inputMode="numeric"
-              placeholder="(11) 99999-9999"
-              className="w-full h-9 px-3 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+            <label className="text-[11px] font-semibold text-slate-500 block mb-1">Telefone</label>
+            <Input value={ncPhone} onChange={(e) => setNcPhone(maskPhone(e.target.value))} inputMode="numeric"
+              placeholder="(11) 99999-9999" />
           </div>
           <div>
-            <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block mb-1">CPF/CNPJ</label>
-            <input value={ncDoc} onChange={(e) => setNcDoc(maskDoc(e.target.value))} inputMode="numeric"
-              placeholder="000.000.000-00"
-              className="w-full h-9 px-3 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+            <label className="text-[11px] font-semibold text-slate-500 block mb-1">CPF/CNPJ</label>
+            <Input value={ncDoc} onChange={(e) => setNcDoc(maskDoc(e.target.value))} inputMode="numeric"
+              placeholder="000.000.000-00" />
           </div>
         </div>
         <div>
-          <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block mb-1">E-mail</label>
-          <input type="email" value={ncEmail} onChange={(e) => setNcEmail(e.target.value)} placeholder="email@exemplo.com"
-            className="w-full h-9 px-3 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+          <label className="text-[11px] font-semibold text-slate-500 block mb-1">E-mail</label>
+          <Input type="email" value={ncEmail} onChange={(e) => setNcEmail(e.target.value)} placeholder="email@exemplo.com" />
         </div>
       </Modal>
 
@@ -1623,51 +1623,39 @@ export default function ServiceOrderDetail() {
         subtitle="Define o checklist de entrada usado nessa categoria"
         footer={
           <>
-            <button onClick={() => setShowNewCategory(false)} className="flex-1 h-11 rounded-xl border border-slate-200 text-[10px] font-black uppercase tracking-widest text-slate-600 hover:bg-slate-50 transition-colors">
+            <Button variant="outline" size="md" onClick={() => setShowNewCategory(false)} className="flex-1">
               Cancelar
-            </button>
-            <button
-              onClick={handleCreateCategory}
-              disabled={savingCategory || !ncatName.trim()}
-              className="flex-1 h-11 bg-blue-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-blue-700 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
-            >
+            </Button>
+            <Button variant="primary" size="md" onClick={handleCreateCategory}
+              disabled={savingCategory || !ncatName.trim()} className="flex-1 justify-center">
               {savingCategory ? <Loader2 size={14} className="animate-spin" /> : <PlusCircle size={14} />}
               Criar Categoria
-            </button>
+            </Button>
           </>
         }
       >
         <div>
-          <label className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400 mb-1.5 block">Nome da Categoria</label>
-          <input
-            value={ncatName}
+          <label className="text-[10px] font-semibold text-slate-400 mb-1.5 block">Nome da Categoria</label>
+          <Input value={ncatName}
             onChange={(e) => setNcatName(e.target.value)}
-            placeholder="Ex: Notebook, Som, Celular..."
-            className="w-full h-10 px-3 rounded-xl border border-slate-200 text-[12px] font-medium focus:outline-none focus:border-blue-400"
-          />
+            placeholder="Ex: Notebook, Som, Celular..." />
         </div>
         <div>
           <div className="flex items-center justify-between mb-1.5">
-            <label className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400">Itens do Checklist (opcional)</label>
-            <button
-              onClick={() => setNcatItems((prev) => [...prev, ""])}
-              className="flex items-center gap-1 h-6 px-2 bg-blue-50 border border-blue-200 rounded-lg text-[9px] font-black text-blue-600 uppercase tracking-widest hover:bg-blue-100 transition-all"
-            >
+            <label className="text-[10px] font-semibold text-slate-400">Itens do Checklist (opcional)</label>
+            <Button variant="outline" size="xs" onClick={() => setNcatItems((prev) => [...prev, ""])}>
               <PlusCircle size={10} /> Item
-            </button>
+            </Button>
           </div>
           <div className="space-y-2">
             {ncatItems.map((item, idx) => (
               <div key={idx} className="flex gap-2 items-center">
-                <div className="w-5 h-5 rounded-full bg-slate-900 text-white flex items-center justify-center text-[8px] font-black shrink-0">
+                <div className="w-5 h-5 rounded-full bg-slate-900 text-white flex items-center justify-center text-[10px] font-semibold shrink-0">
                   {idx + 1}
                 </div>
-                <input
-                  value={item}
+                <Input value={item}
                   onChange={(e) => setNcatItems((prev) => prev.map((v, i) => (i === idx ? e.target.value : v)))}
-                  placeholder="Ex: Liga, Tela sem trincos..."
-                  className="flex-1 h-9 px-3 rounded-xl border border-slate-200 text-[12px] font-medium focus:outline-none focus:border-blue-400"
-                />
+                  placeholder="Ex: Liga, Tela sem trincos..." wrapperClassName="flex-1" />
                 {ncatItems.length > 1 && (
                   <button
                     onClick={() => setNcatItems((prev) => prev.filter((_, i) => i !== idx))}
@@ -1679,7 +1667,7 @@ export default function ServiceOrderDetail() {
               </div>
             ))}
           </div>
-          <p className="text-[10px] text-slate-400 mt-2">Você pode adicionar ou ajustar itens depois em Configurações → Checklists de OS.</p>
+          <p className="text-[11px] text-slate-400 mt-2">Você pode adicionar ou ajustar itens depois em Configurações → Checklists de OS.</p>
         </div>
       </Modal>
 
@@ -1692,38 +1680,37 @@ export default function ServiceOrderDetail() {
         size="lg"
         footer={
           <>
-            <button onClick={() => setShowAddPartModal(false)} className="flex-1 h-11 rounded-xl border border-slate-200 text-[10px] font-black uppercase tracking-widest text-slate-600 hover:bg-slate-50 transition-colors">
+            <Button variant="outline" size="md" onClick={() => setShowAddPartModal(false)} className="flex-1">
               Cancelar
-            </button>
-            <button onClick={handleAddPartSubmit}
+            </Button>
+            <Button variant="primary" size="md" onClick={handleAddPartSubmit}
               disabled={
                 addingPart ||
                 (addPartTab === "free" ? !freePartName.trim() :
                   isMeasuredSelection ? !measurePreview || measurePreview.rawQuantity <= 0 :
                   addPartTab === "services" ? !partSelectedService :
                   !partSelectedProduct)
-              }
-              className="flex-1 h-11 bg-blue-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-blue-700 transition-all disabled:opacity-50 flex items-center justify-center gap-2">
+              } className="flex-1 justify-center">
               {addingPart ? <Loader2 size={14} className="animate-spin" /> : <PlusCircle size={14} />}
               Adicionar
-            </button>
+            </Button>
           </>
         }
       >
         {/* Abas */}
-        <div className="flex gap-1.5 p-1 bg-slate-100 rounded-xl">
+        <div className="flex gap-1.5 p-1 bg-slate-100 rounded-lg">
           <button onClick={() => { setAddPartTab("catalog"); setFreePartName(""); setPartSelectedService(null); }}
-            className={cn("flex-1 h-8 rounded-lg text-[10px] font-black uppercase tracking-wide transition-all",
+            className={cn("flex-1 h-8 rounded-lg text-[11px] font-semibold transition-all",
               addPartTab === "catalog" ? "bg-white text-blue-600 shadow-sm" : "text-slate-400 hover:text-slate-600")}>
             Catálogo
           </button>
           <button onClick={() => { setAddPartTab("services"); setPartSelectedProduct(null); setFreePartName(""); setMeasureHeight(""); setMeasureWidth(""); }}
-            className={cn("flex-1 h-8 rounded-lg text-[10px] font-black uppercase tracking-wide transition-all",
+            className={cn("flex-1 h-8 rounded-lg text-[11px] font-semibold transition-all",
               addPartTab === "services" ? "bg-white text-blue-600 shadow-sm" : "text-slate-400 hover:text-slate-600")}>
             Serviços
           </button>
           <button onClick={() => { setAddPartTab("free"); setPartSelectedProduct(null); setPartSelectedService(null); }}
-            className={cn("flex-1 h-8 rounded-lg text-[10px] font-black uppercase tracking-wide transition-all",
+            className={cn("flex-1 h-8 rounded-lg text-[11px] font-semibold transition-all",
               addPartTab === "free" ? "bg-white text-blue-600 shadow-sm" : "text-slate-400 hover:text-slate-600")}>
             Item Livre
           </button>
@@ -1754,47 +1741,43 @@ export default function ServiceOrderDetail() {
               partSelectedService.sale_unit === "m2" ? (
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400 mb-1.5 block">Altura (m)</label>
-                    <input type="number" min="0" step="0.01" autoFocus value={measureHeight}
+                    <label className="text-[10px] font-semibold text-slate-400 mb-1.5 block">Altura (m)</label>
+                    <Input type="number" min="0" step="0.01" autoFocus value={measureHeight}
                       onChange={(e) => setMeasureHeight(e.target.value)}
-                      placeholder="0,00"
-                      className="w-full h-11 px-3 rounded-xl border border-slate-200 text-sm font-mono font-bold text-center focus:outline-none focus:border-blue-400" />
+                      placeholder="0,00" className="font-mono text-center" />
                   </div>
                   <div>
-                    <label className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400 mb-1.5 block">Largura (m)</label>
-                    <input type="number" min="0" step="0.01" value={measureWidth}
+                    <label className="text-[10px] font-semibold text-slate-400 mb-1.5 block">Largura (m)</label>
+                    <Input type="number" min="0" step="0.01" value={measureWidth}
                       onChange={(e) => setMeasureWidth(e.target.value)}
-                      placeholder="0,00"
-                      className="w-full h-11 px-3 rounded-xl border border-slate-200 text-sm font-mono font-bold text-center focus:outline-none focus:border-blue-400" />
+                      placeholder="0,00" className="font-mono text-center" />
                   </div>
                 </div>
               ) : (
                 <div>
-                  <label className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400 mb-1.5 block">Comprimento (m)</label>
-                  <input type="number" min="0" step="0.01" autoFocus value={measureHeight}
+                  <label className="text-[10px] font-semibold text-slate-400 mb-1.5 block">Comprimento (m)</label>
+                  <Input type="number" min="0" step="0.01" autoFocus value={measureHeight}
                     onChange={(e) => setMeasureHeight(e.target.value)}
-                    placeholder="0,00"
-                    className="w-full h-11 px-3 rounded-xl border border-slate-200 text-sm font-mono font-bold text-center focus:outline-none focus:border-blue-400" />
+                    placeholder="0,00" className="font-mono text-center" />
                 </div>
               )
             )}
 
             {partSelectedService && !isMeasuredService && (
               <div>
-                <label className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400 mb-1.5 block">Quantidade</label>
-                <input type="number" min="1" value={partQty} onChange={(e) => setPartQty(Math.max(1, Number(e.target.value) || 1))}
-                  className="w-24 h-11 px-3 rounded-xl border border-slate-200 text-sm font-mono font-bold text-center focus:outline-none focus:border-blue-400" />
+                <label className="text-[10px] font-semibold text-slate-400 mb-1.5 block">Quantidade</label>
+                <Input type="number" min="1" value={partQty} onChange={(e) => setPartQty(Math.max(1, Number(e.target.value) || 1))} wrapperClassName="w-24" className="font-mono text-center" />
               </div>
             )}
 
             {measurePreview && isMeasuredService && measurePreview.rawQuantity > 0 && (
-              <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 space-y-1">
-                <div className="flex justify-between text-[10px] font-bold uppercase text-slate-400">
+              <div className="bg-slate-50 border border-slate-200 rounded-lg p-3 space-y-1">
+                <div className="flex justify-between text-[11px] font-semibold text-slate-400">
                   <span>{partSelectedService!.sale_unit === "m2" ? "Área" : "Comprimento"}</span>
                   <span className="font-mono text-slate-600">{measurePreview.label}</span>
                 </div>
                 {measurePreview.minimumApplied && (
-                  <p className="text-[10px] font-bold text-amber-600">
+                  <p className="text-[11px] font-semibold text-amber-600">
                     Cobrando o mínimo de {Number(partSelectedService!.min_billable_quantity).toFixed(2)}{partSelectedService!.sale_unit === "m2" ? "m²" : "m"}
                   </p>
                 )}
@@ -1814,54 +1797,50 @@ export default function ServiceOrderDetail() {
                 setMeasureWidth("");
               }}
               options={filteredParts.length > 0 ? filteredParts.map((p) => ({ value: String(p.id), label: p.name, description: `${fmt(p.price)} · estoque ${p.stock_quantity}` }))
-                : products.filter((p) => p.stock_quantity > 0 || (!!p.sale_unit && p.sale_unit !== "unidade")).slice(0, 20).map((p) => ({ value: String(p.id), label: p.name, description: p.sale_unit && p.sale_unit !== "unidade" ? `${fmt(p.price_per_measure ?? 0)}/${p.sale_unit === "m2" ? "m²" : "m"}` : `${fmt(p.price)} · estoque ${p.stock_quantity}` }))}
+                : products.filter((p) => p.stock_quantity > 0 || (!!p.sale_unit && p.sale_unit !== "unidade")).slice(0, 20).map((p) => ({ value: String(p.id), label: p.name, description: p.sale_unit && p.sale_unit !== "unidade" ? `${fmt(p.price_per_measure ?? 0)}/${p.sale_unit === "m2" ? "m²" : "m"}`:`${fmt(p.price)} · estoque ${p.stock_quantity}` }))}
             />
 
             {partSelectedProduct && isMeasuredProduct && (
               partSelectedProduct.sale_unit === "m2" ? (
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400 mb-1.5 block">Altura (m)</label>
-                    <input type="number" min="0" step="0.01" autoFocus value={measureHeight}
+                    <label className="text-[10px] font-semibold text-slate-400 mb-1.5 block">Altura (m)</label>
+                    <Input type="number" min="0" step="0.01" autoFocus value={measureHeight}
                       onChange={(e) => setMeasureHeight(e.target.value)}
-                      placeholder="0,00"
-                      className="w-full h-11 px-3 rounded-xl border border-slate-200 text-sm font-mono font-bold text-center focus:outline-none focus:border-blue-400" />
+                      placeholder="0,00" className="font-mono text-center" />
                   </div>
                   <div>
-                    <label className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400 mb-1.5 block">Largura (m)</label>
-                    <input type="number" min="0" step="0.01" value={measureWidth}
+                    <label className="text-[10px] font-semibold text-slate-400 mb-1.5 block">Largura (m)</label>
+                    <Input type="number" min="0" step="0.01" value={measureWidth}
                       onChange={(e) => setMeasureWidth(e.target.value)}
-                      placeholder="0,00"
-                      className="w-full h-11 px-3 rounded-xl border border-slate-200 text-sm font-mono font-bold text-center focus:outline-none focus:border-blue-400" />
+                      placeholder="0,00" className="font-mono text-center" />
                   </div>
                 </div>
               ) : (
                 <div>
-                  <label className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400 mb-1.5 block">Comprimento (m)</label>
-                  <input type="number" min="0" step="0.01" autoFocus value={measureHeight}
+                  <label className="text-[10px] font-semibold text-slate-400 mb-1.5 block">Comprimento (m)</label>
+                  <Input type="number" min="0" step="0.01" autoFocus value={measureHeight}
                     onChange={(e) => setMeasureHeight(e.target.value)}
-                    placeholder="0,00"
-                    className="w-full h-11 px-3 rounded-xl border border-slate-200 text-sm font-mono font-bold text-center focus:outline-none focus:border-blue-400" />
+                    placeholder="0,00" className="font-mono text-center" />
                 </div>
               )
             )}
 
             {partSelectedProduct && !isMeasuredProduct && (
               <div>
-                <label className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400 mb-1.5 block">Quantidade</label>
-                <input type="number" min="1" value={partQty} onChange={(e) => setPartQty(Math.max(1, Number(e.target.value) || 1))}
-                  className="w-24 h-11 px-3 rounded-xl border border-slate-200 text-sm font-mono font-bold text-center focus:outline-none focus:border-blue-400" />
+                <label className="text-[10px] font-semibold text-slate-400 mb-1.5 block">Quantidade</label>
+                <Input type="number" min="1" value={partQty} onChange={(e) => setPartQty(Math.max(1, Number(e.target.value) || 1))} wrapperClassName="w-24" className="font-mono text-center" />
               </div>
             )}
 
             {measurePreview && isMeasuredProduct && measurePreview.rawQuantity > 0 && (
-              <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 space-y-1">
-                <div className="flex justify-between text-[10px] font-bold uppercase text-slate-400">
+              <div className="bg-slate-50 border border-slate-200 rounded-lg p-3 space-y-1">
+                <div className="flex justify-between text-[11px] font-semibold text-slate-400">
                   <span>{partSelectedProduct!.sale_unit === "m2" ? "Área" : "Comprimento"}</span>
                   <span className="font-mono text-slate-600">{measurePreview.label}</span>
                 </div>
                 {measurePreview.minimumApplied && (
-                  <p className="text-[10px] font-bold text-amber-600">
+                  <p className="text-[11px] font-semibold text-amber-600">
                     Cobrando o mínimo de {Number(partSelectedProduct!.min_billable_quantity).toFixed(2)}{partSelectedProduct!.sale_unit === "m2" ? "m²" : "m"}
                   </p>
                 )}
@@ -1870,24 +1849,20 @@ export default function ServiceOrderDetail() {
           </div>
         ) : (
           <div className="space-y-3">
-            <input value={freePartName} onChange={(e) => setFreePartName(e.target.value)} placeholder="Descrição (ex: Corte de vidro, Mão de obra extra)"
-              className="w-full h-11 px-3 rounded-xl border border-slate-200 text-sm focus:outline-none focus:border-blue-400" />
+            <Input value={freePartName} onChange={(e) => setFreePartName(e.target.value)} placeholder="Descrição (ex: Corte de vidro, Mão de obra extra)" />
             <div className="grid grid-cols-3 gap-3">
               <div>
-                <label className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400 mb-1.5 block">Unidade</label>
-                <input value={freePartUnit} onChange={(e) => setFreePartUnit(e.target.value.toUpperCase().slice(0, 10))} placeholder="Un"
-                  className="w-full h-11 px-2 rounded-xl border border-slate-200 text-sm text-center font-bold focus:outline-none focus:border-blue-400" />
+                <label className="text-[10px] font-semibold text-slate-400 mb-1.5 block">Unidade</label>
+                <Input value={freePartUnit} onChange={(e) => setFreePartUnit(e.target.value.toUpperCase().slice(0, 10))} placeholder="Un" className="text-center" />
               </div>
               <div>
-                <label className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400 mb-1.5 block">Qtd.</label>
-                <input type="number" min="1" value={partQty} onChange={(e) => setPartQty(Math.max(1, Number(e.target.value) || 1))}
-                  className="w-full h-11 px-2 rounded-xl border border-slate-200 text-sm font-bold text-center focus:outline-none focus:border-blue-400" />
+                <label className="text-[10px] font-semibold text-slate-400 mb-1.5 block">Qtd.</label>
+                <Input type="number" min="1" value={partQty} onChange={(e) => setPartQty(Math.max(1, Number(e.target.value) || 1))} className="text-center" />
               </div>
               <div>
-                <label className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400 mb-1.5 block">Valor unit.</label>
-                <input type="number" min="0" step="0.01" value={freePartPrice} onChange={(e) => setFreePartPrice(e.target.value)}
-                  placeholder="0,00" disabled={partNoCharge}
-                  className="w-full h-11 px-2 rounded-xl border border-slate-200 text-sm font-mono focus:outline-none focus:border-blue-400 disabled:opacity-50" />
+                <label className="text-[10px] font-semibold text-slate-400 mb-1.5 block">Valor unit.</label>
+                <Input type="number" min="0" step="0.01" value={freePartPrice} onChange={(e) => setFreePartPrice(e.target.value)}
+                  placeholder="0,00" disabled={partNoCharge} className="font-mono" />
               </div>
             </div>
           </div>
@@ -1896,16 +1871,16 @@ export default function ServiceOrderDetail() {
         {/* Desconto do item + cortesia — comum às três abas */}
         {(partSelectedProduct || partSelectedService || addPartTab === "free") && (
           <div className="border-t border-slate-100 pt-3 space-y-3">
-            <label className="flex items-center gap-1.5 text-[10px] font-bold text-slate-500 cursor-pointer">
+            <label className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-500 cursor-pointer">
               <input type="checkbox" checked={partNoCharge} onChange={(e) => setPartNoCharge(e.target.checked)} className="w-3.5 h-3.5 accent-blue-600" />
               Sem cobrança (cortesia)
             </label>
 
             {!partNoCharge && (
               <div>
-                <label className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400 mb-1.5 block">Desconto neste item</label>
+                <label className="text-[10px] font-semibold text-slate-400 mb-1.5 block">Desconto neste item</label>
                 <div className="flex gap-2">
-                  <div className="flex bg-slate-100 rounded-xl p-1 shrink-0">
+                  <div className="flex bg-slate-100 rounded-lg p-1 shrink-0">
                     <button onClick={() => setPartDiscountType("percent")}
                       className={cn("h-9 w-9 rounded-lg flex items-center justify-center transition-all", partDiscountType === "percent" ? "bg-white text-blue-600 shadow-sm" : "text-slate-400")}>
                       <Percent size={14} />
@@ -1915,22 +1890,21 @@ export default function ServiceOrderDetail() {
                       <DollarSign size={14} />
                     </button>
                   </div>
-                  <input type="number" min="0" step="0.01" value={partDiscountValue} onChange={(e) => setPartDiscountValue(e.target.value)}
-                    placeholder={partDiscountType === "percent" ? "0%" : "R$ 0,00"}
-                    className="flex-1 h-9 px-3 rounded-xl border border-slate-200 text-sm font-mono focus:outline-none focus:border-blue-400" />
+                  <Input type="number" min="0" step="0.01" value={partDiscountValue} onChange={(e) => setPartDiscountValue(e.target.value)}
+                    placeholder={partDiscountType === "percent" ? "0%" : "R$ 0,00"} wrapperClassName="flex-1" className="font-mono" />
                 </div>
               </div>
             )}
 
             {/* Preview do valor final */}
-            <div className="bg-slate-900 rounded-2xl p-4 space-y-1.5">
+            <div className="bg-slate-900 rounded-lg p-4 space-y-1.5">
               {!partNoCharge && Number(partDiscountValue) > 0 && (
-                <div className="flex justify-between text-[10px] font-bold uppercase text-slate-400">
+                <div className="flex justify-between text-[11px] font-semibold text-slate-400">
                   <span>Antes do desconto</span>
                   <span className="font-mono text-slate-400 line-through">{fmt(addPartRawTotal)}</span>
                 </div>
               )}
-              <div className="flex justify-between text-[13px] font-black uppercase text-white pt-1.5 border-t border-slate-700">
+              <div className="flex justify-between text-[13px] font-semibold text-white pt-1.5 border-t border-slate-700">
                 <span>Total do item</span>
                 <span className="font-mono">{fmt(addPartFinalTotal)}</span>
               </div>
@@ -1947,19 +1921,18 @@ export default function ServiceOrderDetail() {
         size="sm"
         footer={
           <>
-            <button onClick={() => setEditingDiscountPartId(null)} className="flex-1 h-11 rounded-xl border border-slate-200 text-[10px] font-black uppercase tracking-widest text-slate-600 hover:bg-slate-50 transition-colors">
+            <Button variant="outline" size="md" onClick={() => setEditingDiscountPartId(null)} className="flex-1">
               Cancelar
-            </button>
-            <button onClick={handleSaveItemDiscount} disabled={savingItemDiscount}
-              className="flex-1 h-11 bg-blue-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-blue-700 transition-all disabled:opacity-50 flex items-center justify-center gap-2">
+            </Button>
+            <Button variant="primary" size="md" onClick={handleSaveItemDiscount} disabled={savingItemDiscount} className="flex-1 justify-center">
               {savingItemDiscount ? <Loader2 size={14} className="animate-spin" /> : null}
               Salvar
-            </button>
+            </Button>
           </>
         }
       >
         <div className="flex gap-2">
-          <div className="flex bg-slate-100 rounded-xl p-1 shrink-0">
+          <div className="flex bg-slate-100 rounded-lg p-1 shrink-0">
             <button onClick={() => setEditDiscountType("percent")}
               className={cn("h-9 w-9 rounded-lg flex items-center justify-center transition-all", editDiscountType === "percent" ? "bg-white text-blue-600 shadow-sm" : "text-slate-400")}>
               <Percent size={14} />
@@ -1969,9 +1942,8 @@ export default function ServiceOrderDetail() {
               <DollarSign size={14} />
             </button>
           </div>
-          <input type="number" min="0" step="0.01" autoFocus value={editDiscountValue} onChange={(e) => setEditDiscountValue(e.target.value)}
-            placeholder={editDiscountType === "percent" ? "0%" : "R$ 0,00"}
-            className="flex-1 h-9 px-3 rounded-xl border border-slate-200 text-sm font-mono focus:outline-none focus:border-blue-400" />
+          <Input type="number" min="0" step="0.01" autoFocus value={editDiscountValue} onChange={(e) => setEditDiscountValue(e.target.value)}
+            placeholder={editDiscountType === "percent" ? "0%" : "R$ 0,00"} wrapperClassName="flex-1" className="font-mono" />
         </div>
       </Modal>
 
@@ -1979,140 +1951,36 @@ export default function ServiceOrderDetail() {
       <Modal
         open={showInvoiceModal}
         onClose={() => setShowInvoiceModal(false)}
+        size="md"
         title={`Faturar OS #${String(selected.number).padStart(4, "0")}`}
+        subtitle={selected.customer_name || undefined}
         footer={
           <>
-            <button onClick={() => setShowInvoiceModal(false)} className="flex-1 h-11 rounded-xl border border-slate-200 text-[10px] font-black uppercase tracking-widest text-slate-600 hover:bg-slate-50 transition-colors">
+            <Button variant="outline" size="md" onClick={() => setShowInvoiceModal(false)} className="flex-1">
               Cancelar
-            </button>
-            <button onClick={handleInvoice} disabled={invoicing || paidTotal <= 0}
-              className="flex-1 h-11 bg-emerald-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-emerald-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2">
-              {invoicing ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle2 size={14} />}
+            </Button>
+            <Button variant="success" size="md" onClick={handleInvoice} loading={invoicing}
+              disabled={invoicing || invoiceCalc.paidAmount <= 0 || invoiceHasCrediarioWithoutCustomer}
+              iconLeft={<CheckCircle2 size={14} />} className="flex-1 justify-center">
               Confirmar Faturamento
-            </button>
+            </Button>
           </>
         }
       >
-        <div>
-          <label className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400 mb-1.5 block">Vendedor</label>
-          <div className="relative">
-            <select value={invoiceSellerId} onChange={(e) => setInvoiceSellerId(e.target.value === "" ? "" : Number(e.target.value))}
-              className="w-full pl-3 pr-8 h-10 rounded-xl border border-slate-200 text-[11px] font-bold appearance-none focus:outline-none focus:border-blue-400 bg-white">
-              <option value="">Sem vendedor</option>
-              {sellers.map((s) => (<option key={s.id} value={s.id}>{s.name}</option>))}
-            </select>
-            <ChevronDown size={12} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+        <div className="space-y-3">
+          <div className="flex items-center justify-between rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
+            <span className="text-[11px] text-slate-500">Total da OS</span>
+            <span className="font-mono text-base font-semibold text-slate-900">{fmt(invoiceBase)}</span>
           </div>
-        </div>
-
-        <div>
-          <div className="flex items-center justify-between mb-1.5">
-            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Formas de Pagamento</p>
-            <button onClick={addInvoicePayment} className="flex items-center gap-1 h-6 px-2 bg-blue-50 border border-blue-200 rounded-lg text-[9px] font-black text-blue-600 uppercase tracking-widest hover:bg-blue-100 transition-all">
-              <PlusCircle size={10} /> Adicionar
-            </button>
-          </div>
-          <div className="space-y-2.5">
-            {invoicePayments.map((p, idx) => {
-              const cardFees = tenant?.card_fees ?? {};
-              const feeRate = p.method === "credit" ? (cardFees[p.cardBrand]?.[p.installments - 1] ?? 0) : 0;
-              const pAmt = Number(p.amount) || 0;
-              const pFee = feeRate > 0 && pAmt > 0 ? pAmt * (feeRate / 100) : 0;
-              return (
-                <div key={p.id} className="bg-slate-50 rounded-2xl border border-slate-200 p-3 space-y-2.5">
-                  <div className="flex items-center gap-2">
-                    {invoicePayments.length > 1 && (
-                      <span className="w-5 h-5 bg-slate-200 rounded-full flex items-center justify-center text-[9px] font-black text-slate-600 shrink-0">{idx + 1}</span>
-                    )}
-                    <div className="grid grid-cols-4 gap-1.5 flex-1">
-                      {(["money", "debit", "credit", "pix"] as PayMethod[]).map((key) => (
-                        <button key={key} onClick={() => updateInvoicePayment(p.id, { method: key, installments: 1 })}
-                          className={cn("h-9 rounded-xl border text-[9px] font-black uppercase tracking-widest transition-all flex flex-col items-center justify-center gap-0.5",
-                            p.method === key ? key === "credit" ? "bg-emerald-600 border-emerald-500 text-white" : "bg-blue-600 border-blue-500 text-white" : "bg-white border-slate-200 text-slate-500 hover:border-slate-400")}>
-                          {key === "money" && <Banknote size={12} />}
-                          {key === "debit" && <CreditCard size={12} />}
-                          {key === "credit" && <CreditCard size={12} />}
-                          {key === "pix" && <QrCode size={12} />}
-                          {PM_LABEL[key]}
-                        </button>
-                      ))}
-                    </div>
-                    {invoicePayments.length > 1 && (
-                      <button onClick={() => removeInvoicePayment(p.id)} className="text-slate-300 hover:text-red-500 transition-colors shrink-0">
-                        <X size={14} />
-                      </button>
-                    )}
-                  </div>
-
-                  {(p.method === "debit" || p.method === "credit") && (
-                    <div className="grid grid-cols-3 gap-1">
-                      {CARD_BRANDS.map(({ key, label, color }) => (
-                        <button key={key} onClick={() => updateInvoicePayment(p.id, { cardBrand: key })}
-                          className={cn("h-7 rounded-lg border text-[8px] font-black uppercase tracking-widest transition-all", p.cardBrand === key ? "text-white border-transparent" : "bg-white border-slate-200 text-slate-500 hover:border-slate-400")}
-                          style={p.cardBrand === key ? { backgroundColor: color } : {}}>
-                          {label}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-
-                  {p.method === "credit" && (
-                    <div className="grid grid-cols-4 gap-1">
-                      {[1, 2, 3, 4, 5, 6, 10, 12].map((n) => {
-                        const rate = cardFees[p.cardBrand]?.[n - 1] ?? 0;
-                        const isActive = p.installments === n;
-                        return (
-                          <button key={n} onClick={() => updateInvoicePayment(p.id, { installments: n })}
-                            className={cn("rounded-lg border transition-all flex flex-col items-center justify-center py-1.5 px-1 gap-0.5", isActive ? "bg-emerald-600 border-emerald-500 text-white" : "bg-white border-slate-200 text-slate-500 hover:border-slate-400")}>
-                            <span className="text-[8px] font-black uppercase">{n === 1 ? "Vista" : `${n}×`}</span>
-                            {rate > 0 && <span className={cn("text-[7px] font-bold", isActive ? "text-emerald-200" : "text-amber-500")}>+{rate}%</span>}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  )}
-
-                  <div className="flex gap-2">
-                    <div className="relative flex-1">
-                      <Banknote className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={13} />
-                      <input type="number" min="0" step="0.01"
-                        placeholder={idx === 0 && remaining > 0 ? `R$ ${remaining.toFixed(2)}` : "Valor (R$)"}
-                        className="w-full pl-9 pr-3 h-10 bg-white border border-slate-200 rounded-xl focus:outline-none focus:border-blue-500 text-[11px] font-medium text-slate-800 placeholder:text-slate-400 transition-all [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none"
-                        value={p.amount} onChange={(e) => updateInvoicePayment(p.id, { amount: e.target.value })} />
-                    </div>
-                    {pFee > 0.005 && (
-                      <div className="flex flex-col items-end gap-0.5 bg-amber-50 border border-amber-200 rounded-xl px-3 py-1.5 shrink-0">
-                        <span className="text-[8px] font-black text-amber-600 uppercase">Taxa {feeRate}%</span>
-                        <span className="text-[10px] font-mono font-black text-amber-700">− R$ {pFee.toFixed(2)}</span>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-
-        <div className="bg-slate-900 rounded-2xl p-4 space-y-2">
-          <div className="flex justify-between text-[10px] font-bold uppercase text-slate-500">
-            <span>Total OS</span>
-            <span className="font-mono">{fmt(selected.total_amount)}</span>
-          </div>
-          <div className="flex justify-between text-[10px] font-bold uppercase text-slate-400">
-            <span>Pago</span>
-            <span className="font-mono text-emerald-400">{fmt(paidTotal)}</span>
-          </div>
-          {remaining > 0.005 ? (
-            <div className="flex justify-between text-[10px] font-black uppercase text-rose-400 pt-1 border-t border-slate-700">
-              <span>Restante</span>
-              <span className="font-mono">{fmt(remaining)}</span>
-            </div>
-          ) : (
-            <div className="flex justify-between text-[10px] font-black uppercase text-emerald-400 pt-1 border-t border-slate-700">
-              <span>Pagamento OK</span>
-              <span className="font-mono">✓</span>
-            </div>
-          )}
+          <SalePaymentForm
+            state={invoiceForm}
+            onChange={setInvoiceForm}
+            settings={invoiceSettings}
+            baseAmount={invoiceBase}
+            baseLabel="Total da OS"
+            sellers={sellers}
+            hasCustomer={!!selected.customer_id}
+          />
         </div>
       </Modal>
 
@@ -2124,33 +1992,31 @@ export default function ServiceOrderDetail() {
         subtitle="O cliente ainda não pagou, mas a OS já foi finalizada"
         footer={
           <>
-            <button onClick={() => setShowReceivableModal(false)} className="flex-1 h-11 rounded-xl border border-slate-200 text-[10px] font-black uppercase tracking-widest text-slate-600 hover:bg-slate-50 transition-colors">
+            <Button variant="outline" size="md" onClick={() => setShowReceivableModal(false)} className="flex-1">
               Cancelar
-            </button>
-            <button onClick={handleLaunchReceivable} disabled={launchingReceivable || !receivableDueDate}
-              className="flex-1 h-11 bg-amber-500 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-amber-600 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2">
+            </Button>
+            <Button variant="ghost" size="md" onClick={handleLaunchReceivable} disabled={launchingReceivable || !receivableDueDate} className="flex-1 justify-center">
               {launchingReceivable ? <Loader2 size={14} className="animate-spin" /> : <CalendarClock size={14} />}
               Lançar a Receber
-            </button>
+            </Button>
           </>
         }
       >
         <div>
-          <label className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400 mb-1.5 block">Data prevista de recebimento</label>
-          <input type="date" autoFocus value={receivableDueDate} onChange={(e) => setReceivableDueDate(e.target.value)}
-            className="w-full h-10 px-3 rounded-xl border border-slate-200 text-[12px] font-medium focus:outline-none focus:border-blue-400" />
+          <label className="text-[10px] font-semibold text-slate-400 mb-1.5 block">Data prevista de recebimento</label>
+          <Input type="date" autoFocus value={receivableDueDate} onChange={(e) => setReceivableDueDate(e.target.value)} />
         </div>
-        <div className="bg-slate-50 rounded-2xl p-3 space-y-1.5">
-          <div className="flex justify-between text-[10px] font-bold uppercase text-slate-500">
+        <div className="bg-slate-50 rounded-lg p-3 space-y-1.5">
+          <div className="flex justify-between text-[11px] font-semibold text-slate-500">
             <span>Valor</span>
             <span className="font-mono text-slate-800">{fmt(selected.total_amount)}</span>
           </div>
-          <div className="flex justify-between text-[10px] font-bold uppercase text-slate-500">
+          <div className="flex justify-between text-[11px] font-semibold text-slate-500">
             <span>Cliente</span>
             <span className="text-slate-800">{selected.customer_name}</span>
           </div>
         </div>
-        <p className="text-[10px] text-slate-400">
+        <p className="text-[11px] text-slate-400">
           Isso cria um lançamento em Contas a Receber com a categoria "Serviço". Se você faturar essa OS depois com pagamento imediato, este lançamento é removido automaticamente.
         </p>
       </Modal>
@@ -2163,26 +2029,22 @@ export default function ServiceOrderDetail() {
         subtitle="Essa ação não pode ser desfeita"
         footer={
           <>
-            <button onClick={() => setShowCancelModal(false)} className="flex-1 h-11 rounded-xl border border-slate-200 text-[10px] font-black uppercase tracking-widest text-slate-600 hover:bg-slate-50 transition-colors">
+            <Button variant="outline" size="md" onClick={() => setShowCancelModal(false)} className="flex-1">
               Voltar
-            </button>
-            <button onClick={handleConfirmCancel} disabled={cancelling}
-              className="flex-1 h-11 bg-red-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-red-700 transition-all disabled:opacity-50 flex items-center justify-center gap-2">
+            </Button>
+            <Button variant="danger" size="md" onClick={handleConfirmCancel} disabled={cancelling} className="flex-1 justify-center">
               {cancelling ? <Loader2 size={14} className="animate-spin" /> : <XCircle size={14} />}
               Confirmar Cancelamento
-            </button>
+            </Button>
           </>
         }
       >
         <div>
-          <label className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400 mb-1.5 block">Motivo (opcional)</label>
-          <textarea
-            value={cancelReason}
+          <label className="text-[10px] font-semibold text-slate-400 mb-1.5 block">Motivo (opcional)</label>
+          <Textarea value={cancelReason}
             onChange={(e) => setCancelReason(e.target.value)}
             placeholder="Descreva o motivo do cancelamento..."
-            rows={3}
-            className="w-full px-3 py-2 rounded-xl border border-slate-200 text-[12px] font-medium focus:outline-none focus:border-blue-400 resize-none"
-          />
+            rows={3} />
         </div>
       </Modal>
 
@@ -2194,14 +2056,13 @@ export default function ServiceOrderDetail() {
         subtitle="Essa ação não pode ser desfeita"
         footer={
           <>
-            <button onClick={() => setShowDiscardModal(false)} className="flex-1 h-11 rounded-xl border border-slate-200 text-[10px] font-black uppercase tracking-widest text-slate-600 hover:bg-slate-50 transition-colors">
+            <Button variant="outline" size="md" onClick={() => setShowDiscardModal(false)} className="flex-1">
               Voltar
-            </button>
-            <button onClick={handleDelete} disabled={discarding}
-              className="flex-1 h-11 bg-red-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-red-700 transition-all disabled:opacity-50 flex items-center justify-center gap-2">
+            </Button>
+            <Button variant="danger" size="md" onClick={handleDelete} disabled={discarding} className="flex-1 justify-center">
               {discarding ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
               {isDraft ? "Descartar" : "Excluir"}
-            </button>
+            </Button>
           </>
         }
       >

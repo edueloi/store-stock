@@ -152,3 +152,25 @@ export async function sendPlatformEmail(message: {
     ...message,
   });
 }
+
+/**
+ * Envio pelo SMTP do sistema em nome de uma loja: o remetente técnico é sempre
+ * o e-mail do sistema (SPF/DKIM válidos), com o nome da loja como exibição e o
+ * Reply-To apontando para a loja, para que a resposta do cliente chegue a ela.
+ */
+export async function sendSystemEmailForStore(message: {
+  storeName: string;
+  replyTo?: string;
+  to: string | string[];
+  subject: string;
+  text?: string;
+  html?: string;
+  attachments?: { filename: string; content: Buffer; contentType?: string }[];
+}) {
+  const { storeName, ...rest } = message;
+  const displayName = (storeName || "BoxSys Store").replace(/["\r\n<>]/g, "").trim() || "BoxSys Store";
+  await transporter.sendMail({
+    from: `"${displayName}" <${env.smtpUser}>`,
+    ...rest,
+  });
+}

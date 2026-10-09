@@ -1,12 +1,11 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import {
-  Wrench, Plus, Search, Edit2, Trash2, X, Check,
+  Wrench, Plus, Search, Edit2, Trash2, Check,
   ToggleLeft, ToggleRight, Phone, FileText, HelpCircle,
 } from "lucide-react";
-import { motion, AnimatePresence } from "motion/react";
+import { motion } from "motion/react";
 import { cn } from "../../lib/utils";
-import PageHeader from "../../components/layout/PageHeader";
-import Button from "../../components/ui/Button";
+import { Button, Input, Textarea, Select, Switch, Modal, ModalFooter, Badge, EmptyState, IconButton, ContentCard, SectionTitle } from "../../components/ui";
 import TechniciansPageTour, { TECHNICIANS_PAGE_TOUR_EVENTS, type TechniciansPageTourHandle } from "../../components/onboarding/TechniciansPageTour";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -153,20 +152,20 @@ export default function Technicians() {
   }, [technicians]);
 
   return (
-    <div data-tour="technicians-page" className="space-y-5">
-      <PageHeader
+    <div data-tour="technicians-page" className="space-y-4">
+      <SectionTitle
         title="Técnicos"
-        subtitle="Cadastro de técnicos e prestadores de serviço para atribuir em Ordens de Serviço"
+        icon={Wrench}
+        description="Cadastro de técnicos e prestadores de serviço para atribuir em Ordens de Serviço"
         action={
-          <div className="flex gap-2 items-center flex-wrap">
-            <button data-tour="technicians-new-btn" onClick={openNew}
-              className="h-9 px-4 bg-blue-600 text-white rounded-lg flex items-center gap-2 text-[12px] font-bold hover:bg-blue-700 transition-all shadow-md shadow-blue-500/20">
-              <Plus size={15} /> Novo Técnico
-            </button>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button data-tour="technicians-new-btn" size="sm" iconLeft={<Plus size={14} />} onClick={openNew}>
+              Novo Técnico
+            </Button>
             <Button
-              variant="secondary"
-              className="text-slate-400 hover:text-blue-600 hover:bg-blue-50 border-slate-200 hover:border-blue-300"
-              icon={<HelpCircle size={14} />}
+              variant="outline"
+              size="sm"
+              iconLeft={<HelpCircle size={14} />}
               onClick={() => techniciansPageTourRef.current?.start()}
               title="Tour guiado desta página"
             >
@@ -179,59 +178,52 @@ export default function Technicians() {
       <TechniciansPageTour ref={techniciansPageTourRef} />
 
       {/* Search */}
-      <div className="relative max-w-sm">
-        <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-        <input
-          value={search} onChange={(e) => setSearch(e.target.value)}
-          placeholder="Buscar técnico..."
-          className="w-full pl-9 pr-3 h-9 rounded-lg border border-slate-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-        />
-      </div>
+      <Input
+        wrapperClassName="max-w-sm"
+        iconLeft={<Search size={14} />}
+        value={search}
+        onChange={(e) => setSearch(e.target.value)}
+        placeholder="Buscar técnico..."
+        aria-label="Buscar técnico"
+      />
 
       {loading ? (
-        <div className="flex justify-center py-16 text-slate-400 text-sm">Carregando…</div>
+        <div role="status" className="flex justify-center py-12 text-sm text-slate-500">Carregando…</div>
       ) : filtered.length === 0 ? (
-        <div className="flex flex-col items-center py-16 text-slate-400 gap-3">
-          <Wrench size={36} strokeWidth={1} />
-          <p className="text-sm font-medium">Nenhum técnico cadastrado</p>
-          <button onClick={openNew}
-            className="h-8 px-4 bg-blue-600 text-white rounded-lg text-xs font-bold hover:bg-blue-700">
-            Cadastrar primeiro técnico
-          </button>
-        </div>
+        <ContentCard>
+          <EmptyState
+            icon={Wrench}
+            title="Nenhum técnico cadastrado"
+            action={<Button size="sm" onClick={openNew}>Cadastrar primeiro técnico</Button>}
+          />
+        </ContentCard>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
           {filtered.map((t) => (
             <motion.div key={t.id}
               initial={{ opacity: 0, scale: 0.97 }} animate={{ opacity: 1, scale: 1 }}
-              className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 flex flex-col gap-3 hover:shadow-md hover:border-blue-200 transition-all"
+              className="flex flex-col gap-3 rounded-lg border border-slate-200 bg-white p-3 transition-all hover:border-blue-200"
             >
               <div className="flex items-start gap-3">
                 <div className={cn(
-                  "w-11 h-11 rounded-xl flex items-center justify-center text-white font-black text-base shrink-0",
+                  "flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-base font-semibold text-white",
                   t.is_active ? "bg-blue-600" : "bg-slate-300"
                 )}>
                   {t.name.charAt(0).toUpperCase()}
                 </div>
-                <div className="flex-1 min-w-0">
-                  <p className="font-black text-slate-900 text-sm truncate">{t.name}</p>
-                  <span className={cn(
-                    "inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full mt-0.5",
-                    t.is_active ? "bg-emerald-50 text-emerald-600" : "bg-slate-100 text-slate-500"
-                  )}>
-                    <span className={cn("w-1.5 h-1.5 rounded-full", t.is_active ? "bg-emerald-500" : "bg-slate-400")} />
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-[13px] font-semibold text-slate-900">{t.name}</p>
+                  <Badge size="sm" dot color={t.is_active ? "success" : "default"} className="mt-0.5">
                     {t.is_active ? "Ativo" : "Inativo"}
-                  </span>
+                  </Badge>
                 </div>
-                <div className="flex gap-1 shrink-0">
-                  <button onClick={() => openEdit(t)}
-                    className="p-1.5 hover:bg-blue-50 text-blue-500 rounded-lg transition-colors">
+                <div className="flex shrink-0 gap-1">
+                  <IconButton size="xs" aria-label="Editar técnico" onClick={() => openEdit(t)}>
                     <Edit2 size={13} />
-                  </button>
-                  <button onClick={() => handleDelete(t.id)}
-                    className="p-1.5 hover:bg-red-50 text-red-400 rounded-lg transition-colors">
+                  </IconButton>
+                  <IconButton size="xs" variant="danger" aria-label="Excluir técnico" onClick={() => handleDelete(t.id)}>
                     <Trash2 size={13} />
-                  </button>
+                  </IconButton>
                 </div>
               </div>
 
@@ -249,154 +241,100 @@ export default function Technicians() {
               </div>
 
               {t.notes && (
-                <p className="text-[11px] text-slate-400 bg-slate-50 rounded-lg px-2.5 py-2 line-clamp-2">{t.notes}</p>
+                <p className="line-clamp-2 break-words rounded-lg bg-slate-50 px-2.5 py-2 text-[11px] text-slate-500">{t.notes}</p>
               )}
 
-              <button data-tour="technician-toggle-active-btn" onClick={() => handleToggleActive(t)}
-                className={cn(
-                  "w-full flex items-center justify-center gap-2 h-8 rounded-lg text-[11px] font-bold border transition-all",
-                  t.is_active
-                    ? "border-slate-200 text-slate-500 hover:bg-red-50 hover:text-red-500 hover:border-red-200"
-                    : "border-emerald-200 text-emerald-600 bg-emerald-50 hover:bg-emerald-100"
-                )}>
-                {t.is_active ? <><ToggleRight size={14} /> Desativar</> : <><ToggleLeft size={14} /> Ativar</>}
-              </button>
+              <Button
+                data-tour="technician-toggle-active-btn"
+                variant={t.is_active ? "outline" : "success"}
+                size="xs"
+                fullWidth
+                iconLeft={t.is_active ? <ToggleRight size={14} /> : <ToggleLeft size={14} />}
+                onClick={() => handleToggleActive(t)}
+              >
+                {t.is_active ? "Desativar" : "Ativar"}
+              </Button>
             </motion.div>
           ))}
         </div>
       )}
 
       {/* ══════════ MODAL CADASTRO / EDIÇÃO ══════════ */}
-      <AnimatePresence>
-        {showModal && (
-          <>
-            <motion.div
-              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-              onClick={() => setShowModal(false)}
-              className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-40"
-            />
-            <motion.div
-              initial={{ opacity: 0, scale: 0.94, y: 20 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.94, y: 20 }}
-              className="fixed inset-0 z-50 flex items-center justify-center p-4"
+      <Modal
+        open={showModal}
+        onClose={() => setShowModal(false)}
+        title={editing ? "Editar Técnico" : "Novo Técnico"}
+        size="sm"
+        footer={
+          <ModalFooter>
+            <Button variant="outline" onClick={() => setShowModal(false)}>Cancelar</Button>
+            <Button
+              onClick={handleSave}
+              disabled={saving || !form.name.trim()}
+              iconLeft={saved ? <Check size={14} /> : undefined}
             >
-              <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md max-h-[90vh] overflow-y-auto">
-                <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
-                  <h3 className="font-black text-slate-900 text-base">
-                    {editing ? "Editar Técnico" : "Novo Técnico"}
-                  </h3>
-                  <button onClick={() => setShowModal(false)}
-                    className="p-2 hover:bg-slate-100 rounded-lg text-slate-400 transition-colors">
-                    <X size={16} />
-                  </button>
-                </div>
+              {saved ? "Salvo!" : saving ? "Salvando…" : editing ? "Atualizar" : "Cadastrar"}
+            </Button>
+          </ModalFooter>
+        }
+      >
+        <div className="space-y-4">
+          <div data-tour="technician-form-name">
+            <Input
+              label="Nome *"
+              value={form.name}
+              onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
+              placeholder="Nome completo"
+            />
+          </div>
 
-                <div className="p-6 space-y-4">
-                  <div data-tour="technician-form-name">
-                    <label className="text-[10px] font-black uppercase tracking-wider text-slate-500 block mb-1">
-                      Nome *
-                    </label>
-                    <input
-                      value={form.name}
-                      onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
-                      placeholder="Nome completo"
-                      className="w-full h-10 px-3 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    />
-                  </div>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <Input
+              label="Telefone"
+              value={form.phone}
+              onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))}
+              placeholder="(11) 99999-9999"
+            />
+            <Input
+              label="CPF / CNPJ"
+              value={form.document}
+              onChange={(e) => setForm((f) => ({ ...f, document: e.target.value }))}
+              placeholder="000.000.000-00"
+            />
+          </div>
 
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="text-[10px] font-black uppercase tracking-wider text-slate-500 block mb-1">
-                        Telefone
-                      </label>
-                      <input
-                        value={form.phone}
-                        onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))}
-                        placeholder="(11) 99999-9999"
-                        className="w-full h-10 px-3 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      />
-                    </div>
-                    <div>
-                      <label className="text-[10px] font-black uppercase tracking-wider text-slate-500 block mb-1">
-                        CPF / CNPJ
-                      </label>
-                      <input
-                        value={form.document}
-                        onChange={(e) => setForm((f) => ({ ...f, document: e.target.value }))}
-                        placeholder="000.000.000-00"
-                        className="w-full h-10 px-3 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      />
-                    </div>
-                  </div>
+          <Select
+            label="Vincular a um usuário do sistema"
+            value={form.user_id ?? ""}
+            onChange={(e) => setForm((f) => ({ ...f, user_id: e.target.value ? Number(e.target.value) : null }))}
+          >
+            <option value="">Nenhum</option>
+            {teamUsers.map((u) => (
+              <option key={u.id} value={u.id}>{u.name} ({u.email})</option>
+            ))}
+          </Select>
 
-                  <div>
-                    <label className="text-[10px] font-black uppercase tracking-wider text-slate-500 block mb-1">
-                      Vincular a um usuário do sistema
-                    </label>
-                    <select
-                      value={form.user_id ?? ""}
-                      onChange={(e) => setForm((f) => ({ ...f, user_id: e.target.value ? Number(e.target.value) : null }))}
-                      className="w-full h-10 px-3 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    >
-                      <option value="">Nenhum</option>
-                      {teamUsers.map((u) => (
-                        <option key={u.id} value={u.id}>{u.name} ({u.email})</option>
-                      ))}
-                    </select>
-                  </div>
+          <div className="flex items-center justify-between gap-3 rounded-lg bg-slate-50 px-3 py-3">
+            <div className="min-w-0">
+              <p className="text-[13px] font-semibold text-slate-700">Técnico Ativo</p>
+              <p className="text-[11px] text-slate-500">Pode ser selecionado na Ordem de Serviço</p>
+            </div>
+            <Switch
+              checked={form.is_active}
+              onCheckedChange={(v) => setForm((f) => ({ ...f, is_active: v }))}
+              aria-label="Técnico ativo"
+            />
+          </div>
 
-                  <div className="flex items-center justify-between bg-slate-50 rounded-xl px-4 py-3">
-                    <div>
-                      <p className="text-sm font-bold text-slate-700">Técnico Ativo</p>
-                      <p className="text-[10px] text-slate-400">Pode ser selecionado na Ordem de Serviço</p>
-                    </div>
-                    <button
-                      onClick={() => setForm((f) => ({ ...f, is_active: !f.is_active }))}
-                      className={cn(
-                        "w-11 h-6 rounded-full transition-all relative shadow-inner shrink-0",
-                        form.is_active ? "bg-emerald-500" : "bg-slate-300"
-                      )}
-                    >
-                      <div className={cn(
-                        "absolute top-1 w-4 h-4 bg-white rounded-full transition-all shadow-sm",
-                        form.is_active ? "left-6" : "left-1"
-                      )} />
-                    </button>
-                  </div>
-
-                  <div>
-                    <label className="text-[10px] font-black uppercase tracking-wider text-slate-500 block mb-1">
-                      Observações
-                    </label>
-                    <textarea
-                      value={form.notes}
-                      onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))}
-                      rows={2}
-                      placeholder="Especialidade, região de atendimento..."
-                      className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
-                    />
-                  </div>
-                </div>
-
-                <div className="flex gap-2 px-6 pb-6">
-                  <button onClick={() => setShowModal(false)}
-                    className="flex-1 h-10 rounded-lg border border-slate-200 text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-all">
-                    Cancelar
-                  </button>
-                  <button
-                    onClick={handleSave}
-                    disabled={saving || !form.name.trim()}
-                    className="flex-1 h-10 bg-blue-600 text-white rounded-lg text-sm font-bold hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2"
-                  >
-                    {saved ? <><Check size={14} /> Salvo!</> : saving ? "Salvando…" : editing ? "Atualizar" : "Cadastrar"}
-                  </button>
-                </div>
-              </div>
-            </motion.div>
-          </>
-        )}
-      </AnimatePresence>
+          <Textarea
+            label="Observações"
+            value={form.notes}
+            onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))}
+            rows={2}
+            placeholder="Especialidade, região de atendimento..."
+          />
+        </div>
+      </Modal>
     </div>
   );
 }

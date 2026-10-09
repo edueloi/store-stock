@@ -11,8 +11,7 @@ import {
 import PageHeader from "../../components/layout/PageHeader";
 import { NfceInvoice, NfceStatus, NfseInvoice, NfseStatus } from "../../types";
 import { cn } from "../../lib/utils";
-import Modal from "../../components/ui/Modal";
-import Button from "../../components/ui/Button";
+import { Modal, Button, IconButton, Input, Textarea, Select, Tabs, FilterLineSearch, FilterLineSegmented } from "../../components/ui";
 import { useToast } from "../../components/ui/Toast";
 import { onRealtime } from "../../lib/realtime";
 import FiscalCodeLookup from "../../components/fiscal/FiscalCodeLookup";
@@ -118,6 +117,15 @@ async function downloadAuthenticated(url: string, token: string | null, filename
   a.download = filename;
   a.click();
   URL.revokeObjectURL(blobUrl);
+}
+
+function buildPresets(todayStr: () => string, firstOfMonthStr: () => string, lastOfMonthStr: () => string) {
+  return [
+    { label: "Hoje", from: todayStr(), to: todayStr() },
+    { label: "7d", from: (() => { const d = new Date(); d.setDate(d.getDate() - 6); return d.toISOString().slice(0, 10); })(), to: todayStr() },
+    { label: "Mês", from: firstOfMonthStr(), to: lastOfMonthStr() },
+    { label: "Tudo", from: "", to: "" },
+  ];
 }
 
 function NfceTabContent() {
@@ -391,23 +399,15 @@ function NfceTabContent() {
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-        <button
-          onClick={() => navigate("/admin/pdv")}
-          className="w-full sm:w-auto h-10 sm:h-9 bg-slate-900 hover:bg-slate-800 text-white px-4 rounded-xl flex items-center justify-center gap-2 text-[10px] font-bold uppercase tracking-widest transition-all shadow-sm"
-          title="A NFC-e avulsa é emitida a partir de uma venda no PDV — use o botão 'Item Avulso' no carrinho para vender algo fora do catálogo."
-        >
+        <Button variant="primary" size="md" onClick={() => navigate("/admin/pdv")} title="A NFC-e avulsa é emitida a partir de uma venda no PDV — use o botão 'Item Avulso' no carrinho para vender algo fora do catálogo." className="w-full sm:w-auto">
           <Plus size={13} /> Nova Venda (PDV)
-        </button>
-        <button
-          onClick={async () => { setExporting(true); try { await exportNfceToExcel(filtered); } finally { setExporting(false); } }}
-          disabled={exporting || filtered.length === 0}
-          className="w-full sm:w-auto h-10 sm:h-9 bg-white border border-slate-200 px-4 rounded-xl flex items-center justify-center gap-2 text-[10px] font-bold uppercase tracking-widest hover:bg-slate-50 transition-all text-slate-600 shadow-sm disabled:opacity-40"
-        >
+        </Button>
+        <Button variant="outline" size="md" onClick={async () => { setExporting(true); try { await exportNfceToExcel(filtered); } finally { setExporting(false); } }} disabled={exporting || filtered.length === 0} className="w-full sm:w-auto">
           {exporting ? <Loader2 size={13} className="animate-spin" /> : <Download size={13} />} Exportar
-        </button>
+        </Button>
       </div>
 
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm">
+      <div className="bg-white rounded-lg border border-slate-200 shadow-sm">
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 border-b border-slate-100 divide-x divide-y sm:divide-y-0 lg:divide-y-0 divide-slate-100">
           {[
             { label: "Total",       value: counts.total,      color: "text-slate-900" },
@@ -417,96 +417,53 @@ function NfceTabContent() {
             { label: "Valor emitido", value: counts.amount.toLocaleString("pt-BR", { style: "currency", currency: "BRL" }), color: "text-slate-900" },
           ].map((k) => (
             <div key={k.label} className="px-4 sm:px-5 py-3 sm:py-4 flex flex-col gap-0.5">
-              <span className={cn("text-xl sm:text-2xl font-black tracking-tight font-mono leading-none", k.color)}>{k.value}</span>
-              <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">{k.label}</span>
+              <span className={cn("text-xl sm:text-2xl font-semibold font-mono leading-none", k.color)}>{k.value}</span>
+              <span className="text-[10px] font-semibold text-slate-400">{k.label}</span>
             </div>
           ))}
         </div>
 
         <div className="flex flex-wrap items-center gap-2 px-3 py-3 sm:px-4">
-          <div className="relative min-w-[220px] flex-[1_1_280px]">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={13} />
-            <input
-              type="text"
-              placeholder="Buscar por número, chave, cliente..."
-              className="w-full pl-8 pr-3 h-9 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-400 text-[11px] font-medium placeholder:text-slate-300 transition-all"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-            />
-          </div>
-          <select
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value as NfceStatus | "all")}
-            className="h-10 min-w-[180px] flex-1 rounded-xl border border-slate-200 bg-slate-50 px-3 text-[11px] font-bold outline-none transition-all focus:border-blue-400 min-[480px]:h-9 min-[480px]:flex-none"
-          >
+          <FilterLineSearch aria-label="Buscar por número, chave, cliente" placeholder="Buscar por número, chave, cliente..." value={searchTerm} onChange={setSearchTerm} />
+          <Select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value as NfceStatus | "all")} wrapperClassName="min-w-[180px] flex-1">
             <option value="all">Todos os status</option>
             {Object.entries(STATUS_META).map(([key, meta]) => (
               <option key={key} value={key}>{meta.label}</option>
             ))}
-          </select>
+          </Select>
 
           {/* Date range */}
-          <div className="grid h-10 min-w-[280px] flex-1 grid-cols-[auto_minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50 px-3 min-[480px]:h-9">
-            <Calendar size={12} className="text-slate-400 shrink-0" />
-            <input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)}
-              className="min-w-0 w-full text-[11px] font-medium text-slate-700 outline-none bg-transparent cursor-pointer" />
-            <span className="text-slate-300 font-bold text-[10px]">—</span>
-            <input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)}
-              className="min-w-0 w-full text-[11px] font-medium text-slate-700 outline-none bg-transparent cursor-pointer" />
+          <div className="flex min-w-[280px] flex-1 items-center gap-2">
+            <Input type="date" aria-label="Data inicial" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} iconLeft={<Calendar size={13} />} wrapperClassName="flex-1" />
+            <span className="text-[11px] text-slate-400">até</span>
+            <Input type="date" aria-label="Data final" value={dateTo} onChange={(e) => setDateTo(e.target.value)} wrapperClassName="flex-1" />
           </div>
 
           {/* Quick presets */}
-          <div className="grid min-w-[250px] flex-1 grid-cols-4 items-center gap-1 rounded-xl border border-slate-200 bg-slate-50 p-1">
-            {[
-              { label: "Hoje", from: todayStr(),        to: todayStr() },
-              { label: "7d",   from: (() => { const d = new Date(); d.setDate(d.getDate() - 6); return d.toISOString().slice(0, 10); })(), to: todayStr() },
-              { label: "Mês",  from: firstOfMonthStr(), to: lastOfMonthStr() },
-              { label: "Tudo", from: "",                to: "" },
-            ].map((p) => {
-              const active = dateFrom === p.from && dateTo === p.to;
-              return (
-                <button key={p.label} onClick={() => { setDateFrom(p.from); setDateTo(p.to); }}
-                  className={cn(
-                    "h-7 px-2 sm:px-3 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all",
-                    active ? "bg-slate-900 text-white shadow-sm" : "text-slate-500 hover:text-slate-700"
-                  )}
-                >
-                  {p.label}
-                </button>
-              );
-            })}
-          </div>
+          <FilterLineSegmented<string>
+            options={buildPresets(todayStr, firstOfMonthStr, lastOfMonthStr).map((p) => ({ value: p.label, label: p.label }))}
+            value={buildPresets(todayStr, firstOfMonthStr, lastOfMonthStr).find((p) => dateFrom === p.from && dateTo === p.to)?.label ?? ""}
+            onChange={(label) => { const p = buildPresets(todayStr, firstOfMonthStr, lastOfMonthStr).find((x) => x.label === label); if (p) { setDateFrom(p.from); setDateTo(p.to); } }}
+          />
         </div>
 
         {selected.size > 0 && (
           <div className="flex items-center gap-2 px-4 py-2.5 flex-wrap bg-blue-50/60 border-b border-blue-100">
-            <span className="text-[10px] font-black text-blue-700 uppercase tracking-widest mr-1">
+            <span className="text-[11px] font-semibold text-blue-700 mr-1">
               {selected.size} selecionada{selected.size > 1 ? "s" : ""}
             </span>
-            <button
-              onClick={handleRetryBatch}
-              disabled={batchLoading !== null || selectedRetryable.length === 0}
-              className="h-8 px-3 bg-rose-600 hover:bg-rose-700 disabled:opacity-40 text-white rounded-lg text-[9px] font-black uppercase tracking-widest flex items-center gap-1.5 transition-all"
-            >
+            <Button variant="danger" size="sm" onClick={handleRetryBatch} disabled={batchLoading !== null || selectedRetryable.length === 0}>
               {batchLoading === "retry" ? <Loader2 size={12} className="animate-spin" /> : <RefreshCw size={12} />}
               Reemitir selecionadas ({selectedRetryable.length})
-            </button>
-            <button
-              onClick={handleDownloadXmlBatch}
-              disabled={batchLoading !== null || selectedAuthorized.length === 0}
-              className="h-8 px-3 bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 rounded-lg text-[9px] font-black uppercase tracking-widest flex items-center gap-1.5 transition-all disabled:opacity-40"
-            >
+            </Button>
+            <Button variant="outline" size="sm" onClick={handleDownloadXmlBatch} disabled={batchLoading !== null || selectedAuthorized.length === 0}>
               {batchLoading === "xml" ? <Loader2 size={12} className="animate-spin" /> : <Archive size={12} />}
               Baixar XMLs (.zip)
-            </button>
-            <button
-              onClick={handleDownloadDanfeBatch}
-              disabled={batchLoading !== null || selectedAuthorized.length === 0}
-              className="h-8 px-3 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-[9px] font-black uppercase tracking-widest flex items-center gap-1.5 transition-all disabled:opacity-40"
-            >
+            </Button>
+            <Button variant="primary" size="sm" onClick={handleDownloadDanfeBatch} disabled={batchLoading !== null || selectedAuthorized.length === 0}>
               {batchLoading === "danfe" ? <Loader2 size={12} className="animate-spin" /> : <Archive size={12} />}
               Baixar DANFEs (.zip)
-            </button>
+            </Button>
           </div>
         )}
 
@@ -534,7 +491,7 @@ function NfceTabContent() {
                   />
                 </th>
                 {["Nº", "Série", "Pedido", "Cliente", "Status", "Valor", "Emitida em", ""].map((h) => (
-                  <th key={h} className="px-4 py-2.5 text-[9px] font-black text-slate-400 uppercase tracking-widest whitespace-nowrap">{h}</th>
+                  <th key={h} className="px-4 py-2.5 text-[10px] font-semibold text-slate-400 whitespace-nowrap">{h}</th>
                 ))}
               </tr>
             </thead>
@@ -557,19 +514,19 @@ function NfceTabContent() {
                         className="rounded border-slate-300"
                       />
                     </td>
-                    <td className="px-4 py-2.5 text-xs font-mono font-bold text-slate-700">{inv.number}</td>
+                    <td className="px-4 py-2.5 text-xs font-mono font-semibold text-slate-700">{inv.number}</td>
                     <td className="px-4 py-2.5 text-xs font-mono text-slate-500">{inv.series}</td>
                     <td className="px-4 py-2.5 text-xs font-mono text-blue-600 truncate" title={`#${String(inv.order_id).padStart(6, "0")}`}>
                       #{String(inv.order_id).padStart(6, "0")}
                     </td>
-                    <td className="px-4 py-2.5 text-xs font-bold text-slate-700 truncate" title={inv.order?.customer_name || "Consumidor Final"}>
+                    <td className="px-4 py-2.5 text-xs font-semibold text-slate-700 truncate" title={inv.order?.customer_name || "Consumidor Final"}>
                       {inv.order?.customer_name || "Consumidor Final"}
                     </td>
                     <td className="px-4 py-2.5 whitespace-normal">
                       <span
                         title={(inv.status === "error" || inv.status === "rejected") ? (inv.rejection_reason ?? undefined) : undefined}
                         className={cn(
-                          "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wide whitespace-nowrap",
+                          "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold whitespace-nowrap",
                           meta.bg, meta.color,
                           (inv.status === "error" || inv.status === "rejected") && inv.rejection_reason && "cursor-help",
                         )}
@@ -579,19 +536,19 @@ function NfceTabContent() {
                       {(inv.status === "error" || inv.status === "rejected") && inv.rejection_reason && (
                         <button
                           onClick={() => setErrorDetailTarget(inv)}
-                          className="flex items-center gap-1 text-[10px] text-rose-500 hover:text-rose-700 font-medium mt-1 max-w-full underline decoration-dotted"
+                          className="flex items-center gap-1 text-[11px] text-rose-500 hover:text-rose-700 font-medium mt-1 max-w-full underline decoration-dotted"
                         >
                           <span className="truncate">{inv.rejection_reason}</span>
                           <Info size={11} className="shrink-0" />
                         </button>
                       )}
                       {inv.environment === "homologacao" && (
-                        <span className="ml-1.5 inline-flex items-center px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wide bg-amber-50 text-amber-600 border border-amber-200" title="Nota de teste — sem valor fiscal">
+                        <span className="ml-1.5 inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-50 text-amber-600 border border-amber-200" title="Nota de teste — sem valor fiscal">
                           Homologação
                         </span>
                       )}
                     </td>
-                    <td className="px-4 py-2.5 text-xs font-mono font-bold text-slate-700 whitespace-nowrap">
+                    <td className="px-4 py-2.5 text-xs font-mono font-semibold text-slate-700 whitespace-nowrap">
                       {Number(inv.order?.total_amount || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
                     </td>
                     <td className="px-4 py-2.5 text-xs text-slate-500 whitespace-nowrap">
@@ -601,53 +558,36 @@ function NfceTabContent() {
                       <div className="flex items-center gap-2 justify-end flex-nowrap whitespace-nowrap shrink-0">
                         {(inv.status === "error" || inv.status === "rejected") && (
                           <>
-                            <button
-                              onClick={() => handleRetry(inv.order_id)}
-                              disabled={retrying === inv.order_id}
-                              className="h-8 px-3 bg-rose-600 hover:bg-rose-700 disabled:opacity-50 text-white rounded-lg text-[9px] font-black uppercase tracking-widest flex items-center gap-1.5 transition-all"
-                            >
+                            <Button variant="danger" size="sm" onClick={() => handleRetry(inv.order_id)} disabled={retrying === inv.order_id}>
                               {retrying === inv.order_id ? <Loader2 size={12} className="animate-spin" /> : <RefreshCw size={12} />} Reemitir
-                            </button>
-                            <button
-                              onClick={() => { setDeleteTarget(inv); setDeleteError(null); }}
-                              className="h-8 px-3 bg-white border border-slate-200 hover:bg-slate-50 text-slate-500 rounded-lg text-[9px] font-black uppercase tracking-widest flex items-center gap-1.5 transition-all"
-                            >
+                            </Button>
+                            <Button variant="outline" size="sm" onClick={() => { setDeleteTarget(inv); setDeleteError(null); }}>
                               <Trash2 size={12} /> Excluir
-                            </button>
+                            </Button>
                           </>
                         )}
                         {inv.status === "authorized" && inv.environment === "homologacao" && (
-                          <button
-                            onClick={() => { setProductionTarget(inv); setProductionError(null); }}
-                            className="h-8 px-3 bg-amber-500 hover:bg-amber-600 text-white rounded-lg text-[9px] font-black uppercase tracking-widest flex items-center gap-1.5 transition-all"
-                            title="Essa nota é só teste (sem valor fiscal) — emitir uma nota nova, de produção, pro mesmo pedido"
-                          >
+                          <Button variant="primary" size="sm" onClick={() => { setProductionTarget(inv); setProductionError(null); }} title="Essa nota é só teste (sem valor fiscal) — emitir uma nota nova, de produção, pro mesmo pedido" className="bg-amber-500 hover:bg-amber-600 border-amber-500">
                             <FileCheck size={12} /> Emitir em Produção
-                          </button>
+                          </Button>
                         )}
                         {inv.status === "authorized" && (
                           <>
-                            <button onClick={() => handleDownloadDanfe(inv)}
-                              className="h-8 px-3 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-[9px] font-black uppercase tracking-widest flex items-center gap-1.5 transition-all">
+                            <Button variant="primary" size="sm" onClick={() => handleDownloadDanfe(inv)}>
                               <FileText size={12} /> DANFE
-                            </button>
-                            <button onClick={() => handleDownloadXml(inv)}
-                              className="h-8 px-3 bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 rounded-lg text-[9px] font-black uppercase tracking-widest flex items-center gap-1.5 transition-all">
+                            </Button>
+                            <Button variant="outline" size="sm" onClick={() => handleDownloadXml(inv)}>
                               <FileCheck size={12} /> XML
-                            </button>
+                            </Button>
                             {whatsappConnected && (
-                              <button onClick={() => handleSendWhatsapp(inv)} disabled={sendingWhatsapp === inv.order_id}
-                                className="h-8 px-3 bg-emerald-50 border border-emerald-200 hover:bg-emerald-100 text-emerald-700 rounded-lg text-[9px] font-black uppercase tracking-widest flex items-center gap-1.5 transition-all disabled:opacity-60">
+                              <Button variant="outline" size="sm" onClick={() => handleSendWhatsapp(inv)} disabled={sendingWhatsapp === inv.order_id} className="text-emerald-700 border-emerald-200 hover:bg-emerald-50">
                                 {sendingWhatsapp === inv.order_id ? <Loader2 size={12} className="animate-spin" /> : <MessageCircle size={12} />} WhatsApp
-                              </button>
+                              </Button>
                             )}
                             {minutesSinceAuthorized(inv) <= PRAZO_CANCELAMENTO_MINUTOS && (
-                              <button
-                                onClick={() => { setCancelTarget(inv); setCancelReason(""); setCancelError(null); }}
-                                className="h-8 px-3 bg-white border border-rose-200 hover:bg-rose-50 text-rose-600 rounded-lg text-[9px] font-black uppercase tracking-widest flex items-center gap-1.5 transition-all"
-                              >
+                              <Button variant="outline" size="sm" onClick={() => { setCancelTarget(inv); setCancelReason(""); setCancelError(null); }} className="text-rose-600 border-rose-200 hover:bg-rose-50">
                                 <Ban size={12} /> Cancelar
-                              </button>
+                              </Button>
                             )}
                           </>
                         )}
@@ -683,17 +623,17 @@ function NfceTabContent() {
                   />
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <span className="text-xs font-mono font-black text-slate-700">Nº {inv.number}</span>
-                      <span className="text-[10px] font-mono text-slate-400">Série {inv.series}</span>
-                      <span className="text-[10px] font-mono text-blue-600">#{String(inv.order_id).padStart(6, "0")}</span>
+                      <span className="text-xs font-mono font-semibold text-slate-700">Nº {inv.number}</span>
+                      <span className="text-[11px] font-mono text-slate-400">Série {inv.series}</span>
+                      <span className="text-[11px] font-mono text-blue-600">#{String(inv.order_id).padStart(6, "0")}</span>
                     </div>
-                    <p className="text-xs font-bold text-slate-700 truncate mt-0.5">
+                    <p className="text-xs font-semibold text-slate-700 truncate mt-0.5">
                       {inv.order?.customer_name || "Consumidor Final"}
                     </p>
                   </div>
                   <span
                     className={cn(
-                      "shrink-0 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wide",
+                      "shrink-0 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold",
                       meta.bg, meta.color,
                     )}
                   >
@@ -704,7 +644,7 @@ function NfceTabContent() {
                 {(inv.status === "error" || inv.status === "rejected") && inv.rejection_reason && (
                   <button
                     onClick={() => setErrorDetailTarget(inv)}
-                    className="flex items-center gap-1 text-[10px] text-rose-500 hover:text-rose-700 font-medium pl-7 max-w-full underline decoration-dotted text-left"
+                    className="flex items-center gap-1 text-[11px] text-rose-500 hover:text-rose-700 font-medium pl-7 max-w-full underline decoration-dotted text-left"
                   >
                     <span className="truncate">{inv.rejection_reason}</span>
                     <Info size={11} className="shrink-0" />
@@ -712,68 +652,52 @@ function NfceTabContent() {
                 )}
                 {inv.environment === "homologacao" && (
                   <p className="pl-7">
-                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wide bg-amber-50 text-amber-600 border border-amber-200" title="Nota de teste — sem valor fiscal">
+                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-50 text-amber-600 border border-amber-200" title="Nota de teste — sem valor fiscal">
                       Homologação
                     </span>
                   </p>
                 )}
 
                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 pl-7">
-                  <span className="text-xs font-mono font-black text-slate-700">
+                  <span className="text-xs font-mono font-semibold text-slate-700">
                     {Number(inv.order?.total_amount || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
                   </span>
-                  <span className="text-[10px] text-slate-400 font-medium">
+                  <span className="text-[11px] text-slate-400 font-medium">
                     {inv.authorized_at ? new Date(inv.authorized_at).toLocaleString("pt-BR") : "—"}
                   </span>
                   <div className="flex items-center gap-2 flex-wrap justify-end">
                     {(inv.status === "error" || inv.status === "rejected") && (
                       <>
-                        <button
-                          onClick={() => handleRetry(inv.order_id)}
-                          disabled={retrying === inv.order_id}
-                          className="h-8 px-3 bg-rose-600 hover:bg-rose-700 disabled:opacity-50 text-white rounded-lg text-[9px] font-black uppercase tracking-widest flex items-center gap-1.5 transition-all"
-                        >
+                        <Button variant="danger" size="sm" onClick={() => handleRetry(inv.order_id)} disabled={retrying === inv.order_id}>
                           {retrying === inv.order_id ? <Loader2 size={12} className="animate-spin" /> : <RefreshCw size={12} />} Reemitir
-                        </button>
-                        <button
-                          onClick={() => { setDeleteTarget(inv); setDeleteError(null); }}
-                          className="h-8 px-3 bg-white border border-slate-200 hover:bg-slate-50 text-slate-500 rounded-lg text-[9px] font-black uppercase tracking-widest flex items-center gap-1.5 transition-all"
-                        >
+                        </Button>
+                        <Button variant="outline" size="sm" onClick={() => { setDeleteTarget(inv); setDeleteError(null); }}>
                           <Trash2 size={12} /> Excluir
-                        </button>
+                        </Button>
                       </>
                     )}
                     {inv.status === "authorized" && inv.environment === "homologacao" && (
-                      <button
-                        onClick={() => { setProductionTarget(inv); setProductionError(null); }}
-                        className="h-8 px-3 bg-amber-500 hover:bg-amber-600 text-white rounded-lg text-[9px] font-black uppercase tracking-widest flex items-center gap-1.5 transition-all"
-                      >
+                      <Button variant="primary" size="sm" onClick={() => { setProductionTarget(inv); setProductionError(null); }} className="bg-amber-500 hover:bg-amber-600 border-amber-500">
                         <FileCheck size={12} /> Emitir em Produção
-                      </button>
+                      </Button>
                     )}
                     {inv.status === "authorized" && (
                       <>
-                        <button onClick={() => handleDownloadDanfe(inv)}
-                          className="h-8 px-3 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-[9px] font-black uppercase tracking-widest flex items-center gap-1.5 transition-all">
+                        <Button variant="primary" size="sm" onClick={() => handleDownloadDanfe(inv)}>
                           <FileText size={12} /> DANFE
-                        </button>
-                        <button onClick={() => handleDownloadXml(inv)}
-                          className="h-8 px-3 bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 rounded-lg text-[9px] font-black uppercase tracking-widest flex items-center gap-1.5 transition-all">
+                        </Button>
+                        <Button variant="outline" size="sm" onClick={() => handleDownloadXml(inv)}>
                           <FileCheck size={12} /> XML
-                        </button>
+                        </Button>
                         {whatsappConnected && (
-                          <button onClick={() => handleSendWhatsapp(inv)} disabled={sendingWhatsapp === inv.order_id}
-                            className="h-8 px-3 bg-emerald-50 border border-emerald-200 hover:bg-emerald-100 text-emerald-700 rounded-lg text-[9px] font-black uppercase tracking-widest flex items-center gap-1.5 transition-all disabled:opacity-60">
+                          <Button variant="outline" size="sm" onClick={() => handleSendWhatsapp(inv)} disabled={sendingWhatsapp === inv.order_id} className="text-emerald-700 border-emerald-200 hover:bg-emerald-50">
                             {sendingWhatsapp === inv.order_id ? <Loader2 size={12} className="animate-spin" /> : <MessageCircle size={12} />} WhatsApp
-                          </button>
+                          </Button>
                         )}
                         {minutesSinceAuthorized(inv) <= PRAZO_CANCELAMENTO_MINUTOS && (
-                          <button
-                            onClick={() => { setCancelTarget(inv); setCancelReason(""); setCancelError(null); }}
-                            className="h-8 px-3 bg-white border border-rose-200 hover:bg-rose-50 text-rose-600 rounded-lg text-[9px] font-black uppercase tracking-widest flex items-center gap-1.5 transition-all"
-                          >
+                          <Button variant="outline" size="sm" onClick={() => { setCancelTarget(inv); setCancelReason(""); setCancelError(null); }} className="text-rose-600 border-rose-200 hover:bg-rose-50">
                             <Ban size={12} /> Cancelar
-                          </button>
+                          </Button>
                         )}
                       </>
                     )}
@@ -810,16 +734,10 @@ function NfceTabContent() {
             Esta ação envia o evento de cancelamento à SEFAZ-SP. Não é possível desfazer.
             A justificativa precisa ter no mínimo 15 caracteres.
           </p>
-          <textarea
-            rows={3}
-            placeholder="Ex: Venda cancelada a pedido do cliente"
-            className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs font-medium outline-none resize-none focus:border-rose-400 focus:ring-2 focus:ring-rose-500/10 transition-all"
-            value={cancelReason}
-            onChange={(e) => setCancelReason(e.target.value)}
-          />
-          <p className="text-[10px] text-slate-400">{cancelReason.trim().length}/15 caracteres mínimos</p>
+          <Textarea rows={3} placeholder="Ex: Venda cancelada a pedido do cliente" value={cancelReason} onChange={(e) => setCancelReason(e.target.value)} wrapperClassName="w-full" className="resize-none" />
+          <p className="text-[11px] text-slate-400">{cancelReason.trim().length}/15 caracteres mínimos</p>
           {cancelError && (
-            <div className="bg-rose-50 border border-rose-200 rounded-xl px-3 py-2.5 text-[11px] font-bold text-rose-600">
+            <div className="bg-rose-50 border border-rose-200 rounded-lg px-3 py-2.5 text-[11px] font-semibold text-rose-600">
               {cancelError}
             </div>
           )}
@@ -852,7 +770,7 @@ function NfceTabContent() {
             O registro de homologação fica guardado como histórico, mas deixa de ser exibido.
           </p>
           {productionError && (
-            <div className="bg-rose-50 border border-rose-200 rounded-xl px-3 py-2.5 text-[11px] font-bold text-rose-600">
+            <div className="bg-rose-50 border border-rose-200 rounded-lg px-3 py-2.5 text-[11px] font-semibold text-rose-600">
               {productionError}
             </div>
           )}
@@ -880,14 +798,7 @@ function NfceTabContent() {
       >
         <div className="space-y-3">
           <p className="text-xs text-slate-500">Informe o número de WhatsApp que vai receber o DANFE.</p>
-          <input
-            type="tel"
-            autoFocus
-            placeholder="(11) 91234-5678"
-            value={whatsappNumberInput}
-            onChange={(e) => setWhatsappNumberInput(e.target.value)}
-            className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-sm font-medium outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-500/10 transition-all"
-          />
+          <Input type="tel" autoFocus placeholder="(11) 91234-5678" value={whatsappNumberInput} onChange={(e) => setWhatsappNumberInput(e.target.value)} wrapperClassName="w-full" />
         </div>
       </Modal>
 
@@ -901,12 +812,12 @@ function NfceTabContent() {
         footer={<Button onClick={() => setErrorDetailTarget(null)}>Fechar</Button>}
       >
         <div className="space-y-3">
-          <div className="bg-rose-50 border border-rose-200 rounded-xl px-4 py-3 text-[13px] font-medium text-rose-700 leading-relaxed break-words">
+          <div className="bg-rose-50 border border-rose-200 rounded-lg px-4 py-3 text-[13px] font-medium text-rose-700 leading-relaxed break-words">
             {errorDetailTarget?.rejection_reason}
           </div>
           <button
             onClick={() => { navigator.clipboard?.writeText(errorDetailTarget?.rejection_reason || ""); notify.success("Copiado!"); }}
-            className="text-[10px] font-black text-slate-400 hover:text-slate-600 uppercase tracking-widest transition-colors"
+            className="text-[11px] font-semibold text-slate-400 hover:text-slate-600 transition-colors"
           >
             Copiar mensagem
           </button>
@@ -934,7 +845,7 @@ function NfceTabContent() {
             A venda em si não é afetada — permanece no histórico normalmente.
           </p>
           {deleteError && (
-            <div className="bg-rose-50 border border-rose-200 rounded-xl px-3 py-2.5 text-[11px] font-bold text-rose-600">
+            <div className="bg-rose-50 border border-rose-200 rounded-lg px-3 py-2.5 text-[11px] font-semibold text-rose-600">
               {deleteError}
             </div>
           )}
@@ -1107,7 +1018,7 @@ function NfseTabContent() {
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        if (res.status === 422 && !emailOverride) {
+        if (res.status === 422 && data?.code === "recipient_required" && !emailOverride) {
           setEmailTarget(inv);
           setEmailInput("");
           return;
@@ -1333,22 +1244,15 @@ function NfseTabContent() {
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-        <button
-          onClick={openAvulsaModal}
-          className="w-full sm:w-auto h-10 sm:h-9 bg-violet-600 hover:bg-violet-700 text-white px-4 rounded-xl flex items-center justify-center gap-2 text-[10px] font-bold uppercase tracking-widest transition-all shadow-sm"
-        >
+        <Button variant="primary" size="md" onClick={openAvulsaModal} className="w-full sm:w-auto">
           <Plus size={13} /> Nova NFS-e Avulsa
-        </button>
-        <button
-          onClick={async () => { setExporting(true); try { await exportNfseToExcel(filtered); } finally { setExporting(false); } }}
-          disabled={exporting || filtered.length === 0}
-          className="w-full sm:w-auto h-10 sm:h-9 bg-white border border-slate-200 px-4 rounded-xl flex items-center justify-center gap-2 text-[10px] font-bold uppercase tracking-widest hover:bg-slate-50 transition-all text-slate-600 shadow-sm disabled:opacity-40"
-        >
+        </Button>
+        <Button variant="outline" size="md" onClick={async () => { setExporting(true); try { await exportNfseToExcel(filtered); } finally { setExporting(false); } }} disabled={exporting || filtered.length === 0} className="w-full sm:w-auto">
           {exporting ? <Loader2 size={13} className="animate-spin" /> : <Download size={13} />} Exportar
-        </button>
+        </Button>
       </div>
 
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm">
+      <div className="bg-white rounded-lg border border-slate-200 shadow-sm">
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 border-b border-slate-100 divide-x divide-y sm:divide-y-0 lg:divide-y-0 divide-slate-100">
           {[
             { label: "Total",       value: counts.total,      color: "text-slate-900" },
@@ -1358,60 +1262,41 @@ function NfseTabContent() {
             { label: "Valor emitido", value: counts.amount.toLocaleString("pt-BR", { style: "currency", currency: "BRL" }), color: "text-slate-900" },
           ].map((k) => (
             <div key={k.label} className="px-4 sm:px-5 py-3 sm:py-4 flex flex-col gap-0.5">
-              <span className={cn("text-xl sm:text-2xl font-black tracking-tight font-mono leading-none", k.color)}>{k.value}</span>
-              <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">{k.label}</span>
+              <span className={cn("text-xl sm:text-2xl font-semibold font-mono leading-none", k.color)}>{k.value}</span>
+              <span className="text-[10px] font-semibold text-slate-400">{k.label}</span>
             </div>
           ))}
         </div>
 
         <div className="flex flex-wrap items-center gap-2 px-3 py-3 sm:px-4">
-          <div className="relative min-w-[220px] flex-[1_1_280px]">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={13} />
-            <input
-              type="text"
-              placeholder="Buscar por número, chave, cliente..."
-              className="w-full pl-8 pr-3 h-9 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-400 text-[11px] font-medium placeholder:text-slate-300 transition-all"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-            />
-          </div>
-          <select
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value as NfseStatus | "all")}
-            className="h-10 min-w-[180px] flex-1 rounded-xl border border-slate-200 bg-slate-50 px-3 text-[11px] font-bold outline-none transition-all focus:border-violet-400 min-[480px]:h-9 min-[480px]:flex-none"
-          >
+          <FilterLineSearch aria-label="Buscar por número, chave, cliente" placeholder="Buscar por número, chave, cliente..." value={searchTerm} onChange={setSearchTerm} />
+          <Select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value as NfseStatus | "all")} wrapperClassName="min-w-[180px] flex-1">
             <option value="all">Todos os status</option>
             {Object.entries(NFSE_STATUS_META).map(([key, meta]) => (
               <option key={key} value={key}>{meta.label}</option>
             ))}
-          </select>
-          <div className="grid h-10 min-w-[280px] flex-1 grid-cols-[auto_minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50 px-3 min-[480px]:h-9">
-            <Calendar size={12} className="shrink-0 text-slate-400" />
-            <input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} className="w-full min-w-0 cursor-pointer bg-transparent text-[11px] font-medium text-slate-700 outline-none" />
-            <span className="text-[10px] font-bold text-slate-300">—</span>
-            <input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} className="w-full min-w-0 cursor-pointer bg-transparent text-[11px] font-medium text-slate-700 outline-none" />
+          </Select>
+          <div className="flex min-w-[280px] flex-1 items-center gap-2">
+            <Input type="date" aria-label="Data inicial" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} iconLeft={<Calendar size={13} />} wrapperClassName="flex-1" />
+            <span className="text-[11px] text-slate-400">até</span>
+            <Input type="date" aria-label="Data final" value={dateTo} onChange={(e) => setDateTo(e.target.value)} wrapperClassName="flex-1" />
           </div>
-          <div className="flex items-center gap-1">
-            {[{ label: "Hoje", from: todayStr(), to: todayStr() }, { label: "7d", from: (() => { const d = new Date(); d.setDate(d.getDate() - 6); return d.toISOString().slice(0, 10); })(), to: todayStr() }, { label: "Mês", from: firstOfMonthStr(), to: lastOfMonthStr() }, { label: "Tudo", from: "", to: "" }].map((preset) => {
-              const active = dateFrom === preset.from && dateTo === preset.to;
-              return <button key={preset.label} onClick={() => { setDateFrom(preset.from); setDateTo(preset.to); }} className={cn("h-7 rounded-lg px-2 text-[9px] font-black uppercase tracking-widest transition-all", active ? "bg-violet-600 text-white" : "bg-slate-100 text-slate-500 hover:bg-slate-200")}>{preset.label}</button>;
-            })}
-          </div>
+          <FilterLineSegmented<string>
+            options={buildPresets(todayStr, firstOfMonthStr, lastOfMonthStr).map((p) => ({ value: p.label, label: p.label }))}
+            value={buildPresets(todayStr, firstOfMonthStr, lastOfMonthStr).find((p) => dateFrom === p.from && dateTo === p.to)?.label ?? ""}
+            onChange={(label) => { const p = buildPresets(todayStr, firstOfMonthStr, lastOfMonthStr).find((x) => x.label === label); if (p) { setDateFrom(p.from); setDateTo(p.to); } }}
+          />
         </div>
 
         {selected.size > 0 && (
           <div className="flex items-center gap-2 px-4 py-2.5 flex-wrap bg-blue-50/60 border-b border-blue-100">
-            <span className="text-[10px] font-black text-blue-700 uppercase tracking-widest mr-1">
+            <span className="text-[11px] font-semibold text-blue-700 mr-1">
               {selected.size} selecionada{selected.size > 1 ? "s" : ""}
             </span>
-            <button
-              onClick={handleRetryBatch}
-              disabled={batchLoading !== null || selectedRetryable.length === 0}
-              className="h-8 px-3 bg-rose-600 hover:bg-rose-700 disabled:opacity-40 text-white rounded-lg text-[9px] font-black uppercase tracking-widest flex items-center gap-1.5 transition-all"
-            >
+            <Button variant="danger" size="sm" onClick={handleRetryBatch} disabled={batchLoading !== null || selectedRetryable.length === 0}>
               {batchLoading === "retry" ? <Loader2 size={12} className="animate-spin" /> : <RefreshCw size={12} />}
               Reemitir selecionadas ({selectedRetryable.length})
-            </button>
+            </Button>
           </div>
         )}
 
@@ -1439,7 +1324,7 @@ function NfseTabContent() {
                   />
                 </th>
                 {["Nº", "Série", "O.S.", "Cliente", "Status", "Valor", "Emitida em", ""].map((h) => (
-                  <th key={h} className="px-4 py-2.5 text-[9px] font-black text-slate-400 uppercase tracking-widest whitespace-nowrap">{h}</th>
+                  <th key={h} className="px-4 py-2.5 text-[10px] font-semibold text-slate-400 whitespace-nowrap">{h}</th>
                 ))}
               </tr>
             </thead>
@@ -1462,19 +1347,19 @@ function NfseTabContent() {
                         className="rounded border-slate-300"
                       />
                     </td>
-                    <td className="px-4 py-2.5 text-xs font-mono font-bold text-slate-700">{inv.numero}</td>
+                    <td className="px-4 py-2.5 text-xs font-mono font-semibold text-slate-700">{inv.numero}</td>
                     <td className="px-4 py-2.5 text-xs font-mono text-slate-500">{inv.serie}</td>
                     <td className="px-4 py-2.5 text-xs font-mono text-blue-600 truncate" title={`#${String(inv.service_order_id).padStart(6, "0")}`}>
                       #{String(inv.service_order_id).padStart(6, "0")}
                     </td>
-                    <td className="px-4 py-2.5 text-xs font-bold text-slate-700 truncate" title={inv.service_order?.customer_name || "Consumidor Final"}>
+                    <td className="px-4 py-2.5 text-xs font-semibold text-slate-700 truncate" title={inv.service_order?.customer_name || "Consumidor Final"}>
                       {inv.service_order?.customer_name || "Consumidor Final"}
                     </td>
                     <td className="px-4 py-2.5 whitespace-normal">
                       <span
                         title={(inv.status === "error" || inv.status === "rejected") ? (inv.rejection_reason ?? undefined) : undefined}
                         className={cn(
-                          "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wide whitespace-nowrap",
+                          "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold whitespace-nowrap",
                           meta.bg, meta.color,
                           (inv.status === "error" || inv.status === "rejected") && inv.rejection_reason && "cursor-help",
                         )}
@@ -1484,14 +1369,14 @@ function NfseTabContent() {
                       {(inv.status === "error" || inv.status === "rejected") && inv.rejection_reason && (
                         <button
                           onClick={() => setErrorDetailTarget(inv)}
-                          className="flex items-center gap-1 text-[10px] text-rose-500 hover:text-rose-700 font-medium mt-1 max-w-full underline decoration-dotted"
+                          className="flex items-center gap-1 text-[11px] text-rose-500 hover:text-rose-700 font-medium mt-1 max-w-full underline decoration-dotted"
                         >
                           <span className="truncate">{inv.rejection_reason}</span>
                           <Info size={11} className="shrink-0" />
                         </button>
                       )}
                     </td>
-                    <td className="px-4 py-2.5 text-xs font-mono font-bold text-slate-700 whitespace-nowrap">
+                    <td className="px-4 py-2.5 text-xs font-mono font-semibold text-slate-700 whitespace-nowrap">
                       {Number(inv.service_order?.service_value || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
                     </td>
                     <td className="px-4 py-2.5 text-xs text-slate-500 whitespace-nowrap">
@@ -1501,47 +1386,33 @@ function NfseTabContent() {
                       <div className="flex items-center gap-2 justify-end flex-nowrap whitespace-nowrap shrink-0">
                         {(inv.status === "error" || inv.status === "rejected") && (
                           <>
-                            <button
-                              onClick={() => handleRetry(inv.service_order_id)}
-                              disabled={retrying === inv.service_order_id}
-                              className="h-8 px-3 bg-rose-600 hover:bg-rose-700 disabled:opacity-50 text-white rounded-lg text-[9px] font-black uppercase tracking-widest flex items-center gap-1.5 transition-all"
-                            >
+                            <Button variant="danger" size="sm" onClick={() => handleRetry(inv.service_order_id)} disabled={retrying === inv.service_order_id}>
                               {retrying === inv.service_order_id ? <Loader2 size={12} className="animate-spin" /> : <RefreshCw size={12} />} Reemitir
-                            </button>
-                            <button
-                              onClick={() => { setDeleteTarget(inv); setDeleteError(null); }}
-                              className="h-8 px-3 bg-white border border-slate-200 hover:bg-slate-50 text-slate-500 rounded-lg text-[9px] font-black uppercase tracking-widest flex items-center gap-1.5 transition-all"
-                            >
+                            </Button>
+                            <Button variant="outline" size="sm" onClick={() => { setDeleteTarget(inv); setDeleteError(null); }}>
                               <Trash2 size={12} /> Excluir
-                            </button>
+                            </Button>
                           </>
                         )}
                         {inv.status === "authorized" && (
                           <>
-                            <button onClick={() => handleDownloadPdf(inv)}
-                              className="h-8 px-3 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-[9px] font-black uppercase tracking-widest flex items-center gap-1.5 transition-all">
+                            <Button variant="primary" size="sm" onClick={() => handleDownloadPdf(inv)}>
                               <FileText size={12} /> PDF
-                            </button>
-                            <button onClick={() => handleDownloadXml(inv)}
-                              className="h-8 px-3 bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 rounded-lg text-[9px] font-black uppercase tracking-widest flex items-center gap-1.5 transition-all">
+                            </Button>
+                            <Button variant="outline" size="sm" onClick={() => handleDownloadXml(inv)}>
                               <FileCheck size={12} /> XML
-                            </button>
-                            <button onClick={() => handleSendEmail(inv)} disabled={sendingEmail === inv.service_order_id}
-                              className="h-8 px-3 bg-blue-50 border border-blue-200 hover:bg-blue-100 text-blue-700 rounded-lg text-[9px] font-black uppercase tracking-widest flex items-center gap-1.5 transition-all disabled:opacity-60">
-                              {sendingEmail === inv.service_order_id ? <Loader2 size={12} className="animate-spin" /> : <Mail size={12} />} E-mail
-                            </button>
+                            </Button>
+                            <Button variant="ghost" size="sm" onClick={() => handleSendEmail(inv)} loading={sendingEmail === inv.service_order_id} iconLeft={<Mail size={12} />}>
+                              E-mail
+                            </Button>
                             {whatsappConnected && (
-                              <button onClick={() => handleSendWhatsapp(inv)} disabled={sendingWhatsapp === inv.service_order_id}
-                                className="h-8 px-3 bg-emerald-50 border border-emerald-200 hover:bg-emerald-100 text-emerald-700 rounded-lg text-[9px] font-black uppercase tracking-widest flex items-center gap-1.5 transition-all disabled:opacity-60">
+                              <Button variant="outline" size="sm" onClick={() => handleSendWhatsapp(inv)} disabled={sendingWhatsapp === inv.service_order_id} className="text-emerald-700 border-emerald-200 hover:bg-emerald-50">
                                 {sendingWhatsapp === inv.service_order_id ? <Loader2 size={12} className="animate-spin" /> : <MessageCircle size={12} />} WhatsApp
-                              </button>
+                              </Button>
                             )}
-                            <button
-                              onClick={() => { setCancelTarget(inv); setCancelReason(""); setCancelError(null); }}
-                              className="h-8 px-3 bg-white border border-rose-200 hover:bg-rose-50 text-rose-600 rounded-lg text-[9px] font-black uppercase tracking-widest flex items-center gap-1.5 transition-all"
-                            >
+                            <Button variant="outline" size="sm" onClick={() => { setCancelTarget(inv); setCancelReason(""); setCancelError(null); }} className="text-rose-600 border-rose-200 hover:bg-rose-50">
                               <Ban size={12} /> Cancelar
-                            </button>
+                            </Button>
                           </>
                         )}
                       </div>
@@ -1574,17 +1445,17 @@ function NfseTabContent() {
                   />
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <span className="text-xs font-mono font-black text-slate-700">Nº {inv.numero}</span>
-                      <span className="text-[10px] font-mono text-slate-400">Série {inv.serie}</span>
-                      <span className="text-[10px] font-mono text-blue-600">#{String(inv.service_order_id).padStart(6, "0")}</span>
+                      <span className="text-xs font-mono font-semibold text-slate-700">Nº {inv.numero}</span>
+                      <span className="text-[11px] font-mono text-slate-400">Série {inv.serie}</span>
+                      <span className="text-[11px] font-mono text-blue-600">#{String(inv.service_order_id).padStart(6, "0")}</span>
                     </div>
-                    <p className="text-xs font-bold text-slate-700 truncate mt-0.5">
+                    <p className="text-xs font-semibold text-slate-700 truncate mt-0.5">
                       {inv.service_order?.customer_name || "Consumidor Final"}
                     </p>
                   </div>
                   <span
                     className={cn(
-                      "shrink-0 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wide",
+                      "shrink-0 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold",
                       meta.bg, meta.color,
                     )}
                   >
@@ -1595,7 +1466,7 @@ function NfseTabContent() {
                 {(inv.status === "error" || inv.status === "rejected") && inv.rejection_reason && (
                   <button
                     onClick={() => setErrorDetailTarget(inv)}
-                    className="flex items-center gap-1 text-[10px] text-rose-500 hover:text-rose-700 font-medium pl-7 max-w-full underline decoration-dotted text-left"
+                    className="flex items-center gap-1 text-[11px] text-rose-500 hover:text-rose-700 font-medium pl-7 max-w-full underline decoration-dotted text-left"
                   >
                     <span className="truncate">{inv.rejection_reason}</span>
                     <Info size={11} className="shrink-0" />
@@ -1603,56 +1474,42 @@ function NfseTabContent() {
                 )}
 
                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 pl-7">
-                  <span className="text-xs font-mono font-black text-slate-700">
+                  <span className="text-xs font-mono font-semibold text-slate-700">
                     {Number(inv.service_order?.service_value || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
                   </span>
-                  <span className="text-[10px] text-slate-400 font-medium">
+                  <span className="text-[11px] text-slate-400 font-medium">
                     {inv.authorized_at ? new Date(inv.authorized_at).toLocaleString("pt-BR") : "—"}
                   </span>
                   <div className="flex items-center gap-2 flex-wrap justify-end">
                     {(inv.status === "error" || inv.status === "rejected") && (
                       <>
-                        <button
-                          onClick={() => handleRetry(inv.service_order_id)}
-                          disabled={retrying === inv.service_order_id}
-                          className="h-8 px-3 bg-rose-600 hover:bg-rose-700 disabled:opacity-50 text-white rounded-lg text-[9px] font-black uppercase tracking-widest flex items-center gap-1.5 transition-all"
-                        >
+                        <Button variant="danger" size="sm" onClick={() => handleRetry(inv.service_order_id)} disabled={retrying === inv.service_order_id}>
                           {retrying === inv.service_order_id ? <Loader2 size={12} className="animate-spin" /> : <RefreshCw size={12} />} Reemitir
-                        </button>
-                        <button
-                          onClick={() => { setDeleteTarget(inv); setDeleteError(null); }}
-                          className="h-8 px-3 bg-white border border-slate-200 hover:bg-slate-50 text-slate-500 rounded-lg text-[9px] font-black uppercase tracking-widest flex items-center gap-1.5 transition-all"
-                        >
+                        </Button>
+                        <Button variant="outline" size="sm" onClick={() => { setDeleteTarget(inv); setDeleteError(null); }}>
                           <Trash2 size={12} /> Excluir
-                        </button>
+                        </Button>
                       </>
                     )}
                     {inv.status === "authorized" && (
                       <>
-                        <button onClick={() => handleDownloadPdf(inv)}
-                          className="h-8 px-3 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-[9px] font-black uppercase tracking-widest flex items-center gap-1.5 transition-all">
+                        <Button variant="primary" size="sm" onClick={() => handleDownloadPdf(inv)}>
                           <FileText size={12} /> PDF
-                        </button>
-                        <button onClick={() => handleDownloadXml(inv)}
-                          className="h-8 px-3 bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 rounded-lg text-[9px] font-black uppercase tracking-widest flex items-center gap-1.5 transition-all">
+                        </Button>
+                        <Button variant="outline" size="sm" onClick={() => handleDownloadXml(inv)}>
                           <FileCheck size={12} /> XML
-                        </button>
-                        <button onClick={() => handleSendEmail(inv)} disabled={sendingEmail === inv.service_order_id}
-                          className="h-8 px-3 bg-blue-50 border border-blue-200 hover:bg-blue-100 text-blue-700 rounded-lg text-[9px] font-black uppercase tracking-widest flex items-center gap-1.5 transition-all disabled:opacity-60">
-                          {sendingEmail === inv.service_order_id ? <Loader2 size={12} className="animate-spin" /> : <Mail size={12} />} E-mail
-                        </button>
+                        </Button>
+                        <Button variant="ghost" size="sm" onClick={() => handleSendEmail(inv)} loading={sendingEmail === inv.service_order_id} iconLeft={<Mail size={12} />}>
+                          E-mail
+                        </Button>
                         {whatsappConnected && (
-                          <button onClick={() => handleSendWhatsapp(inv)} disabled={sendingWhatsapp === inv.service_order_id}
-                            className="h-8 px-3 bg-emerald-50 border border-emerald-200 hover:bg-emerald-100 text-emerald-700 rounded-lg text-[9px] font-black uppercase tracking-widest flex items-center gap-1.5 transition-all disabled:opacity-60">
+                          <Button variant="outline" size="sm" onClick={() => handleSendWhatsapp(inv)} disabled={sendingWhatsapp === inv.service_order_id} className="text-emerald-700 border-emerald-200 hover:bg-emerald-50">
                             {sendingWhatsapp === inv.service_order_id ? <Loader2 size={12} className="animate-spin" /> : <MessageCircle size={12} />} WhatsApp
-                          </button>
+                          </Button>
                         )}
-                        <button
-                          onClick={() => { setCancelTarget(inv); setCancelReason(""); setCancelError(null); }}
-                          className="h-8 px-3 bg-white border border-rose-200 hover:bg-rose-50 text-rose-600 rounded-lg text-[9px] font-black uppercase tracking-widest flex items-center gap-1.5 transition-all"
-                        >
+                        <Button variant="outline" size="sm" onClick={() => { setCancelTarget(inv); setCancelReason(""); setCancelError(null); }} className="text-rose-600 border-rose-200 hover:bg-rose-50">
                           <Ban size={12} /> Cancelar
-                        </button>
+                        </Button>
                       </>
                     )}
                   </div>
@@ -1684,7 +1541,7 @@ function NfseTabContent() {
             A ordem de serviço em si não é afetada — permanece no histórico normalmente.
           </p>
           {deleteError && (
-            <div className="bg-rose-50 border border-rose-200 rounded-xl px-3 py-2.5 text-[11px] font-bold text-rose-600">
+            <div className="bg-rose-50 border border-rose-200 rounded-lg px-3 py-2.5 text-[11px] font-semibold text-rose-600">
               {deleteError}
             </div>
           )}
@@ -1716,16 +1573,10 @@ function NfseTabContent() {
             Esta ação envia o evento de cancelamento ao Sistema Nacional NFS-e. Não é possível desfazer.
             A justificativa precisa ter no mínimo 15 caracteres.
           </p>
-          <textarea
-            rows={3}
-            placeholder="Ex: Serviço não foi prestado"
-            className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs font-medium outline-none resize-none focus:border-rose-400 focus:ring-2 focus:ring-rose-500/10 transition-all"
-            value={cancelReason}
-            onChange={(e) => setCancelReason(e.target.value)}
-          />
-          <p className="text-[10px] text-slate-400">{cancelReason.trim().length}/15 caracteres mínimos</p>
+          <Textarea rows={3} placeholder="Ex: Serviço não foi prestado" value={cancelReason} onChange={(e) => setCancelReason(e.target.value)} wrapperClassName="w-full" className="resize-none" />
+          <p className="text-[11px] text-slate-400">{cancelReason.trim().length}/15 caracteres mínimos</p>
           {cancelError && (
-            <div className="bg-rose-50 border border-rose-200 rounded-xl px-3 py-2.5 text-[11px] font-bold text-rose-600">
+            <div className="bg-rose-50 border border-rose-200 rounded-lg px-3 py-2.5 text-[11px] font-semibold text-rose-600">
               {cancelError}
             </div>
           )}
@@ -1753,14 +1604,7 @@ function NfseTabContent() {
       >
         <div className="space-y-3">
           <p className="text-xs text-slate-500">Informe o número de WhatsApp que vai receber o PDF da NFS-e.</p>
-          <input
-            type="tel"
-            autoFocus
-            placeholder="(11) 91234-5678"
-            value={whatsappNumberInput}
-            onChange={(e) => setWhatsappNumberInput(e.target.value)}
-            className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-sm font-medium outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-500/10 transition-all"
-          />
+          <Input type="tel" autoFocus placeholder="(11) 91234-5678" value={whatsappNumberInput} onChange={(e) => setWhatsappNumberInput(e.target.value)} wrapperClassName="w-full" />
         </div>
       </Modal>
 
@@ -1785,14 +1629,7 @@ function NfseTabContent() {
       >
         <div className="space-y-3">
           <p className="text-xs text-slate-500">O cliente receberá uma mensagem em texto simples, enviada em nome da loja, com o PDF da NFS-e anexado.</p>
-          <input
-            type="email"
-            autoFocus
-            placeholder="cliente@exemplo.com"
-            value={emailInput}
-            onChange={(e) => setEmailInput(e.target.value)}
-            className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-sm font-medium outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-500/10 transition-all"
-          />
+          <Input type="email" autoFocus placeholder="cliente@exemplo.com" value={emailInput} onChange={(e) => setEmailInput(e.target.value)} wrapperClassName="w-full" />
         </div>
       </Modal>
 
@@ -1805,12 +1642,12 @@ function NfseTabContent() {
         footer={<Button onClick={() => setErrorDetailTarget(null)}>Fechar</Button>}
       >
         <div className="space-y-3">
-          <div className="bg-rose-50 border border-rose-200 rounded-xl px-4 py-3 text-[13px] font-medium text-rose-700 leading-relaxed break-words">
+          <div className="bg-rose-50 border border-rose-200 rounded-lg px-4 py-3 text-[13px] font-medium text-rose-700 leading-relaxed break-words">
             {errorDetailTarget?.rejection_reason}
           </div>
           <button
             onClick={() => { navigator.clipboard?.writeText(errorDetailTarget?.rejection_reason || ""); notify.success("Copiado!"); }}
-            className="text-[10px] font-black text-slate-400 hover:text-slate-600 uppercase tracking-widest transition-colors"
+            className="text-[11px] font-semibold text-slate-400 hover:text-slate-600 transition-colors"
           >
             Copiar mensagem
           </button>
@@ -1838,97 +1675,75 @@ function NfseTabContent() {
       >
         <div className="space-y-3">
           <div>
-            <label className="text-[9px] font-black text-slate-400 uppercase tracking-wide block mb-1">Cliente (opcional)</label>
+            <label className="text-[10px] font-semibold text-slate-400 block mb-1">Cliente (opcional)</label>
             {avulsaSelectedCustomer ? (
               <div className="flex items-center justify-between gap-2 bg-violet-50 border border-violet-200 rounded-lg px-3 h-9">
                 <div className="min-w-0">
-                  <span className="text-xs font-bold text-slate-700 truncate block">{avulsaSelectedCustomer.name}</span>
+                  <span className="text-xs font-semibold text-slate-700 truncate block">{avulsaSelectedCustomer.name}</span>
                 </div>
-                <button onClick={() => setAvulsaSelectedCustomer(null)} className="text-slate-400 hover:text-slate-600 shrink-0">
+                <IconButton variant="ghost" size="xs" aria-label="Remover cliente" onClick={() => setAvulsaSelectedCustomer(null)} className="shrink-0">
                   <XCircle size={14} />
-                </button>
+                </IconButton>
               </div>
             ) : avulsaShowNewCustomer ? (
               <div className="space-y-2 bg-slate-50 border border-slate-200 rounded-lg p-3">
-                <input value={avulsaCustomerName} onChange={(e) => setAvulsaCustomerName(e.target.value)}
-                  placeholder="Nome do cliente"
-                  className="w-full h-9 px-3 rounded-lg border border-slate-200 text-xs font-medium outline-none focus:border-violet-400 transition-all bg-white" />
+                <Input value={avulsaCustomerName} onChange={(e) => setAvulsaCustomerName(e.target.value)} placeholder="Nome do cliente" wrapperClassName="w-full" />
                 <div className="grid grid-cols-2 gap-2">
-                  <input value={avulsaCustomerPhone} onChange={(e) => setAvulsaCustomerPhone(maskPhone(e.target.value))} inputMode="numeric"
-                    placeholder="(00) 00000-0000"
-                    className="w-full h-9 px-3 rounded-lg border border-slate-200 text-xs font-medium outline-none focus:border-violet-400 transition-all bg-white" />
-                  <input value={avulsaCustomerDoc} onChange={(e) => setAvulsaCustomerDoc(maskDoc(e.target.value))} inputMode="numeric"
-                    placeholder="CPF/CNPJ"
-                    className="w-full h-9 px-3 rounded-lg border border-slate-200 text-xs font-medium outline-none focus:border-violet-400 transition-all bg-white" />
+                  <Input value={avulsaCustomerPhone} onChange={(e) => setAvulsaCustomerPhone(maskPhone(e.target.value))} inputMode="numeric" placeholder="(00) 00000-0000" wrapperClassName="w-full" />
+                  <Input value={avulsaCustomerDoc} onChange={(e) => setAvulsaCustomerDoc(maskDoc(e.target.value))} inputMode="numeric" placeholder="CPF/CNPJ" wrapperClassName="w-full" />
                 </div>
                 <div className="flex gap-2">
-                  <button onClick={() => setAvulsaShowNewCustomer(false)}
-                    className="flex-1 h-8 rounded-lg border border-slate-200 text-[10px] font-bold text-slate-500 hover:bg-slate-100 transition-all">
-                    Cancelar
-                  </button>
-                  <button onClick={handleCreateAvulsaCustomer} disabled={!avulsaCustomerName.trim() || avulsaNewCustomerSaving}
-                    className="flex-1 h-8 rounded-lg bg-violet-600 hover:bg-violet-700 disabled:opacity-50 text-white text-[10px] font-bold transition-all">
+                  <Button variant="outline" size="sm" className="flex-1" onClick={() => setAvulsaShowNewCustomer(false)}>Cancelar</Button>
+                  <Button size="sm" className="flex-1" onClick={handleCreateAvulsaCustomer} disabled={!avulsaCustomerName.trim() || avulsaNewCustomerSaving}>
                     {avulsaNewCustomerSaving ? "Salvando…" : "Salvar Cliente"}
-                  </button>
+                  </Button>
                 </div>
               </div>
             ) : (
               <div className="space-y-1.5">
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={13} />
-                  <input value={avulsaCustomerSearch} onChange={(e) => setAvulsaCustomerSearch(e.target.value)}
-                    placeholder="Buscar cliente ou deixar em branco (Consumidor Final)"
-                    className="w-full pl-8 pr-3 h-9 rounded-lg border border-slate-200 text-xs font-medium outline-none focus:border-violet-400 transition-all" />
-                </div>
+                <FilterLineSearch aria-label="Buscar cliente" placeholder="Buscar cliente ou deixar em branco (Consumidor Final)" value={avulsaCustomerSearch} onChange={setAvulsaCustomerSearch} />
                 {avulsaFilteredCustomers.length > 0 && (
                   <div className="border border-slate-200 rounded-lg divide-y divide-slate-100 overflow-hidden max-h-32 overflow-y-auto">
                     {avulsaFilteredCustomers.map((c) => (
                       <button key={c.id} onClick={() => { setAvulsaSelectedCustomer(c); setAvulsaCustomerSearch(""); }}
                         className="w-full text-left px-3 py-2 text-xs hover:bg-violet-50 transition-all">
-                        <span className="font-bold text-slate-700">{c.name}</span>
+                        <span className="font-semibold text-slate-700">{c.name}</span>
                         {c.phone && <span className="text-slate-400 ml-2">{c.phone}</span>}
                       </button>
                     ))}
                   </div>
                 )}
-                <button onClick={() => { setAvulsaShowNewCustomer(true); setAvulsaCustomerName(avulsaCustomerSearch); setAvulsaCustomerSearch(""); }}
-                  className="text-[10px] font-bold text-violet-600 hover:text-violet-700 transition-all">
+                <Button variant="ghost" size="xs" onClick={() => { setAvulsaShowNewCustomer(true); setAvulsaCustomerName(avulsaCustomerSearch); setAvulsaCustomerSearch(""); }}>
                   + Cadastrar novo cliente
-                </button>
+                </Button>
               </div>
             )}
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="text-[9px] font-black text-slate-400 uppercase tracking-wide block mb-1">Cód. Serviço</label>
-              <input value={avulsaCodigo} onChange={(e) => setAvulsaCodigo(e.target.value.replace(/\D/g, "").slice(0, 6))}
-                placeholder="140601"
-                className="w-full h-9 px-3 rounded-lg border border-slate-200 text-xs font-mono outline-none focus:border-violet-400 transition-all" />
+              <label className="text-[10px] font-semibold text-slate-400 block mb-1">Cód. Serviço</label>
+              <Input value={avulsaCodigo} onChange={(e) => setAvulsaCodigo(e.target.value.replace(/\D/g, "").slice(0, 6))} placeholder="140601" wrapperClassName="w-full" className="font-mono" />
               <div className="mt-1.5">
                 <FiscalCodeLookup kind="nfse-service" token={token} onSelect={(item) => { setAvulsaCodigo(item.code); setAvulsaDescricao((current) => current || item.description); }} />
               </div>
             </div>
             <div>
-              <label className="text-[9px] font-black text-slate-400 uppercase tracking-wide block mb-1">Valor (R$)</label>
-              <input value={avulsaValor} onChange={(e) => setAvulsaValor(maskCurrency(e.target.value))} inputMode="numeric"
-                placeholder="0,00"
-                className="w-full h-9 px-3 rounded-lg border border-slate-200 text-xs font-mono outline-none focus:border-violet-400 transition-all" />
+              <label className="text-[10px] font-semibold text-slate-400 block mb-1">Valor (R$)</label>
+              <Input value={avulsaValor} onChange={(e) => setAvulsaValor(maskCurrency(e.target.value))} inputMode="numeric" placeholder="0,00" wrapperClassName="w-full" className="font-mono" />
             </div>
           </div>
           <div>
-            <label className="text-[9px] font-black text-slate-400 uppercase tracking-wide block mb-1">Descrição do Serviço</label>
-            <textarea rows={3} value={avulsaDescricao} onChange={(e) => setAvulsaDescricao(e.target.value)}
-              placeholder="O que foi feito — obrigatório para a prefeitura"
-              className="w-full px-3 py-2 rounded-lg border border-slate-200 text-xs font-medium outline-none resize-none focus:border-violet-400 transition-all" />
+            <label className="text-[10px] font-semibold text-slate-400 block mb-1">Descrição do Serviço</label>
+            <Textarea rows={3} value={avulsaDescricao} onChange={(e) => setAvulsaDescricao(e.target.value)} placeholder="O que foi feito — obrigatório para a prefeitura" wrapperClassName="w-full" className="resize-none" />
           </div>
           {!avulsaSelectedCustomer && (
-            <p className="text-[10px] text-amber-600 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+            <p className="text-[11px] text-amber-600 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
               Sem cliente identificado, a nota sai como "Consumidor Final". Algumas prefeituras exigem CPF/CNPJ do
               tomador acima de certo valor — confira a regra do seu município caso a nota seja rejeitada.
             </p>
           )}
           {avulsaError && (
-            <div className="bg-rose-50 border border-rose-200 rounded-xl px-3 py-2.5 text-[11px] font-bold text-rose-600">
+            <div className="bg-rose-50 border border-rose-200 rounded-lg px-3 py-2.5 text-[11px] font-semibold text-rose-600">
               {avulsaError}
             </div>
           )}
@@ -1937,6 +1752,11 @@ function NfseTabContent() {
     </div>
   );
 }
+
+const NOTA_TABS = [
+  { id: "nfce", label: "NFC-e (Produtos)", icon: FileText },
+  { id: "nfse", label: "NFS-e (Serviços)", icon: FileCheck },
+] as const;
 
 export default function NfceInvoices() {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -1950,34 +1770,13 @@ export default function NfceInvoices() {
     <div className="mx-auto w-full max-w-[1600px] space-y-4 sm:space-y-6">
       <PageHeader
         title="Notas Fiscais"
-        className="[&>div>h2]:text-lg [&>div>h2]:tracking-normal sm:[&>div>h2]:text-xl [&>div>p]:tracking-[0.12em]"
+        className="[&>div>h2]:text-lg [&>div>h2]:tracking-normal sm:[&>div>h2]:text-xl [&>div>p]:"
         subtitle="NFC-e e NFS-e emitidas junto à SEFAZ/prefeitura · exporte o relatório para o contador"
       />
 
-      <div className="grid w-full grid-cols-2 gap-1 rounded-2xl border border-slate-200 bg-white p-1.5 shadow-sm sm:max-w-md">
-        <button
-          onClick={() => setTab("nfce")}
-          className={cn(
-            "flex h-12 min-w-0 items-center justify-center gap-2 rounded-xl px-2 text-left transition-all sm:px-4",
-            tab === "nfce" ? "bg-blue-50 text-[#176fc4] ring-1 ring-blue-100" : "text-slate-500 hover:bg-slate-50 hover:text-slate-700",
-          )}
-        >
-          <FileText size={17} className="shrink-0" />
-          <span className="min-w-0 text-left"><span className="block text-[11px] font-black uppercase tracking-wide">NFC-e</span><span className="block text-[9px] font-semibold text-slate-400">Produtos</span></span>
-        </button>
-        <button
-          onClick={() => setTab("nfse")}
-          className={cn(
-            "flex h-12 min-w-0 items-center justify-center gap-2 rounded-xl px-2 text-left transition-all sm:px-4",
-            tab === "nfse" ? "bg-violet-50 text-violet-700 ring-1 ring-violet-100" : "text-slate-500 hover:bg-slate-50 hover:text-slate-700",
-          )}
-        >
-          <FileCheck size={17} className="shrink-0" />
-          <span className="min-w-0 text-left"><span className="block text-[11px] font-black uppercase tracking-wide">NFS-e</span><span className="block text-[9px] font-semibold text-slate-400">Serviços</span></span>
-        </button>
-      </div>
-
-      {tab === "nfce" ? <NfceTabContent /> : <NfseTabContent />}
+      <Tabs<"nfce" | "nfse"> items={NOTA_TABS} value={tab} onChange={setTab} label="Tipo de nota fiscal">
+        {tab === "nfce" ? <NfceTabContent /> : <NfseTabContent />}
+      </Tabs>
     </div>
   );
 }

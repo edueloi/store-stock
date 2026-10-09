@@ -16,7 +16,7 @@ export function RadioGroup({ label, error, hint, children, className, orientatio
   return (
     <fieldset className={cn("space-y-1.5", className)}>
       {label && (
-        <legend className="text-[10px] font-black text-slate-600 uppercase tracking-wider block mb-2">
+        <legend className="text-[11px] font-semibold text-slate-600 block mb-2">
           {label}
         </legend>
       )}
@@ -26,8 +26,8 @@ export function RadioGroup({ label, error, hint, children, className, orientatio
       )}>
         {children}
       </div>
-      {error && <p className="text-[10px] text-red-500 font-medium mt-1.5">{error}</p>}
-      {hint && !error && <p className="text-[10px] text-slate-400 font-medium mt-1.5">{hint}</p>}
+      {error && <p className="text-[11px] text-red-500 font-medium mt-1.5">{error}</p>}
+      {hint && !error && <p className="text-[11px] text-slate-400 font-medium mt-1.5">{hint}</p>}
     </fieldset>
   );
 }
@@ -57,7 +57,7 @@ export function Radio({
   if (variant === "card") {
     return (
       <label className={cn(
-        "flex items-center gap-3 p-3 rounded-xl border-2 cursor-pointer transition-all select-none",
+        "flex items-center gap-3 p-3 rounded-lg border-2 cursor-pointer transition-all select-none",
         checked ? "border-blue-500 bg-blue-50" : "border-slate-200 hover:border-slate-300 bg-white",
         disabled && "opacity-50 cursor-not-allowed"
       )}>
@@ -76,11 +76,11 @@ export function Radio({
           {checked && <div className="w-1.5 h-1.5 bg-white rounded-full" />}
         </div>
         <div className="min-w-0">
-          <p className={cn("text-xs font-bold leading-none", checked ? "text-blue-700" : "text-slate-800")}>
+          <p className={cn("text-xs font-semibold leading-none", checked ? "text-blue-700" : "text-slate-800")}>
             {label}
           </p>
           {description && (
-            <p className="text-[10px] text-slate-400 mt-0.5 leading-snug">{description}</p>
+            <p className="text-[11px] text-slate-400 mt-0.5 leading-snug">{description}</p>
           )}
         </div>
       </label>
@@ -108,7 +108,7 @@ export function Radio({
       <div>
         <p className="text-xs font-semibold text-slate-800 leading-none">{label}</p>
         {description && (
-          <p className="text-[10px] text-slate-400 mt-0.5">{description}</p>
+          <p className="text-[11px] text-slate-400 mt-0.5">{description}</p>
         )}
       </div>
     </label>

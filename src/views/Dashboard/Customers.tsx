@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   Users, UserPlus, Phone, Search,
@@ -10,10 +10,9 @@ import {
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { cn } from "../../lib/utils";
-import PageHeader from "../../components/layout/PageHeader";
-import Modal from "../../components/ui/Modal";
-import Button from "../../components/ui/Button";
-import StatsGrid from "../../components/ui/StatsGrid";
+import { Button, IconButton, Input, Textarea, Select, Modal, ModalFooter, Badge, Alert, EmptyState, ContentCard, PanelCard, DetailField, SectionTitle, StatGrid, StatCard, Tabs, GridTable, Pagination, FilterLine, FilterLineSection, FilterLineSearch, FilterLineViewToggle } from "../../components/ui";
+import type { Column } from "../../components/ui";
+import { DropdownMenu } from "../../components/ui/Dropdown";
 import CustomersPageTour, { CUSTOMERS_PAGE_TOUR_EVENTS, type CustomersPageTourHandle } from "../../components/onboarding/CustomersPageTour";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -139,57 +138,20 @@ function getCachedViewMode(): CustomerViewMode {
   }
 }
 
-// Rodapé de paginação client-side — mesmo padrão já usado no Catálogo
-// (Inventory.tsx), reaproveitado aqui pra manter consistência visual.
-function PaginationFooter({
-  total, itemLabel, safePage, totalPages, pageSize, onPageChange,
-}: {
-  total: number; itemLabel: string; safePage: number; totalPages: number; pageSize: number;
-  onPageChange: (p: number) => void;
-}) {
-  if (totalPages <= 1) return null;
-  return (
-    <div className="flex flex-col items-center justify-between gap-2 px-1 min-[480px]:flex-row">
-      <span className="text-[11px] text-slate-400 font-medium">
-        {(safePage - 1) * pageSize + 1}–{Math.min(safePage * pageSize, total)} de {total} {itemLabel}{total !== 1 ? "s" : ""}
-      </span>
-      <div className="flex items-center gap-1">
-        <button onClick={() => onPageChange(1)} disabled={safePage === 1}
-          className="hidden min-[480px]:flex w-8 h-8 items-center justify-center rounded-lg border border-slate-200 text-slate-400 hover:border-blue-400 hover:text-blue-600 disabled:opacity-30 disabled:cursor-not-allowed transition-all text-xs font-bold">
-          «
-        </button>
-        <button onClick={() => onPageChange(Math.max(1, safePage - 1))} disabled={safePage === 1}
-          className="w-8 h-8 flex items-center justify-center rounded-lg border border-slate-200 text-slate-400 hover:border-blue-400 hover:text-blue-600 disabled:opacity-30 disabled:cursor-not-allowed transition-all">
-          <ChevronLeft size={14} />
-        </button>
-        {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-          let page: number;
-          if (totalPages <= 5) page = i + 1;
-          else if (safePage <= 3) page = i + 1;
-          else if (safePage >= totalPages - 2) page = totalPages - 4 + i;
-          else page = safePage - 2 + i;
-          return (
-            <button key={page} onClick={() => onPageChange(page)}
-              className={cn(
-                "w-8 h-8 flex items-center justify-center rounded-lg border text-xs font-bold transition-all",
-                page === safePage ? "bg-blue-600 text-white border-blue-600" : "border-slate-200 text-slate-500 hover:border-blue-400 hover:text-blue-600"
-              )}>
-              {page}
-            </button>
-          );
-        })}
-        <button onClick={() => onPageChange(Math.min(totalPages, safePage + 1))} disabled={safePage === totalPages}
-          className="w-8 h-8 flex items-center justify-center rounded-lg border border-slate-200 text-slate-400 hover:border-blue-400 hover:text-blue-600 disabled:opacity-30 disabled:cursor-not-allowed transition-all">
-          <ChevronRight size={14} />
-        </button>
-        <button onClick={() => onPageChange(totalPages)} disabled={safePage === totalPages}
-          className="hidden min-[480px]:flex w-8 h-8 items-center justify-center rounded-lg border border-slate-200 text-slate-400 hover:border-blue-400 hover:text-blue-600 disabled:opacity-30 disabled:cursor-not-allowed transition-all text-xs font-bold">
-          »
-        </button>
-      </div>
-    </div>
-  );
-}
+const MAIN_TABS = [
+  { id: "customers", label: "Todos os Clientes", icon: Users },
+  { id: "debtors", label: "Com pendências", icon: TrendingDown },
+] as const satisfies readonly { id: MainTab; label: string; icon: React.ElementType; badge?: number }[];
+
+type CustomerFormTab = "geral" | "endereco" | "comercial" | "fiscal" | "pessoal";
+
+const CUSTOMER_FORM_TABS = [
+  { id: "geral", label: "Geral", icon: Users },
+  { id: "endereco", label: "Endereço", icon: MapPin },
+  { id: "comercial", label: "Comercial", icon: WalletCards },
+  { id: "fiscal", label: "Fiscal", icon: FileText },
+  { id: "pessoal", label: "Dados pessoais", icon: StickyNote },
+] as const satisfies readonly { id: CustomerFormTab; label: string; icon: React.ElementType }[];
 
 export default function Customers() {
   const navigate = useNavigate();
@@ -199,11 +161,12 @@ export default function Customers() {
   const [loading, setLoading]     = useState(true);
   const [search, setSearch]       = useState("");
   const [viewMode, setViewMode]   = useState<CustomerViewMode>(getCachedViewMode);
-  const [pageSize, setPageSize]   = useState(24);
+  const [pageSize, setPageSize]   = useState(25);
   const [currentPage, setCurrentPage] = useState(1);
 
   // Customer form (create/edit)
   const [showForm, setShowForm]   = useState(false);
+  const [formTab, setFormTab]     = useState<CustomerFormTab>("geral");
   const [editCust, setEditCust]   = useState<Customer | null>(null);
   const [fName, setFName]         = useState("");
   const [fEmail, setFEmail]       = useState("");
@@ -277,6 +240,8 @@ export default function Customers() {
   const [confirming, setConfirming] = useState(false);
 
   const customersPageTourRef = useRef<CustomersPageTourHandle>(null);
+
+  useEffect(() => { if (showForm) setFormTab("geral"); }, [showForm]);
 
   // ── fetch
 
@@ -640,52 +605,95 @@ export default function Customers() {
 
   // ─────────────────────────────────────────────────────────────────────────────
 
+  const customerColumns: Column<Customer>[] = [
+    { header: "Cliente", render: (c) => <span className="break-words text-xs font-medium text-slate-800">{c.name}</span> },
+    { header: "Telefone", render: (c) => <span className="text-xs text-slate-500">{(c.phone && maskPhone(c.phone)) || "–"}</span> },
+    { header: "Cidade", render: (c) => <span className="text-xs text-slate-500">{[c.address_city, c.address_state].filter(Boolean).join(" - ") || "–"}</span> },
+    {
+      header: "Saldo em aberto",
+      className: "text-right",
+      headerClassName: "text-right",
+      render: (c) => <span className="whitespace-nowrap text-xs font-semibold tabular-nums text-red-600">{(c.total_debt ?? 0) > 0 ? fmt(c.total_debt!) : "–"}</span>,
+    },
+    {
+      header: "Risco",
+      className: "text-center",
+      headerClassName: "text-center",
+      render: (c) => c.risk_flag ? <AlertTriangle size={14} className="mx-auto text-rose-500" /> : <span className="text-xs text-slate-300">—</span>,
+    },
+    { header: "Cliente desde", render: (c) => <span className="text-xs text-slate-500">{fmtDate(c.customer_since ?? c.created_at)}</span> },
+    {
+      header: "Ação",
+      className: "text-right",
+      headerClassName: "text-right",
+      render: (c) => <span className="text-[11px] font-medium text-blue-600">Ver ficha</span>,
+    },
+  ];
+
+  const debtorColumns: Column<Debtor>[] = [
+    { header: "Cliente", render: (d) => <span className="break-words text-xs font-medium text-slate-800">{d.customer_name}</span> },
+    { header: "Telefone", render: (d) => <span className="text-xs text-slate-500">{(d.customer_phone && maskPhone(d.customer_phone)) || "–"}</span> },
+    {
+      header: "Parcelas",
+      className: "text-center",
+      headerClassName: "text-center",
+      render: (d) => <Badge pill>{d.open_debts}</Badge>,
+    },
+    {
+      header: "Saldo em aberto",
+      className: "text-right",
+      headerClassName: "text-right",
+      render: (d) => <span className="whitespace-nowrap text-xs font-semibold tabular-nums text-red-600">{fmt(d.total_debt)}</span>,
+    },
+    {
+      header: "Risco",
+      className: "text-center",
+      headerClassName: "text-center",
+      render: (d) => d.risk_flag ? <AlertTriangle size={14} className="mx-auto text-rose-500" /> : <span className="text-xs text-slate-300">—</span>,
+    },
+    {
+      header: "Ação",
+      className: "text-right",
+      headerClassName: "text-right",
+      render: () => <span className="text-[11px] font-medium text-blue-600">Ver ficha</span>,
+    },
+  ];
+
+  const formTabItems = CUSTOMER_FORM_TABS.filter((t) => t.id !== "pessoal" || fPersonType === "physical");
+
   return (
-    <div data-tour="customers-page" className="min-w-0 space-y-4 sm:space-y-5">
-      <PageHeader
+    <div data-tour="customers-page" className="min-w-0 space-y-4">
+      <SectionTitle
         title="Clientes"
-        subtitle="Clientes, crédito, histórico de compras e notas internas"
+        icon={Users}
+        description="Clientes, crédito, histórico de compras e notas internas"
         action={
-          <div className="flex gap-2 items-center flex-wrap">
-            <Button data-tour="customers-new-btn" icon={<UserPlus size={14} />} onClick={openCreate}>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button data-tour="customers-new-btn" size="sm" iconLeft={<UserPlus size={14} />} onClick={openCreate}>
               Novo Cliente
             </Button>
-            <div className="relative">
-              <Button
-                variant="secondary"
-                icon={<Download size={14} />}
-                loading={exporting}
-                onClick={() => setExportMenuOpen((v) => !v)}
-                title="Exportar clientes para planilha"
-              >
-                <span className="sr-only sm:not-sr-only flex items-center gap-1">
-                  Exportar planilha <ChevronDown size={10} className={cn("transition-transform", exportMenuOpen && "rotate-180")} />
-                </span>
-              </Button>
-              {exportMenuOpen && (
-                <>
-                  <div className="fixed inset-0 z-40" onClick={() => setExportMenuOpen(false)} />
-                  <div className="absolute right-0 top-10 w-56 bg-white border border-slate-200 rounded-xl shadow-xl z-50 overflow-hidden">
-                    <button
-                      onClick={() => handleExport("xlsx")}
-                      className="w-full flex items-center gap-3 px-4 py-3 text-[10px] font-bold uppercase tracking-widest text-slate-700 hover:bg-slate-50 transition-colors"
-                    >
-                      <FileSpreadsheet size={14} className="text-emerald-600 shrink-0" /> Excel (.xlsx)
-                    </button>
-                    <div className="h-px bg-slate-100 mx-3" />
-                    <button
-                      onClick={() => handleExport("csv")}
-                      className="w-full flex items-center gap-3 px-4 py-3 text-[10px] font-bold uppercase tracking-widest text-slate-700 hover:bg-slate-50 transition-colors"
-                    >
-                      <FileText size={14} className="text-blue-600 shrink-0" /> CSV (.csv)
-                    </button>
-                  </div>
-                </>
-              )}
-            </div>
+            <DropdownMenu
+              trigger={
+                <Button
+                  variant="outline"
+                  size="sm"
+                  iconLeft={<Download size={14} />}
+                  iconRight={<ChevronDown size={12} />}
+                  loading={exporting}
+                  title="Exportar clientes para planilha"
+                >
+                  <span className="sr-only sm:not-sr-only">Exportar planilha</span>
+                </Button>
+              }
+              items={[
+                { label: "Excel (.xlsx)", icon: <FileSpreadsheet size={14} className="text-emerald-600" />, onClick: () => handleExport("xlsx") },
+                { label: "CSV (.csv)", icon: <FileText size={14} className="text-blue-600" />, onClick: () => handleExport("csv") },
+              ]}
+            />
             <Button
-              variant="secondary"
-              icon={<Upload size={14} />}
+              variant="outline"
+              size="sm"
+              iconLeft={<Upload size={14} />}
               loading={importing}
               onClick={handleImportClick}
               title="Importar clientes de planilha Excel ou CSV"
@@ -697,12 +705,13 @@ export default function Customers() {
               type="file"
               accept=".xlsx,.xls,.csv"
               className="hidden"
+              aria-label="Importar planilha de clientes"
               onChange={handleImportFileChange}
             />
             <Button
-              variant="secondary"
-              className="text-slate-400 hover:text-blue-600 hover:bg-blue-50 border-slate-200 hover:border-blue-300"
-              icon={<HelpCircle size={14} />}
+              variant="outline"
+              size="sm"
+              iconLeft={<HelpCircle size={14} />}
               onClick={() => customersPageTourRef.current?.start()}
               title="Tour guiado desta página"
             >
@@ -715,81 +724,56 @@ export default function Customers() {
       <CustomersPageTour ref={customersPageTourRef} />
 
       {/* Stats */}
-      <StatsGrid
-        stats={[
-          { label: "Total Clientes",  value: customers.length, icon: <Users size={16} />, accent: "slate" },
-          { label: "Com Pendências",  value: debtors.length,   icon: <AlertCircle size={16} />, accent: "amber" },
-          { label: "Saldo em Aberto", value: fmt(totalDebt),   icon: <DollarSign size={16} />, accent: "red" },
-          { label: "Clientes em Risco", value: customers.filter(c => c.risk_flag).length, icon: <AlertTriangle size={16} />, accent: "purple" },
-        ]}
-      />
+      <StatGrid cols={4}>
+        <StatCard title="Total Clientes" value={customers.length} icon={Users} color="default" />
+        <StatCard title="Com Pendências" value={debtors.length} icon={AlertCircle} color="warning" />
+        <StatCard title="Saldo em Aberto" value={fmt(totalDebt)} icon={DollarSign} color="danger" />
+        <StatCard title="Clientes em Risco" value={customers.filter(c => c.risk_flag).length} icon={AlertTriangle} color="purple" />
+      </StatGrid>
+
+      {/* Busca + modo de exibição */}
+      <FilterLine>
+        <FilterLineSection grow>
+          <FilterLineSearch
+            aria-label={mainTab === "customers" ? "Buscar cliente" : "Buscar cliente com pendência"}
+            value={search}
+            onChange={setSearch}
+            placeholder={mainTab === "customers" ? "Buscar cliente…" : "Buscar cliente com pendência…"}
+          />
+        </FilterLineSection>
+        {mainTab === "customers" && (
+          <FilterLineSection align="right">
+            <FilterLineViewToggle<CustomerViewMode>
+              value={viewMode}
+              onChange={changeViewMode}
+              gridValue="grid"
+              listValue="table"
+            />
+          </FilterLineSection>
+        )}
+      </FilterLine>
 
       {/* Main tabs */}
-      <div className="flex flex-col gap-3 min-[480px]:flex-row min-[480px]:items-center min-[480px]:justify-between">
-        <div className="flex max-w-full overflow-x-auto bg-slate-100 p-1 rounded-xl [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-          {([
-            { value: "customers", label: "Todos os Clientes", icon: Users },
-            { value: "debtors",   label: `Com pendências (${debtors.length})`, icon: TrendingDown },
-          ] as { value: MainTab; label: string; icon: React.FC<{ size: number }> }[]).map((t) => (
-            <button
-              key={t.value}
-              onClick={() => setMainTab(t.value)}
-              className={cn(
-                "flex shrink-0 items-center gap-1.5 px-3 sm:px-4 py-2 rounded-lg text-[11px] sm:text-[12px] font-bold transition-all",
-                mainTab === t.value ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"
-              )}
-            >
-              <t.icon size={13} /> {t.label}
-            </button>
-          ))}
-        </div>
-
-        {mainTab === "customers" && (
-          <Button
-            variant="secondary"
-            icon={viewMode === "table" ? <LayoutGrid size={14} /> : <List size={14} />}
-            onClick={() => changeViewMode(viewMode === "table" ? "grid" : "table")}
-            className="w-full min-[480px]:w-auto"
-          >
-            {viewMode === "table" ? "Grade" : "Tabela"}
-          </Button>
-        )}
-      </div>
-
-      {/* Search + page size */}
-      <div className="flex flex-col gap-2 min-[480px]:flex-row min-[480px]:items-center">
-        <div className="relative w-full min-w-0 min-[480px]:max-w-sm">
-          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-          <input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder={mainTab === "customers" ? "Buscar cliente…" : "Buscar cliente com pendência…"}
-            className="w-full pl-9 pr-3 h-11 sm:h-9 rounded-xl border border-slate-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
-        </div>
-        <select
-          value={pageSize}
-          onChange={(e) => setPageSize(Number(e.target.value))}
-          className="h-11 w-full rounded-xl border border-slate-200 px-3 text-[12px] font-semibold bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 min-[480px]:h-9 min-[480px]:w-auto"
-        >
-          {[12, 24, 50, 100].map((n) => <option key={n} value={n}>{n}/página</option>)}
-        </select>
-      </div>
-
+      <Tabs<MainTab>
+        items={MAIN_TABS.map((t) => (t.id === "debtors" ? { ...t, badge: debtors.length } : t))}
+        value={mainTab}
+        onChange={setMainTab}
+        label="Listas de clientes"
+      >
       {/* ── CUSTOMERS LIST ─────────────────────────────────────────────────── */}
       {mainTab === "customers" && (
-        <>
-          {loading ? (
-            <div className="flex justify-center py-16 text-slate-400 text-sm">Carregando…</div>
-          ) : filteredCustomers.length === 0 ? (
-            <div className="flex flex-col items-center py-16 text-slate-400 gap-3">
-              <Users size={40} strokeWidth={1} />
-              <p className="text-sm font-medium">Nenhum cliente encontrado</p>
-              <button onClick={openCreate} className="h-8 px-4 bg-blue-600 text-white rounded-lg text-xs font-bold hover:bg-blue-700">
-                Cadastrar cliente
-              </button>
-            </div>
+        <div className="space-y-3">
+          {!loading && filteredCustomers.length === 0 ? (
+            <EmptyState
+              icon={Users}
+              title="Nenhum cliente encontrado"
+              description={search ? "Ajuste a busca para ver outros clientes." : undefined}
+              action={<Button size="sm" onClick={openCreate}>Cadastrar cliente</Button>}
+            />
+          ) : loading ? (
+            <div role="status" className="flex justify-center py-12 text-sm text-slate-500">Carregando…</div>
           ) : viewMode === "grid" ? (
+            <>
             <div className="grid grid-cols-1 gap-3 md:grid-cols-2 2xl:grid-cols-3">
               <AnimatePresence>
                 {pagedCustomers.map((c) => {
@@ -805,30 +789,29 @@ export default function Customers() {
                     initial={{ opacity: 0, scale: 0.97 }}
                     animate={{ opacity: 1, scale: 1 }}
                     exit={{ opacity: 0, scale: 0.97 }}
-                    whileHover={{ y: -2 }}
                     onClick={() => navigate(`/admin/customers/${c.id}`)}
                     className={cn(
-                      "group flex min-w-0 cursor-pointer flex-col rounded-2xl border bg-white p-4 shadow-sm transition-all hover:border-blue-200 hover:shadow-md sm:p-5",
-                      c.risk_flag ? "border-rose-200 ring-1 ring-rose-100" : "border-slate-200"
+                      "group flex min-w-0 cursor-pointer flex-col gap-3 rounded-lg border bg-white p-3 transition-all hover:border-blue-200",
+                      c.risk_flag ? "border-rose-200" : "border-slate-200"
                     )}
                   >
                     <div className="flex items-start justify-between gap-3">
                       <div className="flex min-w-0 items-center gap-3">
                         <div className={cn(
-                          "flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border text-lg font-black uppercase",
-                          c.risk_flag ? "bg-rose-50 text-rose-500 border border-rose-200" : "bg-blue-50 text-blue-600 border border-blue-100"
+                          "flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border text-base font-semibold",
+                          c.risk_flag ? "border-rose-200 bg-rose-50 text-rose-500" : "border-blue-100 bg-blue-50 text-blue-600"
                         )}>
                           {c.name[0]}
                         </div>
                         <div className="min-w-0">
-                          <p className="line-clamp-2 text-[13px] font-black leading-tight text-slate-900">{c.name}</p>
-                          <p className="mt-1 text-[10px] font-bold uppercase tracking-wider text-slate-400">Cliente desde {fmtDate(c.customer_since ?? c.created_at)}</p>
+                          <p className="line-clamp-2 break-words text-[13px] font-semibold leading-tight text-slate-900">{c.name}</p>
+                          <p className="mt-1 text-[11px] text-slate-500">Cliente desde {fmtDate(c.customer_since ?? c.created_at)}</p>
                         </div>
                       </div>
                       <div className="flex shrink-0 items-center gap-1">
                         {c.risk_flag && (
-                          <span title="Cliente em risco" className="inline-flex items-center gap-1 rounded-lg border border-rose-100 bg-rose-50 px-2 py-1 text-[9px] font-black uppercase tracking-wide text-rose-600">
-                            <AlertTriangle size={11} /> Risco
+                          <span title="Cliente em risco">
+                            <Badge color="danger" icon={<AlertTriangle size={11} />}>Risco</Badge>
                           </span>
                         )}
                       </div>
@@ -837,35 +820,35 @@ export default function Customers() {
                     <div className="grid grid-cols-1 gap-2 border-y border-slate-100 py-3 min-[430px]:grid-cols-2">
                       <div className="flex min-w-0 items-center gap-2 text-slate-500">
                         {c.phone ? <Phone size={13} className="shrink-0 text-blue-500" /> : <Mail size={13} className="shrink-0 text-blue-500" />}
-                        <span className="truncate text-[11px] font-semibold">{(c.phone && maskPhone(c.phone)) || c.email || "Contato não informado"}</span>
+                        <span className="truncate text-[11px] font-medium">{(c.phone && maskPhone(c.phone)) || c.email || "Contato não informado"}</span>
                       </div>
                       <div className="flex min-w-0 items-center gap-2 text-slate-500">
                         <MapPin size={13} className="shrink-0 text-blue-500" />
-                        <span className="truncate text-[11px] font-semibold">{location || "Endereço não informado"}</span>
+                        <span className="truncate text-[11px] font-medium">{location || "Endereço não informado"}</span>
                       </div>
                     </div>
 
                     {preference && (
-                      <div className="flex min-w-0 items-start gap-2 rounded-xl bg-blue-50/70 px-3 py-2.5 text-blue-800">
+                      <div className="flex min-w-0 items-start gap-2 rounded-lg bg-blue-50/70 px-3 py-2 text-blue-800">
                         <StickyNote size={13} className="mt-0.5 shrink-0 text-blue-500" />
                         <div className="min-w-0">
-                          <p className="text-[9px] font-black uppercase tracking-widest text-blue-500">Preferências</p>
-                          <p className="mt-0.5 line-clamp-2 text-[11px] font-medium leading-relaxed">{preference}</p>
+                          <p className="text-[11px] font-medium text-blue-500">Preferências</p>
+                          <p className="mt-0.5 line-clamp-2 break-words text-[11px] leading-relaxed">{preference}</p>
                         </div>
                       </div>
                     )}
 
-                    <div className="mt-auto flex items-center justify-between gap-3 pt-1">
+                    <div className="mt-auto flex items-center justify-between gap-3">
                       <div className="min-w-0">
                         {hasDebt ? (
-                          <p className="text-[11px] font-black text-rose-600">Em aberto: {fmt(Number(c.total_debt))}</p>
+                          <p className="text-[11px] font-semibold text-rose-600">Em aberto: {fmt(Number(c.total_debt))}</p>
                         ) : hasCreditLimit ? (
-                          <p className="flex items-center gap-1 text-[11px] font-bold text-slate-500"><WalletCards size={12} /> Limite: {fmt(Number(c.credit_limit))}</p>
+                          <p className="flex items-center gap-1 text-[11px] font-medium text-slate-500"><WalletCards size={12} /> Limite: {fmt(Number(c.credit_limit))}</p>
                         ) : (
-                          <p className="text-[11px] font-bold text-emerald-600">Sem pendências</p>
+                          <p className="text-[11px] font-medium text-emerald-600">Sem pendências</p>
                         )}
                       </div>
-                      <span className="flex shrink-0 items-center gap-0.5 text-[10px] font-black text-blue-600 transition-transform group-hover:translate-x-0.5">
+                      <span className="flex shrink-0 items-center gap-0.5 text-[11px] font-medium text-blue-600 transition-transform group-hover:translate-x-0.5">
                         Ver ficha <ChevronRight size={11} />
                       </span>
                     </div>
@@ -873,528 +856,305 @@ export default function Customers() {
                 )})}
               </AnimatePresence>
             </div>
-          ) : (
-            <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden overflow-x-auto">
-              <table className="w-full text-sm whitespace-nowrap">
-                <thead>
-                  <tr className="bg-slate-50 border-b border-slate-200">
-                    <th className="px-4 py-3 text-left text-[10px] font-black uppercase tracking-wider text-slate-500">Cliente</th>
-                    <th className="px-4 py-3 text-left text-[10px] font-black uppercase tracking-wider text-slate-500">Telefone</th>
-                    <th className="px-4 py-3 text-left text-[10px] font-black uppercase tracking-wider text-slate-500">Cidade</th>
-                    <th className="px-4 py-3 text-right text-[10px] font-black uppercase tracking-wider text-slate-500">Saldo em aberto</th>
-                    <th className="px-4 py-3 text-center text-[10px] font-black uppercase tracking-wider text-slate-500">Risco</th>
-                    <th className="px-4 py-3 text-left text-[10px] font-black uppercase tracking-wider text-slate-500">Cliente desde</th>
-                    <th className="px-4 py-3 text-right text-[10px] font-black uppercase tracking-wider text-slate-500">Ação</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {pagedCustomers.map((c) => (
-                    <tr key={c.id} className="hover:bg-slate-50 transition-colors cursor-pointer" onClick={() => navigate(`/admin/customers/${c.id}`)}>
-                      <td className="px-4 py-3 font-semibold text-slate-800">{c.name}</td>
-                      <td className="px-4 py-3 text-slate-500">{(c.phone && maskPhone(c.phone)) || "–"}</td>
-                      <td className="px-4 py-3 text-slate-500">{[c.address_city, c.address_state].filter(Boolean).join(" - ") || "–"}</td>
-                      <td className="px-4 py-3 text-right font-black text-red-600">{(c.total_debt ?? 0) > 0 ? fmt(c.total_debt!) : "–"}</td>
-                      <td className="px-4 py-3 text-center">
-                        {c.risk_flag ? <AlertTriangle size={14} className="text-rose-500 mx-auto" /> : <span className="text-slate-300 text-xs">—</span>}
-                      </td>
-                      <td className="px-4 py-3 text-slate-400 text-[12px]">{fmtDate(c.customer_since ?? c.created_at)}</td>
-                      <td className="px-4 py-3 text-right" onClick={(e) => e.stopPropagation()}>
-                        <button onClick={() => navigate(`/admin/customers/${c.id}`)} className="text-[11px] font-bold text-blue-600 hover:underline">
-                          Ver ficha
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-
-          {!loading && filteredCustomers.length > 0 && (
-            <PaginationFooter
+            <Pagination
               total={filteredCustomers.length}
-              itemLabel="cliente"
-              safePage={safePage}
-              totalPages={totalPages}
+              page={safePage}
               pageSize={pageSize}
               onPageChange={setCurrentPage}
+              onPageSizeChange={setPageSize}
             />
+            </>
+          ) : (
+            <ContentCard padding="none" className="overflow-hidden">
+              <GridTable<Customer>
+                noDesktopCard
+                data={pagedCustomers}
+                columns={customerColumns}
+                keyExtractor={(c) => c.id}
+                onRowClick={(c) => navigate(`/admin/customers/${c.id}`)}
+                pagination={{
+                  total: filteredCustomers.length,
+                  page: safePage,
+                  pageSize,
+                  onPageChange: setCurrentPage,
+                  onPageSizeChange: setPageSize,
+                }}
+              />
+            </ContentCard>
           )}
-        </>
+        </div>
       )}
 
       {/* ── DEBTORS LIST ───────────────────────────────────────────────────── */}
       {mainTab === "debtors" && (
-        <>
+        <div className="space-y-3">
           {filteredDebtors.length === 0 ? (
-            <div className="flex flex-col items-center py-16 text-slate-400 gap-3">
-              <CheckCircle2 size={40} strokeWidth={1} />
-              <p className="text-sm font-medium">Nenhum cliente com pendência em aberto</p>
-            </div>
+            <EmptyState
+              icon={CheckCircle2}
+              title="Nenhum cliente com pendência em aberto"
+              description={search ? "Ajuste a busca para ver outros clientes." : undefined}
+            />
           ) : (
-            <>
-              <div className="space-y-3 md:hidden">
-                {pagedDebtors.map((d) => (
-                  <button
-                    key={d.customer_id}
-                    onClick={() => navigate(`/admin/customers/${d.customer_id}`)}
-                    className="w-full rounded-2xl border border-slate-200 bg-white p-4 text-left shadow-sm transition-colors hover:border-rose-200"
-                  >
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0">
-                        <p className="truncate text-[13px] font-black text-slate-900">{d.customer_name}</p>
-                        <p className="mt-1 flex items-center gap-1 text-[11px] font-medium text-slate-500"><Phone size={11} /> {(d.customer_phone && maskPhone(d.customer_phone)) || "Contato não informado"}</p>
-                      </div>
-                      {d.risk_flag && <span className="inline-flex shrink-0 items-center gap-1 rounded-lg bg-rose-50 px-2 py-1 text-[9px] font-black uppercase text-rose-600"><AlertTriangle size={11} /> Risco</span>}
-                    </div>
-                    <div className="mt-3 grid grid-cols-2 gap-2 border-t border-slate-100 pt-3">
-                      <div>
-                        <p className="text-[9px] font-black uppercase tracking-widest text-slate-400">Parcelas</p>
-                        <p className="mt-1 text-sm font-black text-slate-700">{d.open_debts}</p>
-                      </div>
-                      <div className="border-l border-slate-100 pl-3">
-                        <p className="text-[9px] font-black uppercase tracking-widest text-slate-400">Em aberto</p>
-                        <p className="mt-1 text-sm font-black text-rose-600">{fmt(d.total_debt)}</p>
-                      </div>
-                    </div>
-                    <span className="mt-3 flex items-center gap-1 text-[10px] font-black uppercase tracking-wider text-blue-600">Ver ficha <ChevronRight size={12} /></span>
-                  </button>
-                ))}
+            <ContentCard padding="none" className="overflow-hidden">
+              <GridTable<Debtor>
+                noDesktopCard
+                data={pagedDebtors}
+                columns={debtorColumns}
+                keyExtractor={(d) => d.customer_id}
+                onRowClick={(d) => navigate(`/admin/customers/${d.customer_id}`)}
+                pagination={{
+                  total: filteredDebtors.length,
+                  page: safePage,
+                  pageSize,
+                  onPageChange: setCurrentPage,
+                  onPageSizeChange: setPageSize,
+                }}
+              />
+              <div className="flex items-center justify-between border-t border-red-100 bg-red-50 px-3 py-2">
+                <span className="text-[11px] font-medium text-red-500">Total em aberto</span>
+                <span className="text-xs font-semibold tabular-nums text-red-600">{fmt(totalDebt)}</span>
               </div>
-              <div className="hidden overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-sm md:block">
-              <table className="w-full text-sm whitespace-nowrap">
-                <thead>
-                  <tr className="bg-slate-50 border-b border-slate-200">
-                    <th className="px-4 py-3 text-left text-[10px] font-black uppercase tracking-wider text-slate-500">Cliente</th>
-                    <th className="px-4 py-3 text-left text-[10px] font-black uppercase tracking-wider text-slate-500 hidden sm:table-cell">Telefone</th>
-                    <th className="px-4 py-3 text-center text-[10px] font-black uppercase tracking-wider text-slate-500">Parcelas</th>
-                    <th className="px-4 py-3 text-right text-[10px] font-black uppercase tracking-wider text-slate-500">Saldo em aberto</th>
-                    <th className="px-4 py-3 text-center text-[10px] font-black uppercase tracking-wider text-slate-500">Risco</th>
-                    <th className="px-4 py-3 text-right text-[10px] font-black uppercase tracking-wider text-slate-500">Ação</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {pagedDebtors.map((d) => (
-                    <tr key={d.customer_id} className="hover:bg-slate-50 transition-colors">
-                      <td className="px-4 py-3">
-                        <span className="font-semibold text-slate-800">{d.customer_name}</span>
-                      </td>
-                      <td className="px-4 py-3 text-slate-500 hidden sm:table-cell">{(d.customer_phone && maskPhone(d.customer_phone)) || "–"}</td>
-                      <td className="px-4 py-3 text-center">
-                        <span className="text-[11px] font-bold text-slate-600 bg-slate-100 px-2 py-0.5 rounded-full">
-                          {d.open_debts}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3 text-right font-black text-red-600">{fmt(d.total_debt)}</td>
-                      <td className="px-4 py-3 text-center">
-                        {d.risk_flag
-                          ? <AlertTriangle size={14} className="text-rose-500 mx-auto" />
-                          : <span className="text-slate-300 text-xs">—</span>}
-                      </td>
-                      <td className="px-4 py-3 text-right">
-                        <button
-                          onClick={() => navigate(`/admin/customers/${d.customer_id}`)}
-                          className="text-[11px] font-bold text-blue-600 hover:underline"
-                        >
-                          Ver ficha
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-                <tfoot>
-                  <tr className="bg-red-50 border-t border-red-100">
-                    <td colSpan={3} className="px-4 py-2 text-[11px] font-black uppercase text-red-500">Total em aberto</td>
-                    <td className="px-4 py-2 text-right font-black text-red-600">{fmt(totalDebt)}</td>
-                    <td colSpan={2} />
-                  </tr>
-                </tfoot>
-              </table>
-              </div>
-            </>
+            </ContentCard>
           )}
-
-          {filteredDebtors.length > 0 && (
-            <PaginationFooter
-              total={filteredDebtors.length}
-              itemLabel="cliente com pendência"
-              safePage={safePage}
-              totalPages={totalPages}
-              pageSize={pageSize}
-              onPageChange={setCurrentPage}
-            />
-          )}
-        </>
+        </div>
       )}
+      </Tabs>
 
-      {/* ── CREATE / EDIT FORM DRAWER ─────────────────────────────────────── */}
-      <AnimatePresence>
-        {showForm && (
-          <>
-            <motion.div
-              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-              onClick={closeForm}
-              className="fixed inset-0 bg-slate-900/50 z-[60] backdrop-blur-sm"
-            />
-            <motion.div
-              initial={{ x: "100%" }} animate={{ x: 0 }} exit={{ x: "100%" }}
-              transition={{ type: "spring", damping: 26, stiffness: 200 }}
-              className="fixed inset-y-0 right-0 w-full max-w-sm bg-white z-[70] shadow-2xl flex flex-col"
-            >
-              <div className="flex items-center justify-between px-5 py-4 border-b border-slate-200 shrink-0">
-                <div>
-                  <h2 className="font-black text-slate-900 text-[15px]">{editCust ? "Editar Cliente" : "Novo Cliente"}</h2>
-                  <p className="text-[11px] text-slate-500">Cadastro de Cliente</p>
-                </div>
-                <button onClick={closeForm} className="p-2 hover:bg-slate-100 rounded-lg text-slate-500">
-                  <X size={18} />
-                </button>
+      {/* ── CREATE / EDIT FORM ────────────────────────────────────────────── */}
+      <Modal
+        open={showForm}
+        onClose={closeForm}
+        size="lg"
+        title={editCust ? "Editar Cliente" : "Novo Cliente"}
+        subtitle="Cadastro de Cliente"
+        footer={
+          <ModalFooter>
+            <Button variant="outline" onClick={closeForm}>Cancelar</Button>
+            <Button onClick={handleSave} loading={saving} disabled={saving || !fName.trim()}>
+              {editCust ? "Salvar" : "Criar Cliente"}
+            </Button>
+          </ModalFooter>
+        }
+      >
+        <Tabs<CustomerFormTab> items={formTabItems} value={formTab} onChange={setFormTab} label="Dados do cliente">
+          {formTab === "geral" && (
+            <div className="space-y-3">
+              <div data-tour="customer-form-name">
+                <Input label="Nome *" value={fName} onChange={(e) => setFName(e.target.value)} placeholder="Nome completo" />
               </div>
-
-              <div className="flex-1 overflow-y-auto p-5 space-y-3">
-                <div data-tour="customer-form-name">
-                  <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block mb-1">Nome *</label>
-                  <input value={fName} onChange={(e) => setFName(e.target.value)} placeholder="Nome completo" className="w-full h-9 px-3 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <Input
+                  label="Telefone"
+                  value={fPhone}
+                  onChange={(e) => setFPhone(maskPhone(e.target.value))}
+                  placeholder="(11) 99999-9999"
+                  inputMode="numeric"
+                />
+                <div className="flex items-end gap-1.5">
+                  <Input
+                    wrapperClassName="flex-1"
+                    label="CPF/CNPJ"
+                    value={fDoc}
+                    onChange={(e) => { setFDoc(maskDoc(e.target.value)); setCnpjError(null); }}
+                    placeholder="000.000.000-00"
+                    inputMode="numeric"
+                  />
+                  {fDoc.replace(/\D/g, "").length === 14 && (
+                    <IconButton
+                      variant="outline"
+                      onClick={handleLookupCNPJ}
+                      disabled={cnpjLoading}
+                      loading={cnpjLoading}
+                      title="Buscar dados do CNPJ na Receita Federal"
+                      aria-label="Buscar dados do CNPJ"
+                    >
+                      <Search size={14} />
+                    </IconButton>
+                  )}
                 </div>
-                <div className="grid grid-cols-2 gap-2">
-                  <div>
-                    <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block mb-1">Telefone</label>
-                    <input
-                      value={fPhone}
-                      onChange={(e) => setFPhone(maskPhone(e.target.value))}
-                      placeholder="(11) 99999-9999"
-                      inputMode="numeric"
-                      className="w-full h-9 px-3 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block mb-1">CPF/CNPJ</label>
-                    <div className="flex gap-1.5">
-                      <input
-                        value={fDoc}
-                        onChange={(e) => { setFDoc(maskDoc(e.target.value)); setCnpjError(null); }}
-                        placeholder="000.000.000-00"
-                        inputMode="numeric"
-                        className="w-full h-9 px-3 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      />
-                      {fDoc.replace(/\D/g, "").length === 14 && (
-                        <button type="button" onClick={handleLookupCNPJ} disabled={cnpjLoading}
-                          title="Buscar dados do CNPJ na Receita Federal"
-                          className="h-9 px-2.5 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-50 transition-all flex items-center justify-center shrink-0">
-                          {cnpjLoading ? <Loader2 size={14} className="animate-spin" /> : <Search size={14} />}
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                </div>
-                {cnpjError && (
-                  <p className="text-[11px] font-semibold text-red-500 bg-red-50 border border-red-100 rounded-lg px-3 py-2">{cnpjError}</p>
-                )}
-                {fDoc.replace(/\D/g, "").length === 14 && (fLegalName || fCnaeDescription || fRegistrationStatus) && (
-                  <div className="space-y-2 bg-slate-50 border border-slate-100 rounded-lg p-3">
-                    <p className="text-[9px] font-black uppercase tracking-widest text-slate-400">Dados Fiscais (Receita Federal)</p>
+              </div>
+              {cnpjError && <Alert variant="error">{cnpjError}</Alert>}
+              {fDoc.replace(/\D/g, "").length === 14 && (fLegalName || fCnaeDescription || fRegistrationStatus) && (
+                <PanelCard title="Dados Fiscais (Receita Federal)">
+                  <div className="space-y-3">
                     {fLegalName && (
-                      <div>
-                        <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block mb-1">Razão Social</label>
-                        <input value={fLegalName} onChange={(e) => setFLegalName(e.target.value)}
-                          className="w-full h-9 px-3 rounded-lg border border-slate-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500" />
-                      </div>
+                      <Input label="Razão Social" value={fLegalName} onChange={(e) => setFLegalName(e.target.value)} />
                     )}
-                    <div className="grid grid-cols-2 gap-2">
-                      {fLegalNature && (
-                        <div>
-                          <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block mb-1">Natureza Jurídica</label>
-                          <p className="text-[12px] font-semibold text-slate-700 h-9 px-3 flex items-center rounded-lg border border-slate-200 bg-white truncate">{fLegalNature}</p>
-                        </div>
+                    <dl className="grid grid-cols-1 gap-x-6 sm:grid-cols-2">
+                      {fLegalNature && <DetailField label="Natureza Jurídica" value={fLegalNature} />}
+                      {fRegistrationStatus && <DetailField label="Situação Cadastral" value={fRegistrationStatus} />}
+                      {fCnaeDescription && (
+                        <DetailField
+                          className="sm:col-span-2"
+                          label="CNAE Principal"
+                          value={`${fCnaeCode ? `${fCnaeCode} — ` : ""}${fCnaeDescription}`}
+                        />
                       )}
-                      {fRegistrationStatus && (
-                        <div>
-                          <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block mb-1">Situação Cadastral</label>
-                          <p className={cn(
-                            "text-[12px] font-bold h-9 px-3 flex items-center rounded-lg border",
-                            fRegistrationStatus === "ATIVA" ? "border-emerald-200 bg-emerald-50 text-emerald-700" : "border-amber-200 bg-amber-50 text-amber-700"
-                          )}>{fRegistrationStatus}</p>
-                        </div>
-                      )}
-                    </div>
-                    {fCnaeDescription && (
-                      <div>
-                        <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block mb-1">CNAE Principal</label>
-                        <p className="text-[12px] font-semibold text-slate-700 px-3 py-2 rounded-lg border border-slate-200 bg-white">
-                          {fCnaeCode ? `${fCnaeCode} — ` : ""}{fCnaeDescription}
-                        </p>
-                      </div>
-                    )}
+                    </dl>
                   </div>
-                )}
-                <div>
-                  <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block mb-1">Data de Aniversário</label>
-                  <input
-                    type="date"
-                    value={fBirth}
-                    onChange={(e) => setFBirth(e.target.value)}
-                    className="w-full h-9 px-3 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
-                </div>
-                <div>
-                  <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block mb-1">E-mail</label>
-                  <input type="email" value={fEmail} onChange={(e) => setFEmail(e.target.value)} placeholder="email@exemplo.com" className="w-full h-9 px-3 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-                </div>
-                <div className="space-y-2">
-                  <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block">Endereço</label>
-                  <div className="flex gap-2">
-                    <input
-                      value={fZip}
-                      onChange={(e) => setFZip(e.target.value.replace(/\D/g, "").slice(0, 8))}
-                      placeholder="CEP"
-                      inputMode="numeric"
-                      className="w-32 h-9 px-3 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    />
-                    <button
-                      type="button"
-                      onClick={handleLookupCEP}
-                      disabled={cepLoading || fZip.replace(/\D/g, "").length !== 8}
-                      className="h-9 px-3 rounded-lg border border-slate-200 text-[11px] font-bold text-slate-600 hover:bg-slate-50 disabled:opacity-50 transition-all flex items-center gap-1.5 shrink-0"
-                    >
-                      {cepLoading ? <Loader2 size={13} className="animate-spin" /> : <Search size={13} />}
-                      Buscar CEP
-                    </button>
-                  </div>
-                  <input
-                    value={fStreet}
-                    onChange={(e) => setFStreet(e.target.value)}
-                    placeholder="Rua / Logradouro"
-                    className="w-full h-9 px-3 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
-                  <div className="grid grid-cols-2 gap-2">
-                    <input
-                      value={fNumber}
-                      onChange={(e) => setFNumber(e.target.value)}
-                      placeholder="Número"
-                      className="h-9 px-3 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    />
-                    <input
-                      value={fComplement}
-                      onChange={(e) => setFComplement(e.target.value)}
-                      placeholder="Complemento"
-                      className="h-9 px-3 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    />
-                  </div>
-                  <input
-                    value={fDistrict}
-                    onChange={(e) => setFDistrict(e.target.value)}
-                    placeholder="Bairro"
-                    className="w-full h-9 px-3 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
-                  <div className="grid grid-cols-3 gap-2">
-                    <input
-                      value={fCity}
-                      onChange={(e) => setFCity(e.target.value)}
-                      placeholder="Cidade"
-                      className="col-span-2 h-9 px-3 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    />
-                    <select
-                      value={fState}
-                      onChange={(e) => setFState(e.target.value)}
-                      className="h-9 px-2 rounded-lg border border-slate-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    >
-                      <option value="">UF</option>
-                      {["AC","AL","AP","AM","BA","CE","DF","ES","GO","MA","MT","MS","MG","PA","PB","PR","PE","PI","RJ","RN","RS","RO","RR","SC","SP","SE","TO"].map((uf) => (
-                        <option key={uf} value={uf}>{uf}</option>
-                      ))}
-                    </select>
-                  </div>
-                  <input
-                    value={fCountry}
-                    onChange={(e) => setFCountry(e.target.value)}
-                    placeholder="País"
-                    className="w-full h-9 px-3 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
-                </div>
+                </PanelCard>
+              )}
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <Input label="Data de Aniversário" type="date" value={fBirth} onChange={(e) => setFBirth(e.target.value)} />
+                <Input label="E-mail" type="email" value={fEmail} onChange={(e) => setFEmail(e.target.value)} placeholder="email@exemplo.com" />
+              </div>
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <div data-tour="customer-form-credit">
-                  <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block mb-1">Limite de Crédito (R$)</label>
-                  <input type="number" min={0} value={fCredit} onChange={(e) => setFCredit(e.target.value)} placeholder="0,00" className="w-full h-9 px-3 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                  <Input label="Limite de Crédito (R$)" type="number" min={0} value={fCredit} onChange={(e) => setFCredit(e.target.value)} placeholder="0,00" />
                 </div>
-                <div>
-                  <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block mb-1">Limite de Consignação (R$)</label>
-                  <input type="number" min={0} value={fConsignmentLimit} onChange={(e) => setFConsignmentLimit(e.target.value)} placeholder="0,00" className="w-full h-9 px-3 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-                </div>
-                <div>
-                  <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block mb-1">Observações</label>
-                  <textarea value={fNotes} onChange={(e) => setFNotes(e.target.value)} rows={2} placeholder="Preferências, anotações gerais…" className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none" />
-                </div>
+                <Input label="Limite de Consignação (R$)" type="number" min={0} value={fConsignmentLimit} onChange={(e) => setFConsignmentLimit(e.target.value)} placeholder="0,00" />
+              </div>
+              <Textarea label="Observações" value={fNotes} onChange={(e) => setFNotes(e.target.value)} rows={2} placeholder="Preferências, anotações gerais…" />
 
-                {/* Risk flag */}
-                <div className={cn("rounded-xl border p-3 space-y-2 transition-colors", fRisk ? "bg-rose-50 border-rose-200" : "bg-slate-50 border-slate-200")}>
-                  <label className="flex items-center gap-2 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={fRisk}
-                      onChange={(e) => setFRisk(e.target.checked)}
-                      className="w-4 h-4 accent-rose-500"
-                    />
-                    <span className={cn("text-[12px] font-black", fRisk ? "text-rose-600" : "text-slate-600")}>
-                      <AlertTriangle size={12} className="inline mr-1" />
-                      Marcar como Cliente de Risco
-                    </span>
-                  </label>
-                  {fRisk && (
-                    <textarea
-                      value={fRiskReason}
-                      onChange={(e) => setFRiskReason(e.target.value)}
-                      rows={2}
-                      placeholder="Motivo do risco (ex: atrasou 3x, cheque sem fundo…)"
-                      className="w-full px-3 py-2 rounded-lg border border-rose-200 text-sm focus:outline-none focus:ring-2 focus:ring-rose-400 resize-none bg-white"
-                    />
-                  )}
-                </div>
-
-                {/* ── Dados Comerciais ───────────────────────────────────── */}
-                <div className="space-y-2 border-t border-slate-100 pt-3">
-                  <p className="text-[9px] font-black uppercase tracking-widest text-slate-400">Dados Comerciais</p>
-                  <div className="grid grid-cols-2 gap-2">
-                    <div>
-                      <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block mb-1">Código (planilha)</label>
-                      <input value={fExternalCode} onChange={(e) => setFExternalCode(e.target.value)} placeholder="Código legado" className="w-full h-9 px-3 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-                    </div>
-                    <div>
-                      <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block mb-1">Situação</label>
-                      <select value={fStatus} onChange={(e) => setFStatus(e.target.value as "active" | "inactive")} className="w-full h-9 px-3 rounded-lg border border-slate-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500">
-                        <option value="active">Ativo</option>
-                        <option value="inactive">Inativo</option>
-                      </select>
-                    </div>
-                  </div>
-                  <div>
-                    <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block mb-1">Nome do Contato</label>
-                    <input value={fContactName} onChange={(e) => setFContactName(e.target.value)} placeholder="Pessoa de contato" className="w-full h-9 px-3 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-                  </div>
-                  <div className="grid grid-cols-2 gap-2">
-                    <div>
-                      <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block mb-1">Fax</label>
-                      <input value={fFax} onChange={(e) => setFFax(maskPhone(e.target.value))} placeholder="(11) 99999-9999" inputMode="numeric" className="w-full h-9 px-3 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-                    </div>
-                    <div>
-                      <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block mb-1">Tipo de Contato</label>
-                      <input value={fContactType} onChange={(e) => setFContactType(e.target.value)} placeholder="Ex: Comprador" className="w-full h-9 px-3 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-                    </div>
-                  </div>
-                  <div>
-                    <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block mb-1">Web Site</label>
-                    <input value={fWebsite} onChange={(e) => setFWebsite(e.target.value)} placeholder="https://…" className="w-full h-9 px-3 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-                  </div>
-                  <div>
-                    <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block mb-1">Segmento</label>
-                    <input value={fSegment} onChange={(e) => setFSegment(e.target.value)} placeholder="Segmento de mercado" className="w-full h-9 px-3 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-                  </div>
-                  <div>
-                    <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block mb-1">Vendedor Responsável</label>
-                    <select value={fSellerId} onChange={(e) => setFSellerId(e.target.value)} className="w-full h-9 px-3 rounded-lg border border-slate-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500">
-                      <option value="">Nenhum</option>
-                      {sellers.map((s) => (
-                        <option key={s.id} value={s.id}>{s.name}</option>
-                      ))}
-                    </select>
-                  </div>
-                  <div className="grid grid-cols-2 gap-2">
-                    <div>
-                      <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block mb-1">Cliente desde</label>
-                      <input type="date" value={fCustomerSince} onChange={(e) => setFCustomerSince(e.target.value)} className="w-full h-9 px-3 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-                    </div>
-                    <div>
-                      <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block mb-1">Próxima visita</label>
-                      <input type="date" value={fNextVisitAt} onChange={(e) => setFNextVisitAt(e.target.value)} className="w-full h-9 px-3 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-                    </div>
-                  </div>
-                </div>
-
-                {/* ── Fiscal ─────────────────────────────────────────────── */}
-                <div className="space-y-2 border-t border-slate-100 pt-3">
-                  <p className="text-[9px] font-black uppercase tracking-widest text-slate-400">Fiscal</p>
-                  <div className="grid grid-cols-2 gap-2">
-                    <div>
-                      <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block mb-1">Tipo de Pessoa</label>
-                      <select value={fPersonType} onChange={(e) => setFPersonType(e.target.value as "physical" | "legal")} className="w-full h-9 px-3 rounded-lg border border-slate-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500">
-                        <option value="physical">Pessoa Física</option>
-                        <option value="legal">Pessoa Jurídica</option>
-                      </select>
-                    </div>
-                    <div>
-                      <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block mb-1">{fPersonType === "legal" ? "IE" : "RG"}</label>
-                      <input value={fStateRegistration} onChange={(e) => setFStateRegistration(e.target.value)} disabled={fStateRegistrationExempt} placeholder={fPersonType === "legal" ? "Inscrição Estadual" : "RG"} className="w-full h-9 px-3 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-slate-50 disabled:text-slate-400" />
-                    </div>
-                  </div>
-                  {fPersonType === "legal" && (
-                    <label className="flex items-center gap-2 cursor-pointer">
-                      <input type="checkbox" checked={fStateRegistrationExempt} onChange={(e) => setFStateRegistrationExempt(e.target.checked)} className="w-4 h-4 accent-blue-500" />
-                      <span className="text-[11px] font-semibold text-slate-600">IE isento</span>
-                    </label>
-                  )}
-                  <div>
-                    <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block mb-1">E-mail para envio de NFe</label>
-                    <input type="email" value={fNfeEmail} onChange={(e) => setFNfeEmail(e.target.value)} placeholder="nfe@exemplo.com" className="w-full h-9 px-3 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-                  </div>
-                  <div>
-                    <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block mb-1">Regime Tributário</label>
-                    <input value={fTaxRegime} onChange={(e) => setFTaxRegime(e.target.value)} placeholder="Ex: Simples Nacional" className="w-full h-9 px-3 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-                  </div>
-                </div>
-
-                {/* ── Dados Pessoais (só Pessoa Física) ─────────────────── */}
-                {fPersonType === "physical" && (
-                  <div className="space-y-2 border-t border-slate-100 pt-3">
-                    <p className="text-[9px] font-black uppercase tracking-widest text-slate-400">Dados Pessoais</p>
-                    <div className="grid grid-cols-2 gap-2">
-                      <div>
-                        <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block mb-1">Estado Civil</label>
-                        <input value={fMaritalStatus} onChange={(e) => setFMaritalStatus(e.target.value)} placeholder="Ex: Casado(a)" className="w-full h-9 px-3 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-                      </div>
-                      <div>
-                        <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block mb-1">Profissão</label>
-                        <input value={fProfession} onChange={(e) => setFProfession(e.target.value)} className="w-full h-9 px-3 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-                      </div>
-                    </div>
-                    <div className="grid grid-cols-2 gap-2">
-                      <div>
-                        <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block mb-1">Sexo</label>
-                        <select value={fGender} onChange={(e) => setFGender(e.target.value)} className="w-full h-9 px-3 rounded-lg border border-slate-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500">
-                          <option value="">–</option>
-                          <option value="M">Masculino</option>
-                          <option value="F">Feminino</option>
-                          <option value="other">Outro</option>
-                        </select>
-                      </div>
-                      <div>
-                        <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block mb-1">Naturalidade</label>
-                        <input value={fBirthplace} onChange={(e) => setFBirthplace(e.target.value)} placeholder="Cidade - UF" className="w-full h-9 px-3 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-                      </div>
-                    </div>
-                    <div className="grid grid-cols-2 gap-2">
-                      <input value={fFatherName} onChange={(e) => setFFatherName(e.target.value)} placeholder="Nome do pai" className="h-9 px-3 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-                      <input value={fFatherDocument} onChange={(e) => setFFatherDocument(maskDoc(e.target.value))} placeholder="CPF do pai" inputMode="numeric" className="h-9 px-3 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-                    </div>
-                    <div className="grid grid-cols-2 gap-2">
-                      <input value={fMotherName} onChange={(e) => setFMotherName(e.target.value)} placeholder="Nome da mãe" className="h-9 px-3 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-                      <input value={fMotherDocument} onChange={(e) => setFMotherDocument(maskDoc(e.target.value))} placeholder="CPF da mãe" inputMode="numeric" className="h-9 px-3 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-                    </div>
-                  </div>
+              {/* Risk flag */}
+              <div className={cn("space-y-2 rounded-lg border p-3 transition-colors", fRisk ? "border-rose-200 bg-rose-50" : "border-slate-200 bg-slate-50")}>
+                <label className="flex cursor-pointer items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={fRisk}
+                    onChange={(e) => setFRisk(e.target.checked)}
+                    className="h-4 w-4 accent-rose-500"
+                  />
+                  <span className={cn("text-xs font-medium", fRisk ? "text-rose-600" : "text-slate-600")}>
+                    <AlertTriangle size={12} className="mr-1 inline" />
+                    Marcar como Cliente de Risco
+                  </span>
+                </label>
+                {fRisk && (
+                  <Textarea
+                    aria-label="Motivo do risco"
+                    value={fRiskReason}
+                    onChange={(e) => setFRiskReason(e.target.value)}
+                    rows={2}
+                    placeholder="Motivo do risco (ex: atrasou 3x, cheque sem fundo…)"
+                  />
                 )}
               </div>
+            </div>
+          )}
 
-              <div className="border-t border-slate-200 px-5 py-4 shrink-0 bg-slate-50 flex gap-2">
-                <button onClick={closeForm} className="flex-1 h-9 rounded-lg border border-slate-200 text-sm font-semibold text-slate-600 hover:bg-slate-100">Cancelar</button>
-                <button
-                  onClick={handleSave}
-                  disabled={saving || !fName.trim()}
-                  className="flex-1 h-9 bg-blue-600 text-white rounded-lg text-sm font-bold hover:bg-blue-700 disabled:opacity-50 transition-all"
+          {formTab === "endereco" && (
+            <div className="space-y-3">
+              <div className="flex items-end gap-2">
+                <Input
+                  wrapperClassName="w-36"
+                  label="CEP"
+                  value={fZip}
+                  onChange={(e) => setFZip(e.target.value.replace(/\D/g, "").slice(0, 8))}
+                  placeholder="CEP"
+                  inputMode="numeric"
+                />
+                <Button
+                  variant="outline"
+                  iconLeft={<Search size={13} />}
+                  onClick={handleLookupCEP}
+                  loading={cepLoading}
+                  disabled={cepLoading || fZip.replace(/\D/g, "").length !== 8}
                 >
-                  {saving ? "Salvando…" : editCust ? "Salvar" : "Criar Cliente"}
-                </button>
+                  Buscar CEP
+                </Button>
               </div>
-            </motion.div>
-          </>
-        )}
-      </AnimatePresence>
+              <Input label="Rua / Logradouro" value={fStreet} onChange={(e) => setFStreet(e.target.value)} placeholder="Rua / Logradouro" />
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <Input label="Número" value={fNumber} onChange={(e) => setFNumber(e.target.value)} placeholder="Número" />
+                <Input label="Complemento" value={fComplement} onChange={(e) => setFComplement(e.target.value)} placeholder="Complemento" />
+              </div>
+              <Input label="Bairro" value={fDistrict} onChange={(e) => setFDistrict(e.target.value)} placeholder="Bairro" />
+              <div className="grid grid-cols-3 gap-3">
+                <Input wrapperClassName="col-span-2" label="Cidade" value={fCity} onChange={(e) => setFCity(e.target.value)} placeholder="Cidade" />
+                <Select label="UF" value={fState} onChange={(e) => setFState(e.target.value)}>
+                  <option value="">UF</option>
+                  {["AC","AL","AP","AM","BA","CE","DF","ES","GO","MA","MT","MS","MG","PA","PB","PR","PE","PI","RJ","RN","RS","RO","RR","SC","SP","SE","TO"].map((uf) => (
+                    <option key={uf} value={uf}>{uf}</option>
+                  ))}
+                </Select>
+              </div>
+              <Input label="País" value={fCountry} onChange={(e) => setFCountry(e.target.value)} placeholder="País" />
+            </div>
+          )}
+
+          {formTab === "comercial" && (
+            <div className="space-y-3">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <Input label="Código (planilha)" value={fExternalCode} onChange={(e) => setFExternalCode(e.target.value)} placeholder="Código legado" />
+                <Select label="Situação" value={fStatus} onChange={(e) => setFStatus(e.target.value as "active" | "inactive")}>
+                  <option value="active">Ativo</option>
+                  <option value="inactive">Inativo</option>
+                </Select>
+              </div>
+              <Input label="Nome do Contato" value={fContactName} onChange={(e) => setFContactName(e.target.value)} placeholder="Pessoa de contato" />
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <Input label="Fax" value={fFax} onChange={(e) => setFFax(maskPhone(e.target.value))} placeholder="(11) 99999-9999" inputMode="numeric" />
+                <Input label="Tipo de Contato" value={fContactType} onChange={(e) => setFContactType(e.target.value)} placeholder="Ex: Comprador" />
+              </div>
+              <Input label="Web Site" value={fWebsite} onChange={(e) => setFWebsite(e.target.value)} placeholder="https://…" />
+              <Input label="Segmento" value={fSegment} onChange={(e) => setFSegment(e.target.value)} placeholder="Segmento de mercado" />
+              <Select label="Vendedor Responsável" value={fSellerId} onChange={(e) => setFSellerId(e.target.value)}>
+                <option value="">Nenhum</option>
+                {sellers.map((s) => (
+                  <option key={s.id} value={s.id}>{s.name}</option>
+                ))}
+              </Select>
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <Input label="Cliente desde" type="date" value={fCustomerSince} onChange={(e) => setFCustomerSince(e.target.value)} />
+                <Input label="Próxima visita" type="date" value={fNextVisitAt} onChange={(e) => setFNextVisitAt(e.target.value)} />
+              </div>
+            </div>
+          )}
+
+          {formTab === "fiscal" && (
+            <div className="space-y-3">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <Select label="Tipo de Pessoa" value={fPersonType} onChange={(e) => setFPersonType(e.target.value as "physical" | "legal")}>
+                  <option value="physical">Pessoa Física</option>
+                  <option value="legal">Pessoa Jurídica</option>
+                </Select>
+                <Input
+                  label={fPersonType === "legal" ? "IE" : "RG"}
+                  value={fStateRegistration}
+                  onChange={(e) => setFStateRegistration(e.target.value)}
+                  disabled={fStateRegistrationExempt}
+                  placeholder={fPersonType === "legal" ? "Inscrição Estadual" : "RG"}
+                />
+              </div>
+              {fPersonType === "legal" && (
+                <label className="flex cursor-pointer items-center gap-2">
+                  <input type="checkbox" checked={fStateRegistrationExempt} onChange={(e) => setFStateRegistrationExempt(e.target.checked)} className="h-4 w-4 accent-blue-600" />
+                  <span className="text-xs font-medium text-slate-600">IE isento</span>
+                </label>
+              )}
+              <Input label="E-mail para envio de NFe" type="email" value={fNfeEmail} onChange={(e) => setFNfeEmail(e.target.value)} placeholder="nfe@exemplo.com" />
+              <Input label="Regime Tributário" value={fTaxRegime} onChange={(e) => setFTaxRegime(e.target.value)} placeholder="Ex: Simples Nacional" />
+            </div>
+          )}
+
+          {formTab === "pessoal" && fPersonType === "physical" && (
+            <div className="space-y-3">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <Input label="Estado Civil" value={fMaritalStatus} onChange={(e) => setFMaritalStatus(e.target.value)} placeholder="Ex: Casado(a)" />
+                <Input label="Profissão" value={fProfession} onChange={(e) => setFProfession(e.target.value)} />
+              </div>
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <Select label="Sexo" value={fGender} onChange={(e) => setFGender(e.target.value)}>
+                  <option value="">–</option>
+                  <option value="M">Masculino</option>
+                  <option value="F">Feminino</option>
+                  <option value="other">Outro</option>
+                </Select>
+                <Input label="Naturalidade" value={fBirthplace} onChange={(e) => setFBirthplace(e.target.value)} placeholder="Cidade - UF" />
+              </div>
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <Input label="Nome do pai" value={fFatherName} onChange={(e) => setFFatherName(e.target.value)} placeholder="Nome do pai" />
+                <Input label="CPF do pai" value={fFatherDocument} onChange={(e) => setFFatherDocument(maskDoc(e.target.value))} placeholder="CPF do pai" inputMode="numeric" />
+              </div>
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <Input label="Nome da mãe" value={fMotherName} onChange={(e) => setFMotherName(e.target.value)} placeholder="Nome da mãe" />
+                <Input label="CPF da mãe" value={fMotherDocument} onChange={(e) => setFMotherDocument(maskDoc(e.target.value))} placeholder="CPF da mãe" inputMode="numeric" />
+              </div>
+            </div>
+          )}
+        </Tabs>
+      </Modal>
 
       <Modal
         open={!!confirmDialog}
@@ -1402,8 +1162,8 @@ export default function Customers() {
         title={confirmDialog?.title ?? ""}
         size="sm"
         footer={
-          <>
-            <Button variant="secondary" onClick={() => setConfirmDialog(null)} disabled={confirming}>Cancelar</Button>
+          <ModalFooter>
+            <Button variant="outline" onClick={() => setConfirmDialog(null)} disabled={confirming}>Cancelar</Button>
             <Button
               variant="danger"
               loading={confirming}
@@ -1420,10 +1180,10 @@ export default function Customers() {
             >
               Confirmar
             </Button>
-          </>
+          </ModalFooter>
         }
       >
-        <p className="text-sm text-slate-600">{confirmDialog?.message}</p>
+        <p className="text-[13px] text-slate-600">{confirmDialog?.message}</p>
       </Modal>
 
       {/* Resumo da importação de planilha */}
@@ -1432,31 +1192,22 @@ export default function Customers() {
         onClose={() => setImportSummary(null)}
         title="Resultado da Importação"
         size="md"
-        footer={<Button onClick={() => setImportSummary(null)}>Fechar</Button>}
+        footer={<ModalFooter><Button onClick={() => setImportSummary(null)}>Fechar</Button></ModalFooter>}
       >
         {importSummary && (
           <div className="space-y-3">
-            <div className="grid grid-cols-3 gap-2">
-              <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-center">
-                <p className="text-lg font-black text-emerald-700">{importSummary.created}</p>
-                <p className="text-[10px] font-bold uppercase tracking-wider text-emerald-600">Criados</p>
-              </div>
-              <div className="rounded-xl border border-blue-200 bg-blue-50 p-3 text-center">
-                <p className="text-lg font-black text-blue-700">{importSummary.updated}</p>
-                <p className="text-[10px] font-bold uppercase tracking-wider text-blue-600">Atualizados</p>
-              </div>
-              <div className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-center">
-                <p className="text-lg font-black text-rose-700">{importSummary.errors.length}</p>
-                <p className="text-[10px] font-bold uppercase tracking-wider text-rose-600">Erros</p>
-              </div>
-            </div>
+            <StatGrid cols={3}>
+              <StatCard title="Criados" value={importSummary.created} icon={CheckCircle2} color="success" />
+              <StatCard title="Atualizados" value={importSummary.updated} icon={Users} color="info" />
+              <StatCard title="Erros" value={importSummary.errors.length} icon={AlertTriangle} color="danger" />
+            </StatGrid>
             {importSummary.errors.length > 0 && (
-              <div className="max-h-56 overflow-y-auto rounded-xl border border-slate-200">
+              <div className="max-h-56 overflow-y-auto rounded-lg border border-slate-200">
                 <table className="w-full text-xs">
-                  <thead className="bg-slate-50">
+                  <thead className="bg-zinc-50 text-[11px] font-medium text-slate-500">
                     <tr>
-                      <th className="px-3 py-2 text-left font-bold text-slate-500">Linha</th>
-                      <th className="px-3 py-2 text-left font-bold text-slate-500">Erro</th>
+                      <th className="px-3 py-2 text-left font-medium">Linha</th>
+                      <th className="px-3 py-2 text-left font-medium">Erro</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
