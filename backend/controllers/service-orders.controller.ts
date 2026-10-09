@@ -1094,8 +1094,8 @@ export async function invoiceServiceOrder(req: Request, res: Response) {
     if (!order) return res.status(404).json({ error: "Ordem de serviço não encontrada" });
     if (order.invoiced_order_id) return res.status(400).json({ error: "Ordem de serviço já foi faturada" });
     if (order.status === "cancelada") return res.status(400).json({ error: "Ordem de serviço está cancelada" });
-    if (order.status !== "finalizado" && order.status !== "nota_emitida") {
-      return res.status(400).json({ error: "Só é possível faturar uma ordem de serviço finalizada" });
+    if (order.status !== "finalizado" && order.status !== "nota_emitida" && order.status !== "entregue") {
+      return res.status(400).json({ error: "Só é possível faturar uma ordem de serviço finalizada ou entregue" });
     }
 
     const body = req.body as {

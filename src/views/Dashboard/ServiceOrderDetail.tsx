@@ -89,6 +89,9 @@ const OS_TABS = [
 ] as const;
 type OsTabId = typeof OS_TABS[number]["id"];
 
+// OS que já foi entregue e ainda não foi faturada também pode ser faturada.
+const CAN_INVOICE_STATUSES = ["finalizado", "nota_emitida", "entregue"];
+
 export default function ServiceOrderDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -1524,7 +1527,7 @@ export default function ServiceOrderDetail() {
             ) : (
               <div className="flex items-center justify-center rounded-lg border border-amber-200 bg-amber-50 px-3 text-center text-[10px] font-semibold text-amber-700">Cadastre o e-mail do cliente para enviar a OS.</div>
             )}
-            {!selected.invoiced_order_id && (selected.status === "finalizado" || selected.status === "nota_emitida") && (
+            {!selected.invoiced_order_id && CAN_INVOICE_STATUSES.includes(selected.status) && (
               <Button variant="success" size="md" onClick={openInvoiceModal} className="justify-center">
                 <Receipt size={14} /> Faturar
               </Button>
@@ -1532,7 +1535,7 @@ export default function ServiceOrderDetail() {
           </div>
           {emailDelivery?.sent && emailDelivery.sent_at && <p className="text-center text-[10px] font-semibold text-emerald-600">Enviado para {emailDelivery.recipient} em {new Date(emailDelivery.sent_at).toLocaleString("pt-BR")}</p>}
 
-          {!selected.invoiced_order_id && (selected.status === "finalizado" || selected.status === "nota_emitida") && (
+          {!selected.invoiced_order_id && CAN_INVOICE_STATUSES.includes(selected.status) && (
             receivable ? (
               <div className="flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-lg bg-amber-50 border border-amber-200">
                 <CalendarClock size={13} className="text-amber-600" />

@@ -11,7 +11,7 @@ import { Button, IconButton, Input, Textarea, Select, Modal, ModalFooter, Badge,
 import { useToast } from "../../components/ui/Toast";
 import { downloadHtmlAsPdf } from "../../lib/pdf";
 import PaymentSegmentsEditor, { PaymentSegment, newPaymentSegment } from "../../components/PaymentSegmentsEditor";
-import { buildDebtPaymentReceiptText, buildInstallmentBookletText, buildOrderReceiptText, printThermalText } from "../../lib/thermalReceipt";
+import { buildDebtPaymentReceiptText, buildInstallmentBookletText, buildOrderReceiptText, printThermalText, type ReceiptTenantInfo } from "../../lib/thermalReceipt";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -197,7 +197,6 @@ function displayZip(v?: string | null): string {
 }
 
 type DetailTab = "summary" | "fiado" | "history" | "notes" | "loyalty";
-type EditTab = "geral" | "endereco";
 
 const DETAIL_TABS = [
   { id: "summary", label: "Resumo", icon: Users },
@@ -206,11 +205,6 @@ const DETAIL_TABS = [
   { id: "notes", label: "Notas", icon: StickyNote },
   { id: "loyalty", label: "Pontos", icon: Star },
 ] as const satisfies readonly { id: DetailTab; label: string; icon: React.ElementType }[];
-
-const EDIT_TABS = [
-  { id: "geral", label: "Geral", icon: Users },
-  { id: "endereco", label: "Endereço", icon: MapPin },
-] as const satisfies readonly { id: EditTab; label: string; icon: React.ElementType }[];
 
 export default function CustomerDetail() {
   const toast = useToast();
@@ -230,40 +224,6 @@ export default function CustomerDetail() {
       : "summary"
   );
   const [loadingDetail, setLoadingDetail] = useState(true);
-
-  // Edit form (reaproveita o mesmo modal simplificado de edição rápida)
-  const [showForm, setShowForm] = useState(false);
-  const [editTab, setEditTab] = useState<EditTab>("geral");
-  const [fName, setFName] = useState("");
-  const [fEmail, setFEmail] = useState("");
-  const [fPhone, setFPhone] = useState("");
-  const [fDoc, setFDoc] = useState("");
-  const [fAddr, setFAddr] = useState("");
-  const [fStreet, setFStreet] = useState("");
-  const [fNumber, setFNumber] = useState("");
-  const [fComplement, setFComplement] = useState("");
-  const [fDistrict, setFDistrict] = useState("");
-  const [fCity, setFCity] = useState("");
-  const [fState, setFState] = useState("");
-  const [fZip, setFZip] = useState("");
-  const [fCountry, setFCountry] = useState("Brasil");
-  const [cepLoading, setCepLoading] = useState(false);
-  const [cnpjLoading, setCnpjLoading] = useState(false);
-  const [cnpjError, setCnpjError] = useState<string | null>(null);
-  const [fLegalName, setFLegalName] = useState("");
-  const [fTradeName, setFTradeName] = useState("");
-  const [fCnaeCode, setFCnaeCode] = useState("");
-  const [fCnaeDescription, setFCnaeDescription] = useState("");
-  const [fLegalNature, setFLegalNature] = useState("");
-  const [fRegistrationStatus, setFRegistrationStatus] = useState("");
-  const [fRegistrationStatusDate, setFRegistrationStatusDate] = useState("");
-  const [fCredit, setFCredit] = useState("");
-  const [fConsignmentLimit, setFConsignmentLimit] = useState("");
-  const [fBirth, setFBirth] = useState("");
-  const [fNotes, setFNotes] = useState("");
-  const [fRisk, setFRisk] = useState(false);
-  const [fRiskReason, setFRiskReason] = useState("");
-  const [saving, setSaving] = useState(false);
 
   // Debt form
   const [showDebtForm, setShowDebtForm] = useState(false);
@@ -310,6 +270,7 @@ export default function CustomerDetail() {
   const [maxInstallments, setMaxInstallments] = useState(1);
   const [enabledBrands, setEnabledBrands] = useState<Record<string, boolean>>({});
   const [tenantName, setTenantName] = useState("Loja");
+  const [tenantInfo, setTenantInfo] = useState<ReceiptTenantInfo>({ name: "Loja" });
 
   // Note form
   const [noteBody, setNoteBody] = useState("");
@@ -361,8 +322,6 @@ export default function CustomerDetail() {
     setLoyaltyRewards(Array.isArray(rw) ? rw.filter((r: LoyaltyReward) => r.is_active) : []);
   }, []);
 
-  useEffect(() => { if (showForm) setEditTab("geral"); }, [showForm]);
-
   useEffect(() => {
     if (customerId) fetchDetail(customerId);
   }, [customerId, fetchDetail]);
@@ -379,127 +338,14 @@ export default function CustomerDetail() {
         if (d?.max_installments) setMaxInstallments(Number(d.max_installments));
         if (d?.enabled_brands) setEnabledBrands(d.enabled_brands as Record<string, boolean>);
         if (d?.name) setTenantName(d.name);
+        if (d) setTenantInfo({
+          name: d.name, document: d.document, phone: d.whatsapp,
+          address_street: d.address_street, address_number: d.address_number,
+          address_district: d.address_district, address_city: d.address_city, address_state: d.address_state,
+        });
       })
       .catch(() => {});
   }, []);
-
-  function openEdit() {
-    if (!detail) return;
-    setFName(detail.name); setFEmail(detail.email ?? ""); setFPhone(maskPhone(detail.phone ?? ""));
-    setFDoc(maskDoc(detail.document ?? "")); setFAddr(detail.address ?? ""); setFNotes(detail.notes ?? "");
-    setFStreet(detail.address_street ?? ""); setFNumber(detail.address_number ?? ""); setFComplement(detail.address_complement ?? "");
-    setFDistrict(detail.address_district ?? ""); setFCity(detail.address_city ?? ""); setFState(detail.address_state ?? ""); setFZip(detail.address_zip ?? "");
-    setFCountry(detail.address_country ?? "Brasil");
-    setFCredit(detail.credit_limit ? String(detail.credit_limit) : "");
-    setFConsignmentLimit(detail.consignment_limit ? String(detail.consignment_limit) : "");
-    setFBirth(detail.birth_date ? detail.birth_date.slice(0, 10) : "");
-    setFRisk(detail.risk_flag); setFRiskReason(detail.risk_reason ?? "");
-    setFLegalName(detail.legal_name ?? ""); setFTradeName(detail.trade_name ?? "");
-    setFCnaeCode(detail.cnae_code ?? ""); setFCnaeDescription(detail.cnae_description ?? "");
-    setFLegalNature(detail.legal_nature ?? ""); setFRegistrationStatus(detail.registration_status ?? "");
-    setFRegistrationStatusDate(detail.registration_status_date ? detail.registration_status_date.slice(0, 10) : "");
-    setCnpjError(null);
-    setShowForm(true);
-  }
-
-  async function handleLookupCEP() {
-    const raw = fZip.replace(/\D/g, "");
-    if (raw.length !== 8) return;
-    setCepLoading(true);
-    try {
-      const res = await fetch(`https://viacep.com.br/ws/${raw}/json/`);
-      const d = await res.json();
-      if (!d.erro) {
-        setFStreet(d.logradouro ?? "");
-        setFDistrict(d.bairro ?? "");
-        setFCity(d.localidade ?? "");
-        setFState(d.uf ?? "");
-        setFZip(raw);
-      }
-    } catch {
-      // silencioso — mesmo comportamento do lookup de CEP em Customers.tsx
-    } finally {
-      setCepLoading(false);
-    }
-  }
-
-  async function handleLookupCNPJ() {
-    const raw = fDoc.replace(/\D/g, "");
-    if (raw.length !== 14) return;
-    setCnpjLoading(true);
-    setCnpjError(null);
-    try {
-      const res = await fetch(`https://brasilapi.com.br/api/cnpj/v1/${raw}`);
-      if (!res.ok) { setCnpjError("CNPJ não encontrado."); return; }
-      const d = await res.json();
-      const displayName = d.nome_fantasia?.trim() || d.razao_social?.trim();
-      if (displayName) setFName(displayName);
-      if (d.email) setFEmail(d.email);
-      if (d.ddd_telefone_1) setFPhone(maskPhone(d.ddd_telefone_1));
-      if (d.cep) setFZip(String(d.cep).replace(/\D/g, ""));
-      if (d.logradouro) setFStreet(d.logradouro);
-      if (d.numero) setFNumber(d.numero);
-      if (d.complemento) setFComplement(d.complemento);
-      if (d.bairro) setFDistrict(d.bairro);
-      if (d.municipio) setFCity(d.municipio);
-      if (d.uf) setFState(d.uf);
-      setFLegalName(d.razao_social?.trim() ?? "");
-      setFTradeName(d.nome_fantasia?.trim() ?? "");
-      setFCnaeCode(d.cnae_fiscal ? String(d.cnae_fiscal) : "");
-      setFCnaeDescription(d.cnae_fiscal_descricao ?? "");
-      setFLegalNature(d.natureza_juridica ?? "");
-      setFRegistrationStatus(d.descricao_situacao_cadastral ?? "");
-      setFRegistrationStatusDate(d.data_situacao_cadastral ?? "");
-    } catch {
-      setCnpjError("Falha ao consultar CNPJ. Tente novamente.");
-    } finally {
-      setCnpjLoading(false);
-    }
-  }
-
-  async function handleSave() {
-    if (!detail || !fName.trim()) return;
-    setSaving(true);
-    try {
-      const computedAddress = [
-        fStreet && fNumber ? `${fStreet}, ${fNumber}` : fStreet,
-        fDistrict,
-        fCity && fState ? `${fCity} - ${fState}` : fCity || fState,
-      ].filter(Boolean).join(", ");
-      await fetch(`/api/customers/${detail.id}`, {
-        method: "PUT", headers: authH(),
-        body: JSON.stringify({
-          name: fName, email: fEmail,
-          phone: fPhone.replace(/\D/g, "") || null,
-          document: fDoc.replace(/\D/g, "") || null,
-          address: computedAddress || fAddr || null, notes: fNotes,
-          address_street: fStreet || null,
-          address_number: fNumber || null,
-          address_complement: fComplement || null,
-          address_district: fDistrict || null,
-          address_city: fCity || null,
-          address_state: fState || null,
-          address_zip: fZip.replace(/\D/g, "") || null,
-          address_country: fCountry || null,
-          credit_limit: fCredit ? Number(fCredit) : null,
-          consignment_limit: fConsignmentLimit ? Number(fConsignmentLimit) : null,
-          birth_date: fBirth || null,
-          risk_flag: fRisk, risk_reason: fRiskReason || null,
-          legal_name: fLegalName || null,
-          trade_name: fTradeName || null,
-          cnae_code: fCnaeCode || null,
-          cnae_description: fCnaeDescription || null,
-          legal_nature: fLegalNature || null,
-          registration_status: fRegistrationStatus || null,
-          registration_status_date: fRegistrationStatusDate || null,
-        }),
-      });
-      await fetchDetail(detail.id);
-      setShowForm(false);
-    } finally {
-      setSaving(false);
-    }
-  }
 
   function handleDelete() {
     if (!detail) return;
@@ -651,7 +497,7 @@ export default function CustomerDetail() {
         const totalOpenBeforePayment = debt?.installments?.reduce(
           (sum, item) => sum + Math.max(0, Number(item.amount) - Number(item.amount_paid || 0)), 0
         ) ?? amount;
-        const receipt = buildDebtPaymentReceiptText(tenantName, {
+        const receipt = buildDebtPaymentReceiptText(tenantInfo, {
           customerName: detail.name,
           debtDescription: debt?.description || "Crediário",
           installmentNumber,
@@ -743,7 +589,7 @@ export default function CustomerDetail() {
     if (!detail) return;
     const ordered = [...(debt.payments ?? [])].sort((a, b) => new Date(a.paid_at).getTime() - new Date(b.paid_at).getTime() || a.id - b.id);
     const paidUntil = ordered.slice(0, ordered.findIndex((x) => x.id === payment.id) + 1).reduce((sum, x) => sum + Number(x.amount), 0);
-    const receipt = buildDebtPaymentReceiptText(tenantName, {
+    const receipt = buildDebtPaymentReceiptText(tenantInfo, {
       customerName: detail.name,
       debtDescription: debt.description || "Crediário",
       installmentNumber: 0,
@@ -787,7 +633,7 @@ export default function CustomerDetail() {
   // Reimpressão do cupom de venda — mesmo cupom do PDV (Reimprimir Venda).
   async function printOrderReceipt(order: Order) {
     if (!detail) return;
-    await printThermalText(buildOrderReceiptText({ name: tenantName }, {
+    await printThermalText(buildOrderReceiptText(tenantInfo, {
       id: order.id,
       created_at: order.created_at,
       customer_name: detail.name,
@@ -932,7 +778,7 @@ export default function CustomerDetail() {
           Voltar para Clientes
         </Button>
         <div className="flex flex-wrap items-center gap-2">
-          <Button variant="outline" size="sm" iconLeft={<Edit2 size={13} />} onClick={openEdit}>Editar</Button>
+          <Button variant="outline" size="sm" iconLeft={<Edit2 size={13} />} onClick={() => navigate(`/admin/customers/${customerId}/editar`)}>Editar</Button>
           <Button variant="danger" size="sm" iconLeft={<Trash2 size={13} />} onClick={handleDelete}>Excluir</Button>
         </div>
       </div>
@@ -1001,7 +847,7 @@ export default function CustomerDetail() {
             <PanelCard
               title="Dados do cliente"
               description="Informações salvas no cadastro"
-              action={<Button variant="outline" size="xs" iconLeft={<Edit2 size={12} />} onClick={openEdit}>Editar</Button>}
+              action={<Button variant="outline" size="xs" iconLeft={<Edit2 size={12} />} onClick={() => navigate(`/admin/customers/${customerId}/editar`)}>Editar</Button>}
             >
               <dl className={fieldsClass}>
                 <DetailField label="Telefone" value={displayPhone(detail.phone)} />
@@ -1680,138 +1526,6 @@ export default function CustomerDetail() {
           <Input label="Vencimento da 1ª parcela" type="date" value={reconfigureFirstDue} onChange={(e) => setReconfigureFirstDue(e.target.value)} />
           <p className="text-[11px] text-slate-500">As parcelas atuais serão substituídas. Só é possível reconfigurar enquanto nenhum pagamento foi feito.</p>
         </div>
-      </Modal>
-
-      {/* Edit modal */}
-      <Modal
-        open={showForm}
-        onClose={() => setShowForm(false)}
-        title="Editar Cliente"
-        size="lg"
-        footer={
-          <ModalFooter>
-            <Button variant="outline" onClick={() => setShowForm(false)}>Cancelar</Button>
-            <Button loading={saving} onClick={handleSave}>Salvar</Button>
-          </ModalFooter>
-        }
-      >
-        <Tabs<EditTab> items={EDIT_TABS} value={editTab} onChange={setEditTab} label="Dados do cliente">
-          {editTab === "geral" && (
-            <div className="space-y-3">
-              <Input label="Nome *" value={fName} onChange={(e) => setFName(e.target.value)} />
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                <Input label="Telefone" value={fPhone} onChange={(e) => setFPhone(maskPhone(e.target.value))} placeholder="(11) 99999-9999" inputMode="numeric" />
-                <div className="flex items-end gap-1.5">
-                  <Input
-                    wrapperClassName="flex-1"
-                    label="CPF/CNPJ"
-                    value={fDoc}
-                    onChange={(e) => { setFDoc(maskDoc(e.target.value)); setCnpjError(null); }}
-                    placeholder="000.000.000-00"
-                    inputMode="numeric"
-                  />
-                  {fDoc.replace(/\D/g, "").length === 14 && (
-                    <IconButton
-                      variant="outline"
-                      onClick={handleLookupCNPJ}
-                      loading={cnpjLoading}
-                      disabled={cnpjLoading}
-                      title="Buscar dados do CNPJ na Receita Federal"
-                      aria-label="Buscar dados do CNPJ"
-                    >
-                      <Search size={14} />
-                    </IconButton>
-                  )}
-                </div>
-              </div>
-              {cnpjError && <Alert variant="error">{cnpjError}</Alert>}
-              {fDoc.replace(/\D/g, "").length === 14 && (fLegalName || fCnaeDescription || fRegistrationStatus) && (
-                <PanelCard title="Dados Fiscais (Receita Federal)">
-                  <div className="space-y-3">
-                    {fLegalName && <Input label="Razão Social" value={fLegalName} onChange={(e) => setFLegalName(e.target.value)} />}
-                    <dl className="grid grid-cols-1 gap-x-6 sm:grid-cols-2">
-                      {fLegalNature && <DetailField label="Natureza Jurídica" value={fLegalNature} />}
-                      {fRegistrationStatus && <DetailField label="Situação Cadastral" value={fRegistrationStatus} />}
-                      {fCnaeDescription && (
-                        <DetailField
-                          className="sm:col-span-2"
-                          label="CNAE Principal"
-                          value={`${fCnaeCode ? `${fCnaeCode} — ` : ""}${fCnaeDescription}`}
-                        />
-                      )}
-                    </dl>
-                  </div>
-                </PanelCard>
-              )}
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                <Input label="Data de Aniversário" type="date" value={fBirth} onChange={(e) => setFBirth(e.target.value)} />
-                <Input label="E-mail" value={fEmail} onChange={(e) => setFEmail(e.target.value)} />
-              </div>
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                <Input label="Limite de Crédito (R$)" type="number" min={0} value={fCredit} onChange={(e) => setFCredit(e.target.value)} />
-                <Input label="Limite de Consignação (R$)" type="number" min={0} value={fConsignmentLimit} onChange={(e) => setFConsignmentLimit(e.target.value)} />
-              </div>
-              <Textarea label="Observações" value={fNotes} onChange={(e) => setFNotes(e.target.value)} rows={2} />
-              <div className={cn("space-y-2 rounded-lg border p-3 transition-colors", fRisk ? "border-rose-200 bg-rose-50" : "border-slate-200 bg-slate-50")}>
-                <label className="flex cursor-pointer items-center gap-2">
-                  <input type="checkbox" checked={fRisk} onChange={(e) => setFRisk(e.target.checked)} className="h-4 w-4 accent-rose-500" />
-                  <span className={cn("text-xs font-medium", fRisk ? "text-rose-600" : "text-slate-600")}>
-                    <AlertTriangle size={12} className="mr-1 inline" /> Marcar como Cliente de Risco
-                  </span>
-                </label>
-                {fRisk && (
-                  <Textarea
-                    aria-label="Motivo do risco"
-                    value={fRiskReason}
-                    onChange={(e) => setFRiskReason(e.target.value)}
-                    rows={2}
-                    placeholder="Motivo do risco (ex: atrasou 3x, cheque sem fundo…)"
-                  />
-                )}
-              </div>
-            </div>
-          )}
-
-          {editTab === "endereco" && (
-            <div className="space-y-3">
-              <div className="flex items-end gap-2">
-                <Input
-                  wrapperClassName="w-36"
-                  label="CEP"
-                  value={fZip}
-                  onChange={(e) => setFZip(e.target.value.replace(/\D/g, "").slice(0, 8))}
-                  placeholder="CEP"
-                  inputMode="numeric"
-                />
-                <Button
-                  variant="outline"
-                  iconLeft={<Search size={13} />}
-                  onClick={handleLookupCEP}
-                  loading={cepLoading}
-                  disabled={cepLoading || fZip.replace(/\D/g, "").length !== 8}
-                >
-                  Buscar CEP
-                </Button>
-              </div>
-              <Input label="Rua / Logradouro" value={fStreet} onChange={(e) => setFStreet(e.target.value)} placeholder="Rua / Logradouro" />
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                <Input label="Número" value={fNumber} onChange={(e) => setFNumber(e.target.value)} placeholder="Número" />
-                <Input label="Complemento" value={fComplement} onChange={(e) => setFComplement(e.target.value)} placeholder="Complemento" />
-              </div>
-              <Input label="Bairro" value={fDistrict} onChange={(e) => setFDistrict(e.target.value)} placeholder="Bairro" />
-              <div className="grid grid-cols-3 gap-3">
-                <Input wrapperClassName="col-span-2" label="Cidade" value={fCity} onChange={(e) => setFCity(e.target.value)} placeholder="Cidade" />
-                <Select label="UF" value={fState} onChange={(e) => setFState(e.target.value)}>
-                  <option value="">UF</option>
-                  {["AC","AL","AP","AM","BA","CE","DF","ES","GO","MA","MT","MS","MG","PA","PB","PR","PE","PI","RJ","RN","RS","RO","RR","SC","SP","SE","TO"].map((uf) => (
-                    <option key={uf} value={uf}>{uf}</option>
-                  ))}
-                </Select>
-              </div>
-              <Input label="País" value={fCountry} onChange={(e) => setFCountry(e.target.value)} placeholder="País" />
-            </div>
-          )}
-        </Tabs>
       </Modal>
 
       <Modal

@@ -46,13 +46,37 @@ export interface DebtPaymentReceipt {
 // Comprovante de baixa de parcela. Mantém exatamente a largura, a hierarquia e
 // o mecanismo de impressão do cupom de venda do PDV, mas deixa claro que se
 // trata de um recebimento de crediário — não de uma nova venda.
+export interface ReceiptTenantInfo {
+  name?: string | null;
+  document?: string | null;
+  phone?: string | null;
+  address_street?: string | null;
+  address_number?: string | null;
+  address_district?: string | null;
+  address_city?: string | null;
+  address_state?: string | null;
+}
+
+// Cabeçalho do estabelecimento: nome, endereço, CNPJ e telefone (só o que existir).
+export function buildReceiptHeader(tenant: string | ReceiptTenantInfo | null | undefined): string {
+  const info: ReceiptTenantInfo = typeof tenant === "string" ? { name: tenant } : tenant ?? {};
+  let header = `${thermalCenter((info.name || "").toUpperCase())}\n`;
+  const street = [info.address_street, info.address_number].filter(Boolean).join(", ");
+  const city = [info.address_district, [info.address_city, info.address_state].filter(Boolean).join("/")].filter(Boolean).join(" - ");
+  if (street) header += `${thermalCenter(street)}\n`;
+  if (city) header += `${thermalCenter(city)}\n`;
+  if (info.document) header += `${thermalCenter(`CNPJ: ${info.document}`)}\n`;
+  if (info.phone) header += `${thermalCenter(`Tel: ${info.phone}`)}\n`;
+  return header;
+}
+
 export function buildDebtPaymentReceiptText(
-  tenantName: string,
+  tenant: string | ReceiptTenantInfo,
   receipt: DebtPaymentReceipt,
 ): string {
   const paidAt = receipt.paidAt ?? new Date();
   let text = "\n";
-  text += `${thermalCenter(tenantName.toUpperCase())}\n`;
+  text += buildReceiptHeader(tenant);
   text += `${thermalRule}\n${thermalCenter("COMPROVANTE DE PAGAMENTO")}\n`;
   text += `${thermalCenter("RECEBIMENTO DE CREDIÁRIO")}\n${thermalThin}\n`;
   text += thermalRow("Data", dateTimeShort(paidAt)) + "\n";
@@ -213,7 +237,11 @@ export interface OrderReceiptTenant {
   name?: string | null;
   address_street?: string | null;
   address_number?: string | null;
+  address_district?: string | null;
+  address_city?: string | null;
+  address_state?: string | null;
   document?: string | null;
+  phone?: string | null;
 }
 
 export interface OrderReceiptItem {
@@ -262,12 +290,7 @@ export function buildOrderReceiptText(tenant: OrderReceiptTenant | null | undefi
   const dateTime = new Date(order.created_at).toLocaleString("pt-BR");
 
   let receipt = "\n";
-  receipt += `${thermalCenter((tenant?.name || "").toUpperCase())}\n`;
-  if (tenant?.address_street) {
-    const addr = [tenant.address_street, tenant.address_number].filter(Boolean).join(", ");
-    if (addr) receipt += `${thermalCenter(addr)}\n`;
-  }
-  if (tenant?.document) receipt += `${thermalCenter(`CNPJ: ${tenant.document}`)}\n`;
+  receipt += buildReceiptHeader(tenant);
   receipt += `${thermalRow(dateTime, `COO: ${orderId}`)}\n${thermalRule}\n`;
   receipt += `${thermalCenter("CUPOM")}\n${thermalThin}\n`;
   receipt += "ITEM  DESCRIÇÃO\n";

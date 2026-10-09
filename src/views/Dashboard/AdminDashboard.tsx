@@ -70,6 +70,7 @@ import MeuPerfil from "./MeuPerfil";
 import Settings from "./Settings";
 import Customers from "./Customers";
 import CustomerDetail from "./CustomerDetail";
+import CustomerFormPage from "./CustomerFormPage";
 import Suppliers from "./Suppliers";
 import Categories from "./Categories";
 import Analytics from "./Analytics";
@@ -1163,6 +1164,8 @@ export default function AdminDashboard() {
               <Route path="stock" element={<Stock />} />
               <Route path="pdv" element={<PDV />} />
               <Route path="customers" element={<Customers />} />
+              <Route path="customers/novo" element={<CustomerFormPage />} />
+              <Route path="customers/:id/editar" element={<CustomerFormPage />} />
               <Route path="customers/:id" element={<CustomerDetail />} />
               <Route path="suppliers" element={<Suppliers />} />
               <Route path="orders" element={<Orders />} />

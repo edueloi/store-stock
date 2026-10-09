@@ -2,41 +2,12 @@ import { useEffect, useImperativeHandle, useRef, forwardRef } from "react";
 import { driver, type Driver, type DriveStep } from "driver.js";
 import "driver.js/dist/driver.css";
 import "./onboarding-tour.css";
-import { dispatchTourEvent, tourElement, waitForElement, cleanupDragCursor } from "./tour-utils";
+import { tourElement, waitForElement, cleanupDragCursor } from "./tour-utils";
 
-// Canal de comunicação com Customers.tsx — abre o drawer "Novo Cliente" de
-// verdade (openCreate) e preenche campos de exemplo via um evento fill-customer
-// próprio (os campos da tela são states individuais fName/fPhone/fEmail, não
-// um objeto form único). Nunca chama handleSave (POST/PUT real) nem
-// handleDelete (abre confirmDialog → DELETE real, nunca referenciado aqui).
-// Fechar sempre via closeForm.
-const CUSTOMERS_PAGE_TOUR_EVENTS = {
-  openNewCustomer: "page-tour:customers:open-new-customer",
-  fillCustomer: "page-tour:customers:fill-customer",
-  closeForm: "page-tour:customers:close-form",
-} as const;
+// O formulário de cliente agora é uma página própria (/admin/customers/novo),
+// então o tour só aponta o botão e não abre o formulário.
 
 function buildSteps(): DriveStep[] {
-  const goForward = (driverObj: Driver, work: () => Promise<unknown>) => {
-    work()
-      .catch(() => { /* elemento não apareceu a tempo — segue o tour mesmo assim */ })
-      .finally(() => driverObj.moveNext());
-  };
-  const goBack = (driverObj: Driver, work: () => Promise<unknown>) => {
-    work()
-      .catch(() => { /* idem, ao voltar */ })
-      .finally(() => driverObj.movePrevious());
-  };
-  const openExampleCustomer = () => {
-    dispatchTourEvent(CUSTOMERS_PAGE_TOUR_EVENTS.openNewCustomer);
-    return waitForElement('[data-tour="customer-form-name"]').then(() => {
-      dispatchTourEvent(CUSTOMERS_PAGE_TOUR_EVENTS.fillCustomer, {
-        name: "Cliente Exemplo",
-        phone: "(11) 99999-0000",
-      });
-    });
-  };
-
   return [
     {
       popover: {
@@ -81,36 +52,9 @@ function buildSteps(): DriveStep[] {
       element: tourElement("customers-new-btn"),
       popover: {
         title: "Cadastrar um cliente novo",
-        description: "Vamos abrir o formulário e preencher um exemplo, só para você ver quais campos existem (nada será salvo).",
+        description: "Abre a página de cadastro, com abas Geral, Endereço, Comercial, Fiscal e Dados pessoais. Lá você pode buscar dados pelo CNPJ e definir limites de crédito e consignação (até quanto o cliente pode dever fiado ou levar em consignação).",
         side: "bottom",
         align: "end",
-        onNextClick: (_el, _step, opts) => goForward(opts.driver, openExampleCustomer),
-      },
-    },
-    {
-      element: tourElement("customer-form-name"),
-      popover: {
-        title: "Nome e telefone",
-        description: "Preenchemos com \"Cliente Exemplo\" e um telefone só para ilustrar. Você também pode buscar dados automaticamente pelo CNPJ, quando for pessoa jurídica.",
-        side: "bottom",
-        align: "start",
-        onPrevClick: (_el, _step, opts) => {
-          dispatchTourEvent(CUSTOMERS_PAGE_TOUR_EVENTS.closeForm);
-          goBack(opts.driver, () => Promise.resolve());
-        },
-      },
-    },
-    {
-      element: tourElement("customer-form-credit"),
-      popover: {
-        title: "Limites de crédito e consignação",
-        description: "Defina até quanto esse cliente pode dever fiado (crédito) ou levar em consignação. A tela usa esses limites para avisar quando o cliente estiver perto do teto. Vamos fechar este exemplo sem salvar.",
-        side: "top",
-        align: "start",
-        onNextClick: (_el, _step, opts) => {
-          dispatchTourEvent(CUSTOMERS_PAGE_TOUR_EVENTS.closeForm);
-          opts.driver.moveNext();
-        },
       },
     },
     {
@@ -134,13 +78,9 @@ export interface CustomersPageTourHandle {
 
 /**
  * Tour de página de Clientes (driver.js). Spotlight + popover explicando os
- * cards de resumo, abas, alternância Grade/Tabela e busca. Abre o drawer
- * "Novo Cliente" de verdade (openCreate) e preenche nome/telefone de exemplo
- * via evento fill-customer (campos são states individuais), sempre fechando
- * via closeForm — nunca chama handleSave (POST/PUT real) nem handleDelete
- * (que abre confirmDialog → DELETE real). Não há passo de edição: a edição de
- * cliente só existe na tela de detalhe, fora do escopo deste tour. Disparado
- * sob demanda pelo botão "?" — sem persistência de "já viu".
+ * cards de resumo, abas, alternância Grade/Tabela, busca e o botão de novo
+ * cliente (que leva à página /admin/customers/novo). Disparado sob demanda
+ * pelo botão "?" — sem persistência de "já viu".
  */
 const CustomersPageTour = forwardRef<CustomersPageTourHandle>(function CustomersPageTour(_props, ref) {
   const driverRef = useRef<Driver | null>(null);
@@ -163,9 +103,6 @@ const CustomersPageTour = forwardRef<CustomersPageTourHandle>(function Customers
         progressText: "{{current}} de {{total}}",
         steps: buildSteps(),
         onDestroyStarted: () => {
-          // Segurança extra: garante que o drawer de exemplo não fica aberto
-          // se o usuário sair do tour no meio dos passos.
-          dispatchTourEvent(CUSTOMERS_PAGE_TOUR_EVENTS.closeForm);
           cleanupDragCursor();
           d.destroy();
         },
@@ -194,4 +131,3 @@ const CustomersPageTour = forwardRef<CustomersPageTourHandle>(function Customers
 });
 
 export default CustomersPageTour;
-export { CUSTOMERS_PAGE_TOUR_EVENTS };

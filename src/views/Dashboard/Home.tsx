@@ -370,17 +370,24 @@ export default function Home() {
 
         {/* Aviso do que exige ação hoje: um único card, acima das abas */}
         {alertCount > 0 && homeTab !== "alertas" && (
-          <Alert
-            variant={overdueDebts.length > 0 || outOfStock.length > 0 ? "error" : "warning"}
-            title="Itens que precisam de atenção"
-            action={<Button size="xs" variant="outline" onClick={() => setHomeTab("alertas")}>Ver alertas</Button>}
+          <div
+            role="status"
+            className={cn(
+              "flex flex-wrap items-center gap-x-3 gap-y-1.5 rounded-lg border px-3 py-2 text-xs",
+              overdueDebts.length > 0 || outOfStock.length > 0 ? "border-red-200 bg-red-50 text-red-700" : "border-amber-200 bg-amber-50 text-amber-800"
+            )}
           >
-            {[
-              outOfStock.length > 0 ? `${outOfStock.length} produto${outOfStock.length !== 1 ? "s" : ""} esgotado${outOfStock.length !== 1 ? "s" : ""}` : "",
-              overdueDebts.length > 0 ? `${overdueDebts.length} parcela${overdueDebts.length !== 1 ? "s" : ""} de crediário vencida${overdueDebts.length !== 1 ? "s" : ""}` : "",
-              dueSoonDebts.length > 0 ? `${dueSoonDebts.length} parcela${dueSoonDebts.length !== 1 ? "s" : ""} a vencer` : "",
-            ].filter(Boolean).join(" · ")}
-          </Alert>
+            <AlertTriangle size={14} className="shrink-0" aria-hidden="true" />
+            <span className="min-w-0 flex-1 basis-48">
+              <span className="font-medium">Precisam de atenção: </span>
+              {[
+                outOfStock.length > 0 ? `${outOfStock.length} produto${outOfStock.length !== 1 ? "s" : ""} esgotado${outOfStock.length !== 1 ? "s" : ""}` : "",
+                overdueDebts.length > 0 ? `${overdueDebts.length} parcela${overdueDebts.length !== 1 ? "s" : ""} de crediário vencida${overdueDebts.length !== 1 ? "s" : ""}` : "",
+                dueSoonDebts.length > 0 ? `${dueSoonDebts.length} parcela${dueSoonDebts.length !== 1 ? "s" : ""} a vencer` : "",
+              ].filter(Boolean).join(" · ")}
+            </span>
+            <Button size="xs" variant="outline" onClick={() => setHomeTab("alertas")}>Ver alertas</Button>
+          </div>
         )}
 
         <Tabs<HomeTabId> items={homeTabs} value={homeTab} onChange={setHomeTab} label="Seções da visão geral">

@@ -198,7 +198,7 @@ export const FilterLineSearch: React.FC<FilterLineSearchProps> = ({
 export const FilterLineDateRange: React.FC<FilterLineDateRangeProps> = ({
   from, to, onFromChange, onToChange, fromLabel = 'De', toLabel = 'Até', className = '',
 }) => (
-  <div className={cx('flex w-full flex-col gap-2 sm:flex-row sm:items-center sm:gap-3', className)}>
+  <div className={cx('flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center sm:gap-3', className)}>
     <div className="flex items-center gap-2">
       <span className="text-[11px] font-medium tracking-normal text-zinc-400">{fromLabel}</span>
       <div className="min-w-[140px]">

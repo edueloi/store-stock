@@ -8,7 +8,7 @@ import {
   PlusCircle, Barcode, Users, Scan, Star, Gift, UserPlus, Download,
   Maximize2, Minimize2, Wrench, WifiOff, RefreshCw, Terminal,
   LayoutGrid, List, ChevronLeft, Clock, Wallet, ShoppingBag, Ruler,
-  Settings,
+  Settings, Pencil,
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { Product, Category, NfceInvoice } from "../types";
@@ -33,6 +33,13 @@ import HeldSalesDrawer from "../components/pdv/HeldSalesDrawer";
 import SaleHistoryDrawer from "../components/pdv/SaleHistoryDrawer";
 import { cancelHeldSale, createHeldSale, getOpenHeldSalesCount, type HeldSale } from "../lib/heldSales";
 import { ToastProvider } from "../components/ui/Toast";
+import { Button, IconButton } from "../components/ui/Button";
+import { Input, Textarea, Select } from "../components/ui/Input";
+import { Modal, ModalFooter } from "../components/ui/Modal";
+import { Badge } from "../components/ui/Badge";
+import { Tabs } from "../components/ui/Tabs";
+import { Alert } from "../components/ui/Alert";
+import FiscalCodeLookup from "../components/fiscal/FiscalCodeLookup";
 import { CategoryGlyph } from "../components/categories/CategoryGlyph";
 
 type PaymentMethod = "money" | "debit" | "credit" | "pix" | "crediario";
@@ -213,52 +220,52 @@ function PDVLogin({ onLogin }: { onLogin: (token: string) => void }) {
       <div className="relative mx-auto grid min-h-[calc(100vh-3rem)] w-full max-w-5xl items-center gap-12 lg:grid-cols-[1fr_420px]">
         <section className="hidden lg:flex flex-col justify-center">
           <div className="mb-12 flex items-center gap-3">
-            <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-white/10 ring-1 ring-white/10">
+            <div className="flex h-14 w-14 items-center justify-center rounded-lg bg-white/10 ring-1 ring-white/10">
               <img src="/system/favicon.png" alt="Store BoxSys" className="h-11 w-11 object-contain" />
             </div>
-            <p className="text-2xl font-black tracking-[-0.04em]"><span className="text-[#f58d0a]">Store</span><span className="text-[#5ba9ee]"> BoxSys</span></p>
+            <p className="text-2xl font-semibold"><span className="text-[#f58d0a]">Store</span><span className="text-[#5ba9ee]"> BoxSys</span></p>
           </div>
-          <p className="mb-4 text-[11px] font-black uppercase tracking-[0.24em] text-[#f7920c]">Ponto de venda</p>
-          <h1 className="max-w-md text-5xl font-black leading-[1.04] tracking-[-0.05em] text-white">Venda rápida.<br /><span className="text-[#5ba9ee]">Atendimento fluido.</span></h1>
+          <p className="mb-4 text-[11px] font-semibold text-[#f7920c]">Ponto de venda</p>
+          <h1 className="max-w-md text-5xl font-semibold leading-[1.04] text-white">Venda rápida.<br /><span className="text-[#5ba9ee]">Atendimento fluido.</span></h1>
           <p className="mt-6 max-w-sm text-base leading-7 text-slate-400">Entre no terminal para abrir o caixa, consultar produtos e concluir suas vendas.</p>
           <div className="mt-10 flex items-center gap-3 text-xs font-semibold text-slate-500"><span className="h-px w-10 bg-[#f7920c]" /> Ambiente protegido para operadores autorizados</div>
         </section>
       <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="w-full max-w-[420px] justify-self-center lg:justify-self-end">
         {/* Barra de status — reflete a conexão real do terminal, não decorativa */}
         <div className="mb-3 flex items-center justify-between px-1">
-          <span className="flex items-center gap-1.5 text-[10px] font-bold text-slate-400">
+          <span className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-400">
             Servidor:
-            <span className={cn("font-black", isOnline ? "text-emerald-600" : "text-rose-500")}>
+            <span className={cn("font-semibold", isOnline ? "text-emerald-600" : "text-rose-500")}>
               {isOnline ? "conectado" : "offline"}
             </span>
           </span>
-          <span className="text-[10px] font-bold text-slate-500">Terminal PDV</span>
+          <span className="text-[11px] font-semibold text-slate-500">Terminal PDV</span>
         </div>
 
-        <div className="overflow-hidden rounded-3xl border border-white/10 bg-[#0d1d2b]/90 shadow-[0_24px_60px_rgba(0,0,0,.28)] backdrop-blur-xl">
+        <div className="overflow-hidden rounded-lg border border-white/10 bg-[#0d1d2b]/90 shadow-[0_24px_60px_rgba(0,0,0,.28)] backdrop-blur-xl">
           <div className="flex items-center gap-3 border-b border-white/10 px-6 py-5">
-            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-white/10 ring-1 ring-white/10">
+            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-white/10 ring-1 ring-white/10">
               <img src="/system/favicon.png" alt="Store BoxSys" className="h-9 w-9 object-contain" />
             </div>
             <div>
-              <h1 className="text-[15px] font-black leading-tight"><span className="text-[#f58d0a]">Store</span><span className="text-[#5ba9ee]"> BoxSys</span></h1>
-              <p className="mt-0.5 text-[10px] font-medium text-slate-400">Terminal de Vendas</p>
+              <h1 className="text-[15px] font-semibold leading-tight"><span className="text-[#f58d0a]">Store</span><span className="text-[#5ba9ee]"> BoxSys</span></h1>
+              <p className="mt-0.5 text-[11px] font-medium text-slate-400">Terminal de Vendas</p>
             </div>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-4 px-6 py-6">
             <div>
-              <label className="mb-1.5 block text-[10px] font-semibold text-slate-400">E-mail ou usuário</label>
+              <label className="mb-1.5 block text-[11px] font-semibold text-slate-400">E-mail ou usuário</label>
               <input type="text" value={identifier} onChange={(e) => setIdentifier(e.target.value)} required autoFocus
                 placeholder="ex: joyce.antunes"
-                className="auth-input h-11 w-full rounded-xl border border-white/10 bg-white/[0.06] px-3.5 text-[13px] font-medium text-white placeholder:text-slate-500 transition-all focus:border-[#297ed1] focus:bg-white/[0.09] focus:outline-none focus:ring-2 focus:ring-[#297ed1]/20" />
+                className="auth-input h-11 w-full rounded-lg border border-white/10 bg-white/[0.06] px-3.5 text-[13px] font-medium text-white placeholder:text-slate-500 transition-all focus:border-[#297ed1] focus:bg-white/[0.09] focus:outline-none focus:ring-2 focus:ring-[#297ed1]/20" />
             </div>
             <div>
-              <label className="mb-1.5 block text-[10px] font-semibold text-slate-400">Senha</label>
+              <label className="mb-1.5 block text-[11px] font-semibold text-slate-400">Senha</label>
               <div className="relative">
                 <input type={showPassword ? "text" : "password"} value={password} onChange={(e) => setPassword(e.target.value)} required
                   placeholder="••••••••"
-                  className="auth-input h-11 w-full rounded-xl border border-white/10 bg-white/[0.06] pl-3.5 pr-10 text-[13px] font-medium text-white placeholder:text-slate-500 transition-all focus:border-[#297ed1] focus:bg-white/[0.09] focus:outline-none focus:ring-2 focus:ring-[#297ed1]/20" />
+                  className="auth-input h-11 w-full rounded-lg border border-white/10 bg-white/[0.06] pl-3.5 pr-10 text-[13px] font-medium text-white placeholder:text-slate-500 transition-all focus:border-[#297ed1] focus:bg-white/[0.09] focus:outline-none focus:ring-2 focus:ring-[#297ed1]/20" />
                 <button
                   type="button"
                   tabIndex={-1}
@@ -280,7 +287,7 @@ function PDVLogin({ onLogin }: { onLogin: (token: string) => void }) {
             )}
 
             <button type="submit" disabled={loading}
-              className="mt-2 flex h-11 w-full cursor-pointer items-center justify-center gap-2 rounded-xl bg-[#297ed1] text-[12px] font-bold text-white shadow-[0_10px_22px_rgba(41,126,209,.25)] transition-all hover:bg-[#1f6ebd] active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-40">
+              className="mt-2 flex h-11 w-full cursor-pointer items-center justify-center gap-2 rounded-lg bg-[#297ed1] text-[12px] font-semibold text-white shadow-[0_10px_22px_rgba(41,126,209,.25)] transition-all hover:bg-[#1f6ebd] active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-40">
               {loading ? <Loader2 size={15} className="animate-spin" /> : null}
               {loading ? "Entrando..." : "Entrar no sistema"}
             </button>
@@ -467,6 +474,15 @@ export default function PDVStandalone() {
   // services
   const [services, setServices]               = useState<ServiceItem[]>([]);
   const [cartServices, setCartServices]       = useState<ServiceItem[]>([]);
+  // Edição do serviço só para esta venda: não altera o cadastro em Serviços.
+  const [editSvc, setEditSvc] = useState<{ id: number; name: string; priceCents: string } | null>(null);
+  const openEditSvc = (svc: ServiceItem) => setEditSvc({ id: svc.id, name: svc.name, priceCents: String(Math.round(Number(svc.price) * 100)) });
+  const editSvcPrice = editSvc ? Number(editSvc.priceCents || 0) / 100 : 0;
+  const saveEditSvc = () => {
+    if (!editSvc || !editSvc.name.trim() || !(editSvcPrice > 0)) return;
+    setCartServices((prev) => prev.map((s) => s.id === editSvc.id ? { ...s, name: editSvc.name.trim(), price: editSvcPrice } : s));
+    setEditSvc(null);
+  };
   const [showServicesModal, setShowServicesModal] = useState(false);
   const [showServicesTab, setShowServicesTab] = useState(false);
 
@@ -2446,27 +2462,26 @@ ${nfceInvoice.protocol ? `<div class="row"><span class="bold">Protocolo:</span><
     <div className="h-screen flex flex-col overflow-hidden font-sans bg-slate-100 [&_button]:cursor-pointer [&_button:disabled]:cursor-not-allowed">
 
       {/* ── Top Bar ──────────────────────────────────────────────────────────── */}
-      <header className="h-14 flex items-center justify-between gap-2 border-b border-[#1e3550] bg-[#0b1728] px-2.5 shadow-lg shadow-slate-950/10 sm:px-4">
+      <header className="h-14 flex items-center justify-between gap-2 border-b border-[#1e3550] bg-[#0b1728] px-2.5 shadow-sm sm:px-4">
 
         {/* Logo + nome */}
         <div className="flex min-w-0 items-center gap-2 sm:gap-3">
           {pdvStep === "payment" && showCheckoutModal && (
-            <button onClick={() => setPdvStep("cart")} disabled={finishing}
-              className="flex items-center gap-1 h-8 px-2.5 rounded-xl text-[10px] font-bold uppercase tracking-widest text-slate-500 border border-slate-200 hover:bg-slate-50 hover:text-slate-700 transition-all disabled:opacity-30 shrink-0 mr-1">
-              <ChevronLeft size={13} />
+            <Button variant="outline" size="lg" onClick={() => setPdvStep("cart")} disabled={finishing}
+              iconLeft={<ChevronLeft size={13} />} className="shrink-0 mr-1 border-white/10 bg-white/5 text-slate-300 hover:border-white/20 hover:bg-white/10 hover:text-white">
               <span className="hidden sm:inline">Voltar</span>
-            </button>
+            </Button>
           )}
           {tenantName && tenantName !== "PDV" && (
             <div className="hidden min-w-0 items-center gap-2 sm:flex">
               {tenantLogo ? (
                 <img src={tenantLogo} alt={tenantName} className="h-7 w-7 shrink-0 rounded-lg object-contain" />
               ) : (
-                <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-[#297ed1] text-[11px] font-black text-white">{tenantName.charAt(0).toUpperCase()}</div>
+                <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-[#297ed1] text-[11px] font-semibold text-white">{tenantName.charAt(0).toUpperCase()}</div>
               )}
               <div className="min-w-0">
-                <p className="max-w-[130px] truncate text-[12px] font-black leading-none text-white">{tenantName}</p>
-                <span className={cn("mt-1 flex items-center gap-1 text-[8px] font-bold uppercase tracking-wider", isOnline ? "text-emerald-600" : "text-amber-600")}><i className={cn("h-1.5 w-1.5 rounded-full", isOnline ? "bg-emerald-500" : "bg-amber-500")} />{isOnline ? "Terminal online" : "Modo offline"}</span>
+                <p className="max-w-[130px] truncate text-[12px] font-semibold leading-none text-white">{tenantName}</p>
+                <span className={cn("mt-1 flex items-center gap-1 text-[10px] font-semibold", isOnline ? "text-emerald-600" : "text-amber-600")}><i className={cn("h-1.5 w-1.5 rounded-full", isOnline ? "bg-emerald-500" : "bg-amber-500")} />{isOnline ? "Terminal online" : "Modo offline"}</span>
               </div>
             </div>
           )}
@@ -2477,7 +2492,7 @@ ${nfceInvoice.protocol ? `<div class="row"><span class="bold">Protocolo:</span><
         {!(pdvStep === "payment" && showCheckoutModal) && (
           <div className="hidden md:flex flex-1 justify-center px-4">
             <div className={cn(
-              "flex items-center gap-2 px-3.5 h-7 rounded-full border text-[10px] font-black uppercase tracking-widest transition-all duration-300",
+              "flex items-center gap-2 px-3.5 h-7 rounded-full border text-[11px] font-semibold transition-all duration-300",
               scanFeedback === "ok"
                 ? "bg-emerald-50 border-emerald-300 text-emerald-600"
                 : scanFeedback === "err"
@@ -2499,100 +2514,90 @@ ${nfceInvoice.protocol ? `<div class="row"><span class="bold">Protocolo:</span><
         {pdvStep === "payment" && showCheckoutModal ? (
           <div className="flex items-center gap-3 shrink-0">
             <div className="text-right">
-              <p className="text-[9px] font-bold uppercase tracking-widest text-slate-400">{cartQty} {cartQty === 1 ? "item" : "itens"}</p>
-              <p className="text-[18px] font-mono font-black text-slate-800 leading-none">R$ {total.toFixed(2)}</p>
+              <p className="text-[10px] font-semibold text-slate-400">{cartQty} {cartQty === 1 ? "item" : "itens"}</p>
+              <p className="text-[18px] font-mono font-semibold text-slate-800 leading-none">R$ {total.toFixed(2)}</p>
             </div>
           </div>
         ) : (
         <div className="flex items-center gap-1 sm:gap-1.5 min-w-0 overflow-x-auto pdv-scroll-light shrink pr-2 pt-2 -mt-2">
           {/* Offline status / pending sales */}
           {!isOnline && (
-            <span className="flex items-center gap-1.5 px-2 sm:px-3 h-8 rounded-full text-[10px] font-black uppercase tracking-widest text-amber-700 border border-amber-300 bg-amber-50">
+            <span className="flex items-center gap-1.5 px-2 sm:px-3 h-8 rounded-full text-[11px] font-semibold text-amber-700 border border-amber-300 bg-amber-50">
               <WifiOff size={11} /> <span className="hidden sm:inline">Offline</span>
             </span>
           )}
           {pendingCount > 0 && (
-            <button
+            <Button variant="outline" size="lg"
               onClick={async () => { setPendingSalesList(await getPendingSales()); setShowPendingModal(true); }}
-              title="Ver vendas aguardando sincronização"
-              className={cn(
-                "flex items-center gap-1.5 px-2 sm:px-3 h-8 rounded-full text-[10px] font-black uppercase tracking-widest border transition-all",
+              title="Ver vendas aguardando sincronização" aria-label="Ver vendas aguardando sincronização"
+              iconLeft={<RefreshCw size={11} className={syncing ? "animate-spin" : ""} />}
+              className={cn("px-2 sm:px-3",
                 isOnline
-                  ? "text-blue-600 border-blue-200 bg-blue-50 hover:bg-blue-100"
-                  : "text-amber-700 border-amber-300 bg-amber-50 hover:bg-amber-100"
+                  ? "text-blue-600 border-blue-200 bg-blue-50 hover:bg-blue-100 hover:text-blue-700"
+                  : "text-amber-700 border-amber-300 bg-amber-50 hover:bg-amber-100 hover:text-amber-800"
               )}
             >
-              <RefreshCw size={11} className={syncing ? "animate-spin" : ""} />
               <span className="hidden sm:inline">{syncing ? "Sincronizando..." : `${pendingCount} pendente${pendingCount > 1 ? "s" : ""}`}</span>
-            </button>
+            </Button>
           )}
           {requireCashSession && cashSession && (
-            <button onClick={() => setShowCloseCashModal(true)}
-              title="Fechar Caixa"
-              className="flex items-center gap-1.5 px-2.5 h-8 rounded-xl text-[10px] font-bold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 hover:bg-emerald-500/20 hover:border-emerald-500/40 transition-all cursor-pointer">
-              <Wallet size={11} />
+            <Button variant="outline" size="lg" onClick={() => setShowCloseCashModal(true)}
+              title="Fechar Caixa" aria-label="Fechar Caixa" iconLeft={<Wallet size={11} />}
+              className="shrink-0 px-2.5 border-emerald-500/20 bg-emerald-500/10 text-emerald-400 hover:border-emerald-500/40 hover:bg-emerald-500/20 hover:text-emerald-300">
               <span className="hidden 2xl:block">Fechar caixa</span>
-            </button>
+            </Button>
           )}
-          <button onClick={() => setShowCrediarioModal(true)} title="Crediário (F6)"
-            className="flex items-center gap-1.5 px-2.5 h-8 rounded-xl text-[10px] font-bold text-amber-400 bg-amber-500/10 border border-amber-500/20 hover:bg-amber-500/20 hover:border-amber-500/40 transition-all cursor-pointer">
-            <Wallet size={11} />
+          <Button variant="outline" size="lg" onClick={() => setShowCrediarioModal(true)} title="Crediário (F6)" aria-label="Crediário (F6)"
+            iconLeft={<Wallet size={11} />} className="shrink-0 px-2.5 border-amber-500/20 bg-amber-500/10 text-amber-400 hover:border-amber-500/40 hover:bg-amber-500/20 hover:text-amber-300">
             <span className="hidden xl:block">Crediário</span>
-          </button>
-          <button onClick={() => setShowCustomerLookup(true)} title="Consultar Cliente (F7)"
-            className="flex items-center gap-1.5 px-2.5 h-8 rounded-xl text-[10px] font-bold text-blue-400 bg-blue-500/10 border border-blue-500/20 hover:bg-blue-500/20 hover:border-blue-500/40 transition-all cursor-pointer">
-            <User size={11} />
+          </Button>
+          <Button variant="outline" size="lg" onClick={() => setShowCustomerLookup(true)} title="Consultar Cliente (F7)" aria-label="Consultar Cliente (F7)"
+            iconLeft={<User size={11} />} className="shrink-0 px-2.5 border-blue-500/20 bg-blue-500/10 text-blue-400 hover:border-blue-500/40 hover:bg-blue-500/20 hover:text-blue-300">
             <span className="hidden xl:block">Cliente</span>
-          </button>
-          <button onClick={() => setShowConsignmentLookup(true)} title="Consultar Consignado (F8)"
-            className="flex items-center gap-1.5 px-2.5 h-8 rounded-xl text-[10px] font-bold text-violet-400 bg-violet-500/10 border border-violet-500/20 hover:bg-violet-500/20 hover:border-violet-500/40 transition-all cursor-pointer">
-            <ShoppingBag size={11} />
+          </Button>
+          <Button variant="outline" size="lg" onClick={() => setShowConsignmentLookup(true)} title="Consultar Consignado (F8)" aria-label="Consultar Consignado (F8)"
+            iconLeft={<ShoppingBag size={11} />} className="shrink-0 px-2.5 border-violet-500/20 bg-violet-500/10 text-violet-400 hover:border-violet-500/40 hover:bg-violet-500/20 hover:text-violet-300">
             <span className="hidden 2xl:block">Consignado</span>
-          </button>
-          <button onClick={() => setShowHeldSalesDrawer(true)} title="Vendas Abertas"
-            className="relative flex items-center gap-1.5 px-2.5 h-8 rounded-xl text-[10px] font-bold text-orange-400 bg-orange-500/10 border border-orange-500/20 hover:bg-orange-500/20 hover:border-orange-500/40 transition-all cursor-pointer">
-            <Clock size={11} />
+          </Button>
+          <Button variant="outline" size="lg" onClick={() => setShowHeldSalesDrawer(true)} title="Vendas Abertas" aria-label="Vendas Abertas"
+            iconLeft={<Clock size={11} />} className="relative shrink-0 px-2.5 border-orange-500/20 bg-orange-500/10 text-orange-400 hover:border-orange-500/40 hover:bg-orange-500/20 hover:text-orange-300">
             <span className="hidden 2xl:block">Vendas abertas</span>
             {openHeldSalesCount > 0 && (
-              <span className="absolute -top-1.5 -right-1.5 min-w-[16px] h-[16px] px-1 rounded-full bg-amber-500 text-white text-[9px] font-black flex items-center justify-center leading-none">
+              <span className="absolute -top-1.5 -right-1.5 min-w-[16px] h-[16px] px-1 rounded-full bg-amber-500 text-white text-[10px] font-semibold flex items-center justify-center leading-none">
                 {openHeldSalesCount > 99 ? "99+" : openHeldSalesCount}
               </span>
             )}
-          </button>
-          <button onClick={() => setShowSaleHistoryDrawer(true)} title="Histórico de Vendas — buscar e reimprimir cupom"
-            className="flex items-center gap-1.5 px-2.5 h-8 rounded-xl text-[10px] font-bold text-sky-400 bg-sky-500/10 border border-sky-500/20 hover:bg-sky-500/20 hover:border-sky-500/40 transition-all cursor-pointer">
-            <Printer size={11} />
+          </Button>
+          <Button variant="outline" size="lg" onClick={() => setShowSaleHistoryDrawer(true)} title="Histórico de Vendas — buscar e reimprimir cupom" aria-label="Histórico de Vendas"
+            iconLeft={<Printer size={11} />} className="shrink-0 px-2.5 border-sky-500/20 bg-sky-500/10 text-sky-400 hover:border-sky-500/40 hover:bg-sky-500/20 hover:text-sky-300">
             <span className="hidden 2xl:block">Reimprimir venda</span>
-          </button>
+          </Button>
           {/* Fullscreen toggle */}
-          <button onClick={toggleFullscreen} title={isFullscreen ? "Sair de tela cheia" : "Tela cheia"}
-            className="hidden xl:flex items-center gap-1.5 px-2.5 h-8 rounded-xl text-[10px] font-bold uppercase tracking-widest text-slate-300 bg-white/5 border border-white/10 hover:bg-white/10 hover:text-white transition-all cursor-pointer">
-            {isFullscreen ? <Minimize2 size={11} /> : <Maximize2 size={11} />}
+          <Button variant="outline" size="lg" onClick={toggleFullscreen} title={isFullscreen ? "Sair de tela cheia" : "Tela cheia"} aria-label={isFullscreen ? "Sair de tela cheia" : "Tela cheia"}
+            iconLeft={isFullscreen ? <Minimize2 size={11} /> : <Maximize2 size={11} />}
+            className="hidden xl:inline-flex shrink-0 px-2.5 border-white/10 bg-white/5 text-slate-300 hover:border-white/20 hover:bg-white/10 hover:text-white">
             {isFullscreen ? "Sair" : "Tela Cheia"}
-          </button>
+          </Button>
 
           {/* Instalar PWA */}
           {!pwaInstalled && (installPrompt || isSafari || isIos) && (
-            <button onClick={handleInstallPwa} title="Instalar App"
-              className="flex items-center gap-1.5 px-2 sm:px-2.5 h-8 rounded-xl text-[10px] font-bold uppercase tracking-widest text-blue-400 border border-blue-500/30 bg-blue-500/10 hover:bg-blue-500/20 transition-all cursor-pointer">
-              <Download size={11} /> <span className="hidden 2xl:inline">Instalar App</span>
-            </button>
+            <Button variant="outline" size="lg" onClick={handleInstallPwa} title="Instalar App" aria-label="Instalar App"
+              iconLeft={<Download size={11} />} className="shrink-0 px-2 sm:px-2.5 border-blue-500/20 bg-blue-500/10 text-blue-400 hover:border-blue-500/40 hover:bg-blue-500/20 hover:text-blue-300">
+              <span className="hidden 2xl:inline">Instalar App</span>
+            </Button>
           )}
           {pwaInstalled && (
-            <span className="hidden 2xl:flex items-center gap-1.5 px-3 h-8 rounded-xl text-[10px] font-bold uppercase tracking-widest text-white bg-gradient-to-r from-blue-600 to-blue-700 shadow-sm shadow-blue-200">
+            <span className="hidden 2xl:flex items-center gap-1.5 px-3 h-8 rounded-lg text-[11px] font-semibold text-white bg-gradient-to-r from-blue-600 to-blue-700 shadow-sm shadow-blue-200">
               <CheckCircle2 size={11} /> Instalado
             </span>
           )}
           {/* Usuário logado */}
           <div className="relative shrink-0">
-            <button ref={userMenuButtonRef} onClick={() => setShowUserMenu((v) => !v)} title={operatorName || "Usuário"}
-              className={cn(
-                "flex items-center gap-1.5 px-2 sm:px-3 h-8 rounded-xl text-[10px] font-bold uppercase tracking-widest border transition-all",
-                showUserMenu ? "text-blue-400 border-blue-500/30 bg-blue-500/10 cursor-pointer" : "text-slate-300 bg-white/5 border border-white/10 hover:bg-white/10 hover:text-white cursor-pointer"
-              )}>
-              <Settings size={11} />
+            <Button ref={userMenuButtonRef} variant="outline" size="lg" onClick={() => setShowUserMenu((v) => !v)} title={operatorName || "Usuário"} aria-label={operatorName || "Usuário"}
+              iconLeft={<Settings size={11} />}
+              className={cn("px-2 sm:px-3", showUserMenu ? "border-blue-500/20 bg-blue-500/10 text-blue-400 hover:border-blue-500/40 hover:bg-blue-500/20 hover:text-blue-300" : "border-white/10 bg-white/5 text-slate-300 hover:border-white/20 hover:bg-white/10 hover:text-white")}>
               <span className="hidden lg:inline max-w-[100px] truncate">{operatorName || "Usuário"}</span>
-            </button>
+            </Button>
             {showUserMenu && userMenuPos && createPortal(
               <AnimatePresence>
                 <div className="fixed inset-0 z-[190]" onClick={() => setShowUserMenu(false)} />
@@ -2602,15 +2607,13 @@ ${nfceInvoice.protocol ? `<div class="row"><span class="bold">Protocolo:</span><
                   exit={{ opacity: 0, y: -6, scale: 0.97 }}
                   transition={{ duration: 0.12 }}
                   style={{ position: "fixed", top: userMenuPos.top, right: userMenuPos.right }}
-                  className="z-[191] w-56 bg-white border border-slate-200 rounded-2xl shadow-xl overflow-hidden">
+                  className="z-[191] w-56 bg-white border border-slate-200 rounded-lg shadow-sm overflow-hidden">
                   <div className="px-4 py-3 border-b border-slate-100">
-                    <p className="text-[9px] font-black uppercase tracking-widest text-slate-400">Usuário logado</p>
-                    <p className="text-[13px] font-black text-slate-800 truncate mt-0.5">{operatorName || "Operador"}</p>
+                    <p className="text-[10px] font-semibold text-slate-400">Usuário logado</p>
+                    <p className="text-[13px] font-semibold text-slate-800 truncate mt-0.5">{operatorName || "Operador"}</p>
                   </div>
-                  <button onClick={() => { setShowUserMenu(false); handleLogout(); }}
-                    className="w-full flex items-center gap-2.5 px-4 h-11 text-[11px] font-bold text-red-500 hover:bg-red-50 transition-all">
-                    <LogOut size={14} /> Sair
-                  </button>
+                  <Button variant="ghost" size="lg" fullWidth className="h-11 justify-start px-4 text-red-500 hover:bg-red-50 hover:text-red-600"
+                    onClick={() => { setShowUserMenu(false); handleLogout(); }} iconLeft={<LogOut size={14} />}>Sair</Button>
                 </motion.div>
               </AnimatePresence>,
               document.body
@@ -2632,7 +2635,7 @@ ${nfceInvoice.protocol ? `<div class="row"><span class="bold">Protocolo:</span><
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.92, y: 24 }}
               transition={{ type: "spring", damping: 26, stiffness: 300 }}
-              className="fixed z-[601] left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-md bg-white rounded-3xl shadow-2xl overflow-hidden">
+              className="fixed z-[601] left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-md bg-white rounded-lg shadow-sm overflow-hidden">
 
               {/* Header */}
               <div className="relative bg-gradient-to-br from-slate-900 to-slate-800 px-7 pt-7 pb-8 overflow-hidden">
@@ -2643,12 +2646,12 @@ ${nfceInvoice.protocol ? `<div class="row"><span class="bold">Protocolo:</span><
                   <X size={14} className="text-white/60" />
                 </button>
                 <div className="relative flex items-center gap-4">
-                  <div className="flex h-16 w-16 items-center justify-center rounded-2xl border border-white/15 bg-white/10 shadow-xl shadow-blue-950/30">
+                  <div className="flex h-16 w-16 items-center justify-center rounded-lg border border-white/15 bg-white/10 shadow-sm">
                     <img src="/system/favicon.png" alt="Store BoxSys" className="h-12 w-12 object-contain" />
                   </div>
                   <div>
-                    <p className="text-[10px] font-black uppercase tracking-[0.25em] text-blue-400 mb-0.5">Terminal de Vendas</p>
-                    <h2 className="text-[22px] font-black leading-none"><span className="text-[#f7920c]">Store</span><span className="text-[#5ba9ee]"> BoxSys</span> <span className="text-white">PDV</span></h2>
+                    <p className="text-[11px] font-semibold text-blue-400 mb-0.5">Terminal de Vendas</p>
+                    <h2 className="text-[22px] font-semibold leading-none"><span className="text-[#f7920c]">Store</span><span className="text-[#5ba9ee]"> BoxSys</span> <span className="text-white">PDV</span></h2>
                     <p className="text-[11px] text-slate-400 font-medium mt-1">Instale na área de trabalho para acesso rápido</p>
                   </div>
                 </div>
@@ -2659,10 +2662,10 @@ ${nfceInvoice.protocol ? `<div class="row"><span class="bold">Protocolo:</span><
                     { icon: "📶", label: "Cache inteligente", sub: "Abre mesmo com net lenta" },
                     { icon: "🖥️", label: "Tela cheia", sub: "Sem barra do browser" },
                   ].map((v) => (
-                    <div key={v.label} className="bg-white/5 border border-white/10 rounded-xl p-2.5 text-center">
+                    <div key={v.label} className="bg-white/5 border border-white/10 rounded-lg p-2.5 text-center">
                       <p className="text-lg mb-0.5">{v.icon}</p>
-                      <p className="text-[10px] font-black text-white leading-tight">{v.label}</p>
-                      <p className="text-[9px] text-slate-500 font-medium mt-0.5">{v.sub}</p>
+                      <p className="text-[11px] font-semibold text-white leading-tight">{v.label}</p>
+                      <p className="text-[10px] text-slate-500 font-medium mt-0.5">{v.sub}</p>
                     </div>
                   ))}
                 </div>
@@ -2673,7 +2676,7 @@ ${nfceInvoice.protocol ? `<div class="row"><span class="bold">Protocolo:</span><
                 {(isSafari || isIos) ? (
                   /* Safari / iOS — instrução manual */
                   <div className="space-y-3">
-                    <p className="text-[12px] font-black text-slate-500 uppercase tracking-widest mb-4">
+                    <p className="text-[12px] font-semibold text-slate-500 mb-4">
                       {isIos ? "Como instalar no iPhone / iPad" : "Como instalar no Mac (Safari)"}
                     </p>
                     {(isIos
@@ -2688,16 +2691,16 @@ ${nfceInvoice.protocol ? `<div class="row"><span class="bold">Protocolo:</span><
                           { n: 3, icon: "✓", text: "Confirme clicando em \"Adicionar\"", sub: "O PDV abrirá como app independente na Dock" },
                         ]
                     ).map((s) => (
-                      <div key={s.n} className="flex items-start gap-3 p-3 bg-slate-50 rounded-2xl border border-slate-100">
-                        <span className="w-7 h-7 rounded-xl bg-blue-600 text-white text-[11px] font-black flex items-center justify-center shrink-0">{s.n}</span>
+                      <div key={s.n} className="flex items-start gap-3 p-3 bg-slate-50 rounded-lg border border-slate-100">
+                        <span className="w-7 h-7 rounded-lg bg-blue-600 text-white text-[11px] font-semibold flex items-center justify-center shrink-0">{s.n}</span>
                         <div>
-                          <p className="text-[13px] font-bold text-slate-800">{s.text}</p>
+                          <p className="text-[13px] font-semibold text-slate-800">{s.text}</p>
                           <p className="text-[11px] text-slate-400 font-medium mt-0.5">{s.sub}</p>
                         </div>
                       </div>
                     ))}
                     <button onClick={() => setShowInstallModal(false)}
-                      className="w-full mt-2 h-12 bg-slate-900 text-white rounded-2xl text-[12px] font-black hover:bg-slate-800 transition-all">
+                      className="w-full mt-2 h-12 bg-slate-900 text-white rounded-lg text-[12px] font-semibold hover:bg-slate-800 transition-all">
                       Entendido
                     </button>
                   </div>
@@ -2710,11 +2713,11 @@ ${nfceInvoice.protocol ? `<div class="row"><span class="bold">Protocolo:</span><
                     </p>
                     <div className="flex gap-3 mt-4">
                       <button onClick={() => setShowInstallModal(false)}
-                        className="flex-1 h-12 border border-slate-200 rounded-2xl text-[12px] font-bold text-slate-500 hover:bg-slate-50 transition-all">
+                        className="flex-1 h-12 border border-slate-200 rounded-lg text-[12px] font-semibold text-slate-500 hover:bg-slate-50 transition-all">
                         Agora não
                       </button>
                       <button onClick={confirmInstall}
-                        className="flex-1 h-12 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-2xl text-[12px] font-black hover:from-blue-500 hover:to-blue-600 transition-all shadow-lg shadow-blue-500/30 flex items-center justify-center gap-2">
+                        className="flex-1 h-12 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-lg text-[12px] font-semibold hover:from-blue-500 hover:to-blue-600 transition-all shadow-sm flex items-center justify-center gap-2">
                         <Download size={15} /> Instalar Agora
                       </button>
                     </div>
@@ -2735,37 +2738,27 @@ ${nfceInvoice.protocol ? `<div class="row"><span class="bold">Protocolo:</span><
 
           {/* Barra de busca */}
           <div className="flex gap-2 items-center">
-            <div className="relative flex-1">
-              <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
-              <input id="pdv-product-search" type="text" placeholder="Buscar produto por nome, código ou código de barras..." value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-10 pr-4 h-10 bg-white rounded-xl text-[13px] font-medium text-slate-700 placeholder:text-slate-400 focus:outline-none transition-all border border-slate-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 shadow-sm" />
-            </div>
-            <button onClick={() => scanInputRef.current?.focus()} title="Ativar leitura por código de barras"
-              className="hidden sm:flex items-center justify-center h-10 w-10 rounded-xl text-white shadow-sm shrink-0"
-              style={{ background: "linear-gradient(135deg, #3b82f6, #1d4ed8)" }}>
-              <Barcode size={15} />
-            </button>
+            <Input id="pdv-product-search" size="lg" type="text" placeholder="Buscar produto por nome, código ou código de barras..."
+              aria-label="Buscar no PDV" iconLeft={<Search size={14} />}
+              value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)}
+              wrapperClassName="flex-1" />
+            <Button variant="primary" size="lg" onClick={() => scanInputRef.current?.focus()} title="Ativar leitura por código de barras" aria-label="Ativar leitura por código de barras"
+              iconLeft={<Barcode size={15} />} className="hidden sm:inline-flex h-10 w-10 shrink-0 px-0" />
             {/* Item avulso — venda rápida sem cadastro no catálogo */}
-            <button
-              onClick={() => setShowAvulsoModal(true)}
-              title="Item Avulso"
-              className="shrink-0 h-10 px-3 rounded-xl flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wide text-emerald-600 border border-emerald-200 bg-white hover:bg-emerald-50 transition-all active:scale-[0.98]">
-              <PlusCircle size={14} />
+            <Button variant="outline" size="lg" onClick={() => setShowAvulsoModal(true)} title="Item Avulso" aria-label="Item Avulso"
+              iconLeft={<PlusCircle size={14} />} className="shrink-0 h-10 border-emerald-200 text-emerald-600 hover:border-emerald-300 hover:bg-emerald-50 hover:text-emerald-700">
               <span className="hidden sm:inline">Avulso</span>
-            </button>
-            <button onClick={() => setShowCartMobile(true)}
-              className="xl:hidden relative h-10 px-3 sm:px-4 rounded-xl flex items-center gap-2 text-[10px] font-black text-white shadow"
-              style={{ background: "linear-gradient(135deg, #3b82f6, #1d4ed8)" }}>
-              <ShoppingCart size={14} />
+            </Button>
+            <Button variant="primary" size="lg" onClick={() => setShowCartMobile(true)} aria-label="Abrir carrinho"
+              iconLeft={<ShoppingCart size={14} />} className="xl:hidden relative h-10 px-3 sm:px-4">
               {cartQty > 0 && (
-                <span className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-white text-blue-600 rounded-full text-[9px] font-black flex items-center justify-center shadow">{cartQty}</span>
+                <span className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-white text-blue-600 border border-blue-200 rounded-full text-[10px] font-semibold flex items-center justify-center">{cartQty}</span>
               )}
-            </button>
+            </Button>
           </div>
 
           {/* Categorias + aba Serviços */}
-          <div className="flex min-w-0 items-center gap-1.5 shrink-0 rounded-xl border border-slate-200/80 bg-slate-50/80 p-1 shadow-sm">
+          <div className="flex min-w-0 items-center gap-1.5 shrink-0 rounded-lg border border-slate-200/80 bg-slate-50/80 p-1 shadow-sm">
             <button
               type="button"
               onClick={() => scrollCategories(-1)}
@@ -2780,17 +2773,17 @@ ${nfceInvoice.protocol ? `<div class="row"><span class="bold">Protocolo:</span><
               <button
                 onClick={() => { setShowServicesTab(true); setSelectedCategory(null); }}
                 className={cn(
-                  "shrink-0 h-7 px-3 rounded-lg text-[10px] font-bold tracking-wide transition-all border flex items-center gap-1.5",
+                  "shrink-0 h-7 px-3 rounded-lg text-[11px] font-semibold transition-all border flex items-center gap-1.5",
                   showServicesTab
-                    ? "text-white border-violet-500 shadow"
-                    : "bg-white text-slate-500 border-slate-200 hover:border-violet-300 hover:text-violet-600"
+                    ? "text-white border-blue-500 shadow"
+                    : "bg-white text-slate-500 border-slate-200 hover:border-blue-300 hover:text-blue-600"
                 )}
-                style={showServicesTab ? { background: "linear-gradient(135deg,#8b5cf6,#6d28d9)" } : {}}>
+                style={showServicesTab ? { background: "linear-gradient(135deg,#3b82f6,#1d4ed8)" } : {}}>
                 <Wrench size={9} /> Serviços
                 {cartServices.length > 0 && (
                   <span className={cn(
-                    "ml-0.5 w-4 h-4 rounded-full text-[8px] font-black flex items-center justify-center",
-                    showServicesTab ? "bg-white/20 text-white" : "bg-violet-100 text-violet-700"
+                    "ml-0.5 w-4 h-4 rounded-full text-[10px] font-semibold flex items-center justify-center",
+                    showServicesTab ? "bg-white/20 text-white" : "bg-blue-100 text-blue-700"
                   )}>{cartServices.length}</span>
                 )}
               </button>
@@ -2799,7 +2792,7 @@ ${nfceInvoice.protocol ? `<div class="row"><span class="bold">Protocolo:</span><
               <button key={cat.id ?? "all"}
                 onClick={() => { setShowServicesTab(false); setSelectedCategory(cat.id); }}
                 className={cn(
-                  "shrink-0 h-7 px-3 rounded-lg text-[10px] font-bold tracking-wide transition-all border flex items-center gap-1",
+                  "shrink-0 h-7 px-3 rounded-lg text-[11px] font-semibold transition-all border flex items-center gap-1",
                   !showServicesTab && selectedCategory === cat.id
                     ? "text-white border-blue-500 shadow"
                     : "bg-white text-slate-500 border-slate-200 hover:border-blue-300 hover:text-blue-600"
@@ -2843,7 +2836,7 @@ ${nfceInvoice.protocol ? `<div class="row"><span class="bold">Protocolo:</span><
               {services.length === 0 ? (
                 <div className="h-full flex flex-col items-center justify-center gap-3">
                   <Wrench size={44} className="text-slate-300" strokeWidth={1} />
-                  <p className="text-[11px] font-black uppercase tracking-widest text-slate-400">Nenhum serviço cadastrado</p>
+                  <p className="text-[11px] font-semibold text-slate-400">Nenhum serviço cadastrado</p>
                 </div>
               ) : (
                 <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 2xl:grid-cols-5 gap-2 sm:gap-2.5">
@@ -2868,41 +2861,41 @@ ${nfceInvoice.protocol ? `<div class="row"><span class="bold">Protocolo:</span><
                         }}
                         whileTap={{ scale: 0.97 }}
                         className={cn(
-                          "bg-white rounded-2xl border flex flex-col items-start group relative text-left overflow-hidden transition-all duration-200 p-0",
+                          "bg-white rounded-lg border flex flex-col items-start group relative text-left overflow-hidden transition-all duration-200 p-0",
                           cartEntry
-                            ? "border-violet-400 shadow-md shadow-violet-100"
-                            : "border-slate-200 hover:border-violet-300 hover:shadow-md hover:shadow-violet-50"
+                            ? "border-blue-400 shadow-sm shadow-blue-100"
+                            : "border-slate-200 hover:border-blue-300 hover:shadow-sm hover:shadow-blue-50"
                         )}>
                         {/* Área ícone */}
                         <div className="w-full aspect-[4/3] flex items-center justify-center relative" style={{ background: `${catColor}1a`, color: catColor }}>
                           <CatIcon size={36} strokeWidth={1.5} />
                           {/* badge unidade */}
-                          <div className="absolute top-2 right-2 px-1.5 py-0.5 rounded-md text-[8px] font-mono font-bold bg-white/90 border border-slate-200 text-slate-500 shadow-sm">
+                          <div className="absolute top-2 right-2 px-1.5 py-0.5 rounded-md text-[10px] font-mono font-semibold bg-white/90 border border-slate-200 text-slate-500 shadow-sm">
                             {unitAbbr}
                           </div>
                           {/* badge qty no carrinho */}
                           {cartEntry && (
                             <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }}
-                              className="absolute top-2 left-2 w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-black text-white shadow"
-                              style={{ background: "linear-gradient(135deg,#8b5cf6,#6d28d9)" }}>
+                              className="absolute top-2 left-2 w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-semibold text-white shadow"
+                              style={{ background: "linear-gradient(135deg,#3b82f6,#1d4ed8)" }}>
                               {cartEntry.quantity ?? 1}
                             </motion.div>
                           )}
                           {/* overlay */}
-                          <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all duration-200 bg-violet-500/10">
-                            <div className="w-9 h-9 rounded-full flex items-center justify-center text-white scale-75 group-hover:scale-100 transition-transform shadow-lg"
-                              style={{ background: cartEntry ? "linear-gradient(135deg,#ef4444,#dc2626)" : "linear-gradient(135deg,#8b5cf6,#6d28d9)" }}>
+                          <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all duration-200 bg-blue-500/10">
+                            <div className="w-9 h-9 rounded-full flex items-center justify-center text-white scale-75 group-hover:scale-100 transition-transform shadow-sm"
+                              style={{ background: cartEntry ? "linear-gradient(135deg,#ef4444,#dc2626)" : "linear-gradient(135deg,#3b82f6,#1d4ed8)" }}>
                               {cartEntry ? <X size={16} strokeWidth={2.5} /> : <Plus size={16} strokeWidth={2.5} />}
                             </div>
                           </div>
                         </div>
                         {/* Info */}
                         <div className="w-full px-2.5 pt-2 pb-2.5">
-                          <p className="text-[11px] font-black text-slate-800 uppercase leading-tight line-clamp-2">{svc.name}</p>
-                          {svc.description && <p className="text-[9px] text-slate-400 mt-0.5 line-clamp-1">{svc.description}</p>}
-                          <p className="text-[12px] font-mono font-black text-violet-600 mt-1">
+                          <p className="text-[11px] font-semibold text-slate-800 leading-tight line-clamp-2">{svc.name}</p>
+                          {svc.description && <p className="text-[10px] text-slate-400 mt-0.5 line-clamp-1">{svc.description}</p>}
+                          <p className="text-[12px] font-mono font-semibold text-blue-700 mt-1">
                             R$ {(svc.sale_unit && svc.sale_unit !== "unidade" ? Number(svc.price_per_measure ?? 0) : Number(svc.price)).toFixed(2)}{" "}
-                            <span className="text-[9px] text-slate-400 font-bold flex items-center gap-0.5 inline-flex">
+                            <span className="text-[10px] text-slate-400 font-semibold flex items-center gap-0.5 inline-flex">
                               {svc.sale_unit && svc.sale_unit !== "unidade" && <Ruler size={7} />}
                               /{svc.sale_unit === "m2" ? "m²" : svc.sale_unit === "linear" ? "m" : unitAbbr}
                             </span>
@@ -2925,7 +2918,7 @@ ${nfceInvoice.protocol ? `<div class="row"><span class="bold">Protocolo:</span><
             ) : filteredProducts.length === 0 ? (
               <div className="h-full flex flex-col items-center justify-center gap-3">
                 <Package size={44} className="text-slate-300" strokeWidth={1} />
-                <p className="text-[11px] font-black uppercase tracking-widest text-slate-400">Nenhum produto encontrado</p>
+                <p className="text-[11px] font-semibold text-slate-400">Nenhum produto encontrado</p>
               </div>
             ) : viewMode === "list" ? (
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-1.5">
@@ -2938,7 +2931,7 @@ ${nfceInvoice.protocol ? `<div class="row"><span class="bold">Protocolo:</span><
                       onClick={() => addToCart(product)}
                       whileTap={{ scale: 0.98 }}
                       className={cn(
-                        "bg-white rounded-xl border border-slate-100 flex items-center gap-3 group relative text-left overflow-visible transition-all duration-200 px-3 py-2 hover:bg-blue-50/40 hover:border-blue-200",
+                        "bg-white rounded-lg border border-slate-100 flex items-center gap-3 group relative text-left overflow-visible transition-all duration-200 px-3 py-2 hover:bg-blue-50/40 hover:border-blue-200",
                         qtyInCart > 0
                           ? "cursor-pointer border-blue-400 shadow-sm shadow-blue-100"
                           : "cursor-pointer border-slate-200 hover:border-blue-300 hover:shadow-sm hover:shadow-blue-50"
@@ -2951,7 +2944,7 @@ ${nfceInvoice.protocol ? `<div class="row"><span class="bold">Protocolo:</span><
                         {qtyInCart > 0 && (
                           <span
                             title={`${qtyInCart} ${qtyInCart === 1 ? "unidade adicionada" : "unidades adicionadas"}`}
-                            className="absolute top-1 left-1 w-4.5 h-4.5 min-w-[18px] rounded-md flex items-center justify-center text-[9px] leading-none font-black text-white shadow"
+                            className="absolute top-1 left-1 w-4.5 h-4.5 min-w-[18px] rounded-md flex items-center justify-center text-[10px] leading-none font-semibold text-white shadow"
                             style={{ background: "linear-gradient(135deg,#3b82f6,#1d4ed8)" }}>
                             {qtyInCart}
                           </span>
@@ -2961,24 +2954,24 @@ ${nfceInvoice.protocol ? `<div class="row"><span class="bold">Protocolo:</span><
                       {/* Info */}
                       <div className="flex-1 min-w-0">
                         <p className="text-[12px] font-semibold text-slate-700 leading-snug">{product.name}</p>
-                        {hasVariations && <p className="text-[8px] font-black text-blue-500 uppercase tracking-widest">variações</p>}
+                        {hasVariations && <p className="text-[10px] font-semibold text-blue-500">variações</p>}
                       </div>
 
                       {/* Estoque */}
-                      <div className="shrink-0 px-1.5 py-0.5 rounded-md text-[9px] font-mono font-bold bg-slate-50 border border-slate-200 text-slate-500">
+                      <div className="shrink-0 px-1.5 py-0.5 rounded-md text-[10px] font-mono font-semibold bg-slate-50 border border-slate-200 text-slate-500">
                         {product.stock_quantity}
                       </div>
 
                       {/* Preço */}
                       {product.discount_price ? (
                         <div className="shrink-0 w-20 text-right">
-                          <p className="text-[9px] font-mono text-slate-400 line-through leading-none">R$ {Number(product.price).toFixed(2)}</p>
-                          <p className="text-[13px] font-mono font-black text-emerald-600 leading-tight flex items-center justify-end gap-1">
+                          <p className="text-[10px] font-mono text-slate-400 line-through leading-none">R$ {Number(product.price).toFixed(2)}</p>
+                          <p className="text-[13px] font-mono font-semibold text-emerald-600 leading-tight flex items-center justify-end gap-1">
                             <Tag size={10} /> R$ {Number(product.discount_price).toFixed(2)}
                           </p>
                         </div>
                       ) : (
-                        <p className="text-[13px] font-mono font-black text-blue-600 shrink-0 w-20 text-right">R$ {Number(product.price).toFixed(2)}</p>
+                        <p className="text-[13px] font-mono font-semibold text-blue-600 shrink-0 w-20 text-right">R$ {Number(product.price).toFixed(2)}</p>
                       )}
 
                       {/* Add */}
@@ -3001,10 +2994,10 @@ ${nfceInvoice.protocol ? `<div class="row"><span class="bold">Protocolo:</span><
                       onClick={() => addToCart(product)}
                       whileTap={{ scale: 0.97 }}
                       className={cn(
-                        "bg-white rounded-3xl border border-slate-100 flex flex-col items-start group relative text-left overflow-hidden transition-all duration-300 shadow-sm hover:shadow-xl hover:-translate-y-1",
+                        "bg-white rounded-lg border border-slate-100 flex flex-col items-start group relative text-left overflow-hidden transition-all duration-300 shadow-sm hover:shadow-sm hover:-translate-y-1",
                         qtyInCart > 0
-                          ? "cursor-pointer border-blue-400 shadow-md shadow-blue-100"
-                          : "cursor-pointer border-slate-200 hover:border-blue-300 hover:shadow-md hover:shadow-blue-50"
+                          ? "cursor-pointer border-blue-400 shadow-sm shadow-blue-100"
+                          : "cursor-pointer border-slate-200 hover:border-blue-300 hover:shadow-sm hover:shadow-blue-50"
                       )}>
 
                       {/* Imagem */}
@@ -3014,14 +3007,14 @@ ${nfceInvoice.protocol ? `<div class="row"><span class="bold">Protocolo:</span><
                           : <div className="w-full h-full flex items-center justify-center"><Package size={24} className="text-slate-300" /></div>}
 
                         {/* Badge estoque */}
-                        <div className="absolute top-2 right-2 px-1.5 py-0.5 rounded-md text-[8px] font-mono font-bold bg-white/90 border border-slate-200 text-slate-500 shadow-sm">
+                        <div className="absolute top-2 right-2 px-1.5 py-0.5 rounded-md text-[10px] font-mono font-semibold bg-white/90 border border-slate-200 text-slate-500 shadow-sm">
                           {product.stock_quantity} un.
                         </div>
 
                         {/* Badge carrinho */}
                         {qtyInCart > 0 && (
                           <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }}
-                            className="absolute top-2 left-2 w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-black text-white shadow"
+                            className="absolute top-2 left-2 w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-semibold text-white shadow"
                             style={{ background: "linear-gradient(135deg,#3b82f6,#1d4ed8)" }}>
                             {qtyInCart}
                           </motion.div>
@@ -3029,7 +3022,7 @@ ${nfceInvoice.protocol ? `<div class="row"><span class="bold">Protocolo:</span><
 
                         {/* Badge promoção */}
                         {!!product.discount_price && (
-                          <div className="absolute bottom-2 left-2 flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[8px] font-black uppercase tracking-wide bg-emerald-500 text-white shadow-sm">
+                          <div className="absolute bottom-2 left-2 flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[10px] font-semibold bg-emerald-500 text-white shadow-sm">
                             <Tag size={9} />
                             -{Math.round((1 - Number(product.discount_price) / Number(product.price)) * 100)}%
                           </div>
@@ -3038,7 +3031,7 @@ ${nfceInvoice.protocol ? `<div class="row"><span class="bold">Protocolo:</span><
                         {/* Overlay hover */}
                         {(
                           <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all duration-200 bg-blue-500/10">
-                            <div className="w-9 h-9 rounded-full flex items-center justify-center text-white scale-75 group-hover:scale-100 transition-transform shadow-lg"
+                            <div className="w-9 h-9 rounded-full flex items-center justify-center text-white scale-75 group-hover:scale-100 transition-transform shadow-sm"
                               style={{ background: "linear-gradient(135deg,#3b82f6,#1d4ed8)" }}>
                               <Plus size={16} strokeWidth={2.5} />
                             </div>
@@ -3048,17 +3041,17 @@ ${nfceInvoice.protocol ? `<div class="row"><span class="bold">Protocolo:</span><
 
                       {/* Info */}
                       <div className="p-1.5 sm:p-2 w-full">
-                        <p className="text-[9px] sm:text-[10px] font-bold text-slate-700 leading-tight line-clamp-2 mb-1 min-h-[2.2em]">{product.name}</p>
+                        <p className="text-[10px] sm:text-[11px] font-semibold text-slate-700 leading-tight line-clamp-2 mb-1 min-h-[2.2em]">{product.name}</p>
                         {hasVariations && (
-                          <p className="text-[8px] font-black text-blue-500 uppercase tracking-widest mb-1">variações</p>
+                          <p className="text-[10px] font-semibold text-blue-500 mb-1">variações</p>
                         )}
                         {product.discount_price ? (
                           <div className="flex flex-col">
-                            <span className="text-[8px] sm:text-[9px] font-mono text-slate-400 line-through leading-none">R$ {Number(product.price).toFixed(2)}</span>
-                            <span className="text-[10px] sm:text-[12px] font-mono font-black text-emerald-600 leading-tight">R$ {Number(product.discount_price).toFixed(2)}</span>
+                            <span className="text-[10px] sm:text-[10px] font-mono text-slate-400 line-through leading-none">R$ {Number(product.price).toFixed(2)}</span>
+                            <span className="text-[11px] sm:text-[12px] font-mono font-semibold text-emerald-600 leading-tight">R$ {Number(product.discount_price).toFixed(2)}</span>
                           </div>
                         ) : (
-                          <p className="text-[10px] sm:text-[12px] font-mono font-black text-blue-600">
+                          <p className="text-[11px] sm:text-[12px] font-mono font-semibold text-blue-600">
                             R$ {Number(product.price).toFixed(2)}
                           </p>
                         )}
@@ -3081,6 +3074,7 @@ ${nfceInvoice.protocol ? `<div class="row"><span class="bold">Protocolo:</span><
             removeFromCart={removeFromCart}
             cartServices={cartServices}
             setCartServices={setCartServices}
+            onEditService={openEditSvc}
             subtotal={subtotal}
             discountValue={discountValue}
             surchargeValue={surchargeValue}
@@ -3099,448 +3093,302 @@ ${nfceInvoice.protocol ? `<div class="row"><span class="bold">Protocolo:</span><
       )}
 
       {/* ── Variation Modal ────────────────────────────────────────────────── */}
-      <AnimatePresence>
+      <Modal
+        open={!!configProduct}
+        onClose={() => setConfigProduct(null)}
+        title={configProduct?.name}
+        subtitle={configProduct ? `Selecionar variação · R$ ${Number(configProduct.discount_price || configProduct.price).toFixed(2)}` : undefined}
+        size="md"
+        footer={configProduct ? (
+          <ModalFooter>
+            <div className="mr-auto hidden items-center gap-1.5 text-[11px] font-medium text-slate-400 sm:flex">
+              <span className="rounded-md border border-slate-200 px-1.5 py-1 text-slate-500">Esc</span> fechar
+              <span className="ml-1 rounded-md border border-slate-200 px-1.5 py-1 text-slate-500">Enter</span> adicionar
+            </div>
+            <Button variant="outline" size="lg" onClick={() => setConfigProduct(null)}>Cancelar</Button>
+            <Button variant="primary" size="lg" iconLeft={<Plus size={16} />} onClick={() => addToCart(configProduct, selectedOptions)}>
+              Adicionar ao Carrinho
+            </Button>
+          </ModalFooter>
+        ) : undefined}
+      >
         {configProduct && (
-          <motion.div
-            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[200] flex items-end sm:items-center justify-center sm:p-4"
-            style={{ background: "rgba(5,8,20,0.88)", backdropFilter: "blur(16px)" }}>
-            <motion.div
-              initial={{ opacity: 0, y: 40, scale: 0.97 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: 30, scale: 0.97 }}
-              transition={{ type: "spring", damping: 28, stiffness: 260 }}
-              className="w-full sm:max-w-[720px] rounded-t-[28px] sm:rounded-3xl overflow-hidden shadow-2xl"
-              style={{ background: "#0f1623", border: "1px solid rgba(255,255,255,0.09)" }}>
-
-              {/* Imagem + header */}
-              <div className="relative">
-                {/* Imagem de fundo */}
-                <div className="h-28 overflow-hidden relative" style={{ background: "rgba(255,255,255,0.05)" }}>
-                  {configProduct.image_url ? (
-                    <img src={configProduct.image_url} alt={configProduct.name}
-                      className="w-full h-full object-cover opacity-40" />
-                  ) : (
-                    <div className="w-full h-full flex items-center justify-center">
-                      <Package size={40} className="text-white/10" strokeWidth={1} />
-                    </div>
-                  )}
-                  {/* Gradient overlay */}
-                  <div className="absolute inset-0" style={{ background: "linear-gradient(to bottom, transparent 20%, #0f1623 100%)" }} />
-                </div>
-
-                {/* Thumbnail + nome flutuando sobre a imagem */}
-                <div className="absolute bottom-0 left-0 right-0 flex items-end gap-3 px-6 pb-4">
-                  {/* Thumbnail */}
-                  <div className="w-16 h-16 rounded-2xl overflow-hidden shrink-0 shadow-xl"
-                    style={{ border: "2px solid rgba(255,255,255,0.12)", background: "rgba(255,255,255,0.08)" }}>
-                    {configProduct.image_url
-                      ? <img src={configProduct.image_url} alt={configProduct.name} className="w-full h-full object-contain p-1" />
-                      : <div className="w-full h-full flex items-center justify-center"><Package size={22} className="text-white/30" /></div>}
-                  </div>
-                  <div className="flex-1 pb-0.5">
-                    <p className="text-[9px] font-black uppercase tracking-[0.25em] mb-0.5" style={{ color: "#60a5fa" }}>Selecionar variação</p>
-                    <h3 className="text-[15px] font-black text-white leading-tight line-clamp-2">{configProduct.name}</h3>
-                    <p className="text-[13px] font-mono font-black mt-0.5" style={{ color: "#34d399" }}>
-                      R$ {Number(configProduct.price).toFixed(2)}
-                    </p>
-                  </div>
-                </div>
-
-                {/* Fechar */}
-                <button onClick={() => setConfigProduct(null)}
-                  className="absolute top-3 right-3 w-8 h-8 rounded-full flex items-center justify-center transition-all"
-                  style={{ background: "rgba(0,0,0,0.5)", border: "1px solid rgba(255,255,255,0.1)" }}>
-                  <X size={15} className="text-white/60" />
-                </button>
-              </div>
-
-              {/* Opções */}
-              <div className="px-6 pt-4 pb-4 space-y-5 max-h-[52vh] overflow-y-auto pdv-scroll-dark">
-                {Array.isArray(configProduct.attributes) && configProduct.attributes.length > 0
-                  ? configProduct.attributes.map((attr, aIdx) => (
-                      <div key={aIdx}>
-                        <div className="flex items-center gap-2 mb-3">
-                          <p className="text-[9px] font-black uppercase tracking-[0.2em] text-white/35">{attr.name}</p>
-                          <div className="flex-1 h-px" style={{ background: "rgba(255,255,255,0.06)" }} />
-                        </div>
-                        <div className="grid grid-cols-3 sm:grid-cols-5 gap-2">
-                          {attr.values.map((val, vIdx) => {
-                            const currentOptions = { ...selectedOptions, [attr.name]: val };
-                            const sku = configProduct.skus?.find((s) =>
-                              Object.entries(s.combo).every(([k, v]) => currentOptions[k] === v));
-                            const stockQty = sku ? sku.stock : null;
-                            const hasStock = stockQty === null || stockQty > 0;
-                            const isSelected = selectedOptions[attr.name] === val;
-                            return (
-                              <button key={vIdx} disabled={!hasStock}
-                                onClick={() => setSelectedOptions({ ...selectedOptions, [attr.name]: val })}
-                                className={cn("flex flex-col items-center justify-center px-3 py-2 rounded-xl transition-all border min-h-12 w-full",
-                                  !hasStock
-                                    ? "opacity-30 cursor-not-allowed"
-                                    : isSelected
-                                    ? "shadow-lg shadow-blue-500/25"
-                                    : "hover:border-white/20"
-                                )}
-                                style={isSelected
-                                  ? { background: "rgba(59,130,246,0.2)", border: "1px solid rgba(59,130,246,0.6)" }
-                                  : { background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.08)" }}>
-                                <span className={cn("text-[12px] font-bold tracking-wide", !hasStock && "line-through",
-                                  isSelected ? "text-blue-300" : "text-white/70")}>
-                                  {val}
-                                </span>
-                                {stockQty !== null && (
-                                  <span className={cn("text-[9px] font-semibold mt-0.5",
-                                    stockQty === 0 ? "text-red-400/60"
-                                    : stockQty <= 3 ? "text-amber-400/80"
-                                    : "text-white/30")}>
-                                    {stockQty === 0 ? "esgotado" : `${stockQty} un`}
-                                  </span>
-                                )}
-                              </button>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    ))
-                  : configProduct.variations?.map((variation, vIdx) => (
-                      <div key={vIdx}>
-                        <div className="flex items-center gap-2 mb-3">
-                          <p className="text-[9px] font-black uppercase tracking-[0.2em] text-white/35">{variation.name}</p>
-                          <div className="flex-1 h-px" style={{ background: "rgba(255,255,255,0.06)" }} />
-                        </div>
-                        <div className="grid grid-cols-3 sm:grid-cols-5 gap-2">
-                          {variation.options.map((opt, oIdx) => {
-                            const isSelected = selectedOptions[variation.name] === opt.value;
-                            return (
-                              <button key={oIdx} disabled={opt.stock === 0}
-                                onClick={() => setSelectedOptions({ ...selectedOptions, [variation.name]: opt.value })}
-                                className={cn("flex flex-col items-center justify-center px-3 py-2 rounded-xl transition-all border min-h-12 w-full",
-                                  opt.stock === 0
-                                    ? "opacity-30 cursor-not-allowed"
-                                    : isSelected
-                                    ? "shadow-lg shadow-blue-500/25"
-                                    : "hover:border-white/20"
-                                )}
-                                style={isSelected
-                                  ? { background: "rgba(59,130,246,0.2)", border: "1px solid rgba(59,130,246,0.6)" }
-                                  : { background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.08)" }}>
-                                <span className={cn("text-[12px] font-bold tracking-wide", opt.stock === 0 && "line-through",
-                                  isSelected ? "text-blue-300" : "text-white/70")}>
-                                  {opt.value}
-                                </span>
-                                <span className={cn("text-[9px] font-semibold mt-0.5",
-                                  opt.stock === 0 ? "text-red-400/60"
-                                  : opt.stock <= 3 ? "text-amber-400/80"
-                                  : "text-white/30")}>
-                                  {opt.stock === 0 ? "esgotado" : `${opt.stock} un`}
-                                </span>
-                              </button>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    ))}
-
-                {/* Tabela resumo de estoque por combinação */}
-                {configProduct.skus && configProduct.skus.length > 0 && (
-                  <div>
-                    <div className="flex items-center gap-2 mb-3">
-                      <p className="text-[9px] font-black uppercase tracking-[0.2em] text-white/35">Estoque disponível</p>
-                      <div className="flex-1 h-px" style={{ background: "rgba(255,255,255,0.06)" }} />
-                    </div>
-                    <div className="rounded-xl overflow-hidden" style={{ border: "1px solid rgba(255,255,255,0.07)" }}>
-                      {configProduct.skus.map((sku, sIdx) => {
-                        const label = Object.values(sku.combo).join(" · ");
-                        const isCurrentSelection = Object.entries(sku.combo).every(([k, v]) => selectedOptions[k] === v);
+          <div className="space-y-4">
+            {Array.isArray(configProduct.attributes) && configProduct.attributes.length > 0
+              ? configProduct.attributes.map((attr, aIdx) => (
+                  <div key={aIdx}>
+                    <p className="mb-2 text-xs font-medium text-slate-600">{attr.name}</p>
+                    <div className="flex flex-wrap gap-2">
+                      {attr.values.map((val, vIdx) => {
+                        const currentOptions = { ...selectedOptions, [attr.name]: val };
+                        const sku = configProduct.skus?.find((s) =>
+                          Object.entries(s.combo).every(([k, v]) => currentOptions[k] === v));
+                        const stockQty = sku ? sku.stock : null;
+                        const hasStock = stockQty === null || stockQty > 0;
+                        const isSelected = selectedOptions[attr.name] === val;
                         return (
-                          <div key={sIdx}
-                            className={cn("flex items-center justify-between px-3 py-2 transition-all", sIdx > 0 && "border-t")}
-                            style={{
-                              borderColor: "rgba(255,255,255,0.05)",
-                              background: isCurrentSelection ? "rgba(59,130,246,0.12)" : "rgba(255,255,255,0.02)"
-                            }}>
-                            <div className="flex items-center gap-2">
-                              {isCurrentSelection && <div className="w-1 h-4 rounded-full bg-blue-500" />}
-                              <span className="text-[11px] font-medium text-white/60">{label}</span>
-                            </div>
-                            <span className={cn("text-[11px] font-black",
-                              sku.stock === 0 ? "text-red-400/70"
-                              : sku.stock <= 3 ? "text-amber-400"
-                              : "text-emerald-400")}>
-                              {sku.stock === 0 ? "Esgotado" : `${sku.stock} un`}
+                          <button key={vIdx} type="button" disabled={!hasStock}
+                            onClick={() => setSelectedOptions({ ...selectedOptions, [attr.name]: val })}
+                            className={cn("flex min-h-[44px] min-w-[64px] flex-col items-center justify-center rounded-lg border px-3 py-1.5 transition-colors",
+                              !hasStock ? "cursor-not-allowed border-slate-200 bg-slate-50 opacity-50"
+                                : isSelected ? "border-blue-600 bg-blue-50"
+                                : "border-slate-200 bg-white hover:border-blue-300"
+                            )}>
+                            <span className={cn("text-xs font-medium", !hasStock && "line-through",
+                              isSelected ? "text-blue-700" : "text-slate-700")}>
+                              {val}
                             </span>
-                          </div>
+                            {stockQty !== null && (
+                              <span className={cn("mt-0.5 text-[10px] font-medium",
+                                stockQty === 0 ? "text-red-500"
+                                : stockQty <= 3 ? "text-amber-600"
+                                : "text-slate-400")}>
+                                {stockQty === 0 ? "esgotado" : `${stockQty} un`}
+                              </span>
+                            )}
+                          </button>
                         );
                       })}
                     </div>
                   </div>
-                )}
-              </div>
+                ))
+              : configProduct.variations?.map((variation, vIdx) => (
+                  <div key={vIdx}>
+                    <p className="mb-2 text-xs font-medium text-slate-600">{variation.name}</p>
+                    <div className="flex flex-wrap gap-2">
+                      {variation.options.map((opt, oIdx) => {
+                        const isSelected = selectedOptions[variation.name] === opt.value;
+                        return (
+                          <button key={oIdx} type="button" disabled={opt.stock === 0}
+                            onClick={() => setSelectedOptions({ ...selectedOptions, [variation.name]: opt.value })}
+                            className={cn("flex min-h-[44px] min-w-[64px] flex-col items-center justify-center rounded-lg border px-3 py-1.5 transition-colors",
+                              opt.stock === 0 ? "cursor-not-allowed border-slate-200 bg-slate-50 opacity-50"
+                                : isSelected ? "border-blue-600 bg-blue-50"
+                                : "border-slate-200 bg-white hover:border-blue-300"
+                            )}>
+                            <span className={cn("text-xs font-medium", opt.stock === 0 && "line-through",
+                              isSelected ? "text-blue-700" : "text-slate-700")}>
+                              {opt.value}
+                            </span>
+                            <span className={cn("mt-0.5 text-[10px] font-medium",
+                              opt.stock === 0 ? "text-red-500"
+                              : opt.stock <= 3 ? "text-amber-600"
+                              : "text-slate-400")}>
+                              {opt.stock === 0 ? "esgotado" : `${opt.stock} un`}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))}
 
-              {/* Botão confirmar */}
-              <div className="px-6 pb-5 pt-3 flex items-center gap-3" style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }}>
-                <div className="hidden sm:flex items-center gap-1.5 text-[9px] font-bold text-white/35 uppercase tracking-wider shrink-0">
-                  <span className="border border-white/10 rounded-md px-1.5 py-1 text-white/60">Esc</span> fechar
-                  <span className="border border-white/10 rounded-md px-1.5 py-1 text-white/60 ml-1">Enter</span> adicionar
+            {/* Tabela resumo de estoque por combinação */}
+            {configProduct.skus && configProduct.skus.length > 0 && (
+              <div>
+                <p className="mb-2 text-xs font-medium text-slate-600">Estoque disponível</p>
+                <div className="overflow-hidden rounded-lg border border-slate-200">
+                  {configProduct.skus.map((sku, sIdx) => {
+                    const label = Object.values(sku.combo).join(" · ");
+                    const isCurrentSelection = Object.entries(sku.combo).every(([k, v]) => selectedOptions[k] === v);
+                    return (
+                      <div key={sIdx}
+                        className={cn("flex items-center justify-between px-3 py-2",
+                          sIdx > 0 && "border-t border-slate-100",
+                          isCurrentSelection ? "bg-blue-50" : "bg-white")}>
+                        <div className="flex items-center gap-2">
+                          {isCurrentSelection && <div className="h-4 w-1 rounded-full bg-blue-500" />}
+                          <span className="text-[11px] font-medium text-slate-600">{label}</span>
+                        </div>
+                        <Badge size="sm" color={sku.stock === 0 ? "danger" : sku.stock <= 3 ? "warning" : "success"}>
+                          {sku.stock === 0 ? "Esgotado" : `${sku.stock} un`}
+                        </Badge>
+                      </div>
+                    );
+                  })}
                 </div>
-                <button onClick={() => addToCart(configProduct, selectedOptions)}
-                  className="flex-1 h-11 rounded-xl text-[11px] font-black uppercase tracking-[0.15em] text-white flex items-center justify-center gap-2 transition-all active:scale-98 shadow-xl shadow-blue-500/25"
-                  style={{ background: "linear-gradient(135deg, #3b82f6, #1d4ed8)" }}>
-                  <Plus size={16} strokeWidth={3} /> Adicionar ao Carrinho
-                </button>
               </div>
-            </motion.div>
-          </motion.div>
+            )}
+          </div>
         )}
-      </AnimatePresence>
+      </Modal>
 
       {/* ── MEASURE (m²/linear) MODAL ───────────────────────────────────────── */}
-      <AnimatePresence>
+      <Modal
+        open={!!measureProduct}
+        onClose={() => setMeasureProduct(null)}
+        title={measureProduct?.name}
+        subtitle={measureProduct ? `Venda por ${measureProduct.sale_unit === "m2" ? "m²" : "metro linear"}` : undefined}
+        size="sm"
+        footer={measureProduct ? (
+          <ModalFooter>
+            <Button variant="outline" size="lg" onClick={() => setMeasureProduct(null)}>Cancelar</Button>
+            <Button variant="primary" size="lg" iconLeft={<Plus size={16} />} onClick={addMeasuredToCart}
+              disabled={!measurePreview || measurePreview.rawQuantity <= 0 || (!sellWithoutStockControl && measurePreview.rawQuantity > Number(measureProduct.measure_stock_quantity ?? 0) + 0.0005)}>
+              Adicionar ao Carrinho
+            </Button>
+          </ModalFooter>
+        ) : undefined}
+      >
         {measureProduct && (
-          <motion.div
-            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[200] flex items-end sm:items-center justify-center sm:p-4"
-            style={{ background: "rgba(5,8,20,0.88)", backdropFilter: "blur(16px)" }}>
-            <motion.div
-              initial={{ opacity: 0, y: 40, scale: 0.97 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: 30, scale: 0.97 }}
-              transition={{ type: "spring", damping: 28, stiffness: 260 }}
-              className="w-full sm:max-w-sm rounded-t-[28px] sm:rounded-3xl overflow-hidden shadow-2xl bg-white"
-            >
-              <div className="px-5 pt-5 pb-3 flex items-center justify-between border-b border-slate-100">
-                <div>
-                  <p className="text-[9px] font-black uppercase tracking-widest text-blue-500">
-                    Venda por {measureProduct.sale_unit === "m2" ? "m²" : "metro linear"}
+          <div className="space-y-3">
+            {measureProduct.sale_unit === "m2" ? (
+              <div className="grid grid-cols-2 gap-3">
+                <Input size="lg" label="Altura (m)" type="text" inputMode="decimal" autoFocus value={measureHeight}
+                  onChange={(e) => setMeasureHeight(e.target.value)}
+                  placeholder="0,00" className="text-center font-mono font-semibold" />
+                <Input size="lg" label="Largura (m)" type="text" inputMode="decimal" value={measureWidth}
+                  onChange={(e) => setMeasureWidth(e.target.value)}
+                  placeholder="0,00" className="text-center font-mono font-semibold" />
+              </div>
+            ) : (
+              <Input size="lg" label="Comprimento (m)" type="text" inputMode="decimal" autoFocus value={measureHeight}
+                onChange={(e) => setMeasureHeight(e.target.value)}
+                placeholder="0,00" className="text-center font-mono font-semibold" />
+            )}
+
+            {measurePreview && measurePreview.rawQuantity > 0 && (
+              <div className="space-y-1.5 rounded-lg bg-slate-900 p-4">
+                <div className="flex justify-between text-[11px] font-semibold text-slate-400">
+                  <span>{measureProduct.sale_unit === "m2" ? "Área" : "Comprimento"}</span>
+                  <span className="font-mono text-slate-200">{measurePreview.label}</span>
+                </div>
+                {measurePreview.minimumApplied && (
+                  <p className="text-[11px] font-semibold text-amber-400">
+                    Cobrando o mínimo de {Number(measureProduct.min_billable_quantity).toFixed(2)}{measureProduct.sale_unit === "m2" ? "m²" : "m"}
                   </p>
-                  <h3 className="text-[15px] font-black text-slate-800">{measureProduct.name}</h3>
-                </div>
-                <button onClick={() => setMeasureProduct(null)} className="w-9 h-9 rounded-xl bg-slate-100 hover:bg-slate-200 flex items-center justify-center">
-                  <X size={16} className="text-slate-500" />
-                </button>
-              </div>
-
-              <div className="p-5 space-y-3">
-                {measureProduct.sale_unit === "m2" ? (
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400 mb-1.5 block">Altura (m)</label>
-                      <input type="text" inputMode="decimal" autoFocus value={measureHeight}
-                        onChange={(e) => setMeasureHeight(e.target.value)}
-                        placeholder="0,00"
-                        className="w-full h-11 px-3 rounded-xl border border-slate-200 text-sm font-mono font-bold text-center focus:outline-none focus:border-blue-400" />
-                    </div>
-                    <div>
-                      <label className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400 mb-1.5 block">Largura (m)</label>
-                      <input type="text" inputMode="decimal" value={measureWidth}
-                        onChange={(e) => setMeasureWidth(e.target.value)}
-                        placeholder="0,00"
-                        className="w-full h-11 px-3 rounded-xl border border-slate-200 text-sm font-mono font-bold text-center focus:outline-none focus:border-blue-400" />
-                    </div>
-                  </div>
-                ) : (
-                  <div>
-                    <label className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400 mb-1.5 block">Comprimento (m)</label>
-                    <input type="text" inputMode="decimal" autoFocus value={measureHeight}
-                      onChange={(e) => setMeasureHeight(e.target.value)}
-                      placeholder="0,00"
-                      className="w-full h-11 px-3 rounded-xl border border-slate-200 text-sm font-mono font-bold text-center focus:outline-none focus:border-blue-400" />
-                  </div>
                 )}
-
-                {measurePreview && measurePreview.rawQuantity > 0 && (
-                  <div className="bg-slate-900 rounded-2xl p-4 space-y-1.5">
-                    <div className="flex justify-between text-[10px] font-bold uppercase text-slate-400">
-                      <span>{measureProduct.sale_unit === "m2" ? "Área" : "Comprimento"}</span>
-                      <span className="font-mono text-slate-200">{measurePreview.label}</span>
-                    </div>
-                    {measurePreview.minimumApplied && (
-                      <p className="text-[10px] font-bold text-amber-400">
-                        Cobrando o mínimo de {Number(measureProduct.min_billable_quantity).toFixed(2)}{measureProduct.sale_unit === "m2" ? "m²" : "m"}
-                      </p>
-                    )}
-                    <div className="flex justify-between text-[15px] font-black uppercase text-white pt-1.5 border-t border-slate-700">
-                      <span>Total</span>
-                      <span className="font-mono">R$ {measurePreview.total.toFixed(2)}</span>
-                    </div>
-                  </div>
-                )}
-                <p className="text-[10px] text-slate-500 font-medium">
-                  Saldo disponível: <span className="font-mono font-bold">{Number(measureProduct.measure_stock_quantity ?? 0).toFixed(3)} {measureProduct.sale_unit === "m2" ? "m²" : "m"}</span>
-                </p>
+                <div className="flex justify-between border-t border-slate-700 pt-1.5 text-[15px] font-semibold text-white">
+                  <span>Total</span>
+                  <span className="font-mono">R$ {measurePreview.total.toFixed(2)}</span>
+                </div>
               </div>
-
-              <div className="px-5 pb-6 pt-1">
-                <button onClick={addMeasuredToCart}
-                  disabled={!measurePreview || measurePreview.rawQuantity <= 0 || (!sellWithoutStockControl && measurePreview.rawQuantity > Number(measureProduct.measure_stock_quantity ?? 0) + 0.0005)}
-                  className="w-full h-12 rounded-2xl text-[12px] font-black uppercase tracking-[0.15em] text-white flex items-center justify-center gap-2 transition-all active:scale-[0.98] disabled:opacity-40"
-                  style={{ background: "linear-gradient(135deg, #3b82f6, #1d4ed8)" }}>
-                  <Plus size={16} strokeWidth={3} /> Adicionar ao Carrinho
-                </button>
-              </div>
-            </motion.div>
-          </motion.div>
+            )}
+            <p className="text-[11px] font-medium text-slate-500">
+              Saldo disponível: <span className="font-mono font-semibold">{Number(measureProduct.measure_stock_quantity ?? 0).toFixed(3)} {measureProduct.sale_unit === "m2" ? "m²" : "m"}</span>
+            </p>
+          </div>
         )}
-      </AnimatePresence>
-
-      {/* ── ITEM AVULSO MODAL ────────────────────────────────────────────────── */}
-      <AnimatePresence>
-        {showAvulsoModal && (
-          <motion.div
-            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[200] flex items-end sm:items-center justify-center sm:p-4"
-            style={{ background: "rgba(5,8,20,0.88)", backdropFilter: "blur(16px)" }}>
-            <motion.div
-              initial={{ opacity: 0, y: 40, scale: 0.97 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: 30, scale: 0.97 }}
-              transition={{ type: "spring", damping: 28, stiffness: 260 }}
-              className="w-full sm:max-w-sm rounded-t-[28px] sm:rounded-3xl overflow-hidden shadow-2xl bg-white"
-            >
-              <div className="px-5 pt-5 pb-3 flex items-center justify-between border-b border-slate-100">
-                <div>
-                  <p className="text-[9px] font-black uppercase tracking-widest text-emerald-500">Venda Rápida</p>
-                  <h3 className="text-[15px] font-black text-slate-800">Item Avulso</h3>
-                </div>
-                <button onClick={() => setShowAvulsoModal(false)} className="w-9 h-9 rounded-xl bg-slate-100 hover:bg-slate-200 flex items-center justify-center">
-                  <X size={16} className="text-slate-500" />
-                </button>
-              </div>
-
-              <div className="p-5 space-y-3">
-                <div>
-                  <label className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400 mb-1.5 block">Nome do item</label>
-                  <input type="text" autoFocus value={avulsoName}
-                    onChange={(e) => setAvulsoName(e.target.value)}
-                    placeholder="Ex: Peça avulsa do cliente"
-                    className="w-full h-11 px-3 rounded-xl border border-slate-200 text-sm font-medium focus:outline-none focus:border-emerald-400" />
-                </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400 mb-1.5 block">Valor unitário</label>
-                    <div className="relative">
-                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[12px] font-mono text-slate-400">R$</span>
-                      <input type="text" inputMode="numeric" value={avulsoPriceDisplay}
-                        onChange={(e) => setAvulsoPriceCents(e.target.value.replace(/\D/g, "").replace(/^0+(?=\d)/, ""))}
-                        placeholder="0,00"
-                        className="w-full h-11 pl-8 pr-3 rounded-xl border border-slate-200 text-sm font-mono font-bold text-center focus:outline-none focus:border-emerald-400" />
-                    </div>
-                  </div>
-                  <div>
-                    <label className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400 mb-1.5 block">Quantidade</label>
-                    <input type="number" min="1" step="1" value={avulsoQuantity}
-                      onChange={(e) => setAvulsoQuantity(e.target.value)}
-                      className="w-full h-11 px-3 rounded-xl border border-slate-200 text-sm font-mono font-bold text-center focus:outline-none focus:border-emerald-400" />
-                  </div>
-                </div>
-                <div>
-                  <label className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400 mb-1.5 block">NCM (opcional)</label>
-                  <input type="text" value={avulsoNcm}
-                    onChange={(e) => setAvulsoNcm(e.target.value)}
-                    placeholder="Deixe em branco se não souber"
-                    className="w-full h-11 px-3 rounded-xl border border-slate-200 text-sm font-mono focus:outline-none focus:border-emerald-400" />
-                </div>
-              </div>
-
-              <div className="px-5 pb-6 pt-1">
-                <button onClick={addAvulsoToCart}
-                  disabled={!avulsoName.trim() || !(avulsoPrice > 0)}
-                  className="w-full h-12 rounded-2xl text-[12px] font-black uppercase tracking-[0.15em] text-white flex items-center justify-center gap-2 transition-all active:scale-[0.98] disabled:opacity-40"
-                  style={{ background: "linear-gradient(135deg, #10b981, #059669)" }}>
-                  <Plus size={16} strokeWidth={3} /> Adicionar ao Carrinho
-                </button>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      </Modal>
 
       {/* ── MEASURE (m²/linear) MODAL — Serviço ─────────────────────────────── */}
-      <AnimatePresence>
+      <Modal
+        open={!!measureService}
+        onClose={() => setMeasureService(null)}
+        title={measureService?.name}
+        subtitle={measureService ? `Serviço por ${measureService.sale_unit === "m2" ? "m²" : "metro linear"}` : undefined}
+        size="sm"
+        footer={measureService ? (
+          <ModalFooter>
+            <Button variant="outline" size="lg" onClick={() => setMeasureService(null)}>Cancelar</Button>
+            <Button variant="primary" size="lg" iconLeft={<Plus size={16} />} onClick={addMeasuredServiceToCart}
+              disabled={!measureServicePreview || measureServicePreview.rawQuantity <= 0}>
+              Adicionar ao Carrinho
+            </Button>
+          </ModalFooter>
+        ) : undefined}
+      >
         {measureService && (
-          <motion.div
-            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[200] flex items-end sm:items-center justify-center sm:p-4"
-            style={{ background: "rgba(5,8,20,0.88)", backdropFilter: "blur(16px)" }}>
-            <motion.div
-              initial={{ opacity: 0, y: 40, scale: 0.97 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: 30, scale: 0.97 }}
-              transition={{ type: "spring", damping: 28, stiffness: 260 }}
-              className="w-full sm:max-w-sm rounded-t-[28px] sm:rounded-3xl overflow-hidden shadow-2xl bg-white"
-            >
-              <div className="px-5 pt-5 pb-3 flex items-center justify-between border-b border-slate-100">
-                <div>
-                  <p className="text-[9px] font-black uppercase tracking-widest text-violet-500">
-                    Serviço por {measureService.sale_unit === "m2" ? "m²" : "metro linear"}
-                  </p>
-                  <h3 className="text-[15px] font-black text-slate-800">{measureService.name}</h3>
+          <div className="space-y-3">
+            {measureService.sale_unit === "m2" ? (
+              <div className="grid grid-cols-2 gap-3">
+                <Input size="lg" label="Altura (m)" type="text" inputMode="decimal" autoFocus value={measureServiceHeight}
+                  onChange={(e) => setMeasureServiceHeight(e.target.value)}
+                  placeholder="0,00" className="text-center font-mono font-semibold" />
+                <Input size="lg" label="Largura (m)" type="text" inputMode="decimal" value={measureServiceWidth}
+                  onChange={(e) => setMeasureServiceWidth(e.target.value)}
+                  placeholder="0,00" className="text-center font-mono font-semibold" />
+              </div>
+            ) : (
+              <Input size="lg" label="Comprimento (m)" type="text" inputMode="decimal" autoFocus value={measureServiceHeight}
+                onChange={(e) => setMeasureServiceHeight(e.target.value)}
+                placeholder="0,00" className="text-center font-mono font-semibold" />
+            )}
+
+            {measureServicePreview && measureServicePreview.rawQuantity > 0 && (
+              <div className="space-y-1.5 rounded-lg bg-slate-900 p-4">
+                <div className="flex justify-between text-[11px] font-semibold text-slate-400">
+                  <span>{measureService.sale_unit === "m2" ? "Área" : "Comprimento"}</span>
+                  <span className="font-mono text-slate-200">{measureServicePreview.label}</span>
                 </div>
-                <button onClick={() => setMeasureService(null)} className="w-9 h-9 rounded-xl bg-slate-100 hover:bg-slate-200 flex items-center justify-center">
-                  <X size={16} className="text-slate-500" />
-                </button>
-              </div>
-
-              <div className="p-5 space-y-3">
-                {measureService.sale_unit === "m2" ? (
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400 mb-1.5 block">Altura (m)</label>
-                      <input type="text" inputMode="decimal" autoFocus value={measureServiceHeight}
-                        onChange={(e) => setMeasureServiceHeight(e.target.value)}
-                        placeholder="0,00"
-                        className="w-full h-11 px-3 rounded-xl border border-slate-200 text-sm font-mono font-bold text-center focus:outline-none focus:border-violet-400" />
-                    </div>
-                    <div>
-                      <label className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400 mb-1.5 block">Largura (m)</label>
-                      <input type="text" inputMode="decimal" value={measureServiceWidth}
-                        onChange={(e) => setMeasureServiceWidth(e.target.value)}
-                        placeholder="0,00"
-                        className="w-full h-11 px-3 rounded-xl border border-slate-200 text-sm font-mono font-bold text-center focus:outline-none focus:border-violet-400" />
-                    </div>
-                  </div>
-                ) : (
-                  <div>
-                    <label className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400 mb-1.5 block">Comprimento (m)</label>
-                    <input type="text" inputMode="decimal" autoFocus value={measureServiceHeight}
-                      onChange={(e) => setMeasureServiceHeight(e.target.value)}
-                      placeholder="0,00"
-                      className="w-full h-11 px-3 rounded-xl border border-slate-200 text-sm font-mono font-bold text-center focus:outline-none focus:border-violet-400" />
-                  </div>
+                {measureServicePreview.minimumApplied && (
+                  <p className="text-[11px] font-semibold text-amber-400">
+                    Cobrando o mínimo de {Number(measureService.min_billable_quantity).toFixed(2)}{measureService.sale_unit === "m2" ? "m²" : "m"}
+                  </p>
                 )}
-
-                {measureServicePreview && measureServicePreview.rawQuantity > 0 && (
-                  <div className="bg-slate-900 rounded-2xl p-4 space-y-1.5">
-                    <div className="flex justify-between text-[10px] font-bold uppercase text-slate-400">
-                      <span>{measureService.sale_unit === "m2" ? "Área" : "Comprimento"}</span>
-                      <span className="font-mono text-slate-200">{measureServicePreview.label}</span>
-                    </div>
-                    {measureServicePreview.minimumApplied && (
-                      <p className="text-[10px] font-bold text-amber-400">
-                        Cobrando o mínimo de {Number(measureService.min_billable_quantity).toFixed(2)}{measureService.sale_unit === "m2" ? "m²" : "m"}
-                      </p>
-                    )}
-                    <div className="flex justify-between text-[15px] font-black uppercase text-white pt-1.5 border-t border-slate-700">
-                      <span>Total</span>
-                      <span className="font-mono">R$ {measureServicePreview.total.toFixed(2)}</span>
-                    </div>
-                  </div>
-                )}
+                <div className="flex justify-between border-t border-slate-700 pt-1.5 text-[15px] font-semibold text-white">
+                  <span>Total</span>
+                  <span className="font-mono">R$ {measureServicePreview.total.toFixed(2)}</span>
+                </div>
               </div>
-
-              <div className="px-5 pb-6 pt-1">
-                <button onClick={addMeasuredServiceToCart}
-                  disabled={!measureServicePreview || measureServicePreview.rawQuantity <= 0}
-                  className="w-full h-12 rounded-2xl text-[12px] font-black uppercase tracking-[0.15em] text-white flex items-center justify-center gap-2 transition-all active:scale-[0.98] disabled:opacity-40"
-                  style={{ background: "linear-gradient(135deg, #7c3aed, #4f46e5)" }}>
-                  <Plus size={16} strokeWidth={3} /> Adicionar ao Carrinho
-                </button>
-              </div>
-            </motion.div>
-          </motion.div>
+            )}
+          </div>
         )}
-      </AnimatePresence>
+      </Modal>
+
+      {/* ── EDITAR SERVIÇO NA VENDA ─────────────────────────────────────────── */}
+      <Modal
+        open={!!editSvc}
+        onClose={() => setEditSvc(null)}
+        title="Editar serviço"
+        subtitle="Vale apenas para esta venda — o cadastro do serviço não muda"
+        size="sm"
+        footer={
+          <ModalFooter>
+            <Button variant="outline" size="lg" onClick={() => setEditSvc(null)}>Cancelar</Button>
+            <Button size="lg" onClick={saveEditSvc} disabled={!editSvc?.name.trim() || !(editSvcPrice > 0)}>Aplicar</Button>
+          </ModalFooter>
+        }
+      >
+        {editSvc && (
+          <form className="space-y-3" onSubmit={(e) => { e.preventDefault(); saveEditSvc(); }}>
+            <Input size="lg" label="Nome" type="text" autoFocus value={editSvc.name}
+              onChange={(e) => setEditSvc({ ...editSvc, name: e.target.value })} />
+            <Input size="lg" label="Valor unitário" type="text" inputMode="numeric" addonLeft="R$"
+              value={editSvcPrice.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              onChange={(e) => setEditSvc({ ...editSvc, priceCents: e.target.value.replace(/\D/g, "").replace(/^0+(?=\d)/, "") })}
+              className="text-center font-mono font-semibold" />
+          </form>
+        )}
+      </Modal>
+
+      {/* ── ITEM AVULSO ─────────────────────────────────────────────────────── */}
+      <Modal
+        open={showAvulsoModal}
+        onClose={() => setShowAvulsoModal(false)}
+        title="Item Avulso"
+        subtitle="Venda Rápida"
+        size="sm"
+        footer={
+          <ModalFooter>
+            <Button variant="outline" size="lg" onClick={() => setShowAvulsoModal(false)}>Cancelar</Button>
+            <Button variant="success" size="lg" iconLeft={<Plus size={16} />} onClick={addAvulsoToCart}
+              disabled={!avulsoName.trim() || !(avulsoPrice > 0)}>
+              Adicionar ao Carrinho
+            </Button>
+          </ModalFooter>
+        }
+      >
+        <div className="space-y-3">
+          <Input size="lg" label="Nome do item" type="text" autoFocus value={avulsoName}
+            onChange={(e) => setAvulsoName(e.target.value)}
+            placeholder="Ex: Peça avulsa do cliente" />
+          <div className="grid grid-cols-2 gap-3">
+            <Input size="lg" label="Valor unitário" type="text" inputMode="numeric" value={avulsoPriceDisplay}
+              onChange={(e) => setAvulsoPriceCents(e.target.value.replace(/\D/g, "").replace(/^0+(?=\d)/, ""))}
+              placeholder="0,00" addonLeft="R$" className="text-center font-mono font-semibold" />
+            <Input size="lg" label="Quantidade" type="number" min="1" step="1" value={avulsoQuantity}
+              onChange={(e) => setAvulsoQuantity(e.target.value)}
+              className="text-center font-mono font-semibold" />
+          </div>
+          <div>
+            <Input size="lg" label="NCM (opcional)" type="text" value={avulsoNcm}
+              onChange={(e) => setAvulsoNcm(e.target.value)}
+              placeholder="Deixe em branco se não souber" className="font-mono" />
+            {isOnline && token && <div className="mt-1.5"><FiscalCodeLookup kind="ncm" token={token} onSelect={(item) => setAvulsoNcm(item.code)} /></div>}
+          </div>
+        </div>
+      </Modal>
 
       {/* Mobile Cart Drawer */}
       <AnimatePresence>
@@ -3552,7 +3400,7 @@ ${nfceInvoice.protocol ? `<div class="row"><span class="bold">Protocolo:</span><
             <motion.div
               initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }}
               transition={{ type: "spring", damping: 25, stiffness: 200 }}
-              className="fixed inset-x-0 bottom-0 h-[92vh] bg-white rounded-t-[24px] shadow-2xl z-[151] xl:hidden flex flex-col overflow-hidden border-t border-slate-200">
+              className="fixed inset-x-0 bottom-0 h-[92vh] bg-white rounded-t-[24px] shadow-sm z-[151] xl:hidden flex flex-col overflow-hidden border-t border-slate-200">
               <div className="w-12 h-1.5 bg-slate-200 rounded-full mx-auto my-4 shrink-0" />
               <div className="flex-1 overflow-hidden flex flex-col">
                 <CartPanel
@@ -3563,6 +3411,7 @@ ${nfceInvoice.protocol ? `<div class="row"><span class="bold">Protocolo:</span><
                   removeFromCart={removeFromCart}
                   cartServices={cartServices}
                   setCartServices={setCartServices}
+                  onEditService={openEditSvc}
                   subtotal={subtotal}
                   discountValue={discountValue}
                   surchargeValue={surchargeValue}
@@ -3602,23 +3451,23 @@ ${nfceInvoice.protocol ? `<div class="row"><span class="bold">Protocolo:</span><
                   <div className="p-4 border-b border-slate-200 shrink-0">
                     <div className="flex items-center justify-between mb-3">
                       <div>
-                        <p className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400">Pedido atual</p>
-                        <p className="mt-1 text-[12px] font-black text-slate-800">{cartQty} {cartQty === 1 ? "item" : "itens"} na venda</p>
+                        <p className="text-[10px] font-semibold text-slate-400">Pedido atual</p>
+                        <p className="mt-1 text-[12px] font-semibold text-slate-800">{cartQty} {cartQty === 1 ? "item" : "itens"} na venda</p>
                       </div>
                       <button onClick={() => setShowAddProductModal(true)}
                         className="flex items-center gap-1 h-6 px-2 rounded-lg bg-blue-50 border border-blue-200 text-blue-600 hover:bg-blue-100 transition-colors">
                         <Plus size={10} />
-                        <span className="text-[9px] font-black uppercase tracking-wide">Adicionar</span>
+                        <span className="text-[10px] font-semibold">Adicionar</span>
                       </button>
                     </div>
-                    <div className="rounded-xl border border-slate-200 bg-white overflow-hidden">
+                    <div className="rounded-lg border border-slate-200 bg-white overflow-hidden">
                       <table className="w-full table-fixed text-left">
                         <thead>
                           <tr className="bg-slate-50 border-b border-slate-100">
-                            <th className="w-[46%] px-3 py-2 text-[8px] font-black uppercase tracking-wider text-slate-400">Produto</th>
-                            <th className="hidden px-2 py-2 text-[8px] font-black uppercase tracking-wider text-slate-400 text-right 3xl:table-cell">Unit.</th>
-                            <th className="w-[23%] px-1 py-2 text-[8px] font-black uppercase tracking-wider text-slate-400 text-center">Qtd.</th>
-                            <th className="w-[22%] px-2 py-2 text-[8px] font-black uppercase tracking-wider text-slate-400 text-right">Subtotal</th>
+                            <th className="w-[46%] px-3 py-2 text-[10px] font-semibold text-slate-400">Produto</th>
+                            <th className="hidden px-2 py-2 text-[10px] font-semibold text-slate-400 text-right 3xl:table-cell">Unit.</th>
+                            <th className="w-[23%] px-1 py-2 text-[10px] font-semibold text-slate-400 text-center">Qtd.</th>
+                            <th className="w-[22%] px-2 py-2 text-[10px] font-semibold text-slate-400 text-right">Subtotal</th>
                             <th className="w-7"></th>
                           </tr>
                         </thead>
@@ -3629,14 +3478,14 @@ ${nfceInvoice.protocol ? `<div class="row"><span class="bold">Protocolo:</span><
                                 <div className="flex items-center gap-1">
                                   <p className="text-[12px] font-semibold text-slate-700 truncate leading-tight">{item.name}</p>
                                   {item.isAvulso && (
-                                    <span className="shrink-0 px-1 py-0.5 rounded text-[7px] font-black uppercase tracking-widest bg-emerald-100 text-emerald-700">Avulso</span>
+                                    <span className="shrink-0 px-1 py-0.5 rounded text-[7px] font-semibold bg-emerald-100 text-emerald-700">Avulso</span>
                                   )}
                                 </div>
-                                {item.variationLabel && <p className="text-[9px] font-bold text-blue-500 truncate">{item.variationLabel}</p>}
+                                {item.variationLabel && <p className="text-[10px] font-semibold text-blue-500 truncate">{item.variationLabel}</p>}
                               </td>
                               <td className="hidden px-2 py-2 text-right whitespace-nowrap 3xl:table-cell">
                                 <div className="inline-flex items-center gap-0.5">
-                                  <span className="text-[10px] font-mono text-slate-400">R$</span>
+                                  <span className="text-[11px] font-mono text-slate-400">R$</span>
                                   <input
                                     type="number" min={0} step="0.01"
                                     value={item.price}
@@ -3649,11 +3498,11 @@ ${nfceInvoice.protocol ? `<div class="row"><span class="bold">Protocolo:</span><
                               <td className="px-1 py-2">
                                 <div className="mx-auto flex w-fit items-center justify-center gap-0.5 rounded-lg border border-slate-200 bg-slate-100 p-0.5">
                                   <button onClick={() => updateQuantity(item.cartItemId, -1)} className="p-1 hover:bg-white rounded text-slate-500"><Minus size={9} /></button>
-                                  <span className="w-4 text-center font-mono font-black text-[10px] text-slate-700">{item.quantity}</span>
+                                  <span className="w-4 text-center font-mono font-semibold text-[11px] text-slate-700">{item.quantity}</span>
                                   <button onClick={() => updateQuantity(item.cartItemId, 1)} disabled={!sellWithoutStockControl && !item.isAvulso && item.quantity >= item.stock_quantity} className="p-1 hover:bg-white rounded text-slate-500 disabled:opacity-30"><Plus size={9} /></button>
                                 </div>
                               </td>
-                              <td className="px-2 py-2 text-right font-mono text-[11px] font-black text-slate-800 whitespace-nowrap"><span className="hidden 3xl:inline">R$ </span>{(item.price * item.quantity).toFixed(2)}</td>
+                              <td className="px-2 py-2 text-right font-mono text-[11px] font-semibold text-slate-800 whitespace-nowrap"><span className="hidden 3xl:inline">R$ </span>{(item.price * item.quantity).toFixed(2)}</td>
                               <td className="pr-2">
                                 <button onClick={() => removeFromCart(item.cartItemId)} className="text-slate-300 hover:text-red-500 transition-colors"><Trash2 size={12} /></button>
                               </td>
@@ -3665,32 +3514,32 @@ ${nfceInvoice.protocol ? `<div class="row"><span class="bold">Protocolo:</span><
                     {/* Mini totais */}
                     <div className="mt-3 pt-3 border-t border-slate-200 space-y-1">
                       {servicesTotal > 0 && (
-                        <div className="flex justify-between text-[10px]">
+                        <div className="flex justify-between text-[11px]">
                           <span className="flex items-center gap-1 text-slate-400"><Wrench size={9} /> Serviços</span>
-                          <span className="font-mono font-bold text-blue-600">+ R$ {servicesTotal.toFixed(2)}</span>
+                          <span className="font-mono font-semibold text-blue-600">+ R$ {servicesTotal.toFixed(2)}</span>
                         </div>
                       )}
                       {discountValue > 0 && (
-                        <div className="flex justify-between text-[10px]">
+                        <div className="flex justify-between text-[11px]">
                           <span className="text-slate-400">Desconto</span>
-                          <span className="font-mono font-bold text-emerald-600">− R$ {discountValue.toFixed(2)}</span>
+                          <span className="font-mono font-semibold text-emerald-600">− R$ {discountValue.toFixed(2)}</span>
                         </div>
                       )}
                       {surchargeValue > 0 && (
-                        <div className="flex justify-between text-[10px]">
+                        <div className="flex justify-between text-[11px]">
                           <span className="text-slate-400">Acréscimo</span>
-                          <span className="font-mono font-bold text-amber-500">+ R$ {surchargeValue.toFixed(2)}</span>
+                          <span className="font-mono font-semibold text-amber-500">+ R$ {surchargeValue.toFixed(2)}</span>
                         </div>
                       )}
                       {feeAmount > 0 && (
-                        <div className="flex justify-between text-[10px]">
+                        <div className="flex justify-between text-[11px]">
                           <span className="text-slate-400">Juros máquina</span>
-                          <span className="font-mono font-bold text-orange-500">+ R$ {feeAmount.toFixed(2)}</span>
+                          <span className="font-mono font-semibold text-orange-500">+ R$ {feeAmount.toFixed(2)}</span>
                         </div>
                       )}
                       <div className="flex justify-between items-baseline pt-1 border-t border-slate-200">
-                        <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Total</span>
-                        <span className="text-[17px] font-mono font-black text-slate-800">R$ {total.toFixed(2)}</span>
+                        <span className="text-[11px] font-semibold text-slate-400">Total</span>
+                        <span className="text-[17px] font-mono font-semibold text-slate-800">R$ {total.toFixed(2)}</span>
                       </div>
                     </div>
                   </div>
@@ -3699,7 +3548,7 @@ ${nfceInvoice.protocol ? `<div class="row"><span class="bold">Protocolo:</span><
                   <div className="p-4 space-y-3 shrink-0 bg-slate-50/70">
                     {/* Cliente */}
                     <div>
-                      <label className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400 mb-1.5 block">Cliente</label>
+                      <label className="text-[10px] font-semibold text-slate-400 mb-1.5 block">Cliente</label>
                       <div className="flex gap-2">
                         <div className="flex-1 min-w-0">
                           <Combobox
@@ -3745,7 +3594,7 @@ ${nfceInvoice.protocol ? `<div class="row"><span class="bold">Protocolo:</span><
                         <button
                           type="button"
                           onClick={() => { setNcName(""); setNcPhone(""); setNcDoc(""); setNcEmail(""); setNcAddr(""); setNcBirth(""); setNcCredit(""); setNcNotes(""); setNcRisk(false); setNcRiskReason(""); setShowNewCustomer(true); }}
-                          className="h-10 w-10 rounded-xl bg-blue-50 border border-blue-200 text-blue-600 hover:bg-blue-100 flex items-center justify-center shrink-0 transition-colors"
+                          className="h-10 w-10 rounded-lg bg-blue-50 border border-blue-200 text-blue-600 hover:bg-blue-100 flex items-center justify-center shrink-0 transition-colors"
                           title="Cadastrar novo cliente"
                         >
                           <UserPlus size={15} />
@@ -3754,11 +3603,11 @@ ${nfceInvoice.protocol ? `<div class="row"><span class="bold">Protocolo:</span><
 
                       {/* Points badge */}
                       {selectedCustomerId && loyaltyProgram?.is_active && (appliedReward || loyaltyRewards.some((reward) => customerPoints >= reward.points_cost)) && (
-                        <div className="mt-2 bg-amber-50 border border-amber-200 rounded-xl p-3 space-y-2">
+                        <div className="mt-2 bg-amber-50 border border-amber-200 rounded-lg p-3 space-y-2">
                           <div className="flex items-center justify-between">
                             <div className="flex items-center gap-1.5">
                               <Gift size={12} className="text-amber-500" />
-                              <span className="text-[11px] font-bold text-amber-700">Benefício disponível</span>
+                              <span className="text-[11px] font-semibold text-amber-700">Benefício disponível</span>
                             </div>
                             {appliedReward ? (
                               <button
@@ -3766,19 +3615,19 @@ ${nfceInvoice.protocol ? `<div class="row"><span class="bold">Protocolo:</span><
                                   if (appliedReward.type === "discount") { setDiscount(""); setDiscountMode("R$"); }
                                   setAppliedReward(null);
                                 }}
-                                className="text-[10px] text-rose-500 font-bold hover:underline"
+                                className="text-[11px] text-rose-500 font-semibold hover:underline"
                               >
                                 Remover resgate
                               </button>
                             ) : loyaltyRewards.filter((r) => customerPoints >= r.points_cost).length > 0 ? (
-                              <span className="text-[10px] text-amber-600 font-bold">Pode resgatar!</span>
+                              <span className="text-[11px] text-amber-600 font-semibold">Pode resgatar!</span>
                             ) : null}
                           </div>
 
                           {/* Lista de recompensas disponíveis */}
                           {!appliedReward && loyaltyRewards.filter((r) => customerPoints >= r.points_cost).length > 0 && (
                             <div className="space-y-1 pt-1 border-t border-amber-200">
-                              <p className="text-[9px] font-black uppercase tracking-widest text-amber-600 mb-1">Recompensas disponíveis</p>
+                              <p className="text-[10px] font-semibold text-amber-600 mb-1">Recompensas disponíveis</p>
                               {loyaltyRewards.filter((r) => customerPoints >= r.points_cost).map((r) => (
                                 <button
                                   key={r.id}
@@ -3797,21 +3646,21 @@ ${nfceInvoice.protocol ? `<div class="row"><span class="bold">Protocolo:</span><
                                   }}
                                   className="w-full flex items-center justify-between p-2 bg-white rounded-lg border border-amber-200 text-[11px] hover:bg-amber-50 transition-colors"
                                 >
-                                  <span className="flex items-center gap-1.5 font-bold text-slate-700">
+                                  <span className="flex items-center gap-1.5 font-semibold text-slate-700">
                                     {r.type === "product"
                                       ? <Gift size={11} className="text-violet-500" />
                                       : <Gift size={11} className="text-amber-500" />}
                                     <span>{r.name}</span>
                                     {r.type === "product" && (
-                                      <span className="text-[9px] font-black text-violet-500 uppercase tracking-wide bg-violet-50 px-1.5 py-0.5 rounded-md border border-violet-200 ml-1">brinde</span>
+                                      <span className="text-[10px] font-semibold text-violet-500 bg-violet-50 px-1.5 py-0.5 rounded-md border border-violet-200 ml-1">brinde</span>
                                     )}
                                     {r.type === "discount" && r.discount_value && (
-                                      <span className="text-[9px] font-black text-emerald-600 uppercase tracking-wide bg-emerald-50 px-1.5 py-0.5 rounded-md border border-emerald-200 ml-1">
+                                      <span className="text-[10px] font-semibold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded-md border border-emerald-200 ml-1">
                                         {r.discount_type === "percent" ? `${r.discount_value}% off` : `R$ ${r.discount_value} off`}
                                       </span>
                                     )}
                                   </span>
-                                  <span className="text-amber-600 font-bold shrink-0 ml-2">Resgatar</span>
+                                  <span className="text-amber-600 font-semibold shrink-0 ml-2">Resgatar</span>
                                 </button>
                               ))}
                             </div>
@@ -3827,14 +3676,14 @@ ${nfceInvoice.protocol ? `<div class="row"><span class="bold">Protocolo:</span><
                             )}>
                               <Gift size={12} className={appliedReward.type === "product" ? "text-violet-500" : "text-emerald-500"} />
                               <div className="flex-1 min-w-0">
-                                <p className={cn("text-[11px] font-bold", appliedReward.type === "product" ? "text-violet-700" : "text-emerald-700")}>
+                                <p className={cn("text-[11px] font-semibold", appliedReward.type === "product" ? "text-violet-700" : "text-emerald-700")}>
                                   {appliedReward.name} aplicado!
                                 </p>
                                 {appliedReward.type === "product" && (
-                                  <p className="text-[10px] text-violet-500 font-medium">Brinde sairá do estoque ao confirmar</p>
+                                  <p className="text-[11px] text-violet-500 font-medium">Brinde sairá do estoque ao confirmar</p>
                                 )}
                               </div>
-                              <span className="text-[10px] font-bold text-rose-500 shrink-0">−{appliedReward.points_cost} pts</span>
+                              <span className="text-[11px] font-semibold text-rose-500 shrink-0">−{appliedReward.points_cost} pts</span>
                             </div>
                           )}
 
@@ -3846,21 +3695,21 @@ ${nfceInvoice.protocol ? `<div class="row"><span class="bold">Protocolo:</span><
                         (nesse caso o documento do cadastro já é usado automaticamente) */}
                     {!selectedCustomerId && (
                       <div>
-                        <label className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400 mb-1.5 block">
+                        <label className="text-[10px] font-semibold text-slate-400 mb-1.5 block">
                           CPF/CNPJ na Nota (opcional)
                         </label>
                         <input value={customerDocument} onChange={(e) => setCustomerDocument(maskDoc(e.target.value))}
                           inputMode="numeric" placeholder="000.000.000-00"
-                          className="w-full h-9 px-3 rounded-xl border border-slate-200 text-[12px] font-mono focus:outline-none focus:border-blue-400" />
+                          className="w-full h-9 px-3 rounded-lg border border-slate-200 text-[12px] font-mono focus:outline-none focus:border-blue-400" />
                       </div>
                     )}
 
                     {/* Vendedor */}
                     <div className="relative">
                       <div className="flex items-center justify-between mb-1.5">
-                        <label className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400">Vendedor</label>
+                        <label className="text-[10px] font-semibold text-slate-400">Vendedor</label>
                         <button type="button" onClick={openNewSellerModal}
-                          className="text-[9px] font-black uppercase tracking-widest text-blue-600 hover:text-blue-700">
+                          className="text-[10px] font-semibold text-blue-600 hover:text-blue-700">
                           + Novo
                         </button>
                       </div>
@@ -3877,13 +3726,13 @@ ${nfceInvoice.protocol ? `<div class="row"><span class="bold">Protocolo:</span><
                     {/* Serviços */}
                     {services.length > 0 && (
                       <div>
-                        <label className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400 mb-1.5 block">Serviços</label>
+                        <label className="text-[10px] font-semibold text-slate-400 mb-1.5 block">Serviços</label>
                         <button
                           type="button"
                           onClick={() => setShowServicesModal(true)}
-                          className="w-full flex items-center justify-between h-10 bg-slate-50 border border-slate-200 rounded-xl px-3 hover:border-blue-400 hover:bg-blue-50 transition-all"
+                          className="w-full flex items-center justify-between h-10 bg-slate-50 border border-slate-200 rounded-lg px-3 hover:border-blue-400 hover:bg-blue-50 transition-all"
                         >
-                          <span className="flex items-center gap-2 text-[11px] font-bold text-slate-500">
+                          <span className="flex items-center gap-2 text-[11px] font-semibold text-slate-500">
                             <Wrench size={13} className="text-blue-500" />
                             {cartServices.length === 0
                               ? "Adicionar serviços"
@@ -3896,9 +3745,9 @@ ${nfceInvoice.protocol ? `<div class="row"><span class="bold">Protocolo:</span><
                             {cartServices.map((s) => {
                               const isMeasured = !!s.sale_unit && s.sale_unit !== "unidade";
                               return (
-                              <div key={s.id} className="flex items-center justify-between bg-violet-50 border border-violet-100 rounded-lg px-2 py-1.5 gap-1.5">
-                                <span className="flex items-center gap-1 text-[10px] font-bold text-slate-700 min-w-0 flex-1">
-                                  <Wrench size={10} className="text-violet-400 shrink-0" />
+                              <div key={s.id} className="flex items-center justify-between bg-slate-50 border border-slate-200 rounded-lg px-2 py-1.5 gap-1.5">
+                                <span className="flex items-center gap-1 text-[11px] font-semibold text-slate-700 min-w-0 flex-1">
+                                  <Wrench size={10} className="text-slate-400 shrink-0" />
                                   <span className="truncate">{s.name}{isMeasured && s.dimensionsLabel ? ` (${s.dimensionsLabel})` : ""}</span>
                                 </span>
                                 <div className="flex items-center gap-1 shrink-0">
@@ -3906,18 +3755,22 @@ ${nfceInvoice.protocol ? `<div class="row"><span class="bold">Protocolo:</span><
                                     <>
                                       <button
                                         onClick={() => setCartServices(prev => (s.quantity ?? 1) <= 1 ? prev.filter(x => x.id !== s.id) : prev.map(x => x.id === s.id ? { ...x, quantity: (x.quantity ?? 1) - 1 } : x))}
-                                        className="w-5 h-5 rounded border border-violet-200 bg-white flex items-center justify-center text-violet-500 hover:bg-violet-100 transition-colors text-[10px] font-black">
+                                        className="w-5 h-5 rounded border border-slate-200 bg-white flex items-center justify-center text-slate-500 hover:bg-slate-100 transition-colors text-[11px] font-semibold">
                                         −
                                       </button>
-                                      <span className="w-5 text-center text-[10px] font-mono font-black text-violet-700">{s.quantity ?? 1}</span>
+                                      <span className="w-5 text-center text-[11px] font-mono font-semibold text-slate-700">{s.quantity ?? 1}</span>
                                       <button
                                         onClick={() => setCartServices(prev => prev.map(x => x.id === s.id ? { ...x, quantity: (x.quantity ?? 1) + 1 } : x))}
-                                        className="w-5 h-5 rounded border border-violet-200 bg-white flex items-center justify-center text-violet-500 hover:bg-violet-100 transition-colors text-[10px] font-black">
+                                        className="w-5 h-5 rounded border border-slate-200 bg-white flex items-center justify-center text-slate-500 hover:bg-slate-100 transition-colors text-[11px] font-semibold">
                                         +
                                       </button>
                                     </>
                                   )}
-                                  <span className="text-[10px] font-mono font-black text-violet-600 ml-1">R$ {(Number(s.price) * (s.quantity ?? 1)).toFixed(2)}</span>
+                                  <span className="text-[11px] font-mono font-semibold text-blue-700 ml-1">R$ {(Number(s.price) * (s.quantity ?? 1)).toFixed(2)}</span>
+                                  <button onClick={() => openEditSvc(s)} aria-label="Editar nome e valor nesta venda" title="Editar nome e valor (só nesta venda)"
+                                    className="text-slate-300 hover:text-blue-600 transition-colors ml-0.5">
+                                    <Pencil size={11} />
+                                  </button>
                                   <button onClick={() => setCartServices((prev) => prev.filter((x) => x.id !== s.id))}
                                     className="text-slate-300 hover:text-red-400 transition-colors ml-0.5">
                                     <X size={11} />
@@ -3936,23 +3789,23 @@ ${nfceInvoice.protocol ? `<div class="row"><span class="bold">Protocolo:</span><
 
                 {/* COLUNA DIREITA — pagamentos */}
                 <main className="flex-1 flex flex-col lg:overflow-hidden bg-[#e9eef5] min-h-0">
-                  <div className="shrink-0 flex items-center justify-between px-4 lg:px-6 py-3 bg-slate-950 text-white shadow-lg">
+                  <div className="shrink-0 flex items-center justify-between px-4 lg:px-6 py-3 bg-slate-950 text-white shadow-sm">
                     <div className="flex items-center gap-3">
-                      <div className="w-9 h-9 rounded-xl bg-blue-500/15 border border-blue-400/30 flex items-center justify-center text-blue-300"><Terminal size={17} /></div>
+                      <div className="w-9 h-9 rounded-lg bg-blue-500/15 border border-blue-400/30 flex items-center justify-center text-blue-300"><Terminal size={17} /></div>
                       <div>
-                        <p className="text-[9px] font-black uppercase tracking-[0.22em] text-blue-300">Terminal de pagamento</p>
-                        <p className="mt-0.5 text-[12px] font-bold text-white">Fechamento da venda</p>
+                        <p className="text-[10px] font-semibold text-blue-300">Terminal de pagamento</p>
+                        <p className="mt-0.5 text-[12px] font-semibold text-white">Fechamento da venda</p>
                       </div>
                     </div>
                     <div className="flex items-center gap-5">
-                      <div className="hidden xl:flex items-center gap-1.5 text-[9px] font-bold text-slate-300">
+                      <div className="hidden xl:flex items-center gap-1.5 text-[10px] font-semibold text-slate-300">
                         <span className="rounded-md border border-white/10 bg-white/5 px-2 py-1"><b className="text-white">F2</b> buscar</span>
                         <span className="rounded-md border border-white/10 bg-white/5 px-2 py-1"><b className="text-white">F3</b> item</span>
                         <span className="rounded-md border border-white/10 bg-white/5 px-2 py-1"><b className="text-white">F9</b> confirmar</span>
                       </div>
                       <div className="text-right">
-                        <p className="text-[8px] font-black uppercase tracking-[0.18em] text-slate-400">Total da venda</p>
-                        <p className="mt-0.5 text-[19px] leading-none font-mono font-black text-white">R$ {total.toFixed(2)}</p>
+                        <p className="text-[10px] font-semibold text-slate-400">Total da venda</p>
+                        <p className="mt-0.5 text-[19px] leading-none font-mono font-semibold text-white">R$ {total.toFixed(2)}</p>
                       </div>
                     </div>
                   </div>
@@ -3961,35 +3814,34 @@ ${nfceInvoice.protocol ? `<div class="row"><span class="bold">Protocolo:</span><
 
                     {/* Label + adicionar */}
                     <div className="flex items-center justify-between mb-1">
-                      <p className="text-[9px] font-black uppercase tracking-[0.25em] text-slate-400">Formas de pagamento</p>
-                      <button onClick={addPayment}
-                        className="flex items-center gap-1.5 h-7 px-3 rounded-lg text-[9px] font-black uppercase tracking-wider bg-blue-50 border border-blue-200 text-blue-600 hover:bg-blue-100 transition-all">
-                        <PlusCircle size={11} /> Adicionar forma
-                      </button>
+                      <p className="text-[10px] font-semibold text-slate-400">Formas de pagamento</p>
+                      <Button variant="outline" size="lg" onClick={addPayment} iconLeft={<PlusCircle size={11} />}>
+                        Adicionar forma
+                      </Button>
                     </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5 rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5 rounded-lg border border-slate-200 bg-white p-3 shadow-sm">
                       <div>
-                        <label className="text-[9px] font-black uppercase tracking-[0.16em] text-slate-400 mb-1.5 block">Desconto</label>
+                        <label className="text-[10px] font-semibold text-slate-400 mb-1.5 block">Desconto</label>
                         <div className="flex gap-1.5">
-                          <div className="flex bg-slate-100 border border-slate-200 rounded-xl p-0.5 gap-0.5 shrink-0">
-                            {(["R$", "%"] as const).map((m) => <button key={m} onClick={() => setDiscountMode(m)} className="h-7 px-2 rounded-lg text-[9px] font-black transition-all" style={discountMode === m ? { background: "#2563eb", color: "white" } : { color: "#94a3b8" }}>{m}</button>)}
+                          <div className="flex bg-slate-100 border border-slate-200 rounded-lg p-0.5 gap-0.5 shrink-0">
+                            {(["R$", "%"] as const).map((m) => <button key={m} onClick={() => setDiscountMode(m)} className="h-7 px-2 rounded-lg text-[10px] font-semibold transition-all" style={discountMode === m ? { background: "#2563eb", color: "white" } : { color: "#94a3b8" }}>{m}</button>)}
                           </div>
-                          <input type="number" min="0" step="0.01" placeholder="0,00" value={discount} onChange={(e) => setDiscount(e.target.value)} className="flex-1 min-w-0 h-8 px-2 rounded-xl text-[12px] font-mono font-bold text-slate-700 placeholder:text-slate-300 bg-slate-50 border border-slate-200 focus:outline-none focus:border-emerald-400 text-center [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none" />
+                          <input type="number" min="0" step="0.01" placeholder="0,00" value={discount} onChange={(e) => setDiscount(e.target.value)} className="flex-1 min-w-0 h-8 px-2 rounded-lg text-[12px] font-mono font-semibold text-slate-700 placeholder:text-slate-300 bg-slate-50 border border-slate-200 focus:outline-none focus:border-emerald-400 text-center [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none" />
                         </div>
                         {discountExceedsLimit && (
-                          <p className="text-[9px] font-bold text-rose-500 mt-1">
+                          <p className="text-[10px] font-semibold text-rose-500 mt-1">
                             Limitado a {cartMaxDiscountPct?.toFixed(0)}% (teto de um item no carrinho) — aplicado R$ {discountValue.toFixed(2)}
                           </p>
                         )}
                       </div>
                       <div>
-                        <label className="text-[9px] font-black uppercase tracking-[0.16em] text-slate-400 mb-1.5 block">Acréscimo</label>
+                        <label className="text-[10px] font-semibold text-slate-400 mb-1.5 block">Acréscimo</label>
                         <div className="flex gap-1.5">
-                          <div className="flex bg-slate-100 border border-slate-200 rounded-xl p-0.5 gap-0.5 shrink-0">
-                            {(["R$", "%"] as const).map((m) => <button key={m} onClick={() => setSurchargeMode(m)} className="h-7 px-2 rounded-lg text-[9px] font-black transition-all" style={surchargeMode === m ? { background: "#d97706", color: "white" } : { color: "#94a3b8" }}>{m}</button>)}
+                          <div className="flex bg-slate-100 border border-slate-200 rounded-lg p-0.5 gap-0.5 shrink-0">
+                            {(["R$", "%"] as const).map((m) => <button key={m} onClick={() => setSurchargeMode(m)} className="h-7 px-2 rounded-lg text-[10px] font-semibold transition-all" style={surchargeMode === m ? { background: "#d97706", color: "white" } : { color: "#94a3b8" }}>{m}</button>)}
                           </div>
-                          <input type="number" min="0" step="0.01" placeholder="0,00" value={surcharge} onChange={(e) => setSurcharge(e.target.value)} className="flex-1 min-w-0 h-8 px-2 rounded-xl text-[12px] font-mono font-bold text-slate-700 placeholder:text-slate-300 bg-slate-50 border border-slate-200 focus:outline-none focus:border-amber-400 text-center [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none" />
+                          <input type="number" min="0" step="0.01" placeholder="0,00" value={surcharge} onChange={(e) => setSurcharge(e.target.value)} className="flex-1 min-w-0 h-8 px-2 rounded-lg text-[12px] font-mono font-semibold text-slate-700 placeholder:text-slate-300 bg-slate-50 border border-slate-200 focus:outline-none focus:border-amber-400 text-center [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none" />
                         </div>
                       </div>
                     </div>
@@ -4022,54 +3874,54 @@ ${nfceInvoice.protocol ? `<div class="row"><span class="bold">Protocolo:</span><
 
                       <div className="space-y-3 xl:sticky xl:top-0">
                     {/* Resumo financeiro */}
-                    <div className="rounded-xl px-4 py-3 bg-white border border-slate-200 shadow-sm space-y-1.5">
+                    <div className="rounded-lg px-4 py-3 bg-white border border-slate-200 shadow-sm space-y-1.5">
                       <div className="flex items-center justify-between">
-                        <span className="text-[10px] font-bold text-slate-400">Subtotal</span>
-                        <span className="text-[11px] font-mono font-bold text-slate-600">R$ {subtotal.toFixed(2)}</span>
+                        <span className="text-[11px] font-semibold text-slate-400">Subtotal</span>
+                        <span className="text-[11px] font-mono font-semibold text-slate-600">R$ {subtotal.toFixed(2)}</span>
                       </div>
                       {discountValue > 0 && (
                         <div className="flex items-center justify-between">
-                          <span className="text-[10px] font-bold text-slate-400">Desconto</span>
-                          <span className="text-[11px] font-mono font-bold text-emerald-600">− R$ {discountValue.toFixed(2)}</span>
+                          <span className="text-[11px] font-semibold text-slate-400">Desconto</span>
+                          <span className="text-[11px] font-mono font-semibold text-emerald-600">− R$ {discountValue.toFixed(2)}</span>
                         </div>
                       )}
                       {surchargeValue > 0 && (
                         <div className="flex items-center justify-between">
-                          <span className="text-[10px] font-bold text-slate-400">Acréscimo</span>
-                          <span className="text-[11px] font-mono font-bold text-amber-500">+ R$ {surchargeValue.toFixed(2)}</span>
+                          <span className="text-[11px] font-semibold text-slate-400">Acréscimo</span>
+                          <span className="text-[11px] font-mono font-semibold text-amber-500">+ R$ {surchargeValue.toFixed(2)}</span>
                         </div>
                       )}
                       {feeAmount > 0 && (
                         <div className="flex items-center justify-between">
-                          <span className="text-[10px] font-bold text-slate-400">Juros máquina</span>
-                          <span className="text-[11px] font-mono font-bold text-orange-500">+ R$ {feeAmount.toFixed(2)}</span>
+                          <span className="text-[11px] font-semibold text-slate-400">Juros máquina</span>
+                          <span className="text-[11px] font-mono font-semibold text-orange-500">+ R$ {feeAmount.toFixed(2)}</span>
                         </div>
                       )}
                       <div className="pt-1.5 mt-1 border-t border-slate-200 flex items-center justify-between">
                         <div>
-                          <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-0.5">Total</p>
+                          <p className="text-[10px] font-semibold text-slate-400 mb-0.5">Total</p>
                           {remaining > 0.009 && (
-                            <p className="text-[10px] font-bold text-amber-500">⚠ Faltam R$ {remaining.toFixed(2)}</p>
+                            <p className="text-[11px] font-semibold text-amber-500">⚠ Faltam R$ {remaining.toFixed(2)}</p>
                           )}
                           {change > 0 && (
-                            <p className="text-[10px] font-bold text-emerald-600">Troco R$ {change.toFixed(2)}</p>
+                            <p className="text-[11px] font-semibold text-emerald-600">Troco R$ {change.toFixed(2)}</p>
                           )}
                         </div>
-                        <span className="text-[22px] font-mono font-black text-slate-800">R$ {total.toFixed(2)}</span>
+                        <span className="text-[22px] font-mono font-semibold text-slate-800">R$ {total.toFixed(2)}</span>
                       </div>
                     </div>
 
                     {/* Botões de ação */}
                     {saleError && (
-                      <div className="px-3 py-2.5 bg-red-50 border border-red-200 rounded-xl flex items-start gap-2">
+                      <div className="px-3 py-2.5 bg-red-50 border border-red-200 rounded-lg flex items-start gap-2">
                         <span className="text-red-500 shrink-0 mt-0.5">⚠</span>
-                        <p className="text-[11px] font-bold text-red-700 leading-snug">{saleError}</p>
+                        <p className="text-[11px] font-semibold text-red-700 leading-snug">{saleError}</p>
                       </div>
                     )}
                     {terminalResult?.status === "approved" && (
-                      <div className="px-3 py-2.5 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center gap-2">
+                      <div className="px-3 py-2.5 bg-emerald-50 border border-emerald-200 rounded-lg flex items-center gap-2">
                         <CheckCircle2 size={14} className="text-emerald-600 shrink-0" />
-                        <p className="text-[11px] font-bold text-emerald-700">
+                        <p className="text-[11px] font-semibold text-emerald-700">
                           Aprovado{terminalResult.brand ? ` · ${terminalResult.brand.toUpperCase()}` : ""}{terminalResult.authCode ? ` · Auth ${terminalResult.authCode}` : ""}
                         </p>
                       </div>
@@ -4082,22 +3934,20 @@ ${nfceInvoice.protocol ? `<div class="row"><span class="bold">Protocolo:</span><
                   {/* Ações da venda ficam fora da rolagem para não sumirem. */}
                   <div className="shrink-0 border-t border-slate-200 bg-white/95 px-3 py-3 sm:px-4 lg:px-5 shadow-[0_-8px_24px_rgba(15,23,42,0.06)]">
                     <div className="w-full max-w-[1120px] mx-auto flex items-center gap-3">
-                      <button onClick={cancelSale} disabled={finishing}
-                        className="h-11 px-4 rounded-xl text-[10px] font-bold text-red-500 border border-red-200 hover:bg-red-50 hover:border-red-300 transition-all disabled:opacity-40 active:scale-[0.98] flex items-center justify-center gap-2 shrink-0">
-                        <Trash2 size={14} /> Cancelar venda
-                      </button>
-                      <button onClick={(shouldSendToTerminal && isOnline) ? handleChargeTerminal : handleFinishSale}
+                      <Button variant="outline" size="lg" onClick={cancelSale} disabled={finishing} iconLeft={<Trash2 size={14} />}
+                        className="h-11 shrink-0 border-red-200 text-red-600 hover:border-red-300 hover:bg-red-50 hover:text-red-700">
+                        Cancelar venda
+                      </Button>
+                      <Button variant="primary" size="lg" onClick={(shouldSendToTerminal && isOnline) ? handleChargeTerminal : handleFinishSale}
                         disabled={!canFinish || finishing || terminalCharging}
+                        loading={finishing || terminalCharging}
+                        iconLeft={<CheckCircle2 size={14} />}
                         title={shouldSendToTerminal && !isOnline ? "Sem conexão — a venda será registrada sem enviar para a maquininha" : undefined}
-                        className="flex-1 h-11 rounded-xl text-[11px] font-black uppercase tracking-wide text-white transition-all disabled:opacity-40 active:scale-[0.98] flex items-center justify-center gap-2"
-                        style={{
-                          background: remaining > 0.009 ? "linear-gradient(135deg,#f59e0b,#d97706)" : "linear-gradient(135deg,#3b82f6,#1d4ed8)",
-                          boxShadow: remaining > 0.009 ? "0 4px 14px rgba(245,158,11,0.25)" : "0 4px 14px rgba(59,130,246,0.25)",
-                        }}>
+                        className={cn("h-11 flex-1", remaining > 0.009 && "border-amber-600 bg-amber-500 hover:border-amber-700 hover:bg-amber-600")}>
                         {finishing || terminalCharging
-                          ? <><Loader2 size={14} className="animate-spin" /> {terminalCharging ? "Aguardando maquininha…" : "Finalizando…"}</>
-                          : <><CheckCircle2 size={14} /> Confirmar venda · R$ {total.toFixed(2)}</>}
-                      </button>
+                          ? (terminalCharging ? "Aguardando maquininha…" : "Finalizando…")
+                          : `Confirmar venda · R$ ${total.toFixed(2)}`}
+                      </Button>
                     </div>
                   </div>
                 </main>
@@ -4122,20 +3972,20 @@ ${nfceInvoice.protocol ? `<div class="row"><span class="bold">Protocolo:</span><
               role="alertdialog"
               aria-modal="true"
               aria-labelledby="cancel-sale-title"
-              className="fixed z-[501] left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[calc(100%-2rem)] max-w-sm overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl"
+              className="fixed z-[501] left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[calc(100%-2rem)] max-w-sm overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm"
             >
               <div className="p-5">
                 <div className="flex items-start gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-red-50 border border-red-100 flex items-center justify-center text-red-500 shrink-0">
+                  <div className="w-10 h-10 rounded-lg bg-red-50 border border-red-100 flex items-center justify-center text-red-500 shrink-0">
                     <Trash2 size={17} />
                   </div>
                   <div className="min-w-0">
-                    <h2 id="cancel-sale-title" className="text-[14px] font-black text-slate-900">Cancelar esta venda?</h2>
+                    <h2 id="cancel-sale-title" className="text-[14px] font-semibold text-slate-900">Cancelar esta venda?</h2>
                     <p className="mt-1 text-[11px] leading-relaxed text-slate-500">
                       Os {cartQty} {cartQty === 1 ? "item" : "itens"}, pagamentos e dados do cliente serão removidos. Esta ação não pode ser desfeita.
                     </p>
                     {activeHeldSaleId && (
-                      <p className="mt-2 text-[10px] font-bold leading-relaxed text-amber-600">
+                      <p className="mt-2 text-[11px] font-semibold leading-relaxed text-amber-600">
                         O estoque reservado desta venda em espera será devolvido.
                       </p>
                     )}
@@ -4143,18 +3993,12 @@ ${nfceInvoice.protocol ? `<div class="row"><span class="bold">Protocolo:</span><
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-2 border-t border-slate-100 bg-slate-50 p-3">
-                <button
-                  onClick={() => setShowCancelSaleConfirm(false)}
-                  className="h-10 rounded-xl border border-slate-200 bg-white text-[10px] font-bold text-slate-600 hover:bg-slate-100 transition-colors"
-                >
+                <Button variant="outline" size="lg" onClick={() => setShowCancelSaleConfirm(false)}>
                   Continuar venda
-                </button>
-                <button
-                  onClick={confirmCancelSale}
-                  className="h-10 rounded-xl bg-red-600 text-[10px] font-black text-white hover:bg-red-500 transition-colors flex items-center justify-center gap-2"
-                >
-                  <Trash2 size={13} /> Sim, cancelar
-                </button>
+                </Button>
+                <Button variant="danger" size="lg" onClick={confirmCancelSale} iconLeft={<Trash2 size={13} />}>
+                  Sim, cancelar
+                </Button>
               </div>
             </motion.div>
           </>
@@ -4175,75 +4019,97 @@ ${nfceInvoice.protocol ? `<div class="row"><span class="bold">Protocolo:</span><
               key="svc-panel-sa"
               initial={{ x: "100%" }} animate={{ x: 0 }} exit={{ x: "100%" }}
               transition={{ type: "spring", damping: 28, stiffness: 300 }}
-              className="fixed right-0 top-0 h-full w-full max-w-sm bg-white shadow-2xl z-[320] flex flex-col"
+              className="fixed right-0 top-0 h-full w-full max-w-sm bg-white shadow-sm z-[320] flex flex-col"
             >
               <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50 shrink-0">
                 <div className="flex items-center gap-2">
                   <Wrench size={15} className="text-blue-600" />
-                  <span className="text-[11px] font-black text-slate-900 uppercase tracking-widest">Serviços</span>
+                  <span className="text-[11px] font-semibold text-slate-900">Serviços</span>
                 </div>
-                <button onClick={() => setShowServicesModal(false)}
-                  className="w-8 h-8 rounded-lg border border-slate-200 bg-white flex items-center justify-center text-slate-400 hover:text-slate-700 transition-all">
+                <IconButton variant="outline" onClick={() => setShowServicesModal(false)} aria-label="Fechar" className="h-9 w-9">
                   <X size={14} />
-                </button>
+                </IconButton>
               </div>
 
-              <div className="flex-1 overflow-y-auto divide-y divide-slate-50">
-                {services.map((svc) => {
-                  const inCart = cartServices.some((s) => s.id === svc.id);
-                  return (
-                    <div key={svc.id} className="px-5 py-3.5 flex items-center gap-3">
-                      <div className="w-9 h-9 rounded-xl bg-blue-50 flex items-center justify-center shrink-0">
-                        <Wrench size={14} className="text-blue-500" />
+              <div className="flex-1 overflow-y-auto admin-scroll">
+                {(() => {
+                  // agrupa os serviços por categoria
+                  const catMap = new Map<number, typeof services>();
+                  services.forEach((svc) => {
+                    const key = svc.category_id ?? 0;
+                    if (!catMap.has(key)) catMap.set(key, []);
+                    catMap.get(key)!.push(svc);
+                  });
+                  const unitAbbr = (v?: string) => SERVICE_UNITS.find((u) => u.value === (v ?? "unidade"))?.abbr ?? (v ?? "un");
+                  return [...catMap.entries()].map(([catId, items]) => {
+                    const meta = items[0]?.category_ref ?? UNCATEGORIZED_SERVICE_CATEGORY;
+                    const color = meta.color || "#64748b";
+                    const Icon = getCategoryIcon(meta.icon);
+                    return (
+                      <div key={catId}>
+                        {/* category header */}
+                        <div className="px-4 py-2 flex items-center gap-2 border-b border-slate-100" style={{ background: `${color}14`, color }}>
+                          <Icon size={11} />
+                          <span className="text-[10px] font-semibold">{meta.name}</span>
+                          <span className="text-[10px] opacity-60">{items.length}</span>
+                        </div>
+                        {items.map((svc) => {
+                          const inCart = cartServices.some((s) => s.id === svc.id);
+                          return (
+                            <div key={svc.id} className={cn("px-4 py-3 flex items-center gap-3 border-b border-slate-50 hover:bg-slate-50/70 transition-colors", inCart && "bg-blue-50/40")}>
+                              <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0" style={{ background: `${color}1a`, color }}>
+                                <Icon size={13} />
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <p className="text-[11px] font-semibold text-slate-900 truncate">{svc.name}</p>
+                                {svc.description && <p className="text-[10px] text-slate-400 truncate leading-tight">{svc.description}</p>}
+                                <div className="flex items-center gap-2 mt-0.5">
+                                  <p className="text-[11px] font-mono font-semibold text-blue-600">
+                                    {svc.sale_unit && svc.sale_unit !== "unidade"
+                                      ? Number(svc.price_per_measure ?? 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })
+                                      : Number(svc.price).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
+                                  </p>
+                                  <span className="text-[10px] text-slate-400 font-semibold flex items-center gap-0.5">
+                                    <Ruler size={7} />/{svc.sale_unit === "m2" ? "m²" : svc.sale_unit === "linear" ? "m" : unitAbbr(svc.unit)}
+                                  </span>
+                                </div>
+                              </div>
+                              <IconButton
+                                variant={inCart ? "danger" : "primary"}
+                                aria-label={inCart ? "Remover serviço" : "Adicionar serviço"}
+                                className="h-9 w-9"
+                                onClick={() => {
+                                  if (svc.sale_unit && svc.sale_unit !== "unidade") {
+                                    setMeasureService(svc);
+                                    setMeasureServiceHeight("");
+                                    setMeasureServiceWidth("");
+                                    return;
+                                  }
+                                  if (inCart) setCartServices((prev) => prev.filter((s) => s.id !== svc.id));
+                                  else setCartServices((prev) => [...prev, { ...svc, price: Number(svc.price) }]);
+                                }}
+                              >
+                                {inCart ? <X size={12} /> : <Plus size={12} />}
+                              </IconButton>
+                            </div>
+                          );
+                        })}
                       </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-[12px] font-bold text-slate-900 uppercase truncate">{svc.name}</p>
-                        {svc.description && <p className="text-[9px] text-slate-400 truncate">{svc.description}</p>}
-                        <p className="text-[11px] font-mono font-black text-blue-600 mt-0.5">
-                          R$ {(svc.sale_unit && svc.sale_unit !== "unidade" ? Number(svc.price_per_measure ?? 0) : Number(svc.price)).toFixed(2)}
-                          {svc.sale_unit && svc.sale_unit !== "unidade" && (
-                            <span className="text-[9px] text-slate-400 font-bold"> /{svc.sale_unit === "m2" ? "m²" : "m"}</span>
-                          )}
-                        </p>
-                      </div>
-                      <button
-                        onClick={() => {
-                          if (svc.sale_unit && svc.sale_unit !== "unidade") {
-                            setMeasureService(svc);
-                            setMeasureServiceHeight("");
-                            setMeasureServiceWidth("");
-                            return;
-                          }
-                          if (inCart) setCartServices((prev) => prev.filter((s) => s.id !== svc.id));
-                          else setCartServices((prev) => [...prev, { ...svc, price: Number(svc.price) }]);
-                        }}
-                        className={cn(
-                          "w-8 h-8 rounded-xl border flex items-center justify-center transition-all shrink-0",
-                          inCart
-                            ? "bg-rose-500 border-rose-500 text-white hover:bg-rose-600"
-                            : "bg-blue-600 border-blue-600 text-white hover:bg-blue-700"
-                        )}
-                      >
-                        {inCart ? <X size={13} /> : <Plus size={13} />}
-                      </button>
-                    </div>
-                  );
-                })}
+                    );
+                  });
+                })()}
               </div>
 
               <div className="px-5 py-4 border-t border-slate-100 space-y-2 shrink-0">
                 {cartServices.length > 0 && (
-                  <div className="flex items-center justify-between text-[10px] font-bold text-slate-500 uppercase tracking-widest">
+                  <div className="flex items-center justify-between text-[11px] font-semibold text-slate-500">
                     <span>{cartServices.length} serviço{cartServices.length > 1 ? "s" : ""} selecionado{cartServices.length > 1 ? "s" : ""}</span>
-                    <span className="font-mono text-blue-600 font-black">R$ {servicesTotal.toFixed(2)}</span>
+                    <span className="font-mono text-blue-600 font-semibold">R$ {servicesTotal.toFixed(2)}</span>
                   </div>
                 )}
-                <button
-                  onClick={() => setShowServicesModal(false)}
-                  className="w-full h-11 bg-slate-900 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-slate-700 transition-colors"
-                >
+                <Button variant="primary" size="lg" fullWidth className="h-11" onClick={() => setShowServicesModal(false)}>
                   Confirmar
-                </button>
+                </Button>
               </div>
             </motion.div>
           </>
@@ -4262,104 +4128,68 @@ ${nfceInvoice.protocol ? `<div class="row"><span class="bold">Protocolo:</span><
             <motion.div
               initial={{ x: "100%" }} animate={{ x: 0 }} exit={{ x: "100%" }}
               transition={{ type: "spring", damping: 26, stiffness: 200 }}
-              className="fixed inset-y-0 right-0 w-full max-w-sm bg-white z-[410] shadow-2xl flex flex-col"
+              className="fixed inset-y-0 right-0 w-full max-w-sm bg-white z-[410] shadow-sm flex flex-col"
             >
               {/* Header */}
               <div className="flex items-center justify-between px-5 py-4 border-b border-slate-200 shrink-0">
                 <div>
-                  <h2 className="font-black text-slate-900 text-[15px]">Novo Cliente</h2>
+                  <h2 className="font-semibold text-slate-900 text-[15px]">Novo Cliente</h2>
                   <p className="text-[11px] text-slate-500">Cadastro CRM</p>
                 </div>
-                <button onClick={() => setShowNewCustomer(false)} className="p-2 hover:bg-slate-100 rounded-lg text-slate-500">
+                <IconButton variant="ghost" onClick={() => setShowNewCustomer(false)} aria-label="Fechar" className="h-9 w-9">
                   <X size={18} />
-                </button>
+                </IconButton>
               </div>
 
               {/* Body — scrollable */}
               <div className="flex-1 overflow-y-auto p-5 space-y-3">
                 {/* Nome */}
-                <div>
-                  <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block mb-1">Nome *</label>
-                  <input value={ncName} onChange={(e) => setNcName(e.target.value)} placeholder="Nome completo"
-                    className="w-full h-9 px-3 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-                </div>
+                <Input size="lg" label="Nome *" value={ncName} onChange={(e) => setNcName(e.target.value)} placeholder="Nome completo" />
 
                 {/* Telefone + CPF/CNPJ */}
                 <div className="grid grid-cols-2 gap-2">
-                  <div>
-                    <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block mb-1">Telefone</label>
-                    <input value={ncPhone} onChange={(e) => setNcPhone(maskPhone(e.target.value))} inputMode="numeric"
-                      placeholder="(11) 99999-9999"
-                      className="w-full h-9 px-3 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-                  </div>
-                  <div>
-                    <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block mb-1">CPF/CNPJ</label>
-                    <input value={ncDoc} onChange={(e) => setNcDoc(maskDoc(e.target.value))} inputMode="numeric"
-                      placeholder="000.000.000-00"
-                      className="w-full h-9 px-3 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-                  </div>
+                  <Input size="lg" label="Telefone" value={ncPhone} onChange={(e) => setNcPhone(maskPhone(e.target.value))} inputMode="numeric" placeholder="(11) 99999-9999" />
+                  <Input size="lg" label="CPF/CNPJ" value={ncDoc} onChange={(e) => setNcDoc(maskDoc(e.target.value))} inputMode="numeric" placeholder="000.000.000-00" />
                 </div>
 
                 {/* E-mail */}
-                <div>
-                  <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block mb-1">E-mail</label>
-                  <input type="email" value={ncEmail} onChange={(e) => setNcEmail(e.target.value)} placeholder="email@exemplo.com"
-                    className="w-full h-9 px-3 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-                </div>
+                <Input size="lg" label="E-mail" type="email" value={ncEmail} onChange={(e) => setNcEmail(e.target.value)} placeholder="email@exemplo.com" />
 
                 {/* Endereço */}
-                <div>
-                  <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block mb-1">Endereço</label>
-                  <input value={ncAddr} onChange={(e) => setNcAddr(e.target.value)} placeholder="Rua, Cidade - UF"
-                    className="w-full h-9 px-3 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-                </div>
+                <Input size="lg" label="Endereço" value={ncAddr} onChange={(e) => setNcAddr(e.target.value)} placeholder="Rua, Cidade - UF" />
 
                 {/* Data de Aniversário */}
-                <div>
-                  <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block mb-1">Data de Aniversário</label>
-                  <input type="date" value={ncBirth} onChange={(e) => setNcBirth(e.target.value)}
-                    className="w-full h-9 px-3 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-                </div>
+                <Input size="lg" label="Data de Aniversário" type="date" value={ncBirth} onChange={(e) => setNcBirth(e.target.value)} />
 
                 {/* Limite de Crédito */}
-                <div>
-                  <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block mb-1">Limite de Crédito (R$)</label>
-                  <input type="number" min={0} value={ncCredit} onChange={(e) => setNcCredit(e.target.value)} placeholder="0,00"
-                    className="w-full h-9 px-3 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-                </div>
+                <Input size="lg" label="Limite de Crédito (R$)" type="number" min={0} value={ncCredit} onChange={(e) => setNcCredit(e.target.value)} placeholder="0,00" />
 
                 {/* Observações */}
-                <div>
-                  <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block mb-1">Observações</label>
-                  <textarea value={ncNotes} onChange={(e) => setNcNotes(e.target.value)} rows={2}
-                    placeholder="Preferências, anotações gerais…"
-                    className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none" />
-                </div>
+                <Textarea label="Observações" value={ncNotes} onChange={(e) => setNcNotes(e.target.value)} rows={2}
+                  placeholder="Preferências, anotações gerais…" className="resize-none" />
 
                 {/* Cliente de Risco */}
-                <div className={cn("rounded-xl border p-3 space-y-2 transition-colors", ncRisk ? "bg-rose-50 border-rose-200" : "bg-slate-50 border-slate-200")}>
+                <div className={cn("rounded-lg border p-3 space-y-2 transition-colors", ncRisk ? "bg-rose-50 border-rose-200" : "bg-slate-50 border-slate-200")}>
                   <label className="flex items-center gap-2 cursor-pointer">
                     <input type="checkbox" checked={ncRisk} onChange={(e) => setNcRisk(e.target.checked)} className="w-4 h-4 accent-rose-500" />
-                    <span className={cn("text-[12px] font-black", ncRisk ? "text-rose-600" : "text-slate-600")}>
+                    <span className={cn("text-[12px] font-semibold", ncRisk ? "text-rose-600" : "text-slate-600")}>
                       ⚠ Marcar como Cliente de Risco
                     </span>
                   </label>
                   {ncRisk && (
-                    <textarea value={ncRiskReason} onChange={(e) => setNcRiskReason(e.target.value)} rows={2}
-                      placeholder="Motivo do risco…"
-                      className="w-full px-3 py-2 rounded-lg border border-rose-200 text-sm focus:outline-none focus:ring-2 focus:ring-rose-400 resize-none bg-white" />
+                    <Textarea value={ncRiskReason} onChange={(e) => setNcRiskReason(e.target.value)} rows={2}
+                      placeholder="Motivo do risco…" aria-label="Motivo do risco" className="resize-none bg-white" />
                   )}
                 </div>
               </div>
 
               {/* Footer */}
               <div className="border-t border-slate-200 px-5 py-4 shrink-0 bg-slate-50 flex gap-2">
-                <button onClick={() => setShowNewCustomer(false)}
-                  className="flex-1 h-9 rounded-lg border border-slate-200 text-sm font-semibold text-slate-600 hover:bg-slate-100">
+                <Button variant="outline" size="lg" className="flex-1" onClick={() => setShowNewCustomer(false)}>
                   Cancelar
-                </button>
-                <button
-                  disabled={savingNC || !ncName.trim()}
+                </Button>
+                <Button variant="primary" size="lg" className="flex-1"
+                  disabled={savingNC || !ncName.trim()} loading={savingNC}
                   onClick={async () => {
                     if (!ncName.trim()) return;
                     setSavingNC(true);
@@ -4389,10 +4219,9 @@ ${nfceInvoice.protocol ? `<div class="row"><span class="bold">Protocolo:</span><
                       setShowNewCustomer(false);
                     } finally { setSavingNC(false); }
                   }}
-                  className="flex-1 h-9 bg-blue-600 text-white rounded-lg text-sm font-bold hover:bg-blue-700 disabled:opacity-50 transition-all"
                 >
                   {savingNC ? "Cadastrando…" : "Criar Cliente"}
-                </button>
+                </Button>
               </div>
             </motion.div>
           </>
@@ -4406,7 +4235,7 @@ ${nfceInvoice.protocol ? `<div class="row"><span class="bold">Protocolo:</span><
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 20 }}
-            className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[70] flex items-center gap-2 px-4 h-11 bg-emerald-600 text-white rounded-2xl shadow-2xl shadow-emerald-600/30 text-[11px] font-black uppercase tracking-widest"
+            className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[70] flex items-center gap-2 px-4 h-11 bg-emerald-600 text-white rounded-lg shadow-sm text-[11px] font-semibold"
           >
             <CheckCircle2 size={15} /> {syncToast}
           </motion.div>
@@ -4427,57 +4256,53 @@ ${nfceInvoice.protocol ? `<div class="row"><span class="bold">Protocolo:</span><
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 10 }}
               transition={{ type: "spring", damping: 25, stiffness: 350 }}
-              className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-[61] w-full max-w-md bg-white rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[80vh]"
+              className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-[61] w-full max-w-md bg-white rounded-lg shadow-sm overflow-hidden flex flex-col max-h-[80vh]"
             >
               <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between shrink-0">
                 <div className="flex items-center gap-3">
-                  <div className="w-9 h-9 rounded-xl bg-blue-100 flex items-center justify-center">
+                  <div className="w-9 h-9 rounded-lg bg-blue-100 flex items-center justify-center">
                     <RefreshCw size={16} className={cn("text-blue-600", syncing && "animate-spin")} />
                   </div>
                   <div>
-                    <p className="text-[12px] font-black text-slate-900 uppercase tracking-wide">Vendas Pendentes</p>
-                    <p className="text-[10px] text-slate-400 font-bold">
+                    <p className="text-[12px] font-semibold text-slate-900">Vendas Pendentes</p>
+                    <p className="text-[11px] text-slate-400 font-semibold">
                       {isOnline ? "Aguardando sincronização" : "Serão enviadas quando a internet voltar"}
                     </p>
                   </div>
                 </div>
-                <button onClick={() => { setShowPendingModal(false); setDiscardTarget(null); }}
-                  className="w-8 h-8 rounded-lg border border-slate-200 flex items-center justify-center text-slate-400 hover:text-slate-700 transition-all">
+                <IconButton variant="outline" onClick={() => { setShowPendingModal(false); setDiscardTarget(null); }} aria-label="Fechar" className="h-9 w-9">
                   <X size={14} />
-                </button>
+                </IconButton>
               </div>
 
               <div className="flex-1 overflow-y-auto divide-y divide-slate-50">
                 {pendingSalesList.length === 0 ? (
-                  <div className="px-6 py-10 text-center text-[10px] font-black uppercase tracking-widest text-slate-300">
+                  <div className="px-6 py-10 text-center text-[11px] font-semibold text-slate-300">
                     Nenhuma venda pendente
                   </div>
                 ) : (
                   pendingSalesList.map((sale) => (
                     <div key={sale.localId} className="px-6 py-3.5 flex items-center gap-3">
                       <div className="flex-1 min-w-0">
-                        <p className="text-[11px] font-bold text-slate-800 uppercase truncate">
+                        <p className="text-[11px] font-semibold text-slate-800 truncate">
                           {sale.customerName || "Consumidor Final"}
                         </p>
-                        <p className="text-[9px] text-slate-400 font-bold mt-0.5">
+                        <p className="text-[10px] text-slate-400 font-semibold mt-0.5">
                           {new Date(sale.createdAt).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}
                         </p>
                         {sale.lastError && (
-                          <p className="text-[9px] text-rose-500 font-bold mt-0.5">
+                          <p className="text-[10px] text-rose-500 font-semibold mt-0.5">
                             ⚠ {sale.lastError} ({sale.attempts}x)
                           </p>
                         )}
                       </div>
-                      <span className="text-sm font-mono font-black text-slate-800 shrink-0">
+                      <span className="text-sm font-mono font-semibold text-slate-800 shrink-0">
                         R$ {sale.total.toFixed(2)}
                       </span>
-                      <button
-                        onClick={() => setDiscardTarget(sale)}
-                        title="Descartar venda"
-                        className="w-7 h-7 rounded-lg bg-slate-100 flex items-center justify-center text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-all shrink-0"
-                      >
-                        <Trash2 size={11} />
-                      </button>
+                      <IconButton variant="ghost" size="sm" onClick={() => setDiscardTarget(sale)} title="Descartar venda" aria-label="Descartar venda"
+                        className="border-transparent text-slate-400 hover:bg-rose-50 hover:text-rose-600">
+                        <Trash2 size={13} />
+                      </IconButton>
                     </div>
                   ))
                 )}
@@ -4486,37 +4311,33 @@ ${nfceInvoice.protocol ? `<div class="row"><span class="bold">Protocolo:</span><
               {/* Discard confirmation */}
               {discardTarget && (
                 <div className="px-6 py-4 bg-rose-50 border-t border-rose-200 shrink-0">
-                  <p className="text-[10px] font-black text-rose-700 uppercase tracking-wide mb-2">
+                  <p className="text-[11px] font-semibold text-rose-700 mb-2">
                     Descartar venda de R$ {discardTarget.total.toFixed(2)}? Ela NÃO será enviada ao servidor.
                   </p>
                   <div className="flex gap-2">
-                    <button onClick={() => setDiscardTarget(null)}
-                      className="flex-1 h-9 border border-rose-200 bg-white rounded-xl text-[9px] font-black uppercase tracking-widest text-slate-600 hover:bg-slate-50 transition-colors">
+                    <Button variant="outline" size="lg" className="flex-1" onClick={() => setDiscardTarget(null)}>
                       Cancelar
-                    </button>
-                    <button
+                    </Button>
+                    <Button variant="danger" size="lg" className="flex-1"
                       onClick={async () => {
                         await removePendingSale(discardTarget.localId);
                         setDiscardTarget(null);
                         refreshPendingCount();
                         setPendingSalesList(await getPendingSales());
-                      }}
-                      className="flex-1 h-9 bg-rose-600 hover:bg-rose-500 text-white rounded-xl text-[9px] font-black uppercase tracking-widest transition-colors">
+                      }}>
                       Descartar
-                    </button>
+                    </Button>
                   </div>
                 </div>
               )}
 
               <div className="px-6 py-4 border-t border-slate-100 shrink-0">
-                <button
+                <Button variant="primary" size="lg" fullWidth className="h-11"
                   onClick={() => syncPendingSales()}
                   disabled={syncing || !isOnline || pendingSalesList.length === 0}
-                  className="w-full h-11 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-colors flex items-center justify-center gap-2 disabled:opacity-40"
-                >
-                  <RefreshCw size={13} className={syncing ? "animate-spin" : ""} />
+                  iconLeft={<RefreshCw size={13} className={syncing ? "animate-spin" : ""} />}>
                   {syncing ? "Sincronizando..." : isOnline ? "Sincronizar Agora" : "Sem Conexão"}
-                </button>
+                </Button>
               </div>
             </motion.div>
           </>
@@ -4535,7 +4356,7 @@ ${nfceInvoice.protocol ? `<div class="row"><span class="bold">Protocolo:</span><
               animate={{ y: 0, opacity: 1 }}
               exit={{ y: "100%", opacity: 0 }}
               transition={{ type: "spring", damping: 32, stiffness: 300 }}
-              className="fixed inset-x-0 bottom-0 sm:inset-auto sm:top-1/2 sm:left-1/2 sm:-translate-x-1/2 sm:-translate-y-1/2 z-[301] w-full sm:w-[440px] bg-white sm:rounded-3xl rounded-t-3xl shadow-2xl flex flex-col overflow-hidden max-h-[92dvh] sm:max-h-[90vh]">
+              className="fixed inset-x-0 bottom-0 sm:inset-auto sm:top-1/2 sm:left-1/2 sm:-translate-x-1/2 sm:-translate-y-1/2 z-[301] w-full sm:w-[440px] bg-white sm:rounded-lg rounded-t-lg shadow-sm flex flex-col overflow-hidden max-h-[92dvh] sm:max-h-[90vh]">
 
               {/* drag handle */}
               <div className="shrink-0 flex justify-center pt-3 pb-0 sm:hidden">
@@ -4554,28 +4375,28 @@ ${nfceInvoice.protocol ? `<div class="row"><span class="bold">Protocolo:</span><
                       <div className="w-5 h-5 rounded-full bg-white/20 flex items-center justify-center">
                         <CheckCircle2 size={14} className="text-white" />
                       </div>
-                      <span className="text-[10px] font-black uppercase tracking-[0.2em] text-emerald-100">
+                      <span className="text-[11px] font-semibold text-emerald-100">
                         {completedSale.offline ? "Venda Salva — Offline" : "Venda Confirmada"}
                       </span>
                     </div>
-                    <p className="text-3xl font-mono font-black leading-none">R$ {completedSale.total.toFixed(2)}</p>
-                    <p className="text-[11px] text-emerald-200 font-bold mt-1.5">
+                    <p className="text-3xl font-mono font-semibold leading-none">R$ {completedSale.total.toFixed(2)}</p>
+                    <p className="text-[11px] text-emerald-200 font-semibold mt-1.5">
                       {completedSale.offline ? "Sincroniza ao reconectar" : `#${String(completedSale.orderId).padStart(5, "0")}`} · {completedSale.customerName || "Consumidor Final"}
                     </p>
                     {completedSale.sellerName && (
-                      <p className="text-[10px] text-emerald-300 font-medium mt-0.5">Vendedor: {completedSale.sellerName}</p>
+                      <p className="text-[11px] text-emerald-300 font-medium mt-0.5">Vendedor: {completedSale.sellerName}</p>
                     )}
                     <div className="mt-2.5 flex flex-wrap gap-1.5">
                       {completedSale.change > 0 && (
                         <div className="inline-flex items-center gap-1 bg-white/20 rounded-lg px-2.5 py-1">
                           <Banknote size={11} className="text-emerald-200" />
-                          <span className="text-[10px] font-black text-white">Troco R$ {completedSale.change.toFixed(2)}</span>
+                          <span className="text-[11px] font-semibold text-white">Troco R$ {completedSale.change.toFixed(2)}</span>
                         </div>
                       )}
                       {completedSale.rewardApplied && (
                         <div className="inline-flex items-center gap-1 bg-violet-400/20 rounded-lg px-2.5 py-1">
                           <Gift size={11} className="text-violet-300" />
-                          <span className="text-[10px] font-black text-violet-200">{completedSale.rewardApplied}</span>
+                          <span className="text-[11px] font-semibold text-violet-200">{completedSale.rewardApplied}</span>
                         </div>
                       )}
                     </div>
@@ -4585,24 +4406,24 @@ ${nfceInvoice.protocol ? `<div class="row"><span class="bold">Protocolo:</span><
                         const inst  = p.method === "credit" && p.installments > 1 ? ` ${p.installments}×` : "";
                         return (
                           <div key={i} className="inline-flex items-center gap-1 bg-white/15 rounded-lg px-2 py-1">
-                            <span className="text-[9px] font-black text-emerald-100">{PM_LABEL[p.method]}{brand}{inst}</span>
-                            <span className="text-[9px] font-mono font-black text-white">R$ {Number(p.amount).toFixed(2)}</span>
+                            <span className="text-[10px] font-semibold text-emerald-100">{PM_LABEL[p.method]}{brand}{inst}</span>
+                            <span className="text-[10px] font-mono font-semibold text-white">R$ {Number(p.amount).toFixed(2)}</span>
                           </div>
                         );
                       })}
                     </div>
                   </div>
-                  <button onClick={() => setShowReceipt(false)}
-                    className="ml-3 shrink-0 w-8 h-8 flex items-center justify-center bg-white/15 hover:bg-white/25 rounded-xl transition-all text-white">
+                  <IconButton onClick={() => setShowReceipt(false)} aria-label="Fechar"
+                    className="ml-3 h-9 w-9 border-transparent bg-white/15 text-white hover:bg-white/25 hover:text-white">
                     <X size={16} />
-                  </button>
+                  </IconButton>
                 </div>
                 <div className="relative mt-3 flex gap-2 overflow-x-auto scrollbar-none pb-0.5 -mx-1 px-1">
                   {completedSale.items.map((item, idx) => (
-                    <div key={idx} className="shrink-0 flex items-center gap-1.5 bg-white/15 rounded-xl px-2.5 py-1.5">
+                    <div key={idx} className="shrink-0 flex items-center gap-1.5 bg-white/15 rounded-lg px-2.5 py-1.5">
                       {item.image_url ? <img src={item.image_url} className="w-5 h-5 rounded object-cover shrink-0" alt={item.name} /> : <Package size={12} className="text-emerald-200 shrink-0" />}
-                      <span className="text-[10px] font-bold text-white truncate max-w-[80px]">{item.name}</span>
-                      <span className="text-[10px] font-black text-emerald-200">×{item.quantity}</span>
+                      <span className="text-[11px] font-semibold text-white truncate max-w-[80px]">{item.name}</span>
+                      <span className="text-[11px] font-semibold text-emerald-200">×{item.quantity}</span>
                     </div>
                   ))}
                 </div>
@@ -4610,29 +4431,29 @@ ${nfceInvoice.protocol ? `<div class="row"><span class="bold">Protocolo:</span><
 
               {/* Receipt actions */}
               <div className="flex-1 overflow-y-auto overscroll-contain p-4 space-y-2">
-                <p className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] pb-1">Emitir Comprovante</p>
+                <p className="text-[10px] font-semibold text-slate-400 pb-1">Emitir Comprovante</p>
 
                 <button onClick={() => { setPrintError(null); printThermalReceipt(completedSale); }}
-                  className="w-full flex items-center gap-3.5 h-16 bg-slate-50 hover:bg-slate-100 active:scale-[0.98] border border-slate-200 rounded-2xl px-4 transition-all group">
-                  <div className="w-10 h-10 bg-slate-900 rounded-xl flex items-center justify-center shrink-0 group-hover:bg-blue-600 transition-colors">
+                  className="w-full flex items-center gap-3.5 h-16 bg-slate-50 hover:bg-slate-100 active:scale-[0.98] border border-slate-200 rounded-lg px-4 transition-all group">
+                  <div className="w-10 h-10 bg-slate-900 rounded-lg flex items-center justify-center shrink-0 group-hover:bg-blue-600 transition-colors">
                     <Printer size={17} className="text-white" />
                   </div>
                   <div className="text-left flex-1 min-w-0">
-                    <p className="text-[12px] font-black text-slate-900 uppercase tracking-wide">Nota Térmica</p>
-                    <p className="text-[10px] text-slate-400 font-medium">Impressão 80mm para bobina</p>
+                    <p className="text-[12px] font-semibold text-slate-900">Nota Térmica</p>
+                    <p className="text-[11px] text-slate-400 font-medium">Impressão 80mm para bobina</p>
                   </div>
                   <ChevronRight size={15} className="text-slate-300 group-hover:text-slate-500 shrink-0" />
                 </button>
 
                 {completedSale.payments.some((p) => p.method === "crediario") && (
                   <button onClick={() => handleGenerateBooklet(completedSale)} disabled={generatingBooklet}
-                    className="w-full flex items-center gap-3.5 h-16 bg-slate-50 hover:bg-slate-100 active:scale-[0.98] disabled:opacity-60 border border-slate-200 rounded-2xl px-4 transition-all group">
-                    <div className="w-10 h-10 bg-amber-600 rounded-xl flex items-center justify-center shrink-0 group-hover:bg-amber-700 transition-colors">
+                    className="w-full flex items-center gap-3.5 h-16 bg-slate-50 hover:bg-slate-100 active:scale-[0.98] disabled:opacity-60 border border-slate-200 rounded-lg px-4 transition-all group">
+                    <div className="w-10 h-10 bg-amber-600 rounded-lg flex items-center justify-center shrink-0 group-hover:bg-amber-700 transition-colors">
                       {generatingBooklet ? <Loader2 size={17} className="text-white animate-spin" /> : <FileText size={17} className="text-white" />}
                     </div>
                     <div className="text-left flex-1 min-w-0">
-                      <p className="text-[12px] font-black text-slate-900 uppercase tracking-wide">Gerar Carnê</p>
-                      <p className="text-[10px] text-slate-400 font-medium">Imprime um canhoto por parcela</p>
+                      <p className="text-[12px] font-semibold text-slate-900">Gerar Carnê</p>
+                      <p className="text-[11px] text-slate-400 font-medium">Imprime um canhoto por parcela</p>
                     </div>
                     <ChevronRight size={15} className="text-slate-300 group-hover:text-slate-500 shrink-0" />
                   </button>
@@ -4640,32 +4461,32 @@ ${nfceInvoice.protocol ? `<div class="row"><span class="bold">Protocolo:</span><
 
                 {window.boxsysDesktop?.openCashDrawer && (
                   <button onClick={handleOpenCashDrawer}
-                    className="w-full flex items-center gap-3.5 h-16 bg-slate-50 hover:bg-slate-100 active:scale-[0.98] border border-slate-200 rounded-2xl px-4 transition-all group">
-                    <div className="w-10 h-10 bg-amber-500 rounded-xl flex items-center justify-center shrink-0 group-hover:bg-amber-600 transition-colors">
+                    className="w-full flex items-center gap-3.5 h-16 bg-slate-50 hover:bg-slate-100 active:scale-[0.98] border border-slate-200 rounded-lg px-4 transition-all group">
+                    <div className="w-10 h-10 bg-amber-500 rounded-lg flex items-center justify-center shrink-0 group-hover:bg-amber-600 transition-colors">
                       <Banknote size={17} className="text-white" />
                     </div>
                     <div className="text-left flex-1 min-w-0">
-                      <p className="text-[12px] font-black text-slate-900 uppercase tracking-wide">Abrir Gaveta</p>
-                      <p className="text-[10px] text-slate-400 font-medium">Acionar gaveta de dinheiro (F4)</p>
+                      <p className="text-[12px] font-semibold text-slate-900">Abrir Gaveta</p>
+                      <p className="text-[11px] text-slate-400 font-medium">Acionar gaveta de dinheiro (F4)</p>
                     </div>
                     <ChevronRight size={15} className="text-slate-300 group-hover:text-slate-500 shrink-0" />
                   </button>
                 )}
 
                 {printError && (
-                  <div className="bg-rose-50 border border-rose-200 rounded-2xl px-4 py-3 text-[11px] font-bold text-rose-600">
+                  <div className="bg-rose-50 border border-rose-200 rounded-lg px-4 py-3 text-[11px] font-semibold text-rose-600">
                     {printError}
                   </div>
                 )}
 
                 <button onClick={() => printViaIframe(buildPDFHtml(completedSale), 600)}
-                  className="w-full flex items-center gap-3.5 h-16 bg-slate-50 hover:bg-slate-100 active:scale-[0.98] border border-slate-200 rounded-2xl px-4 transition-all group">
-                  <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center shrink-0 group-hover:bg-blue-700 transition-colors">
+                  className="w-full flex items-center gap-3.5 h-16 bg-slate-50 hover:bg-slate-100 active:scale-[0.98] border border-slate-200 rounded-lg px-4 transition-all group">
+                  <div className="w-10 h-10 bg-blue-600 rounded-lg flex items-center justify-center shrink-0 group-hover:bg-blue-700 transition-colors">
                     <FileText size={17} className="text-white" />
                   </div>
                   <div className="text-left flex-1 min-w-0">
-                    <p className="text-[12px] font-black text-slate-900 uppercase tracking-wide">PDF Completo</p>
-                    <p className="text-[10px] text-slate-400 font-medium">Nota detalhada em A4</p>
+                    <p className="text-[12px] font-semibold text-slate-900">PDF Completo</p>
+                    <p className="text-[11px] text-slate-400 font-medium">Nota detalhada em A4</p>
                   </div>
                   <ChevronRight size={15} className="text-slate-300 group-hover:text-slate-500 shrink-0" />
                 </button>
@@ -4681,15 +4502,15 @@ ${nfceInvoice.protocol ? `<div class="row"><span class="bold">Protocolo:</span><
                   }
                 }}
                   className={cn(
-                    "w-full flex items-center gap-3.5 h-16 border rounded-2xl px-4 transition-all group",
+                    "w-full flex items-center gap-3.5 h-16 border rounded-lg px-4 transition-all group",
                     showPhoneInput ? "bg-emerald-50 border-emerald-200" : "bg-slate-50 hover:bg-slate-100 active:scale-[0.98] border-slate-200"
                   )}>
-                  <div className={cn("w-10 h-10 rounded-xl flex items-center justify-center shrink-0 transition-colors", showPhoneInput ? "bg-emerald-600" : "bg-emerald-500 group-hover:bg-emerald-600")}>
+                  <div className={cn("w-10 h-10 rounded-lg flex items-center justify-center shrink-0 transition-colors", showPhoneInput ? "bg-emerald-600" : "bg-emerald-500 group-hover:bg-emerald-600")}>
                     <MessageCircle size={17} className="text-white" />
                   </div>
                   <div className="text-left flex-1 min-w-0">
-                    <p className="text-[12px] font-black text-slate-900 uppercase tracking-wide">Enviar WhatsApp</p>
-                    <p className="text-[10px] text-slate-400 font-medium">Abre WhatsApp Web com comprovante</p>
+                    <p className="text-[12px] font-semibold text-slate-900">Enviar WhatsApp</p>
+                    <p className="text-[11px] text-slate-400 font-medium">Abre WhatsApp Web com comprovante</p>
                   </div>
                   <ChevronDown size={15} className={cn("shrink-0 transition-transform text-slate-300", showPhoneInput ? "rotate-180 text-emerald-500" : "group-hover:text-slate-500")} />
                 </button>
@@ -4697,13 +4518,13 @@ ${nfceInvoice.protocol ? `<div class="row"><span class="bold">Protocolo:</span><
                   {showPhoneInput && (
                     <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }} className="overflow-hidden">
                       {waBotConnected && !completedSale.offline && (
-                        <label className="mt-2 flex items-center gap-3 rounded-xl border border-emerald-100 bg-emerald-50/70 px-3 py-2.5 cursor-pointer select-none">
+                        <label className="mt-2 flex items-center gap-3 rounded-lg border border-emerald-100 bg-emerald-50/70 px-3 py-2.5 cursor-pointer select-none">
                           <input type="checkbox" checked={sendWarrantyWithReceipt}
                             onChange={(e) => { setSendWarrantyWithReceipt(e.target.checked); setWaSent(false); setWaSentWarranty(false); setWaSendError(null); }}
                             className="h-4 w-4 rounded border-emerald-300 text-emerald-600 focus:ring-emerald-500" />
                           <span className="min-w-0">
-                            <span className="block text-[10px] font-black uppercase tracking-wide text-emerald-800">Enviar garantia junto</span>
-                            <span className="block text-[9px] font-medium text-emerald-700">Envia comprovante e certificado de garantia em PDFs separados.</span>
+                            <span className="block text-[11px] font-semibold text-emerald-800">Enviar garantia junto</span>
+                            <span className="block text-[10px] font-medium text-emerald-700">Envia comprovante e certificado de garantia em PDFs separados.</span>
                           </span>
                         </label>
                       )}
@@ -4711,13 +4532,13 @@ ${nfceInvoice.protocol ? `<div class="row"><span class="bold">Protocolo:</span><
                         <div className="relative flex-1">
                           <Phone className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
                           <input type="tel" placeholder="(11) 99999-9999"
-                            className="w-full pl-9 pr-4 h-11 bg-white border border-emerald-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/20 text-[13px] font-medium text-slate-700 placeholder:text-slate-400 transition-all"
+                            className="w-full pl-9 pr-4 h-11 bg-white border border-emerald-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500/20 text-[13px] font-medium text-slate-700 placeholder:text-slate-400 transition-all"
                             value={whatsappPhone} onChange={(e) => { setWhatsappPhone(maskPhone(e.target.value)); setWaSent(false); setWaSendError(null); }} />
                         </div>
                         {waBotConnected && !completedSale.offline ? (
                           <button onClick={handleSendWhatsappDocument}
                             disabled={whatsappPhone.replace(/\D/g, "").length < 10 || waSending}
-                            className="h-11 px-4 bg-emerald-600 disabled:bg-slate-200 disabled:text-slate-400 text-white rounded-xl font-black text-[11px] uppercase tracking-widest flex items-center gap-2 transition-all hover:bg-emerald-700 disabled:cursor-not-allowed shrink-0">
+                            className="h-11 px-4 bg-emerald-600 disabled:bg-slate-200 disabled:text-slate-400 text-white rounded-lg font-semibold text-[11px] flex items-center gap-2 transition-all hover:bg-emerald-700 disabled:cursor-not-allowed shrink-0">
                             {waSending ? <Loader2 size={14} className="animate-spin" /> : <MessageCircle size={14} />}
                             {waSending ? "Enviando..." : "Enviar PDF"}
                           </button>
@@ -4728,21 +4549,21 @@ ${nfceInvoice.protocol ? `<div class="row"><span class="bold">Protocolo:</span><
                             window.open(`https://wa.me/${full}?text=${encodeURIComponent(buildWhatsAppText(completedSale))}`, "_blank", "noopener,noreferrer");
                           }}
                             disabled={whatsappPhone.replace(/\D/g, "").length < 10}
-                            className="h-11 px-4 bg-emerald-600 disabled:bg-slate-200 disabled:text-slate-400 text-white rounded-xl font-black text-[11px] uppercase tracking-widest flex items-center gap-2 transition-all hover:bg-emerald-700 disabled:cursor-not-allowed shrink-0">
+                            className="h-11 px-4 bg-emerald-600 disabled:bg-slate-200 disabled:text-slate-400 text-white rounded-lg font-semibold text-[11px] flex items-center gap-2 transition-all hover:bg-emerald-700 disabled:cursor-not-allowed shrink-0">
                             <MessageCircle size={14} /> Enviar
                           </button>
                         )}
                       </div>
                       {waBotConnected === false && (
-                        <p className="text-[9px] text-slate-400 font-medium pt-1.5 px-1">
+                        <p className="text-[10px] text-slate-400 font-medium pt-1.5 px-1">
                           Bot do WhatsApp não conectado — abrindo link manual (só texto, sem o PDF anexado).
                         </p>
                       )}
                       {waSendError && (
-                        <p className="text-[9px] text-rose-600 font-bold pt-1.5 px-1">{waSendError}</p>
+                        <p className="text-[10px] text-rose-600 font-semibold pt-1.5 px-1">{waSendError}</p>
                       )}
                       {waSent && (
-                        <p className="text-[9px] text-emerald-600 font-bold pt-1.5 px-1">{waSentWarranty ? "Comprovante e garantia enviados pelo WhatsApp!" : "Comprovante enviado pelo WhatsApp!"}</p>
+                        <p className="text-[10px] text-emerald-600 font-semibold pt-1.5 px-1">{waSentWarranty ? "Comprovante e garantia enviados pelo WhatsApp!" : "Comprovante enviado pelo WhatsApp!"}</p>
                       )}
                     </motion.div>
                   )}
@@ -4752,15 +4573,14 @@ ${nfceInvoice.protocol ? `<div class="row"><span class="bold">Protocolo:</span><
                     do fluxo principal de comprovante (cupom/PDF/WhatsApp acima) */}
                 <div className="border-t border-slate-100 pt-3 mt-1">
                   {!completedSale.offline && !nfceInvoice && (
-                    <button onClick={handleEmitNfce} disabled={nfceRetrying}
-                      className="w-full h-10 bg-blue-600 hover:bg-blue-700 disabled:opacity-60 text-white rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-all">
-                      {nfceRetrying ? <Loader2 size={14} className="animate-spin" /> : <FileText size={14} />}
+                    <Button variant="primary" size="lg" fullWidth onClick={handleEmitNfce} disabled={nfceRetrying} loading={nfceRetrying}
+                      iconLeft={<FileText size={14} />}>
                       {nfceRetrying ? "Iniciando emissão..." : "Emitir Nota Fiscal (NFC-e)"}
-                    </button>
+                    </Button>
                   )}
                   {!completedSale.offline && nfceInvoice && (
                     <div className={cn(
-                      "w-full flex items-center gap-3.5 rounded-2xl px-4 py-3 border",
+                      "w-full flex items-center gap-3.5 rounded-lg px-4 py-3 border",
                       nfceInvoice?.status === "authorized" ? "bg-emerald-50 border-emerald-200"
                         : nfceInvoice?.status === "rejected" || nfceInvoice?.status === "error" ? "bg-rose-50 border-rose-200"
                         : "bg-blue-50 border-blue-200",
@@ -4769,8 +4589,8 @@ ${nfceInvoice.protocol ? `<div class="row"><span class="bold">Protocolo:</span><
                         <>
                           <Loader2 size={18} className="text-blue-500 animate-spin shrink-0" />
                           <div className="flex-1 min-w-0">
-                            <p className="text-[11px] font-black text-blue-700 uppercase tracking-wide">Emitindo nota fiscal...</p>
-                            <p className="text-[10px] text-blue-500 font-medium">Aguardando autorização da SEFAZ-SP</p>
+                            <p className="text-[11px] font-semibold text-blue-700">Emitindo nota fiscal...</p>
+                            <p className="text-[11px] text-blue-500 font-medium">Aguardando autorização da SEFAZ-SP</p>
                           </div>
                         </>
                       )}
@@ -4778,13 +4598,13 @@ ${nfceInvoice.protocol ? `<div class="row"><span class="bold">Protocolo:</span><
                         <>
                           <CheckCircle2 size={18} className="text-emerald-600 shrink-0" />
                           <div className="flex-1 min-w-0">
-                            <p className="text-[11px] font-black text-emerald-700 uppercase tracking-wide">NFC-e autorizada</p>
-                            <p className="text-[10px] text-emerald-600 font-medium truncate">Protocolo {nfceInvoice.protocol}</p>
+                            <p className="text-[11px] font-semibold text-emerald-700">NFC-e autorizada</p>
+                            <p className="text-[11px] text-emerald-600 font-medium truncate">Protocolo {nfceInvoice.protocol}</p>
                           </div>
                           <a
                             href={`/api/nfce/${completedSale.orderId}/danfe`}
                             target="_blank" rel="noopener noreferrer"
-                            className="shrink-0 h-9 px-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center gap-1.5 transition-all"
+                            className="shrink-0 h-9 px-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-[11px] font-semibold flex items-center gap-1.5 transition-all"
                           >
                             <FileText size={13} /> DANFE
                           </a>
@@ -4794,16 +4614,13 @@ ${nfceInvoice.protocol ? `<div class="row"><span class="bold">Protocolo:</span><
                         <>
                           <X size={18} className="text-rose-600 shrink-0" />
                           <div className="flex-1 min-w-0">
-                            <p className="text-[11px] font-black text-rose-700 uppercase tracking-wide">Falha na emissão</p>
-                            <p className="text-[10px] text-rose-500 font-medium truncate">{nfceInvoice.rejection_reason || "Erro desconhecido"}</p>
+                            <p className="text-[11px] font-semibold text-rose-700">Falha na emissão</p>
+                            <p className="text-[11px] text-rose-500 font-medium truncate">{nfceInvoice.rejection_reason || "Erro desconhecido"}</p>
                           </div>
-                          <button
-                            onClick={handleRetryNfce}
-                            disabled={nfceRetrying}
-                            className="shrink-0 h-9 px-3 bg-rose-600 hover:bg-rose-700 disabled:opacity-50 text-white rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center gap-1.5 transition-all"
-                          >
-                            {nfceRetrying ? <Loader2 size={13} className="animate-spin" /> : <RefreshCw size={13} />} Tentar de novo
-                          </button>
+                          <Button variant="danger" size="lg" className="shrink-0" onClick={handleRetryNfce} disabled={nfceRetrying} loading={nfceRetrying}
+                            iconLeft={<RefreshCw size={13} />}>
+                            Tentar de novo
+                          </Button>
                         </>
                       )}
                     </div>
@@ -4812,10 +4629,9 @@ ${nfceInvoice.protocol ? `<div class="row"><span class="bold">Protocolo:</span><
               </div>
 
               <div className="shrink-0 p-4 pt-2 border-t border-slate-100">
-                <button onClick={() => setShowReceipt(false)}
-                  className="w-full h-11 border border-slate-200 rounded-2xl text-[12px] font-black text-slate-500 uppercase tracking-widest hover:bg-slate-50 transition-all">
+                <Button variant="outline" size="lg" fullWidth className="h-12" onClick={() => setShowReceipt(false)}>
                   Fechar · Nova Venda
-                </button>
+                </Button>
               </div>
             </motion.div>
           </>
@@ -4831,24 +4647,20 @@ ${nfceInvoice.protocol ? `<div class="row"><span class="bold">Protocolo:</span><
               className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[500]" />
             <motion.div initial={{ x: "100%" }} animate={{ x: 0 }} exit={{ x: "100%" }}
               transition={{ type: "spring", damping: 26, stiffness: 200 }}
-              className="fixed inset-y-0 right-0 w-full max-w-md bg-white z-[510] shadow-2xl flex flex-col">
+              className="fixed inset-y-0 right-0 w-full max-w-md bg-white z-[510] shadow-sm flex flex-col">
               <div className="flex items-center justify-between px-5 py-4 border-b border-slate-200 shrink-0">
                 <div>
-                  <h2 className="font-black text-slate-900 text-[15px]">Crediário</h2>
+                  <h2 className="font-semibold text-slate-900 text-[15px]">Crediário</h2>
                   <p className="text-[11px] text-slate-500">Consultar e pagar dívidas de um cliente</p>
                 </div>
-                <button onClick={() => setShowCrediarioModal(false)} className="p-2 hover:bg-slate-100 rounded-lg text-slate-500"><X size={18} /></button>
+                <IconButton variant="ghost" onClick={() => setShowCrediarioModal(false)} aria-label="Fechar" className="h-9 w-9"><X size={18} /></IconButton>
               </div>
 
               <div className="p-4 border-b border-slate-100 shrink-0">
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={13} />
-                  <input value={crediarioSearch} onChange={(e) => setCrediarioSearch(e.target.value)}
-                    placeholder="Buscar cliente por nome ou telefone..."
-                    className="w-full pl-9 pr-3 h-11 rounded-xl border border-slate-200 text-[12px] font-medium focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 shadow-sm transition-all" />
-                </div>
+                <Input value={crediarioSearch} onChange={(e) => setCrediarioSearch(e.target.value)}
+                  placeholder="Buscar cliente por nome ou telefone..." aria-label="Buscar cliente" iconLeft={<Search size={13} />} />
                 {crediarioFilteredCustomers.length > 0 && !crediarioCustomer && (
-                  <div className="mt-2 border border-slate-200 rounded-xl overflow-hidden max-h-40 overflow-y-auto">
+                  <div className="mt-2 border border-slate-200 rounded-lg overflow-hidden max-h-40 overflow-y-auto">
                     {crediarioFilteredCustomers.slice(0, 8).map((c) => (
                       <button key={c.id} onClick={() => { loadCrediarioCustomer(c); setCrediarioSearch(""); }}
                         className="w-full text-left px-3 py-2 hover:bg-slate-50 text-[12px] font-semibold text-slate-700 border-b border-slate-50 last:border-0">
@@ -4863,27 +4675,27 @@ ${nfceInvoice.protocol ? `<div class="row"><span class="bold">Protocolo:</span><
                 {!crediarioCustomer ? (
                   <div className="h-full flex flex-col items-center justify-center text-slate-300 gap-3 py-16">
                     <Wallet size={36} strokeWidth={1} />
-                    <p className="text-[11px] font-bold text-slate-400">Busque um cliente para ver suas dívidas</p>
+                    <p className="text-[11px] font-semibold text-slate-400">Busque um cliente para ver suas dívidas</p>
                   </div>
                 ) : crediarioLoading ? (
                   <div className="flex items-center justify-center h-32"><Loader2 size={20} className="animate-spin text-slate-300" /></div>
                 ) : (
                   <>
-                    <div className="flex items-center justify-between bg-gradient-to-r from-blue-50 to-slate-50 rounded-2xl px-4 py-3 border border-blue-100 shadow-sm">
+                    <div className="flex items-center justify-between bg-gradient-to-r from-blue-50 to-slate-50 rounded-lg px-4 py-3 border border-blue-100 shadow-sm">
                       <div>
-                        <p className="text-[12px] font-black text-slate-800">{crediarioCustomer.name}</p>
-                        <p className="text-[10px] text-slate-400">{crediarioCustomer.phone}</p>
+                        <p className="text-[12px] font-semibold text-slate-800">{crediarioCustomer.name}</p>
+                        <p className="text-[11px] text-slate-400">{crediarioCustomer.phone}</p>
                       </div>
-                      <button onClick={() => { setCrediarioCustomer(null); setCrediarioDebts([]); }} className="text-[10px] font-bold text-blue-600 hover:underline">Trocar</button>
+                      <Button variant="ghost" size="lg" onClick={() => { setCrediarioCustomer(null); setCrediarioDebts([]); }}>Trocar</Button>
                     </div>
                     {crediarioDebts.filter((d) => d.status === "open").length === 0 ? (
-                      <div className="text-center py-10 text-[11px] font-bold text-emerald-600">Sem dívidas em aberto ✓</div>
+                      <div className="text-center py-10 text-[11px] font-semibold text-emerald-600">Sem dívidas em aberto ✓</div>
                     ) : (
                       crediarioDebts.filter((d) => d.status === "open").map((d) => {
                         const remaining = Number(d.amount) - Number(d.amount_paid);
                         const isExpanded = crediarioExpandedId === d.id;
                         return (
-                          <div key={d.id} className="rounded-xl border border-slate-200 overflow-hidden">
+                          <div key={d.id} className="rounded-lg border border-slate-200 overflow-hidden">
                             <div className="p-3">
                               <div className="flex items-start justify-between gap-2">
                                 <div className="flex items-center gap-1.5 min-w-0">
@@ -4892,17 +4704,17 @@ ${nfceInvoice.protocol ? `<div class="row"><span class="bold">Protocolo:</span><
                                       {isExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
                                     </button>
                                   )}
-                                  <p className="text-[12px] font-bold text-slate-700 truncate">{d.description}</p>
+                                  <p className="text-[12px] font-semibold text-slate-700 truncate">{d.description}</p>
                                 </div>
-                                <span className="text-[11px] font-mono font-black text-slate-800 shrink-0">R$ {remaining.toFixed(2)}</span>
+                                <span className="text-[11px] font-mono font-semibold text-slate-800 shrink-0">R$ {remaining.toFixed(2)}</span>
                               </div>
                               {Number(d.amount_paid) > 0 && (
-                                <p className="text-[10px] text-emerald-600 font-semibold mt-0.5">
+                                <p className="text-[11px] text-emerald-600 font-semibold mt-0.5">
                                   Pago: R$ {Number(d.amount_paid).toFixed(2)} de R$ {Number(d.amount).toFixed(2)}
                                 </p>
                               )}
                               {d.due_date && (!d.installments || d.installments.length <= 1) && (
-                                <p className="text-[10px] text-amber-600 font-semibold mt-0.5">Vencimento: {new Date(d.due_date).toLocaleDateString("pt-BR")}</p>
+                                <p className="text-[11px] text-amber-600 font-semibold mt-0.5">Vencimento: {new Date(d.due_date).toLocaleDateString("pt-BR")}</p>
                               )}
                               {d.installments && d.installments.length > 1 ? (
                                 <div className="mt-2 space-y-1.5">
@@ -4915,18 +4727,18 @@ ${nfceInvoice.protocol ? `<div class="row"><span class="bold">Protocolo:</span><
                                       : 0;
                                     return (
                                       <div key={inst.id} className={cn(
-                                        "rounded-xl border p-3",
+                                        "rounded-lg border p-3",
                                         inst.status === "paid" ? "bg-emerald-50 border-emerald-200" : instOverdue ? "bg-red-50 border-red-200" : "bg-slate-50 border-slate-200"
                                       )}>
                                         <div className="flex items-center justify-between gap-2">
                                           <div className="min-w-0">
-                                            <p className="text-[10px] font-bold text-slate-700">Parcela {inst.number}/{d.installments!.length}</p>
-                                            <p className={cn("text-[9px] font-semibold", instOverdue ? "text-red-500" : "text-slate-400")}>
+                                            <p className="text-[11px] font-semibold text-slate-700">Parcela {inst.number}/{d.installments!.length}</p>
+                                            <p className={cn("text-[10px] font-semibold", instOverdue ? "text-red-500" : "text-slate-400")}>
                                               Vence {new Date(inst.due_date).toLocaleDateString("pt-BR")}{instOverdue && " (vencida)"}
                                             </p>
                                           </div>
                                           {instOpen ? (
-                                            <span className="text-[11px] font-mono font-black text-slate-700 shrink-0">R$ {instRemaining.toFixed(2)}</span>
+                                            <span className="text-[11px] font-mono font-semibold text-slate-700 shrink-0">R$ {instRemaining.toFixed(2)}</span>
                                           ) : (
                                             <CheckCircle2 size={15} className="text-emerald-600 shrink-0" />
                                           )}
@@ -4945,20 +4757,19 @@ ${nfceInvoice.protocol ? `<div class="row"><span class="bold">Protocolo:</span><
                                               />
                                             </div>
                                             {crediarioInstallmentPayError[inst.id] && (
-                                              <p className="text-[9px] font-bold text-red-600 mt-1">{crediarioInstallmentPayError[inst.id]}</p>
+                                              <p className="text-[10px] font-semibold text-red-600 mt-1">{crediarioInstallmentPayError[inst.id]}</p>
                                             )}
-                                            <button onClick={() => handlePayInstallment(d, inst)} disabled={crediarioPayingInstallmentId === inst.id}
-                                              className="w-full h-8 mt-2 rounded-lg bg-emerald-600 text-white text-[10px] font-black uppercase tracking-wider hover:bg-emerald-700 disabled:opacity-50 transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-sm shadow-emerald-200">
-                                              {crediarioPayingInstallmentId === inst.id ? <Loader2 size={11} className="animate-spin" /> : "Confirmar pagamento"}
-                                            </button>
+                                            <Button variant="success" size="lg" fullWidth className="mt-2" onClick={() => handlePayInstallment(d, inst)}
+                                              disabled={crediarioPayingInstallmentId === inst.id} loading={crediarioPayingInstallmentId === inst.id}>
+                                              Confirmar pagamento
+                                            </Button>
                                             {instSuggestedInterest > 0 && (
                                               <div className="flex items-center justify-between gap-2 mt-1.5 pt-1.5 border-t border-red-200">
-                                                <p className="text-[8px] text-red-600 font-semibold">Juros sugerido: R$ {instSuggestedInterest.toFixed(2)}</p>
-                                                <button onClick={() => handleApplyInterest(d, inst, instSuggestedInterest)}
-                                                  disabled={crediarioApplyingInterestId === inst.id}
-                                                  className="h-7 px-2.5 rounded-lg bg-red-600 text-white text-[9px] font-black uppercase tracking-wide hover:bg-red-700 disabled:opacity-50 transition-colors shrink-0 cursor-pointer shadow-sm shadow-red-200">
-                                                  {crediarioApplyingInterestId === inst.id ? <Loader2 size={10} className="animate-spin" /> : "Aplicar juros"}
-                                                </button>
+                                                <p className="text-[10px] text-red-600 font-semibold">Juros sugerido: R$ {instSuggestedInterest.toFixed(2)}</p>
+                                                <Button variant="danger" size="lg" className="shrink-0" onClick={() => handleApplyInterest(d, inst, instSuggestedInterest)}
+                                                  disabled={crediarioApplyingInterestId === inst.id} loading={crediarioApplyingInterestId === inst.id}>
+                                                  Aplicar juros
+                                                </Button>
                                               </div>
                                             )}
                                           </>
@@ -4981,27 +4792,27 @@ ${nfceInvoice.protocol ? `<div class="row"><span class="bold">Protocolo:</span><
                                     />
                                   </div>
                                   {crediarioPayError[d.id] && (
-                                    <p className="text-[9px] font-bold text-red-600 mt-1">{crediarioPayError[d.id]}</p>
+                                    <p className="text-[10px] font-semibold text-red-600 mt-1">{crediarioPayError[d.id]}</p>
                                   )}
-                                  <button onClick={() => handlePayCrediarioDebt(d)} disabled={crediarioPaying === d.id}
-                                    className="w-full h-9 mt-2.5 rounded-xl bg-emerald-600 text-white text-[10px] font-black uppercase tracking-wider hover:bg-emerald-700 disabled:opacity-50 transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-sm shadow-emerald-200">
-                                    {crediarioPaying === d.id ? <Loader2 size={12} className="animate-spin" /> : "Confirmar pagamento"}
-                                  </button>
+                                  <Button variant="success" size="lg" fullWidth className="mt-2" onClick={() => handlePayCrediarioDebt(d)}
+                                    disabled={crediarioPaying === d.id} loading={crediarioPaying === d.id}>
+                                    Confirmar pagamento
+                                  </Button>
                                 </>
                               )}
                             </div>
                             {isExpanded && d.order && (
                               <div className="px-3.5 pb-3.5 pt-2 space-y-1 bg-slate-50/80 border-t border-slate-100">
                                 {d.order.items.map((it) => (
-                                  <div key={it.id} className="flex justify-between text-[10px] text-slate-600 pt-2">
+                                  <div key={it.id} className="flex justify-between text-[11px] text-slate-600 pt-2">
                                     <span>{it.product?.name ?? `Item #${it.id}`} × {it.quantity}</span>
                                     <span className="font-mono">R$ {(Number(it.unit_price) * it.quantity).toFixed(2)}</span>
                                   </div>
                                 ))}
                                 {(d.payments?.length ?? 0) > 0 && (
                                   <div className="pt-2 mt-2 border-t border-slate-200">
-                                    <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-1">Pagamentos registrados</p>
-                                    {d.payments!.map((payment) => <div key={payment.id} className="flex justify-between text-[10px] text-slate-600 py-0.5"><span>{PM_LABEL[(payment.payment_method as PaymentMethod) ?? "money"]} · {new Date(payment.paid_at).toLocaleDateString("pt-BR")}</span><span className="font-mono font-bold text-emerald-600">R$ {Number(payment.amount).toFixed(2)}</span></div>)}
+                                    <p className="text-[10px] font-semibold text-slate-400 mb-1">Pagamentos registrados</p>
+                                    {d.payments!.map((payment) => <div key={payment.id} className="flex justify-between text-[11px] text-slate-600 py-0.5"><span>{PM_LABEL[(payment.payment_method as PaymentMethod) ?? "money"]} · {new Date(payment.paid_at).toLocaleDateString("pt-BR")}</span><span className="font-mono font-semibold text-emerald-600">R$ {Number(payment.amount).toFixed(2)}</span></div>)}
                                   </div>
                                 )}
                               </div>
@@ -5027,55 +4838,49 @@ ${nfceInvoice.protocol ? `<div class="row"><span class="bold">Protocolo:</span><
               className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[500]" />
             <motion.div initial={{ x: "100%" }} animate={{ x: 0 }} exit={{ x: "100%" }}
               transition={{ type: "spring", damping: 26, stiffness: 200 }}
-              className="fixed inset-y-0 right-0 w-full max-w-sm bg-white z-[510] shadow-2xl flex flex-col">
+              className="fixed inset-y-0 right-0 w-full max-w-sm bg-white z-[510] shadow-sm flex flex-col">
               <div className="flex items-center justify-between px-5 py-4 border-b border-slate-200 shrink-0">
                 <div>
-                  <h2 className="font-black text-slate-900 text-[15px]">Consultar Cliente</h2>
+                  <h2 className="font-semibold text-slate-900 text-[15px]">Consultar Cliente</h2>
                   <p className="text-[11px] text-slate-500">Buscar cadastro e usar nesta venda</p>
                 </div>
                 <div className="flex items-center gap-1">
-                  <button
+                  <Button variant="primary" size="lg" iconLeft={<UserPlus size={12} />}
                     onClick={() => {
                       setNcName(customerLookupSearch); setNcPhone(""); setNcDoc(""); setNcEmail(""); setNcAddr(""); setNcBirth(""); setNcCredit(""); setNcNotes(""); setNcRisk(false); setNcRiskReason("");
                       setShowCustomerLookup(false); setShowNewCustomer(true);
-                    }}
-                    className="h-8 px-2.5 rounded-lg bg-blue-600 text-white text-[9px] font-black uppercase tracking-wider hover:bg-blue-700 transition-colors flex items-center gap-1">
-                    <UserPlus size={12} /> Novo
-                  </button>
-                  <button onClick={() => setShowCustomerLookup(false)} className="p-2 hover:bg-slate-100 rounded-lg text-slate-500"><X size={18} /></button>
+                    }}>
+                    Novo
+                  </Button>
+                  <IconButton variant="ghost" onClick={() => setShowCustomerLookup(false)} aria-label="Fechar" className="h-9 w-9"><X size={18} /></IconButton>
                 </div>
               </div>
               <div className="p-4 border-b border-slate-100 shrink-0 space-y-2">
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={13} />
-                  <input value={customerLookupSearch} onChange={(e) => setCustomerLookupSearch(e.target.value)}
-                    placeholder="Buscar por nome ou telefone..." autoFocus
-                    className="w-full pl-9 pr-3 h-10 rounded-xl border border-slate-200 text-[12px] font-medium focus:outline-none focus:border-blue-400" />
-                </div>
-                <button
+                <Input value={customerLookupSearch} onChange={(e) => setCustomerLookupSearch(e.target.value)}
+                  placeholder="Buscar por nome ou telefone..." autoFocus aria-label="Buscar cliente" iconLeft={<Search size={13} />} />
+                <Button variant="outline" size="lg" fullWidth iconLeft={<UserPlus size={13} />}
+                  className="border-dashed border-blue-300 bg-blue-50 text-blue-600 hover:border-blue-400 hover:bg-blue-100 hover:text-blue-700"
                   onClick={() => {
                     setNcName(customerLookupSearch); setNcPhone(""); setNcDoc(""); setNcEmail(""); setNcAddr(""); setNcBirth(""); setNcCredit(""); setNcNotes(""); setNcRisk(false); setNcRiskReason("");
                     setShowCustomerLookup(false); setShowNewCustomer(true);
-                  }}
-                  className="w-full h-9 rounded-xl border border-dashed border-blue-300 bg-blue-50 text-blue-600 text-[10px] font-black uppercase tracking-wider hover:bg-blue-100 transition-colors flex items-center justify-center gap-1.5">
-                  <UserPlus size={13} /> Cadastrar novo cliente
-                </button>
+                  }}>
+                  Cadastrar novo cliente
+                </Button>
               </div>
               <div className="flex-1 overflow-y-auto p-3 space-y-1.5">
                 {customerLookupFiltered.length === 0 ? (
-                  <div className="text-center py-10 text-[11px] font-bold text-slate-400">Nenhum cliente encontrado</div>
+                  <div className="text-center py-10 text-[11px] font-semibold text-slate-400">Nenhum cliente encontrado</div>
                 ) : (
                   customerLookupFiltered.slice(0, 50).map((c) => (
-                    <div key={c.id} className="flex items-center justify-between gap-2 px-3 py-2.5 rounded-xl border border-slate-100 hover:border-blue-200 transition-colors">
+                    <div key={c.id} className="flex items-center justify-between gap-2 px-3 py-2.5 rounded-lg border border-slate-100 hover:border-blue-200 transition-colors">
                       <div className="min-w-0">
-                        <p className="text-[12px] font-bold text-slate-700 truncate">{c.name}</p>
-                        {c.phone && <p className="text-[10px] text-slate-400">{c.phone}</p>}
+                        <p className="text-[12px] font-semibold text-slate-700 truncate">{c.name}</p>
+                        {c.phone && <p className="text-[11px] text-slate-400">{c.phone}</p>}
                       </div>
-                      <button
-                        onClick={() => { setSelectedCustomerId(c.id); setCustomerName(c.name); setShowCustomerLookup(false); }}
-                        className="shrink-0 h-7 px-2.5 rounded-lg bg-blue-50 border border-blue-200 text-blue-600 text-[9px] font-black uppercase tracking-wider hover:bg-blue-100 transition-colors">
+                      <Button variant="outline" size="lg" className="shrink-0"
+                        onClick={() => { setSelectedCustomerId(c.id); setCustomerName(c.name); setShowCustomerLookup(false); }}>
                         Usar
-                      </button>
+                      </Button>
                     </div>
                   ))
                 )}
@@ -5094,55 +4899,51 @@ ${nfceInvoice.protocol ? `<div class="row"><span class="bold">Protocolo:</span><
               className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[500]" />
             <motion.div initial={{ x: "100%" }} animate={{ x: 0 }} exit={{ x: "100%" }}
               transition={{ type: "spring", damping: 26, stiffness: 200 }}
-              className="fixed inset-y-0 right-0 w-full max-w-sm bg-white z-[510] shadow-2xl flex flex-col">
+              className="fixed inset-y-0 right-0 w-full max-w-sm bg-white z-[510] shadow-sm flex flex-col">
               <div className="flex items-center justify-between px-5 py-4 border-b border-slate-200 shrink-0">
                 <div>
-                  <h2 className="font-black text-slate-900 text-[15px]">Consultar Consignado</h2>
+                  <h2 className="font-semibold text-slate-900 text-[15px]">Consultar Consignado</h2>
                   <p className="text-[11px] text-slate-500">Buscar sacolas por cliente ou número</p>
                 </div>
-                <button onClick={() => setShowConsignmentLookup(false)} className="p-2 hover:bg-slate-100 rounded-lg text-slate-500"><X size={18} /></button>
+                <IconButton variant="ghost" onClick={() => setShowConsignmentLookup(false)} aria-label="Fechar" className="h-9 w-9"><X size={18} /></IconButton>
               </div>
               <div className="p-4 border-b border-slate-100 shrink-0">
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={13} />
-                  <input value={consignmentSearch}
-                    onChange={(e) => setConsignmentSearch(e.target.value)}
-                    onKeyDown={(e) => { if (e.key === "Enter") searchConsignments(); }}
-                    placeholder="Buscar por cliente ou número..." autoFocus
-                    className="w-full pl-9 pr-3 h-10 rounded-xl border border-slate-200 text-[12px] font-medium focus:outline-none focus:border-blue-400" />
-                </div>
+                <Input value={consignmentSearch}
+                  onChange={(e) => setConsignmentSearch(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === "Enter") searchConsignments(); }}
+                  placeholder="Buscar por cliente ou número..." autoFocus
+                  aria-label="Buscar consignado"
+                  iconLeft={<Search size={13} />} />
               </div>
               <div className="flex-1 overflow-y-auto p-3 space-y-2">
                 {consignmentLoading ? (
                   <div className="flex items-center justify-center h-32"><Loader2 size={20} className="animate-spin text-slate-300" /></div>
                 ) : consignmentResults.length === 0 ? (
-                  <div className="text-center py-10 text-[11px] font-bold text-slate-400">Nenhuma sacola encontrada</div>
+                  <div className="text-center py-10 text-[11px] font-semibold text-slate-400">Nenhuma sacola encontrada</div>
                 ) : (
                   consignmentResults.map((c) => {
                     const isExpanded = consignmentExpandedId === c.id;
                     const overdue = c.status === "aberta" && new Date(c.due_date).getTime() < Date.now();
                     return (
-                      <div key={c.id} className="rounded-xl border border-slate-200 overflow-hidden">
+                      <div key={c.id} className="rounded-lg border border-slate-200 overflow-hidden">
                         <button onClick={() => setConsignmentExpandedId(isExpanded ? null : c.id)}
                           className="w-full flex items-center justify-between gap-2 px-3 py-2.5 hover:bg-slate-50 transition-colors text-left">
                           <div className="flex items-center gap-1.5 min-w-0">
                             {isExpanded ? <ChevronDown size={13} className="text-slate-400 shrink-0" /> : <ChevronRight size={13} className="text-slate-400 shrink-0" />}
                             <div className="min-w-0">
-                              <p className="text-[12px] font-bold text-slate-700 truncate">#{String(c.number).padStart(4, "0")} · {c.customer_name}</p>
-                              <p className="text-[10px] text-slate-400">{new Date(c.due_date).toLocaleDateString("pt-BR")}</p>
+                              <p className="text-[12px] font-semibold text-slate-700 truncate">#{String(c.number).padStart(4, "0")} · {c.customer_name}</p>
+                              <p className="text-[11px] text-slate-400">{new Date(c.due_date).toLocaleDateString("pt-BR")}</p>
                             </div>
                           </div>
-                          <span className={cn("text-[9px] font-black uppercase tracking-wider px-2 py-1 rounded-lg shrink-0",
-                            overdue ? "text-red-600 bg-red-50" :
-                            c.status === "aberta" ? "text-blue-600 bg-blue-50" :
-                            c.status === "fechada" ? "text-emerald-600 bg-emerald-50" : "text-slate-500 bg-slate-100")}>
+                          <Badge size="sm" className="shrink-0"
+                            color={overdue ? "danger" : c.status === "aberta" ? "info" : c.status === "fechada" ? "success" : "default"}>
                             {overdue ? "Atrasada" : c.status}
-                          </span>
+                          </Badge>
                         </button>
                         {isExpanded && (
                           <div className="px-3 pb-3 pt-0 space-y-1 bg-slate-50 border-t border-slate-100">
                             {c.items.map((it) => (
-                              <div key={it.id} className="flex justify-between text-[10px] text-slate-600 pt-2">
+                              <div key={it.id} className="flex justify-between text-[11px] text-slate-600 pt-2">
                                 <span>{it.name} × {it.quantity} {it.resolution !== "pending" && `(${it.resolution === "kept" ? "ficou" : "voltou"})`}</span>
                                 <span className="font-mono">R$ {(Number(it.unit_price) * it.quantity).toFixed(2)}</span>
                               </div>
@@ -5192,21 +4993,18 @@ ${nfceInvoice.protocol ? `<div class="row"><span class="bold">Protocolo:</span><
               className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[500]" />
             <motion.div initial={{ x: "100%" }} animate={{ x: 0 }} exit={{ x: "100%" }}
               transition={{ type: "spring", damping: 26, stiffness: 200 }}
-              className="fixed inset-y-0 right-0 w-full max-w-sm bg-white z-[510] shadow-2xl flex flex-col">
+              className="fixed inset-y-0 right-0 w-full max-w-sm bg-white z-[510] shadow-sm flex flex-col">
               <div className="flex items-center justify-between px-5 py-4 border-b border-slate-200 shrink-0">
                 <div>
-                  <h2 className="font-black text-slate-900 text-[15px]">Adicionar Produto</h2>
+                  <h2 className="font-semibold text-slate-900 text-[15px]">Adicionar Produto</h2>
                   <p className="text-[11px] text-slate-500">Busque e adicione sem sair do pagamento</p>
                 </div>
-                <button onClick={() => setShowAddProductModal(false)} className="p-2 hover:bg-slate-100 rounded-lg text-slate-500"><X size={18} /></button>
+                <IconButton variant="ghost" onClick={() => setShowAddProductModal(false)} aria-label="Fechar" className="h-9 w-9"><X size={18} /></IconButton>
               </div>
               <div className="p-4 border-b border-slate-100 shrink-0">
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={13} />
-                  <input id="pdv-add-product-search" value={addProductSearch} onChange={(e) => setAddProductSearch(e.target.value)}
-                    placeholder="Buscar produto por nome, código ou código de barras..." autoFocus
-                    className="w-full pl-9 pr-3 h-10 rounded-xl border border-slate-200 text-[12px] font-medium focus:outline-none focus:border-blue-400" />
-                </div>
+                <Input id="pdv-add-product-search" value={addProductSearch} onChange={(e) => setAddProductSearch(e.target.value)}
+                  placeholder="Buscar produto por nome, código ou código de barras..." autoFocus
+                  aria-label="Buscar produto" iconLeft={<Search size={13} />} />
               </div>
               <div className="flex-1 overflow-y-auto p-3 space-y-1.5">
                 {(() => {
@@ -5219,11 +5017,11 @@ ${nfceInvoice.protocol ? `<div class="row"><span class="bold">Protocolo:</span><
                       || (p.barcode ?? "").toLowerCase().includes(q))
                     .slice(0, 50);
                   if (filtered.length === 0) {
-                    return <div className="text-center py-10 text-[11px] font-bold text-slate-400">Nenhum produto encontrado</div>;
+                    return <div className="text-center py-10 text-[11px] font-semibold text-slate-400">Nenhum produto encontrado</div>;
                   }
                   return filtered.map((p) => (
                     <button key={p.id} onClick={() => { addToCart(p); setShowAddProductModal(false); setAddProductSearch(""); }}
-                      className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl border border-slate-100 hover:border-blue-200 hover:bg-blue-50/40 transition-colors text-left">
+                      className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg border border-slate-100 hover:border-blue-200 hover:bg-blue-50/40 transition-colors text-left">
                       {p.image_url ? (
                         <img src={p.image_url} alt={p.name} className="w-8 h-8 rounded-lg object-contain shrink-0 border border-slate-100 p-0.5 bg-slate-50" />
                       ) : (
@@ -5232,8 +5030,8 @@ ${nfceInvoice.protocol ? `<div class="row"><span class="bold">Protocolo:</span><
                         </div>
                       )}
                       <div className="flex-1 min-w-0">
-                        <p className="text-[12px] font-bold text-slate-700 truncate">{p.name}</p>
-                        <p className="text-[10px] text-slate-400">R$ {Number(p.price).toFixed(2)}</p>
+                        <p className="text-[12px] font-semibold text-slate-700 truncate">{p.name}</p>
+                        <p className="text-[11px] text-slate-400">R$ {Number(p.price).toFixed(2)}</p>
                       </div>
                     </button>
                   ));
@@ -5289,60 +5087,51 @@ ${nfceInvoice.protocol ? `<div class="row"><span class="bold">Protocolo:</span><
         />
       )}
 
-      {showNewSellerModal && (
-        <div className="fixed inset-0 z-[600] flex items-center justify-center bg-black/50 p-4">
-          <div className="w-full max-w-sm bg-white rounded-2xl border border-slate-200 shadow-2xl overflow-hidden">
-            <div className="flex items-center justify-between px-5 h-14 border-b border-slate-100">
-              <p className="text-[13px] font-black text-slate-800">Novo Vendedor</p>
-              <button onClick={() => { setShowNewSellerModal(false); setNewSellerName(""); }}
-                className="w-8 h-8 flex items-center justify-center rounded-xl hover:bg-slate-100 text-slate-400">
-                <X size={16} />
-              </button>
-            </div>
-            <div className="p-5 space-y-4">
+      <Modal
+        open={showNewSellerModal}
+        onClose={() => { setShowNewSellerModal(false); setNewSellerName(""); }}
+        title="Novo Vendedor"
+        size="sm"
+        zIndex={600}
+        footer={
+          <ModalFooter>
+            <Button variant="outline" size="lg" onClick={() => { setShowNewSellerModal(false); setNewSellerName(""); }}>Cancelar</Button>
+            <Button variant="primary" size="lg" onClick={handleCreateSeller}
+              disabled={!newSellerName.trim() || savingNewSeller} loading={savingNewSeller}>
+              {savingNewSeller ? "Salvando..." : "Cadastrar"}
+            </Button>
+          </ModalFooter>
+        }
+      >
+        <div className="space-y-4">
+          <Input
+            size="lg" label="Nome" type="text" autoFocus value={newSellerName}
+            onChange={(e) => setNewSellerName(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter") handleCreateSeller(); }}
+            placeholder="Nome do vendedor"
+          />
+          {(() => {
+            const suggestions = teamMembers.filter(
+              (u) => !sellers.some((s) => s.name.trim().toLowerCase() === u.name.trim().toLowerCase()),
+            );
+            if (suggestions.length === 0) return null;
+            return (
               <div>
-                <label className="text-[10px] font-bold uppercase tracking-widest text-slate-500 block mb-1">Nome</label>
-                <input
-                  type="text" autoFocus value={newSellerName}
-                  onChange={(e) => setNewSellerName(e.target.value)}
-                  onKeyDown={(e) => { if (e.key === "Enter") handleCreateSeller(); }}
-                  placeholder="Nome do vendedor"
-                  className="w-full h-11 px-3 rounded-xl border border-slate-200 text-[13px] font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400"
-                />
+                <p className="mb-1.5 text-[11px] text-slate-500">
+                  Ou escolha um usuário já cadastrado
+                </p>
+                <div className="flex flex-wrap gap-1.5">
+                  {suggestions.map((u) => (
+                    <Button key={u.id} variant="outline" size="lg" onClick={() => setNewSellerName(u.name)}>
+                      {u.name}
+                    </Button>
+                  ))}
+                </div>
               </div>
-              {(() => {
-                const suggestions = teamMembers.filter(
-                  (u) => !sellers.some((s) => s.name.trim().toLowerCase() === u.name.trim().toLowerCase()),
-                );
-                if (suggestions.length === 0) return null;
-                return (
-                  <div>
-                    <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-1.5">
-                      Ou escolha um usuário já cadastrado
-                    </p>
-                    <div className="flex flex-wrap gap-1.5">
-                      {suggestions.map((u) => (
-                        <button key={u.id} type="button" onClick={() => setNewSellerName(u.name)}
-                          className="px-2.5 py-1.5 rounded-lg bg-slate-100 hover:bg-blue-50 hover:text-blue-700 text-[11px] font-bold text-slate-600 transition-colors">
-                          {u.name}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                );
-              })()}
-              <button
-                onClick={handleCreateSeller}
-                disabled={!newSellerName.trim() || savingNewSeller}
-                className="w-full h-11 rounded-xl bg-slate-900 text-white text-[12px] font-black uppercase tracking-widest flex items-center justify-center gap-2 hover:bg-slate-800 transition-all disabled:opacity-40"
-              >
-                {savingNewSeller ? <Loader2 size={14} className="animate-spin" /> : null}
-                {savingNewSeller ? "Salvando..." : "Cadastrar"}
-              </button>
-            </div>
-          </div>
+            );
+          })()}
         </div>
-      )}
+      </Modal>
     </div>
   );
 }
@@ -5378,17 +5167,17 @@ const PaymentRow = React.memo(function PaymentRow({
   const activeBrands = CARD_BRANDS.filter((b) => enabledBrands[b.key] !== false);
 
   return (
-    <div className="rounded-xl p-3 space-y-2.5 bg-white border border-slate-200 shadow-sm">
+    <div className="rounded-lg p-3 space-y-2.5 bg-white border border-slate-200 shadow-sm">
 
       {/* Método */}
       <div className="flex items-center gap-2">
         {showRemove && (
-          <span className="w-6 h-6 rounded-full flex items-center justify-center text-[9px] font-black shrink-0 bg-slate-100 text-slate-400 border border-slate-200">{idx + 1}</span>
+          <span className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-semibold shrink-0 bg-slate-100 text-slate-400 border border-slate-200">{idx + 1}</span>
         )}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 flex-1">
           <button onClick={() => onMethodChange(p.id, p.method === "debit" ? "debit" : "credit")}
             title={!isOnline ? "Registro manual — cobrar na maquininha física (sem integração enquanto offline)" : undefined}
-            className="relative h-10 rounded-lg border text-[9px] font-black uppercase tracking-wide transition-all flex flex-col items-center justify-center gap-0.5"
+            className="relative h-10 rounded-lg border text-[10px] font-semibold transition-all flex flex-col items-center justify-center gap-0.5"
             style={(p.method === "credit" || p.method === "debit")
               ? { background: "#059669", border: "1px solid #059669", color: "white", boxShadow: "0 3px 10px rgba(16,185,129,0.22)" }
               : { background: "#ffffff", border: "1px solid #dbe3ee", color: "#64748b" }}>
@@ -5398,7 +5187,7 @@ const PaymentRow = React.memo(function PaymentRow({
           </button>
           <button onClick={() => onMethodChange(p.id, "pix")}
             title={!isOnline ? "Registro manual — cliente já pagou via PIX (chave/QR fora do sistema)" : undefined}
-            className="relative h-10 rounded-lg border text-[9px] font-black uppercase tracking-wide transition-all flex flex-col items-center justify-center gap-0.5"
+            className="relative h-10 rounded-lg border text-[10px] font-semibold transition-all flex flex-col items-center justify-center gap-0.5"
             style={p.method === "pix"
               ? { background: "#2563eb", border: "1px solid #2563eb", color: "white", boxShadow: "0 3px 10px rgba(59,130,246,0.22)" }
               : { background: "#ffffff", border: "1px solid #dbe3ee", color: "#64748b" }}>
@@ -5407,7 +5196,7 @@ const PaymentRow = React.memo(function PaymentRow({
             <span>{PM_LABEL.pix}</span>
           </button>
           <button onClick={() => onMethodChange(p.id, "money")}
-            className="relative h-10 rounded-lg border text-[9px] font-black uppercase tracking-wide transition-all flex flex-col items-center justify-center gap-0.5"
+            className="relative h-10 rounded-lg border text-[10px] font-semibold transition-all flex flex-col items-center justify-center gap-0.5"
             style={p.method === "money"
               ? { background: "#2563eb", border: "1px solid #2563eb", color: "white", boxShadow: "0 3px 10px rgba(37,99,235,0.22)" }
               : { background: "#ffffff", border: "1px solid #dbe3ee", color: "#64748b" }}>
@@ -5417,7 +5206,7 @@ const PaymentRow = React.memo(function PaymentRow({
           </button>
           <div className="relative">
             <button onClick={(e) => { e.stopPropagation(); onToggleMoreMenu(p.id); }}
-              className="relative h-10 w-full rounded-lg border text-[9px] font-black uppercase tracking-wide transition-all flex flex-col items-center justify-center gap-0.5"
+              className="relative h-10 w-full rounded-lg border text-[10px] font-semibold transition-all flex flex-col items-center justify-center gap-0.5"
               style={p.method === "crediario"
                 ? { background: "#d97706", border: "1px solid #d97706", color: "white", boxShadow: "0 3px 10px rgba(217,119,6,0.22)" }
                 : { background: "#ffffff", border: "1px solid #dbe3ee", color: "#64748b" }}>
@@ -5426,7 +5215,7 @@ const PaymentRow = React.memo(function PaymentRow({
               <span>Mais</span>
             </button>
             {morePaymentMenuFor === p.id && (
-              <div className="absolute z-20 top-full mt-1 right-0 w-40 bg-white border border-slate-200 rounded-xl shadow-lg overflow-hidden">
+              <div className="absolute z-20 top-full mt-1 right-0 w-40 bg-white border border-slate-200 rounded-lg shadow-sm overflow-hidden">
                 <button
                   onClick={() => {
                     if (!crediarioEnabled) { onCrediarioBlocked(); return; }
@@ -5448,14 +5237,14 @@ const PaymentRow = React.memo(function PaymentRow({
 
       {/* toggle crédito/débito dentro de "Cartão" */}
       {(p.method === "debit" || p.method === "credit") && (
-        <div className="flex bg-slate-100 border border-slate-200 rounded-xl p-0.5 gap-0.5 w-fit">
+        <div className="flex bg-slate-100 border border-slate-200 rounded-lg p-0.5 gap-0.5 w-fit">
           <button onClick={() => onMethodChange(p.id, "credit")}
-            className="h-7 px-3 rounded-lg text-[9px] font-black uppercase tracking-wide transition-all"
+            className="h-7 px-3 rounded-lg text-[10px] font-semibold transition-all"
             style={p.method === "credit" ? { background: "#059669", color: "white" } : { color: "#94a3b8" }}>
             Crédito
           </button>
           <button onClick={() => onMethodChange(p.id, "debit")}
-            className="h-7 px-3 rounded-lg text-[9px] font-black uppercase tracking-wide transition-all"
+            className="h-7 px-3 rounded-lg text-[10px] font-semibold transition-all"
             style={p.method === "debit" ? { background: "#059669", color: "white" } : { color: "#94a3b8" }}>
             Débito
           </button>
@@ -5467,7 +5256,7 @@ const PaymentRow = React.memo(function PaymentRow({
         <div className={`grid gap-1.5 ${activeBrands.length <= 3 ? "grid-cols-3" : activeBrands.length <= 4 ? "grid-cols-4" : "grid-cols-6"}`}>
           {activeBrands.map(({ key, label, color }) => (
             <button key={key} onClick={() => onUpdate(p.id, { cardBrand: key })}
-              className="h-8 rounded-lg text-[8px] font-bold uppercase tracking-wide transition-all"
+              className="h-8 rounded-lg text-[10px] font-semibold transition-all"
               style={p.cardBrand === key
                 ? { backgroundColor: color, color: "white", border: "1px solid transparent", boxShadow: "0 2px 8px rgba(0,0,0,0.15)" }
                 : { background: "#f8fafc", border: "1px solid #e2e8f0", color: "#94a3b8" }}>
@@ -5489,13 +5278,13 @@ const PaymentRow = React.memo(function PaymentRow({
             const isSel   = p.installments === n;
             return (
               <button key={n} onClick={() => onUpdate(p.id, { installments: n })}
-                className="rounded-xl border transition-all flex flex-col items-center justify-center py-2 gap-0.5"
+                className="rounded-lg border transition-all flex flex-col items-center justify-center py-2 gap-0.5"
                 style={isSel
                   ? { background: "#059669", border: "1px solid rgba(16,185,129,0.5)", color: "white", boxShadow: "0 3px 8px rgba(16,185,129,0.2)" }
                   : { background: "#f8fafc", border: "1px solid #e2e8f0", color: "#64748b" }}>
-                <span className="text-[11px] font-black leading-none">{n === 1 ? "1×" : `${n}×`}</span>
-                {perInst > 0 && <span className="text-[8px] font-semibold leading-none mt-0.5" style={{ color: isSel ? "rgba(167,243,208,0.95)" : "#94a3b8" }}>{perInst.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}</span>}
-                {rate > 0 && <span className="text-[7px] font-bold leading-none" style={{ color: isSel ? "rgba(167,243,208,0.8)" : passFeeToCustomer ? "#3b82f6" : "#cbd5e1" }}>{passFeeToCustomer ? `c/ ${rate}%` : `+${rate}%`}</span>}
+                <span className="text-[11px] font-semibold leading-none">{n === 1 ? "1×" : `${n}×`}</span>
+                {perInst > 0 && <span className="text-[10px] font-semibold leading-none mt-0.5" style={{ color: isSel ? "rgba(167,243,208,0.95)" : "#94a3b8" }}>{perInst.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}</span>}
+                {rate > 0 && <span className="text-[7px] font-semibold leading-none" style={{ color: isSel ? "rgba(167,243,208,0.8)" : passFeeToCustomer ? "#3b82f6" : "#cbd5e1" }}>{passFeeToCustomer ? `c/ ${rate}%` : `+${rate}%`}</span>}
               </button>
             );
           })}
@@ -5506,21 +5295,21 @@ const PaymentRow = React.memo(function PaymentRow({
       {p.method === "crediario" && (
         <div className="grid grid-cols-2 gap-2">
           <div>
-            <label className="text-[8px] font-black uppercase tracking-[0.2em] text-slate-400 mb-1 block">Nº de parcelas</label>
+            <label className="text-[10px] font-semibold text-slate-400 mb-1 block">Nº de parcelas</label>
             <input type="number" min="1" max="24" step="1"
-              className="w-full h-9 px-2 bg-white border border-slate-200 rounded-lg text-[12px] font-mono font-bold text-slate-800 focus:outline-none focus:border-amber-500"
+              className="w-full h-9 px-2 bg-white border border-slate-200 rounded-lg text-[12px] font-mono font-semibold text-slate-800 focus:outline-none focus:border-amber-500"
               value={p.crediarioInstallments}
               onChange={(e) => onUpdate(p.id, { crediarioInstallments: Math.max(1, Number(e.target.value) || 1) })} />
           </div>
           <div>
-            <label className="text-[8px] font-black uppercase tracking-[0.2em] text-slate-400 mb-1 block">Vencimento 1ª parcela</label>
+            <label className="text-[10px] font-semibold text-slate-400 mb-1 block">Vencimento 1ª parcela</label>
             <input type="date"
-              className="w-full h-9 px-2 bg-white border border-slate-200 rounded-lg text-[12px] font-mono font-bold text-slate-800 focus:outline-none focus:border-amber-500"
+              className="w-full h-9 px-2 bg-white border border-slate-200 rounded-lg text-[12px] font-mono font-semibold text-slate-800 focus:outline-none focus:border-amber-500"
               value={p.crediarioFirstDueDate}
               onChange={(e) => onUpdate(p.id, { crediarioFirstDueDate: e.target.value })} />
           </div>
           {p.crediarioInstallments > 1 && pAmt > 0 && (
-            <p className="col-span-2 text-[10px] font-bold text-amber-600">
+            <p className="col-span-2 text-[11px] font-semibold text-amber-600">
               {p.crediarioInstallments}x de R$ {(pAmt / p.crediarioInstallments).toFixed(2)}
             </p>
           )}
@@ -5531,19 +5320,19 @@ const PaymentRow = React.memo(function PaymentRow({
       {p.method === "money" && idx === 0 ? (
         <div className="grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_240px] gap-3">
           <div>
-            <label className="text-[8px] font-black uppercase tracking-[0.2em] text-slate-400 mb-1 block">Valor recebido</label>
+            <label className="text-[10px] font-semibold text-slate-400 mb-1 block">Valor recebido</label>
             <div className="relative">
               <Banknote className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
               <input type="number" min="0" step="0.01" inputMode="decimal"
                 placeholder={total > 0 ? total.toFixed(2) : "0,00"}
-                className="w-full pl-10 pr-3 h-12 rounded-xl text-[20px] font-mono font-black text-slate-800 placeholder:text-slate-300 bg-white focus:outline-none focus:ring-2 focus:ring-blue-100 transition-all [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none"
+                className="w-full pl-10 pr-3 h-12 rounded-lg text-[20px] font-mono font-semibold text-slate-800 placeholder:text-slate-300 bg-white focus:outline-none focus:ring-2 focus:ring-blue-100 transition-all [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none"
                 style={{ border: pAmt > 0 && pAmt < (total - othersPaid) ? "1px solid #fca5a5" : "1px solid #e2e8f0" }}
                 value={p.amount}
                 onChange={(e) => onUpdate(p.id, { amount: e.target.value })} />
             </div>
-            <div className="mt-2 rounded-xl px-3 py-2 bg-emerald-50 border border-emerald-200 flex items-center justify-between">
-              <span className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest text-emerald-600"><Banknote size={12} /> Troco</span>
-              <span className={cn("text-[16px] font-mono font-black", pAmt > 0 && pAmt >= (total - othersPaid) ? "text-emerald-600" : "text-slate-400")}>
+            <div className="mt-2 rounded-lg px-3 py-2 bg-emerald-50 border border-emerald-200 flex items-center justify-between">
+              <span className="flex items-center gap-1.5 text-[11px] font-semibold text-emerald-600"><Banknote size={12} /> Troco</span>
+              <span className={cn("text-[16px] font-mono font-semibold", pAmt > 0 && pAmt >= (total - othersPaid) ? "text-emerald-600" : "text-slate-400")}>
                 R$ {(pAmt > 0 ? Math.max(0, pAmt - (total - othersPaid)) : 0).toFixed(2)}
               </span>
             </div>
@@ -5553,16 +5342,16 @@ const PaymentRow = React.memo(function PaymentRow({
             {["7", "8", "9", "4", "5", "6", "1", "2", "3"].map((d) => (
               <button key={d} type="button"
                 onClick={() => onUpdate(p.id, { amount: (p.amount || "") + d })}
-                className="h-8 rounded-lg bg-slate-50 border border-slate-200 text-[12px] font-black text-slate-700 hover:bg-slate-100 active:scale-95 transition-all">
+                className="h-8 rounded-lg bg-slate-50 border border-slate-200 text-[12px] font-semibold text-slate-700 hover:bg-slate-100 active:scale-95 transition-all">
                 {d}
               </button>
             ))}
             <button type="button" onClick={() => onUpdate(p.id, { amount: (p.amount || "").includes(".") ? p.amount : `${p.amount || "0"}.` })}
-              className="h-8 rounded-lg bg-slate-50 border border-slate-200 text-[12px] font-black text-slate-700 hover:bg-slate-100 active:scale-95 transition-all">
+              className="h-8 rounded-lg bg-slate-50 border border-slate-200 text-[12px] font-semibold text-slate-700 hover:bg-slate-100 active:scale-95 transition-all">
               ,
             </button>
             <button type="button" onClick={() => onUpdate(p.id, { amount: (p.amount || "") + "0" })}
-              className="h-8 rounded-lg bg-slate-50 border border-slate-200 text-[12px] font-black text-slate-700 hover:bg-slate-100 active:scale-95 transition-all">
+              className="h-8 rounded-lg bg-slate-50 border border-slate-200 text-[12px] font-semibold text-slate-700 hover:bg-slate-100 active:scale-95 transition-all">
               0
             </button>
             <button type="button" onClick={() => onUpdate(p.id, { amount: (p.amount || "").slice(0, -1) })}
@@ -5570,11 +5359,11 @@ const PaymentRow = React.memo(function PaymentRow({
               <ChevronLeft size={13} />
             </button>
             <button type="button" onClick={() => onUpdate(p.id, { amount: "" })}
-              className="h-8 rounded-lg bg-slate-50 border border-slate-200 text-[10px] font-black text-slate-500 hover:bg-red-50 hover:text-red-500 active:scale-95 transition-all col-span-1">
+              className="h-8 rounded-lg bg-slate-50 border border-slate-200 text-[11px] font-semibold text-slate-500 hover:bg-red-50 hover:text-red-500 active:scale-95 transition-all col-span-1">
               CE
             </button>
             <button type="button" onClick={() => onUpdate(p.id, { amount: total > 0 ? total.toFixed(2) : p.amount })}
-              className="h-8 rounded-lg text-[10px] font-black text-white active:scale-95 transition-all col-span-2"
+              className="h-8 rounded-lg text-[11px] font-semibold text-white active:scale-95 transition-all col-span-2"
               style={{ background: "linear-gradient(135deg,#3b82f6,#1d4ed8)" }}>
               OK
             </button>
@@ -5582,7 +5371,7 @@ const PaymentRow = React.memo(function PaymentRow({
         </div>
       ) : (
         <div>
-          <label className="text-[8px] font-black uppercase tracking-[0.2em] text-slate-400 mb-1 block">
+          <label className="text-[10px] font-semibold text-slate-400 mb-1 block">
             {p.method === "money" ? "Valor recebido" : "Valor"}
           </label>
           <div className="flex gap-2 items-center">
@@ -5590,7 +5379,7 @@ const PaymentRow = React.memo(function PaymentRow({
               <Banknote className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
               <input type="number" min="0" step="0.01"
                 placeholder="Valor"
-                className="w-full pl-10 pr-3 h-11 rounded-xl text-[15px] font-mono font-bold text-slate-800 placeholder:text-slate-300 bg-white focus:outline-none focus:ring-2 focus:ring-blue-100 transition-all [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none"
+                className="w-full pl-10 pr-3 h-11 rounded-lg text-[15px] font-mono font-semibold text-slate-800 placeholder:text-slate-300 bg-white focus:outline-none focus:ring-2 focus:ring-blue-100 transition-all [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none"
                 style={{
                   border: p.method === "money" && pAmt > 0 && pAmt < (total - othersPaid)
                     ? "1px solid #fca5a5" : "1px solid #e2e8f0"
@@ -5599,22 +5388,22 @@ const PaymentRow = React.memo(function PaymentRow({
                 onChange={(e) => onUpdate(p.id, { amount: e.target.value })} />
             </div>
             {feeRate > 0 && pAmt > 0 && (
-              <div className="rounded-xl px-3 py-2 shrink-0 text-center bg-amber-50 border border-amber-200">
-                <p className="text-[8px] font-black uppercase text-amber-600">Taxa</p>
-                <p className="text-[12px] font-mono font-black text-amber-700">+R$ {(pAmt * feeRate / 100).toFixed(2)}</p>
+              <div className="rounded-lg px-3 py-2 shrink-0 text-center bg-amber-50 border border-amber-200">
+                <p className="text-[10px] font-semibold text-amber-600">Taxa</p>
+                <p className="text-[12px] font-mono font-semibold text-amber-700">+R$ {(pAmt * feeRate / 100).toFixed(2)}</p>
               </div>
             )}
             {p.method === "credit" && p.installments > 1 && pAmt > 0 && (
-              <div className="rounded-xl px-3 py-2 shrink-0 text-center bg-blue-50 border border-blue-200">
-                <p className="text-[8px] font-black uppercase text-blue-600">{p.installments}×</p>
-                <p className="text-[12px] font-mono font-black text-blue-700">R$ {(pAmt / p.installments).toFixed(2)}</p>
+              <div className="rounded-lg px-3 py-2 shrink-0 text-center bg-blue-50 border border-blue-200">
+                <p className="text-[10px] font-semibold text-blue-600">{p.installments}×</p>
+                <p className="text-[12px] font-mono font-semibold text-blue-700">R$ {(pAmt / p.installments).toFixed(2)}</p>
               </div>
             )}
           </div>
           {p.method === "money" && (
             <div className="mt-1.5 flex items-center justify-between">
-              <span className="text-[9px] font-black uppercase tracking-widest text-slate-400">Troco</span>
-              <span className={cn("text-[12px] font-mono font-black", pAmt > 0 && pAmt >= (total - othersPaid) ? "text-emerald-600" : "text-slate-400")}>
+              <span className="text-[10px] font-semibold text-slate-400">Troco</span>
+              <span className={cn("text-[12px] font-mono font-semibold", pAmt > 0 && pAmt >= (total - othersPaid) ? "text-emerald-600" : "text-slate-400")}>
                 R$ {(pAmt > 0 ? Math.max(0, pAmt - (total - othersPaid)) : 0).toFixed(2)}
               </span>
             </div>
@@ -5628,7 +5417,7 @@ const PaymentRow = React.memo(function PaymentRow({
 // ─── CART PANEL (apenas lista + botão ir para pagamento) ──────────────────────
 function CartPanel({
   cart, updateQuantity, setQuantityDirect, sellWithoutStockControl, removeFromCart,
-  cartServices, setCartServices,
+  cartServices, setCartServices, onEditService,
   subtotal, discountValue, surchargeValue, feeAmount, total, cartQty,
   onCheckout, canFinish, onClose,
   onHold, holding, canHold, onClear,
@@ -5640,6 +5429,7 @@ function CartPanel({
   removeFromCart: (id: string) => void;
   cartServices: ServiceItem[];
   setCartServices: React.Dispatch<React.SetStateAction<ServiceItem[]>>;
+  onEditService: (svc: ServiceItem) => void;
   subtotal: number;
   discountValue: number;
   surchargeValue: number;
@@ -5664,22 +5454,22 @@ function CartPanel({
             <ShoppingCart size={14} className="text-blue-300" />
           </div>
           <div>
-            <h3 className="text-[12px] font-black uppercase tracking-widest text-white">Carrinho</h3>
-            <span className="text-[9px] text-slate-400 font-bold uppercase tracking-widest">{cartQty} {cartQty === 1 ? "item" : "itens"}</span>
+            <h3 className="text-[12px] font-semibold text-white">Carrinho</h3>
+            <span className="text-[10px] text-slate-400 font-semibold">{cartQty} {cartQty === 1 ? "item" : "itens"}</span>
           </div>
         </div>
         <div className="flex items-center gap-1">
           {onClear && hasItems && (
-            <button onClick={onClear} title="Limpar Carrinho"
-              className="flex items-center gap-1.5 h-7 px-2.5 rounded-lg text-[9px] font-bold text-slate-300 border border-white/10 hover:bg-red-500/10 hover:text-red-400 hover:border-red-400/30 transition-colors">
-              <Trash2 size={11} />
+            <Button variant="outline" size="sm" onClick={onClear} title="Limpar Carrinho" aria-label="Limpar Carrinho"
+              iconLeft={<Trash2 size={11} />}
+              className="border-white/10 bg-transparent text-slate-300 hover:border-red-400/30 hover:bg-red-500/10 hover:text-red-400">
               <span className="hidden sm:inline">Limpar Carrinho</span>
-            </button>
+            </Button>
           )}
           {onClose && (
-            <button onClick={onClose} className="p-1.5 hover:bg-white/10 rounded-xl text-slate-400 transition-colors">
+            <IconButton variant="ghost" size="md" onClick={onClose} aria-label="Fechar carrinho" className="border-transparent text-slate-400 hover:bg-white/10 hover:text-white">
               <X size={18} />
-            </button>
+            </IconButton>
           )}
         </div>
       </div>
@@ -5694,35 +5484,32 @@ function CartPanel({
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: -20, height: 0 }}
               transition={{ duration: 0.18 }}>
-              <div className="flex items-center gap-2.5 p-2.5 rounded-xl border border-slate-200 bg-white hover:border-blue-200 transition-colors group shadow-sm">
-                {/* Thumbnail */}
-                {item.image_url ? (
-                  <img src={item.image_url} alt={item.name} className="w-10 h-10 rounded-xl object-contain shrink-0 border border-slate-200 p-0.5 bg-slate-50" />
-                ) : (
-                  <div className="w-10 h-10 rounded-xl bg-slate-100 border border-slate-200 flex items-center justify-center shrink-0">
-                    <Package size={14} className="text-slate-400" />
-                  </div>
-                )}
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-1.5">
-                    <p className="text-[11px] font-semibold text-slate-700 truncate leading-tight">{item.name}</p>
-                    {item.isAvulso && (
-                      <span className="shrink-0 px-1.5 py-0.5 rounded text-[8px] font-black uppercase tracking-widest bg-emerald-100 text-emerald-700">Avulso</span>
+              <div className="p-3 rounded-lg border border-slate-200 bg-white hover:border-blue-200 transition-colors shadow-sm space-y-2.5">
+                <div className="flex items-start gap-2.5">
+                  {/* Thumbnail */}
+                  {item.image_url ? (
+                    <img src={item.image_url} alt={item.name} className="w-9 h-9 rounded-lg object-contain shrink-0 border border-slate-200 p-0.5 bg-slate-50" />
+                  ) : (
+                    <div className="w-9 h-9 rounded-lg bg-slate-100 border border-slate-200 flex items-center justify-center shrink-0">
+                      <Package size={14} className="text-slate-400" />
+                    </div>
+                  )}
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-semibold text-slate-700 leading-snug line-clamp-2 break-words" title={item.name}>{item.name}</p>
+                    {(item.isAvulso || item.variationLabel) && (
+                      <div className="flex flex-wrap items-center gap-1 mt-1">
+                        {item.isAvulso && <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-emerald-100 text-emerald-700">Avulso</span>}
+                        {item.variationLabel && <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-blue-50 text-blue-600">{item.variationLabel}</span>}
+                      </div>
                     )}
                   </div>
-                  {item.variationLabel && (
-                    <p className="text-[9px] font-bold text-blue-500 uppercase tracking-widest">{item.variationLabel}</p>
-                  )}
-                  <div className="flex items-center justify-between mt-1">
-                    <p className="text-[10px] font-mono text-slate-400">R$ {(Number(item.price) || 0).toFixed(2)}</p>
-                    <p className="text-[12px] font-mono font-black text-slate-800">R$ {((Number(item.price) || 0) * item.quantity).toFixed(2)}</p>
+                  <div className="flex items-center shrink-0 -mt-1 -mr-1">
+                    <IconButton variant="ghost" size="sm" onClick={() => removeFromCart(item.cartItemId)} aria-label="Remover item" title="Remover item" className="border-transparent text-slate-400 hover:bg-red-50 hover:text-red-600"><Trash2 size={14} /></IconButton>
                   </div>
                 </div>
-                <div className="flex flex-col items-center gap-1 shrink-0">
-                  <div className="flex items-center gap-1 bg-slate-100 border border-slate-200 rounded-xl overflow-hidden">
-                    <button onClick={() => updateQuantity(item.cartItemId, -1)} className="p-1.5 hover:bg-slate-200 text-slate-400 hover:text-slate-700 transition-all">
-                      <Minus size={11} />
-                    </button>
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center bg-slate-50 border border-slate-200 rounded-lg">
+                    <IconButton variant="ghost" size="sm" onClick={() => updateQuantity(item.cartItemId, -1)} aria-label="Diminuir quantidade" className="border-transparent"><Minus size={12} /></IconButton>
                     <input
                       type="number"
                       min={1}
@@ -5730,15 +5517,14 @@ function CartPanel({
                       value={item.quantity}
                       onChange={(e) => setQuantityDirect(item.cartItemId, parseInt(e.target.value) || 1, item.isAvulso || sellWithoutStockControl ? undefined : item.stock_quantity)}
                       onFocus={(e) => e.target.select()}
-                      className="w-8 text-center font-mono font-black text-[12px] text-slate-700 bg-transparent border-none outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                      className="w-9 text-center font-mono font-semibold text-xs text-slate-700 bg-transparent border-none outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
                     />
-                    <button onClick={() => updateQuantity(item.cartItemId, 1)} disabled={!sellWithoutStockControl && !item.isAvulso && item.quantity >= item.stock_quantity} className="p-1.5 hover:bg-slate-200 text-slate-400 hover:text-slate-700 transition-all disabled:opacity-30">
-                      <Plus size={11} />
-                    </button>
+                    <IconButton variant="ghost" size="sm" onClick={() => updateQuantity(item.cartItemId, 1)} disabled={!sellWithoutStockControl && !item.isAvulso && item.quantity >= item.stock_quantity} aria-label="Aumentar quantidade" className="border-transparent"><Plus size={12} /></IconButton>
                   </div>
-                  <button onClick={() => removeFromCart(item.cartItemId)} className="p-1 text-slate-300 hover:text-red-500 transition-colors rounded">
-                    <Trash2 size={12} />
-                  </button>
+                  <div className="flex flex-col items-end leading-tight min-w-0">
+                    <span className="text-[10px] font-mono text-slate-400 whitespace-nowrap">R$ {(Number(item.price) || 0).toFixed(2)} × {item.quantity}</span>
+                    <span className="text-sm font-mono font-semibold text-slate-800 whitespace-nowrap">R$ {((Number(item.price) || 0) * item.quantity).toFixed(2)}</span>
+                  </div>
                 </div>
               </div>
             </motion.div>
@@ -5748,50 +5534,68 @@ function CartPanel({
         <AnimatePresence initial={false}>
           {cartServices.map((svc) => {
             const isMeasured = !!svc.sale_unit && svc.sale_unit !== "unidade";
+            const svcQty = svc.quantity ?? 1;
+            const svcPrice = Number(svc.price);
+            const catMeta = svc.category_ref ?? UNCATEGORIZED_SERVICE_CATEGORY;
+            const catColor = catMeta.color || "#64748b";
+            const CatIcon = getCategoryIcon(catMeta.icon);
             return (
             <motion.div key={`svc-${svc.id}`}
               initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20, height: 0 }}
               transition={{ duration: 0.18 }}>
-              <div className="flex items-center gap-2 p-2.5 rounded-xl border border-violet-200 bg-violet-50/70 shadow-sm">
-                <div className="w-10 h-10 rounded-xl bg-violet-100 border border-violet-200 flex items-center justify-center shrink-0">
-                  <Wrench size={14} className="text-violet-500" />
+              <div className="p-3 rounded-lg border border-slate-200 bg-white hover:border-blue-200 transition-colors shadow-sm space-y-2.5">
+                <div className="flex items-start gap-2.5">
+                  <div className="w-9 h-9 rounded-lg flex items-center justify-center shrink-0 border border-slate-200" style={{ background: `${catColor}1a`, color: catColor }}>
+                    <CatIcon size={14} />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-semibold text-slate-700 leading-snug line-clamp-2 break-words" title={svc.name}>{svc.name}</p>
+                    <div className="flex flex-wrap items-center gap-1 mt-1">
+                      <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-slate-100 text-slate-600">Serviço</span>
+                      {isMeasured && svc.dimensionsLabel ? (
+                        <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-blue-50 text-blue-600">{svc.dimensionsLabel}</span>
+                      ) : null}
+                    </div>
+                  </div>
+                  <div className="flex items-center shrink-0 -mt-1 -mr-1">
+                    <IconButton variant="ghost" size="sm" aria-label="Editar nome e valor nesta venda" title="Editar nome e valor (só nesta venda)"
+                      onClick={() => onEditService(svc)}
+                      className="border-transparent text-slate-400 hover:bg-blue-50 hover:text-blue-600">
+                      <Pencil size={14} />
+                    </IconButton>
+                    <IconButton variant="ghost" size="sm" aria-label="Remover serviço" title="Remover serviço"
+                      onClick={() => setCartServices(prev => prev.filter(x => x.id !== svc.id))}
+                      className="border-transparent text-slate-400 hover:bg-red-50 hover:text-red-600">
+                      <Trash2 size={14} />
+                    </IconButton>
+                  </div>
                 </div>
-                <div className="flex-1 min-w-0">
-                  <span className="text-[8px] font-black uppercase tracking-widest text-violet-500 bg-violet-100 px-1.5 py-0.5 rounded-md">Serviço</span>
-                  <p className="text-[11px] font-bold text-slate-700 truncate leading-tight mt-0.5">{svc.name}</p>
-                  {isMeasured && svc.dimensionsLabel ? (
-                    <p className="text-[9px] text-violet-500 font-mono">{svc.dimensionsLabel}</p>
-                  ) : null}
-                  <p className="text-[12px] font-mono font-black text-violet-600">R$ {(Number(svc.price) * (svc.quantity ?? 1)).toFixed(2)}</p>
-                </div>
-                <div className="flex flex-col items-center gap-1 shrink-0">
+                <div className="flex items-center justify-between gap-2">
                   {/* qty controls — item por medida tem quantidade fixa em 1 */}
-                  {!isMeasured && (
-                    <div className="flex items-center gap-1 bg-violet-100 border border-violet-200 rounded-xl overflow-hidden">
-                      <button
-                        onClick={() => setCartServices(prev => (svc.quantity ?? 1) <= 1 ? prev.filter(x => x.id !== svc.id) : prev.map(x => x.id === svc.id ? { ...x, quantity: (x.quantity ?? 1) - 1 } : x))}
-                        className="p-1.5 hover:bg-violet-200 text-violet-400 hover:text-violet-700 transition-all">
-                        <Minus size={11} />
-                      </button>
+                  {isMeasured ? <span /> : (
+                    <div className="flex items-center bg-slate-50 border border-slate-200 rounded-lg">
+                      <IconButton variant="ghost" size="sm" aria-label="Diminuir quantidade" className="border-transparent"
+                        onClick={() => setCartServices(prev => (svc.quantity ?? 1) <= 1 ? prev.filter(x => x.id !== svc.id) : prev.map(x => x.id === svc.id ? { ...x, quantity: (x.quantity ?? 1) - 1 } : x))}>
+                        <Minus size={12} />
+                      </IconButton>
                       <input
                         type="number"
                         min={1}
-                        value={svc.quantity ?? 1}
+                        value={svcQty}
                         onChange={(e) => { const v = parseInt(e.target.value) || 1; setCartServices(prev => prev.map(x => x.id === svc.id ? { ...x, quantity: Math.max(1, v) } : x)); }}
                         onFocus={(e) => e.target.select()}
-                        className="w-8 text-center font-mono font-black text-[12px] text-violet-700 bg-transparent border-none outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                        className="w-9 text-center font-mono font-semibold text-xs text-slate-700 bg-transparent border-none outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
                       />
-                      <button
-                        onClick={() => setCartServices(prev => prev.map(x => x.id === svc.id ? { ...x, quantity: (x.quantity ?? 1) + 1 } : x))}
-                        className="p-1.5 hover:bg-violet-200 text-violet-400 hover:text-violet-700 transition-all">
-                        <Plus size={11} />
-                      </button>
+                      <IconButton variant="ghost" size="sm" aria-label="Aumentar quantidade" className="border-transparent"
+                        onClick={() => setCartServices(prev => prev.map(x => x.id === svc.id ? { ...x, quantity: (x.quantity ?? 1) + 1 } : x))}>
+                        <Plus size={12} />
+                      </IconButton>
                     </div>
                   )}
-                  <button onClick={() => setCartServices(prev => prev.filter(x => x.id !== svc.id))}
-                    className="p-1 text-slate-300 hover:text-red-500 transition-colors rounded">
-                    <Trash2 size={12} />
-                  </button>
+                  <div className="flex flex-col items-end leading-tight min-w-0">
+                    <span className="text-[10px] font-mono text-slate-400 whitespace-nowrap">R$ {svcPrice.toFixed(2)} × {svcQty}</span>
+                    <span className="text-sm font-mono font-semibold text-slate-800 whitespace-nowrap">R$ {(svcPrice * svcQty).toFixed(2)}</span>
+                  </div>
                 </div>
               </div>
             </motion.div>
@@ -5805,8 +5609,8 @@ function CartPanel({
               <ShoppingCart size={32} strokeWidth={1.5} className="text-slate-300" />
             </div>
             <div className="text-center px-6">
-              <p className="text-[13px] font-black mb-1 text-slate-500">Carrinho vazio</p>
-              <p className="text-[10px] text-slate-400 leading-relaxed">Adicione produtos ao carrinho<br />para iniciar a venda.</p>
+              <p className="text-[13px] font-semibold mb-1 text-slate-500">Carrinho vazio</p>
+              <p className="text-[11px] text-slate-400 leading-relaxed">Adicione produtos ao carrinho<br />para iniciar a venda.</p>
             </div>
           </div>
         )}
@@ -5815,56 +5619,50 @@ function CartPanel({
       {/* Footer summary + checkout button */}
       <div className="shrink-0 border-t border-slate-200 p-3.5 space-y-2.5 bg-white shadow-[0_-6px_20px_rgba(15,23,42,0.04)]">
         <div className="space-y-1.5">
-          <div className="flex justify-between text-[10px] font-bold text-slate-400">
+          <div className="flex justify-between text-[11px] font-semibold text-slate-400">
             <span>Subtotal</span><span className="font-mono">R$ {subtotal.toFixed(2)}</span>
           </div>
           {discountValue > 0 && (
-            <div className="flex justify-between text-[10px] font-bold text-emerald-600">
+            <div className="flex justify-between text-[11px] font-semibold text-emerald-600">
               <span>Descontos</span><span className="font-mono">− R$ {discountValue.toFixed(2)}</span>
             </div>
           )}
           {discountValue === 0 && (
-            <div className="flex justify-between text-[10px] font-bold text-slate-400">
+            <div className="flex justify-between text-[11px] font-semibold text-slate-400">
               <span>Descontos</span><span className="font-mono">R$ 0,00</span>
             </div>
           )}
           {surchargeValue > 0 && (
-            <div className="flex justify-between text-[10px] font-bold text-amber-500">
+            <div className="flex justify-between text-[11px] font-semibold text-amber-500">
               <span>Acréscimo</span><span className="font-mono">+ R$ {surchargeValue.toFixed(2)}</span>
             </div>
           )}
           {feeAmount > 0 && (
-            <div className="flex justify-between text-[10px] font-bold text-orange-500">
+            <div className="flex justify-between text-[11px] font-semibold text-orange-500">
               <span>Juros máquina</span><span className="font-mono">+ R$ {feeAmount.toFixed(2)}</span>
             </div>
           )}
           <div className="flex justify-between items-baseline pt-1.5 border-t border-slate-100">
-            <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Total</span>
-            <span className="text-xl font-mono font-black text-slate-800">R$ {total.toFixed(2)}</span>
+            <span className="text-[11px] font-semibold text-slate-400">Total</span>
+            <span className="text-xl font-mono font-semibold text-slate-800">R$ {total.toFixed(2)}</span>
           </div>
         </div>
 
         <div className="flex gap-2">
           {onHold && canHold && (
-            <button
-              onClick={onHold}
-              disabled={holding}
-              title="Segurar Venda"
-              className="h-11 px-3 rounded-xl text-[10px] font-bold text-amber-600 border border-amber-200 hover:bg-amber-50 transition-all disabled:opacity-40 active:scale-[0.98] flex items-center justify-center gap-2 shrink-0">
-              {holding ? <Loader2 size={14} className="animate-spin" /> : <Clock size={14} />}
+            <Button variant="outline" size="lg" onClick={onHold} disabled={holding} loading={holding}
+              title="Segurar Venda" aria-label="Segurar Venda" iconLeft={<Clock size={14} />}
+              className="h-11 shrink-0 border-amber-200 text-amber-600 hover:border-amber-300 hover:bg-amber-50 hover:text-amber-700">
               <span className="hidden sm:inline">Segurar</span>
-            </button>
+            </Button>
           )}
-          <button
-            onClick={onCheckout}
-            disabled={!canFinish}
-            className="flex-1 h-11 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-500 hover:to-blue-600 disabled:opacity-25 text-white rounded-xl text-[10px] font-black uppercase tracking-wide transition-all active:scale-[0.98] flex items-center justify-center gap-2 shadow-lg shadow-blue-200">
-            <CreditCard size={14} />
+          <Button variant="primary" size="lg" onClick={onCheckout} disabled={!canFinish}
+            iconLeft={<CreditCard size={14} />} className="h-11 flex-1">
             Ir para Pagamento
             {cartQty > 0 && (
-              <span className="bg-white/20 rounded-md px-1.5 py-0.5 text-[9px] font-black">{cartQty}</span>
+              <span className="bg-white/20 rounded-md px-1.5 py-0.5 text-[10px] font-semibold">{cartQty}</span>
             )}
-          </button>
+          </Button>
         </div>
       </div>
     </>
