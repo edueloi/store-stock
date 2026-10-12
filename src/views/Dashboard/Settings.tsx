@@ -2620,8 +2620,8 @@ export default function Settings({
                 {/* Hero tagline */}
                 <div>
                   <Field
-                    label="Frase de Destaque (Home)"
-                    hint="Subtítulo curto exibido logo abaixo do nome da loja na página inicial pública — sem preencher, aparece um texto genérico de exemplo do tema escolhido"
+                    label="Frase de Destaque (Home e Catálogo)"
+                    hint="Título principal da loja pública. No modelo Essência, esta frase também aparece no topo do catálogo — preencha para a vitrine falar exatamente sobre o seu negócio."
                   >
                     <Textarea value={tenant?.hero_tagline ?? ""} onChange={(e) => setT({ hero_tagline: e.target.value })} placeholder="Ex: Peças e acessórios automotivos com entrega rápida e os melhores preços." className="h-20" />
                   </Field>

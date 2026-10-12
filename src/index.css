@@ -539,6 +539,17 @@ body {
 .store-theme-fragrance .text-blue-700 { color: #2563eb !important; }
 .store-theme-fragrance .store-search-input input { border-color: #334155; background: #111827; color: #f8fafc; }
 .store-theme-fragrance .store-search-input input::placeholder { color: #94a3b8; }
+.store-theme-fragrance > header .fragrance-mega-menu { background: #fff !important; border-color: #cbd5e1 !important; box-shadow: 0 22px 48px rgba(7, 15, 30, .22) !important; }
+.store-theme-fragrance > header .fragrance-mega-menu a,
+.store-theme-fragrance > header .fragrance-mega-menu p,
+.store-theme-fragrance > header .fragrance-mega-menu span { color: #172033 !important; }
+.store-theme-fragrance > header .fragrance-mega-menu a:hover { background: #eff6ff !important; color: #1d4ed8 !important; }
+.store-theme-fragrance > header .fragrance-mega-menu a[style] { color: #2563eb !important; }
+.store-theme-fragrance .fragrance-product-card { border-radius: 0 !important; box-shadow: none !important; }
+.store-theme-fragrance .fragrance-product-card button { border-radius: 0 !important; }
+.store-theme-fragrance > footer { position: relative; overflow: hidden; }
+.store-theme-fragrance > footer::before { content: ""; position: absolute; inset: 0 0 auto; height: 2px; background: linear-gradient(90deg, transparent, #2563eb, #93c5fd, transparent); }
+.store-theme-fragrance > footer > div { position: relative; }
 
 /* Marketplace Pro: navegação comercial para catálogos amplos, sem replicar
    marcas de terceiros. */

@@ -970,7 +970,7 @@ function StoreLayoutInner() {
                     {isStreet
                       ? "Drop online"
                       : isFragrance
-                        ? "Perfumaria & presentes"
+                        ? "Coleção online"
                       : isElectronics || isElectric
                       ? "Loja Online"
                        : isDoceria
@@ -1060,6 +1060,7 @@ function StoreLayoutInner() {
                             transition={{ duration: 0.15 }}
                             className={cn(
                               "absolute left-1/2 -translate-x-1/2 top-full mt-2 w-[min(90vw,640px)] rounded-2xl border shadow-xl overflow-hidden z-50",
+                              isFragrance && "fragrance-mega-menu",
                               isStreet
                                 ? "bg-[#111] border-[#383838]"
                                 : isFragrance
@@ -1534,7 +1535,7 @@ function StoreLayoutInner() {
                   (isStreet
                     ? "Streetwear, drops e acessórios para vestir seu corre."
                     : isFragrance
-                      ? "Perfumaria, presentes e autocuidado escolhidos para cada momento."
+                      ? "Produtos escolhidos para uma coleção que tem a identidade da sua loja."
                     : isDoceria
                     ? "Doces feitos por encomenda para adoçar celebrações, presentes e momentos especiais."
                     : isElectronics
