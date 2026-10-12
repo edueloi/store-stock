@@ -1211,6 +1211,7 @@ export default function Settings({
   } | null>(null);
   // system prefs (stored in UserPreference)
   const [panelTheme, setPanelTheme] = useState<"light" | "dark">("light");
+  const [modelCategory, setModelCategory] = useState("Todos");
   const [lowStockAlert, setLowStockAlert] = useState(5);
   const [panelLang, setPanelLang] = useState("pt-BR");
   const [printerSize, setPrinterSize] = useState<"58mm" | "80mm" | "A4">(
@@ -3078,6 +3079,11 @@ export default function Settings({
                     Selecione um modelo visual para definir o estilo da vitrine,
                     das cores e da sensação da sua loja.
                   </p>
+                  <div className="flex gap-2 overflow-x-auto pb-1 no-scrollbar">
+                    {["Todos", "Geral", "Moda", "Beleza", "Tecnologia", "Comércio", "Esportes & Fitness", "Casa & Construção"].map((category) => (
+                      <button key={category} type="button" onClick={() => setModelCategory(category)} className={cn("shrink-0 rounded-full border px-3 py-1.5 text-[11px] font-semibold transition-colors", modelCategory === category ? "border-blue-600 bg-blue-600 text-white" : "border-slate-200 bg-white text-slate-600 hover:border-blue-300 hover:text-blue-700")}>{category}</button>
+                    ))}
+                  </div>
                   <div className="flex gap-3 overflow-x-auto no-scrollbar pb-2 sm:grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 sm:overflow-visible sm:pb-0">
                     {(
                       [
@@ -3260,7 +3266,9 @@ export default function Settings({
                           badge: { bg: "#ffedd5", text: "#c2410c" },
                         },
                       ] as const
-                    ).map((t) => {
+                    ).filter((t) => modelCategory === "Todos" || ({
+                      minimal: "Geral", cyber: "Tecnologia", organic: "Geral", luxury: "Geral", tech: "Tecnologia", nexus_tech: "Tecnologia", atelier: "Moda", urban: "Moda", doceria: "Comércio", fragrance: "Beleza", beauty: "Beleza", street: "Moda", sport: "Esportes & Fitness", fitness: "Esportes & Fitness", variety: "Comércio", toys: "Comércio", marketplace: "Comércio", electric: "Casa & Construção",
+                    } as Record<string, string>)[t.id] === modelCategory).map((t) => {
                       const isActive = tenant?.template_id === t.id;
                       const previewBase =
                         tenant?.public_url ||
