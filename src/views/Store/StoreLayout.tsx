@@ -79,6 +79,20 @@ function themePages(templateId: string | undefined) {
       Product: lazy(() => import("./themes/street/StoreProduct")),
       About: lazy(() => import("./themes/street/StoreAbout")),
     };
+  if (t === "variety")
+    return {
+      Front: lazy(() => import("./themes/variety/StoreFront")),
+      Catalog: lazy(() => import("./themes/variety/StoreCatalog")),
+      Product: lazy(() => import("./themes/variety/StoreProduct")),
+      About: lazy(() => import("./themes/variety/StoreAbout")),
+    };
+  if (t === "toys")
+    return {
+      Front: lazy(() => import("./themes/toys/StoreFront")),
+      Catalog: lazy(() => import("./themes/toys/StoreCatalog")),
+      Product: lazy(() => import("./themes/toys/StoreProduct")),
+      About: lazy(() => import("./themes/toys/StoreAbout")),
+    };
   if (t === "doceria")
     return {
       Front: lazy(() => import("./themes/doceria/StoreFront")),
@@ -244,6 +258,22 @@ const templates: Record<string, StoreStyle> = {
     text: "text-white",
     font: "font-sans",
     radius: "rounded-none",
+  },
+  variety: {
+    bg: "bg-[#f4f8ff]",
+    card: "bg-white border-[#dbe5f6]",
+    accent: "#1761c2",
+    text: "text-[#142d5a]",
+    font: "font-sans",
+    radius: "rounded-xl",
+  },
+  toys: {
+    bg: "bg-[#f7f3ff]",
+    card: "bg-white border-[#ded4fb]",
+    accent: "#7148d5",
+    text: "text-[#43306f]",
+    font: "font-sans",
+    radius: "rounded-2xl",
   },
   doceria: {
     bg: "candy-shell bg-[#f7f6ed]",
