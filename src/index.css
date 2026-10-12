@@ -629,6 +629,10 @@ body {
 .store-theme-electric .store-search-input input { border-color: #42586e; background: #0d1724; color: #fff; }
 .store-theme-electric .store-search-input input::placeholder { color: #94a3b8; }
 .store-theme-electric .ui-button:focus-visible { ring-color: #fb923c; }
+.store-theme-electric .bg-blue-600 { background-color: #16a34a !important; }
+.store-theme-electric .text-blue-600, .store-theme-electric .text-blue-700 { color: #15803d !important; }
+.store-theme-electric .border-blue-500, .store-theme-electric .border-blue-600 { border-color: #22c55e !important; }
+.store-theme-electric .text-blue-200, .store-theme-electric .text-blue-300 { color: #86efac !important; }
 
 @media (max-width: 767px) {
   .store-theme-electric > header { box-shadow: 0 6px 18px rgba(7, 20, 38, .22) !important; }
