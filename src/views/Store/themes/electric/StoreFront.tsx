@@ -56,7 +56,7 @@ export default function StoreFront() {
     <StoreSEO title={`${tenant.name} — Loja Online`} description={tenant.about_text || `Compre na ${tenant.name}: produtos selecionados, atendimento rápido e compra segura.`} url={typeof window !== "undefined" ? window.location.href : ""} siteName={tenant.name} keywords={`${tenant.name}, catálogo, produtos, loja online, ofertas`} />
 
     <section className="relative isolate overflow-hidden bg-[#071426] text-white">
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_18%_10%,rgba(249,115,22,.34),transparent_30%),radial-gradient(circle_at_90%_100%,rgba(255,183,77,.18),transparent_32%)]" />
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_18%_10%,rgba(34,197,94,.28),transparent_30%),radial-gradient(circle_at_90%_100%,rgba(16,185,129,.16),transparent_32%)]" />
       <div className="absolute -right-24 top-8 h-80 w-80 rounded-full border border-white/10" /><div className="absolute -right-8 top-24 h-80 w-80 rounded-full border border-white/5" />
       <div className="relative mx-auto grid max-w-7xl gap-10 px-5 pb-14 pt-12 sm:px-8 md:grid-cols-[minmax(0,1.04fr)_minmax(360px,.96fr)] md:items-center md:py-16 lg:px-10 lg:py-20">
         <div className="max-w-2xl">
