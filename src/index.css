@@ -618,7 +618,8 @@ body {
 .store-theme-electric > header a { color: #f8fafc !important; }
 .store-theme-electric > header nav a:not([style]) { color: #dbe6ef !important; }
 .store-theme-electric > header nav a:hover { color: #fff !important; }
-.store-theme-electric > header button[style] { background-color: #f97316 !important; }
+.store-theme-electric > header button[style] { background: linear-gradient(135deg, #22c55e, #00a86b) !important; color: #06130e !important; }
+.store-theme-electric > header nav a[style] { background: linear-gradient(135deg, #22c55e, #00a86b) !important; color: #06130e !important; border-color: #86efac !important; }
 .store-theme-electric > footer { background: #071426 !important; border-color: #2e4359 !important; }
 .store-theme-electric > footer h4,
 .store-theme-electric > footer p,
@@ -633,6 +634,7 @@ body {
 .store-theme-electric .text-blue-600, .store-theme-electric .text-blue-700 { color: #15803d !important; }
 .store-theme-electric .border-blue-500, .store-theme-electric .border-blue-600 { border-color: #22c55e !important; }
 .store-theme-electric .text-blue-200, .store-theme-electric .text-blue-300 { color: #86efac !important; }
+.store-theme-electric main button[style] { background: linear-gradient(135deg, #22c55e, #00a86b) !important; color: #06130e !important; }
 
 @media (max-width: 767px) {
   .store-theme-electric > header { box-shadow: 0 6px 18px rgba(7, 20, 38, .22) !important; }
