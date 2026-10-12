@@ -4,12 +4,33 @@
 
 html, body, #root {
   height: 100%;
+  width: 100%;
+  max-width: 100%;
 }
 
 body {
   font-family: "Manrope", sans-serif;
   background: #fffaf5;
   color: #241815;
+  overflow-x: hidden;
+}
+
+/* O painel usa um viewport interno para rolar as páginas. Em telas estreitas,
+   a barra de rolagem ocupava alguns pixels da área útil e parecia cortar a
+   lateral direita de todas as telas. A rolagem continua por toque; apenas a
+   barra visual é removida no mobile. */
+@media (max-width: 1023px) {
+  #root {
+    overflow-x: clip;
+  }
+
+  .admin-scroll {
+    scrollbar-width: none;
+  }
+
+  .admin-scroll::-webkit-scrollbar {
+    display: none;
+  }
 }
 
 /* Impede que o preenchimento automático do navegador quebre os campos escuros de acesso. */
