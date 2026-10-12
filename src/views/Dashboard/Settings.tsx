@@ -3213,6 +3213,8 @@ export default function Settings({
                           textColor: "#ffffff",
                           badge: { bg: "#bcff00", text: "#111111" },
                         },
+                        { id: "sport", name: "Sport Pulse", tag: "Esportes & Sneakers", desc: "Tema de alta energia para roupas esportivas, tênis, bolas e acessórios.", color: "#ff3b30", bg: "#ffffff", cardBg: "#f3f4f4", textColor: "#111111", badge: { bg: "#ffe2df", text: "#bf241c" } },
+                        { id: "fitness", name: "Fit Lab", tag: "Academia & Suplementos", desc: "Tema intenso para academia, treino, suplementos e roupas fitness.", color: "#b6ff25", bg: "#f6f7f3", cardBg: "#ffffff", textColor: "#121612", badge: { bg: "#e4ffb6", text: "#294000" } },
                         {
                           id: "variety",
                           name: "Vitrine Mix",

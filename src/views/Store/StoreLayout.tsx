@@ -87,6 +87,10 @@ function themePages(templateId: string | undefined) {
       Product: lazy(() => import("./themes/street/StoreProduct")),
       About: lazy(() => import("./themes/street/StoreAbout")),
     };
+  if (t === "sport")
+    return { Front: lazy(() => import("./themes/sport/StoreFront")), Catalog: lazy(() => import("./themes/sport/StoreCatalog")), Product: lazy(() => import("./themes/sport/StoreProduct")), About: lazy(() => import("./themes/sport/StoreAbout")) };
+  if (t === "fitness")
+    return { Front: lazy(() => import("./themes/fitness/StoreFront")), Catalog: lazy(() => import("./themes/fitness/StoreCatalog")), Product: lazy(() => import("./themes/fitness/StoreProduct")), About: lazy(() => import("./themes/fitness/StoreAbout")) };
   if (t === "variety")
     return {
       Front: lazy(() => import("./themes/variety/StoreFront")),
@@ -282,6 +286,8 @@ const templates: Record<string, StoreStyle> = {
     font: "font-sans",
     radius: "rounded-none",
   },
+  sport: { bg: "bg-white", card: "bg-white border-slate-200", accent: "#ff3b30", text: "text-[#111111]", font: "font-sans", radius: "rounded-none" },
+  fitness: { bg: "bg-[#f6f7f3]", card: "bg-white border-[#d8e0cf]", accent: "#b6ff25", text: "text-[#121612]", font: "font-sans", radius: "rounded-none" },
   variety: {
     bg: "bg-[#f4f8ff]",
     card: "bg-white border-[#dbe5f6]",
